@@ -10,6 +10,8 @@ import com.example.ahakey.model.ModeSlot;
 import com.example.ahakey.model.OledModeDraft;
 import com.example.ahakey.model.StudioPart;
 import com.example.ahakey.model.StudioState;
+import com.example.ahakey.protocol.AhaKeyProtocol;
+import com.example.ahakey.protocol.AhaKeyResponseParser;
 import com.example.ahakey.util.LanguageManager;
 import javafx.scene.control.Spinner;
 import javafx.stage.Window;
@@ -36,6 +38,7 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -73,6 +76,8 @@ public class InspectorPane extends ScrollPane {
         studioState.selectedPartProperty().addListener((obs, oldValue, newValue) -> rebuild());
         studioState.selectedModeProperty().addListener((obs, oldValue, newValue) -> rebuild());
         studioState.lightBarPreviewProperty().addListener((obs, oldValue, newValue) -> rebuild());
+        studioState.cp4cInputConfigEnabledProperty().addListener((obs, oldValue, newValue) -> rebuild());
+        studioState.inputBaselineRevisionProperty().addListener((obs, oldValue, newValue) -> rebuild());
         agentManager.bluetoothOwnerProperty().addListener((obs, oldValue, newValue) -> rebuild());
         rebuild();
     }
@@ -922,6 +927,9 @@ public class InspectorPane extends ScrollPane {
     }
 
     private VBox createToggleGroup() {
+        if (studioState.isCp4cInputConfigEnabled()) {
+            return createCp4cToggleGroup();
+        }
         return createGroupBox(languageManager.getString("inspector.switch-semantics"), () -> {
             VBox box = new VBox(10);
 
@@ -953,6 +961,429 @@ public class InspectorPane extends ScrollPane {
             box.getChildren().addAll(new HBox(4, autoButton, manualButton), note);
             return box;
         });
+    }
+
+    private VBox createCp4cToggleGroup() {
+        return createGroupBox(languageManager.getString("inspector.switch-semantics"), () -> {
+            VBox box = new VBox(12);
+            AhaKeyResponseParser.SideSwitchConfig config = studioState.getSideSwitchConfig();
+
+            Label state = new Label("当前物理位置：" + sideSwitchPhysicalLabel(config.physicalPosition()));
+            state.getStyleClass().add("group-note");
+
+            Label readback = new Label();
+            readback.textProperty().bind(Bindings.createStringBinding(() -> {
+                String status = studioState.inputReadbackStatusProperty().get();
+                if (status == null || status.isBlank()) {
+                    return "CP4C 侧拨配置来自键盘回读。";
+                }
+                return status;
+            }, studioState.inputReadbackStatusProperty()));
+            readback.getStyleClass().add("group-note");
+            readback.setWrapText(true);
+
+            Label failure = new Label();
+            failure.textProperty().bind(studioState.inputFailureStatusProperty());
+            failure.visibleProperty().bind(studioState.inputFailureStatusProperty().isNotEmpty());
+            failure.managedProperty().bind(failure.visibleProperty());
+            failure.getStyleClass().add("warning-note");
+            failure.setWrapText(true);
+
+            box.getChildren().addAll(
+                state,
+                createSideSwitchBindingRow("上拨", AhaKeyProtocol.SIDE_SWITCH_POSITION_UP, config.up()),
+                createSideSwitchBindingRow("下拨", AhaKeyProtocol.SIDE_SWITCH_POSITION_DOWN, config.down())
+            );
+            if (config.up().binding() == AhaKeyProtocol.SIDE_SWITCH_BINDING_CUSTOM) {
+                box.getChildren().add(createSideSwitchCustomEditor("上拨", AhaKeyProtocol.SIDE_SWITCH_POSITION_UP, config.up()));
+            }
+            if (config.down().binding() == AhaKeyProtocol.SIDE_SWITCH_BINDING_CUSTOM) {
+                box.getChildren().add(createSideSwitchCustomEditor("下拨", AhaKeyProtocol.SIDE_SWITCH_POSITION_DOWN, config.down()));
+            }
+            Label budget = new Label(sideSwitchActionBudgetText(config));
+            budget.getStyleClass().add(
+                sideSwitchActionBudgetUsed(config) > AhaKeyProtocol.SIDE_SWITCH_READBACK_ACTION_TOTAL_MAX
+                    ? "warning-note"
+                    : "group-note"
+            );
+            budget.setWrapText(true);
+            box.getChildren().addAll(
+                budget,
+                readback,
+                failure,
+                caption("保存使用顶部统一“保存配置”，不会单独应用侧拨。")
+            );
+            return box;
+        });
+    }
+
+    private HBox createSideSwitchBindingRow(
+        String title,
+        int position,
+        AhaKeyResponseParser.SideSwitchPositionConfig positionConfig
+    ) {
+        HBox row = new HBox(10);
+        row.setAlignment(Pos.CENTER_LEFT);
+
+        Label label = new Label(title);
+        label.getStyleClass().add("field-label");
+        label.setMinWidth(56);
+
+        ComboBox<String> combo = new ComboBox<>();
+        combo.getItems().addAll("自动批准", "手动批准", "无动作", "自定义快捷键", "自定义宏");
+        boolean customMacro = studioState.isSideSwitchCustomMacro(position);
+        combo.setValue(sideSwitchBindingLabel(positionConfig.binding(), customMacro));
+        combo.getStyleClass().add("combo-box");
+        combo.valueProperty().addListener((obs, oldValue, newValue) -> {
+            int binding = sideSwitchBindingValue(newValue, positionConfig.binding());
+            if (binding == AhaKeyProtocol.SIDE_SWITCH_BINDING_CUSTOM) {
+                KeyConfig action = new KeyConfig(0, "");
+                if ("自定义宏".equals(newValue)) {
+                    action.addMacroStep("DOWN_KEY", 40);
+                }
+                studioState.updateSideSwitchCustomAction(position, action);
+            } else {
+                studioState.updateSideSwitchBinding(position, binding);
+            }
+            rebuild();
+        });
+
+        row.getChildren().addAll(label, combo);
+        return row;
+    }
+
+    private String sideSwitchPhysicalLabel(int physicalPosition) {
+        return switch (physicalPosition) {
+            case AhaKeyProtocol.SIDE_SWITCH_POSITION_UP -> "上拨";
+            case AhaKeyProtocol.SIDE_SWITCH_POSITION_DOWN -> "下拨";
+            default -> "中间 / 未知";
+        };
+    }
+
+    private VBox createSideSwitchCustomEditor(
+        String title,
+        int position,
+        AhaKeyResponseParser.SideSwitchPositionConfig positionConfig
+    ) {
+        boolean macro = studioState.isSideSwitchCustomMacro(position);
+        KeyConfig action = studioState.getSideSwitchCustomAction(position, macro);
+        return createGroupBox(title + " 自定义动作", () -> {
+            VBox box = new VBox(10);
+            ComboBox<String> type = new ComboBox<>();
+            type.getItems().addAll("自定义快捷键", "自定义宏");
+            type.setValue(macro ? "自定义宏" : "自定义快捷键");
+            type.getStyleClass().add("combo-box");
+            type.valueProperty().addListener((obs, oldValue, newValue) -> {
+                KeyConfig next = new KeyConfig(0, "");
+                if ("自定义宏".equals(newValue)) {
+                    next.addMacroStep("DOWN_KEY", 40);
+                }
+                studioState.updateSideSwitchCustomAction(position, next);
+                rebuild();
+            });
+            box.getChildren().add(type);
+            if (macro) {
+                box.getChildren().add(createSideSwitchMacroEditor(position, action));
+            } else {
+                box.getChildren().add(createSideSwitchShortcutEditor(position, action));
+            }
+            Label note = new Label("侧拨 Custom 只能与 Disabled 或另一个 Custom 组合；保存仍使用顶部统一保存。");
+            note.getStyleClass().add("group-note");
+            note.setWrapText(true);
+            box.getChildren().add(note);
+            return box;
+        });
+    }
+
+    private VBox createSideSwitchShortcutEditor(int position, KeyConfig action) {
+        VBox box = new VBox(8);
+        Label current = new Label("当前：" + sideSwitchShortcutSummary(action));
+        current.getStyleClass().add("group-note");
+
+        ListView<String> selectedKeys = new ListView<>();
+        selectedKeys.setPrefHeight(96);
+        selectedKeys.getStyleClass().add("list-view");
+        selectedKeys.getItems().addAll(sideSwitchShortcutItems(action));
+
+        ComboBox<String> selector = new ComboBox<>();
+        selector.getItems().addAll(sideSwitchKeyChoices());
+        selector.setValue("--- 修饰键 ---");
+        selector.getStyleClass().add("combo-box-small");
+
+        HBox buttons = new HBox(8);
+        Button set = new Button(languageManager.getString("inspector.add"));
+        set.getStyleClass().add("btn-secondary");
+        set.setOnAction(e -> {
+            String selected = selector.getValue();
+            if (selected != null && !selected.startsWith("---")) {
+                int code = sideSwitchKeyCode(selected);
+                if (code != 0) {
+                    addSideSwitchShortcutCode(action, code);
+                }
+                studioState.updateSideSwitchCustomAction(position, action);
+                rebuild();
+            }
+        });
+        Button delete = new Button(languageManager.getString("inspector.delete"));
+        delete.getStyleClass().add("btn-secondary");
+        delete.setDisable(selectedKeys.getSelectionModel().getSelectedIndex() < 0);
+        delete.setOnAction(e -> {
+            String selected = selectedKeys.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                int code = sideSwitchKeyCode(selected);
+                if (code != 0) {
+                    removeSideSwitchShortcutCode(action, code);
+                    studioState.updateSideSwitchCustomAction(position, action);
+                    rebuild();
+                }
+            }
+        });
+        selectedKeys.getSelectionModel().selectedIndexProperty().addListener((obs, oldValue, newValue) ->
+            delete.setDisable(newValue.intValue() < 0)
+        );
+        Button clear = new Button(languageManager.getString("inspector.clear"));
+        clear.getStyleClass().add("btn-secondary");
+        clear.setOnAction(e -> {
+            action.setHidCode(0);
+            studioState.updateSideSwitchCustomAction(position, action);
+            rebuild();
+        });
+        buttons.getChildren().addAll(selector, set, delete, clear);
+        Label note = new Label("可添加 Ctrl / Shift / Alt / Win 与一个基础键，例如 Left Ctrl + V。");
+        note.getStyleClass().add("group-note");
+        note.setWrapText(true);
+        box.getChildren().addAll(current, selectedKeys, buttons, note);
+        return box;
+    }
+
+    private VBox createSideSwitchMacroEditor(int position, KeyConfig action) {
+        VBox box = new VBox(8);
+        if (action.getMacroStepCount() == 0) {
+            action.addMacroStep("DOWN_KEY", 40);
+            studioState.updateSideSwitchCustomAction(position, action);
+        }
+        for (int i = 0; i < action.getMacroStepCount(); i++) {
+            box.getChildren().add(createSideSwitchMacroStepRow(position, action, i));
+        }
+
+        HBox buttons = new HBox(8);
+        Button add = new Button(languageManager.getString("inspector.add-step"));
+        add.getStyleClass().add("btn-primary");
+        add.setOnAction(e -> {
+            action.addMacroStep("DOWN_KEY", 40);
+            studioState.updateSideSwitchCustomAction(position, action);
+            rebuild();
+        });
+        Button clear = new Button(languageManager.getString("inspector.clear"));
+        clear.getStyleClass().add("btn-secondary");
+        clear.setOnAction(e -> {
+            for (int i = action.getMacroStepCount() - 1; i >= 0; i--) {
+                action.removeMacroStep(i);
+            }
+            studioState.updateSideSwitchCustomAction(position, action);
+            rebuild();
+        });
+        buttons.getChildren().addAll(add, clear);
+
+        Label preview = new Label(languageManager.getString("inspector.preview") + action.formatMacroPreview());
+        preview.getStyleClass().add("group-note");
+        box.getChildren().addAll(buttons, preview);
+        return box;
+    }
+
+    private HBox createSideSwitchMacroStepRow(int position, KeyConfig action, int index) {
+        HBox row = new HBox(6);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getChildren().add(new Label((index + 1) + "."));
+
+        ComboBox<String> actionCombo = new ComboBox<>();
+        actionCombo.getItems().addAll(List.of(languageManager.getString("inspector.press"), languageManager.getString("inspector.release"), languageManager.getString("inspector.delay")));
+        String currentAction = action.getMacroStepAction(index);
+        actionCombo.setValue(switch (currentAction) {
+            case "UP_KEY" -> languageManager.getString("inspector.release");
+            case "DELAY" -> languageManager.getString("inspector.delay");
+            default -> languageManager.getString("inspector.press");
+        });
+        actionCombo.getStyleClass().add("combo-box-small");
+        actionCombo.valueProperty().addListener((obs, oldValue, newValue) -> {
+            String nextAction = sideSwitchMacroActionValue(newValue);
+            action.updateMacroStep(index, nextAction, action.getMacroStepParam(index));
+            studioState.updateSideSwitchCustomAction(position, action);
+            rebuild();
+        });
+        row.getChildren().add(actionCombo);
+
+        if ("DELAY".equals(currentAction)) {
+            Spinner<Integer> delay = new Spinner<>(1, 255, Math.max(1, action.getMacroStepParam(index)), 1);
+            delay.setEditable(true);
+            delay.setPrefWidth(80);
+            delay.valueProperty().addListener((obs, oldValue, newValue) -> {
+                if (newValue != null) {
+                    action.updateMacroStep(index, "DELAY", newValue);
+                    studioState.updateSideSwitchCustomAction(position, action);
+                }
+            });
+            row.getChildren().addAll(delay, new Label("ms"));
+        } else {
+            ComboBox<String> key = new ComboBox<>();
+            key.getItems().addAll(sideSwitchKeyChoices());
+            key.setValue(com.example.ahakey.model.HIDUsage.getName(action.getMacroStepParam(index)));
+            key.getStyleClass().add("combo-box-small");
+            key.valueProperty().addListener((obs, oldValue, newValue) -> {
+                if (newValue != null && !newValue.startsWith("---")) {
+                    action.updateMacroStep(index, action.getMacroStepAction(index), sideSwitchKeyCode(newValue));
+                    studioState.updateSideSwitchCustomAction(position, action);
+                }
+            });
+            row.getChildren().add(key);
+        }
+
+        Button delete = new Button("X");
+        delete.getStyleClass().add("small-btn");
+        delete.getStyleClass().add("delete-btn");
+        delete.setOnAction(e -> {
+            action.removeMacroStep(index);
+            studioState.updateSideSwitchCustomAction(position, action);
+            rebuild();
+        });
+        row.getChildren().add(delete);
+        return row;
+    }
+
+    private List<String> sideSwitchKeyChoices() {
+        return List.of(
+            "--- 修饰键 ---", "Left Ctrl", "Left Shift", "Left Alt", "Left Win", "Right Ctrl", "Right Shift", "Right Alt", "Right Win",
+            "--- 功能键 ---", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13", "F14", "F15", "F16", "F17", "F18",
+            "--- 字母 ---", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+            "--- 常用键 ---", "Enter", "Escape", "Backspace", "Tab", "Space", "Delete", "Up", "Down", "Left", "Right"
+        );
+    }
+
+    private int sideSwitchKeyCode(String name) {
+        String keyName = name == null ? "" : name.split("\\s*\\(")[0].trim();
+        return switch (keyName) {
+            case "Shift", "Left Shift" -> 0xE1;
+            case "Ctrl", "Left Ctrl" -> 0xE0;
+            case "Alt", "Left Alt" -> 0xE2;
+            case "Win", "Left Win" -> 0xE3;
+            default -> com.example.ahakey.model.HIDUsage.getCode(keyName);
+        };
+    }
+
+    private List<String> sideSwitchShortcutItems(KeyConfig action) {
+        List<String> items = new ArrayList<>();
+        int hidCode = action.getHidCode();
+        if ((hidCode & 0x200) != 0) items.add("Left Ctrl");
+        if ((hidCode & 0x2000) != 0) items.add("Right Ctrl");
+        if ((hidCode & 0x100) != 0) items.add("Left Shift");
+        if ((hidCode & 0x1000) != 0) items.add("Right Shift");
+        if ((hidCode & 0x400) != 0) items.add("Left Alt");
+        if ((hidCode & 0x4000) != 0) items.add("Right Alt");
+        if ((hidCode & 0x800) != 0) items.add("Left Win");
+        if ((hidCode & 0x8000) != 0) items.add("Right Win");
+        int baseCode = hidCode & 0xFF;
+        if (baseCode != 0) {
+            items.add(com.example.ahakey.model.HIDUsage.getName(baseCode));
+        }
+        return items;
+    }
+
+    private String sideSwitchShortcutSummary(KeyConfig action) {
+        List<String> items = sideSwitchShortcutItems(action);
+        if (items.isEmpty()) {
+            return "未设置";
+        }
+        return String.join(" + ", items);
+    }
+
+    private void addSideSwitchShortcutCode(KeyConfig action, int code) {
+        int hidCode = action.getHidCode();
+        int modifiers = hidCode & 0xFF00;
+        int baseCode = hidCode & 0xFF;
+        int modifierMask = sideSwitchModifierMask(code);
+        if (modifierMask != 0) {
+            modifiers |= modifierMask;
+        } else {
+            baseCode = code;
+        }
+        action.setHidCode(modifiers | baseCode);
+    }
+
+    private void removeSideSwitchShortcutCode(KeyConfig action, int code) {
+        int hidCode = action.getHidCode();
+        int modifiers = hidCode & 0xFF00;
+        int baseCode = hidCode & 0xFF;
+        int modifierMask = sideSwitchModifierMask(code);
+        if (modifierMask != 0) {
+            modifiers &= ~modifierMask;
+        } else if (baseCode == code) {
+            baseCode = 0;
+        }
+        action.setHidCode(modifiers | baseCode);
+    }
+
+    private int sideSwitchModifierMask(int code) {
+        return switch (code) {
+            case 0xE0 -> 0x200;
+            case 0xE4 -> 0x2000;
+            case 0xE1 -> 0x100;
+            case 0xE5 -> 0x1000;
+            case 0xE2 -> 0x400;
+            case 0xE6 -> 0x4000;
+            case 0xE3 -> 0x800;
+            case 0xE7 -> 0x8000;
+            default -> 0;
+        };
+    }
+
+    private String sideSwitchActionBudgetText(AhaKeyResponseParser.SideSwitchConfig config) {
+        int used = sideSwitchActionBudgetUsed(config);
+        String prefix = "侧拨 Custom 动作长度：" + used + "/" + AhaKeyProtocol.SIDE_SWITCH_READBACK_ACTION_TOTAL_MAX + " 字节。";
+        if (used > AhaKeyProtocol.SIDE_SWITCH_READBACK_ACTION_TOTAL_MAX) {
+            return prefix + "当前固件 0x97 回读空间不足，请减少宏步骤后再保存。";
+        }
+        return prefix + "支持单键、组合快捷键和短宏；超长宏需减少步骤。";
+    }
+
+    private int sideSwitchActionBudgetUsed(AhaKeyResponseParser.SideSwitchConfig config) {
+        return sideSwitchActionBudgetUsed(config.up()) + sideSwitchActionBudgetUsed(config.down());
+    }
+
+    private int sideSwitchActionBudgetUsed(AhaKeyResponseParser.SideSwitchPositionConfig config) {
+        if (config.binding() != AhaKeyProtocol.SIDE_SWITCH_BINDING_CUSTOM) {
+            return 0;
+        }
+        return config.actionPayload().length;
+    }
+
+    private String sideSwitchMacroActionValue(String label) {
+        if (languageManager.getString("inspector.release").equals(label)) {
+            return "UP_KEY";
+        }
+        if (languageManager.getString("inspector.delay").equals(label)) {
+            return "DELAY";
+        }
+        return "DOWN_KEY";
+    }
+
+    private String sideSwitchBindingLabel(int binding, boolean macro) {
+        return switch (binding) {
+            case AhaKeyProtocol.SIDE_SWITCH_BINDING_AUTO -> "自动批准";
+            case AhaKeyProtocol.SIDE_SWITCH_BINDING_MANUAL -> "手动批准";
+            case AhaKeyProtocol.SIDE_SWITCH_BINDING_DISABLED -> "无动作";
+            case AhaKeyProtocol.SIDE_SWITCH_BINDING_CUSTOM -> macro ? "自定义宏" : "自定义快捷键";
+            default -> "无动作";
+        };
+    }
+
+    private int sideSwitchBindingValue(String label, int fallback) {
+        return switch (label) {
+            case "自动批准" -> AhaKeyProtocol.SIDE_SWITCH_BINDING_AUTO;
+            case "手动批准" -> AhaKeyProtocol.SIDE_SWITCH_BINDING_MANUAL;
+            case "无动作" -> AhaKeyProtocol.SIDE_SWITCH_BINDING_DISABLED;
+            case "自定义快捷键", "自定义宏" -> AhaKeyProtocol.SIDE_SWITCH_BINDING_CUSTOM;
+            default -> fallback;
+        };
     }
 
     private VBox createGroupBox(String title, Supplier<VBox> contentProvider) {

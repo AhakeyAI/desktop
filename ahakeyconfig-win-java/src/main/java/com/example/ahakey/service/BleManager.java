@@ -318,6 +318,87 @@ public class BleManager {
         }
     }
 
+    public AhaKeyResponseParser.SideSwitchConfig readSideSwitchConfig() throws Exception {
+        synchronized (commandTransactionLock) {
+            commandLock.lock();
+            try {
+                pendingNotifyFramesByCommand.clear();
+                logger.info("Reading CP4C side switch config with command 0x97");
+                sendCommand(AhaKeyProtocol.readSideSwitchConfig());
+                byte[] frame = waitForResponse(AhaKeyProtocol.CMD_SIDE_SWITCH_CONFIG);
+                AhaKeyResponseParser.SideSwitchConfig parsed = AhaKeyResponseParser.parseSideSwitchConfig(frame);
+                if (parsed == null) {
+                    throw new IOException("无法解析侧拨配置回读");
+                }
+                return parsed;
+            } finally {
+                commandLock.unlock();
+            }
+        }
+    }
+
+    public void writeSideSwitchConfig(AhaKeyResponseParser.SideSwitchConfig config) throws Exception {
+        synchronized (commandTransactionLock) {
+            commandLock.lock();
+            try {
+                pendingNotifyFramesByCommand.clear();
+                logger.info("Writing CP4C side switch config with command 0x97");
+                sendCommand(AhaKeyProtocol.setSideSwitchConfig(
+                    config.up().binding(),
+                    config.up().actionPayload(),
+                    config.down().binding(),
+                    config.down().actionPayload()
+                ));
+                byte[] frame = waitForResponseFrame(AhaKeyProtocol.CMD_SIDE_SWITCH_CONFIG, false);
+                AhaKeyResponseParser.CommandResponse response = AhaKeyResponseParser.parseCommandResponse(frame);
+                if (response == null) {
+                    throw new IOException("无法解析侧拨配置保存响应");
+                }
+                if (response.status() != 0) {
+                    throw new IOException("侧拨配置保存失败，设备返回错误码 " + (response.status() & 0xFF));
+                }
+            } finally {
+                commandLock.unlock();
+            }
+        }
+    }
+
+    public AhaKeyResponseParser.OrdinaryKeyReadback readOrdinaryKeyConfig(int mode, int keyIndex) throws Exception {
+        synchronized (commandTransactionLock) {
+            commandLock.lock();
+            try {
+                pendingNotifyFramesByCommand.clear();
+                logger.info("Reading CP4C ordinary key with command 0x87: mode={}, keyIndex={}", mode, keyIndex);
+                sendCommand(AhaKeyProtocol.readOrdinaryKeyConfig(mode, keyIndex));
+                byte[] frame = waitForResponseFrame(AhaKeyProtocol.CMD_ORDINARY_KEY_READBACK, false);
+                AhaKeyResponseParser.CommandResponse response = AhaKeyResponseParser.parseCommandResponse(frame);
+                if (response == null) {
+                    throw new IOException("无法解析普通键配置回读响应");
+                }
+                int status = response.status() & 0xFF;
+                if (status != AhaKeyProtocol.STATUS_OK) {
+                    throw new IOException(ordinaryKeyReadbackStatusMessage(status));
+                }
+                AhaKeyResponseParser.OrdinaryKeyReadback parsed = AhaKeyResponseParser.parseOrdinaryKeyReadback(frame);
+                if (parsed == null) {
+                    throw new IOException("无法解析普通键配置回读");
+                }
+                return parsed;
+            } finally {
+                commandLock.unlock();
+            }
+        }
+    }
+
+    private String ordinaryKeyReadbackStatusMessage(int status) {
+        return switch (status) {
+            case AhaKeyProtocol.STATUS_INVALID_PAYLOAD -> "普通键配置读取请求无效";
+            case AhaKeyProtocol.STATUS_OUT_OF_RANGE -> "普通键配置读取范围错误或固件中存在不支持的动作类型";
+            case AhaKeyProtocol.STATUS_TOO_LARGE -> "该按键配置过长，当前固件不能单包读回；请保留设备端配置或减少宏步骤后再编辑";
+            default -> "普通键配置读取失败，设备返回错误码 " + status;
+        };
+    }
+
     public int setSleepWaitTimeMinutesAndVerify(int minutes) throws Exception {
         synchronized (commandTransactionLock) {
             commandLock.lock();

@@ -4,6 +4,7 @@ import com.example.ahakey.config.ModelConfig;
 import com.example.ahakey.model.*;
 import com.example.ahakey.platform.VoiceRelayPlatform;
 import com.example.ahakey.protocol.AhaKeyProtocol;
+import com.example.ahakey.protocol.AhaKeyResponseParser;
 import com.example.ahakey.service.AgentManager;
 import com.example.ahakey.service.BleManager;
 import com.example.ahakey.service.DeviceSyncService;
@@ -47,6 +48,7 @@ public class StudioController {
     private ScheduledFuture<?> pollFuture;
     private volatile boolean firmwareCatalogKeyRequested = false;
     private volatile boolean enterEditingAfterConnect = false;
+    private final AtomicBoolean cp4cInputReadbackInProgress = new AtomicBoolean(false);
     private volatile ModeSlot pendingModeSwitchTarget = null;
     private volatile long suppressModeStatusUntilMillis = 0;
     private final AtomicBoolean modeSwitchInProgress = new AtomicBoolean(false);
@@ -84,6 +86,7 @@ public class StudioController {
                 Platform.runLater(() -> {
                     deviceStatus.setConnected(false);
                     deviceStatus.clearFirmwareIdentity();
+                    studioState.setCp4cInputConfigEnabled(false);
                     if (modeSwitchInProgress.getAndSet(false)) {
                         studioState.modeSwitchingProperty().set(false);
                         studioState.syncStatusProperty().set("连接中断，键盘模式未确认");
@@ -252,7 +255,8 @@ public class StudioController {
         if (!simulateBle && deviceStatus.isConnected()) {
             firmwareCatalogKeyRequested = true;
             try {
-                bleManager.readFirmwareCatalogKey();
+                String catalogKey = bleManager.readFirmwareCatalogKey();
+                handleFirmwareCatalogKey(catalogKey);
             } catch (Exception e) {
                 logger.info("Firmware catalog key read skipped/fallback: {}", e.getMessage());
             }
@@ -415,13 +419,17 @@ public class StudioController {
             bleManager,
             commands,
             () -> Platform.runLater(() -> {
-                studioState.clearDirtyAfterSync();
-                lastSyncedRevision = studioState.getRevision();
-                studioState.syncingProperty().set(false);
-                studioState.syncStatusProperty().set("已保存配置。");
-                bleManager.queryStatus();
-                if (returnToAgentWhenDone) {
-                    returnToKeyboardControl();
+                if (studioState.isCp4cInputConfigEnabled()) {
+                    verifyCp4cInputSave(returnToAgentWhenDone);
+                } else {
+                    studioState.clearDirtyAfterSync();
+                    lastSyncedRevision = studioState.getRevision();
+                    studioState.syncingProperty().set(false);
+                    studioState.syncStatusProperty().set("已保存配置。");
+                    bleManager.queryStatus();
+                    if (returnToAgentWhenDone) {
+                        returnToKeyboardControl();
+                    }
                 }
             }),
             () -> Platform.runLater(() -> studioState.syncingProperty().set(false)),
@@ -859,11 +867,174 @@ public class StudioController {
         firmwareCatalogKeyRequested = true;
         new Thread(() -> {
             try {
-                bleManager.readFirmwareCatalogKey();
+                String catalogKey = bleManager.readFirmwareCatalogKey();
+                handleFirmwareCatalogKey(catalogKey);
             } catch (Exception e) {
                 logger.info("Firmware catalog key read skipped/fallback: {}", e.getMessage());
+                Platform.runLater(() -> studioState.setCp4cInputConfigEnabled(false));
             }
         }, "firmware-catalog-key-connect-read").start();
+    }
+
+    private void handleFirmwareCatalogKey(String catalogKey) {
+        if (!AhaKeyProtocol.isCp4cCatalogKey(catalogKey)) {
+            Platform.runLater(() -> studioState.setCp4cInputConfigEnabled(false));
+            return;
+        }
+        Platform.runLater(() -> {
+            studioState.setCp4cInputConfigEnabled(true);
+            studioState.setInputReadbackStatus("已识别 CP4C 固件，正在读取输入配置...");
+        });
+        startCp4cInputReadback(catalogKey);
+    }
+
+    private void startCp4cInputReadback(String catalogKey) {
+        if (!cp4cInputReadbackInProgress.compareAndSet(false, true)) {
+            return;
+        }
+        new Thread(() -> {
+            try {
+                Platform.runLater(() -> studioState.setInputReadbackInProgress(true));
+                AhaKeyResponseParser.SideSwitchConfig sideSwitch = bleManager.readSideSwitchConfig();
+                Platform.runLater(() -> {
+                    studioState.applySideSwitchReadback(sideSwitch);
+                    studioState.setInputFailureStatus("");
+                    studioState.setInputReadbackStatus("已读取侧拨配置，正在读取当前模式普通键...");
+                });
+
+                ModeSlot currentMode = ModeSlot.fromIndex(deviceStatus.getWorkMode());
+                boolean ordinaryReadbackComplete = readCp4cModeKeys(catalogKey, currentMode);
+                for (ModeSlot mode : ModeSlot.values()) {
+                    if (mode != currentMode) {
+                        ordinaryReadbackComplete &= readCp4cModeKeys(catalogKey, mode);
+                    }
+                }
+                boolean finalOrdinaryReadbackComplete = ordinaryReadbackComplete;
+                Platform.runLater(() -> {
+                    studioState.setInputReadbackInProgress(false);
+                    if (!finalOrdinaryReadbackComplete) {
+                        studioState.setInputReadbackStatus("已读取侧拨配置，部分普通键未完整读回。");
+                        studioState.setInputFailureStatus("部分普通键配置读取失败；相关键位保持未确认状态。");
+                        return;
+                    }
+                    studioState.setInputFailureStatus("");
+                    studioState.setInputReadbackStatus("已读取 CP4C 输入配置。");
+                });
+            } catch (Exception e) {
+                logCp4cInputIssue(catalogKey, "0x97/0x87", -1, -1, "connect-readback", e.getMessage());
+                Platform.runLater(() -> {
+                    studioState.setInputReadbackInProgress(false);
+                    studioState.setInputFailureStatus("输入配置读取失败：" + e.getMessage());
+                    studioState.syncStatusProperty().set("输入配置读取失败，旧草稿已保留。");
+                });
+            } finally {
+                cp4cInputReadbackInProgress.set(false);
+            }
+        }, "cp4c-input-readback").start();
+    }
+
+    private boolean readCp4cModeKeys(String catalogKey, ModeSlot mode) {
+        boolean complete = true;
+        for (StudioPart part : new StudioPart[]{StudioPart.KEY1, StudioPart.KEY2, StudioPart.KEY3, StudioPart.KEY4}) {
+            int keyIndex = StudioState.keyIndexFor(part);
+            try {
+                AhaKeyResponseParser.OrdinaryKeyReadback readback = bleManager.readOrdinaryKeyConfig(mode.getIndex(), keyIndex);
+                Platform.runLater(() -> studioState.applyOrdinaryKeyReadback(readback));
+            } catch (Exception e) {
+                logCp4cInputIssue(catalogKey, "0x87", mode.getIndex(), keyIndex, "connect-readback", e.getMessage());
+                complete = false;
+            }
+        }
+        if (complete) {
+            Platform.runLater(() -> studioState.markInputModeRead(mode));
+        }
+        return complete;
+    }
+
+    private void verifyCp4cInputSave(boolean returnToAgentWhenDone) {
+        new Thread(() -> {
+            String catalogKey = deviceStatus.getFirmwareCatalogKey();
+            try {
+                Platform.runLater(() -> studioState.syncStatusProperty().set("正在回读确认 CP4C 输入配置..."));
+                if (studioState.isDirty(StudioPart.TOGGLE_SWITCH)) {
+                    bleManager.writeSideSwitchConfig(studioState.getSideSwitchConfig());
+                }
+                verifyCp4cSideSwitch(catalogKey);
+                verifyCp4cOrdinaryKeys(catalogKey);
+                Platform.runLater(() -> {
+                    studioState.clearDirtyAfterSync();
+                    lastSyncedRevision = studioState.getRevision();
+                    studioState.syncingProperty().set(false);
+                    studioState.setInputFailureStatus("");
+                    studioState.syncStatusProperty().set("已保存配置，并完成 CP4C 输入回读确认。");
+                    bleManager.queryStatus();
+                    if (returnToAgentWhenDone) {
+                        returnToKeyboardControl();
+                    }
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    studioState.syncingProperty().set(false);
+                    studioState.setInputFailureStatus("保存后回读确认失败：" + e.getMessage());
+                    studioState.syncStatusProperty().set("保存未确认：" + e.getMessage() + "。未确认草稿已保留。");
+                });
+            }
+        }, "cp4c-input-save-verify").start();
+    }
+
+    private void verifyCp4cSideSwitch(String catalogKey) throws Exception {
+        AhaKeyResponseParser.SideSwitchConfig expected = studioState.getSideSwitchConfig();
+        AhaKeyResponseParser.SideSwitchConfig actual;
+        try {
+            actual = bleManager.readSideSwitchConfig();
+        } catch (Exception e) {
+            logCp4cInputIssue(catalogKey, "0x97", -1, -1, "save-readback", e.getMessage());
+            throw e;
+        }
+        if (!sideSwitchConfigMatches(expected, actual)) {
+            logCp4cInputIssue(catalogKey, "0x97", -1, -1, "save-compare", "side switch mismatch");
+            throw new IllegalStateException("侧拨配置回读不匹配");
+        }
+        Platform.runLater(() -> studioState.applySideSwitchReadback(actual));
+    }
+
+    private void verifyCp4cOrdinaryKeys(String catalogKey) throws Exception {
+        for (ModeSlot mode : ModeSlot.values()) {
+            for (StudioPart part : new StudioPart[]{StudioPart.KEY1, StudioPart.KEY2, StudioPart.KEY3, StudioPart.KEY4}) {
+                int keyIndex = StudioState.keyIndexFor(part);
+                AhaKeyResponseParser.OrdinaryKeyReadback readback;
+                try {
+                    readback = bleManager.readOrdinaryKeyConfig(mode.getIndex(), keyIndex);
+                } catch (Exception e) {
+                    logCp4cInputIssue(catalogKey, "0x87", mode.getIndex(), keyIndex, "save-readback", e.getMessage());
+                    throw e;
+                }
+                if (!DeviceSyncService.matchesReadback(studioState.getKeyConfig(mode, part), readback)) {
+                    logCp4cInputIssue(catalogKey, "0x87", mode.getIndex(), keyIndex, "save-compare", "ordinary key mismatch");
+                    throw new IllegalStateException(mode.getTitle() + " " + part.getTitle() + " 回读不匹配");
+                }
+                Platform.runLater(() -> studioState.applyOrdinaryKeyReadback(readback));
+            }
+            Platform.runLater(() -> studioState.markInputModeRead(mode));
+        }
+    }
+
+    private boolean sideSwitchConfigMatches(AhaKeyResponseParser.SideSwitchConfig expected, AhaKeyResponseParser.SideSwitchConfig actual) {
+        return sideSwitchPositionMatches(expected.up(), actual.up())
+            && sideSwitchPositionMatches(expected.down(), actual.down());
+    }
+
+    private boolean sideSwitchPositionMatches(
+        AhaKeyResponseParser.SideSwitchPositionConfig expected,
+        AhaKeyResponseParser.SideSwitchPositionConfig actual
+    ) {
+        return expected.binding() == actual.binding()
+            && java.util.Arrays.equals(expected.actionPayload(), actual.actionPayload());
+    }
+
+    private void logCp4cInputIssue(String catalogKey, String cmd, int mode, int keyIndex, String phase, String reason) {
+        logger.warn("CP4C_INPUT_FAILURE catalogKey={} cmd={} mode={} keyIndex={} phase={} reason={}",
+            catalogKey, cmd, mode, keyIndex, phase, reason);
     }
 
     private void persistDraft() {

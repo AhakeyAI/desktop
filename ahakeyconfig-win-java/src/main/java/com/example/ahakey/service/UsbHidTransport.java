@@ -282,15 +282,15 @@ public class UsbHidTransport implements Closeable {
         List<String> paths = listDevicePaths();
         for (String path : paths) {
             String p = path.toLowerCase(Locale.ROOT);
-            if (p.contains("vid_413c") && p.contains("pid_2107") && (p.contains("mi_01") || p.contains("col02"))) {
+            if (p.contains("vid_413c") && p.contains("pid_2107") && p.contains("mi_01")) {
                 return path;
             }
         }
-        for (String path : paths) {
-            String p = path.toLowerCase(Locale.ROOT);
-            if (p.contains("vid_413c") && p.contains("pid_2107")) {
-                return path;
-            }
+        boolean hasAhaKey = paths.stream()
+            .map(path -> path.toLowerCase(Locale.ROOT))
+            .anyMatch(path -> path.contains("vid_413c") && path.contains("pid_2107"));
+        if (hasAhaKey) {
+            logger.warn("AhaKey USB HID device found, but vendor/config interface mi_01 was not available");
         }
         return null;
     }

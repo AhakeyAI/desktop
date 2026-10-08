@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "id": "fw-cp4c-side-switch-stage-c-pass",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/evidence/design-reviews/X1-INPUT-CONTROL-CP4C-20261005-stage-c-design-review-pass-after-action-gate-revision.md",
+      "revision_or_commit": "84d340a5c7f07912f128a4aaefdc7256cbf58a2a",
+      "sha256": "d6cddff200212a68303afd26f2f934b7dd6642f45e60cce285a1ce2496593e9b",
+      "section": "Final Decision / Literal 0x97 Protocol Boundary",
+      "kind": "protocol",
+      "maturity": "agreed",
+      "observed_at": "2026-10-05T10:15:00+00:00"
+    },
+    {
+      "id": "fw-cp4c-ordinary-key-readback-stage-c-pass",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/evidence/design-reviews/X1-INPUT-CONTROL-CP4C-20261005-ordinary-key-readback-amendment-review-pass.md",
+      "revision_or_commit": "84d340a5c7f07912f128a4aaefdc7256cbf58a2a",
+      "sha256": "6a86562b00370b27c2d15f18a9f4e8e6155fbba3c376b6798033975f86b17029",
+      "section": "Decision / Review Findings",
+      "kind": "protocol",
+      "maturity": "agreed",
+      "observed_at": "2026-10-05T10:15:00+00:00"
+    },
+    {
+      "id": "fw-cp4c-ordinary-key-readback-contract",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/evidence/stage-b/X1-INPUT-CONTROL-CP4C-20261005-ordinary-key-readback-amendment.md",
+      "revision_or_commit": "84d340a5c7f07912f128a4aaefdc7256cbf58a2a",
+      "sha256": "7f5c6b4456ce59e4bc289356f72cf68e3c86f23215a45c38424f6018cad1b085",
+      "section": "Opcode Decision / Contract",
+      "kind": "protocol",
+      "maturity": "agreed",
+      "observed_at": "2026-10-05T10:15:00+00:00"
+    },
+    {
+      "id": "fw-cp4d-ordinary-key-readback-owner-decision",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/evidence/owner-decisions/X1-INPUT-CONTROL-CP4D-0X87-OWNER-DECISION-20261007.md",
+      "revision_or_commit": "8167ba13049c781da2f975bc803eccfe0e6ea2aa",
+      "sha256": "cdf5e70f3555b35c45ba9818a742d6c9b36893383e73383a660127ebda0cdd5b",
+      "section": "Decision / Scope",
+      "kind": "protocol",
+      "maturity": "agreed",
+      "observed_at": "2026-10-07T03:20:00+00:00"
+    },
+    {
+      "id": "fw-cp4d-ordinary-key-single-packet-decision",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/evidence/owner-decisions/X1-INPUT-CONTROL-CP4D-0X87-SINGLE-PACKET-OWNER-DECISION-20261007.md",
+      "revision_or_commit": "8167ba13049c781da2f975bc803eccfe0e6ea2aa",
+      "sha256": "3ea8548de1ee0a229215ce183415642e994e90c6bb1047f3f1330c318134ed84",
+      "section": "Wire Contract / Length Rules / Host Behavior",
+      "kind": "protocol",
+      "maturity": "agreed",
+      "observed_at": "2026-10-07T03:20:00+00:00"
+    },
+    {
+      "id": "fw-cp4d-ordinary-key-readback-stage-b",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/evidence/stage-b/X1-INPUT-CONTROL-CP4D-20261007-ordinary-key-readback-integrated-design.md",
+      "revision_or_commit": "8167ba13049c781da2f975bc803eccfe0e6ea2aa",
+      "sha256": "35e8aa69c0c3bb9986a7780ceceeaaec3bd29c1c077856ae2bbcdb3cd6927da2",
+      "section": "Wire Contract / Bounds / Owner UAT Boundary",
+      "kind": "protocol",
+      "maturity": "agreed",
+      "observed_at": "2026-10-07T03:20:00+00:00"
+    },
+    {
+      "id": "fw-cp4c-gate-receipt-pass",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP4C/20261005T181302/gate-receipt.json",
+      "revision_or_commit": "84d340a5c7f07912f128a4aaefdc7256cbf58a2a",
+      "sha256": "0612050534ba6c020546c62d4fc8ea54b6b3cd37e2a4afdff92b4d4726c35ffe",
+      "section": "machine_checks / result",
+      "kind": "test",
+      "maturity": "verified",
+      "observed_at": "2026-10-05T10:15:00+00:00"
+    },
+    {
+      "id": "fw-cp4c-command-solve-h",
+      "workspace": "firmware",
+      "path": "APP/sub_main/command_solve.h",
+      "revision_or_commit": "8167ba13049c781da2f975bc803eccfe0e6ea2aa",
+      "sha256": "2bab97bf5238df74b12874ea8f254ff4948551d90e78ad427541a73f7ec255c3",
+      "section": "AHAKEY_STATUS_TOO_LARGE and command constants",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-10-07T03:20:00+00:00"
+    },
+    {
+      "id": "fw-cp4d-ordinary-key-readback-test-anchor",
+      "workspace": "firmware",
+      "path": "tests/host/input_control/test_ordinary_key_readback.c",
+      "revision_or_commit": "8167ba13049c781da2f975bc803eccfe0e6ea2aa",
+      "sha256": "9d7e8f44585a1d856e82c8fbe24634dcd489f8f7844c63a640575429f356fd7f",
+      "section": "single-report length, trim, too-large, unsupported-action anchors",
+      "kind": "test",
+      "maturity": "verified",
+      "observed_at": "2026-10-07T03:20:00+00:00"
+    },
+    {
+      "id": "fw-cp4c-side-switch-usb97-anchor",
+      "workspace": "firmware",
+      "path": "tests/host/input_control/test_side_switch_customization.c",
+      "revision_or_commit": "8167ba13049c781da2f975bc803eccfe0e6ea2aa",
+      "sha256": "72ab6f38ea329c66a4d0098257c138675f0dcc44739c382cedc3f461b8670f37",
+      "section": "CP4C 0x97 action envelope and 64-byte USB report budget anchors",
+      "kind": "test",
+      "maturity": "verified",
+      "observed_at": "2026-10-07T03:20:00+00:00"
+    },
+    {
+      "id": "fw-cp4c-side-switch-usb97-runner",
+      "workspace": "firmware",
+      "path": "tests/host/input_control/run-side-switch-customization-tests.ps1",
+      "revision_or_commit": "8167ba13049c781da2f975bc803eccfe0e6ea2aa",
+      "sha256": "a58d124350ec09dd5c0cd85f0a1c2db7d885443e41fdd41d35a20413b7facd02",
+      "section": "Static anchors for CP4C 0x97 side-switch action and oversize rejection",
+      "kind": "test",
+      "maturity": "verified",
+      "observed_at": "2026-10-07T03:20:00+00:00"
+    },
+    {
+      "id": "fw-cp4d-gate-receipt-pass",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP4D/20261007T131850/gate-receipt.json",
+      "revision_or_commit": "8167ba13049c781da2f975bc803eccfe0e6ea2aa",
+      "sha256": "08a08c9031e0bddcda7787e89b48936cde1508a5d64834dcae58de7be8862312",
+      "section": "schema_version/result/artifact/machine_checks",
+      "kind": "test",
+      "maturity": "verified",
+      "observed_at": "2026-10-07T09:08:57+00:00"
+    },
+    {
+      "id": "fw-cp4d-hex-artifact",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/evidence/builds/ws2-cp4d-ordinary-key-readback/HID_Keyboard_582m_vibe_coding.hex",
+      "revision_or_commit": "8167ba13049c781da2f975bc803eccfe0e6ea2aa",
+      "sha256": "6f9759eb912ec067564c4e63558589ab9732126344d52c2d2a278383119516be",
+      "section": "CP4D production HEX artifact bound by gate receipt",
+      "kind": "test",
+      "maturity": "verified",
+      "observed_at": "2026-10-07T09:08:57+00:00"
+    }
+  ]
+}

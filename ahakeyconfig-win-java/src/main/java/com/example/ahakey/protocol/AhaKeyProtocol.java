@@ -12,6 +12,7 @@ public class AhaKeyProtocol {
     public static final byte CMD_CHANGE_APPEARANCE = 0x02;
     public static final byte CMD_SAVE_CONFIG = 0x04;
     public static final byte CMD_UPDATE_CUSTOM_KEY = 0x73;
+    public static final byte CMD_ORDINARY_KEY_READBACK = (byte) 0x87;
     public static final byte CMD_PREPARE_WRITE = (byte) 0x80;
     public static final byte CMD_WRITE_RESULT = (byte) 0x81;
     public static final byte CMD_UPDATE_PIC = (byte) 0x82;
@@ -22,7 +23,24 @@ public class AhaKeyProtocol {
     public static final byte CMD_SET_LIGHT_EFFECT = (byte) 0x91;
     public static final byte CMD_SET_WORK_MODE = (byte) 0x92;
     public static final byte CMD_SLEEP_WAIT_TIME = (byte) 0x95;
+    public static final byte CMD_SIDE_SWITCH_CONFIG = (byte) 0x97;
     public static final byte CMD_FIRMWARE_CATALOG_KEY = (byte) 0x9F;
+    public static final int STATUS_OK = 0;
+    public static final int STATUS_INVALID_PAYLOAD = 1;
+    public static final int STATUS_OUT_OF_RANGE = 2;
+    public static final int STATUS_TOO_LARGE = 3;
+    public static final int ORDINARY_KEY_READBACK_FRAME_MAX = 64;
+    public static final int ORDINARY_KEY_READBACK_ACTION_DESC_MAX = 53;
+    public static final int ORDINARY_KEY_ACTION_EMPTY = 0x00;
+    public static final int SIDE_SWITCH_POSITION_UP = 0;
+    public static final int SIDE_SWITCH_POSITION_DOWN = 1;
+    public static final int SIDE_SWITCH_BINDING_AUTO = 0;
+    public static final int SIDE_SWITCH_BINDING_MANUAL = 1;
+    public static final int SIDE_SWITCH_BINDING_DISABLED = 2;
+    public static final int SIDE_SWITCH_BINDING_CUSTOM = 3;
+    public static final int SIDE_SWITCH_ACTION_BIND_LEN = 100;
+    public static final int SIDE_SWITCH_READBACK_ACTION_TOTAL_MAX = 52;
+    private static final String CP4C_CATALOG_KEY = "x1-c582-hw1-p1-1.0.0-r001";
     
     // 按键子类型
     public static final byte SUB_SHORTCUT = 0x73;
@@ -85,6 +103,51 @@ public class AhaKeyProtocol {
 
     public static byte[] queryFirmwareCatalogKey() {
         return buildFrame(CMD_FIRMWARE_CATALOG_KEY, new byte[0]);
+    }
+
+    public static boolean isCp4cCatalogKey(String catalogKey) {
+        return CP4C_CATALOG_KEY.equals(catalogKey);
+    }
+
+    public static byte[] readOrdinaryKeyConfig(int mode, int keyIndex) {
+        return buildFrame(CMD_ORDINARY_KEY_READBACK, new byte[]{
+            (byte) Math.max(0, Math.min(3, mode)),
+            (byte) Math.max(0, Math.min(3, keyIndex))
+        });
+    }
+
+    public static byte[] readSideSwitchConfig() {
+        return buildFrame(CMD_SIDE_SWITCH_CONFIG, new byte[0]);
+    }
+
+    public static byte[] setSideSwitchConfig(
+        int upBinding,
+        byte[] upAction,
+        int downBinding,
+        byte[] downAction
+    ) {
+        int safeUpBinding = normalizeSideSwitchBinding(upBinding);
+        int safeDownBinding = normalizeSideSwitchBinding(downBinding);
+        byte[] safeUpAction = normalizeSideSwitchAction(safeUpBinding, upAction);
+        byte[] safeDownAction = normalizeSideSwitchAction(safeDownBinding, downAction);
+        int actionTotal = safeUpAction.length + safeDownAction.length;
+        if (actionTotal > SIDE_SWITCH_READBACK_ACTION_TOTAL_MAX) {
+            throw new IllegalArgumentException(
+                "侧拨自定义动作过长：" + actionTotal + " 字节，当前固件 0x97 回读上限为 "
+                    + SIDE_SWITCH_READBACK_ACTION_TOTAL_MAX + " 字节"
+            );
+        }
+        byte[] payload = new byte[1 + 2 + safeUpAction.length + 2 + safeDownAction.length];
+        int offset = 0;
+        payload[offset++] = 0x01;
+        payload[offset++] = (byte) safeUpBinding;
+        payload[offset++] = (byte) safeUpAction.length;
+        System.arraycopy(safeUpAction, 0, payload, offset, safeUpAction.length);
+        offset += safeUpAction.length;
+        payload[offset++] = (byte) safeDownBinding;
+        payload[offset++] = (byte) safeDownAction.length;
+        System.arraycopy(safeDownAction, 0, payload, offset, safeDownAction.length);
+        return buildFrame(CMD_SIDE_SWITCH_CONFIG, payload);
     }
 
     public static byte[] setSleepWaitTime(int minutes) {
@@ -227,5 +290,46 @@ public class AhaKeyProtocol {
             }
         }
         return result.toString();
+    }
+
+    private static int normalizeSideSwitchBinding(int binding) {
+        return switch (binding) {
+            case SIDE_SWITCH_BINDING_AUTO,
+                 SIDE_SWITCH_BINDING_MANUAL,
+                 SIDE_SWITCH_BINDING_DISABLED,
+                 SIDE_SWITCH_BINDING_CUSTOM -> binding;
+            default -> SIDE_SWITCH_BINDING_DISABLED;
+        };
+    }
+
+    private static byte[] normalizeSideSwitchAction(int binding, byte[] action) {
+        if (binding != SIDE_SWITCH_BINDING_CUSTOM) {
+            return new byte[0];
+        }
+        if (action == null || action.length == 0) {
+            throw new IllegalArgumentException("侧拨 Custom 动作缺少 0x73/0x74 动作包");
+        }
+        if (action.length < 2) {
+            throw new IllegalArgumentException("侧拨 Custom 动作缺少长度字段");
+        }
+        if (action.length > SIDE_SWITCH_ACTION_BIND_LEN) {
+            throw new IllegalArgumentException(
+                "侧拨 Custom 动作超过固件存储上限：" + action.length + " 字节"
+            );
+        }
+        int actionType = action[0] & 0xFF;
+        if (actionType != (SUB_SHORTCUT & 0xFF) && actionType != (SUB_MACRO & 0xFF)) {
+            throw new IllegalArgumentException("侧拨 Custom 动作必须以 0x73 或 0x74 开头");
+        }
+        int declaredLength = action[1] & 0xFF;
+        if (declaredLength != action.length - 2) {
+            throw new IllegalArgumentException(
+                "侧拨 Custom 动作长度不匹配：声明 " + declaredLength + " 字节，实际 "
+                    + (action.length - 2) + " 字节"
+            );
+        }
+        byte[] out = new byte[action.length];
+        System.arraycopy(action, 0, out, 0, action.length);
+        return out;
     }
 }
