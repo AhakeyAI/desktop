@@ -1,0 +1,22 @@
+{
+  "id": "WD-003",
+  "at": "2026-10-08T01:20:25+00:00",
+  "build_round": 9,
+  "code_fingerprint": "a6dec812a6e11de5016e01b241c0e081d44350762dae206639e31ef6ddf3e58d",
+  "approval_sha256": "2368ab728f549a292367ffee6676f23c316f24dbb4414cd50728ec31ce1f4461",
+  "windows_artifact": {
+    "path": ".ahakey-desktop-harness\\builds\\WD-003\\20261008T005913928548Z-cecb3e\\runtime\\ahakey-studio-1.0.0.jar",
+    "sha256": "52a79397c28529203c777b594555947bdba4822e004d6179d4b9ead03c59a43b"
+  },
+  "firmware_identity": {
+    "path": ".ahakey-desktop-harness\\changes\\WD-003\\FIRMWARE_IDENTITY.json",
+    "sha256": "414b8c33c16541a85139b1ef5ffe55bf20ff33bbb9a11718dfa1bdcced00ffa3"
+  },
+  "brief": {
+    "path": ".ahakey-desktop-harness/changes/WD-003/OWNER_TEST.md",
+    "sha256": "da1dc38e8d8ee7318b00ea59880623b44c2d33336057e604cff014937c3c77b7"
+  },
+  "guard_candidate_sha256": "1ef548ea1c91b03b849bd1656fb1ac729e94deddcfa78f28275d30c6c5f7c947",
+  "guard_build_sha256": "d33b245656ba7997d74b90d0baff5cbee65ef174b4df9034228e3139dc0c9744",
+  "guard_brief_sha256": "1d77131cab500c11f20b1adb905b4f39afb2c397c99b1dab4bb58a5090e5ae62"
+}

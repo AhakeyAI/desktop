@@ -1,0 +1,170 @@
+{
+  "schema_version": 1,
+  "id": "WD-003",
+  "contract_sha256": "aa6dc141a75f8ac70e41041d0462949045131ee9942d4ad736b0a3288013feaa",
+  "reviewed_by_dla": true,
+  "review_note": "DLA逐条核对WD-003 Contract Acceptance Outline：机器/静态项绑定已有构建与revalidate证据；需要真实设备观察的项映射到Owner正式交测步骤。本映射不推断UAT通过，Owner结果仍需逐项回传。",
+  "rows": [
+    {
+      "id": "A001",
+      "line": 282,
+      "section": "## Acceptance Outline",
+      "source_text": "- Project compiles.",
+      "disposition": "existing_evidence",
+      "step_ids": [],
+      "evidence": [
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/evidence/20261008T0100_wd003_formal_build_package_20261008T005913928548Z-cecb3e.log",
+          "sha256": "0fd478ae65d2f532f0c31314144e33de24bbbd148b6fc06aa735eb4d45ebb5f1",
+          "scope": "JDK17 Maven package for WD-003 formal runtime artifact recorded exit code 0.",
+          "explanation": "This covers the Contract machine-check compile requirement only; it does not prove launch, device behavior, Owner UAT, or release.",
+          "result": "pass",
+          "kind": "machine"
+        }
+      ],
+      "reason": "Formal build log records the project packaging successfully under JDK17.",
+      "owner_exception": null
+    },
+    {
+      "id": "A002",
+      "line": 283,
+      "section": "## Acceptance Outline",
+      "source_text": "- Focused unit/helper tests if added.",
+      "disposition": "existing_evidence",
+      "step_ids": [],
+      "evidence": [
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/evidence/20261007T1732_wd003_build_round9_revalidate_checks.log",
+          "sha256": "2b33d5c5b829a194bb981c7fb325b19833a244ad8930b1e9e9e9a4d0a6d95a6b",
+          "scope": "WD-003 build_round 9 DIB revalidation checks, including JDK17 Maven compile and focused static checks.",
+          "explanation": "This covers the added helper/static validation scope available for Windows; true-device behavior remains mapped to Owner steps.",
+          "result": "pass",
+          "kind": "machine"
+        }
+      ],
+      "reason": "DIB revalidation captured the focused Windows checks for this implementation identity.",
+      "owner_exception": null
+    },
+    {
+      "id": "A003",
+      "line": 284,
+      "section": "## Acceptance Outline",
+      "source_text": "- No use of `0x98` for ordinary-key readback.",
+      "disposition": "existing_evidence",
+      "step_ids": [],
+      "evidence": [
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/evidence/20261007T1732_wd003_build_round9_revalidate_checks.log",
+          "sha256": "2b33d5c5b829a194bb981c7fb325b19833a244ad8930b1e9e9e9a4d0a6d95a6b",
+          "scope": "Focused static check recorded no 0x98 ordinary-key readback path in WD-003 Windows implementation.",
+          "explanation": "This binds the protocol guard that 0x87 is the ordinary-key readback command and 0x98 is not repurposed.",
+          "result": "pass",
+          "kind": "static"
+        }
+      ],
+      "reason": "The revalidation evidence explicitly covered the no-0x98 ordinary-key readback requirement.",
+      "owner_exception": null
+    },
+    {
+      "id": "A004",
+      "line": 285,
+      "section": "## Acceptance Outline",
+      "source_text": "- Legacy firmware path does not call `0x87`/editable `0x97`.",
+      "disposition": "planned_owner",
+      "step_ids": [
+        "T03",
+        "T13"
+      ],
+      "evidence": [],
+      "reason": "Capability gating is checked in T03; actual legacy fallback is checked in T13 if Owner has a legacy/non-CP4C device. If unavailable, Owner must record not-executed rather than PASS.",
+      "owner_exception": null
+    },
+    {
+      "id": "A005",
+      "line": 289,
+      "section": "## Acceptance Outline",
+      "source_text": "- CP4C firmware connects and performs background full input readback.",
+      "disposition": "planned_owner",
+      "step_ids": [
+        "T02",
+        "T03",
+        "T07"
+      ],
+      "evidence": [],
+      "reason": "Owner must confirm device identity, CP4C/CP4D capability, connection, and full 16-key background readback on hardware.",
+      "owner_exception": null
+    },
+    {
+      "id": "A006",
+      "line": 290,
+      "section": "## Acceptance Outline",
+      "source_text": "- Current mode appears quickly; other modes are ready after background read.",
+      "disposition": "planned_owner",
+      "step_ids": [
+        "T06",
+        "T07"
+      ],
+      "evidence": [],
+      "reason": "T06 covers current K1-K4 fast baseline; T07 covers remaining mode readiness after background readback.",
+      "owner_exception": null
+    },
+    {
+      "id": "A007",
+      "line": 291,
+      "section": "## Acceptance Outline",
+      "source_text": "- Editing ordinary keys saves only after `0x87` readback matches.",
+      "disposition": "planned_owner",
+      "step_ids": [
+        "T11"
+      ],
+      "evidence": [],
+      "reason": "T11 is the ordinary-key write/save/readback verification step tied to 0x87.",
+      "owner_exception": null
+    },
+    {
+      "id": "A008",
+      "line": 292,
+      "section": "## Acceptance Outline",
+      "source_text": "- Editing side switch saves only after `0x97` readback matches.",
+      "disposition": "planned_owner",
+      "step_ids": [
+        "T08",
+        "T09",
+        "T10"
+      ],
+      "evidence": [],
+      "reason": "T08-T10 cover side-switch Custom single key, combination shortcut, and short macro save/readback via 0x97.",
+      "owner_exception": null
+    },
+    {
+      "id": "A009",
+      "line": 293,
+      "section": "## Acceptance Outline",
+      "source_text": "- A readback mismatch/failure shows lightweight UI notice, Inspector failure state, and logs enough evidence.",
+      "disposition": "planned_owner",
+      "step_ids": [
+        "T12"
+      ],
+      "evidence": [],
+      "reason": "T12 asks Owner to observe failure/disconnect behavior and collect UI/log evidence without guessing protocol bytes.",
+      "owner_exception": null
+    },
+    {
+      "id": "A010",
+      "line": 294,
+      "section": "## Acceptance Outline",
+      "source_text": "- Legacy firmware keeps old ordinary-key and side-switch behavior.",
+      "disposition": "planned_owner",
+      "step_ids": [
+        "T13"
+      ],
+      "evidence": [],
+      "reason": "T13 is the legacy fallback check. Without a legacy/non-CP4C device, it must remain not-executed until Owner provides a valid exception or evidence.",
+      "owner_exception": null
+    }
+  ],
+  "meaning": "Reviewed acceptance mapping. Machine evidence is not Owner UAT; planned_owner rows require actual Owner execution results before closure."
+}
