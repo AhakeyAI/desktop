@@ -1,9 +1,9 @@
-# 旧版 mac 客户端 WS1 WS2 固件适配计划
+# 旧版 mac 客户端新固件适配计划（WS1/WS2 阶段及最终版补充）
 
-> 2026-10-09 交接注：这是本轮讨论材料。已确认决策和未决事项以 [跨设备交接](../handoff/CONNECT_AND_TALK_HANDOFF.md) 为准。初始计划/WBS 只覆盖 WS1/WS2 阶段，最终用户版还必须保留旧功能并完成 WS3；语音路线仍需最终收口，不能将比较草案直接当作固件实施指令。
+> 2026-10-09 修订：第 1–9 节描述 WS1/WS2 第一阶段；第 10 节增加最终用户版范围和验收门。语音采用 Consumer Voice 优先、实际系统听写验收后才默认使用，F5 为同步切换键盘输出与系统快捷键的兜底。最新固件接口和 PR #78 状态仍须远端复核。
 
 日期：2026-10-08
-状态：开发计划，尚未开始客户端实现。
+状态：分阶段开发计划；交接分支尚未实现本轮适配代码。
 配套：[WBS](./legacy-macos-ws12-adaptation-wbs-2026-10-08.md)、[可导入 CSV](./legacy-macos-ws12-adaptation-wbs-2026-10-08.csv)、[依赖及对接记录](./legacy-macos-firmware-adaptation-prerequisites-2026-10-08.md)。
 
 ## 1. 交付目标
@@ -41,14 +41,14 @@
 
 普通键回读失败/超长/未知动作时，该键保持只读，其他独立可验证设置可继续使用。Power 不进入 K1–K4 编辑。首版不开放独立短/长按 slot 和阈值编辑。
 
-## 4. 明确暂缓的功能
+## 4. 第一阶段暂缓的功能
 
 - mac USB HID 配置传输：首版先做 BLE 配置。USB 键盘输入正常使用与 USB 配置通信是不同能力。
 - WS3 SINGLE/MULTI 新展示、`0x98/0x99/0x9A`、19 项资源布局、新资源上传事务和显示资源恢复。
 - 完整独立长按配置协议、整机 Restore Factory、版本目录、固件升级/回滚/恢复等 WS4/WS5 功能。
 - Windows 最新界面/代码完全对齐：后续代码到位再联调，不挡 mac 单端候选版。
 
-旧显示功能若在本轮固件上不能证明兼容，相关写入先禁用并说明原因，不伪装保存成功。Windows 或 USB 后续加入时单独估算和新增任务，不能偷偷扩入当前 WBS。
+旧显示功能若在本轮固件上不能证明兼容，相关写入先禁用并说明原因，不伪装保存成功。WS3 在最终用户版前完成；Windows 或 USB 配置通信后续加入时单独估算和新增任务。
 
 ## 5. 实现结构与关键规则
 
@@ -114,3 +114,15 @@ WBS 人日含实现、必要测试和说明，是计划估算，不是已完成�
 - [固件命令实现](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/blob/d1b46a14a796790f2ffe0d228e6c5badcfc34d75/APP/sub_main/command_solve.c)
 - [WS3 范围](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/blob/d1b46a14a796790f2ffe0d228e6c5badcfc34d75/.ahakey-harness/workstreams/X1-AI-WORKFLOW-PRESENTATION/PRD.md)
 - [WS4/WS5 范围](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/blob/d1b46a14a796790f2ffe0d228e6c5badcfc34d75/.ahakey-harness/workstreams/X1-PLATFORMIZATION-RELEASE-COMPOSITION/PRD.md)
+
+## 10. 最终用户版补充范围与验收门
+
+原 26 项 WBS 和约 30 人日基准只覆盖 WS1/WS2 第一阶段。G1 只读预览和 G2 可验证写入可以分批交付，但不能标为最终用户版。最终用户版还须通过下列门槛；WS3 接口和测试固件未核对前，新工作包不填确定人日或日历工期。
+
+1. **基线复核**：读取最新 `main`、PR #78、`Fireware-harness` 阶段状态和实际测试 HEX；记录源码提交、固件提交、HEX SHA256、硬件修订及已包含的 WS3 checkpoint。PR #78 若已合并则保留，未合并则带来源纳入适配开发，不替代审核人合并原 PR。
+2. **语音默认与兜底**：Consumer `0x0C/0x00CF` 在目标 macOS 上，以 USB/BLE、App 退出、听写开关和实际文本输入验证；仅发送 HID 成功不算通过。通过的组合才可默认使用。失败时界面/设备说明引导开启听写并设置 F5，设备 Voice 键同步切到普通 Keyboard `0x07/0x3E`，保存、读回和实际按键都核验。切换应保留其他键位和旧语音能力；当前 `0x96` 无法由桌面写回 completed_mac，未补可逆接口前不承诺一键回到 Consumer。不能自动侦测 macOS 是否真的开始听写，应让用户执行触发测试并确认结果。
+3. **完整 WS3**：先验证 CP1 已集成于实际测试构建，再接入 AI/task SINGLE/MULTI、`0x90` 兼容及 `0x98/0x99/0x9A` 显示仲裁；按最新冻结契约实现显示配置、亮度/灯效预览与持久化、19 项资源布局、上传事务、资源读回及显示资源恢复。每项写入需要 ACK、必要读回和重启保持；故障中断不得把旧可用显示资源误报为新资源成功。CP2/CP3 的精确命令、容量、失败语义在最新固件复核后写入任务验收，不凭旧 checkpoint 推断。
+4. **旧功能完整性**：列出并回归键位/宏/模式默认值、OLED/GIF/灯光、语音转写与 AhaType 入口、旧设备兼容、审批 Hook、BLE/Agent 交接、电量/CPU/灵动岛，以及本地 HEX/USB ISP 烧录和恢复内置固件。烧录须校验镜像与目标、提示失败并保留可恢复路径；不可把模式草稿恢复、显示资源恢复、整机恢复出厂混称为同一动作。
+5. **发布检查**：WS1/WS2 和完整 WS3、旧功能回归、语音两条路径、断连/重启/部分保存、烧录安全与恢复均有对应真机证据后，才能提出最终用户版候选。签名、公证与目标 macOS 覆盖按发布流程执行；Windows 跨端结论只在完成相应联调后声明。WS4/WS5 的新版本目录、推荐固件、完整整机恢复出厂可独立后发，但不能删掉旧手动烧录能力。
+
+配套 [扩展 WBS](./legacy-macos-ws12-adaptation-wbs-2026-10-08.md) 保留原 26 项并新增最终版工作包。固件问题提醒清单是协作记录，不把所有未来需求设成第一阶段开工前置。
