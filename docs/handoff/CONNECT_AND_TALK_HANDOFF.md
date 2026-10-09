@@ -88,7 +88,7 @@
 3. 旧功能完整性与本地 HEX/USB ISP 烧录、恢复内置固件和模式默认值单列；模式本地草稿恢复、显示资源恢复、整机恢复出厂分别处理。
 4. 固件问题提醒单仍是协作记录，不把其中所有未来需求设成 mac 第一阶段开工阻碍。
 
-首批可开展 M01/M02/T01/M03：基线、Harness 契约/fixture、帧解码、能力识别。随后命令会话、所有权交接、只读事实源、草稿分离。先取消连接后隐式全量覆盖/OLED 自动上传，再开放经过 ACK + 读回确认的设置。当前接续设备是 Windows，未安装 Swift 工具链；远端 GitHub 连接失败，最新 main、PR #78 和固件分支仍未核对，不能把本地 `49d8b2f` 当作最新基线。
+首批 M01/M02/T01/M03：基线、Harness 契约/fixture、帧解码、能力识别。随后命令会话、所有权交接、只读事实源、草稿分离。先取消连接后隐式全量覆盖/OLED 自动上传，再开放经过 ACK + 读回确认的设置。2026-10-10 的基线核对和首批代码进度见第 10 节；当前设备仍未安装 Swift 工具链。
 
 ## 7. 接续步骤
 
@@ -120,3 +120,11 @@ git switch 'connect&talk'
 - 未提供最新 Windows 客户端代码不阻止 mac 单端开发。到跨端行为对齐和验收时再获取对应仓库/分支。
 - 原电脑有签名工具与本机测试包；本分支不包含私钥、签名凭据或 notarization 配置。新设备先核对 Xcode/Swift 工具链，签名发布环境单独配置。
 - 所有相关文档源于本次会话和已链接材料；它们不证明适配代码已经实现或新固件真机验收已经完成。
+
+## 10. 2026-10-10 开发进度
+
+- 重新核对远端：`main` 仍为 `6c94704ba8d491bec742dc38cda62ef2a3a19cb5`；PR #78 的 head `3d757cf2c215cdae2393d40f4e567dc3efe2b634` 未进入 main；`Fireware-harness` 仍为 `d1b46a14a796790f2ffe0d228e6c5badcfc34d75`。当前开发分支已按原提交来源带入 PR #78 的两项 Cursor 修复，未合并原 PR。
+- M02 开始：新增 [CP4D 上位机协议契约摘录](../ahastudio/ws2-cp4d-host-contract-2026-10-10.md)，直接核对固件 PRD 和 `command_solve.c`，记录响应长度与二进制载荷边界。
+- T01 开始：新增 `Sources/Shared/DeviceFrameDecoder.swift`，只识别已核对形状的 CP4D 响应，并有分片、合包、载荷内 `CC DD` 和错误恢复测试。尚未接到 App/Agent BLE 收包路径；未知命令保留原路径。
+- M03 开始：新增 `Sources/Shared/FirmwareCapabilityProfile.swift`，catalog key 只允许只读探测；不能仅凭 key 或本地 profile 开放写入，也不把旧 CP4D 构建说成包含 WS3。
+- 当前执行设备是 Windows，没有 Swift/macOS 工具链和目标键盘，Swift 编译、单测及真机验收由 macOS CI 与后续 Mac 环境验证。CI 已加入 `swift test`；未通过前上述模块不能标为完成。
