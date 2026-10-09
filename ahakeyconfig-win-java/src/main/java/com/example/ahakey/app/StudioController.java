@@ -6,9 +6,11 @@ import com.example.ahakey.platform.VoiceRelayPlatform;
 import com.example.ahakey.protocol.AhaKeyProtocol;
 import com.example.ahakey.protocol.AhaKeyResponseParser;
 import com.example.ahakey.service.AgentManager;
+import com.example.ahakey.service.AiRuntimeDisplayService;
 import com.example.ahakey.service.BleManager;
 import com.example.ahakey.service.DeviceSyncService;
 import com.example.ahakey.service.HookDispatchServer;
+import com.example.ahakey.service.HookInstaller;
 import com.example.ahakey.service.OledUploadService;
 import com.example.ahakey.util.OLEDFrameEncoder;
 import com.example.ahakey.util.StudioStore;
@@ -37,9 +39,12 @@ public class StudioController {
     private final AgentManager agentManager = new AgentManager();
     private final VoiceRelayPlatform voiceRelay = new VoiceRelayPlatform();
     private final BleManager bleManager;
+    private final AiRuntimeDisplayService aiRuntimeDisplayService;
+    private final HookInstaller aiRuntimeHookInstaller;
     private final boolean simulateBle;
     private final HookDispatchServer hookDispatchServer;
     private final com.example.ahakey.service.KimiAhaKeyBridge kimiAhaKeyBridge;
+    private Runnable hookManagerOpener;
 
     private int lastSyncedRevision = -1;
     
@@ -124,7 +129,9 @@ public class StudioController {
         studioState.selectedModeProperty().addListener((o, a, b) -> onDraftChange.run());
 
         // 启动 Hook 分发服务器（接收 Codex/Claude/Cursor/Kimi hook 事件 → BLE 状态码）
-        hookDispatchServer = new HookDispatchServer(bleManager);
+        aiRuntimeDisplayService = new AiRuntimeDisplayService(bleManager);
+        hookDispatchServer = new HookDispatchServer(bleManager, aiRuntimeDisplayService);
+        aiRuntimeHookInstaller = new HookInstaller(hookDispatchServer::getActualPort, msg -> logger.info("{}", msg));
         hookDispatchServer.setApprovalCallback(this::showApprovalDialog);
         hookDispatchServer.start();
 
@@ -152,8 +159,131 @@ public class StudioController {
         return agentManager;
     }
 
+    public AiRuntimeDisplayService getAiRuntimeDisplayService() {
+        return aiRuntimeDisplayService;
+    }
+
     public int getHookDispatchPort() {
         return hookDispatchServer.getActualPort();
+    }
+
+    public void setHookManagerOpener(Runnable hookManagerOpener) {
+        this.hookManagerOpener = hookManagerOpener;
+    }
+
+    public void setAiRuntimeDisplayMode(AiRuntimeDisplayMode mode) {
+        aiRuntimeDisplayService.setDisplayMode(mode);
+        boolean codexHookLatest = isAiRuntimeHookLatest("Codex");
+        boolean cursorHookLatest = isAiRuntimeHookLatest("Cursor");
+        if (mode == AiRuntimeDisplayMode.MULTI && isAnyAiRuntimeHookLatest(codexHookLatest, cursorHookLatest)
+            && !simulateBle && deviceStatus.isConnected() && aiRuntimeDisplayService.isDeviceSupported()) {
+            new Thread(() -> {
+                try {
+                    aiRuntimeDisplayService.applyToKeyboard(codexHookLatest, cursorHookLatest);
+                } catch (Exception e) {
+                    logger.warn("Auto apply MULTI runtime snapshot failed: {}", e.getMessage());
+                }
+            }, "ai-runtime-mode-auto-apply").start();
+        }
+        studioState.syncStatusProperty().set("AI 运行展示已切换为：" + mode.getTitle());
+    }
+
+    private boolean isAiRuntimeHookLatest(String platform) {
+        return aiRuntimeHookInstaller.getHookStatus(platform) == HookInstaller.HookStatus.LATEST;
+    }
+
+    private boolean isAnyAiRuntimeHookLatest(boolean codexHookLatest, boolean cursorHookLatest) {
+        return codexHookLatest || cursorHookLatest;
+    }
+
+    public HookInstaller.HookStatus getAiRuntimeHookStatus(String platform) {
+        return aiRuntimeHookInstaller.getHookStatus(platform);
+    }
+
+    public void openHookManager() {
+        if (hookManagerOpener != null) {
+            hookManagerOpener.run();
+        }
+    }
+
+    public void applyAiRuntimeToKeyboard(javafx.stage.Window owner) {
+        boolean applyingMulti = aiRuntimeDisplayService.getDisplayMode() == AiRuntimeDisplayMode.MULTI;
+        HookInstaller.HookStatus codexStatus = applyingMulti ? aiRuntimeHookInstaller.getHookStatus("Codex") : HookInstaller.HookStatus.LATEST;
+        HookInstaller.HookStatus cursorStatus = applyingMulti ? aiRuntimeHookInstaller.getHookStatus("Cursor") : HookInstaller.HookStatus.LATEST;
+        boolean codexHookLatest = codexStatus == HookInstaller.HookStatus.LATEST;
+        boolean cursorHookLatest = cursorStatus == HookInstaller.HookStatus.LATEST;
+        if (applyingMulti && !isAnyAiRuntimeHookLatest(codexHookLatest, cursorHookLatest)) {
+            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
+            alert.initOwner(owner);
+            alert.setTitle("AhaKey Hook 管理");
+            alert.setHeaderText(null);
+            alert.setContentText("多任务灯光需要先在 Hook 管理中安装或更新 Codex / Cursor Hook。");
+            javafx.scene.control.ButtonType update = new javafx.scene.control.ButtonType("去 Hook 管理");
+            javafx.scene.control.ButtonType cancel = new javafx.scene.control.ButtonType("取消", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
+            alert.getButtonTypes().setAll(update, cancel);
+            java.util.Optional<javafx.scene.control.ButtonType> result = alert.showAndWait();
+            if (result.isPresent() && result.get() == update) {
+                if (hookManagerOpener != null) {
+                    hookManagerOpener.run();
+                }
+            }
+            return;
+        }
+        if (applyingMulti) {
+            AiRuntimeDisplayService.ApplyPlan plan = aiRuntimeDisplayService.prepareApply(
+                codexHookLatest,
+                cursorHookLatest
+            );
+            if (plan.usableCount() == 0) {
+                javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.WARNING);
+                alert.initOwner(owner);
+                alert.setTitle("任务槽不可用");
+                alert.setHeaderText(null);
+                alert.setContentText("当前没有可应用到键盘的任务槽。请检查 Hook 状态或重新选择会话。");
+                alert.showAndWait();
+                return;
+            }
+            if (!plan.unavailableSlots().isEmpty()) {
+                StringBuilder message = new StringBuilder("以下任务槽当前不可用，将不会显示到键盘：");
+                for (AiRuntimeDisplayService.UnavailableSlot slot : plan.unavailableSlots()) {
+                    message.append("\n槽位 ").append(slot.slotIndex() + 1).append("：").append(slot.reason());
+                }
+                javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.INFORMATION);
+                alert.initOwner(owner);
+                alert.setTitle("任务槽不可用");
+                alert.setHeaderText(null);
+                alert.setContentText(message.toString());
+                alert.getButtonTypes().setAll(new javafx.scene.control.ButtonType("知道了"));
+                alert.showAndWait();
+            }
+        }
+        if (!simulateBle && !deviceStatus.isConnected()) {
+            studioState.syncStatusProperty().set("已保存本地槽位；连接键盘后可应用。");
+            return;
+        }
+        if (!simulateBle && !aiRuntimeDisplayService.isDeviceSupported()) {
+            studioState.syncStatusProperty().set("当前固件不支持 WS3 CP1 多任务运行展示，已保留本地绑定。");
+            return;
+        }
+        if (simulateBle) {
+            aiRuntimeDisplayService.markDraftApplied(
+                codexHookLatest,
+                cursorHookLatest
+            );
+            studioState.syncStatusProperty().set("模拟模式：已标记为应用到键盘。");
+            return;
+        }
+        new Thread(() -> {
+            try {
+                aiRuntimeDisplayService.applyToKeyboard(
+                    codexHookLatest,
+                    cursorHookLatest
+                );
+                Platform.runLater(() -> studioState.syncStatusProperty().set("已应用到键盘。"));
+            } catch (Exception e) {
+                Platform.runLater(() -> studioState.syncStatusProperty().set("应用到键盘失败：" + e.getMessage()));
+            }
+        }, "ai-runtime-apply").start();
     }
 
     public boolean isEffectivelyConnected() {
@@ -885,6 +1015,19 @@ public class StudioController {
             studioState.setCp4cInputConfigEnabled(true);
             studioState.setInputReadbackStatus("已识别 CP4C 固件，正在读取输入配置...");
         });
+        aiRuntimeDisplayService.onDeviceReady();
+        boolean codexHookLatest = isAiRuntimeHookLatest("Codex");
+        boolean cursorHookLatest = isAiRuntimeHookLatest("Cursor");
+        if (aiRuntimeDisplayService.getDisplayMode() == AiRuntimeDisplayMode.MULTI
+            && isAnyAiRuntimeHookLatest(codexHookLatest, cursorHookLatest)) {
+            new Thread(() -> {
+                try {
+                    aiRuntimeDisplayService.applyToKeyboard(codexHookLatest, cursorHookLatest);
+                } catch (Exception e) {
+                    logger.warn("Apply MULTI runtime snapshot after firmware identity failed: {}", e.getMessage());
+                }
+            }, "ai-runtime-connect-snapshot").start();
+        }
         startCp4cInputReadback(catalogKey);
     }
 

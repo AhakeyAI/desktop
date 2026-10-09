@@ -540,6 +540,32 @@ public class BleManager {
         }
     }
 
+    public void setRuntimeDisplayMode(com.example.ahakey.model.AiRuntimeDisplayMode mode) throws Exception {
+        synchronized (commandTransactionLock) {
+            commandLock.lock();
+            try {
+                pendingNotifyFramesByCommand.clear();
+                sendCommand(AhaKeyProtocol.setRuntimeDisplayMode(mode));
+                waitForResponseFrame(AhaKeyProtocol.CMD_RUNTIME_DISPLAY_MODE, false);
+            } finally {
+                commandLock.unlock();
+            }
+        }
+    }
+
+    public void sendMultiRuntimeSnapshot(com.example.ahakey.model.AiRuntimeSlotBinding[] slots) throws Exception {
+        synchronized (commandTransactionLock) {
+            commandLock.lock();
+            try {
+                pendingNotifyFramesByCommand.clear();
+                sendCommand(AhaKeyProtocol.multiRuntimeSnapshot(slots));
+                waitForResponseFrame(AhaKeyProtocol.CMD_MULTI_RUNTIME_SNAPSHOT, false);
+            } finally {
+                commandLock.unlock();
+            }
+        }
+    }
+
     public void setLightEffect(byte effectCode) {
         try {
             sendCommand(AhaKeyProtocol.setLightEffect(effectCode));

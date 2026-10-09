@@ -43,6 +43,10 @@ import java.net.Socket;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
@@ -61,6 +65,7 @@ public class TopBar extends VBox {
     private final HookInstaller hookInstaller;
     private final LanguageManager languageManager;
     private MenuItem languageMenuItem;
+    private boolean hookUpdateSummaryShown;
     
     // 语音相关UI组件
     private Button voiceRecordButton;
@@ -84,6 +89,7 @@ public class TopBar extends VBox {
         this.agentManager = agentManager;
         this.hookInstaller = new HookInstaller(
             () -> controller.getHookDispatchPort(), this::addLog);
+        this.controller.setHookManagerOpener(this::showDeviceInfoDialog);
         this.languageManager = LanguageManager.getInstance();
         setSpacing(0);
         setPadding(new Insets(0));
@@ -258,7 +264,7 @@ public class TopBar extends VBox {
         MenuItem clearOled = new MenuItem(languageManager.getString("menu.clear-oled"));
         clearOled.setOnAction(event -> studioState.clearOledPreview());
         SeparatorMenuItem divider1 = new SeparatorMenuItem();
-        MenuItem deviceInfo = new MenuItem(languageManager.getString("menu.device-info"));
+        MenuItem deviceInfo = new MenuItem("Hook 管理");
         deviceInfo.setOnAction(event -> showDeviceInfoDialog());
         MenuItem versionInfo = new MenuItem(languageManager.getString("menu.version-info"));
         versionInfo.setOnAction(event -> showVersionDialog());
@@ -961,213 +967,305 @@ public class TopBar extends VBox {
     private void showDeviceInfoDialog() {
         Stage dialog = new Stage();
         dialog.initOwner(getScene().getWindow());
-        dialog.setTitle(languageManager.getString("dialog.hook-title"));
-        dialog.setWidth(550);
-        dialog.setHeight(650);
+        dialog.setTitle("AhaKey Hook 管理");
+        dialog.setWidth(560);
+        dialog.setHeight(620);
 
         ScrollPane scrollPane = new ScrollPane();
         scrollPane.setFitToWidth(true);
 
         VBox content = new VBox(12);
         content.setPadding(new Insets(12));
+        Map<String, VBox> cards = new LinkedHashMap<>();
+        Map<String, HookInstaller.HookStatus> statuses = new LinkedHashMap<>();
+        Map<String, Button> actionButtons = new LinkedHashMap<>();
+        BooleanProperty hookDialogBusy = new SimpleBooleanProperty(false);
+        VBox list = new VBox(10);
+        for (String name : List.of("Claude", "Cursor", "Codex", "Kimi")) {
+            VBox card = createHookManagerCard(
+                name,
+                HookInstaller.HookStatus.DETECTING,
+                statuses,
+                actionButtons,
+                hookDialogBusy,
+                null
+            );
+            cards.put(name, card);
+            list.getChildren().add(card);
+        }
 
-        // 设备信息摘要
-        VBox deviceCard = new VBox(8);
-        deviceCard.getStyleClass().add("dialog-card");
-        deviceCard.setPadding(new Insets(12));
-
-        Label deviceTitle = new Label(languageManager.getString("dialog.device-info"));
-        deviceTitle.getStyleClass().add("dialog-card-title");
-
-        HBox deviceRow1 = new HBox(16);
-        Label connStatus = new Label();
-        connStatus.getStyleClass().add("dialog-text");
-        connStatus.textProperty().bind(Bindings.createStringBinding(() ->
-            languageManager.getString("dialog.connection") + ": " + (this.deviceStatus.isConnected() ? languageManager.getString("status.connected") : languageManager.getString("status.disconnected")),
-            this.deviceStatus.isConnectedProperty()
-        ));
-        Label batteryStatus = new Label();
-        batteryStatus.getStyleClass().add("dialog-text");
-        batteryStatus.textProperty().bind(Bindings.createStringBinding(() ->
-            languageManager.getString("status.battery") + ": " + this.deviceStatus.getBatteryLevel() + "%",
-            this.deviceStatus.batteryLevelProperty()
-        ));
-        deviceRow1.getChildren().addAll(connStatus, batteryStatus);
-
-        HBox deviceRow2 = new HBox(16);
-        Label deviceName = new Label(languageManager.getString("dialog.device-name") + ": " + this.deviceStatus.getDisplayDeviceName());
-        deviceName.getStyleClass().add("dialog-text");
-        Label switchState = new Label();
-        switchState.getStyleClass().add("dialog-text");
-        switchState.textProperty().bind(Bindings.createStringBinding(() ->
-            languageManager.getString("status.switch") + ": " + this.deviceStatus.getSwitchTitle(),
-            this.deviceStatus.switchStateProperty()
-        ));
-        deviceRow2.getChildren().addAll(deviceName, switchState);
-
-        HBox versionRow = new HBox(16);
-        Label appVersion = new Label("上位机版本: " + getVersion());
-        appVersion.getStyleClass().add("dialog-text");
-        Label keyboardFirmware = new Label();
-        keyboardFirmware.getStyleClass().add("dialog-text");
-        keyboardFirmware.textProperty().bind(Bindings.createStringBinding(() ->
-            "键盘固件版本: " + this.deviceStatus.getDisplayFirmwareVersion(),
-            this.deviceStatus.firmwareCatalogKeyProperty(),
-            this.deviceStatus.firmwareMainProperty(),
-            this.deviceStatus.firmwareSubProperty()
-        ));
-        versionRow.getChildren().addAll(appVersion, keyboardFirmware);
-
-        SleepWaitTimeControl sleepWaitTimeControl = createSleepWaitTimeControl();
-        Button refreshDeviceInfoButton = new Button(languageManager.getString("dialog.refresh-device-info"));
-        BooleanProperty deviceInfoRefreshBusy = new SimpleBooleanProperty(false);
-        refreshDeviceInfoButton.setGraphic(Icons.refresh("14"));
-        refreshDeviceInfoButton.setTooltip(new Tooltip(languageManager.getString("dialog.refresh-device-info")));
-        refreshDeviceInfoButton.disableProperty().bind(Bindings.createBooleanBinding(
-            () -> !controller.isEffectivelyConnected() || deviceInfoRefreshBusy.get(),
-            this.deviceStatus.isConnectedProperty(),
-            deviceInfoRefreshBusy
-        ));
-        refreshDeviceInfoButton.setOnAction(event -> {
-            if (deviceInfoRefreshBusy.get()) {
-                return;
+        Button refresh = new Button("重新检测");
+        refresh.setGraphic(Icons.refresh("14"));
+        refresh.disableProperty().bind(hookDialogBusy);
+        Runnable[] rescan = new Runnable[1];
+        rescan[0] = () -> {
+            hookDialogBusy.set(true);
+            actionButtons.clear();
+            for (Map.Entry<String, VBox> entry : cards.entrySet()) {
+                updateHookManagerCard(
+                    entry.getValue(),
+                    entry.getKey(),
+                    HookInstaller.HookStatus.DETECTING,
+                    statuses,
+                    actionButtons,
+                    hookDialogBusy,
+                    rescan[0]
+                );
             }
-            deviceInfoRefreshBusy.set(true);
-            controller.clearDeviceInfoDetailsForRefresh();
             Thread thread = new Thread(() -> {
-                try {
-                    controller.readFirmwareCatalogKeyForDeviceInfo();
-                    controller.refreshDeviceStatusSnapshot();
-                    Platform.runLater(sleepWaitTimeControl::refresh);
-                } finally {
-                    Platform.runLater(() -> deviceInfoRefreshBusy.set(false));
+                Map<String, HookInstaller.HookStatus> scanned = new LinkedHashMap<>();
+                for (String name : cards.keySet()) {
+                    scanned.put(name, hookInstaller.getHookStatus(name));
                 }
-            }, "device-info-manual-refresh");
+                Platform.runLater(() -> {
+                    statuses.clear();
+                    statuses.putAll(scanned);
+                    actionButtons.clear();
+                    for (Map.Entry<String, HookInstaller.HookStatus> entry : scanned.entrySet()) {
+                        updateHookManagerCard(
+                            cards.get(entry.getKey()),
+                            entry.getKey(),
+                            entry.getValue(),
+                            statuses,
+                            actionButtons,
+                            hookDialogBusy,
+                            rescan[0]
+                        );
+                    }
+                    hookDialogBusy.set(false);
+                    List<String> outdated = scanned.entrySet().stream()
+                        .filter(entry -> entry.getValue() == HookInstaller.HookStatus.OUTDATED)
+                        .map(Map.Entry::getKey)
+                        .toList();
+                    if (!outdated.isEmpty() && !hookUpdateSummaryShown) {
+                        hookUpdateSummaryShown = true;
+                        showHookUpdateSummary(outdated, rescan[0]);
+                    }
+                });
+            }, "hook-manager-scan");
             thread.setDaemon(true);
             thread.start();
-        });
+        };
+        refresh.setOnAction(event -> rescan[0].run());
 
-        HBox deviceHeader = new HBox(10);
-        deviceHeader.setAlignment(Pos.CENTER_LEFT);
-        Region deviceHeaderSpacer = new Region();
-        HBox.setHgrow(deviceHeaderSpacer, Priority.ALWAYS);
-        deviceHeader.getChildren().addAll(deviceTitle, deviceHeaderSpacer, refreshDeviceInfoButton);
-
-        deviceCard.getChildren().addAll(deviceHeader, deviceRow1, deviceRow2, versionRow, sleepWaitTimeControl.node());
-
-        // 日志区域（提前创建以记录检测过程）
-        logArea = new TextArea();
-        logArea.getStyleClass().add("dialog-log-area");
-        logArea.setEditable(false);
-        logArea.setPrefHeight(150);
-        logArea.setWrapText(true);
-        logArea.setText("[System] Hook installation tool started\n");
-        
-        String homeDir = System.getProperty("user.home");
-        addLog("[System] User Directory: " + homeDir);
-        addLog("[System] OS: " + System.getProperty("os.name"));
-        addLog("[System] Java Version: " + System.getProperty("java.version"));
-        addLog("");
-
-        // Hook 安装卡片（先用空状态创建，后面异步更新）
-        VBox claudeCard = createHookCard("Claude", false);
-        VBox cursorCard = createHookCard("Cursor", false);
-        VBox codexCard = createHookCard("Codex", false);
-        VBox kimiCard = createHookCard("Kimi", false);
-
-        // 日志卡片
-        VBox logCard = new VBox(8);
-        logCard.getStyleClass().add("dialog-card");
-        logCard.setPadding(new Insets(12));
-
-        Label logTitle = new Label(languageManager.getString("dialog.log"));
-        logTitle.getStyleClass().add("dialog-log-title");
-        logCard.getChildren().addAll(logTitle, logArea);
-
-        // 操作按钮
-        HBox actionButtons = new HBox(10);
-        Button connectBtn = new Button(languageManager.getString("button.connect"));
-        connectBtn.getStyleClass().add("button-connect");
-        connectBtn.disableProperty().bind(this.deviceStatus.isConnectedProperty());
-        connectBtn.setOnAction(event -> controller.userConnect());
-
-        Button disconnectBtn = new Button(languageManager.getString("button.disconnect"));
-        disconnectBtn.getStyleClass().add("button-disconnect");
-        disconnectBtn.disableProperty().bind(this.deviceStatus.isConnectedProperty().not());
-        disconnectBtn.setOnAction(event -> controller.userDisconnect());
-
-        Button clearLogBtn = new Button(languageManager.getString("dialog.clear-log"));
-        clearLogBtn.setOnAction(event -> logArea.setText("[System] Log cleared\n"));
-
-        Button closeBtn = new Button(languageManager.getString("dialog.close"));
+        Label note1 = hookNote("安装或更新时，AhaKey 只会添加/替换自己的 Hook，不会删除你原本配置的其他 Hook。");
+        Label note2 = hookNote("当前多任务灯光支持 Codex / Cursor。");
+        HBox bottom = new HBox(10);
+        bottom.setAlignment(Pos.CENTER_RIGHT);
+        Button closeBtn = new Button("关闭");
         closeBtn.setOnAction(event -> dialog.close());
+        bottom.getChildren().addAll(refresh, closeBtn);
 
-        actionButtons.getChildren().addAll(connectBtn, disconnectBtn, clearLogBtn, closeBtn);
-        actionButtons.setAlignment(Pos.CENTER_RIGHT);
-
-        content.getChildren().addAll(deviceCard, claudeCard, cursorCard, codexCard, kimiCard, logCard, actionButtons);
+        content.getChildren().addAll(list, note1, note2, bottom);
         scrollPane.setContent(content);
 
         Scene scene = new Scene(scrollPane);
         scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
         dialog.setScene(scene);
-        
-        // 先显示对话框，然后在后台线程中进行 Hook 检测
         dialog.show();
-        
-        // 在后台线程中检测 Hook 状态
-        new Thread(() -> {
-            String[] hookNames = {"Claude", "Cursor", "Codex", "Kimi"};
-            boolean[] hookInstalled = new boolean[4];
-            VBox[] hookCards = {claudeCard, cursorCard, codexCard, kimiCard};
-            
-            for (int i = 0; i < hookNames.length; i++) {
-                String name = hookNames[i];
-                Path path = hookInstaller.getHookConfigPath(name);
-                File file = path.toFile();
-                
-                boolean installed = isHookInstalled(name);
-                hookInstalled[i] = installed;
-                
-                String detectionPrefix = languageManager.getString("hook.detection");
-                addLog(detectionPrefix + " === " + name + " Hook ===");
-                addLog(detectionPrefix + " " + languageManager.getString("hook.check-path") + ": " + path);
-                addLog(detectionPrefix + " " + languageManager.getString("hook.file-exists") + ": " + file.exists());
-                
-                if (file.exists()) {
-                    try {
-                        String fileContent = new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
-                        addLog(detectionPrefix + " " + languageManager.getString("hook.file-size") + ": " + fileContent.length() + " chars");
-                        
-                        if ("Claude".equals(name)) {
-                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " hooks: " + fileContent.contains("\"hooks\""));
-                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " SessionStart: " + fileContent.contains("SessionStart"));
-                        } else if ("Cursor".equals(name)) {
-                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " hooks: " + fileContent.contains("\"hooks\""));
-                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " sessionStart: " + fileContent.contains("sessionStart"));
-                        } else if ("Codex".equals(name)) {
-                            String home = System.getProperty("user.home");
-                            Path sidecar = Paths.get(home, ".codex", HookInstaller.CODEX_SIDECAR_NAME);
-                            addLog(detectionPrefix + " sidecar " + languageManager.getString("hook.file-exists") + ": " + sidecar.toFile().exists());
-                            addLog(detectionPrefix + " hooks.json content length: " + fileContent.length());
-                        } else if ("Kimi".equals(name)) {
-                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " BEGIN marker: " + fileContent.contains(HookInstaller.KIMI_HOOK_BLOCK_START));
-                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " END marker: " + fileContent.contains(HookInstaller.KIMI_HOOK_BLOCK_END));
-                        }
-                    } catch (Exception e) {
-                        addLog(detectionPrefix + " " + languageManager.getString("hook.read-failed") + ": " + e.getMessage());
+        rescan[0].run();
+    }
+
+    private Label hookNote(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("group-note");
+        label.setWrapText(true);
+        return label;
+    }
+
+    private VBox createHookManagerCard(
+        String hookName,
+        HookInstaller.HookStatus status,
+        Map<String, HookInstaller.HookStatus> statuses,
+        Map<String, Button> actionButtons,
+        BooleanProperty hookDialogBusy,
+        Runnable rescan
+    ) {
+        VBox card = new VBox(8);
+        card.getStyleClass().add("dialog-card");
+        card.setPadding(new Insets(12));
+        updateHookManagerCard(card, hookName, status, statuses, actionButtons, hookDialogBusy, rescan);
+        return card;
+    }
+
+    private void updateHookManagerCard(
+        VBox card,
+        String hookName,
+        HookInstaller.HookStatus status,
+        Map<String, HookInstaller.HookStatus> statuses,
+        Map<String, Button> actionButtons,
+        BooleanProperty hookDialogBusy,
+        Runnable rescan
+    ) {
+        card.getChildren().clear();
+        statuses.put(hookName, status);
+        if (actionButtons != null) {
+            actionButtons.remove(hookName);
+        }
+
+        HBox titleRow = new HBox(8);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
+        Label title = new Label(hookName);
+        title.getStyleClass().add("dialog-card-title");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        Label statusLabel = new Label(hookStatusText(status));
+        statusLabel.getStyleClass().add(status == HookInstaller.HookStatus.LATEST ? "dialog-status-installed" : "dialog-status-uninstalled");
+        titleRow.getChildren().addAll(title, spacer, statusLabel);
+
+        Label description = hookNote(hookDescription(status));
+        Button action = new Button(hookActionText(status));
+        boolean canWrite = status == HookInstaller.HookStatus.NOT_INSTALLED || status == HookInstaller.HookStatus.OUTDATED;
+        if (hookDialogBusy == null) {
+            action.setDisable(!canWrite);
+        } else {
+            action.disableProperty().bind(Bindings.createBooleanBinding(
+                () -> hookDialogBusy.get() || !canWrite,
+                hookDialogBusy
+            ));
+        }
+        if (actionButtons != null) {
+            actionButtons.put(hookName, action);
+        }
+        if (canWrite) {
+            action.getStyleClass().add("button-install");
+            action.setOnAction(event -> runSingleHookWrite(hookName, status, action, actionButtons, hookDialogBusy, rescan));
+        }
+
+        card.getChildren().addAll(titleRow, description, action);
+    }
+
+    private void runSingleHookWrite(
+        String hookName,
+        HookInstaller.HookStatus status,
+        Button action,
+        Map<String, Button> actionButtons,
+        BooleanProperty hookDialogBusy,
+        Runnable rescan
+    ) {
+        if (hookDialogBusy != null && hookDialogBusy.get()) {
+            return;
+        }
+        if (hookDialogBusy != null) {
+            hookDialogBusy.set(true);
+        }
+        if (actionButtons != null) {
+            actionButtons.values().forEach(button -> button.setMouseTransparent(true));
+        }
+        action.setText(status == HookInstaller.HookStatus.NOT_INSTALLED ? "安装中" : "更新中");
+        Thread thread = new Thread(() -> {
+            HookInstaller.HookWriteResult result = hookInstaller.installOrUpdate(hookName);
+            Platform.runLater(() -> {
+                if (actionButtons != null) {
+                    actionButtons.values().forEach(button -> button.setMouseTransparent(false));
+                }
+                if (result.success()) {
+                    if (rescan != null) {
+                        rescan.run();
+                    } else if (hookDialogBusy != null) {
+                        hookDialogBusy.set(false);
+                    }
+                } else {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.initOwner(getScene() == null ? null : getScene().getWindow());
+                    alert.setTitle("AhaKey Hook 管理");
+                    alert.setHeaderText(null);
+                    alert.setContentText(result.reason() + "，请联系管理员");
+                    alert.showAndWait();
+                    if (rescan != null) {
+                        rescan.run();
+                    } else if (hookDialogBusy != null) {
+                        hookDialogBusy.set(false);
                     }
                 }
-                
-                addLog(detectionPrefix + " " + languageManager.getString("hook.final-status") + ": " + (installed ? "Installed" : "Not Installed"));
-                addLog("");
-                
-                // 更新卡片状态
-                int finalI = i;
-                boolean finalInstalled = installed;
-                Platform.runLater(() -> updateHookCardStatus(hookCards[finalI], name, finalInstalled));
-            }
-        }, "hook-detection").start();
+            });
+        }, "hook-manager-write-" + hookName);
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private void showHookUpdateSummary(List<String> outdated, Runnable rescan) {
+        javafx.scene.control.Dialog<Void> dialog = new javafx.scene.control.Dialog<>();
+        dialog.initOwner(getScene() == null ? null : getScene().getWindow());
+        dialog.setTitle("AhaKey Hook 管理");
+        ButtonType update = new ButtonType("一键更新");
+        ButtonType cancel = new ButtonType("取消", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().setAll(update, cancel);
+        Label message = hookNote("以下工具需要更新 Hook：" + String.join("、", outdated)
+            + "\n更新会先备份原 Hook 文件，并且只替换 AhaKey Hook。");
+        dialog.getDialogPane().setContent(message);
+        Button updateButton = (Button) dialog.getDialogPane().lookupButton(update);
+        Button cancelButton = (Button) dialog.getDialogPane().lookupButton(cancel);
+        updateButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            event.consume();
+            updateButton.setDisable(true);
+            cancelButton.setDisable(true);
+            Thread thread = new Thread(() -> {
+                List<String> failed = new ArrayList<>();
+                for (String name : outdated) {
+                    String currentName = name;
+                    Platform.runLater(() -> message.setText("正在更新：" + currentName));
+                    HookInstaller.HookWriteResult result = hookInstaller.installOrUpdate(currentName);
+                    if (!result.success()) {
+                        failed.add(currentName + "：" + result.reason());
+                    }
+                }
+                Platform.runLater(() -> {
+                    if (failed.isEmpty()) {
+                        dialog.close();
+                        if (rescan != null) {
+                            rescan.run();
+                        }
+                    } else {
+                        message.setText("以下工具更新失败：\n" + String.join("\n", failed));
+                        ButtonType know = new ButtonType("知道了", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+                        dialog.getDialogPane().getButtonTypes().setAll(know);
+                        Button knowButton = (Button) dialog.getDialogPane().lookupButton(know);
+                        knowButton.addEventFilter(javafx.event.ActionEvent.ACTION, e -> {
+                            if (rescan != null) {
+                                rescan.run();
+                            }
+                        });
+                    }
+                });
+            }, "hook-manager-update-all");
+            thread.setDaemon(true);
+            thread.start();
+        });
+        dialog.show();
+    }
+
+    private String hookStatusText(HookInstaller.HookStatus status) {
+        return switch (status) {
+            case DETECTING -> "检测中";
+            case APP_NOT_FOUND -> "未检测到应用";
+            case NOT_INSTALLED -> "未安装";
+            case OUTDATED -> "待更新";
+            case LATEST -> "最新";
+            case ERROR -> "异常";
+        };
+    }
+
+    private String hookActionText(HookInstaller.HookStatus status) {
+        return switch (status) {
+            case APP_NOT_FOUND -> "不可安装";
+            case NOT_INSTALLED -> "安装 Hook";
+            case OUTDATED -> "更新 Hook";
+            case LATEST -> "已是最新";
+            case ERROR -> "异常";
+            case DETECTING -> "检测中";
+        };
+    }
+
+    private String hookDescription(HookInstaller.HookStatus status) {
+        return switch (status) {
+            case APP_NOT_FOUND -> "未检测到对应应用，暂不可安装 Hook";
+            case NOT_INSTALLED -> "未安装 Hook，安装后可支持 AhaKey 功能";
+            case OUTDATED -> "当前 Hook 需要更新，更新后可支持多任务灯光状态，并优化 Cursor 权限流程";
+            case LATEST -> "已是最新版，支持多任务灯光状态";
+            case ERROR -> "检测异常，请联系管理员";
+            case DETECTING -> "正在检测 Hook 状态";
+        };
     }
 
     private SleepWaitTimeControl createSleepWaitTimeControl() {

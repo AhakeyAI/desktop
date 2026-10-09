@@ -2,6 +2,9 @@ package com.example.ahakey.view;
 
 import com.example.ahakey.app.StudioController;
 import com.example.ahakey.model.DeviceStatus;
+import com.example.ahakey.model.AiRuntimeDisplayMode;
+import com.example.ahakey.model.AiRuntimeSession;
+import com.example.ahakey.model.AiRuntimeSlotBinding;
 import com.example.ahakey.model.KeyConfig;
 import com.example.ahakey.model.IDEState;
 import com.example.ahakey.model.LightBarPreviewState;
@@ -16,12 +19,14 @@ import com.example.ahakey.util.LanguageManager;
 import javafx.scene.control.Spinner;
 import javafx.stage.Window;
 import com.example.ahakey.service.AgentManager;
+import com.example.ahakey.service.HookInstaller;
 import javafx.beans.binding.Bindings;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
@@ -40,6 +45,8 @@ import javafx.scene.text.Text;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.function.Supplier;
 
 public class InspectorPane extends ScrollPane {
@@ -78,6 +85,8 @@ public class InspectorPane extends ScrollPane {
         studioState.lightBarPreviewProperty().addListener((obs, oldValue, newValue) -> rebuild());
         studioState.cp4cInputConfigEnabledProperty().addListener((obs, oldValue, newValue) -> rebuild());
         studioState.inputBaselineRevisionProperty().addListener((obs, oldValue, newValue) -> rebuild());
+        controller.getAiRuntimeDisplayService().displayModeProperty().addListener((obs, oldValue, newValue) -> rebuild());
+        controller.getAiRuntimeDisplayService().getSlots().addListener((javafx.collections.ListChangeListener<AiRuntimeSlotBinding>) change -> rebuild());
         agentManager.bluetoothOwnerProperty().addListener((obs, oldValue, newValue) -> rebuild());
         rebuild();
     }
@@ -815,8 +824,266 @@ public class InspectorPane extends ScrollPane {
             return box;
         });
 
-        root.getChildren().addAll(brightnessBox, statesBox);
+        root.getChildren().addAll(createAiRuntimeGroup(), brightnessBox, statesBox);
         return root;
+    }
+
+    private VBox createAiRuntimeGroup() {
+        return createGroupBox("AI 运行展示", () -> {
+            VBox box = new VBox(12);
+            var service = controller.getAiRuntimeDisplayService();
+
+            ToggleGroup modeGroup = new ToggleGroup();
+            ToggleButton single = new ToggleButton("单任务");
+            ToggleButton multi = new ToggleButton("多任务");
+            single.setToggleGroup(modeGroup);
+            multi.setToggleGroup(modeGroup);
+            single.setSelected(service.getDisplayMode() == AiRuntimeDisplayMode.SINGLE);
+            multi.setSelected(service.getDisplayMode() == AiRuntimeDisplayMode.MULTI);
+            single.setOnAction(e -> controller.setAiRuntimeDisplayMode(AiRuntimeDisplayMode.SINGLE));
+            multi.setOnAction(e -> controller.setAiRuntimeDisplayMode(AiRuntimeDisplayMode.MULTI));
+            HBox modeRow = new HBox(8, new Label("展示模式"), single, multi);
+            modeRow.setAlignment(Pos.CENTER_LEFT);
+
+            VBox slotBox = new VBox(6);
+            for (AiRuntimeSlotBinding slot : service.getSlots()) {
+                Label label = new Label(slotSummary(slot) + " / " + slot.runtimeState().getTitle());
+                label.getStyleClass().add("group-note");
+                label.setWrapText(true);
+                slotBox.getChildren().add(label);
+            }
+
+            HBox actions = new HBox(8);
+            Button manage = new Button("管理关注任务槽");
+            manage.setOnAction(e -> showAiRuntimeSlotDialog());
+            Button apply = new Button("应用到键盘");
+            apply.getStyleClass().add("button-prominent");
+            apply.setOnAction(e -> controller.applyAiRuntimeToKeyboard(getScene() == null ? null : getScene().getWindow()));
+            actions.getChildren().addAll(manage, apply);
+
+            Label support = new Label(service.isDeviceSupported() || !deviceStatus.isConnected()
+                ? "槽位绑定保存在本机；连接支持 WS3 CP1 的键盘后可应用。"
+                : "当前固件不支持多任务运行展示，本地绑定不受影响。");
+            support.getStyleClass().add("group-note");
+            support.setWrapText(true);
+
+            box.getChildren().addAll(modeRow, slotBox, actions, support);
+            return box;
+        });
+    }
+
+    private void showAiRuntimeSlotDialog() {
+        var service = controller.getAiRuntimeDisplayService();
+        javafx.scene.control.Dialog<Void> dialog = new javafx.scene.control.Dialog<>();
+        dialog.setTitle("管理关注任务槽");
+        dialog.initOwner(getScene() == null ? null : getScene().getWindow());
+        dialog.getDialogPane().getButtonTypes().add(javafx.scene.control.ButtonType.CLOSE);
+
+        VBox root = new VBox(12);
+        root.setPadding(new Insets(14));
+        root.setPrefWidth(620);
+        root.setPrefHeight(560);
+
+        Label primaryNote = caption("主槽位代表屏幕上展示 GIF 的具体会话。");
+
+        javafx.scene.control.TreeView<Object> tree = new javafx.scene.control.TreeView<>();
+        tree.setShowRoot(false);
+        tree.setPrefHeight(300);
+        HookInstaller.HookStatus codexStatus = controller.getAiRuntimeHookStatus("Codex");
+        HookInstaller.HookStatus cursorStatus = controller.getAiRuntimeHookStatus("Cursor");
+        boolean codexHookLatest = codexStatus == HookInstaller.HookStatus.LATEST;
+        boolean cursorHookLatest = cursorStatus == HookInstaller.HookStatus.LATEST;
+        service.prepareApply(codexHookLatest, cursorHookLatest);
+        tree.setRoot(buildRuntimeSessionTree(codexStatus, cursorStatus));
+        tree.setCellFactory(view -> new javafx.scene.control.TreeCell<>() {
+            @Override
+            protected void updateItem(Object item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setDisable(false);
+                } else if (item instanceof AiRuntimeSession session) {
+                    int bound = service.findBoundSlot(session.provider(), session.id());
+                    setText(session.displayTitle() + "   " + session.timeLabel() + (bound >= 0 ? "   已绑定 槽位 " + (bound + 1) : ""));
+                    setDisable(bound >= 0);
+                } else {
+                    setText(item.toString());
+                    setDisable(false);
+                }
+            }
+        });
+
+        VBox slotsBox = new VBox(8);
+        ToggleGroup primaryGroup = new ToggleGroup();
+        for (int i = 0; i < 4; i++) {
+            final int slotIndex = i;
+            AiRuntimeSlotBinding slot = service.getSlots().get(i);
+            HBox row = new HBox(8);
+            row.setAlignment(Pos.CENTER_LEFT);
+            RadioButton primary = new RadioButton("主槽位");
+            primary.setToggleGroup(primaryGroup);
+            String unavailableReason = service.slotUnavailableReason(slot, codexHookLatest, cursorHookLatest);
+            boolean primarySelectable = slot.isBound() && unavailableReason == null;
+            primary.setSelected(service.getPrimarySlotIndex() == slotIndex && primarySelectable);
+            primary.setDisable(!primarySelectable);
+            primary.setOnAction(e -> {
+                if (!primary.isDisabled()) {
+                    service.setPrimarySlotIndex(slotIndex);
+                }
+            });
+            Label summary = new Label(slotSummary(slot) + "｜" + slotAvailabilityText(slot, unavailableReason));
+            summary.getStyleClass().add("group-note");
+            summary.setWrapText(true);
+            Button bind = new Button("绑定到槽位 " + (i + 1));
+            bind.setOnAction(e -> {
+                Object selected = tree.getSelectionModel().getSelectedItem() == null
+                    ? null
+                    : tree.getSelectionModel().getSelectedItem().getValue();
+                if (selected instanceof AiRuntimeSession session) {
+                    service.bindSlot(slotIndex, session);
+                    rebuild();
+                }
+            });
+            Button clear = new Button("解绑");
+            clear.setOnAction(e -> {
+                service.clearSlot(slotIndex);
+                rebuild();
+            });
+            row.getChildren().addAll(primary, summary, bind, clear);
+            HBox.setHgrow(summary, Priority.ALWAYS);
+            slotsBox.getChildren().add(row);
+        }
+
+        VBox dirBox = new VBox(8);
+        dirBox.getChildren().add(createDataDirRow("Codex 数据目录", service.getCodexDataDir(), value -> service.setCodexDataDir(value), dialog));
+        dirBox.getChildren().add(createDataDirRow("Cursor 数据目录", service.getCursorDataDir(), value -> service.setCursorDataDir(value), dialog));
+
+        Button apply = new Button("应用到键盘");
+        apply.getStyleClass().add("button-prominent");
+        apply.setOnAction(e -> controller.applyAiRuntimeToKeyboard(dialog.getDialogPane().getScene().getWindow()));
+
+        Button hookManager = new Button("去 Hook 管理");
+        hookManager.setOnAction(e -> controller.openHookManager());
+
+        Label note = new Label("只显示 Codex / Cursor 会话摘要和元信息，不展示完整聊天内容。");
+        note.getStyleClass().add("group-note");
+        note.setWrapText(true);
+        HBox actionRow = new HBox(8, apply, hookManager);
+        root.getChildren().addAll(primaryNote, dirBox, tree, slotsBox, actionRow, note);
+        dialog.getDialogPane().setContent(root);
+        dialog.showAndWait();
+    }
+
+    private HBox createDataDirRow(
+        String labelText,
+        String value,
+        java.util.function.Consumer<String> save,
+        javafx.scene.control.Dialog<Void> dialog
+    ) {
+        TextField field = new TextField(value);
+        HBox.setHgrow(field, Priority.ALWAYS);
+        Button saveButton = new Button("保存");
+        saveButton.setOnAction(e -> {
+            save.accept(field.getText());
+            dialog.close();
+            showAiRuntimeSlotDialog();
+        });
+        Button choose = new Button("选择");
+        choose.setOnAction(e -> {
+            javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
+            chooser.setTitle("选择" + labelText);
+            java.io.File selected = chooser.showDialog(dialog.getDialogPane().getScene().getWindow());
+            if (selected != null) {
+                save.accept(selected.getAbsolutePath());
+                dialog.close();
+                showAiRuntimeSlotDialog();
+            }
+        });
+        HBox row = new HBox(8, new Label(labelText), field, saveButton, choose);
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    private javafx.scene.control.TreeItem<Object> buildRuntimeSessionTree(
+        HookInstaller.HookStatus codexStatus,
+        HookInstaller.HookStatus cursorStatus
+    ) {
+        javafx.scene.control.TreeItem<Object> root = new javafx.scene.control.TreeItem<>("root");
+        root.getChildren().add(buildProviderTree("Codex", codexStatus));
+        root.getChildren().add(buildProviderTree("Cursor", cursorStatus));
+        return root;
+    }
+
+    private javafx.scene.control.TreeItem<Object> buildProviderTree(String provider, HookInstaller.HookStatus status) {
+        javafx.scene.control.TreeItem<Object> providerItem = new javafx.scene.control.TreeItem<>(provider);
+        providerItem.setExpanded(true);
+        var service = controller.getAiRuntimeDisplayService();
+        if (status != HookInstaller.HookStatus.LATEST) {
+            providerItem.getChildren().add(new javafx.scene.control.TreeItem<>("需安装/更新 Hook"));
+            providerItem.getChildren().add(new javafx.scene.control.TreeItem<>("去 Hook 管理"));
+            return providerItem;
+        }
+        if (!service.isDataDirValid(provider)) {
+            providerItem.getChildren().add(new javafx.scene.control.TreeItem<>("数据目录无效，请重新选择目录"));
+            return providerItem;
+        }
+        List<AiRuntimeSession> sessions = service.discoverSessions(provider);
+        if (sessions.isEmpty()) {
+            providerItem.getChildren().add(new javafx.scene.control.TreeItem<>("暂无可绑定任务"));
+            return providerItem;
+        }
+        Map<String, List<AiRuntimeSession>> byProject = new LinkedHashMap<>();
+        for (AiRuntimeSession session : sessions) {
+            byProject.computeIfAbsent(session.projectName(), key -> new ArrayList<>()).add(session);
+        }
+        byProject.entrySet().stream()
+            .sorted((a, b) -> Long.compare(sessionMillis(b.getValue().get(0)), sessionMillis(a.getValue().get(0))))
+            .forEach(entry -> {
+                javafx.scene.control.TreeItem<Object> project = new javafx.scene.control.TreeItem<>(entry.getKey());
+                for (AiRuntimeSession session : entry.getValue()) {
+                    project.getChildren().add(new javafx.scene.control.TreeItem<>(session));
+                }
+                project.setExpanded(true);
+                providerItem.getChildren().add(project);
+            });
+        return providerItem;
+    }
+
+    private long sessionMillis(AiRuntimeSession session) {
+        return session.updatedAt() == null ? 0L : session.updatedAt().toEpochMilli();
+    }
+
+    private String slotAvailabilityText(AiRuntimeSlotBinding slot, String unavailableReason) {
+        if (!slot.isBound()) {
+            return "未绑定";
+        }
+        return unavailableReason == null ? "可用" : unavailableReason;
+    }
+
+    private String slotSummary(AiRuntimeSlotBinding slot) {
+        if (slot == null || !slot.isBound()) {
+            return "槽位 " + (slot == null ? "" : slot.getSlotIndex() + 1) + "｜未绑定";
+        }
+        return "槽位 " + (slot.getSlotIndex() + 1)
+            + "｜" + slot.getProvider()
+            + "｜" + slot.displayProjectName()
+            + "｜" + slot.displayTitle()
+            + "｜" + slotTimeLabel(slot.getUpdatedAtMillis());
+    }
+
+    private String slotTimeLabel(long updatedAtMillis) {
+        if (updatedAtMillis <= 0) {
+            return "最近时间未知";
+        }
+        long minutes = Math.max(0, (System.currentTimeMillis() - updatedAtMillis) / 60000);
+        if (minutes < 60) {
+            return minutes + " 分前";
+        }
+        long hours = minutes / 60;
+        if (hours < 24) {
+            return hours + " 小时前";
+        }
+        return (hours / 24) + " 天前";
     }
     private Label caption(String text) {
         Label label = new Label(text);

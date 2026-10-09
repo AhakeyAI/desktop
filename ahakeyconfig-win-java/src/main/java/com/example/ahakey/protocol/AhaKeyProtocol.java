@@ -1,6 +1,9 @@
 package com.example.ahakey.protocol;
 
 import com.example.ahakey.model.DeviceStatus;
+import com.example.ahakey.model.AiRuntimeDisplayMode;
+import com.example.ahakey.model.AiRuntimeSlotBinding;
+import com.example.ahakey.model.AiRuntimeSlotState;
 
 public class AhaKeyProtocol {
     private static final byte[] HEADER = {(byte) 0xAA, (byte) 0xBB};
@@ -24,6 +27,9 @@ public class AhaKeyProtocol {
     public static final byte CMD_SET_WORK_MODE = (byte) 0x92;
     public static final byte CMD_SLEEP_WAIT_TIME = (byte) 0x95;
     public static final byte CMD_SIDE_SWITCH_CONFIG = (byte) 0x97;
+    public static final byte CMD_RUNTIME_DISPLAY_MODE = (byte) 0x98;
+    public static final byte CMD_MULTI_RUNTIME_SNAPSHOT = (byte) 0x99;
+    public static final byte CMD_RUNTIME_COMPAT_ACK = (byte) 0x9A;
     public static final byte CMD_FIRMWARE_CATALOG_KEY = (byte) 0x9F;
     public static final int STATUS_OK = 0;
     public static final int STATUS_INVALID_PAYLOAD = 1;
@@ -41,6 +47,7 @@ public class AhaKeyProtocol {
     public static final int SIDE_SWITCH_ACTION_BIND_LEN = 100;
     public static final int SIDE_SWITCH_READBACK_ACTION_TOTAL_MAX = 52;
     private static final String CP4C_CATALOG_KEY = "x1-c582-hw1-p1-1.0.0-r001";
+    public static final int MULTI_RUNTIME_SNAPSHOT_VERSION = 1;
     
     // 按键子类型
     public static final byte SUB_SHORTCUT = 0x73;
@@ -107,6 +114,33 @@ public class AhaKeyProtocol {
 
     public static boolean isCp4cCatalogKey(String catalogKey) {
         return CP4C_CATALOG_KEY.equals(catalogKey);
+    }
+
+    public static boolean isWs3Cp1RuntimeDisplaySupported(String catalogKey) {
+        return CP4C_CATALOG_KEY.equals(catalogKey);
+    }
+
+    public static byte[] setRuntimeDisplayMode(AiRuntimeDisplayMode mode) {
+        AiRuntimeDisplayMode safeMode = mode == null ? AiRuntimeDisplayMode.SINGLE : mode;
+        return buildFrame(CMD_RUNTIME_DISPLAY_MODE, new byte[]{(byte) safeMode.getProtocolValue()});
+    }
+
+    public static byte[] multiRuntimeSnapshot(AiRuntimeSlotBinding[] slots) {
+        byte[] payload = new byte[1 + 4 * 3];
+        payload[0] = (byte) MULTI_RUNTIME_SNAPSHOT_VERSION;
+        for (int i = 0; i < 4; i++) {
+            AiRuntimeSlotBinding slot = slots != null && i < slots.length ? slots[i] : null;
+            boolean valid = slot != null && slot.isBound();
+            AiRuntimeSlotState state = valid ? slot.runtimeState() : AiRuntimeSlotState.EMPTY;
+            if (state == AiRuntimeSlotState.EMPTY) {
+                valid = false;
+            }
+            int offset = 1 + i * 3;
+            payload[offset] = (byte) (valid ? 1 : 0);
+            payload[offset + 1] = (byte) state.getProtocolValue();
+            payload[offset + 2] = (byte) (slot != null && slot.isForeground() ? 1 : 0);
+        }
+        return buildFrame(CMD_MULTI_RUNTIME_SNAPSHOT, payload);
     }
 
     public static byte[] readOrdinaryKeyConfig(int mode, int keyIndex) {
