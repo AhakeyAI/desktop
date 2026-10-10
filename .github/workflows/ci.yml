@@ -68,6 +68,9 @@ jobs:
       - name: Test CP4D ordinary-key readback
         run: swift test --filter OrdinaryKeyReadbackTests
 
+      - name: Test WS2 settings readback
+        run: swift test --filter WS2SettingsReadbackTests
+
       - name: Test macOS targets
         run: swift test
 

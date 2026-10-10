@@ -127,4 +127,5 @@ git switch 'connect&talk'
 - M02 开始：新增 [CP4D 上位机协议契约摘录](../ahastudio/ws2-cp4d-host-contract-2026-10-10.md)，直接核对固件 PRD 和 `command_solve.c`，记录响应长度与二进制载荷边界。
 - T01 开始：新增 `Sources/Shared/DeviceFrameDecoder.swift`，只识别已核对形状的 CP4D 响应，并有分片、合包、载荷内 `CC DD` 和错误恢复测试。尚未接到 App/Agent BLE 收包路径；未知命令保留原路径。
 - M03 开始：新增 `Sources/Shared/FirmwareCapabilityProfile.swift`，catalog key 只允许只读探测；不能仅凭 key 或本地 profile 开放写入，也不把旧 CP4D 构建说成包含 WS3。
+- 只读解析继续：新增 `OrdinaryKeyReadback.swift` 与 `WS2SettingsReadback.swift`，严格区分读回值与写入 ACK，保留普通键及拨杆动作的原始二进制内容；尚未接到 BLE 查询会话或界面状态。
 - 当前执行设备是 Windows，没有 Swift/macOS 工具链和目标键盘，Swift 编译、单测及真机验收由 macOS CI 与后续 Mac 环境验证。CI 已加入 `swift test`；未通过前上述模块不能标为完成。
