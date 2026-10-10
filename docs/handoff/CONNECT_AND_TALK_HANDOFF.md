@@ -131,3 +131,5 @@ git switch 'connect&talk'
 - T02 推进：提交 `5360ad9` 将 App 中等待回包的命令改为单事务串行队列，按 `0x83` mode、`0x87` mode/key 与 WS2 读写响应形状关联；超时/断线结束等待并清理队列，无法区分的迟到 ACK 必须经重连清除。OLED 数据写入的超时等待也不再悬挂。提交 `787aca9` 使缺少亮度字段的短版旧状态保持只读灯效能力。现有旧式直接写命令仍是独立路径，须在后续 S02/写入路线中纳入完整事务门控。
 - R01–R04 后端开始：提交 `a01dba7` 增加手动只读 catalog 探测和能力显示，已知 WS2 catalog 才开放普通键、待机、语音引导和拨杆绑定的只读查询接口；未知 catalog 不开放这些查询，更不开放写入。旧固件仅在同一连接有有效 `0x00` 状态回包且 `0x9F` 返回通用 ACK 时识别为 legacy。当前尚未将这些读回值接到统一配置快照或编辑界面，真机读回也未验证。
 - 当前执行设备是 Windows，没有 Swift/macOS 工具链和目标键盘。提交 `787aca9` 的 [macOS CI](https://github.com/AhakeyAI/desktop/actions/runs/38038536887) 已通过全目标编译、CP4D 定向测试、完整 `swift test`、Release 打包及产物上传；这证明编译与自动测试通过，不代替目标 Mac 与键盘的 BLE 真机验收。
+
+- T03 交接推进（efe00e）：App 让出 BLE 时立即使在途命令、固件能力和连接相关缓存失效，等待 CoreBluetooth 断线回调后才允许新连接；旧外设的服务/特征/RSSI/写入回调需匹配当前外设。AgentManager 的延时启动和回退按交接代次过滤；Agent 重连后旧状态查询超时不会结束新查询，断线清除拨杆/灯效缓存和延时灯态。跨进程 lock 仍负责单一连接拥有者。该提交的 macOS CI（编译、测试、打包）已通过：https://github.com/AhakeyAI/desktop/actions/runs/38043948769 。目标 Mac 与键盘上的 App↔Agent 往返交接、断线和 Hook 行为尚未真机验收。
