@@ -128,4 +128,5 @@ git switch 'connect&talk'
 - T01 推进：`Sources/Shared/DeviceFrameDecoder.swift` 只识别已核对形状的 CP4D 响应，现通过 `DeviceNotificationFramer` 接入 App 与 Agent 的 BLE 收包路径。按特征独立组帧，断线清空残片，2 秒无后续片段则重置；兼容 12 字节旧状态与 13 字节新状态，未知命令的完整通知仍走原解析路径。分片、合包、载荷内 `CC DD`、旧响应透传和清理均有单测；尚未真机验收。
 - M03 开始：新增 `Sources/Shared/FirmwareCapabilityProfile.swift`，catalog key 只允许只读探测；不能仅凭 key 或本地 profile 开放写入，也不把旧 CP4D 构建说成包含 WS3。
 - 只读解析继续：新增 `OrdinaryKeyReadback.swift` 与 `WS2SettingsReadback.swift`，严格区分读回值与写入 ACK，保留普通键及拨杆动作的原始二进制内容；尚未接到 BLE 查询会话或界面状态。
-- 当前执行设备是 Windows，没有 Swift/macOS 工具链和目标键盘。提交 `b551675` 的 macOS CI 已显示全目标编译、CP4D 定向测试和完整 `swift test` 通过，当时打包仍在运行。收包接入提交 `a8b72bf` 已推送，CI 最终结果尚待核对；真机验收仍需 Mac 与目标键盘。
+- T02 推进：提交 `5360ad9` 将 App 中等待回包的命令改为单事务串行队列，按 `0x83` mode、`0x87` mode/key 与 WS2 读写响应形状关联；超时/断线结束等待并清理队列，无法区分的迟到 ACK 必须经重连清除。OLED 数据写入的超时等待也不再悬挂。提交 `787aca9` 使缺少亮度字段的短版旧状态保持只读灯效能力。现有旧式直接写命令仍是独立路径，须在后续 S02/写入路线中纳入完整事务门控。
+- 当前执行设备是 Windows，没有 Swift/macOS 工具链和目标键盘。提交 `787aca9` 的 [macOS CI](https://github.com/AhakeyAI/desktop/actions/runs/38038536887) 已通过全目标编译、CP4D 定向测试、完整 `swift test`、Release 打包及产物上传；这证明编译与自动测试通过，不代替目标 Mac 与键盘的 BLE 真机验收。
