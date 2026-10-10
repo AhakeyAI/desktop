@@ -37,6 +37,14 @@ enum AhaKeyCommand {
     static let cmdSetBrightness: UInt8 = 0x85    // 全局 WS2812 亮度 1-100
     static let cmdSetWorkMode: UInt8 = 0x92      // 远程切换工作模式 0-3
 
+    // WS2 CP4D read-only queries. Callers still need a matching catalog
+    // profile and a fresh response from the connected device.
+    static let cmdReadOrdinaryKey: UInt8 = 0x87
+    static let cmdReadStandby: UInt8 = 0x95
+    static let cmdReadVoiceOnboarding: UInt8 = 0x96
+    static let cmdReadSideSwitch: UInt8 = 0x97
+    static let cmdReadFirmwareCatalog: UInt8 = 0x9F
+
     static func oledStartIndex(forMode mode: UInt8) -> UInt16 {
         UInt16(oledFactoryReservedSlots + Int(min(3, mode)) * oledMaxFramesPerMode)
     }
@@ -49,6 +57,27 @@ enum AhaKeyCommand {
     /// 设备状态查询 → AA BB 00 CC DD
     static func queryDeviceStatus() -> Data {
         Data(header + [0x00] + trailer)
+    }
+
+    static func queryFirmwareCatalog() -> Data {
+        Data(header + [cmdReadFirmwareCatalog] + trailer)
+    }
+
+    static func queryOrdinaryKey(mode: UInt8, keyIndex: UInt8) -> Data? {
+        guard mode < 4, keyIndex < 4 else { return nil }
+        return Data(header + [cmdReadOrdinaryKey, mode, keyIndex] + trailer)
+    }
+
+    static func queryStandby() -> Data {
+        Data(header + [cmdReadStandby] + trailer)
+    }
+
+    static func queryVoiceOnboarding() -> Data {
+        Data(header + [cmdReadVoiceOnboarding] + trailer)
+    }
+
+    static func querySideSwitch() -> Data {
+        Data(header + [cmdReadSideSwitch] + trailer)
     }
 
     /// 保存配置到设备 Flash → AA BB 04 CC DD
