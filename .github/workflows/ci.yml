@@ -52,6 +52,22 @@ jobs:
       - name: Compile-check all targets (debug)
         run: swift build
 
+      - name: Test CP4D frame decoder
+        run: |
+          set -o pipefail
+          swift test --filter DeviceFrameDecoderTests 2>&1 | tee swift-test.log || {
+            grep -E 'error:|failed|Failure' swift-test.log | head -n 20 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit 1
+          }
+
+      - name: Test CP4D capability profile
+        run: swift test --filter FirmwareCapabilityProfileTests
+
+      - name: Test CP4D ordinary-key readback
+        run: swift test --filter OrdinaryKeyReadbackTests
+
       - name: Test macOS targets
         run: swift test
 
