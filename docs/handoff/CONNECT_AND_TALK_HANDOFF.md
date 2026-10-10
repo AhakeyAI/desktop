@@ -125,7 +125,7 @@ git switch 'connect&talk'
 
 - 重新核对远端：`main` 仍为 `6c94704ba8d491bec742dc38cda62ef2a3a19cb5`；PR #78 的 head `3d757cf2c215cdae2393d40f4e567dc3efe2b634` 未进入 main；`Fireware-harness` 仍为 `d1b46a14a796790f2ffe0d228e6c5badcfc34d75`。当前开发分支已按原提交来源带入 PR #78 的两项 Cursor 修复，未合并原 PR。
 - M02 开始：新增 [CP4D 上位机协议契约摘录](../ahastudio/ws2-cp4d-host-contract-2026-10-10.md)，直接核对固件 PRD 和 `command_solve.c`，记录响应长度与二进制载荷边界。
-- T01 开始：新增 `Sources/Shared/DeviceFrameDecoder.swift`，只识别已核对形状的 CP4D 响应，并有分片、合包、载荷内 `CC DD` 和错误恢复测试。尚未接到 App/Agent BLE 收包路径；未知命令保留原路径。
+- T01 推进：`Sources/Shared/DeviceFrameDecoder.swift` 只识别已核对形状的 CP4D 响应，现通过 `DeviceNotificationFramer` 接入 App 与 Agent 的 BLE 收包路径。按特征独立组帧，断线清空残片，2 秒无后续片段则重置；兼容 12 字节旧状态与 13 字节新状态，未知命令的完整通知仍走原解析路径。分片、合包、载荷内 `CC DD`、旧响应透传和清理均有单测；尚未真机验收。
 - M03 开始：新增 `Sources/Shared/FirmwareCapabilityProfile.swift`，catalog key 只允许只读探测；不能仅凭 key 或本地 profile 开放写入，也不把旧 CP4D 构建说成包含 WS3。
 - 只读解析继续：新增 `OrdinaryKeyReadback.swift` 与 `WS2SettingsReadback.swift`，严格区分读回值与写入 ACK，保留普通键及拨杆动作的原始二进制内容；尚未接到 BLE 查询会话或界面状态。
-- 当前执行设备是 Windows，没有 Swift/macOS 工具链和目标键盘，Swift 编译、单测及真机验收由 macOS CI 与后续 Mac 环境验证。CI 已加入 `swift test`；未通过前上述模块不能标为完成。
+- 当前执行设备是 Windows，没有 Swift/macOS 工具链和目标键盘。提交 `b551675` 的 macOS CI 已显示全目标编译、CP4D 定向测试和完整 `swift test` 通过，当时打包仍在运行。收包接入提交 `a8b72bf` 已推送，CI 最终结果尚待核对；真机验收仍需 Mac 与目标键盘。
