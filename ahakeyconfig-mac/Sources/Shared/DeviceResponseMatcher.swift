@@ -35,7 +35,8 @@ public enum DeviceResponseMatcher {
         case 0x97:
             return sent.count == 5 ? received.count >= 12 : received.count == 6
         case 0x9F:
-            return sent.count == 5 && received.count >= 7
+            // Older firmware may ACK an unknown command without a catalog.
+            return sent.count == 5 && received.count >= 6
         default:
             return true
         }

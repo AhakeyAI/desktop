@@ -18,6 +18,8 @@ struct DeviceInfoView: View {
     @State private var agentLogPanel = 0
     @State private var logPanelContentTick = 0
     @State private var showAgentRequiredForAgentBLE = false
+    @State private var isReadingFirmwareCatalog = false
+    @State private var firmwareCatalogError: String?
 
     var body: some View {
         Form {
@@ -350,6 +352,15 @@ struct DeviceInfoView: View {
                         .font(.system(.caption, design: .monospaced))
                         .textSelection(.enabled)
                 }
+                CompatLabeledContent("固件协议") {
+                    Text(firmwareProfileLabel())
+                        .textSelection(.enabled)
+                }
+                if let firmwareCatalogError {
+                    Text(firmwareCatalogError)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
                 HStack {
                     CompatLabeledContent("特征") {
                         HStack(spacing: 8) {
@@ -381,6 +392,22 @@ struct DeviceInfoView: View {
                         }
                         .buttonStyle(.bordered)
                         .help("发送 AA BB 00 CC DD 查询设备状态")
+
+                        Button(isReadingFirmwareCatalog ? "读取中…" : "读取固件能力") {
+                            isReadingFirmwareCatalog = true
+                            firmwareCatalogError = nil
+                            Task { @MainActor in
+                                defer { isReadingFirmwareCatalog = false }
+                                do {
+                                    _ = try await bleManager.readFirmwareCapabilityProfile()
+                                } catch {
+                                    firmwareCatalogError = error.localizedDescription
+                                }
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(isReadingFirmwareCatalog)
+                        .help("只读查询固件目录；未知固件不会开放新配置写入")
 
                         Button("探测协议") {
                             bleManager.sendProbeCommands()
@@ -503,6 +530,18 @@ struct DeviceInfoView: View {
                     .fill(ready ? Color.green.opacity(0.15) : Color.gray.opacity(0.1))
             )
             .foregroundStyle(ready ? Color.green : Color.secondary)
+    }
+
+    private func firmwareProfileLabel() -> String {
+        guard let profile = bleManager.firmwareCapabilityProfile else { return "未读取" }
+        switch profile.identity {
+        case .knownWS2Catalog:
+            return "WS2 CP4D · 只读探测"
+        case .legacy:
+            return "旧版协议"
+        case .unknown(let key):
+            return key.map { "未知目录：\($0)" } ?? "未知"
+        }
     }
 
     private func switchStateLabel(_ state: Int) -> String {

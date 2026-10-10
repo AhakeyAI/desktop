@@ -24,7 +24,7 @@ final class BLEDeviceDiagnosticsStore: ObservableObject {
 /// AhaKey-X1 BLE 通信管理器
 @MainActor
 final class AhaKeyBLEManager: NSObject, ObservableObject {
-    typealias CommandResponse = (status: UInt8, payload: Data)
+    typealias CommandResponse = (status: UInt8, payload: Data, frame: Data)
 
     struct OLEDUploadProgress: Equatable {
         let completedChunks: Int
@@ -91,6 +91,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     @Published private(set) var bleConnectionStatus: String = NSLocalizedString("未连接", comment: "")
     @Published private(set) var supportsConfigurableLighting: Bool?
+    @Published private(set) var firmwareCapabilityProfile: FirmwareCapabilityProfile?
     @Published private(set) var bluetoothPermissionGranted = true
     @Published private(set) var bluetoothPoweredOn = false
     /// 细分的「卡在哪条链路」诊断，把笼统的「等待设备」拆成可操作提示（Issue #34）。
@@ -217,6 +218,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     private var commandSessionGeneration: UInt64 = 0
     private var nextCommandRequestID: UInt64 = 0
     private var commandChannelUnsynchronized = false
+    private var hasValidStatusReadback = false
     private struct PendingDataWrite {
         let id: UInt64
         let generation: UInt64
@@ -670,6 +672,87 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         return state
     }
 
+    /// A catalog probe is read-only. A legacy profile is assigned only after
+    /// this connection has independently returned a valid status frame.
+    func readFirmwareCapabilityProfile() async throws -> FirmwareCapabilityProfile {
+        if !hasValidStatusReadback {
+            _ = try await sendCommandAwaitingResponse(
+                AhaKeyCommand.queryDeviceStatus(), expectedCommand: 0x00
+            )
+        }
+        let response = try await sendCommandAwaitingResponse(
+            AhaKeyCommand.queryFirmwareCatalog(),
+            expectedCommand: AhaKeyCommand.cmdReadFirmwareCatalog,
+            allowDeviceError: true
+        )
+        if response.frame.count == 6 {
+            guard hasValidStatusReadback else { throw OLEDUploadError.invalidReadback }
+            let profile = FirmwareCapabilityProfile.legacyAfterStatusReadback()
+            firmwareCapabilityProfile = profile
+            return profile
+        }
+        let profile = FirmwareCapabilityProfile.catalogResponse(response.frame)
+        guard profile.identity != .unknown(nil) else { throw OLEDUploadError.invalidReadback }
+        firmwareCapabilityProfile = profile
+        return profile
+    }
+
+    func readOrdinaryKey(mode: UInt8, keyIndex: UInt8) async throws -> OrdinaryKeyReadbackResult {
+        guard firmwareCapabilityProfile?.mayQueryOrdinaryKeys == true else {
+            throw OLEDUploadError.unsupportedReadOnlyProfile
+        }
+        guard let request = AhaKeyCommand.queryOrdinaryKey(mode: mode, keyIndex: keyIndex) else {
+            throw OLEDUploadError.invalidCommandFrame
+        }
+        let response = try await sendCommandAwaitingResponse(
+            request, expectedCommand: AhaKeyCommand.cmdReadOrdinaryKey, allowDeviceError: true
+        )
+        let result = OrdinaryKeyReadbackResult.parse(
+            response.frame, requestedMode: mode, requestedKeyIndex: keyIndex
+        )
+        guard result != .malformed else { throw OLEDUploadError.invalidReadback }
+        return result
+    }
+
+    func readStandbyMinutes() async throws -> UInt16 {
+        guard firmwareCapabilityProfile?.mayQueryStandby == true else {
+            throw OLEDUploadError.unsupportedReadOnlyProfile
+        }
+        let response = try await sendCommandAwaitingResponse(
+            AhaKeyCommand.queryStandby(), expectedCommand: AhaKeyCommand.cmdReadStandby
+        )
+        guard let value = WS2SettingsReadback.standbyMinutes(response.frame) else {
+            throw OLEDUploadError.invalidReadback
+        }
+        return value
+    }
+
+    func readVoiceOnboardingState() async throws -> UInt8 {
+        guard firmwareCapabilityProfile?.mayQueryVoiceOnboarding == true else {
+            throw OLEDUploadError.unsupportedReadOnlyProfile
+        }
+        let response = try await sendCommandAwaitingResponse(
+            AhaKeyCommand.queryVoiceOnboarding(), expectedCommand: AhaKeyCommand.cmdReadVoiceOnboarding
+        )
+        guard let value = WS2SettingsReadback.voiceOnboardingState(response.frame) else {
+            throw OLEDUploadError.invalidReadback
+        }
+        return value
+    }
+
+    func readSideSwitchBinding() async throws -> SideSwitchReadback {
+        guard firmwareCapabilityProfile?.mayQuerySideSwitchBindings == true else {
+            throw OLEDUploadError.unsupportedReadOnlyProfile
+        }
+        let response = try await sendCommandAwaitingResponse(
+            AhaKeyCommand.querySideSwitch(), expectedCommand: AhaKeyCommand.cmdReadSideSwitch
+        )
+        guard let value = WS2SettingsReadback.sideSwitch(response.frame) else {
+            throw OLEDUploadError.invalidReadback
+        }
+        return value
+    }
+
     /// 同步 IDE 状态到键盘 LED
     func updateIDEState(_ state: IDEState) {
         guard commandChar != nil else { return }
@@ -1115,6 +1198,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     private func resetCommandSession() {
         commandSessionGeneration &+= 1
+        hasValidStatusReadback = false
+        firmwareCapabilityProfile = nil
         if let pending = pendingCommandResponse {
             pendingCommandResponse = nil
             pending.timeoutTask.cancel()
@@ -1152,9 +1237,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
               ) else { return }
         let result: CommandResponse
         if pending.command == 0x00 {
-            result = (status: 0, payload: frame)
+            result = (status: 0, payload: frame, frame: frame)
         } else if let response = AhaKeyResponseParser.parseCommandResponse(frame) {
-            result = (status: response.status, payload: response.payload)
+            result = (status: response.status, payload: response.payload, frame: frame)
         } else {
             return
         }
@@ -1163,7 +1248,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         pending.continuation.resume(returning: result)
     }
 
-    private func sendCommandAwaitingResponse(_ data: Data, expectedCommand: UInt8, timeoutSeconds: Double = 5.0) async throws -> CommandResponse {
+    private func sendCommandAwaitingResponse(
+        _ data: Data, expectedCommand: UInt8, timeoutSeconds: Double = 5.0,
+        allowDeviceError: Bool = false
+    ) async throws -> CommandResponse {
         let generation = try await acquireCommandTurn()
         defer { releaseCommandTurn(generation) }
         try Task.checkCancellation()
@@ -1185,7 +1273,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             )
             writeCommand(data)
         }
-        guard result.status == 0 else {
+        guard allowDeviceError || result.status == 0 else {
             throw OLEDUploadError.deviceRejected(command: expectedCommand, status: result.status)
         }
         return result
@@ -1431,6 +1519,8 @@ enum OLEDUploadError: LocalizedError {
     case deviceRejected(command: UInt8, status: UInt8)
     case invalidPictureStatePayload
     case invalidDeviceStatusPayload
+    case invalidReadback
+    case unsupportedReadOnlyProfile
     case invalidCommandFrame
     case unsupportedLightingFirmware(main: Int, sub: Int, reportedBrightness: Int)
 
@@ -1454,6 +1544,10 @@ enum OLEDUploadError: LocalizedError {
             return "设备返回的动画槽位信息无法解析。"
         case .invalidDeviceStatusPayload:
             return "设备返回的状态信息无法解析。"
+        case .invalidReadback:
+            return "设备返回的配置内容无法解析。"
+        case .unsupportedReadOnlyProfile:
+            return "尚未确认当前固件支持这项只读查询。"
         case .invalidCommandFrame:
             return "待写入的命令帧格式不正确。"
         case .unsupportedLightingFirmware(let main, let sub, let reportedBrightness):
@@ -1730,6 +1824,7 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
 
     func parseProtocolResponse(_ data: Data) {
         if let status = AhaKeyResponseParser.parseDeviceStatus(data) {
+            hasValidStatusReadback = true
             apply(.fullStatus(
                 battery: status.battery, firmwareMain: status.firmwareMain,
                 firmwareSub: status.firmwareSub, workMode: status.workMode,

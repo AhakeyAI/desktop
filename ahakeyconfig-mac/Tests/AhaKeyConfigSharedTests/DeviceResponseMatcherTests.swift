@@ -28,4 +28,10 @@ final class DeviceResponseMatcherTests: XCTestCase {
         XCTAssertFalse(DeviceResponseMatcher.matches(request: request, expectedCommand: 0x95, response: ack))
         XCTAssertTrue(DeviceResponseMatcher.matches(request: request, expectedCommand: 0x95, response: readback))
     }
+
+    func testCatalogProbeCanRecognizeLegacyGenericAck() {
+        let request = Data([0xAA, 0xBB, 0x9F, 0xCC, 0xDD])
+        let ack = Data([0xAA, 0xBB, 0x9F, 0, 0xCC, 0xDD])
+        XCTAssertTrue(DeviceResponseMatcher.matches(request: request, expectedCommand: 0x9F, response: ack))
+    }
 }
