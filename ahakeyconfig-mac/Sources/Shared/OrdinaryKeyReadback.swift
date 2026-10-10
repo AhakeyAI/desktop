@@ -1,24 +1,32 @@
 import Foundation
 
-struct OrdinaryKeyReadback: Equatable {
-    let mode: UInt8
-    let keyIndex: UInt8
-    let actionType: UInt8
-    let action: Data
-    let description: Data
+public struct OrdinaryKeyReadback: Equatable {
+    public let mode: UInt8
+    public let keyIndex: UInt8
+    public let actionType: UInt8
+    public let action: Data
+    public let description: Data
 
-    var isKnownEditableAction: Bool {
+    public init(mode: UInt8, keyIndex: UInt8, actionType: UInt8, action: Data, description: Data) {
+        self.mode = mode
+        self.keyIndex = keyIndex
+        self.actionType = actionType
+        self.action = action
+        self.description = description
+    }
+
+    public var isKnownEditableAction: Bool {
         actionType == 0x00 || actionType == 0x73 || actionType == 0x74
     }
 }
 
-enum OrdinaryKeyReadbackResult: Equatable {
+public enum OrdinaryKeyReadbackResult: Equatable {
     case value(OrdinaryKeyReadback)
     case tooLarge
     case rejected(UInt8)
     case malformed
 
-    static func parse(_ frame: Data, requestedMode: UInt8, requestedKeyIndex: UInt8) -> Self {
+    public static func parse(_ frame: Data, requestedMode: UInt8, requestedKeyIndex: UInt8) -> Self {
         let bytes = [UInt8](frame)
         guard bytes.count >= 6, bytes.count <= 64,
               bytes[0] == 0xAA, bytes[1] == 0xBB, bytes[2] == 0x87,

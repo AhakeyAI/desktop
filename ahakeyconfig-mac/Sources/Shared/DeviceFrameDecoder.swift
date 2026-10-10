@@ -4,15 +4,17 @@ import Foundation
 /// The protocol has no universal length field, so only commands with a known
 /// response shape are decoded here. Unknown commands must keep their existing
 /// transport path until their response contract is established.
-struct DeviceFrameDecoder {
+public struct DeviceFrameDecoder {
     private var bytes: [UInt8] = []
     private let maximumFrameLength = 64
 
-    mutating func reset() {
+    public init() {}
+
+    public mutating func reset() {
         bytes.removeAll(keepingCapacity: true)
     }
 
-    mutating func append(_ chunk: Data) -> [Data] {
+    public mutating func append(_ chunk: Data) -> [Data] {
         bytes.append(contentsOf: chunk)
         var frames: [Data] = []
 
