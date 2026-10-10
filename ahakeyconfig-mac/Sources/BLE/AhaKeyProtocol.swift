@@ -288,7 +288,9 @@ enum AhaKeyResponseParser {
         guard payload.count >= 8, payload[payload.startIndex] == 0x00 else { return nil }
 
         let base = payload.startIndex + 1 // skip cmd echo
-        let brightness = payload.count >= 9 ? Int(payload[base + 7]) : 35
+        // A missing brightness byte belongs to an older status contract; it
+        // must not advertise configurable lighting support.
+        let brightness = payload.count >= 9 ? Int(payload[base + 7]) : 0
         return AhaKeyDeviceStatus(
             battery: Int(payload[base]),
             signal: Int(Int8(bitPattern: payload[base + 1])),

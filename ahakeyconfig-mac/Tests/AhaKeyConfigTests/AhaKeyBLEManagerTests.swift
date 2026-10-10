@@ -45,6 +45,13 @@ final class AhaKeyBLEManagerTests: XCTestCase {
         XCTAssertEqual(AhaKeyCommand.saveConfig(), Data([0xAA, 0xBB, 0x04, 0xCC, 0xDD]))
     }
 
+    func testShortLegacyStatusDoesNotAssumeBrightnessSupport() throws {
+        let legacy = Data([0xAA, 0xBB, 0x00, 74, 50, 1, 0, 0, 2, 1, 0xCC, 0xDD])
+        let status = try XCTUnwrap(AhaKeyResponseParser.parseDeviceStatus(legacy))
+        XCTAssertEqual(status.brightness, 0)
+        XCTAssertFalse(AhaKeyBLEManager.statusAdvertisesConfigurableLighting(brightness: status.brightness))
+    }
+
     func testCP4DReadOnlyQueriesMatchAcceptedContract() {
         XCTAssertEqual(AhaKeyCommand.queryFirmwareCatalog(), Data([0xAA, 0xBB, 0x9F, 0xCC, 0xDD]))
         XCTAssertEqual(AhaKeyCommand.queryOrdinaryKey(mode: 3, keyIndex: 0),
