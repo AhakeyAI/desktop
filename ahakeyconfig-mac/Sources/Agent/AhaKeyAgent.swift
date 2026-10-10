@@ -25,6 +25,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var peripheral: CBPeripheral?
     private var commandChar: CBCharacteristic?
     private var notifyChar: CBCharacteristic?
+    private var commandNotificationFramer = DeviceNotificationFramer()
+    private var notifyNotificationFramer = DeviceNotificationFramer()
     private var lastUUID: UUID?
     private let serviceUUID = CBUUID(string: "7340")
     private let commandCharUUID = CBUUID(string: "7343")
@@ -555,6 +557,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         Self.liveStateCoalescer = LiveStateWriteCoalescer()
         commandChar = nil
         notifyChar = nil
+        commandNotificationFramer.reset()
+        notifyNotificationFramer.reset()
         self.peripheral = nil
         cachedSwitchState = nil
         cachedLightMode = nil
@@ -598,8 +602,16 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard characteristic.uuid == commandCharUUID || characteristic.uuid == notifyCharUUID,
               let data = characteristic.value else { return }
-        guard let status = Self.parseDeviceStatus(data) else { return }
+        let frames = characteristic.uuid == commandCharUUID
+            ? commandNotificationFramer.append(data)
+            : notifyNotificationFramer.append(data)
+        for frame in frames {
+            guard let status = Self.parseDeviceStatus(frame) else { continue }
+            handleDeviceStatus(status)
+        }
+    }
 
+    private func handleDeviceStatus(_ status: AgentDeviceStatus) {
         cachedSwitchState = UInt8(clamping: status.switchState)
         cachedLightMode = UInt8(clamping: status.lightMode)
         if lastLoggedStatus != status {

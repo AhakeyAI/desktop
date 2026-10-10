@@ -203,6 +203,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     private var writeBatches: [WriteCommandBatch] = []
     private var protocolResponseWaiters: [UInt8: CheckedContinuation<CommandResponse, Error>] = [:]
     private var dataWriteResultContinuation: CheckedContinuation<Void, Error>?
+    private var dataNotificationFramer = DeviceNotificationFramer()
+    private var notifyNotificationFramer = DeviceNotificationFramer()
 
     // MARK: - Init
 
@@ -1439,6 +1441,8 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
             self.dataChar = nil
             self.commandChar = nil
             self.notifyChar = nil
+            self.dataNotificationFramer.reset()
+            self.notifyNotificationFramer.reset()
             self.batteryLevelChar = nil
             self.dataCharReady = false
             self.commandCharReady = false
@@ -1571,10 +1575,10 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
         switch uuid {
         case Self.dataCharUUID:
             appendLog("← DATA(0x7341): \(hex)", category: .verbose)
-            parseProtocolResponse(data)
+            for frame in dataNotificationFramer.append(data) { parseProtocolResponse(frame) }
         case Self.notifyCharUUID:
             appendLog("← NOTIFY(0x7344): \(hex)", category: .verbose)
-            parseProtocolResponse(data)
+            for frame in notifyNotificationFramer.append(data) { parseProtocolResponse(frame) }
         case Self.batteryLevelCharUUID:
             if let level = data.first {
                 apply(.battery(Int(level)))

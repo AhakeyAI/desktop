@@ -10,6 +10,15 @@ public struct DeviceFrameDecoder {
 
     public init() {}
 
+    public var isAssembling: Bool { !bytes.isEmpty }
+
+    public static func recognizes(_ command: UInt8) -> Bool {
+        switch command {
+        case 0x00, 0x87, 0x95, 0x96, 0x97, 0x9F: return true
+        default: return false
+        }
+    }
+
     public mutating func reset() {
         bytes.removeAll(keepingCapacity: true)
     }
@@ -54,7 +63,8 @@ public struct DeviceFrameDecoder {
 
     private func frameLength() -> FrameLength {
         let command = bytes[2]
-        if command == 0x00 { return .complete(13) }
+        // Older status replies omit brightness and are 12 bytes long.
+        if command == 0x00 { return hasTrailer(at: 10) ? .complete(12) : .complete(13) }
         guard bytes.count >= 6 else { return .incomplete }
         let status = bytes[3]
         if status != 0 { return .complete(6) }
