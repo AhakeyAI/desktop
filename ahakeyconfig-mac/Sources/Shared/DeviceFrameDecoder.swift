@@ -84,10 +84,10 @@ public struct DeviceFrameDecoder {
             return .complete(offset + 2)
         case 0x9F:
             for index in 4..<bytes.count {
-                if index > 4 && bytes[index - 1] == 0xCC && bytes[index] == 0xDD {
-                    return .complete(index + 1)
+                if bytes[index] == 0xCC {
+                    guard index + 1 < bytes.count else { return .incomplete }
+                    return bytes[index + 1] == 0xDD ? .complete(index + 2) : .invalid
                 }
-                if bytes[index] == 0xCC && index == bytes.count - 1 { return .incomplete }
                 if bytes[index] < 0x20 || bytes[index] > 0x7E { return .invalid }
             }
             return .incomplete
