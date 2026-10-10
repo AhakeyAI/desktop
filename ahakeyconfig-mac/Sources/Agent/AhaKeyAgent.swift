@@ -50,6 +50,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private(set) var cachedLightMode: UInt8?
     /// 等待下一次 status 回包的回调队列（用于 querySwitchState）
     private var statusWaiters: [(AgentDeviceStatus?) -> Void] = []
+    private var connectionGeneration: UInt64 = 0
     /// 工具完成 / 用户提交等短暂态的自动回落。
     private var statusPollTimer: DispatchSourceTimer?
     private var pendingStateReset: DispatchWorkItem?
@@ -91,7 +92,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     func sendState(_ state: UInt8) {
         pendingStateReset?.cancel()
         pendingStateReset = nil
-        guard let commandChar, let peripheral else {
+        guard connectionLock.holdsLock, let commandChar, let peripheral else {
             emit("LED 状态 \(state): 未连接")
             return
         }
@@ -153,7 +154,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     private func requestDeviceStatus() {
-        guard let commandChar, let peripheral else { return }
+        guard connectionLock.holdsLock, let commandChar, let peripheral else { return }
         let query = Data(header + [0x00] + trailer)
         let wt: CBCharacteristicWriteType =
             commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
@@ -181,10 +182,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 超时时用缓存兜底；仍然没有则返回 nil。完成回调在 main 队列。
     func querySwitchState(timeout: TimeInterval = 1.5,
                           completion: @escaping (AgentDeviceStatus?) -> Void) {
-        guard let commandChar, let peripheral else {
+        guard connectionLock.holdsLock, let commandChar, let peripheral else {
             completion(nil)
             return
         }
+        let generation = connectionGeneration
         // 发设备状态查询命令 AA BB 00 CC DD
         let query = Data(header + [0x00] + trailer)
         let wt: CBCharacteristicWriteType =
@@ -194,6 +196,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         statusWaiters.append(completion)
         DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
             guard let self else { return }
+            guard self.connectionGeneration == generation else { return }
             // 把目前仍在队列里的 waiter 全部用缓存兜底 fire 掉
             guard !self.statusWaiters.isEmpty else { return }
             let waiters = self.statusWaiters
@@ -547,12 +550,19 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        guard connectionLock.holdsLock, self.peripheral === peripheral else {
+            central.cancelPeripheralConnection(peripheral)
+            return
+        }
+        connectionGeneration &+= 1
         lastUUID = peripheral.identifier
         emit("已连接: \(peripheral.name ?? "?")")
         peripheral.discoverServices([serviceUUID])
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        guard self.peripheral === peripheral else { return }
+        connectionGeneration &+= 1
         stopStatusPolling()
         Self.liveStateCoalescer = LiveStateWriteCoalescer()
         commandChar = nil
@@ -562,6 +572,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         self.peripheral = nil
         cachedSwitchState = nil
         cachedLightMode = nil
+        lastLoggedStatus = nil
+        pendingStateReset?.cancel()
+        pendingStateReset = nil
         // 把 pending 的 waiter 全部通知为 nil（避免 hook 客户端一直等）
         if !statusWaiters.isEmpty {
             let waiters = statusWaiters
@@ -577,11 +590,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     // MARK: - CBPeripheralDelegate
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+        guard connectionLock.holdsLock, self.peripheral === peripheral else { return }
         guard let service = peripheral.services?.first(where: { $0.uuid == serviceUUID }) else { return }
         peripheral.discoverCharacteristics([commandCharUUID, notifyCharUUID], for: service)
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+        guard connectionLock.holdsLock, self.peripheral === peripheral else { return }
         for char in service.characteristics ?? [] {
             if char.uuid == commandCharUUID {
                 commandChar = char
@@ -600,6 +615,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+        guard connectionLock.holdsLock, self.peripheral === peripheral else { return }
         guard characteristic.uuid == commandCharUUID || characteristic.uuid == notifyCharUUID,
               let data = characteristic.value else { return }
         let frames = characteristic.uuid == commandCharUUID

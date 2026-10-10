@@ -183,6 +183,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     private var lastPeripheralUUID: UUID?
     /// 为 true 时，本 App 不扫描、不连接、不响应掉线/轮询重连（物理键盘由 `ahakeyconfig-agent` 占用时由 AgentManager 置位）
     private var suppressAutomaticConnection = false
+    /// Do not start a new CoreBluetooth connection before cancellation completes.
+    private var awaitingPeripheralDisconnect = false
     /// 自动重连退避（阶段 3）：4s → 8s → 15s → 30s 封顶；用户显式操作或扫到目标设备广播时重置回 4s
     private var reconnectBackoff = BackoffSchedule()
     /// 跨进程 BLE 连接锁（阶段 3，flock）：发起连接前必须持有，防止与 Agent 双连
@@ -329,10 +331,15 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             autoReconnectTimer = nil
             stopRSSIPolling()
             stopStatusPolling()
+            invalidateConnectionState()
+            bleConnectionStatus = NSLocalizedString("已断开", comment: "")
+            linkDiagnostic = .ownedByAgent
             if let peripheral, peripheral.state != .disconnected {
+                awaitingPeripheralDisconnect = true
                 central?.cancelPeripheralConnection(peripheral)
             } else {
                 self.peripheral = nil
+                awaitingPeripheralDisconnect = false
                 connectionLock.release()
             }
             didLogConnectionLockBusy = false
@@ -367,6 +374,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             linkDiagnostic = .ownedByAgent
             return
         }
+        guard !awaitingPeripheralDisconnect else { return }
         guard central?.state == .poweredOn else {
             pendingConnect = true
             switch central?.state {
@@ -493,7 +501,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     /// 发送原始命令到 0x7343（带队列，防止连发过载）
     func writeCommand(_ data: Data) {
-        guard let commandChar, let peripheral else {
+        guard acceptsConnectionCallbacks, !awaitingPeripheralDisconnect,
+              let commandChar, let peripheral else {
             appendLog("命令通道未就绪", isError: true)
             return
         }
@@ -504,9 +513,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     func uploadOLEDFrames(_ frames: [Data], fps: Int, mode: UInt8 = 0, startIndex: UInt16 = 0) async throws {
-        guard let peripheral, let dataChar, let commandChar else {
+        guard acceptsConnectionCallbacks, let peripheral, let dataChar, let commandChar else {
             throw OLEDUploadError.channelNotReady
         }
+        let uploadGeneration = commandSessionGeneration
         guard !frames.isEmpty else {
             throw OLEDUploadError.noFrames
         }
@@ -526,8 +536,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         appendLog("开始上传 LCD 数据: \(frames.count) 帧, FPS=\(fps), mode=\(mode), startIndex=\(startIndex), frameSlotSize=\(AhaKeyCommand.oledFrameSlotSize)")
 
         defer {
-            isUploadingOLED = false
-            oledUploadProgress = nil
+            if commandSessionGeneration == uploadGeneration {
+                isUploadingOLED = false
+                oledUploadProgress = nil
+            }
         }
 
         let writeType: CBCharacteristicWriteType =
@@ -594,6 +606,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     private func drainWriteQueue() {
         guard !isWriting, !writeQueue.isEmpty else { return }
+        let generation = commandSessionGeneration
         isWriting = true
         let (data, label) = writeQueue.removeFirst()
         if !writeBatches.isEmpty {
@@ -607,6 +620,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         writeCommand(data)
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: UInt64(50) * 1_000_000)
+            guard self.commandSessionGeneration == generation else { return }
             self.isWriting = false
             self.drainWriteQueue()
         }
@@ -1217,6 +1231,30 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         commandChannelUnsynchronized = false
     }
 
+    /// Invalidate device facts as soon as ownership is yielded, before the
+    /// asynchronous CoreBluetooth disconnect callback arrives.
+    private func invalidateConnectionState() {
+        resetCommandSession()
+        apply(.disconnected)
+        dataChar = nil
+        commandChar = nil
+        notifyChar = nil
+        batteryLevelChar = nil
+        dataCharReady = false
+        commandCharReady = false
+        notifyCharReady = false
+        dataNotificationFramer.reset()
+        notifyNotificationFramer.reset()
+        supportsConfigurableLighting = nil
+        keyboardPictureStates.removeAll()
+        writeQueue.removeAll()
+        writeBatches.removeAll()
+        isWriting = false
+        didQueryAfterConnect = false
+        isUploadingOLED = false
+        oledUploadProgress = nil
+    }
+
     private func timeoutCommandResponse(id: UInt64, generation: UInt64) {
         guard let pending = pendingCommandResponse,
               pending.id == id, pending.generation == generation else { return }
@@ -1226,7 +1264,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         commandChannelUnsynchronized = true
         pending.continuation.resume(throwing: OLEDUploadError.timeout(command: pending.command))
         appendLog("设备响应超时，断开配置链路以清除迟到回包", isError: true)
-        if let peripheral { central?.cancelPeripheralConnection(peripheral) }
+        if let peripheral {
+            awaitingPeripheralDisconnect = true
+            central?.cancelPeripheralConnection(peripheral)
+        }
     }
 
     private func completeCommandResponse(_ frame: Data) {
@@ -1286,7 +1327,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         type: CBCharacteristicWriteType,
         timeoutSeconds: Double = 5.0
     ) async throws {
-        guard self.peripheral === peripheral, pendingDataWrite == nil else {
+        guard acceptsConnectionCallbacks, !awaitingPeripheralDisconnect,
+              self.peripheral === peripheral, pendingDataWrite == nil else {
             throw OLEDUploadError.channelNotReady
         }
         nextDataWriteID &+= 1
@@ -1608,7 +1650,8 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
 
     nonisolated func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         Task { @MainActor in
-            guard self.acceptsConnectionCallbacks, self.peripheral === peripheral else {
+            guard self.acceptsConnectionCallbacks, !self.awaitingPeripheralDisconnect,
+                  self.peripheral === peripheral else {
                 central.cancelPeripheralConnection(peripheral)
                 return
             }
@@ -1637,6 +1680,9 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
 
     nonisolated func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         Task { @MainActor in
+            guard self.peripheral === peripheral else { return }
+            self.invalidateConnectionState()
+            self.awaitingPeripheralDisconnect = false
             if self.peripheral === peripheral { self.peripheral = nil }
             if self.suppressAutomaticConnection {
                 self.peripheral = nil
@@ -1652,7 +1698,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
     nonisolated func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         Task { @MainActor in
             guard self.peripheral === peripheral else { return }
-            self.resetCommandSession()
+            self.awaitingPeripheralDisconnect = false
             let dropped = self.writeQueue.count
             let openBatches = self.writeBatches.count
             if dropped > 0 || openBatches > 0 {
@@ -1661,25 +1707,10 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
                     isError: true
                 )
             }
-            self.apply(.disconnected)
+            self.invalidateConnectionState()
             self.bleConnectionStatus = NSLocalizedString("已断开", comment: "")
-            self.dataChar = nil
-            self.commandChar = nil
-            self.notifyChar = nil
-            self.dataNotificationFramer.reset()
-            self.notifyNotificationFramer.reset()
-            self.batteryLevelChar = nil
-            self.dataCharReady = false
-            self.commandCharReady = false
-            self.notifyCharReady = false
-            self.supportsConfigurableLighting = nil
             // 不清 peripheral 和 lastPeripheralUUID——用于直连重试
             self.peripheral = nil
-            self.writeQueue.removeAll()
-            self.isWriting = false
-            self.writeBatches.removeAll()
-            self.didQueryAfterConnect = false
-            self.keyboardPictureStates.removeAll()
             self.stopRSSIPolling()
             self.stopStatusPolling()
             if self.suppressAutomaticConnection { self.connectionLock.release() }
@@ -1695,7 +1726,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
 extension AhaKeyBLEManager: CBPeripheralDelegate {
     nonisolated func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         Task { @MainActor in
-            guard self.acceptsConnectionCallbacks else { return }
+            guard self.acceptsConnectionCallbacks, self.peripheral === peripheral else { return }
             guard let services = peripheral.services else { return }
             for service in services {
                 self.appendLog("发现服务: \(service.uuid)")
@@ -1721,7 +1752,7 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
 
     nonisolated func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         Task { @MainActor in
-            guard self.acceptsConnectionCallbacks else { return }
+            guard self.acceptsConnectionCallbacks, self.peripheral === peripheral else { return }
             for char in service.characteristics ?? [] {
                 switch char.uuid {
                 // AhaKey 主服务特征
@@ -1779,14 +1810,14 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
 
     nonisolated func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
         Task { @MainActor in
-            guard self.acceptsConnectionCallbacks else { return }
+            guard self.acceptsConnectionCallbacks, self.peripheral === peripheral else { return }
             self.apply(.rssi(RSSI.intValue))
         }
     }
 
     nonisolated func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         Task { @MainActor in
-            guard self.acceptsConnectionCallbacks else { return }
+            guard self.acceptsConnectionCallbacks, self.peripheral === peripheral else { return }
             if let error {
                 self.appendLog("写入特征 \(characteristic.uuid) 失败: \(error.localizedDescription)", isError: true)
             } else {

@@ -58,6 +58,7 @@ final class AgentManager: ObservableObject {
 
     private let label = "lab.jawa.ahakeyconfig.agent"
     private let socketPath = "/tmp/ahakey.sock"
+    private var ownershipTransitionGeneration: UInt64 = 0
 
     private var launchAgentsDirectoryURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
@@ -250,6 +251,8 @@ final class AgentManager: ObservableObject {
     }
 
     private func applyBluetoothOwner(_ owner: BluetoothConnectionOwner, bleManager: AhaKeyBLEManager, isLaunch: Bool) {
+        ownershipTransitionGeneration &+= 1
+        let transition = ownershipTransitionGeneration
         // 阶段 4：把 Agent 活性通道注入 BLEManager——共享文件 agent* 状态的过期判断以 socket status 心跳为准
         bleManager.agentBLEConnectedProvider = { [weak self] in self?.isAgentBLEConnected ?? false }
         switch owner {
@@ -258,6 +261,8 @@ final class AgentManager: ObservableObject {
             unloadAgentLaunchJobRemovingSocket()
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: UInt64(isLaunch ? 700 : 600) * 1_000_000)
+                guard self.ownershipTransitionGeneration == transition,
+                      self.bluetoothConnectionOwner == .ahaKeyStudio else { return }
                 guard !bleManager.isConnected, !bleManager.isScanning else { return }
                 bleManager.connectAutomatically()
             }
@@ -272,6 +277,8 @@ final class AgentManager: ObservableObject {
                 }
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: UInt64(500) * 1_000_000)
+                    guard self.ownershipTransitionGeneration == transition,
+                          self.bluetoothConnectionOwner == .agentDaemon else { return }
                     if !bleManager.isConnected, !bleManager.isScanning {
                         bleManager.connectAutomatically()
                     }
@@ -280,6 +287,7 @@ final class AgentManager: ObservableObject {
             }
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: UInt64(isLaunch ? 500 : 550) * 1_000_000)
+                guard self.ownershipTransitionGeneration == transition else { return }
                 guard self.bluetoothConnectionOwner == .agentDaemon else { return }
                 guard self.prepareLaunchAgentForStart() else {
                     bleManager.setSuppressedForAgentOwningKeyboard(false)
@@ -297,6 +305,8 @@ final class AgentManager: ObservableObject {
                 let socketPath = self.socketPath
                 for _ in 0..<10 {   // 最多约 2.5s
                     try? await Task.sleep(nanoseconds: 250 * 1_000_000)
+                    guard self.ownershipTransitionGeneration == transition,
+                          self.bluetoothConnectionOwner == .agentDaemon else { return }
                     if Self.agentSocketAlive(socketPath: socketPath) { agentUp = true; break }
                 }
                 if !agentUp {
