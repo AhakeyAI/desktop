@@ -34,9 +34,6 @@ struct AhaKeyStudioView: View {
     @State private var showsDiagnostics = false
     @State private var showsKeyHelp = false
     @State private var selectedTriggerTab: Int = 0
-    /// 每次主 App 自占 BLE 连接成功只跑一次默认 LCD 自动同步。
-    /// .onChange(of: isConnected) 在断开时重置；下次重连时再触发一次。
-    @State private var oledAutoSyncDoneForConnection: Bool = false
     @State private var showsHelpCenter = false
     @State private var showsGuidanceDetail = false
     @State private var editingModeSlot: AhaKeyModeSlot?
@@ -107,16 +104,6 @@ struct AhaKeyStudioView: View {
                   bleManager.workMode != newValue.rawValue else { return }
             bleManager.setWorkMode(UInt8(newValue.rawValue))
             syncStatusMessage = "已通知键盘切换到 \(newValue.title)。"
-        }
-        .onChange(of: bleManager.isConnected) { connected in
-            if !connected { oledAutoSyncDoneForConnection = false }
-        }
-        .onChange(of: bleManager.keyboardPictureStates) { _ in
-            guard !oledAutoSyncDoneForConnection else { return }
-            // 四个 mode 都查回来才动手
-            guard bleManager.keyboardPictureStates.count == AhaKeyModeSlot.allCases.count else { return }
-            oledAutoSyncDoneForConnection = true
-            Task { await autoSyncDefaultOLEDsIfNeeded() }
         }
         .onChange(of: bleManager.bluetoothPermissionGranted) { _ in
             refreshStartupPermissionOnboarding()
@@ -2216,6 +2203,7 @@ struct AhaKeyStudioView: View {
         }
     }
 
+    // OLED uploads require an explicit save action; connection/readback must not write resources.
     private func uploadChangedOLEDsToDevice() async throws -> Int {
         var uploadCount = 0
 
@@ -2377,46 +2365,6 @@ struct AhaKeyStudioView: View {
         commands.append((AhaKeyCommand.setBrightness(brightness), "亮度 \(brightness)%"))
 
         return commands
-    }
-
-    /// 首次连接键盘后自动把 bundle 默认 GIF 推到没有上传过的 mode slot。
-    /// 触发时机：bleManager.keyboardPictureStates 四个 mode 都查回来之后
-    /// （由 .onChange(of: bleManager.keyboardPictureStates) 调度）。
-    /// 守卫：
-    /// - 只上传 picLength==0（slot 完全空）的 mode；非 0 视为用户已自定义或固件出厂图
-    /// - 只在 draft 的 localAssetPath 仍指向 bundle 默认（用户没手动换过）时上传
-    /// - 每次连接只跑一次（oledAutoSyncDoneForConnection 标志位由 .onChange(isConnected) 重置）
-    private func autoSyncDefaultOLEDsIfNeeded() async {
-        guard bleManager.isConnected else { return }
-        // 四个 mode 全部 0x83 查询回来才动手，避免半截判断把已上传 slot 当成空
-        guard bleManager.keyboardPictureStates.count == AhaKeyModeSlot.allCases.count else { return }
-
-        for mode in AhaKeyModeSlot.allCases {
-            guard let state = bleManager.keyboardPictureStates[mode.rawValue] else { continue }
-            guard state.frameCount == 0 else { continue }
-            guard let bundledPath = DefaultOLEDAssets.bundledAssetPath(for: mode) else { continue }
-            let draft = studioDraft.draft(for: mode)
-            guard let drafPath = draft.oled.localAssetPath,
-                  DefaultOLEDAssets.isBundledPath(drafPath) else { continue }
-
-            let assetURL = URL(fileURLWithPath: bundledPath)
-            do {
-                try OLEDFrameEncoder.validateGIFSourceFileSize(at: assetURL)
-                let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL)
-                let startIndex = try await resolveOLEDUploadStartIndex(for: mode, frameCount: frames.count)
-                try await bleManager.uploadOLEDFrames(
-                    frames,
-                    fps: draft.oled.framesPerSecond,
-                    mode: UInt8(mode.rawValue),
-                    startIndex: UInt16(startIndex)
-                )
-                updateMode(mode) { m in
-                    m.oled.statusLine = "已自动同步默认动图（\(frames.count) 帧）。"
-                }
-            } catch {
-                syncStatusMessage = "\(mode.title) 默认动图自动同步失败: \(error.localizedDescription)"
-            }
-        }
     }
 
     private func resolveOLEDUploadStartIndex(for targetMode: AhaKeyModeSlot, frameCount: Int) async throws -> Int {
