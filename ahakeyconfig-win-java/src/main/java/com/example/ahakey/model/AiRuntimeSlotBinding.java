@@ -1,5 +1,8 @@
 package com.example.ahakey.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class AiRuntimeSlotBinding {
     private int slotIndex;
     private String provider = "Codex";

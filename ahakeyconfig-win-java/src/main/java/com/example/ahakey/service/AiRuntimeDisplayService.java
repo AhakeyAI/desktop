@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -25,6 +26,7 @@ import java.util.Objects;
 
 public class AiRuntimeDisplayService {
     private static final Logger logger = LoggerFactory.getLogger(AiRuntimeDisplayService.class);
+    private static final long SESSION_DISCOVERY_CACHE_MILLIS = 5000L;
 
     private final BleManager bleManager;
     private final CodexSessionDiscoveryService codexDiscovery = new CodexSessionDiscoveryService();
@@ -32,6 +34,9 @@ public class AiRuntimeDisplayService {
     private final ObjectProperty<AiRuntimeDisplayMode> displayMode =
         new SimpleObjectProperty<>(AiRuntimeDisplayMode.SINGLE);
     private final ObservableList<AiRuntimeSlotBinding> slots = FXCollections.observableArrayList();
+    private final Map<String, Integer> lastActiveSlotByPlatform = new HashMap<>();
+    private final Map<String, List<AiRuntimeSession>> sessionDiscoveryCache = new HashMap<>();
+    private final Map<String, Long> sessionDiscoveryCacheMillis = new HashMap<>();
     private AiRuntimeSlotBinding[] appliedSlots = new AiRuntimeSlotBinding[4];
     private String codexDataDir;
     private String cursorDataDir;
@@ -50,7 +55,7 @@ public class AiRuntimeDisplayService {
                 : new AiRuntimeSlotBinding(i);
             binding.setSlotIndex(i);
             slots.add(binding);
-            appliedSlots[i] = copy(binding);
+            appliedSlots[i] = new AiRuntimeSlotBinding(i);
         }
         repairPrimarySlot(true, true);
     }
@@ -71,6 +76,7 @@ public class AiRuntimeDisplayService {
         this.codexDataDir = codexDataDir == null || codexDataDir.isBlank()
             ? Path.of(System.getProperty("user.home"), ".codex").toString()
             : codexDataDir;
+        invalidateSessionCache("Codex");
         persist();
     }
 
@@ -82,6 +88,7 @@ public class AiRuntimeDisplayService {
         this.cursorDataDir = cursorDataDir == null || cursorDataDir.isBlank()
             ? AiRuntimeStore.Draft.defaultCursorDataDir()
             : cursorDataDir;
+        invalidateSessionCache("Cursor");
         persist();
     }
 
@@ -109,11 +116,18 @@ public class AiRuntimeDisplayService {
         return cursorDiscovery.discover(Path.of(cursorDataDir));
     }
 
-    public List<AiRuntimeSession> discoverSessions(String provider) {
-        if ("Cursor".equals(provider)) {
-            return discoverCursorSessions();
+    public synchronized List<AiRuntimeSession> discoverSessions(String provider) {
+        List<AiRuntimeSession> cached = sessionDiscoveryCache.get(provider);
+        Long cachedAt = sessionDiscoveryCacheMillis.get(provider);
+        if (cached != null && cachedAt != null && System.currentTimeMillis() - cachedAt < SESSION_DISCOVERY_CACHE_MILLIS) {
+            return cached;
         }
-        return discoverCodexSessions();
+        List<AiRuntimeSession> sessions = "Cursor".equals(provider)
+            ? discoverCursorSessions()
+            : discoverCodexSessions();
+        sessionDiscoveryCache.put(provider, sessions);
+        sessionDiscoveryCacheMillis.put(provider, System.currentTimeMillis());
+        return sessions;
     }
 
     public boolean isDataDirValid(String provider) {
@@ -122,7 +136,7 @@ public class AiRuntimeDisplayService {
     }
 
     public boolean isDeviceSupported() {
-        if (bleManager.getCachedStatus() == null) {
+        if (!bleManager.isConnected() || bleManager.getCachedStatus() == null || !bleManager.getCachedStatus().isConnected()) {
             return false;
         }
         return AhaKeyProtocol.isWs3Cp1RuntimeDisplaySupported(bleManager.getCachedStatus().getFirmwareCatalogKey());
@@ -179,6 +193,7 @@ public class AiRuntimeDisplayService {
         }
         boolean wasPrimary = primarySlotIndex == slotIndex;
         slots.set(slotIndex, new AiRuntimeSlotBinding(slotIndex));
+        removeLastActiveSlot(slotIndex);
         if (wasPrimary) {
             primarySlotIndex = firstBoundSlot();
         }
@@ -192,6 +207,7 @@ public class AiRuntimeDisplayService {
     public void markDraftApplied(boolean codexHookLatest, boolean cursorHookLatest) {
         ApplyPlan plan = prepareApply(codexHookLatest, cursorHookLatest);
         appliedSlots = Arrays.stream(plan.slots()).map(this::copy).toArray(AiRuntimeSlotBinding[]::new);
+        lastActiveSlotByPlatform.clear();
     }
 
     public void applyToKeyboard() throws Exception {
@@ -208,6 +224,7 @@ public class AiRuntimeDisplayService {
         }
         bleManager.setRuntimeDisplayMode(displayMode.get());
         appliedSlots = Arrays.stream(plan.slots()).map(this::copy).toArray(AiRuntimeSlotBinding[]::new);
+        lastActiveSlotByPlatform.clear();
         if (displayMode.get() == AiRuntimeDisplayMode.MULTI) {
             sendAppliedSnapshot();
         }
@@ -242,30 +259,111 @@ public class AiRuntimeDisplayService {
         String transcriptPath = "Codex".equals(platform)
             ? firstNonBlank(text(payload, "transcript_path"), text(payload, "transcriptPath"))
             : "";
-        if (stableId.isBlank() && transcriptPath.isBlank()) {
-            logger.info("MULTI runtime event ignored without session identity: platform={}", platform);
-            return false;
+        String workingDir = firstNonBlank(
+            text(payload, "cwd"),
+            text(payload, "current_working_directory"),
+            text(payload, "currentWorkingDirectory")
+        );
+        if (stableId.isBlank() && transcriptPath.isBlank() && workingDir.isBlank()) {
+            int fallbackSlot = fallbackTerminalSlotForPlatform(platform);
+            if (fallbackSlot < 0 || !isTerminalState(state)) {
+                logger.info("MULTI runtime event ignored without session identity: platform={}, state={}", platform, state);
+                return false;
+            }
+            return updateRuntimeSlotState(fallbackSlot, platform, state);
         }
         for (int i = 0; i < appliedSlots.length; i++) {
             AiRuntimeSlotBinding slot = appliedSlots[i];
             if (!matches(slot, platform, stableId, transcriptPath)) {
                 continue;
             }
-            if (Objects.equals(slot.getLastIdeState(), state.name())) {
-                return true;
-            }
-            slot.setLastIdeState(state.name());
-            slots.get(i).setLastIdeState(state.name());
-            persist();
-            try {
-                sendAppliedSnapshot();
-                return true;
-            } catch (Exception e) {
-                logger.warn("MULTI runtime snapshot failed: {}", e.getMessage());
-                return false;
+            return updateRuntimeSlotState(i, platform, state);
+        }
+        if (!workingDir.isBlank()) {
+            int locationSlot = uniqueLocationSlotForPlatform(platform, workingDir);
+            if (locationSlot >= 0) {
+                return updateRuntimeSlotState(locationSlot, platform, state);
             }
         }
         return false;
+    }
+
+    private boolean updateRuntimeSlotState(int slotIndex, String platform, IDEState state) {
+        AiRuntimeSlotBinding slot = appliedSlots[slotIndex];
+        lastActiveSlotByPlatform.put(platform, slotIndex);
+        if (Objects.equals(slot.getLastIdeState(), state.name())) {
+            return true;
+        }
+        slot.setLastIdeState(state.name());
+        slots.get(slotIndex).setLastIdeState(state.name());
+        persist();
+        try {
+            sendAppliedSnapshot();
+            return true;
+        } catch (Exception e) {
+            logger.warn("MULTI runtime snapshot failed: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private int fallbackTerminalSlotForPlatform(String platform) {
+        int runningSlot = uniqueRunningSlotForPlatform(platform);
+        if (runningSlot >= 0) {
+            return runningSlot;
+        }
+        int only = -1;
+        int count = 0;
+        for (int i = 0; i < appliedSlots.length; i++) {
+            AiRuntimeSlotBinding slot = appliedSlots[i];
+            if (slot != null && slot.isBound() && platform.equals(slot.getProvider())) {
+                only = i;
+                count++;
+            }
+        }
+        if (count == 1) {
+            return only;
+        }
+
+        if (primarySlotIndex >= 0 && primarySlotIndex < appliedSlots.length) {
+            AiRuntimeSlotBinding primary = appliedSlots[primarySlotIndex];
+            if (primary != null && primary.isBound() && platform.equals(primary.getProvider())) {
+                return primarySlotIndex;
+            }
+        }
+        return -1;
+    }
+
+    private int uniqueRunningSlotForPlatform(String platform) {
+        int runningSlot = -1;
+        int runningCount = 0;
+        for (int i = 0; i < appliedSlots.length; i++) {
+            AiRuntimeSlotBinding slot = appliedSlots[i];
+            if (slot != null && slot.isBound() && platform.equals(slot.getProvider()) && isRunningSlot(slot)) {
+                runningSlot = i;
+                runningCount++;
+            }
+        }
+        return runningCount == 1 ? runningSlot : -1;
+    }
+
+    private boolean isRunningSlot(AiRuntimeSlotBinding slot) {
+        if (slot == null || slot.getLastIdeState() == null || slot.getLastIdeState().isBlank()) {
+            return false;
+        }
+        try {
+            return com.example.ahakey.model.AiRuntimeSlotState.fromIdeState(IDEState.valueOf(slot.getLastIdeState()))
+                == com.example.ahakey.model.AiRuntimeSlotState.RUNNING;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    private void removeLastActiveSlot(int slotIndex) {
+        lastActiveSlotByPlatform.entrySet().removeIf(entry -> entry.getValue() == slotIndex);
+    }
+
+    private boolean isTerminalState(IDEState state) {
+        return state == IDEState.TASK_COMPLETED || state == IDEState.STOP || state == IDEState.SESSION_END;
     }
 
     public ApplyPlan prepareApply(boolean codexHookLatest, boolean cursorHookLatest) {
@@ -316,9 +414,14 @@ public class AiRuntimeDisplayService {
 
     public String slotUnavailableReason(AiRuntimeSlotBinding slot, boolean codexHookLatest, boolean cursorHookLatest) {
         Map<String, Map<String, AiRuntimeSession>> indexes = new HashMap<>();
-        indexes.put("Codex", indexById(codexHookLatest ? discoverCodexSessions() : List.of()));
-        indexes.put("Cursor", indexById(cursorHookLatest ? discoverCursorSessions() : List.of()));
+        indexes.put("Codex", indexById(codexHookLatest ? discoverSessions("Codex") : List.of()));
+        indexes.put("Cursor", indexById(cursorHookLatest ? discoverSessions("Cursor") : List.of()));
         return unavailableReason(slot, codexHookLatest, cursorHookLatest, indexes);
+    }
+
+    private synchronized void invalidateSessionCache(String provider) {
+        sessionDiscoveryCache.remove(provider);
+        sessionDiscoveryCacheMillis.remove(provider);
     }
 
     public int findBoundSlot(String provider, String stableId) {
@@ -407,6 +510,44 @@ public class AiRuntimeDisplayService {
             return true;
         }
         return false;
+    }
+
+    private int uniqueLocationSlotForPlatform(String platform, String workingDir) {
+        int matchedSlot = -1;
+        int matchedCount = 0;
+        for (int i = 0; i < appliedSlots.length; i++) {
+            AiRuntimeSlotBinding slot = appliedSlots[i];
+            if (slot != null && slot.isBound() && platform.equals(slot.getProvider())
+                && (sameLocation(workingDir, slot.getCwd()) || sameLocation(workingDir, slot.getProjectName()))) {
+                matchedSlot = i;
+                matchedCount++;
+            }
+        }
+        return matchedCount == 1 ? matchedSlot : -1;
+    }
+
+    private boolean sameLocation(String left, String right) {
+        String normalizedLeft = normalizeLocation(left);
+        String normalizedRight = normalizeLocation(right);
+        return !normalizedLeft.isBlank() && normalizedLeft.equalsIgnoreCase(normalizedRight);
+    }
+
+    private String normalizeLocation(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        String normalized = value.trim();
+        if (normalized.startsWith("\\\\?\\")) {
+            normalized = normalized.substring(4);
+        }
+        if (normalized.startsWith("file:/")) {
+            try {
+                normalized = Path.of(URI.create(normalized)).toString();
+            } catch (Exception ignored) {
+                normalized = normalized.replace("file:///", "");
+            }
+        }
+        return normalized.replace('/', '\\');
     }
 
     private void sendAppliedSnapshot() throws Exception {

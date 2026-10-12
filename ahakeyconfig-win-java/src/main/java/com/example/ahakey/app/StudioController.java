@@ -173,18 +173,6 @@ public class StudioController {
 
     public void setAiRuntimeDisplayMode(AiRuntimeDisplayMode mode) {
         aiRuntimeDisplayService.setDisplayMode(mode);
-        boolean codexHookLatest = isAiRuntimeHookLatest("Codex");
-        boolean cursorHookLatest = isAiRuntimeHookLatest("Cursor");
-        if (mode == AiRuntimeDisplayMode.MULTI && isAnyAiRuntimeHookLatest(codexHookLatest, cursorHookLatest)
-            && !simulateBle && deviceStatus.isConnected() && aiRuntimeDisplayService.isDeviceSupported()) {
-            new Thread(() -> {
-                try {
-                    aiRuntimeDisplayService.applyToKeyboard(codexHookLatest, cursorHookLatest);
-                } catch (Exception e) {
-                    logger.warn("Auto apply MULTI runtime snapshot failed: {}", e.getMessage());
-                }
-            }, "ai-runtime-mode-auto-apply").start();
-        }
         studioState.syncStatusProperty().set("AI 运行展示已切换为：" + mode.getTitle());
     }
 
@@ -262,7 +250,12 @@ public class StudioController {
             return;
         }
         if (!simulateBle && !aiRuntimeDisplayService.isDeviceSupported()) {
-            studioState.syncStatusProperty().set("当前固件不支持 WS3 CP1 多任务运行展示，已保留本地绑定。");
+            String catalogKey = deviceStatus.getFirmwareCatalogKey();
+            if (catalogKey == null || catalogKey.isBlank()) {
+                studioState.syncStatusProperty().set("尚未读取到固件能力信息，已保留本地绑定。");
+            } else {
+                studioState.syncStatusProperty().set("当前固件未声明支持 WS3 CP1 多任务运行展示，已保留本地绑定。");
+            }
             return;
         }
         if (simulateBle) {
@@ -279,8 +272,28 @@ public class StudioController {
                     codexHookLatest,
                     cursorHookLatest
                 );
+                Platform.runLater(() -> {
+                    if (owner != null) {
+                        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.INFORMATION);
+                        alert.initOwner(owner);
+                        alert.setTitle("已应用到键盘");
+                        alert.setHeaderText(null);
+                        alert.setContentText("键盘已确认接收当前任务槽配置。");
+                        alert.show();
+                    }
+                });
                 Platform.runLater(() -> studioState.syncStatusProperty().set("已应用到键盘。"));
             } catch (Exception e) {
+                Platform.runLater(() -> {
+                    if (owner != null) {
+                        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR);
+                        alert.initOwner(owner);
+                        alert.setTitle("应用到键盘失败");
+                        alert.setHeaderText(null);
+                        alert.setContentText("应用到键盘失败：" + e.getMessage());
+                        alert.showAndWait();
+                    }
+                });
                 Platform.runLater(() -> studioState.syncStatusProperty().set("应用到键盘失败：" + e.getMessage()));
             }
         }, "ai-runtime-apply").start();
@@ -1016,18 +1029,6 @@ public class StudioController {
             studioState.setInputReadbackStatus("已识别 CP4C 固件，正在读取输入配置...");
         });
         aiRuntimeDisplayService.onDeviceReady();
-        boolean codexHookLatest = isAiRuntimeHookLatest("Codex");
-        boolean cursorHookLatest = isAiRuntimeHookLatest("Cursor");
-        if (aiRuntimeDisplayService.getDisplayMode() == AiRuntimeDisplayMode.MULTI
-            && isAnyAiRuntimeHookLatest(codexHookLatest, cursorHookLatest)) {
-            new Thread(() -> {
-                try {
-                    aiRuntimeDisplayService.applyToKeyboard(codexHookLatest, cursorHookLatest);
-                } catch (Exception e) {
-                    logger.warn("Apply MULTI runtime snapshot after firmware identity failed: {}", e.getMessage());
-                }
-            }, "ai-runtime-connect-snapshot").start();
-        }
         startCp4cInputReadback(catalogKey);
     }
 

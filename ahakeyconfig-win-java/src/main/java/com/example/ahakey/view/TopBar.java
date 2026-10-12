@@ -89,7 +89,7 @@ public class TopBar extends VBox {
         this.agentManager = agentManager;
         this.hookInstaller = new HookInstaller(
             () -> controller.getHookDispatchPort(), this::addLog);
-        this.controller.setHookManagerOpener(this::showDeviceInfoDialog);
+        this.controller.setHookManagerOpener(this::showHookManagerDialog);
         this.languageManager = LanguageManager.getInstance();
         setSpacing(0);
         setPadding(new Insets(0));
@@ -264,8 +264,10 @@ public class TopBar extends VBox {
         MenuItem clearOled = new MenuItem(languageManager.getString("menu.clear-oled"));
         clearOled.setOnAction(event -> studioState.clearOledPreview());
         SeparatorMenuItem divider1 = new SeparatorMenuItem();
-        MenuItem deviceInfo = new MenuItem("Hook 管理");
+        MenuItem deviceInfo = new MenuItem("设备管理");
         deviceInfo.setOnAction(event -> showDeviceInfoDialog());
+        MenuItem hookManager = new MenuItem("Hook 管理");
+        hookManager.setOnAction(event -> showHookManagerDialog());
         MenuItem versionInfo = new MenuItem(languageManager.getString("menu.version-info"));
         versionInfo.setOnAction(event -> showVersionDialog());
         
@@ -288,6 +290,7 @@ public class TopBar extends VBox {
                 clearOled,
                 divider1,
                 deviceInfo,
+                hookManager,
                 versionInfo,
                 languageMenuItem,
                 exitApp,
@@ -302,6 +305,7 @@ public class TopBar extends VBox {
                 clearOled,
                 divider1,
                 deviceInfo,
+                hookManager,
                 versionInfo,
                 languageMenuItem,
                 exitApp
@@ -965,6 +969,129 @@ public class TopBar extends VBox {
     }
 
     private void showDeviceInfoDialog() {
+        Stage dialog = new Stage();
+        dialog.initOwner(getScene().getWindow());
+        dialog.setTitle("设备管理");
+        dialog.setWidth(550);
+        dialog.setHeight(430);
+
+        ScrollPane scrollPane = new ScrollPane();
+        scrollPane.setFitToWidth(true);
+
+        VBox content = new VBox(12);
+        content.setPadding(new Insets(12));
+
+        VBox deviceCard = new VBox(8);
+        deviceCard.getStyleClass().add("dialog-card");
+        deviceCard.setPadding(new Insets(12));
+
+        Label deviceTitle = new Label(languageManager.getString("dialog.device-info"));
+        deviceTitle.getStyleClass().add("dialog-card-title");
+
+        HBox deviceRow1 = new HBox(16);
+        Label connStatus = new Label();
+        connStatus.getStyleClass().add("dialog-text");
+        connStatus.textProperty().bind(Bindings.createStringBinding(() ->
+            languageManager.getString("dialog.connection") + ": " + (this.deviceStatus.isConnected()
+                ? languageManager.getString("status.connected")
+                : languageManager.getString("status.disconnected")),
+            this.deviceStatus.isConnectedProperty()
+        ));
+        Label batteryStatus = new Label();
+        batteryStatus.getStyleClass().add("dialog-text");
+        batteryStatus.textProperty().bind(Bindings.createStringBinding(() ->
+            languageManager.getString("status.battery") + ": " + this.deviceStatus.getBatteryLevel() + "%",
+            this.deviceStatus.batteryLevelProperty()
+        ));
+        deviceRow1.getChildren().addAll(connStatus, batteryStatus);
+
+        HBox deviceRow2 = new HBox(16);
+        Label deviceName = new Label(languageManager.getString("dialog.device-name") + ": " + this.deviceStatus.getDisplayDeviceName());
+        deviceName.getStyleClass().add("dialog-text");
+        Label switchState = new Label();
+        switchState.getStyleClass().add("dialog-text");
+        switchState.textProperty().bind(Bindings.createStringBinding(() ->
+            languageManager.getString("status.switch") + ": " + this.deviceStatus.getSwitchTitle(),
+            this.deviceStatus.switchStateProperty()
+        ));
+        deviceRow2.getChildren().addAll(deviceName, switchState);
+
+        HBox versionRow = new HBox(16);
+        Label appVersion = new Label("上位机版本: " + getVersion());
+        appVersion.getStyleClass().add("dialog-text");
+        Label keyboardFirmware = new Label();
+        keyboardFirmware.getStyleClass().add("dialog-text");
+        keyboardFirmware.textProperty().bind(Bindings.createStringBinding(() ->
+            "键盘固件版本: " + this.deviceStatus.getDisplayFirmwareVersion(),
+            this.deviceStatus.firmwareCatalogKeyProperty(),
+            this.deviceStatus.firmwareMainProperty(),
+            this.deviceStatus.firmwareSubProperty()
+        ));
+        versionRow.getChildren().addAll(appVersion, keyboardFirmware);
+
+        SleepWaitTimeControl sleepWaitTimeControl = createSleepWaitTimeControl();
+        Button refreshDeviceInfoButton = new Button(languageManager.getString("dialog.refresh-device-info"));
+        BooleanProperty deviceInfoRefreshBusy = new SimpleBooleanProperty(false);
+        refreshDeviceInfoButton.setGraphic(Icons.refresh("14"));
+        refreshDeviceInfoButton.setTooltip(new Tooltip(languageManager.getString("dialog.refresh-device-info")));
+        refreshDeviceInfoButton.disableProperty().bind(Bindings.createBooleanBinding(
+            () -> !controller.isEffectivelyConnected() || deviceInfoRefreshBusy.get(),
+            this.deviceStatus.isConnectedProperty(),
+            deviceInfoRefreshBusy
+        ));
+        refreshDeviceInfoButton.setOnAction(event -> {
+            if (deviceInfoRefreshBusy.get()) {
+                return;
+            }
+            deviceInfoRefreshBusy.set(true);
+            controller.clearDeviceInfoDetailsForRefresh();
+            Thread thread = new Thread(() -> {
+                try {
+                    controller.readFirmwareCatalogKeyForDeviceInfo();
+                    controller.refreshDeviceStatusSnapshot();
+                    Platform.runLater(sleepWaitTimeControl::refresh);
+                } finally {
+                    Platform.runLater(() -> deviceInfoRefreshBusy.set(false));
+                }
+            }, "device-info-manual-refresh");
+            thread.setDaemon(true);
+            thread.start();
+        });
+
+        HBox deviceHeader = new HBox(10);
+        deviceHeader.setAlignment(Pos.CENTER_LEFT);
+        Region deviceHeaderSpacer = new Region();
+        HBox.setHgrow(deviceHeaderSpacer, Priority.ALWAYS);
+        deviceHeader.getChildren().addAll(deviceTitle, deviceHeaderSpacer, refreshDeviceInfoButton);
+
+        deviceCard.getChildren().addAll(deviceHeader, deviceRow1, deviceRow2, versionRow, sleepWaitTimeControl.node());
+
+        HBox actionButtons = new HBox(10);
+        actionButtons.setAlignment(Pos.CENTER_RIGHT);
+        Button connectBtn = new Button(languageManager.getString("button.connect"));
+        connectBtn.getStyleClass().add("button-connect");
+        connectBtn.disableProperty().bind(this.deviceStatus.isConnectedProperty());
+        connectBtn.setOnAction(event -> controller.userConnect());
+
+        Button disconnectBtn = new Button(languageManager.getString("button.disconnect"));
+        disconnectBtn.getStyleClass().add("button-disconnect");
+        disconnectBtn.disableProperty().bind(this.deviceStatus.isConnectedProperty().not());
+        disconnectBtn.setOnAction(event -> controller.userDisconnect());
+
+        Button closeBtn = new Button(languageManager.getString("dialog.close"));
+        closeBtn.setOnAction(event -> dialog.close());
+        actionButtons.getChildren().addAll(connectBtn, disconnectBtn, closeBtn);
+
+        content.getChildren().addAll(deviceCard, actionButtons);
+        scrollPane.setContent(content);
+
+        Scene scene = new Scene(scrollPane);
+        scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+        dialog.setScene(scene);
+        dialog.show();
+    }
+
+    private void showHookManagerDialog() {
         Stage dialog = new Stage();
         dialog.initOwner(getScene().getWindow());
         dialog.setTitle("AhaKey Hook 管理");

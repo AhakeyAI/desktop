@@ -57,9 +57,11 @@ public class HookInstaller {
     // Codex: 6 个事件（与 Python CODEX_HOOK_EVENTS 完全一致）
     private static final String[][] CODEX_EVENTS = {
         {"SessionStart", "CodexSessionStart", "10"},
+        {"SessionEnd", "CodexSessionEnd", "10"},
         {"PostToolUse", "CodexPostToolUse", "10"},
         {"PreToolUse", "CodexPreToolUse", "20"},
         {"PermissionRequest", "CodexPermissionRequest", "20"},
+        {"TaskCompleted", "CodexTaskCompleted", "10"},
         {"UserPromptSubmit", "CodexUserPromptSubmit", "10"},
         {"Stop", "CodexStop", "10"}
     };
@@ -236,9 +238,23 @@ public class HookInstaller {
             "    $stdinText = $null\n" +
             "    if ([Console]::IsInputRedirected) { $stdinText = [Console]::In.ReadToEnd() }\n" +
             "} catch { }\n" +
-            "$payload = [ordered]@{ cmd = $EventName; ahakeyHookVersion = '" + AHAKEY_HOOK_VERSION + "' }\n" +
+            "$payload = [ordered]@{ cmd = $EventName; ahakeyHookVersion = '" + AHAKEY_HOOK_VERSION + "'; cwd = (Get-Location).Path }\n" +
+            "function Add-AhaKeyField([string]$Name) {\n" +
+            "    $m = [regex]::Match($stdinText, '\"' + $Name + '\"\\s*:\\s*\"([^\"]*)\"')\n" +
+            "    if ($m.Success) { $payload[$Name] = $m.Groups[1].Value }\n" +
+            "}\n" +
             "if ($stdinText -and $stdinText.Trim().Length -gt 0) {\n" +
-            "    try { $payload.hookInput = ($stdinText | ConvertFrom-Json) } catch { $payload.hookInputRaw = $stdinText }\n" +
+            "    try { $payload.hookInput = ($stdinText | ConvertFrom-Json) } catch {\n" +
+            "        Add-AhaKeyField 'conversation_id'\n" +
+            "        Add-AhaKeyField 'conversationId'\n" +
+            "        Add-AhaKeyField 'session_id'\n" +
+            "        Add-AhaKeyField 'sessionId'\n" +
+            "        Add-AhaKeyField 'composerId'\n" +
+            "        Add-AhaKeyField 'composer_id'\n" +
+            "        Add-AhaKeyField 'transcript_path'\n" +
+            "        Add-AhaKeyField 'transcriptPath'\n" +
+            "        $payload.hookInputRawBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($stdinText))\n" +
+            "    }\n" +
             "}\n" +
             "$jsonLine = ($payload | ConvertTo-Json -Depth 20 -Compress)\n" +
             "try {\n" +
@@ -403,6 +419,7 @@ public class HookInstaller {
         try {
             Files.createDirectories(hooksJson.getParent());
             backupFile(hooksJson);
+            backupFile(configToml);
             ObjectNode root = loadJsonSettings(hooksJson);
             ObjectNode hooks = root.has("hooks") && root.get("hooks").isObject()
                 ? (ObjectNode) root.get("hooks")
@@ -433,7 +450,6 @@ public class HookInstaller {
             mapper.writerWithDefaultPrettyPrinter().writeValue(hooksJson.toFile(), root);
             log("[成功] 已写入 " + hooksJson);
             Files.write(sidecar, (AHAKEY_HOOK_VERSION + "\n" + java.time.LocalDateTime.now()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            backupFile(configToml);
             String toml = configToml.toFile().exists()
                 ? new String(Files.readAllBytes(configToml), java.nio.charset.StandardCharsets.UTF_8)
                 : "";

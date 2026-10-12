@@ -46,7 +46,7 @@ public class CodexSessionDiscoveryService {
                  Statement statement = connection.createStatement()) {
                 statement.setQueryTimeout(2);
                 String sql = """
-                    select id, rollout_path, cwd, title, first_user_message, preview, updated_at_ms, recency_at_ms
+                    select id, rollout_path, cwd, name, title, first_user_message, preview, updated_at_ms, recency_at_ms
                     from threads
                     order by coalesce(recency_at_ms, updated_at_ms, 0) desc
                     limit 400
@@ -55,11 +55,12 @@ public class CodexSessionDiscoveryService {
                     while (rs.next()) {
                         String id = value(rs.getString("id"));
                         String cwd = value(rs.getString("cwd"));
-                        String title = firstNonBlank(
+                        String title = displayTitle(
+                            id,
+                            rs.getString("name"),
                             rs.getString("title"),
                             rs.getString("first_user_message"),
-                            rs.getString("preview"),
-                            id
+                            rs.getString("preview")
                         );
                         long timestamp = Math.max(rs.getLong("recency_at_ms"), rs.getLong("updated_at_ms"));
                         sessions.add(new AiRuntimeSession(
@@ -93,7 +94,7 @@ public class CodexSessionDiscoveryService {
                 }
                 JsonNode node = mapper.readTree(line);
                 String id = text(node, "id");
-                String title = firstNonBlank(text(node, "thread_name"), text(node, "title"), id);
+                String title = displayTitle(id, text(node, "name"), text(node, "thread_name"), text(node, "title"));
                 long updatedAt = longValue(node, "updated_at");
                 sessions.add(new AiRuntimeSession(
                     "Codex",
@@ -149,5 +150,65 @@ public class CodexSessionDiscoveryService {
             }
         }
         return "未命名会话";
+    }
+
+    private String displayTitle(String id, String... values) {
+        if (values != null) {
+            for (String value : values) {
+                String title = normalizeTitle(value);
+                if (!title.isBlank() && !looksLikeTranscriptDump(title)) {
+                    return shortenTitle(title);
+                }
+            }
+        }
+        return "新对话";
+    }
+
+    private String normalizeTitle(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value
+            .replace('\r', ' ')
+            .replace('\n', ' ')
+            .replace('\t', ' ')
+            .replaceAll("\\s+", " ")
+            .strip();
+    }
+
+    private boolean looksLikeTranscriptDump(String title) {
+        String lower = title.toLowerCase();
+        if ((title.startsWith("FAIL") || title.startsWith("PASS") || title.startsWith("BLOCKED"))
+            && (title.contains("**Findings**") || title.contains("旧功能保护结果") || title.contains("WD-"))) {
+            return true;
+        }
+        return lower.startsWith("```")
+            || title.startsWith("# ")
+            || title.startsWith("## ");
+    }
+
+    private String shortenTitle(String title) {
+        int sentenceEnd = firstSentenceEnd(title);
+        if (sentenceEnd > 0 && sentenceEnd <= 48) {
+            title = title.substring(0, sentenceEnd + 1).strip();
+        }
+        int maxLength = 36;
+        if (title.codePointCount(0, title.length()) <= maxLength) {
+            return title;
+        }
+        return title.offsetByCodePoints(0, maxLength - 1) > 0
+            ? title.substring(0, title.offsetByCodePoints(0, maxLength - 1)).strip() + "..."
+            : title;
+    }
+
+    private int firstSentenceEnd(String title) {
+        int best = -1;
+        for (String marker : List.of("。", "？", "！", ".", "?", "!")) {
+            int index = title.indexOf(marker);
+            if (index >= 0 && (best < 0 || index < best)) {
+                best = index;
+            }
+        }
+        return best;
     }
 }

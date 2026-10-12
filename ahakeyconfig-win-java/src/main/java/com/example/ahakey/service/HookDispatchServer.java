@@ -3,6 +3,7 @@ package com.example.ahakey.service;
 import com.example.ahakey.model.IDEState;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,6 +18,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class HookDispatchServer {
     private static final Logger logger = LoggerFactory.getLogger(HookDispatchServer.class);
@@ -45,7 +48,8 @@ public class HookDispatchServer {
         for (String[] e : new String[][]{
             {"CodexSessionStart", "SESSION_START"}, {"CodexSessionEnd", "SESSION_END"},
             {"CodexPreToolUse", "PRE_TOOL_USE"}, {"CodexPostToolUse", "POST_TOOL_USE"},
-            {"CodexStop", "STOP"}, {"CodexUserPromptSubmit", "USER_PROMPT_SUBMIT"}
+            {"CodexStop", "STOP"}, {"CodexTaskCompleted", "TASK_COMPLETED"},
+            {"CodexUserPromptSubmit", "USER_PROMPT_SUBMIT"}
         }) EVENT_MAP.put(e[0], new EventEntry(Platform.CODEX, IDEState.valueOf(e[1])));
         EVENT_MAP.put("CodexPermissionRequest", new EventEntry(Platform.CODEX, IDEState.PERMISSION_REQUEST));
 
@@ -268,9 +272,54 @@ public class HookDispatchServer {
                 }
             } catch (Exception e) {
                 logger.debug("Hook JSON parse failed: {}", e.getMessage());
+                HookPayload fallback = parseMalformedJsonPayload(line);
+                if (fallback != null && !fallback.eventName().isBlank()) {
+                    return fallback;
+                }
             }
         }
         return new HookPayload(line, null);
+    }
+
+    private HookPayload parseMalformedJsonPayload(String line) {
+        ObjectNode node = mapper.createObjectNode();
+        copyJsonStringField(line, node, "cmd");
+        copyJsonStringField(line, node, "hook_event_name");
+        copyJsonStringField(line, node, "conversation_id");
+        copyJsonStringField(line, node, "conversationId");
+        copyJsonStringField(line, node, "session_id");
+        copyJsonStringField(line, node, "sessionId");
+        copyJsonStringField(line, node, "composerId");
+        copyJsonStringField(line, node, "composer_id");
+        copyJsonStringField(line, node, "transcript_path");
+        copyJsonStringField(line, node, "transcriptPath");
+        copyJsonStringField(line, node, "cwd");
+        copyJsonStringField(line, node, "current_working_directory");
+        copyJsonStringField(line, node, "currentWorkingDirectory");
+
+        String eventName = node.path("cmd").asText("");
+        if (eventName.isBlank()) {
+            eventName = node.path("hook_event_name").asText("");
+        }
+        return eventName.isBlank() ? null : new HookPayload(eventName, node);
+    }
+
+    private void copyJsonStringField(String source, ObjectNode target, String fieldName) {
+        Matcher matcher = Pattern.compile("\\\\?\"" + Pattern.quote(fieldName) + "\\\\?\"\\s*:\\s*\\\\?\"([^\"\\\\]*(?:\\\\.[^\"\\\\]*)*)")
+            .matcher(source);
+        if (matcher.find()) {
+            target.put(fieldName, unescapeLooseJsonString(matcher.group(1)));
+        }
+    }
+
+    private String unescapeLooseJsonString(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return value
+            .replace("\\\\", "\\")
+            .replace("\\/", "/")
+            .replace("\\\"", "\"");
     }
 
     public void stop() {

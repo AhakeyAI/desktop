@@ -21,15 +21,18 @@ import javafx.stage.Window;
 import com.example.ahakey.service.AgentManager;
 import com.example.ahakey.service.HookInstaller;
 import javafx.beans.binding.Bindings;
+import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.ListView;
@@ -884,17 +887,10 @@ public class InspectorPane extends ScrollPane {
         root.setPrefWidth(620);
         root.setPrefHeight(560);
 
-        Label primaryNote = caption("主槽位代表屏幕上展示 GIF 的具体会话。");
-
         javafx.scene.control.TreeView<Object> tree = new javafx.scene.control.TreeView<>();
         tree.setShowRoot(false);
         tree.setPrefHeight(300);
-        HookInstaller.HookStatus codexStatus = controller.getAiRuntimeHookStatus("Codex");
-        HookInstaller.HookStatus cursorStatus = controller.getAiRuntimeHookStatus("Cursor");
-        boolean codexHookLatest = codexStatus == HookInstaller.HookStatus.LATEST;
-        boolean cursorHookLatest = cursorStatus == HookInstaller.HookStatus.LATEST;
-        service.prepareApply(codexHookLatest, cursorHookLatest);
-        tree.setRoot(buildRuntimeSessionTree(codexStatus, cursorStatus));
+        tree.setRoot(loadingRuntimeSessionTree());
         tree.setCellFactory(view -> new javafx.scene.control.TreeCell<>() {
             @Override
             protected void updateItem(Object item, boolean empty) {
@@ -914,45 +910,12 @@ public class InspectorPane extends ScrollPane {
         });
 
         VBox slotsBox = new VBox(8);
-        ToggleGroup primaryGroup = new ToggleGroup();
-        for (int i = 0; i < 4; i++) {
-            final int slotIndex = i;
-            AiRuntimeSlotBinding slot = service.getSlots().get(i);
-            HBox row = new HBox(8);
-            row.setAlignment(Pos.CENTER_LEFT);
-            RadioButton primary = new RadioButton("主槽位");
-            primary.setToggleGroup(primaryGroup);
-            String unavailableReason = service.slotUnavailableReason(slot, codexHookLatest, cursorHookLatest);
-            boolean primarySelectable = slot.isBound() && unavailableReason == null;
-            primary.setSelected(service.getPrimarySlotIndex() == slotIndex && primarySelectable);
-            primary.setDisable(!primarySelectable);
-            primary.setOnAction(e -> {
-                if (!primary.isDisabled()) {
-                    service.setPrimarySlotIndex(slotIndex);
-                }
-            });
-            Label summary = new Label(slotSummary(slot) + "｜" + slotAvailabilityText(slot, unavailableReason));
-            summary.getStyleClass().add("group-note");
-            summary.setWrapText(true);
-            Button bind = new Button("绑定到槽位 " + (i + 1));
-            bind.setOnAction(e -> {
-                Object selected = tree.getSelectionModel().getSelectedItem() == null
-                    ? null
-                    : tree.getSelectionModel().getSelectedItem().getValue();
-                if (selected instanceof AiRuntimeSession session) {
-                    service.bindSlot(slotIndex, session);
-                    rebuild();
-                }
-            });
-            Button clear = new Button("解绑");
-            clear.setOnAction(e -> {
-                service.clearSlot(slotIndex);
-                rebuild();
-            });
-            row.getChildren().addAll(primary, summary, bind, clear);
-            HBox.setHgrow(summary, Priority.ALWAYS);
-            slotsBox.getChildren().add(row);
-        }
+        refreshRuntimeSlotRows(slotsBox, tree, false, false);
+
+        Label slotGuide = caption("选择“主显示”后，键盘屏幕会优先展示这个会话；每个槽位固定对应灯条上的两颗灯珠。");
+        Label lightGuide = new Label("灯效：运行中=绿灯常亮，等待人工确认=黄灯常亮，完成=红灯常亮，空闲=熄灭。");
+        lightGuide.getStyleClass().add("group-note");
+        lightGuide.setWrapText(true);
 
         VBox dirBox = new VBox(8);
         dirBox.getChildren().add(createDataDirRow("Codex 数据目录", service.getCodexDataDir(), value -> service.setCodexDataDir(value), dialog));
@@ -969,9 +932,124 @@ public class InspectorPane extends ScrollPane {
         note.getStyleClass().add("group-note");
         note.setWrapText(true);
         HBox actionRow = new HBox(8, apply, hookManager);
-        root.getChildren().addAll(primaryNote, dirBox, tree, slotsBox, actionRow, note);
+        root.getChildren().addAll(dirBox, tree, slotGuide, slotsBox, lightGuide, actionRow, note);
         dialog.getDialogPane().setContent(root);
+        Task<RuntimeTreeLoad> loadTask = new Task<>() {
+            @Override
+            protected RuntimeTreeLoad call() {
+                HookInstaller.HookStatus loadedCodexStatus = controller.getAiRuntimeHookStatus("Codex");
+                HookInstaller.HookStatus loadedCursorStatus = controller.getAiRuntimeHookStatus("Cursor");
+                return new RuntimeTreeLoad(
+                    buildRuntimeSessionTree(loadedCodexStatus, loadedCursorStatus),
+                    loadedCodexStatus == HookInstaller.HookStatus.LATEST,
+                    loadedCursorStatus == HookInstaller.HookStatus.LATEST
+                );
+            }
+        };
+        loadTask.setOnSucceeded(e -> {
+            RuntimeTreeLoad loaded = loadTask.getValue();
+            tree.setRoot(loaded.root());
+            refreshRuntimeSlotRows(slotsBox, tree, loaded.codexHookLatest(), loaded.cursorHookLatest());
+        });
+        loadTask.setOnFailed(e -> {
+            javafx.scene.control.TreeItem<Object> rootItem = new javafx.scene.control.TreeItem<>("root");
+            Throwable error = loadTask.getException();
+            rootItem.getChildren().add(new javafx.scene.control.TreeItem<>(
+                "加载会话失败：" + (error == null ? "未知错误" : error.getMessage())
+            ));
+            tree.setRoot(rootItem);
+        });
+        dialog.setOnHidden(e -> loadTask.cancel());
+        Thread loader = new Thread(loadTask, "ai-runtime-session-load");
+        loader.setDaemon(true);
+        loader.start();
         dialog.showAndWait();
+    }
+
+    private javafx.scene.control.TreeItem<Object> loadingRuntimeSessionTree() {
+        javafx.scene.control.TreeItem<Object> root = new javafx.scene.control.TreeItem<>("root");
+        root.getChildren().add(new javafx.scene.control.TreeItem<>("正在加载 Codex / Cursor 会话..."));
+        return root;
+    }
+
+    private record RuntimeTreeLoad(
+        javafx.scene.control.TreeItem<Object> root,
+        boolean codexHookLatest,
+        boolean cursorHookLatest
+    ) {}
+
+    private void refreshRuntimeSlotRows(
+        VBox slotsBox,
+        javafx.scene.control.TreeView<Object> tree,
+        boolean codexHookLatest,
+        boolean cursorHookLatest
+    ) {
+        var service = controller.getAiRuntimeDisplayService();
+        slotsBox.getChildren().clear();
+        ToggleGroup primaryGroup = new ToggleGroup();
+        for (int i = 0; i < 4; i++) {
+            final int slotIndex = i;
+            AiRuntimeSlotBinding slot = service.getSlots().get(i);
+            HBox row = new HBox(8);
+            row.setAlignment(Pos.CENTER_LEFT);
+
+            RadioButton primary = new RadioButton("主显示");
+            primary.setToggleGroup(primaryGroup);
+            primary.setMinWidth(96);
+            primary.setPrefWidth(96);
+            String unavailableReason = service.slotUnavailableReason(slot, codexHookLatest, cursorHookLatest);
+            boolean primarySelectable = slot.isBound() && unavailableReason == null;
+            primary.setSelected(service.getPrimarySlotIndex() == slotIndex && primarySelectable);
+            primary.setDisable(!primarySelectable);
+            primary.setOnAction(e -> {
+                if (!primary.isDisabled()) {
+                    service.setPrimarySlotIndex(slotIndex);
+                    refreshRuntimeSlotRows(slotsBox, tree, codexHookLatest, cursorHookLatest);
+                }
+            });
+
+            Label summary = new Label(slotSummary(slot) + "｜" + slotAvailabilityText(slot, unavailableReason));
+            summary.getStyleClass().add("group-note");
+            summary.setWrapText(false);
+            summary.setTextOverrun(OverrunStyle.ELLIPSIS);
+            summary.setMaxWidth(Double.MAX_VALUE);
+            Tooltip summaryTip = new Tooltip(slotSummary(slot) + "｜" + slotAvailabilityText(slot, unavailableReason));
+            summaryTip.setWrapText(true);
+            summaryTip.setMaxWidth(520);
+            summary.setTooltip(summaryTip);
+
+            Button bind = new Button("绑定到槽位 " + (i + 1));
+            bind.setMinWidth(126);
+            bind.setPrefWidth(126);
+            bind.setOnAction(e -> {
+                Object selected = tree.getSelectionModel().getSelectedItem() == null
+                    ? null
+                    : tree.getSelectionModel().getSelectedItem().getValue();
+                if (selected instanceof AiRuntimeSession session) {
+                    service.bindSlot(slotIndex, session);
+                    tree.refresh();
+                    refreshRuntimeSlotRows(slotsBox, tree, codexHookLatest, cursorHookLatest);
+                    rebuild();
+                }
+            });
+
+            Button clear = new Button("解绑");
+            clear.setMinWidth(72);
+            clear.setPrefWidth(72);
+            clear.setOnAction(e -> {
+                service.clearSlot(slotIndex);
+                tree.refresh();
+                refreshRuntimeSlotRows(slotsBox, tree, codexHookLatest, cursorHookLatest);
+                rebuild();
+            });
+
+            HBox buttons = new HBox(8, bind, clear);
+            buttons.setMinWidth(206);
+            buttons.setPrefWidth(206);
+            row.getChildren().addAll(primary, summary, buttons);
+            HBox.setHgrow(summary, Priority.ALWAYS);
+            slotsBox.getChildren().add(row);
+        }
     }
 
     private HBox createDataDirRow(
@@ -1061,14 +1139,22 @@ public class InspectorPane extends ScrollPane {
     }
 
     private String slotSummary(AiRuntimeSlotBinding slot) {
+        String slotLabel = "槽位 " + (slot == null ? "" : slot.getSlotIndex() + 1);
+        String lightLabel = slot == null ? "" : "｜灯珠 " + slotLightRange(slot.getSlotIndex());
         if (slot == null || !slot.isBound()) {
-            return "槽位 " + (slot == null ? "" : slot.getSlotIndex() + 1) + "｜未绑定";
+            return slotLabel + lightLabel;
         }
-        return "槽位 " + (slot.getSlotIndex() + 1)
+        return slotLabel
+            + lightLabel
             + "｜" + slot.getProvider()
             + "｜" + slot.displayProjectName()
             + "｜" + slot.displayTitle()
             + "｜" + slotTimeLabel(slot.getUpdatedAtMillis());
+    }
+
+    private String slotLightRange(int slotIndex) {
+        int first = slotIndex * 2 + 1;
+        return first + "-" + (first + 1);
     }
 
     private String slotTimeLabel(long updatedAtMillis) {

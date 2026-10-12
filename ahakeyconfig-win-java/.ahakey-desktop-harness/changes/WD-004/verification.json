@@ -1,0 +1,71 @@
+{
+  "change_id": "WD-004",
+  "checks": {
+    "machine": {
+      "status": "pass",
+      "reason": "2026-10-09 FIX static checks only: preflight PASS, git diff --check PASS with CRLF warnings only, targeted rg checks found no stale failed patterns; Owner forbade build/app/device/hook writes.",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-004/EXECUTION_REPORT_IMPLEMENT.md": "011f89c580e794de243669e0fc4dd9eefeb9aace0f885d39e5e0aec2581811f6"
+      },
+      "role": "DIB",
+      "at": "2026-10-09T03:45:04+00:00",
+      "code_fingerprint": "2916ca02336232a7dd9a29d0ecb947561b5511d6f859b23b2479109e0223ea44",
+      "build_round": 5,
+      "approval_sha256": "9c1b42d01af29aea1085867b7dc65c789255c44ae1ad1974f72a2a16b2ba32a6"
+    },
+    "core_regression": {
+      "status": "not_applicable",
+      "reason": "2026-10-09 FIX did not run app/build/device regression because Owner explicitly forbade build, Hook install/update, device writes, and Git actions in this turn.",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-004/EXECUTION_REPORT_IMPLEMENT.md": "011f89c580e794de243669e0fc4dd9eefeb9aace0f885d39e5e0aec2581811f6"
+      },
+      "role": "DIB",
+      "at": "2026-10-09T03:45:59+00:00",
+      "code_fingerprint": "2916ca02336232a7dd9a29d0ecb947561b5511d6f859b23b2479109e0223ea44",
+      "build_round": 5,
+      "approval_sha256": "9c1b42d01af29aea1085867b7dc65c789255c44ae1ad1974f72a2a16b2ba32a6"
+    },
+    "special_regression": {
+      "status": "not_applicable",
+      "reason": "2026-10-09 FIX was limited to DLA review findings; no special runtime/device regression was run because Owner forbade build/app/device/hook writes.",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-004/EXECUTION_REPORT_IMPLEMENT.md": "011f89c580e794de243669e0fc4dd9eefeb9aace0f885d39e5e0aec2581811f6"
+      },
+      "role": "DIB",
+      "at": "2026-10-09T03:46:34+00:00",
+      "code_fingerprint": "2916ca02336232a7dd9a29d0ecb947561b5511d6f859b23b2479109e0223ea44",
+      "build_round": 5,
+      "approval_sha256": "9c1b42d01af29aea1085867b7dc65c789255c44ae1ad1974f72a2a16b2ba32a6"
+    },
+    "mock": {
+      "status": "not_applicable",
+      "reason": "2026-10-09 FIX did not run mock/app validation because Owner explicitly restricted this turn to implementation/static checks and forbade build/app/device/hook writes.",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-004/EXECUTION_REPORT_IMPLEMENT.md": "011f89c580e794de243669e0fc4dd9eefeb9aace0f885d39e5e0aec2581811f6"
+      },
+      "role": "DIB",
+      "at": "2026-10-09T03:47:15+00:00",
+      "code_fingerprint": "2916ca02336232a7dd9a29d0ecb947561b5511d6f859b23b2479109e0223ea44",
+      "build_round": 5,
+      "approval_sha256": "9c1b42d01af29aea1085867b7dc65c789255c44ae1ad1974f72a2a16b2ba32a6"
+    },
+    "real_device": {
+      "status": "pending"
+    },
+    "owner_uat": {
+      "status": "pending"
+    },
+    "review": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-004/REVIEW.json": "afb2e16e3fa367ff9e837e8d358c6b256ef3f00e532342186c561a634468bd9e"
+      },
+      "role": "DLA",
+      "at": "2026-10-09T04:49:49+00:00",
+      "code_fingerprint": "2916ca02336232a7dd9a29d0ecb947561b5511d6f859b23b2479109e0223ea44",
+      "build_round": 5,
+      "approval_sha256": "9c1b42d01af29aea1085867b7dc65c789255c44ae1ad1974f72a2a16b2ba32a6"
+    }
+  }
+}
