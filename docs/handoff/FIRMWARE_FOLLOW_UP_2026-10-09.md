@@ -26,3 +26,27 @@
 - [Apple HID Voice Command 定义](https://github.com/apple-oss-distributions/IOHIDFamily/blob/main/IOHIDFamily/IOHIDUsageTables.h)
 - [USB HID Usage Tables](https://www.usb.org/sites/default/files/hut1_3_0.pdf)
 - [Apple 系统听写与快捷键](https://support.apple.com/en-gb/guide/mac-help/mh40584/26/mac/26)
+
+
+## 2026-10-13 新增：HID 释放发送失败可能丢失（待固件侧验证）
+
+状态：静态代码确认存在发送状态未处理的缺口；未确认是本次 Command 卡住的根因，不应标为已修复。
+
+真机：Mac 26.3.1，CH582，WS2 CP4D HEX SHA256 `6f9759eb912ec067564c4e63558589ab9732126344d52c2d2a278383119516be`，保留历史 DataFlash。用户首次仅操作 Voice 后反馈 Dock 点击显示目录；探针捕获左 Command 在 combined/HID 两层按住。键盘关机后释放，App 退出后重连不按键正常；之后 App 退出及旧 App 运行时重复短按均正常。一次按住 Voice 的原始 Consumer CF=1/0 间隔 3.360623 秒，唤起 Siri但 Dock 正常。后测未再捕获 Command 卡住，不能归因于单一模块。
+
+代码依据（`Fireware-harness` 头 `d1b46a14a796790f2ffe0d228e6c5badcfc34d75`）：
+
+- `APP/hid_dev/keyboard.c:378–395`：Consumer 按下/释放经 `keyboard_send_usage_report` 单次调用无返回值的发送封装，没有释放发送失败重试。
+- `APP/hid_dev/psk_hid.c:432–450`：`MY_USB_HID_SEND_REPORT` 不检查 `HidDev_Report` 返回值。
+- `Profile/hiddev.c:1236–1289`：底层通知可能因资源、分配、未就绪等原因返回失败；此路径没有上层重试。
+- `APP/hid_dev/keyboard.c:106–109`：普通键报告在发送前更新 `tkeyboard_buff_last`；若底层发送失败，后续去重可能阻止相同释放报告再次发送。
+
+请固件方补强并给出验证结果：
+
+1. 向上层传递实际发送状态；普通键“已发送”缓存仅在发送被成功接受后更新（不把接受发送等同于主机应用处理完成）。
+2. 为 Consumer/普通键 release 保留待发送状态和有界重试，保持按下/释放顺序；安全时丢弃断线前旧按下，重连/模式切换/关机路径确认中性报告。不得无条件重放旧按下或打断仍合法保持的按键。
+3. 用故障注入分别使 keyDown、keyUp 的通知分配/发送失败，验证恢复后最终报告为中性且没有重复动作，覆盖普通修饰键和 Consumer。
+4. 同步抓取 HID 原始 Cmd/Consumer 与系统修饰键状态；只有异常现场证据能确定固件漏释放还是系统映射问题。
+5. 产品行为另行确认：当前目标 Mac 的 Consumer Voice 轻点启动听写，按住会启动 Siri。若只允许听写，需设计固定短脉冲与防重复策略，再做系统兼容验收；它不能替代上述释放可靠性修复。
+
+本次未改固件/客户端输入实现，也没有再次烧录。原始设备日志和配置备份仅本地保存，不放入仓库。
