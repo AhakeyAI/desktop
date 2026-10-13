@@ -1,20 +1,25 @@
 import Foundation
 
-/// WS2 mode writes require an explicit confirmed-transaction grant. Other WS2
-/// configuration writes remain closed; unknown builds permit only safe probes.
+/// WS2 mode and standby writes each require a narrow confirmed-transaction
+/// grant. Other configuration writes stay closed; unknown builds allow probes.
 public enum ConfigurationCommandPolicy {
-    public static func permits(_ data: Data, profile: FirmwareCapabilityProfile?, confirmedModeChange: Bool = false) -> Bool {
+    public enum ConfirmedWrite { case none, mode, standby }
+    public static func permits(_ data: Data, profile: FirmwareCapabilityProfile?, confirmedWrite: ConfirmedWrite = .none) -> Bool {
         let b = [UInt8](data)
         guard b.count >= 5, b[0] == 0xAA, b[1] == 0xBB,
               b[b.count - 2] == 0xCC, b[b.count - 1] == 0xDD else { return false }
         if profile?.identity == .legacy { return true }
         switch b[2] {
-        case 0x92: return confirmedModeChange && profile?.identity == .knownWS2Catalog && b.count == 6 && b[3] < 4
+        case 0x92: return confirmedWrite == .mode && profile?.identity == .knownWS2Catalog && b.count == 6 && b[3] < 4
         case 0x00, 0x9F: return b.count == 5
         case 0x83: return b.count == 6 && b[3] < 4
         case 0x90: return b.count == 6 && b[3] <= 8
         case 0x87: return profile?.mayQueryOrdinaryKeys == true && b.count == 7 && b[3] < 4 && b[4] < 4
-        case 0x95, 0x96, 0x97: return profile?.identity == .knownWS2Catalog && b.count == 5
+        case 0x95:
+            guard profile?.identity == .knownWS2Catalog else { return false }
+            if b.count == 5 { return true }
+            return confirmedWrite == .standby && b.count == 7 && [UInt16(0), 30, 60, 120].contains(UInt16(b[3]) | UInt16(b[4]) << 8)
+        case 0x96, 0x97: return profile?.identity == .knownWS2Catalog && b.count == 5
         default: return false
         }
     }

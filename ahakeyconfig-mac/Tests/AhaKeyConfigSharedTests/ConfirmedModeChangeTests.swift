@@ -64,8 +64,8 @@ final class ConfirmedModeChangeTests: XCTestCase {
         let known = FirmwareCapabilityProfile.catalogResponse(Data([0xAA, 0xBB, 0x9F, 0]) + Data(FirmwareCapabilityProfile.ws2CatalogKey.utf8) + Data([0xCC, 0xDD]))
         let mode = Data([0xAA, 0xBB, 0x92, 2, 0xCC, 0xDD])
         XCTAssertFalse(ConfigurationCommandPolicy.permits(mode, profile: known))
-        XCTAssertTrue(ConfigurationCommandPolicy.permits(mode, profile: known, confirmedModeChange: true))
-        XCTAssertFalse(ConfigurationCommandPolicy.permits(mode, profile: nil, confirmedModeChange: true))
-        XCTAssertFalse(ConfigurationCommandPolicy.permits(Data([0xAA, 0xBB, 0x04, 0xCC, 0xDD]), profile: known, confirmedModeChange: true))
+        XCTAssertTrue(ConfigurationCommandPolicy.permits(mode, profile: known, confirmedWrite: .mode))
+        XCTAssertFalse(ConfigurationCommandPolicy.permits(mode, profile: nil, confirmedWrite: .mode))
+        XCTAssertFalse(ConfigurationCommandPolicy.permits(Data([0xAA, 0xBB, 0x04, 0xCC, 0xDD]), profile: known, confirmedWrite: .mode))
     }
 }

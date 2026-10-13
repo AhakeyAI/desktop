@@ -94,6 +94,11 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var configurationSnapshot = DeviceConfigurationSnapshot()
     @Published private(set) var isReadingConfigurationSnapshot = false
     @Published private(set) var isChangingWorkMode = false
+    @Published private(set) var isReadingStandby = false
+    @Published private(set) var isSettingStandby = false
+    var isConfigurationOperationInProgress: Bool {
+        isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby
+    }
     @Published private(set) var firmwareCapabilityProfile: FirmwareCapabilityProfile?
     @Published private(set) var bluetoothPermissionGranted = true
     @Published private(set) var bluetoothPoweredOn = false
@@ -513,11 +518,11 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     /// 发送原始命令到 0x7343（带队列，防止连发过载）
     func writeCommand(_ data: Data) {
-        writeCommand(data, confirmedModeChange: false)
+        writeCommand(data, confirmedWrite: .none)
     }
 
-    private func writeCommand(_ data: Data, confirmedModeChange: Bool) {
-        guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedModeChange: confirmedModeChange) else {
+    private func writeCommand(_ data: Data, confirmedWrite: ConfigurationCommandPolicy.ConfirmedWrite) {
+        guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite) else {
             appendLog("当前固件配置写入尚未验证，已阻止写入", isError: true)
             return
         }
@@ -816,7 +821,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     /// Explicit read only: never applies local drafts or persists device settings.
     func readDeviceConfigurationSnapshot() async throws {
-        guard !isReadingConfigurationSnapshot, !isChangingWorkMode else { throw OLEDUploadError.channelNotReady }
+        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
         let generation = commandSessionGeneration
         try ensureConfigurationReadSession(generation)
         isReadingConfigurationSnapshot = true
@@ -932,8 +937,42 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         (1...100).contains(brightness)
     }
 
+    func readStandbyForEditing() async throws -> UInt16 {
+        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        try ensureConfigurationReadSession(generation)
+        isReadingStandby = true
+        defer { isReadingStandby = false }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.mayQueryStandby else { throw OLEDUploadError.unsupportedReadOnlyProfile }
+        try ensureConfigurationReadSession(generation)
+        return try await readStandbyMinutes()
+    }
+
+    func setStandbyConfirmed(_ target: UInt16) async throws -> UInt16 {
+        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
+        guard ConfirmedStandbySetting.supportedMinutes.contains(target) else { throw ConfirmedStandbySetting.Failure.invalidValue }
+        let generation = commandSessionGeneration
+        try ensureConfigurationReadSession(generation)
+        isSettingStandby = true
+        defer { isSettingStandby = false }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.mayQueryStandby else { throw OLEDUploadError.unsupportedReadOnlyProfile }
+        do {
+            return try await ConfirmedStandbySetting.run(target: target, checkSession: {
+                try self.ensureConfigurationReadSession(generation)
+            }, read: { try await self.readStandbyMinutes() }, write: { value in
+                guard let request = ConfirmedStandbySetting.request(minutes: value) else { throw ConfirmedStandbySetting.Failure.invalidValue }
+                _ = try await self.sendCommandAwaitingResponse(request, expectedCommand: 0x95, confirmedWrite: .standby)
+            })
+        } catch {
+            self.configurationSnapshot.recordFailure(.standby, message: error.localizedDescription, generation: generation)
+            throw error
+        }
+    }
+
     func switchWorkModeConfirmed(_ target: UInt8) async throws -> UInt8 {
-        guard !isChangingWorkMode, !isReadingConfigurationSnapshot else { throw OLEDUploadError.channelNotReady }
+        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
         let generation = commandSessionGeneration
         try ensureConfigurationReadSession(generation)
         isChangingWorkMode = true
@@ -953,7 +992,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }, writeMode: { mode in
             _ = try await self.sendCommandAwaitingResponse(
                 AhaKeyCommand.setWorkMode(mode), expectedCommand: AhaKeyCommand.cmdSetWorkMode,
-                confirmedModeChange: true
+                confirmedWrite: .mode
             )
         })
     }
@@ -1389,11 +1428,11 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     private func sendCommandAwaitingResponse(
         _ data: Data, expectedCommand: UInt8, timeoutSeconds: Double = 5.0,
-        allowDeviceError: Bool = false, confirmedModeChange: Bool = false
+        allowDeviceError: Bool = false, confirmedWrite: ConfigurationCommandPolicy.ConfirmedWrite = .none
     ) async throws -> CommandResponse {
         let generation = try await acquireCommandTurn()
         defer { releaseCommandTurn(generation) }
-        guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedModeChange: confirmedModeChange) else {
+        guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite) else {
             throw OLEDUploadError.unsupportedReadOnlyProfile
         }
         try Task.checkCancellation()
@@ -1413,7 +1452,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 id: id, generation: generation, request: data, command: expectedCommand,
                 continuation: continuation, timeoutTask: timeoutTask
             )
-            writeCommand(data, confirmedModeChange: confirmedModeChange)
+            writeCommand(data, confirmedWrite: confirmedWrite)
         }
         guard allowDeviceError || result.status == 0 else {
             throw OLEDUploadError.deviceRejected(command: expectedCommand, status: result.status)

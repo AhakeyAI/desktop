@@ -1640,7 +1640,7 @@ struct AhaKeyStudioView: View {
                     }
                 }
             }
-            .disabled(!bleManager.isConnected || bleManager.isChangingWorkMode || bleManager.isReadingConfigurationSnapshot)
+            .disabled(!bleManager.isConnected || bleManager.isConfigurationOperationInProgress)
             .help("只切换键盘当前模式，不保存或覆盖键位配置；请先进入编辑配置连接键盘。")
             if let lastSyncDate {
                 Text("最近同步 \(Self.timeFormatter.string(from: lastSyncDate))")
