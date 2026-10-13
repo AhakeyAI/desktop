@@ -1,4 +1,5 @@
 import SwiftUI
+import AhaKeyConfigShared
 
 struct DeviceInfoView: View {
     @ObservedObject var bleManager: AhaKeyBLEManager
@@ -20,26 +21,27 @@ struct DeviceInfoView: View {
     @State private var showAgentRequiredForAgentBLE = false
     @State private var isReadingFirmwareCatalog = false
     @State private var firmwareCatalogError: String?
+    @State private var configurationReadError: String?
 
     var body: some View {
         Form {
             // MARK: - 设备信息
             Section {
                 HStack(spacing: 0) {
-                    infoCell("电量", value: "\(bleManager.batteryLevel)%")
+                    infoCell("电量", value: bleManager.batteryLevelForDisplay.map { "\($0)%" } ?? "未知")
                     Divider()
-                    infoCell("固件", value: "v\(bleManager.firmwareMainVersion).\(bleManager.firmwareSubVersion)")
+                    infoCell("固件", value: bleManager.isConnected ? "v\(bleManager.firmwareMainVersion).\(bleManager.firmwareSubVersion)" : "未读取")
                     Divider()
                     infoCell("设备名", value: bleManager.deviceName ?? "—")
                 }
                 .frame(height: 50)
 
                 HStack(spacing: 0) {
-                    infoCell("工作模式", value: workModeName(bleManager.workMode))
+                    infoCell("工作模式", value: bleManager.workModeForDisplay.map(workModeName) ?? "未知")
                     Divider()
-                    infoCell("灯光", value: lightModeName(bleManager.lightMode))
+                    infoCell("灯光", value: bleManager.lightModeForDisplay.map(lightModeName) ?? "未知")
                     Divider()
-                    infoCell("信号", value: "\(diagnosticsStore.snapshot.signalStrength) dBm")
+                    infoCell("信号", value: bleManager.isConnected ? "\(diagnosticsStore.snapshot.signalStrength) dBm" : "未读取")
                 }
                 .frame(height: 50)
             } header: {
@@ -110,10 +112,10 @@ struct DeviceInfoView: View {
                     Spacer()
                     HStack(spacing: 6) {
                         Circle()
-                            .fill(bleManager.switchState == 0 ? Color.green : Color.indigo)
+                            .fill(bleManager.switchStateForDisplay == 0 ? Color.green : Color.indigo)
                             .frame(width: 10, height: 10)
                             .animation(.easeInOut(duration: 0.1), value: bleManager.switchState)
-                        Text(switchStateLabel(bleManager.switchState))
+                        Text(switchStateLabel(bleManager.switchStateForDisplay))
                     }
                 }
             } header: {
@@ -374,6 +376,8 @@ struct DeviceInfoView: View {
                 Text("BLE 连接状态")
             }
 
+            configurationReadbackSection
+
             // MARK: - 操作
             Section {
                 HStack {
@@ -406,7 +410,7 @@ struct DeviceInfoView: View {
                             }
                         }
                         .buttonStyle(.bordered)
-                        .disabled(isReadingFirmwareCatalog)
+                        .disabled(isReadingFirmwareCatalog || bleManager.isReadingConfigurationSnapshot)
                         .help("只读查询固件目录；未知固件不会开放新配置写入")
 
                         Button("探测协议") {
@@ -544,8 +548,69 @@ struct DeviceInfoView: View {
         }
     }
 
-    private func switchStateLabel(_ state: Int) -> String {
-        state == 0 ? "自动批准" : "手动批准"
+    private var configurationReadbackSection: some View {
+        Section {
+            Button(bleManager.isReadingConfigurationSnapshot ? "正在读取键盘配置…" : "读取键盘配置（只读）") {
+                configurationReadError = nil
+                Task { @MainActor in
+                    do { try await bleManager.readDeviceConfigurationSnapshot() }
+                    catch { configurationReadError = error.localizedDescription }
+                }
+            }
+            .disabled(!bleManager.isConnected || bleManager.isReadingConfigurationSnapshot || isReadingFirmwareCatalog)
+            Text("展示键盘保存值，不覆盖本地草稿。语音平台预设可能改变 Voice 键的实际输出。")
+                .font(.caption).foregroundStyle(.secondary)
+            if let configurationReadError { Text(configurationReadError).foregroundStyle(.orange) }
+            CompatLabeledContent("待机") {
+                Text(bleManager.configurationSnapshot.standbyMinutes.map { $0 == 0 ? "不自动待机" : "\($0) 分钟" } ?? settingReadStatus(.standby))
+            }
+            CompatLabeledContent("语音引导") {
+                Text(bleManager.configurationSnapshot.voiceOnboardingState.map { value in
+                    ["未选择", "已选 Windows", "已选 Mac", "桌面接管", "已跳过"][Int(value)]
+                } ?? settingReadStatus(.voice))
+            }
+            if let side = bleManager.configurationSnapshot.sideSwitch {
+                ForEach(side.positions.indices, id: \.self) { index in
+                    CompatLabeledContent("拨杆位置 \(index + 1) 绑定") {
+                        let position = side.positions[index]
+                        Text("\(["出厂自动", "出厂手动", "禁用", "自定义"][Int(position.bindType)]) \(position.action.hexString)")
+                            .textSelection(.enabled)
+                    }
+                }
+            } else {
+                CompatLabeledContent("拨杆绑定") { Text(settingReadStatus(.sideSwitch)) }
+            }
+            ForEach(0..<16, id: \.self) { index in
+                let mode = UInt8(index / 4), key = UInt8(index % 4)
+                CompatLabeledContent("Mode \(mode + 1) · Key \(key + 1)") {
+                    Text(keyReadbackText(mode: mode, index: key))
+                        .font(.caption).textSelection(.enabled)
+                }
+            }
+        } header: { Text("键盘配置 · 只读") }
+    }
+
+    private func settingReadStatus(_ field: DeviceConfigurationSnapshot.Field) -> String {
+        bleManager.configurationSnapshot.failures[field].map { "读取失败：\($0)" } ?? "未读取"
+    }
+
+    private func keyReadbackText(mode: UInt8, index: UInt8) -> String {
+        guard let result = bleManager.configurationSnapshot.keys[.key(mode: mode, index: index)] else {
+            return settingReadStatus(.key(mode: mode, index: index))
+        }
+        switch result {
+        case .value(let value):
+            let description = String(data: value.description, encoding: .utf8) ?? "描述 HEX：\(value.description.hexString)"
+            let label = value.isKnownEditableAction ? "已读回" : "未知动作 · 只读"
+            return "\(label) · \(description) · 类型 \(String(format: "%02X", value.actionType)) · \(value.action.hexString)"
+        case .tooLarge: return "动作过长，无法完整读回 · 只读"
+        case .rejected(let status): return "设备拒绝（\(status)）"
+        case .malformed: return "无效回包"
+        }
+    }
+
+    private func switchStateLabel(_ state: Int?) -> String {
+        switch state { case 0: return "自动批准"; case 1: return "手动批准"; default: return "未知" }
     }
 
     private func agentBluetoothStatusText() -> String {

@@ -91,6 +91,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     @Published private(set) var bleConnectionStatus: String = NSLocalizedString("未连接", comment: "")
     @Published private(set) var supportsConfigurableLighting: Bool?
+    @Published private(set) var configurationSnapshot = DeviceConfigurationSnapshot()
+    @Published private(set) var isReadingConfigurationSnapshot = false
     @Published private(set) var firmwareCapabilityProfile: FirmwareCapabilityProfile?
     @Published private(set) var bluetoothPermissionGranted = true
     @Published private(set) var bluetoothPoweredOn = false
@@ -106,7 +108,16 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var agentSwitchState: Int? = nil
     @Published private(set) var agentWorkMode: Int? = nil
     var batteryLevelForDisplay: Int? {
-        isConnected ? batteryLevel : agentBatteryLevel
+        isConnected ? (hasValidStatusReadback ? batteryLevel : nil) : (agentBLEConnectedProvider() ? agentBatteryLevel : nil)
+    }
+    var switchStateForDisplay: Int? {
+        isConnected ? (hasValidStatusReadback ? switchState : nil) : (agentBLEConnectedProvider() ? agentSwitchState : nil)
+    }
+    var workModeForDisplay: Int? {
+        isConnected ? (hasValidStatusReadback ? workMode : nil) : (agentBLEConnectedProvider() ? agentWorkMode : nil)
+    }
+    var lightModeForDisplay: Int? {
+        isConnected ? (hasValidStatusReadback ? lightMode : nil) : (agentBLEConnectedProvider() ? agentLightMode : nil)
     }
     /// 各 mode flash 里的真实图片元信息。
     /// 主 App 自占 BLE 后通过 0x83 查询填充；frameCount == 0 表示用户没自定义上传，
@@ -501,6 +512,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     /// 发送原始命令到 0x7343（带队列，防止连发过载）
     func writeCommand(_ data: Data) {
+        guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile) else {
+            appendLog("当前固件配置写入尚未验证，已阻止写入", isError: true)
+            return
+        }
         guard acceptsConnectionCallbacks, !awaitingPeripheralDisconnect,
               let commandChar, let peripheral else {
             appendLog("命令通道未就绪", isError: true)
@@ -513,6 +528,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     func uploadOLEDFrames(_ frames: [Data], fps: Int, mode: UInt8 = 0, startIndex: UInt16 = 0) async throws {
+        guard firmwareCapabilityProfile?.identity == .legacy else { throw OLEDUploadError.unsupportedReadOnlyProfile }
         guard acceptsConnectionCallbacks, let peripheral, let dataChar, let commandChar else {
             throw OLEDUploadError.channelNotReady
         }
@@ -597,6 +613,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     ) {
         if commands.isEmpty {
             completion?()
+            return
+        }
+        guard commands.allSatisfy({ ConfigurationCommandPolicy.permits($0.data, profile: firmwareCapabilityProfile) }) else {
+            appendLog("当前固件配置写入尚未验证，未加入写入队列", isError: true)
             return
         }
         writeBatches.append(WriteCommandBatch(commandsRemaining: commands.count, completion: completion))
@@ -689,16 +709,19 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     /// A catalog probe is read-only. A legacy profile is assigned only after
     /// this connection has independently returned a valid status frame.
     func readFirmwareCapabilityProfile() async throws -> FirmwareCapabilityProfile {
+        let generation = commandSessionGeneration
         if !hasValidStatusReadback {
             _ = try await sendCommandAwaitingResponse(
                 AhaKeyCommand.queryDeviceStatus(), expectedCommand: 0x00
             )
         }
+        try ensureConfigurationReadSession(generation)
         let response = try await sendCommandAwaitingResponse(
             AhaKeyCommand.queryFirmwareCatalog(),
             expectedCommand: AhaKeyCommand.cmdReadFirmwareCatalog,
             allowDeviceError: true
         )
+        try ensureConfigurationReadSession(generation)
         if response.frame.count == 6 {
             guard hasValidStatusReadback else { throw OLEDUploadError.invalidReadback }
             let profile = FirmwareCapabilityProfile.legacyAfterStatusReadback()
@@ -712,6 +735,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     func readOrdinaryKey(mode: UInt8, keyIndex: UInt8) async throws -> OrdinaryKeyReadbackResult {
+        let generation = commandSessionGeneration
         guard firmwareCapabilityProfile?.mayQueryOrdinaryKeys == true else {
             throw OLEDUploadError.unsupportedReadOnlyProfile
         }
@@ -725,10 +749,13 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             response.frame, requestedMode: mode, requestedKeyIndex: keyIndex
         )
         guard result != .malformed else { throw OLEDUploadError.invalidReadback }
+        try ensureConfigurationReadSession(generation)
+        configurationSnapshot.recordKey(result, mode: mode, index: keyIndex, generation: generation)
         return result
     }
 
     func readStandbyMinutes() async throws -> UInt16 {
+        let generation = commandSessionGeneration
         guard firmwareCapabilityProfile?.mayQueryStandby == true else {
             throw OLEDUploadError.unsupportedReadOnlyProfile
         }
@@ -738,10 +765,13 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         guard let value = WS2SettingsReadback.standbyMinutes(response.frame) else {
             throw OLEDUploadError.invalidReadback
         }
+        try ensureConfigurationReadSession(generation)
+        configurationSnapshot.recordStandby(value, generation: generation)
         return value
     }
 
     func readVoiceOnboardingState() async throws -> UInt8 {
+        let generation = commandSessionGeneration
         guard firmwareCapabilityProfile?.mayQueryVoiceOnboarding == true else {
             throw OLEDUploadError.unsupportedReadOnlyProfile
         }
@@ -751,10 +781,13 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         guard let value = WS2SettingsReadback.voiceOnboardingState(response.frame) else {
             throw OLEDUploadError.invalidReadback
         }
+        try ensureConfigurationReadSession(generation)
+        configurationSnapshot.recordVoice(value, generation: generation)
         return value
     }
 
     func readSideSwitchBinding() async throws -> SideSwitchReadback {
+        let generation = commandSessionGeneration
         guard firmwareCapabilityProfile?.mayQuerySideSwitchBindings == true else {
             throw OLEDUploadError.unsupportedReadOnlyProfile
         }
@@ -764,7 +797,46 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         guard let value = WS2SettingsReadback.sideSwitch(response.frame) else {
             throw OLEDUploadError.invalidReadback
         }
+        try ensureConfigurationReadSession(generation)
+        configurationSnapshot.recordSideSwitch(value, generation: generation)
         return value
+    }
+
+    private func ensureConfigurationReadSession(_ generation: UInt64) throws {
+        try Task.checkCancellation()
+        guard generation == commandSessionGeneration, isConnected, !commandChannelUnsynchronized else {
+            throw OLEDUploadError.channelNotReady
+        }
+    }
+
+    /// Explicit read only: never applies local drafts or persists device settings.
+    func readDeviceConfigurationSnapshot() async throws {
+        guard !isReadingConfigurationSnapshot else { return }
+        let generation = commandSessionGeneration
+        try ensureConfigurationReadSession(generation)
+        isReadingConfigurationSnapshot = true
+        defer { isReadingConfigurationSnapshot = false }
+        configurationSnapshot.reset(generation: generation)
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.identity == .knownWS2Catalog else { throw OLEDUploadError.unsupportedReadOnlyProfile }
+        var fields: [DeviceConfigurationSnapshot.Field] = [.standby, .voice, .sideSwitch]
+        for mode: UInt8 in 0..<4 {
+            for index: UInt8 in 0..<4 { fields.append(.key(mode: mode, index: index)) }
+        }
+        for field in fields {
+            try ensureConfigurationReadSession(generation)
+            do {
+                switch field {
+                case .standby: _ = try await readStandbyMinutes()
+                case .voice: _ = try await readVoiceOnboardingState()
+                case .sideSwitch: _ = try await readSideSwitchBinding()
+                case .key(let mode, let index): _ = try await readOrdinaryKey(mode: mode, keyIndex: index)
+                }
+            } catch {
+                try ensureConfigurationReadSession(generation)
+                configurationSnapshot.recordFailure(field, message: error.localizedDescription, generation: generation)
+            }
+        }
     }
 
     /// 同步 IDE 状态到键盘 LED
@@ -1214,6 +1286,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         commandSessionGeneration &+= 1
         hasValidStatusReadback = false
         firmwareCapabilityProfile = nil
+        configurationSnapshot.reset(generation: commandSessionGeneration)
         if let pending = pendingCommandResponse {
             pendingCommandResponse = nil
             pending.timeoutTask.cancel()
@@ -1295,6 +1368,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     ) async throws -> CommandResponse {
         let generation = try await acquireCommandTurn()
         defer { releaseCommandTurn(generation) }
+        guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile) else {
+            throw OLEDUploadError.unsupportedReadOnlyProfile
+        }
         try Task.checkCancellation()
         guard generation == commandSessionGeneration, commandChar != nil, peripheral != nil else {
             throw OLEDUploadError.channelNotReady

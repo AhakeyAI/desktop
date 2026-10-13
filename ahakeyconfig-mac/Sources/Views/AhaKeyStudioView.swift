@@ -98,13 +98,6 @@ struct AhaKeyStudioView: View {
                 selectedMode = slot
             }
         }
-        .onChange(of: selectedMode) { newValue in
-            guard bleManager.isConnected,
-                  bleManager.commandCharReady,
-                  bleManager.workMode != newValue.rawValue else { return }
-            bleManager.setWorkMode(UInt8(newValue.rawValue))
-            syncStatusMessage = "已通知键盘切换到 \(newValue.title)。"
-        }
         .onChange(of: bleManager.bluetoothPermissionGranted) { _ in
             refreshStartupPermissionOnboarding()
         }
@@ -1696,18 +1689,9 @@ struct AhaKeyStudioView: View {
     /// - 主 App 已自连 BLE（编辑配置时）→ 用主 App 自己的 BLE 读数
     /// - 主 App 未连，但 agent 仍占用 BLE 在写共享文件 → 读 agent 发布的缓存
     /// - 两者都没有 → nil（画布回落到模拟）
-    private var liveKeyboardLightMode: Int? {
-        if bleManager.isConnected { return bleManager.lightMode }
-        return bleManager.agentLightMode
-    }
-    private var liveKeyboardSwitchState: Int? {
-        if bleManager.isConnected { return bleManager.switchState }
-        return bleManager.agentSwitchState
-    }
-    private var liveKeyboardWorkMode: Int? {
-        if bleManager.isConnected { return bleManager.workMode }
-        return bleManager.agentWorkMode
-    }
+    private var liveKeyboardLightMode: Int? { bleManager.lightModeForDisplay }
+    private var liveKeyboardSwitchState: Int? { bleManager.switchStateForDisplay }
+    private var liveKeyboardWorkMode: Int? { bleManager.workModeForDisplay }
     private var liveCanvasLightMode: Int? {
         guard let workMode = liveKeyboardWorkMode, selectedMode.rawValue == workMode else { return nil }
         return liveKeyboardLightMode
@@ -1722,6 +1706,7 @@ struct AhaKeyStudioView: View {
         let all = AhaKeyModeSlot.allCases
         let next = all[(all.firstIndex(of: selectedMode)! + 1) % all.count]
         selectedMode = next
+        syncStatusMessage = "仅浏览本地模式；设备模式切换将在读回确认流程完成后开放。"
     }
 
     private var currentOLEDAssetURL: URL? {
@@ -2156,6 +2141,12 @@ struct AhaKeyStudioView: View {
             return
         }
 
+        guard bleManager.firmwareCapabilityProfile?.identity == .legacy else {
+            let message = "当前版本只读新固件配置；请先读取固件能力。差量保存与读回确认完成前，不写入键盘。"
+            syncStatusMessage = message
+            if showResultAlert { writeResultAlertMessage = message; showsWriteResultAlert = true }
+            return
+        }
         applyCursorRejectMacroSelfHealIfNeeded()
         isSyncing = true
         syncStatusMessage = "正在准备写入设备…"
@@ -3439,7 +3430,7 @@ private struct AhaKeyKeyboardCanvasView: View {
         }
         .buttonStyle(CanvasKeyButtonStyle())
         .position(x: rect.midX, y: rect.midY)
-        .help("点击切换 Mode（模拟实体键）")
+        .help("浏览模式配置（不会切换键盘模式）")
     }
 
     private func switchButton(width: CGFloat, height: CGFloat) -> some View {

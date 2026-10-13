@@ -124,6 +124,7 @@ final class BLEStatePublicationTests: XCTestCase {
         let received = expectation(description: "Agent battery reaches Studio")
         received.assertForOverFulfill = false
         let subscription = await MainActor.run {
+            fixture.manager.agentBLEConnectedProvider = { true }
             fixture.manager.startIDEStateMonitoring()
             XCTAssertNil(fixture.manager.batteryLevelForDisplay)
             return fixture.manager.$agentBatteryLevel.sink { value in
@@ -135,6 +136,14 @@ final class BLEStatePublicationTests: XCTestCase {
         await fulfillment(of: [received], timeout: 2)
         await MainActor.run {
             XCTAssertEqual(fixture.manager.batteryLevelForDisplay, 61)
+            XCTAssertEqual(fixture.manager.switchStateForDisplay, 0)
+            XCTAssertEqual(fixture.manager.workModeForDisplay, 0)
+            fixture.manager.agentBLEConnectedProvider = { false }
+            // A fresh reference cache must not masquerade as a live device.
+            XCTAssertEqual(fixture.manager.agentBatteryLevel, 61)
+            XCTAssertNil(fixture.manager.batteryLevelForDisplay)
+            XCTAssertNil(fixture.manager.switchStateForDisplay)
+            XCTAssertNil(fixture.manager.workModeForDisplay)
             fixture.manager.stopIDEStateMonitoring()
             subscription.cancel()
         }
