@@ -1625,6 +1625,23 @@ struct AhaKeyStudioView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             Spacer()
+            Button(bleManager.isChangingWorkMode ? "正在切换…" : "切换键盘到 \(selectedMode.title)") {
+                let target = UInt8(selectedMode.rawValue)
+                syncStatusMessage = "正在确认键盘模式…"
+                Task { @MainActor in
+                    do {
+                        let actual = try await bleManager.switchWorkModeConfirmed(target)
+                        syncStatusMessage = "键盘已确认切换到 Mode \(actual + 1)。"
+                    } catch {
+                        if let actual = bleManager.workModeForDisplay, let mode = AhaKeyModeSlot(rawValue: actual) {
+                            selectedMode = mode
+                        }
+                        syncStatusMessage = "模式切换未确认：\(error.localizedDescription)"
+                    }
+                }
+            }
+            .disabled(!bleManager.isConnected || bleManager.isChangingWorkMode || bleManager.isReadingConfigurationSnapshot)
+            .help("只切换键盘当前模式，不保存或覆盖键位配置；请先进入编辑配置连接键盘。")
             if let lastSyncDate {
                 Text("最近同步 \(Self.timeFormatter.string(from: lastSyncDate))")
                     .font(.callout)
@@ -1706,7 +1723,7 @@ struct AhaKeyStudioView: View {
         let all = AhaKeyModeSlot.allCases
         let next = all[(all.firstIndex(of: selectedMode)! + 1) % all.count]
         selectedMode = next
-        syncStatusMessage = "仅浏览本地模式；设备模式切换将在读回确认流程完成后开放。"
+        syncStatusMessage = "正在浏览本地配置，键盘模式未改变。"
     }
 
     private var currentOLEDAssetURL: URL? {

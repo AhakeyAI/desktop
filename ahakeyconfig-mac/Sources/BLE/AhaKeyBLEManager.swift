@@ -93,6 +93,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var supportsConfigurableLighting: Bool?
     @Published private(set) var configurationSnapshot = DeviceConfigurationSnapshot()
     @Published private(set) var isReadingConfigurationSnapshot = false
+    @Published private(set) var isChangingWorkMode = false
     @Published private(set) var firmwareCapabilityProfile: FirmwareCapabilityProfile?
     @Published private(set) var bluetoothPermissionGranted = true
     @Published private(set) var bluetoothPoweredOn = false
@@ -512,7 +513,11 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     /// 发送原始命令到 0x7343（带队列，防止连发过载）
     func writeCommand(_ data: Data) {
-        guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile) else {
+        writeCommand(data, confirmedModeChange: false)
+    }
+
+    private func writeCommand(_ data: Data, confirmedModeChange: Bool) {
+        guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedModeChange: confirmedModeChange) else {
             appendLog("当前固件配置写入尚未验证，已阻止写入", isError: true)
             return
         }
@@ -811,7 +816,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     /// Explicit read only: never applies local drafts or persists device settings.
     func readDeviceConfigurationSnapshot() async throws {
-        guard !isReadingConfigurationSnapshot else { return }
+        guard !isReadingConfigurationSnapshot, !isChangingWorkMode else { throw OLEDUploadError.channelNotReady }
         let generation = commandSessionGeneration
         try ensureConfigurationReadSession(generation)
         isReadingConfigurationSnapshot = true
@@ -927,10 +932,30 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         (1...100).contains(brightness)
     }
 
-    func setWorkMode(_ mode: UInt8) {
-        guard commandChar != nil else { return }
-        writeCommand(AhaKeyCommand.setWorkMode(mode))
-        appendLog("→ 工作模式 \(mode)")
+    func switchWorkModeConfirmed(_ target: UInt8) async throws -> UInt8 {
+        guard !isChangingWorkMode, !isReadingConfigurationSnapshot else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        try ensureConfigurationReadSession(generation)
+        isChangingWorkMode = true
+        defer { isChangingWorkMode = false }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.identity == .knownWS2Catalog || profile.identity == .legacy else {
+            throw OLEDUploadError.unsupportedReadOnlyProfile
+        }
+        return try await ConfirmedModeChange.run(target: target, checkSession: {
+            try self.ensureConfigurationReadSession(generation)
+        }, readMode: {
+            let response = try await self.sendCommandAwaitingResponse(AhaKeyCommand.queryDeviceStatus(), expectedCommand: 0x00)
+            guard let status = AhaKeyResponseParser.parseDeviceStatus(response.frame), (0..<4).contains(status.workMode) else {
+                throw OLEDUploadError.invalidDeviceStatusPayload
+            }
+            return UInt8(status.workMode)
+        }, writeMode: { mode in
+            _ = try await self.sendCommandAwaitingResponse(
+                AhaKeyCommand.setWorkMode(mode), expectedCommand: AhaKeyCommand.cmdSetWorkMode,
+                confirmedModeChange: true
+            )
+        })
     }
 
     /// 修改设备蓝牙名称
@@ -1364,11 +1389,11 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     private func sendCommandAwaitingResponse(
         _ data: Data, expectedCommand: UInt8, timeoutSeconds: Double = 5.0,
-        allowDeviceError: Bool = false
+        allowDeviceError: Bool = false, confirmedModeChange: Bool = false
     ) async throws -> CommandResponse {
         let generation = try await acquireCommandTurn()
         defer { releaseCommandTurn(generation) }
-        guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile) else {
+        guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedModeChange: confirmedModeChange) else {
             throw OLEDUploadError.unsupportedReadOnlyProfile
         }
         try Task.checkCancellation()
@@ -1388,7 +1413,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 id: id, generation: generation, request: data, command: expectedCommand,
                 continuation: continuation, timeoutTask: timeoutTask
             )
-            writeCommand(data)
+            writeCommand(data, confirmedModeChange: confirmedModeChange)
         }
         guard allowDeviceError || result.status == 0 else {
             throw OLEDUploadError.deviceRejected(command: expectedCommand, status: result.status)

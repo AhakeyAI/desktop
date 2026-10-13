@@ -410,7 +410,7 @@ struct DeviceInfoView: View {
                             }
                         }
                         .buttonStyle(.bordered)
-                        .disabled(isReadingFirmwareCatalog || bleManager.isReadingConfigurationSnapshot)
+                        .disabled(isReadingFirmwareCatalog || bleManager.isReadingConfigurationSnapshot || bleManager.isChangingWorkMode)
                         .help("只读查询固件目录；未知固件不会开放新配置写入")
 
                         Button("探测协议") {
@@ -557,7 +557,7 @@ struct DeviceInfoView: View {
                     catch { configurationReadError = error.localizedDescription }
                 }
             }
-            .disabled(!bleManager.isConnected || bleManager.isReadingConfigurationSnapshot || isReadingFirmwareCatalog)
+            .disabled(!bleManager.isConnected || bleManager.isReadingConfigurationSnapshot || isReadingFirmwareCatalog || bleManager.isChangingWorkMode)
             Text("展示键盘保存值，不覆盖本地草稿。语音平台预设可能改变 Voice 键的实际输出。")
                 .font(.caption).foregroundStyle(.secondary)
             if let configurationReadError { Text(configurationReadError).foregroundStyle(.orange) }
