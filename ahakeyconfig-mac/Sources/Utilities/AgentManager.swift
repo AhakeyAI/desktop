@@ -116,10 +116,6 @@ final class AgentManager: ObservableObject {
             .appendingPathComponent(".codex/config.toml").path
     }
 
-    private var codexAppCliPath: String {
-        "/Applications/Codex.app/Contents/Resources/codex"
-    }
-
     private var kimiConfigPath: String {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".kimi/config.toml").path
@@ -1110,16 +1106,19 @@ final class AgentManager: ObservableObject {
     }
 
     private func repairCodexCliPathIfNeeded() -> String {
-        if isExecutableOnPath("codex") {
+        let homeDirectory = FileManager.default.homeDirectoryForCurrentUser.path
+        let path = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+        if CodexCLIPathResolver.installedCLI(path: path, homeDirectory: homeDirectory) != nil {
             return ""
         }
-        guard FileManager.default.isExecutableFile(atPath: codexAppCliPath) else {
-            return "未在 PATH 中找到 `codex` 命令，也未找到 Codex App 自带 CLI：\(codexAppCliPath)。Hook 配置已安装；若需在终端使用 Codex，请先安装或更新 Codex 客户端。"
+        guard let codexAppCliPath = CodexCLIPathResolver.bundledCLI(homeDirectory: homeDirectory) else {
+            return "Codex Hooks 已安装，但未检测到 Codex CLI。若需在终端使用 Codex，请检查 CLI 安装。"
         }
 
         do {
             try FileManager.default.createDirectory(atPath: localBinDirectoryPath, withIntermediateDirectories: true)
-            if FileManager.default.fileExists(atPath: localCodexCliPath) {
+            if FileManager.default.fileExists(atPath: localCodexCliPath)
+                || (try? FileManager.default.destinationOfSymbolicLink(atPath: localCodexCliPath)) != nil {
                 try FileManager.default.removeItem(atPath: localCodexCliPath)
             }
             try FileManager.default.createSymbolicLink(atPath: localCodexCliPath, withDestinationPath: codexAppCliPath)

@@ -29,6 +29,7 @@ struct AhaKeyStudioView: View {
     @State private var showsFirmwareFlasher = false
     @State private var showsCloudAccount = false
     @State private var showsAhaTypeLoginRequiredToast = false
+    @AppStorage(VibeBarVisibilityPreference.enabledKey) private var vibeBarEnabled = true
     @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
     @State private var isEditingInspector = false
     @State private var showsDiagnostics = false
@@ -268,6 +269,9 @@ struct AhaKeyStudioView: View {
                 Divider()
                 Button("隐藏到后台") {
                     NSApp.keyWindow?.close()
+                }
+                Button(vibeBarEnabled ? "关闭灵动岛" : "开启灵动岛") {
+                    vibeBarEnabled.toggle()
                 }
                 Button("退出 AhaKey Studio") {
                     NSApp.terminate(nil)

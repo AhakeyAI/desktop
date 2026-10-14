@@ -8,6 +8,8 @@
 - Claude Code 自动批准提前在 `PreToolUse` 阶段读取实体拨杆；桌面 Code 本地会话与 CLI TUI 均可使用，`PermissionRequest` 保留为兜底。
 - 对提供实体拨杆绑定验证结果的新版 Agent，仅在验证通过时自动批准；手动档或状态未知时交还 Claude 原生确认。
 - macOS 安装包内含 `ahakeyconfig-agent`；安装后可在「设备信息 · Agent」中安装并启用 Claude、Cursor、Codex、Kimi Hooks。
+- “更多”菜单新增“关闭灵动岛 / 开启灵动岛”，开关状态在重启后保留。
+- 修复图形界面遗漏 Homebrew 和 ChatGPT.app 内 Codex CLI 时的安装误报。
 
 ## v0.1.1-alpha — 2026-05-03
 

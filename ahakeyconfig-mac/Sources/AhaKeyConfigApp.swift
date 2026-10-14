@@ -10,6 +10,7 @@ struct AhaKeyConfigApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var bleManager = AhaKeyBLEManager()
     @State private var vibeBarBridge = VibeBarBridge()
+    @AppStorage(VibeBarVisibilityPreference.enabledKey) private var vibeBarEnabled = true
 
     var body: some Scene {
         WindowGroup("AhaKey Studio") {
@@ -19,7 +20,16 @@ struct AhaKeyConfigApp: App {
                     vibeBarBridge.attach(bleManager: bleManager) { [weak appDelegate] in
                         appDelegate?.reopenMainWindow()
                     }
-                    VibeBarController.shared.start(state: vibeBarBridge.state)
+                    if vibeBarEnabled {
+                        VibeBarController.shared.start(state: vibeBarBridge.state)
+                    }
+                }
+                .onChange(of: vibeBarEnabled) { enabled in
+                    if enabled {
+                        VibeBarController.shared.start(state: vibeBarBridge.state)
+                    } else {
+                        VibeBarController.shared.stop()
+                    }
                 }
         }
         .windowStyle(.titleBar)

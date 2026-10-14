@@ -66,6 +66,8 @@ public final class VibeBarController {
     }
 
     public func stop() {
+        let notchToHide = notch
+        windowProvider()?.orderOut(nil)
         if let globalMouseMonitor { NSEvent.removeMonitor(globalMouseMonitor) }
         if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
         globalMouseMonitor = nil
@@ -82,6 +84,9 @@ public final class VibeBarController {
         compactScreen = nil
         expandedContentFrame = nil
         windowProvider = { nil }
+        if let notchToHide {
+            Task { await notchToHide.hide() }
+        }
     }
 
     // MARK: - Notch state machine
