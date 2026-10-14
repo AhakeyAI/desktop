@@ -266,16 +266,10 @@ struct AhaKeyStudioView: View {
                 .help("安装/修复 Agent 与 Hook，并启动 Agent 控制键盘。")
             }
 
-            Button {
-                NSPasteboard.general.clearContents()
-            } label: {
-                Image(systemName: "arrow.counterclockwise.circle")
-                    .imageScale(.medium)
-            }
-            .buttonStyle(.bordered)
-            .help("清空剪贴板")
-
             Menu {
+                Button("清空剪贴板") {
+                    NSPasteboard.general.clearContents()
+                }
                 Button("恢复当前模式默认值") {
                     restoreCurrentModeDefaults()
                 }
@@ -283,31 +277,28 @@ struct AhaKeyStudioView: View {
                     bleManager.disconnect()
                     bleManager.userInitiatedConnect()
                 }
-                Button("设备信息 · Agent…") {
+                Button("设备信息…") {
                     showsDeviceInfo = true
                 }
-                Button("固件升级 · USB ISP…") {
-                    showsFirmwareFlasher = true
-                }
                 Divider()
-                Button("云端账号 · AhaType…") {
-                    showsCloudAccount = true
-                }
-                Button("刷新 AhaType 状态") {
-                    ahaType.refreshFromDisk()
-                }
-                Divider()
-                Button("隐藏到后台") {
-                    NSApp.keyWindow?.close()
-                }
-                Button(vibeBarEnabled ? "关闭灵动岛" : "开启灵动岛") {
-                    vibeBarEnabled.toggle()
-                }
                 Button(updateManager.isChecking ? "检查更新中…" : "检查更新…") {
                     Task { await updateManager.checkForUpdates(manual: true) }
                 }
                 .disabled(updateManager.isChecking || updateManager.isDownloading)
-                Button("退出 AhaKey Studio") {
+                Button("固件升级…") {
+                    showsFirmwareFlasher = true
+                }
+                Button("云端账号…") {
+                    showsCloudAccount = true
+                }
+                Divider()
+                Button(vibeBarEnabled ? "关闭灵动岛" : "开启灵动岛") {
+                    vibeBarEnabled.toggle()
+                }
+                Button("隐藏到后台") {
+                    NSApp.keyWindow?.close()
+                }
+                Button("退出") {
                     NSApp.terminate(nil)
                 }
             } label: {
