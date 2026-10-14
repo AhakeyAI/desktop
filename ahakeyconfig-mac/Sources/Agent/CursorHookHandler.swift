@@ -19,11 +19,9 @@ enum CursorHookHandler {
             )
         }
 
-        if let s = switchState {
-            let auto = s == 0
-            CursorCliLeverSync.apply(switchStateAuto: auto)
-            CursorPermissionsJsonLeverSync.apply(switchStateAuto: auto)
-        }
+        // 拨杆状态未知时也撤销此前的宽松配置，避免 Agent/BLE 失联后继续自动执行。
+        CursorCliLeverSync.apply(switchStateAuto: isAuto)
+        CursorPermissionsJsonLeverSync.apply(switchStateAuto: isAuto)
 
         // preToolUse 不执行 ask；交回 Cursor 自身权限层。beforeShellExecution / beforeMCPExecution 支持 ask。
         let out: [String: Any] = ["permission": permission]
