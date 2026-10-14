@@ -9,6 +9,7 @@ import VibeBar
 struct AhaKeyConfigApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var bleManager = AhaKeyBLEManager()
+    @StateObject private var updateManager = AppUpdateManager.shared
     @State private var vibeBarBridge = VibeBarBridge()
     @AppStorage(VibeBarVisibilityPreference.enabledKey) private var vibeBarEnabled = true
 
@@ -17,6 +18,7 @@ struct AhaKeyConfigApp: App {
             ContentView(bleManager: bleManager)
                 .frame(minWidth: 1180, minHeight: 680)
                 .onAppear {
+                    updateManager.checkAutomaticallyIfNeeded()
                     vibeBarBridge.attach(bleManager: bleManager) { [weak appDelegate] in
                         appDelegate?.reopenMainWindow()
                     }

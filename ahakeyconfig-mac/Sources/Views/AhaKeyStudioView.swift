@@ -12,6 +12,7 @@ struct AhaKeyStudioView: View {
     @StateObject private var ahaType = AhaTypeTextOptimizer.shared
     @StateObject private var cloudAccount = CloudAccountManager.shared
     @StateObject private var agentManager = AgentManager.shared
+    @ObservedObject private var updateManager = AppUpdateManager.shared
 
     @State private var studioDraft: AhaKeyStudioDraft
     @State private var lastSyncedDraft: AhaKeyStudioDraft
@@ -161,6 +162,35 @@ struct AhaKeyStudioView: View {
         } message: {
             Text("请先注册登录 AhaType 后再开启云端整理。")
         }
+        .alert("发现新版 AhaKey Studio", isPresented: Binding(
+            get: { updateManager.availableRelease != nil },
+            set: { if !$0 { updateManager.availableRelease = nil } }
+        )) {
+            Button("稍后", role: .cancel) { updateManager.availableRelease = nil }
+            if let release = updateManager.availableRelease {
+                if release.macDMG != nil {
+                    Button("下载并打开安装包") {
+                        updateManager.availableRelease = nil
+                        Task { await updateManager.download(release) }
+                    }
+                } else {
+                    Button("查看发布页") {
+                        updateManager.availableRelease = nil
+                        NSWorkspace.shared.open(release.htmlURL)
+                    }
+                }
+            }
+        } message: {
+            Text("当前版本 \(updateManager.installedVersion)，最新版本 \(updateManager.availableRelease?.tagName ?? "")。")
+        }
+        .alert("软件更新", isPresented: Binding(
+            get: { updateManager.statusMessage != nil },
+            set: { if !$0 { updateManager.statusMessage = nil } }
+        )) {
+            Button("好", role: .cancel) { updateManager.statusMessage = nil }
+        } message: {
+            Text(updateManager.statusMessage ?? "")
+        }
         .sheet(isPresented: $showsOLEDPlaybackPreview) {
             OLEDMotionPreviewSheet(
                 modeTitle: selectedMode.title,
@@ -273,6 +303,10 @@ struct AhaKeyStudioView: View {
                 Button(vibeBarEnabled ? "关闭灵动岛" : "开启灵动岛") {
                     vibeBarEnabled.toggle()
                 }
+                Button(updateManager.isChecking ? "检查更新中…" : "检查更新…") {
+                    Task { await updateManager.checkForUpdates(manual: true) }
+                }
+                .disabled(updateManager.isChecking || updateManager.isDownloading)
                 Button("退出 AhaKey Studio") {
                     NSApp.terminate(nil)
                 }
