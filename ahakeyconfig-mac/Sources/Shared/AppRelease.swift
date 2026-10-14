@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 public struct AppReleaseVersion: Comparable {
@@ -64,5 +65,11 @@ public extension AppRelease.Asset {
     var isTrustedDownload: Bool {
         browserDownloadURL.scheme == "https" && browserDownloadURL.host == "github.com"
             && digest?.range(of: #"^sha256:[0-9a-fA-F]{64}$"#, options: .regularExpression) != nil
+    }
+
+    func verifiesSHA256(_ data: Data) -> Bool {
+        guard isTrustedDownload, let expected = digest?.dropFirst("sha256:".count).lowercased() else { return false }
+        let actual = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        return actual == expected
     }
 }

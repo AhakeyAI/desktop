@@ -1,6 +1,5 @@
 import AhaKeyConfigShared
 import AppKit
-import CryptoKit
 import Foundation
 
 @MainActor
@@ -58,8 +57,7 @@ final class AppUpdateManager: ObservableObject {
 
     func download(_ release: AppRelease) async {
         guard !isDownloading else { return }
-        guard let asset = release.macDMG,
-              let expectedHash = asset.digest?.dropFirst("sha256:".count).lowercased() else {
+        guard let asset = release.macDMG else {
             statusMessage = "该版本没有可校验的 macOS 安装包，请到 GitHub Release 页面下载。"
             return
         }
@@ -74,9 +72,9 @@ final class AppUpdateManager: ObservableObject {
             guard (response as? HTTPURLResponse)?.statusCode == 200 else {
                 throw UpdateError.downloadFailed
             }
-            let actualHash = SHA256.hash(data: try Data(contentsOf: temporaryURL))
-                .map { String(format: "%02x", $0) }.joined()
-            guard actualHash == expectedHash else { throw UpdateError.checksumMismatch }
+            guard asset.verifiesSHA256(try Data(contentsOf: temporaryURL)) else {
+                throw UpdateError.checksumMismatch
+            }
 
             let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
             try FileManager.default.createDirectory(at: downloads, withIntermediateDirectories: true)

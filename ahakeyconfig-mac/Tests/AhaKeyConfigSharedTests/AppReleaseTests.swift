@@ -27,4 +27,15 @@ final class AppReleaseTests: XCTestCase {
         let release = try JSONDecoder().decode(AppRelease.self, from: Data(modified.utf8))
         XCTAssertNil(release.macDMG)
     }
+
+    func testDownloadedBytesMustMatchGitHubDigest() throws {
+        let fixture = releaseJSON.replacingOccurrences(
+            of: String(repeating: "a", count: 64),
+            with: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        )
+        let release = try JSONDecoder().decode(AppRelease.self, from: Data(fixture.utf8))
+        let asset = try XCTUnwrap(release.macDMG)
+        XCTAssertTrue(asset.verifiesSHA256(Data("abc".utf8)))
+        XCTAssertFalse(asset.verifiesSHA256(Data("tampered".utf8)))
+    }
 }
