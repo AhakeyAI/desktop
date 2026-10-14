@@ -213,3 +213,10 @@ WS2 的 0x92 授权仅由确认事务显式传递，普通 raw write 路径不�
 - 四类 Hook 共用验证规则，无新 Agent 证明不放行；Codex SessionStart 改查 approval_status，离线/未验证时写回 on-request，不延续之前的 never。该全局文件改写保留原有类型/语法保护；已有运行会话的重读行为不作保证。
 - UI 仅展示自动档/手动档，避免将物理位置标签冒充已批准决定；不增加软件拨档或配置绑定写入。W03 仍未开放，H02 其他退出/CLI 版本回归后续执行。
 - 160 项自动测试通过；其中已覆盖 policy 与实际 wire JSON，Agent 状态读取/超时在真实 BLE 上的路径还待 HIL。本批不修改固件或已保存键盘绑定。
+
+
+### H01 新固件主路径 HIL（2026-10-14）
+
+候选源码 `832eb9c`，160 测试、arm64 Release 和签名检查通过。实体手动时审批接口 physicalSwitchState=1/approvalAutoVerified=false，Claude ask、Cursor/Codex 未放行，Codex on-request、Kimi default_yolo=false。用户切到自动后，原始 status 仍仅提供位置 0（无审批证明）；审批接口完成目录/绑定/位置复查后返回 physical=0、effective=0、verified=true，约 0.247 秒。Claude/Cursor/Codex allow，Codex never，Kimi default_yolo=true（其 Hook 仍按既有协议不输出 stdout）。
+
+上述为受控 {} 输入驱动真实 Hook 二进制和真实 Agent/BLE，不代替实际 CLI 会话全流程，也不保证已运行会话重新读取磁盘策略。Custom/Disabled/未知/错误 wire 均有自动测试，未在真机改绑定；legacy 和注入断连/超时仍待回归。已经请求实体切回手动，物理收尾结果另记；本批没有固件、键位或绑定写入。W03 仍未开放。
