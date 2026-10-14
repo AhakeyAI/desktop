@@ -202,25 +202,7 @@ final class AhaTypeTextOptimizer: ObservableObject {
     }
 
     private func tokenIsStillValid(_ raw: Any?) -> Bool {
-        guard let date = parseDate(raw) else { return false }
-        return Date() < date
-    }
-
-    private func parseDate(_ raw: Any?) -> Date? {
-        let value = stringValue(raw).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !value.isEmpty else { return nil }
-
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        for format in ["yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd'T'HH:mm:ss"] {
-            formatter.dateFormat = format
-            if let date = formatter.date(from: value) { return date }
-        }
-
-        let iso = ISO8601DateFormatter()
-        if let date = iso.date(from: value) { return date }
-        return nil
+        AhaTypeTokenExpiry.isValid(raw)
     }
 
     private func mergeQuota(_ quota: [String: Any], into config: inout [String: Any]) {
@@ -344,5 +326,39 @@ final class AhaTypeTextOptimizer: ObservableObject {
         default:
             return false
         }
+    }
+}
+
+enum AhaTypeTokenExpiry {
+    static func isValid(_ raw: Any?, now: Date = Date()) -> Bool {
+        guard let date = parseDate(raw) else { return false }
+        return now < date
+    }
+
+    private static func parseDate(_ raw: Any?) -> Date? {
+        let value: String
+        switch raw {
+        case let string as String:
+            value = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        case let number as NSNumber:
+            value = number.stringValue
+        default:
+            return nil
+        }
+        guard !value.isEmpty else { return nil }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        for format in ["yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd'T'HH:mm:ss"] {
+            formatter.dateFormat = format
+            if let date = formatter.date(from: value) { return date }
+        }
+
+        let iso = ISO8601DateFormatter()
+        if let date = iso.date(from: value) { return date }
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso.date(from: value) { return date }
+        return nil
     }
 }
