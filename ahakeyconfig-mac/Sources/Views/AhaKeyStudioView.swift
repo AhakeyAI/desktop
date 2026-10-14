@@ -10,7 +10,6 @@ struct AhaKeyStudioView: View {
     @StateObject private var voiceRelay = VoiceRelayService.shared
     @StateObject private var nativeSpeech = NativeSpeechTranscriptionService.shared
     @StateObject private var ahaType = AhaTypeTextOptimizer.shared
-    @StateObject private var cloudAccount = CloudAccountManager.shared
     @StateObject private var agentManager = AgentManager.shared
     @ObservedObject private var updateManager = AppUpdateManager.shared
 
@@ -29,7 +28,6 @@ struct AhaKeyStudioView: View {
     @State private var showsDeviceInfo = false
     @State private var showsFirmwareFlasher = false
     @State private var showsCloudAccount = false
-    @State private var showsAhaTypeLoginRequiredToast = false
     @AppStorage(VibeBarVisibilityPreference.enabledKey) private var vibeBarEnabled = true
     @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
     @State private var isEditingInspector = false
@@ -154,14 +152,6 @@ struct AhaKeyStudioView: View {
         } message: {
             Text(agentManager.agentUserAlert ?? "")
         }
-        .alert("AhaType 未注册登录", isPresented: $showsAhaTypeLoginRequiredToast) {
-            Button("知道了", role: .cancel) {}
-            Button("注册登录") {
-                showsCloudAccount = true
-            }
-        } message: {
-            Text("请先注册登录 AhaType 后再开启云端整理。")
-        }
         .alert("发现新版 AhaKey Studio", isPresented: Binding(
             get: { updateManager.availableRelease != nil },
             set: { if !$0 { updateManager.availableRelease = nil } }
@@ -270,36 +260,34 @@ struct AhaKeyStudioView: View {
                 Button("清空剪贴板") {
                     NSPasteboard.general.clearContents()
                 }
-                Button("恢复当前模式默认值") {
-                    restoreCurrentModeDefaults()
-                }
                 Button("重新连接设备") {
                     bleManager.disconnect()
                     bleManager.userInitiatedConnect()
                 }
-                Button("设备信息…") {
-                    showsDeviceInfo = true
+                Button("恢复出厂设置") {
+                    restoreCurrentModeDefaults()
                 }
+                .help("将当前模式恢复出厂默认值，等待写入键盘。")
                 Divider()
-                Button(updateManager.isChecking ? "检查更新中…" : "检查更新…") {
+                Button(updateManager.isChecking ? "检查更新中" : "检查更新") {
                     Task { await updateManager.checkForUpdates(manual: true) }
                 }
                 .disabled(updateManager.isChecking || updateManager.isDownloading)
-                Button("固件升级…") {
+                Button("固件升级") {
                     showsFirmwareFlasher = true
                 }
-                Button("云端账号…") {
-                    showsCloudAccount = true
+                Button("设备信息") {
+                    showsDeviceInfo = true
                 }
                 Divider()
+                Button("云端账号") {
+                    showsCloudAccount = true
+                }
                 Button(vibeBarEnabled ? "关闭灵动岛" : "开启灵动岛") {
                     vibeBarEnabled.toggle()
                 }
                 Button("隐藏到后台") {
                     NSApp.keyWindow?.close()
-                }
-                Button("退出") {
-                    NSApp.terminate(nil)
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
@@ -329,10 +317,6 @@ struct AhaKeyStudioView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
-            Spacer(minLength: 0)
-            Image(systemName: isEditingConfiguration ? "checkmark.circle" : "pencil.circle")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(isEditingConfiguration ? Color.blue : Color.green)
         }
         .frame(width: 138, alignment: .leading)
         .padding(.horizontal, 10)
@@ -344,54 +328,47 @@ struct AhaKeyStudioView: View {
     }
 
     private var configurationModeControl: some View {
-        Button(action: handleConfigurationModeButton) {
+        Button {
+            showsDeviceInfo = true
+        } label: {
             configurationModeStatus
         }
         .buttonStyle(.plain)
-        .disabled(isSyncing)
         .contentShape(RoundedRectangle(cornerRadius: 10))
-        .accessibilityLabel(configurationModeButtonTitle)
-        .accessibilityHint(configurationModeButtonHelp)
-        .help(configurationModeButtonHelp)
+        .accessibilityLabel("设备信息")
+        .help("打开设备信息")
     }
 
     private var ahaTypeModeStatus: some View {
-        HStack(spacing: 7) {
-            Circle()
-                .fill(ahaType.isEnabled ? Color.green : Color.gray.opacity(0.55))
-                .frame(width: 8, height: 8)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(ahaType.isEnabled ? "AhaType 开启" : "AhaType 关闭")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.primary)
-                Text(ahaType.isEnabled ? "云端整理已启用" : "语音结果直接粘贴")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            Toggle("", isOn: Binding(
-                get: { ahaType.isEnabled },
-                set: { enabled in
-                    if enabled, !cloudAccount.isLoggedIn {
-                        showsAhaTypeLoginRequiredToast = true
-                    } else {
-                        ahaType.setEnabled(enabled)
-                    }
+        Button {
+            showsCloudAccount = true
+        } label: {
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(ahaType.isEnabled ? Color.green : Color.gray.opacity(0.55))
+                    .frame(width: 8, height: 8)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(ahaType.isEnabled ? "AhaType 开启" : "AhaType 关闭")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text(ahaType.isEnabled ? "云端整理已启用" : "语音结果直接粘贴")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
-            ))
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .controlSize(.small)
+            }
+            .frame(width: 150, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+            )
         }
-        .frame(width: 150, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
-        .help("开启后，macOS 原生语音转写会先经过 AhaType 云端整理，再粘贴到当前光标。")
+        .buttonStyle(.plain)
+        .accessibilityLabel("云端账号")
+        .help("打开云端账号")
     }
 
     private var canvasPane: some View {
@@ -1821,26 +1798,6 @@ struct AhaKeyStudioView: View {
         return "需要安装 Agent 后才能控制键盘"
     }
 
-    private var configurationModeButtonTitle: String {
-        if isSyncing {
-            return "同步中…"
-        }
-        if isEditingConfiguration {
-            return "保存配置"
-        }
-        return "编辑配置"
-    }
-
-    private var configurationModeButtonHelp: String {
-        if isEditingConfiguration {
-            if hasUnsyncedChanges {
-                return "将当前草稿同步到键盘，然后把蓝牙交还给 Agent。"
-            }
-            return "没有未同步改动，直接把蓝牙交还给 Agent。"
-        }
-        return "临时由 AhaKey Studio 接管蓝牙，用于改键、LCD、同步和本机灯效测试。"
-    }
-
     private var voicePresetDetail: String {
         let preset = currentSelectedKey.voicePreset ?? .custom
         return preset.detail
@@ -2080,14 +2037,6 @@ struct AhaKeyStudioView: View {
                 mode.oled.statusLine = "已选 \(max(frameCount, 1)) 帧图片预览；写入时将上传到 \(selectedMode.title) 固定分区。"
             }
             syncStatusMessage = "已更新 \(selectedMode.title) 的 LCD 预览；写入设备请使用底部通用按钮。"
-        }
-    }
-
-    private func handleConfigurationModeButton() {
-        if isEditingConfiguration {
-            finishEditingConfiguration()
-        } else {
-            enterEditingConfiguration()
         }
     }
 
