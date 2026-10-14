@@ -150,6 +150,41 @@ final class BLEStatePublicationTests: XCTestCase {
         try FileManager.default.removeItem(at: fixture.directory)
     }
 
+    func testAgentWorkModePublishesOnlyNewLiveValidModes() async throws {
+        try await MainActor.run {
+            let fixture = try makeManager()
+            defer { fixture.manager.stopIDEStateMonitoring(); try? FileManager.default.removeItem(at: fixture.directory) }
+            let manager = fixture.manager
+            manager.agentBLEConnectedProvider = { true }
+            let directory = fixture.directory.appendingPathComponent("state")
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let file = directory.appendingPathComponent("current-ide-state.json")
+            var modes: [Int] = []
+            let subscription = NotificationCenter.default.publisher(for: .ahaKeyKeyboardWorkModeChanged, object: manager)
+                .sink { if let mode = $0.userInfo?["workMode"] as? Int { modes.append(mode) } }
+            @MainActor func load(_ value: Int) throws {
+                try JSONSerialization.data(withJSONObject: ["workMode": value]).write(to: file, options: .atomic)
+                manager.startIDEStateMonitoring()
+            }
+            try load(2)
+            XCTAssertEqual(manager.workModeForDisplay, 2)
+            XCTAssertEqual(modes, [2], "Live Agent mode must reach the voice router even without GUI BLE")
+            try load(2)
+            XCTAssertEqual(modes, [2], "Stable state must not repeatedly notify")
+            try load(1)
+            XCTAssertEqual(modes, [2, 1])
+            manager.agentBLEConnectedProvider = { false }
+            try load(3)
+            XCTAssertEqual(modes, [2, 1], "Offline reference cache is not a hardware event")
+            XCTAssertNil(manager.workModeForDisplay)
+            manager.agentBLEConnectedProvider = { true }
+            try load(99)
+            XCTAssertNil(manager.workModeForDisplay)
+            XCTAssertEqual(modes, [2, 1], "Invalid mode must not become mode zero")
+            withExtendedLifetime(subscription) {}
+        }
+    }
+
     @MainActor
     private func makeManager() throws -> (manager: AhaKeyBLEManager, directory: URL, lock: BLEConnectionLock) {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

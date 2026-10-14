@@ -1431,7 +1431,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             if agentBatteryLevel != validBattery { agentBatteryLevel = validBattery }
             if agentLightMode != lm { agentLightMode = lm }
             if agentSwitchState != sw { agentSwitchState = sw }
-            if agentWorkMode != wm { agentWorkMode = wm }
+            updateAgentWorkMode(wm)
         } else {
             if agentBatteryLevel != nil { agentBatteryLevel = nil }
             if agentLightMode != nil { agentLightMode = nil }
@@ -1439,6 +1439,14 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             if agentWorkMode != nil { agentWorkMode = nil }
         }
         scheduleIDEStateExpiry(at: expiryDeadlines.min())
+    }
+
+    private func updateAgentWorkMode(_ value: Int?) {
+        let valid = value.flatMap { (0..<4).contains($0) ? $0 : nil }
+        guard agentWorkMode != valid else { return }
+        agentWorkMode = valid
+        guard !isConnected, agentBLEConnectedProvider(), let valid else { return }
+        NotificationCenter.default.post(name: .ahaKeyKeyboardWorkModeChanged, object: self, userInfo: ["workMode": valid])
     }
 
     /// 所有 AhaKey 主服务特征就绪后触发（仅一次）

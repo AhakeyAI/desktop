@@ -99,7 +99,7 @@ final class VoiceRelayService: ObservableObject {
             queue: .main
         ) { [weak self] note in
             guard let self, let raw = note.userInfo?["workMode"] as? Int else { return }
-            let slot = AhaKeyModeSlot(rawValue: raw) ?? .mode0
+            guard let slot = AhaKeyModeSlot(rawValue: raw) else { return }
             self.routeQueue.async {
                 self.keyboardWorkMode = slot
             }

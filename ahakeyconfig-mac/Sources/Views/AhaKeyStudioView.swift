@@ -80,11 +80,9 @@ struct AhaKeyStudioView: View {
             applyCursorRejectMacroSelfHealIfNeeded()
             voiceRelay.updateRoutes(from: studioDraft)
             SwitchStateNotifier.shared.bind(to: bleManager)
-            NotificationCenter.default.post(
-                name: .ahaKeyKeyboardWorkModeChanged,
-                object: nil,
-                userInfo: ["workMode": bleManager.workMode]
-            )
+            if let actualMode = bleManager.workModeForDisplay {
+                NotificationCenter.default.post(name: .ahaKeyKeyboardWorkModeChanged, object: nil, userInfo: ["workMode": actualMode])
+            }
             scheduleStartupPermissionOnboarding()
         }
         .onReceive(NotificationCenter.default.publisher(for: .ahaKeyVoiceDesktopPrepared)) { _ in
@@ -103,9 +101,13 @@ struct AhaKeyStudioView: View {
         }
         // 键盘物理档位变化（BLE 查询/通知上报）→ 自动切到对应 Mode 标签，
         // 这样 LCD 预览、快捷键草稿、发出去的 updateState 三者一致。
-        .onChange(of: bleManager.workMode) { newValue in
-            if let slot = AhaKeyModeSlot(rawValue: newValue), slot != selectedMode {
-                selectedMode = slot
+        .onChange(of: bleManager.workModeForDisplay) { newValue in
+            guard let newValue, let slot = AhaKeyModeSlot(rawValue: newValue) else { return }
+            if slot != selectedMode { selectedMode = slot }
+            // Reconnection can make an already-read Agent cache live without
+            // changing its stored value; update the router on that transition.
+            if !bleManager.isConnected {
+                NotificationCenter.default.post(name: .ahaKeyKeyboardWorkModeChanged, object: nil, userInfo: ["workMode": newValue])
             }
         }
         .onChange(of: bleManager.bluetoothPermissionGranted) { _ in
