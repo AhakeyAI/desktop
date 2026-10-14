@@ -260,3 +260,15 @@ Mode3/Key4 原 action73/payload2A/description Backspace。仅改描述 CT-W04：
 Voice 保护：Mode3/Key1 原 73/E7/Record；尝试本地宏，只发送 catalog/87/96 查询，96=completed_mac2 后拒绝，没有 73/04/suppress。测试草稿已清除。完整只读快照 16 键成功，Voice 仍 E7/Record、待机60、Mac onboarding、Factory Auto/Manual 一致；原保存值不能等同于 Consumer 实际输出。
 
 日志关闭，蓝牙交还 Agent。实时审批 physical1/effective1/verifiedfalse，安装 Codex Hook 无 allow，on-request/Kimi default_yolo=false。最后 UI 检查时 Mac 已锁屏，未获取 Agent 重连界面截图，实时 RPC 证明后台恢复连接。无临时键位遗留。实体 Key4 按下、断电保持、真实故障注入及旧固件回归仍待执行，不宣称最终版验收完成。本地证据和原键备份在候选目录。
+
+## 18. V01 显式语音接管候选（2026-10-14）
+
+源码候选 `d42a140`，185 项测试、arm64 Release、Developer ID 深层签名通过。再次核对 Fireware-harness 头仍为 d1b46a14；实际测试键盘仍是既有 CP4D 构建。没有 Runtime 依赖。
+
+设备信息新增独立语音入口，默认“保留键盘当前方案”，读取 catalog/96/四个87不写入。只有用户选择 App 原生转写或 App 转写+AhaType 并确认后才运行接管。提示明确：覆盖四模式 Voice、关闭固件系统听写、App 必须运行、当前96无法由客户端写回 completed_mac，不能一键恢复 Consumer。AhaType 选择明确说明识别文字会发送云端，要求已有 token 配置，实际账号/额度需真实转写验证。
+
+事务为权限/录音及基线检查、四模式完整预读、准备 App F18 原生转写路由、差量写四个 Voice F18、04保存、读回全部绑定一致、最后96 suppress、再读所有权与四绑定。只准备变化的 Voice，不改描述或其他键。typed voiceHandoff 授权仅允许四个 Key1 的73/F18、04和96/3，未知目录不开放。已是四F18+state3时只准备用户选定 App 路由，不重复硬件写入。失败不自动回滚，可能已改变 App 设置、RAM或持久值；不把 ACK 当切换成功。首次接管原 Voice 数据备份到本地 Application Support/AhaKeyConfig/voice-handoff-backups（权限700目录/600文件），不推送 GitHub，不提供恢复 Consumer 的承诺。
+
+测试覆盖正常顺序、已接管无硬件写入、权限不足、基线冲突、部分键/保存失败、阶段读回不一致、所有权变化、suppress ACK而读回失败、断线/代次及缺失模式；App 草稿测试确认只修改四个 Voice 的路由，其他键、显示和灯光保持。
+
+当前候选路径 /Users/heartline/Documents/Codex/local-builds/connect-talk-v01-voice-20261014/AhaKey Studio.app。构建完成，但 UI 更新时 Mac 锁屏，已请求用户解锁；尚未安装/界面验证。本轮没有发送任何 Voice 写入/suppress，没有改变当前 Consumer 听写或云端开关。后续先安装并只读核对、验证取消切换不写入；因为当前不能一键恢复 Consumer，真正切换需用户明确选择方案后再做实际听写。V01 不标记真机或发布验收完成。
