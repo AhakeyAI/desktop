@@ -79,6 +79,7 @@ struct VoiceHandoffSettingsView: View {
                     checkHostReady: { try VoiceHandoffHost.checkReady(choice) },
                     prepareHost: { try VoiceHandoffHost.prepare(choice, baseline: baseline) })
                 self.baseline = actual
+                NotificationCenter.default.post(name: .ahaKeyVoiceDesktopConfirmed, object: nil)
                 message = "键盘接管和四个触发绑定已读回确认。请在文本框短按开始、再次短按停止，验证实际语音输入；读回不能证明系统已转写。"
             } catch {
                 message = "切换未确认：\(error.localizedDescription)；App 路由或键盘可能已有部分变更，请重新读取核对。"

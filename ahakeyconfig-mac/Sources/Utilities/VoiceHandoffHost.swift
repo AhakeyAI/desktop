@@ -9,6 +9,7 @@ enum DesktopSpeechChoice: String, CaseIterable, Identifiable {
 
 extension Notification.Name {
     static let ahaKeyVoiceDesktopPrepared = Notification.Name("ahaKeyVoiceDesktopPrepared")
+    static let ahaKeyVoiceDesktopConfirmed = Notification.Name("ahaKeyVoiceDesktopConfirmed")
 }
 
 @MainActor
@@ -68,4 +69,11 @@ enum VoiceHandoffHost {
         }
         return draft
     }
+
+    /// Confirm only fields actually applied by the handoff. In particular, a
+    /// pending description or any non-Voice edit must remain pending.
+    static func confirmedBaseline(from original: AhaKeyStudioDraft) -> AhaKeyStudioDraft {
+        preparedDraft(from: original)
+    }
+
 }

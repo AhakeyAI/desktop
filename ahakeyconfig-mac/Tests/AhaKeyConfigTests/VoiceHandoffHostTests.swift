@@ -27,4 +27,29 @@ final class VoiceHandoffHostTests: XCTestCase {
             XCTAssertEqual(after.lightBar, before.lightBar)
         }
     }
+
+    @MainActor
+    func testConfirmedVoiceDoesNotMarkOtherDraftChangesApplied() {
+        var saved = AhaKeyStudioDraft.default
+        var initial = saved.draft(for: .mode0)
+        var previous = initial.key(for: .voice)
+        previous.voicePreset = .typeless
+        previous.shortcut = ShortcutBinding(keyCode: HIDUsage.f19)
+        initial.updateKey(previous); saved.updateMode(initial)
+        var pending = saved
+        var mode = pending.draft(for: .mode0)
+        var voice = mode.key(for: .voice)
+        voice.description = "Pending label"
+        mode.updateKey(voice)
+        var other = mode.key(for: .approve)
+        other.shortcut = ShortcutBinding(keyCode: HIDUsage.escape)
+        mode.updateKey(other)
+        pending.updateMode(mode)
+        let prepared = VoiceHandoffHost.preparedDraft(from: pending)
+        let confirmed = VoiceHandoffHost.confirmedBaseline(from: saved)
+        XCTAssertEqual(confirmed.draft(for: .mode0).key(for: .voice).shortcut, prepared.draft(for: .mode0).key(for: .voice).shortcut)
+        XCTAssertNotEqual(confirmed.draft(for: .mode0).key(for: .voice).description, prepared.draft(for: .mode0).key(for: .voice).description)
+        XCTAssertNotEqual(confirmed.draft(for: .mode0).key(for: .approve), prepared.draft(for: .mode0).key(for: .approve))
+    }
+
 }

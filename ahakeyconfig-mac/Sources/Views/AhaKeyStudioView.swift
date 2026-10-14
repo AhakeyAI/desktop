@@ -93,6 +93,10 @@ struct AhaKeyStudioView: View {
                 voiceRelay.updateRoutes(from: prepared)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .ahaKeyVoiceDesktopConfirmed)) { _ in
+            lastSyncedDraft = VoiceHandoffHost.confirmedBaseline(from: lastSyncedDraft)
+            syncStatusMessage = "四模式 Voice 接管已读回确认；其他草稿继续独立保存。"
+        }
         .onChange(of: studioDraft) { newValue in
             AhaKeyStudioStore.save(newValue)
             voiceRelay.updateRoutes(from: newValue)
