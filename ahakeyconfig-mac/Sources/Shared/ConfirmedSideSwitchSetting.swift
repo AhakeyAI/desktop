@@ -85,11 +85,13 @@ public struct SideSwitchBindingDraft {
 public enum ConfirmedSideSwitchSetting {
     public enum Failure: Error, LocalizedError, Equatable {
         case invalidBindings, changedSinceRead, mismatch
+        case transportLimit(maximum: Int)
         public var errorDescription: String? {
             switch self {
             case .invalidBindings: return "拨杆绑定无效：两档动作合计最多 52 字节，宏必须松开所有按键。"
             case .changedSinceRead: return "键盘绑定已变化，请重新读取后编辑。"
             case .mismatch: return "保存后读回的绑定不一致，设置未确认。"
+            case .transportLimit(let maximum): return "当前蓝牙命令最多发送 \(maximum) 字节，请缩短动作或重新连接。"
             }
         }
     }

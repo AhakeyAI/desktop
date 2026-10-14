@@ -998,6 +998,12 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             return try await ConfirmedSideSwitchSetting.run(baseline: baseline, target: target, checkSession: {
                 try self.ensureConfigurationReadSession(generation)
             }, read: { try await self.readSideSwitchBinding() }, write: { request in
+                guard let peripheral = self.peripheral, let characteristic = self.commandChar else {
+                    throw OLEDUploadError.channelNotReady
+                }
+                let type: CBCharacteristicWriteType = characteristic.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+                let maximum = peripheral.maximumWriteValueLength(for: type)
+                guard request.count <= maximum else { throw ConfirmedSideSwitchSetting.Failure.transportLimit(maximum: maximum) }
                 _ = try await self.sendCommandAwaitingResponse(request, expectedCommand: 0x97, confirmedWrite: .sideSwitch)
             })
         } catch {
