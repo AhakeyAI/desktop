@@ -234,4 +234,11 @@ WS2 的 0x92 授权仅由确认事务显式传递，普通 raw write 路径不�
 - 设备信息增加独立两位置编辑器，当前设备值与待应用草稿分别展示；支持 Factory Auto/Manual、Disabled、Shortcut/Macro；不写 GPIO、不软件切档。只自定义一边时，未明确设置的另一边默认 Disabled；“保留当前位置绑定”提供明确保留。空快捷键、非法长度、超长合计和未释放宏不可应用。
 - 保存流程为同代次 catalog → 最新绑定预读 → 基线冲突检查 → set ACK → query 全部读回一致。外部已改绑定、拒绝、读回不一致、断线/迟到结果均不报成功；失败保留草稿。设置互斥，授权仅开放已知 WS2 的合法 0x97 set，不能扩大 mode/standby/0x04 或其他写入。超过当前 BLE 单次发送长度时拒绝。
 - 167 项测试通过，arm64 Release、Developer ID 深层签名通过。本地候选/安装源码 `49681eb`，旧包已备份。UI 实测读取原 Factory Auto/Manual，选择 Custom 时实际绑定不变、对侧草稿自动 Disabled、空动作不能应用。选择仅“全部松开”宏后显式应用：set `AA BB 97 01 03 04 74 02 04 00 02 00 CC DD` 收到六字节 ACK，再读回 `AA BB 97 00 01 02 03 04 74 02 04 00 02 00 CC DD`。
-- 当前临时绑定为 Custom 全部松开 / Disabled，已交还 Agent，详细日志已关闭。已请求实体自动位置验证 Custom 不自动批准；该检查、恢复 Factory Auto/Manual 和重启保持性尚待完成。不能将 W03 宣称为发布验收完成。测试没有更改键位、显示资源、待机或 Voice 配置。
+- 临时 Custom 全部松开 / Disabled 已完成实体自动位置不放行检查，并已恢复 Factory Auto/Manual、ACK 后读回一致。重启保持性仍待验证。不能将 W03 宣称为发布验收完成。测试没有更改键位、显示资源、待机或 Voice 配置。
+
+
+### W03 自定义绑定实体自动位置验证
+
+用户切到物理自动位置后，安装目录候选 Agent 审批接口返回 physicalSwitchState=0、effective switchState=1、approvalAutoVerified=false/version1。实际安装 Hook 二进制受控调用：Claude ask、Cursor/Codex 不 allow；Codex on-request、Kimi default_yolo=false。界面仍正确展示实体自动档。用户已切回手动，实时确认 physical=1/effective=1/verified=false。恢复 set `AA BB 97 01 00 00 01 00 CC DD` 收到 ACK，随后 query `AA BB 97 00 01 02 00 00 01 00 CC DD` 与原 Factory Auto/Manual 一致。详细日志已关闭、连接交还 Agent；不能将受控 Hook 调用等同于完整 IDE 会话验收。
+
+收尾复核：Agent 已连蓝牙，界面显示实体手动档、电量 84%；实时审批 physical=1/effective=1/verified=false，安装目录 Codex Hook 不放行，磁盘策略 on-request，Kimi default_yolo=false。临时绑定已撤销。尚未执行断电保持性、长动作边界及真实蓝牙故障注入，不作为最终发布通过。
