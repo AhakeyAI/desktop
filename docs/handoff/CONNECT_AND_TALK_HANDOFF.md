@@ -219,4 +219,9 @@ WS2 的 0x92 授权仅由确认事务显式传递，普通 raw write 路径不�
 
 候选源码 `832eb9c`，160 测试、arm64 Release 和签名检查通过。实体手动时审批接口 physicalSwitchState=1/approvalAutoVerified=false，Claude ask、Cursor/Codex 未放行，Codex on-request、Kimi default_yolo=false。用户切到自动后，原始 status 仍仅提供位置 0（无审批证明）；审批接口完成目录/绑定/位置复查后返回 physical=0、effective=0、verified=true，约 0.247 秒。Claude/Cursor/Codex allow，Codex never，Kimi default_yolo=true（其 Hook 仍按既有协议不输出 stdout）。
 
-上述为受控 {} 输入驱动真实 Hook 二进制和真实 Agent/BLE，不代替实际 CLI 会话全流程，也不保证已运行会话重新读取磁盘策略。Custom/Disabled/未知/错误 wire 均有自动测试，未在真机改绑定；legacy 和注入断连/超时仍待回归。已经请求实体切回手动，物理收尾结果另记；本批没有固件、键位或绑定写入。W03 仍未开放。
+上述为受控 {} 输入驱动真实 Hook 二进制和真实 Agent/BLE，不代替实际 CLI 会话全流程，也不保证已运行会话重新读取磁盘策略。Custom/Disabled/未知/错误 wire 均有自动测试，未在真机改绑定；legacy 和注入断连/超时仍待回归。用户已切回实体手动档，实时读回 physical=1/effective=1/verified=false，Codex 恢复 on-request，Kimi default_yolo=false；本批没有固件、键位或绑定写入。W03 仍未开放。
+
+
+### H01 本地安装与实际 Hook 路径收尾
+
+已备份旧安装包并将源码 `832eb9c` 候选更新至 `/Applications/AhaKey Studio.app`。深层签名验证通过，App 与 LaunchAgent 均从该路径运行，界面重新连接并显示 85% 电量、实体手动档。Codex/Cursor/Claude 的已配置 AhaKey Hook 引用安装目录；直接执行安装目录 Hook 复核 Claude ask、Cursor/Codex 无 allow、Kimi 无 stdout，实时审批接口保持手动，磁盘 Codex on-request/Kimi default_yolo=false。本地包未公证，仍为测试版；上述受控 Hook 调用不等于完整 IDE 会话验收。
