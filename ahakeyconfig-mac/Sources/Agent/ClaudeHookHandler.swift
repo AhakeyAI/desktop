@@ -7,10 +7,10 @@ enum ClaudeHookHandler {
         // Desktop hosts permission prompts through canUseTool. Decide before that callback runs.
         let request: [String: Any] = ["cmd": "permission", "value": 3]
         let reply = HookSupport.sendJsonRequest(request, timeout: HookSupport.permissionRequestTimeout)
-        let switchState = HookSupport.intValue(reply?["switchState"])
+        let switchState = effectiveSwitchState(reply)
         let isAuto = switchState == 0
 
-        if let output = preToolUseOutput(switchState: switchState),
+        if let output = preToolUseOutput(reply: reply),
            let data = try? JSONSerialization.data(withJSONObject: output),
            let json = String(data: data, encoding: .utf8) {
             print(json)
@@ -28,14 +28,26 @@ enum ClaudeHookHandler {
         )
     }
 
-    static func preToolUseOutput(switchState: Int?) -> [String: Any]? {
-        guard switchState == 0 else { return nil }
+    static func preToolUseOutput(reply: [String: Any]?) -> [String: Any]? {
+        guard effectiveSwitchState(reply) == 0 else { return nil }
         return [
             "hookSpecificOutput": [
                 "hookEventName": "PreToolUse",
                 "permissionDecision": "allow",
             ],
         ]
+    }
+
+    private static func effectiveSwitchState(_ reply: [String: Any]?) -> Int? {
+        guard let reply else { return nil }
+        // New Agents verify the physical lever and its firmware binding. A raw GPIO value
+        // must never override an explicit failed or unknown verification result.
+        if reply["approvalPolicyVersion"] != nil {
+            guard HookSupport.intValue(reply["approvalPolicyVersion"]) == 1,
+                  HookSupport.intValue(reply["physicalSwitchState"]) == 0,
+                  reply["approvalAutoVerified"] as? Bool == true else { return 1 }
+        }
+        return HookSupport.intValue(reply["switchState"])
     }
 
     static func handlePermissionRequest() {
