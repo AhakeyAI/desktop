@@ -1,3 +1,4 @@
+import AhaKeyConfigShared
 import AppKit
 import CoreImage
 import Darwin
@@ -26,6 +27,15 @@ struct AhaKeyStudioView: View {
     @State private var isTransitioningToKeyboardControl = false
     @State private var showsOLEDPlaybackPreview = false
     @State private var showsDeviceInfo = false
+    @State private var keyboardSettingsRequest: KeyboardSettingsRequest?
+    private struct KeyboardSettingsRequest: Identifiable {
+        let id = UUID()
+        let tab: KeyboardSettingsTab
+        let mode: UInt8
+        let index: UInt8
+        let proposal: OrdinaryKeyReadback?
+        let error: String?
+    }
     @State private var showsFirmwareFlasher = false
     @State private var showsCloudAccount = false
     @State private var showsAhaTypeLoginRequiredToast = false
@@ -95,6 +105,17 @@ struct AhaKeyStudioView: View {
             lastSyncedDraft = VoiceHandoffHost.confirmedBaseline(from: lastSyncedDraft)
             syncStatusMessage = "四模式 Voice 接管已读回确认；其他草稿继续独立保存。"
         }
+        .onReceive(NotificationCenter.default.publisher(for: .ahaKeyOrdinaryKeyConfirmed)) { note in
+            guard let actual = note.object as? OrdinaryKeyReadback else { return }
+            lastSyncedDraft = StudioKeyWriteProposal.reconcile(baseline: lastSyncedDraft, current: studioDraft, actual: actual)
+            syncStatusMessage = "Mode \(actual.mode + 1) · Key \(actual.keyIndex + 1) 已保存并读回确认。"
+        }
+        .onChange(of: agentManager.bluetoothConnectionOwner) { owner in
+            if owner == .agentDaemon {
+                isEditingInspector = false
+                syncStatusMessage = "已返回日常连接，未应用的画布草稿仍保留。"
+            }
+        }
         .onChange(of: studioDraft) { newValue in
             AhaKeyStudioStore.save(newValue)
             voiceRelay.updateRoutes(from: newValue)
@@ -158,6 +179,10 @@ struct AhaKeyStudioView: View {
                 assetPath: currentModeDraft.oled.localAssetPath,
                 fps: currentModeDraft.oled.framesPerSecond
             )
+        }
+        .sheet(item: $keyboardSettingsRequest) { request in
+            KeyboardSettingsView(bleManager: bleManager, initialTab: request.tab, mode: request.mode, index: request.index,
+                                 proposedKey: request.proposal, proposalError: request.error)
         }
         .sheet(isPresented: $showsDeviceInfo) {
             DeviceInfoSheetContainer(bleManager: bleManager)
@@ -244,6 +269,7 @@ struct AhaKeyStudioView: View {
                     bleManager.disconnect()
                     bleManager.userInitiatedConnect()
                 }
+                Button("键盘设置…") { openKeyboardSettings() }
                 Button("设备信息 · Agent…") {
                     showsDeviceInfo = true
                 }
@@ -567,13 +593,13 @@ struct AhaKeyStudioView: View {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.regular)
-                        .disabled(isSyncing || !bleManager.isConnected || !bleManager.commandCharReady)
+                        .disabled(isSyncing || !bleManager.isConnected || !bleManager.commandCharReady || bleManager.firmwareCapabilityProfile?.identity != .legacy)
                     }
 
                     Button {
                         writeToKeyboard()
                     } label: {
-                        Label(isSyncing ? "写入中…" : "写入键盘", systemImage: isSyncing ? "arrow.trianglehead.2.clockwise" : "square.and.arrow.down")
+                        Label(isSyncing ? "写入中…" : (bleManager.firmwareCapabilityProfile?.identity == .legacy ? "写入键盘" : "核对并保存"), systemImage: isSyncing ? "arrow.trianglehead.2.clockwise" : "square.and.arrow.down")
                             .font(.callout.weight(.semibold))
                     }
                     .buttonStyle(.borderedProminent)
@@ -927,11 +953,11 @@ struct AhaKeyStudioView: View {
                     TextField("例如 Record / Accept / Reject / Backspace", text: selectedKeyDescriptionBinding)
                         .textFieldStyle(.roundedBorder)
                     if currentSelectedKey.description.containsNonASCII {
-                        Text("设备 LCD 只稳定支持 ASCII。中文、emoji 和全角字符会在写入时被自动过滤，避免乱码。")
+                        Text(bleManager.firmwareCapabilityProfile?.identity == .legacy ? "设备 LCD 只稳定支持 ASCII。旧版保存会过滤中文、emoji 和全角字符。" : "键盘描述只支持英文字符。新设置不会自动过滤或截断，请修改后再保存。")
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
-                    Text("设备实际写入：\(currentSelectedKeySanitizedDescription.isEmpty ? "空白" : currentSelectedKeySanitizedDescription)")
+                    Text(bleManager.firmwareCapabilityProfile?.identity == .legacy ? "旧版写入预览：\(currentSelectedKeySanitizedDescription.isEmpty ? "空白" : currentSelectedKeySanitizedDescription)" : "保存前将在键盘设置中核对当前值与待应用描述。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Text("同步到键盘后，短按实体键切换模式时，LCD 会先短暂显示这里的描述，然后回到该模式的动图。")
@@ -969,7 +995,7 @@ struct AhaKeyStudioView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(key.role.manualText)
                             .font(.callout)
-                        Text("当前会把快捷键和按键描述一起写入键盘。切换模式时，设备会先显示描述，再回到该模式的 LCD 动图。")
+                        Text("保存前请核对快捷键和描述。新固件只应用此键变化的字段，不覆盖其他键位和显示配置。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -2086,6 +2112,11 @@ struct AhaKeyStudioView: View {
             return
         }
 
+        if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+            syncStatusMessage = "画布草稿等待核对，请读取当前键位后明确载入和应用。"
+            openKeyboardSettings()
+            return
+        }
         if bleManager.isConnected && bleManager.commandCharReady {
             syncAllModesToDevice(returnToKeyboardControlWhenDone: true)
         } else {
@@ -2093,6 +2124,21 @@ struct AhaKeyStudioView: View {
             bleManager.userInitiatedConnect()
             waitForConnectionThenSync()
         }
+    }
+
+    private func openKeyboardSettings() {
+        let tab: KeyboardSettingsTab
+        switch selectedPart {
+        case .toggleSwitch: tab = .lever
+        case .lightBar, .oledDisplay: tab = .display
+        default: tab = .keys
+        }
+        var proposal: OrdinaryKeyReadback?, error: String?
+        if selectedPart.keyRole != nil {
+            do { proposal = try StudioKeyWriteProposal.make(key: currentSelectedKey, mode: selectedMode) }
+            catch let failure { error = failure.localizedDescription }
+        }
+        keyboardSettingsRequest = .init(tab: tab, mode: UInt8(selectedMode.rawValue), index: UInt8(selectedPart.keyRole?.rawValue ?? 0), proposal: proposal, error: error)
     }
 
     private func writeToKeyboard() {
@@ -2171,9 +2217,8 @@ struct AhaKeyStudioView: View {
         }
 
         guard bleManager.firmwareCapabilityProfile?.identity == .legacy else {
-            let message = "新固件请在“设备信息”中读取并差量保存普通键、待机或拨杆绑定；当前不执行旧全量保存。"
-            syncStatusMessage = message
-            if showResultAlert { writeResultAlertMessage = message; showsWriteResultAlert = true }
+            syncStatusMessage = "请在键盘设置中读回当前值、载入此键草稿，再明确应用。"
+            openKeyboardSettings()
             return
         }
         applyCursorRejectMacroSelfHealIfNeeded()

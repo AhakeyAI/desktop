@@ -1,7 +1,7 @@
 import SwiftUI
 import AhaKeyConfigShared
 
-/// Device-backed editing never imports or applies the old local Studio draft.
+/// Device-backed editing can load a reviewed proposal only after an explicit read.
 struct OrdinaryKeySettingsView: View {
     @ObservedObject var bleManager: AhaKeyBLEManager
     @State private var mode: UInt8 = 2
@@ -12,6 +12,18 @@ struct OrdinaryKeySettingsView: View {
     @State private var descriptionEdited = false
     @State private var generation: UInt64?
     @State private var message: String?
+
+    let proposedKey: OrdinaryKeyReadback?
+    let proposalError: String?
+
+    init(bleManager: AhaKeyBLEManager, mode: UInt8 = 2, index: UInt8 = 3,
+         proposedKey: OrdinaryKeyReadback? = nil, proposalError: String? = nil) {
+        self.bleManager = bleManager
+        _mode = State(initialValue: mode)
+        _index = State(initialValue: index)
+        self.proposedKey = proposedKey
+        self.proposalError = proposalError
+    }
 
     var body: some View {
         Section {
@@ -37,6 +49,17 @@ struct OrdinaryKeySettingsView: View {
                 Text("动作与描述读回共占用 \(11 + max(0, action.count - 2) + (target?.description.count ?? 0)) / 64 字节")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            if let proposedKey {
+                Button("从画布载入此键草稿（不写入）") {
+                    guard baseline != nil, sameSession, proposedKey.mode == mode, proposedKey.keyIndex == index else { return }
+                    action = Data([proposedKey.actionType, UInt8(proposedKey.action.count)]) + proposedKey.action
+                    descriptionText = String(data: proposedKey.description, encoding: .ascii) ?? ""
+                    descriptionEdited = true
+                    message = "已载入待应用草稿，键盘当前值未改变；核对后点击应用。"
+                }
+                .disabled(busy || !sameSession || baseline?.isKnownEditableAction != true || proposedKey.mode != mode || proposedKey.keyIndex != index)
+            }
+            if let proposalError { Text(proposalError).font(.caption).foregroundStyle(.orange) }
             HStack {
                 Button(busy ? "处理中…" : "读取当前按键") { readKey() }
                 Button("应用此键改动") { applyKey() }
@@ -72,7 +95,15 @@ struct OrdinaryKeySettingsView: View {
     private var currentText: String {
         guard let result = bleManager.configurationSnapshot.keys[.key(mode: mode, index: index)] else { return "未确认" }
         switch result {
-        case .value(let key): return "动作 \(key.actionType) · \(key.action.hexString) · 描述 \(String(data: key.description, encoding: .ascii) ?? key.description.hexString)"
+        case .value(let key):
+            let action: String
+            switch key.actionType {
+            case 0: action = "无按键动作"
+            case 0x73: action = key.action.isEmpty ? "无按键动作" : key.action.map { HIDUsage.name(for: $0) }.joined(separator: " + ")
+            case 0x74: action = key.action.count % 2 == 0 ? "宏（\(key.action.count / 2) 步）" : "未识别宏，保留原数据"
+            default: action = "未识别动作，保留原数据"
+            }
+            return "\(action) · 描述 \(String(data: key.description, encoding: .ascii) ?? "无法显示，保留原描述")"
         case .tooLarge: return "超过固件读回容量，只读"
         case .rejected(let status): return "读取被拒绝（\(status)）"
         case .malformed: return "格式未确认"
@@ -106,6 +137,7 @@ struct OrdinaryKeySettingsView: View {
             do {
                 let actual = try await bleManager.setOrdinaryKeyConfirmed(baseline: baseline, target: target, expectedGeneration: generation)
                 load(actual)
+                NotificationCenter.default.post(name: .ahaKeyOrdinaryKeyConfirmed, object: actual)
                 message = "此键改动已保存并读回一致；断电保持性尚未验证。"
             } catch { message = "设置未确认：\(error.localizedDescription)；待应用改动已保留。" }
         }
