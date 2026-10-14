@@ -172,15 +172,15 @@ enum IDEState: UInt8, CaseIterable, Codable, Identifiable {
 
     var label: String {
         switch self {
-        case .notification: return "0 通知"
-        case .permissionRequest: return "1 等待授权"
-        case .postToolUse: return "2 工具完毕"
-        case .preToolUse: return "3 工具执行"
-        case .sessionStart: return "4 会话开始"
-        case .stop: return "5 停止"
-        case .taskCompleted: return "6 任务完成"
-        case .userPromptSubmit: return "7 用户提交"
-        case .sessionEnd: return "8 会话结束"
+        case .notification: return NSLocalizedString("0 通知", comment: "")
+        case .permissionRequest: return NSLocalizedString("1 等待授权", comment: "")
+        case .postToolUse: return NSLocalizedString("2 工具完毕", comment: "")
+        case .preToolUse: return NSLocalizedString("3 工具执行", comment: "")
+        case .sessionStart: return NSLocalizedString("4 会话开始", comment: "")
+        case .stop: return NSLocalizedString("5 停止", comment: "")
+        case .taskCompleted: return NSLocalizedString("6 任务完成", comment: "")
+        case .userPromptSubmit: return NSLocalizedString("7 用户提交", comment: "")
+        case .sessionEnd: return NSLocalizedString("8 会话结束", comment: "")
         }
     }
 
@@ -200,15 +200,15 @@ enum IDEState: UInt8, CaseIterable, Codable, Identifiable {
 
     var shortLabel: String {
         switch self {
-        case .notification: return "通知"
-        case .permissionRequest: return "等待授权"
-        case .postToolUse: return "工具完毕"
-        case .preToolUse: return "工具执行"
-        case .sessionStart: return "会话开始"
-        case .stop: return "停止"
-        case .taskCompleted: return "任务完成"
-        case .userPromptSubmit: return "用户提交"
-        case .sessionEnd: return "会话结束"
+        case .notification: return NSLocalizedString("通知", comment: "")
+        case .permissionRequest: return NSLocalizedString("等待授权", comment: "")
+        case .postToolUse: return NSLocalizedString("工具完毕", comment: "")
+        case .preToolUse: return NSLocalizedString("工具执行", comment: "")
+        case .sessionStart: return NSLocalizedString("会话开始", comment: "")
+        case .stop: return NSLocalizedString("停止", comment: "")
+        case .taskCompleted: return NSLocalizedString("任务完成", comment: "")
+        case .userPromptSubmit: return NSLocalizedString("用户提交", comment: "")
+        case .sessionEnd: return NSLocalizedString("会话结束", comment: "")
         }
     }
 }

@@ -5,6 +5,7 @@ import Foundation
 @MainActor
 final class AppUpdateManager: ObservableObject {
     static let shared = AppUpdateManager()
+    static let releaseListURL = URL(string: "https://github.com/AhakeyAI/desktop/releases")!
 
     @Published private(set) var isChecking = false
     @Published private(set) var isDownloading = false
@@ -41,10 +42,12 @@ final class AppUpdateManager: ObservableObject {
             if release.isNewer(than: installedVersion) {
                 availableRelease = release
             } else if manual {
-                statusMessage = "当前版本 \(installedVersion) 没有可用的新版本。"
+                statusMessage = String(format: NSLocalizedString("当前版本 %@ 没有可用的新版本。", comment: ""), installedVersion)
             }
         } catch {
-            if manual { statusMessage = "检查更新失败：\(error.localizedDescription)" }
+            if manual {
+                statusMessage = String(format: NSLocalizedString("检查更新失败：%@", comment: ""), error.localizedDescription)
+            }
         }
     }
 
@@ -73,7 +76,7 @@ final class AppUpdateManager: ObservableObject {
     func download(_ release: AppRelease) async {
         guard !isDownloading else { return }
         guard let asset = release.macDMG else {
-            statusMessage = "该版本没有可校验的 macOS 安装包，请到 GitHub Release 页面下载。"
+            statusMessage = NSLocalizedString("该版本没有可校验的 macOS 安装包，请到 GitHub Release 页面下载。", comment: "")
             return
         }
         isDownloading = true
@@ -98,10 +101,10 @@ final class AppUpdateManager: ObservableObject {
             try FileManager.default.moveItem(at: temporaryURL, to: destination)
             let opened = NSWorkspace.shared.open(destination)
             statusMessage = opened
-                ? "已下载并打开 \(destination.lastPathComponent)。请在安装窗口中将 AhaKey Studio 拖入“应用程序”。"
-                : "已下载到 \(destination.path)。请双击安装包，将 AhaKey Studio 拖入“应用程序”。"
+                ? String(format: NSLocalizedString("已下载并打开 %@。请在安装窗口中将 AhaKey Studio 拖入“应用程序”。", comment: ""), destination.lastPathComponent)
+                : String(format: NSLocalizedString("已下载到 %@。请双击安装包，将 AhaKey Studio 拖入“应用程序”。", comment: ""), destination.path)
         } catch {
-            statusMessage = "下载更新失败：\(error.localizedDescription)"
+            statusMessage = String(format: NSLocalizedString("下载更新失败：%@", comment: ""), error.localizedDescription)
         }
     }
 
@@ -122,9 +125,10 @@ final class AppUpdateManager: ObservableObject {
 
         var errorDescription: String? {
             switch self {
-            case .releaseHTTP(let status): return "GitHub 最新 Release 请求返回 HTTP \(status)。"
-            case .downloadFailed: return "GitHub 安装包下载失败。"
-            case .checksumMismatch: return "安装包 SHA-256 校验失败，已取消打开。"
+            case .releaseHTTP(let status):
+                return String(format: NSLocalizedString("GitHub 最新 Release 请求返回 HTTP %d。", comment: ""), status)
+            case .downloadFailed: return NSLocalizedString("GitHub 安装包下载失败。", comment: "")
+            case .checksumMismatch: return NSLocalizedString("安装包 SHA-256 校验失败，已取消打开。", comment: "")
             }
         }
     }

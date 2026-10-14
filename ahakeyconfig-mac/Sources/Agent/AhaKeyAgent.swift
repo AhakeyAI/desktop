@@ -380,7 +380,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                                             cachedLight: self.cachedLightMode)
                 self.emit("← permission 回包 switchState=\(String(describing: body["switchState"]))")
                 if let s = body["switchState"] as? Int, s != 0 {
-                    self.emit("（拨杆非 0：PermissionRequest 将交回终端手动确认）")
+                    self.emit(NSLocalizedString("（拨杆非 0：PermissionRequest 将交回终端手动确认）", comment: ""))
                 } else if body["switchState"] is NSNull {
                     self.emit("（switchState 缺省：批准链可能仍交回手动；请把「蓝牙」交给 Agent 并连上键盘。）")
                 }
@@ -528,7 +528,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         if central.state == .poweredOn {
-            emit("蓝牙就绪")
+            emit(NSLocalizedString("蓝牙就绪", comment: ""))
             connectAutomatically()
         }
     }
@@ -581,11 +581,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         for char in service.characteristics ?? [] {
             if char.uuid == commandCharUUID {
                 commandChar = char
-                emit("命令通道就绪")
+                emit(NSLocalizedString("命令通道就绪", comment: ""))
             } else if char.uuid == notifyCharUUID {
                 notifyChar = char
                 peripheral.setNotifyValue(true, for: char)
-                emit("通知通道已订阅")
+                emit(NSLocalizedString("通知通道已订阅", comment: ""))
             }
         }
         // Polling keeps GPIO state fresh even on firmware that omits unsolicited updates.

@@ -13,10 +13,10 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     @Published private(set) var siriEnabled = false
     @Published private(set) var dictationEnabled = false
     @Published private(set) var isRecording = false
-    @Published private(set) var statusMessage = "等待苹果原生转写就绪。"
+    @Published private(set) var statusMessage = NSLocalizedString("等待苹果原生转写就绪。", comment: "")
     @Published private(set) var transcriptPreview = ""
     @Published private(set) var lastCommittedText = ""
-    @Published private(set) var lastPermissionCheckSummary = "尚未检查麦克风、语音转写与 Siri 权限。"
+    @Published private(set) var lastPermissionCheckSummary = NSLocalizedString("尚未检查麦克风、语音转写与 Siri 权限。", comment: "")
 
     // MARK: 录音触发方式配置
     /// 短按（切换式）：录音结束后是否调用 AhaType 整理
@@ -63,7 +63,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             return
         }
         if deferredTCCRequery {
-            lastPermissionCheckSummary = "正在检查麦克风与语音转写权限…"
+            lastPermissionCheckSummary = NSLocalizedString("正在检查麦克风与语音转写权限…", comment: "")
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: UInt64(450) * 1_000_000)
                 self.performPermissionRead(requestIfNeeded: false)
@@ -128,9 +128,9 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             "麦克风 \(currentMicGranted ? "已开启" : "未开启") · 语音转写 \(currentSpeechGranted ? "已开启" : "未开启") · Siri \(currentSiriEnabled ? "已开启" : "未开启") · 听写 \(currentDictationEnabled ? "已开启" : "未开启") · 检查于 \(timeLabel)"
 
         if !currentMicGranted || !currentSpeechGranted || !currentSiriEnabled || !currentDictationEnabled {
-            statusMessage = "还缺苹果原生语音权限，请先打开麦克风、语音转写、Siri 与听写。"
+            statusMessage = NSLocalizedString("还缺苹果原生语音权限，请先打开麦克风、语音转写、Siri 与听写。", comment: "")
         } else if !isRecording {
-            statusMessage = "苹果原生转写已就绪，按一次语音键开始，再按一次结束。"
+            statusMessage = NSLocalizedString("苹果原生转写已就绪，按一次语音键开始，再按一次结束。", comment: "")
         }
 
         appendDiagnostic("permissions mic=\(currentMicGranted) speech=\(currentSpeechGranted) siri=\(currentSiriEnabled) dictation=\(currentDictationEnabled)")
@@ -236,11 +236,11 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
     private func attemptResetAndRequestMicrophonePermission() {
         let alert = NSAlert()
-        alert.messageText = "麦克风权限已被拒绝"
-        alert.informativeText = "需要重置麦克风权限才能重新授权。"
-        alert.addButton(withTitle: "重置并授权")
-        alert.addButton(withTitle: "打开系统设置")
-        alert.addButton(withTitle: "取消")
+        alert.messageText = NSLocalizedString("麦克风权限已被拒绝", comment: "")
+        alert.informativeText = NSLocalizedString("需要重置麦克风权限才能重新授权。", comment: "")
+        alert.addButton(withTitle: NSLocalizedString("重置并授权", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("打开系统设置", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("取消", comment: ""))
 
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
@@ -295,11 +295,11 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         appendDiagnostic("attemptResetAndRequestSpeechRecognition bundleId=\(bundleId)")
 
         let alert = NSAlert()
-        alert.messageText = "语音识别权限已被拒绝"
-        alert.informativeText = "需要重置语音识别权限才能继续。点击「重置」后需重启应用才能重新授权。"
-        alert.addButton(withTitle: "重置并重启")
-        alert.addButton(withTitle: "打开系统设置")
-        alert.addButton(withTitle: "取消")
+        alert.messageText = NSLocalizedString("语音识别权限已被拒绝", comment: "")
+        alert.informativeText = NSLocalizedString("需要重置语音识别权限才能继续。点击「重置」后需重启应用才能重新授权。", comment: "")
+        alert.addButton(withTitle: NSLocalizedString("重置并重启", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("打开系统设置", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("取消", comment: ""))
 
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
@@ -332,7 +332,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     func stopRecording(bypassAhaType: Bool) {
         guard isRecording else { return }
         isRecording = false
-        statusMessage = "正在结束录音并整理文字…"
+        statusMessage = NSLocalizedString("正在结束录音并整理文字…", comment: "")
         VoiceStatusHUDController.shared.show(.recognizing)
         pendingFinalizeBypassAhaType = bypassAhaType
         appendDiagnostic("stop recording requested bypassAhaType=\(bypassAhaType)")
@@ -371,7 +371,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
 
         guard let recognizer = makeSpeechRecognizer() else {
-            statusMessage = "当前系统语言暂不支持苹果原生转写。"
+            statusMessage = NSLocalizedString("当前系统语言暂不支持苹果原生转写。", comment: "")
             appendDiagnostic("speech recognizer unavailable")
             return
         }
@@ -402,7 +402,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             try engine.start()
         } catch {
             inputNode.removeTap(onBus: 0)
-            statusMessage = "无法启动麦克风录音。"
+            statusMessage = NSLocalizedString("无法启动麦克风录音。", comment: "")
             appendDiagnostic("audio engine start failed: \(error.localizedDescription)")
             return
         }
@@ -410,7 +410,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         audioEngine = engine
         recognitionRequest = request
         isRecording = true
-        statusMessage = "苹果原生转写录音中… 再按一次语音键结束。"
+        statusMessage = NSLocalizedString("苹果原生转写录音中… 再按一次语音键结束。", comment: "")
         VoiceStatusHUDController.shared.show(.recording)
         appendDiagnostic("start recording locale=\(recognizer.locale.identifier)")
 
@@ -528,7 +528,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
                 cancelRecognitionPipeline()
                 statusMessage = "苹果原生转写失败：\(error.localizedDescription)"
                 VoiceStatusHUDController.shared.show(
-                    VoiceStatusHUDState(kind: .warning, title: "识别失败", subtitle: "请重试或检查语音权限"),
+                    VoiceStatusHUDState(kind: .warning, title: NSLocalizedString("识别失败", comment: ""), subtitle: NSLocalizedString("请重试或检查语音权限", comment: "")),
                     autoHideAfter: 2.0
                 )
             }
@@ -548,7 +548,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         cancelRecognitionPipeline()
 
         guard !text.isEmpty else {
-            statusMessage = "未识别到有效语音内容。"
+            statusMessage = NSLocalizedString("未识别到有效语音内容。", comment: "")
             VoiceStatusHUDController.shared.show(.empty, autoHideAfter: 1.8)
             appendDiagnostic("finalize empty reason=\(reason)")
             return
@@ -556,7 +556,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
         hasCommittedThisRecording = true
         let willUseAhaType = !bypassAhaType && AhaTypeTextOptimizer.shared.isEnabled
-        statusMessage = willUseAhaType ? "AhaType 整理中…" : "准备粘贴…"
+        statusMessage = willUseAhaType ? NSLocalizedString("AhaType 整理中…", comment: "") : NSLocalizedString("准备粘贴…", comment: "")
         VoiceStatusHUDController.shared.show(willUseAhaType ? .ahaType : .pasting)
         appendDiagnostic("finalize begin reason=\(reason) bypass=\(bypassAhaType) rawText=\(text)")
 
@@ -573,7 +573,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
                 VoiceStatusHUDController.shared.show(.done, autoHideAfter: 1.4)
                 self.appendDiagnostic("finalize success reason=\(reason) rawText=\(text) outputText=\(output)")
             } else {
-                self.statusMessage = "识别完成，但写入当前光标失败。"
+                self.statusMessage = NSLocalizedString("识别完成，但写入当前光标失败。", comment: "")
                 VoiceStatusHUDController.shared.show(.failed, autoHideAfter: 2.0)
                 self.appendDiagnostic("finalize inject failed reason=\(reason) text=\(output)")
             }
@@ -616,16 +616,16 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     ) -> String {
         var missing: [String] = []
         if micStatus != .authorized {
-            missing.append("麦克风")
+            missing.append(NSLocalizedString("麦克风", comment: ""))
         }
         if speechStatus != .authorized {
-            missing.append("语音转写")
+            missing.append(NSLocalizedString("语音转写", comment: ""))
         }
         if !siriEnabled {
             missing.append("Siri")
         }
         if !dictationEnabled {
-            missing.append("听写")
+            missing.append(NSLocalizedString("听写", comment: ""))
         }
         return "还缺\(missing.joined(separator: "、"))权限。请先在系统设置里打开后，再按一次语音键。"
     }

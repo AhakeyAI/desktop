@@ -1,4 +1,5 @@
 import AppKit
+import AhaKeyConfigShared
 import SwiftUI
 import AVFoundation
 import Speech
@@ -13,6 +14,10 @@ struct AhaKeyConfigApp: App {
     @State private var vibeBarBridge = VibeBarBridge()
     @AppStorage(VibeBarVisibilityPreference.enabledKey) private var vibeBarEnabled = true
 
+    init() {
+        AppLanguageInitializer.applySystemLanguageIfNeeded()
+    }
+
     var body: some Scene {
         WindowGroup("AhaKey Studio") {
             ContentView(bleManager: bleManager)
@@ -23,12 +28,16 @@ struct AhaKeyConfigApp: App {
                         appDelegate?.reopenMainWindow()
                     }
                     if vibeBarEnabled {
-                        VibeBarController.shared.start(state: vibeBarBridge.state)
+                        VibeBarController.shared.start(state: vibeBarBridge.state) {
+                            UserDefaults.standard.set(false, forKey: VibeBarVisibilityPreference.enabledKey)
+                        }
                     }
                 }
                 .onChange(of: vibeBarEnabled) { enabled in
                     if enabled {
-                        VibeBarController.shared.start(state: vibeBarBridge.state)
+                        VibeBarController.shared.start(state: vibeBarBridge.state) {
+                            UserDefaults.standard.set(false, forKey: VibeBarVisibilityPreference.enabledKey)
+                        }
                     } else {
                         VibeBarController.shared.stop()
                     }
@@ -42,13 +51,13 @@ struct AhaKeyConfigApp: App {
 
         if #available(macOS 13.0, *) {
             MenuBarExtra("AhaKey", systemImage: "keyboard") {
-                Button("打开主窗口") {
+                Button(NSLocalizedString("打开主窗口", comment: "")) {
                     appDelegate.reopenMainWindow()
                 }
 
                 Divider()
 
-                Button("退出 AhaKey Studio") {
+                Button(NSLocalizedString("退出 AhaKey Studio", comment: "")) {
                     NSApp.terminate(nil)
                 }
             }
@@ -102,9 +111,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             DispatchQueue.main.async {
                 if success {
                     let alert = NSAlert()
-                    alert.messageText = "检测到应用签名变化"
-                    alert.informativeText = "麦克风权限已自动重置，下次点击「申请」按钮时会弹出系统授权对话框。"
-                    alert.addButton(withTitle: "确定")
+                    alert.messageText = NSLocalizedString("检测到应用签名变化", comment: "")
+                    alert.informativeText = NSLocalizedString("麦克风权限已自动重置，下次点击「申请」按钮时会弹出系统授权对话框。", comment: "")
+                    alert.addButton(withTitle: NSLocalizedString("确定", comment: ""))
                     alert.runModal()
                 }
             }

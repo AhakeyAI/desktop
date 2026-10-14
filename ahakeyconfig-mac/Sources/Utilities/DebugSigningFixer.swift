@@ -59,7 +59,7 @@ enum DebugSigningFixer {
                     completion(Result(
                         success: ok,
                         output: ok
-                            ? output + "\n请立即退出 AhaKey Studio 并重新启动，按系统提示重新勾选权限即可。"
+                            ? output + NSLocalizedString("\n请立即退出 AhaKey Studio 并重新启动，按系统提示重新勾选权限即可。", comment: "")
                             : "脚本执行失败 (exit=\(process.terminationStatus))\n\n\(output)"
                     ))
                 }
