@@ -2159,7 +2159,7 @@ struct AhaKeyStudioView: View {
         }
 
         guard bleManager.firmwareCapabilityProfile?.identity == .legacy else {
-            let message = "当前版本只读新固件配置；请先读取固件能力。差量保存与读回确认完成前，不写入键盘。"
+            let message = "新固件请在“设备信息”中读取并差量保存普通键、待机或拨杆绑定；当前不执行旧全量保存。"
             syncStatusMessage = message
             if showResultAlert { writeResultAlertMessage = message; showsWriteResultAlert = true }
             return

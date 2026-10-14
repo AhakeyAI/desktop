@@ -4,9 +4,9 @@ import Foundation
 public enum SideSwitchBindingConfiguration {
     public static let maximumCombinedActionBytes = 52
 
-    public static func validAction(_ action: Data) -> Bool {
+    public static func validAction(_ action: Data, maximumBytes: Int = maximumCombinedActionBytes) -> Bool {
         let b = [UInt8](action)
-        guard b.count >= 3, b.count <= maximumCombinedActionBytes,
+        guard b.count >= 3, b.count <= maximumBytes,
               Int(b[1]) + 2 == b.count else { return false }
         switch b[0] {
         case 0x73:

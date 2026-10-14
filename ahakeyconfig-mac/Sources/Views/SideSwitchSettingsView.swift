@@ -94,35 +94,55 @@ private struct SideSwitchPositionEditor: View {
                 ForEach(0..<4, id: \.self) { Text(labels[$0]).tag($0) }
             }
             if position.bindType == 3 {
-                Picker("动作类型", selection: Binding(get: { position.action.first == 0x74 ? 1 : 0 }, set: { value in
-                    position = .init(bindType: 3, action: value == 1 ? Data([0x74, 2, 4, 0]) : Data([0x73, 0]))
-                })) {
-                    Text("快捷键").tag(0)
-                    Text("宏").tag(1)
-                }
-                if position.action.first == 0x74 {
-                    macroEditor
-                } else {
-                    ShortcutBindingEditor(shortcut: Binding(get: { shortcut }, set: { value in
-                        let keys = value.hidCodes
-                        position = .init(bindType: 3, action: Data([0x73, UInt8(keys.count)] + keys))
-                    }))
-                }
-                if !SideSwitchBindingConfiguration.validAction(position.action) {
-                    Text("请设置有效快捷键，或检查宏中的按下/松开是否配对。")
-                        .font(.caption).foregroundStyle(.orange)
-                }
+                KeyboardActionEditor(action: Binding(get: { position.action }, set: { position = .init(bindType: 3, action: $0) }))
             }
         }
     }
 
+}
+
+struct KeyboardActionEditor: View {
+    @Binding var action: Data
+    var allowEmptyShortcut = false
+    var maximumPayloadBytes = 50
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+                Picker("动作类型", selection: Binding(get: { action.first == 0x74 ? 1 : 0 }, set: { value in
+                    action = value == 1 ? Data([0x74, 2, 4, 0]) : Data([0x73, 0])
+                })) {
+                    Text("快捷键").tag(0)
+                    Text("宏").tag(1)
+                }
+                if action.first == 0x74 {
+                    if steps.count * 2 == max(0, action.count - 2) { macroEditor }
+                    else {
+                        Text("当前宏包含无法表示的步骤，保留原始数据。")
+                        Button("重新创建宏") { action = Data([0x74, 2, 4, 0]) }
+                    }
+                } else if Data([0x73, UInt8(shortcut.hidCodes.count)] + shortcut.hidCodes) == action {
+                    ShortcutBindingEditor(shortcut: Binding(get: { shortcut }, set: { value in
+                        let keys = value.hidCodes
+                        action = Data([0x73, UInt8(keys.count)] + keys)
+                    }))
+                } else {
+                    Text("当前组合无法完整表示，保留原始数据。")
+                    Button("重新设置快捷键") { action = Data([0x73, 0]) }
+                }
+                if !(allowEmptyShortcut && action == Data([0x73, 0])) && !SideSwitchBindingConfiguration.validAction(action, maximumBytes: maximumPayloadBytes + 2) {
+                    Text("请设置有效快捷键，或检查宏中的按下/松开是否配对。")
+                        .font(.caption).foregroundStyle(.orange)
+                }
+        }
+    }
+
     private var shortcut: ShortcutBinding {
-        let codes = Array(position.action.dropFirst(2))
+        let codes = Array(action.dropFirst(2))
         let modifiers = ShortcutModifier.allCases.filter { codes.contains($0.hidCode) }
         return ShortcutBinding(modifiers: modifiers, keyCode: codes.first { !modifiers.map(\.hidCode).contains($0) } ?? 0)
     }
     private var steps: [MacroStep] {
-        let b = Array(position.action.dropFirst(2))
+        let b = Array(action.dropFirst(2))
         guard b.count % 2 == 0 else { return [] }
         return stride(from: 0, to: b.count, by: 2).compactMap { index in
             MacroAction(rawValue: b[index]).map { MacroStep(action: $0, param: b[index + 1]) }
@@ -130,8 +150,8 @@ private struct SideSwitchPositionEditor: View {
     }
     private func updateSteps(_ next: [MacroStep]) {
         let bytes = next.flattenedBytes
-        guard bytes.count <= 50 else { return }
-        position = .init(bindType: 3, action: Data([0x74, UInt8(bytes.count)] + bytes))
+        guard bytes.count <= maximumPayloadBytes else { return }
+        action = Data([0x74, UInt8(bytes.count)] + bytes)
     }
     private func step(at index: Int) -> MacroStep {
         steps.indices.contains(index) ? steps[index] : MacroStep(action: .noOp)
@@ -165,7 +185,7 @@ private struct SideSwitchPositionEditor: View {
             HStack {
                 Button("添加按键步骤") { updateSteps(steps + [MacroStep(action: .downKey, param: HIDUsage.enter)]) }
                 Button("添加全部松开") { updateSteps(steps + [MacroStep(action: .upAllKeys)]) }
-            }.disabled(steps.count >= 25)
+            }.disabled(steps.count >= maximumPayloadBytes / 2)
         }
     }
 }

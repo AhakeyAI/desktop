@@ -98,8 +98,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var isSettingStandby = false
     @Published private(set) var isReadingSideSwitch = false
     @Published private(set) var isSettingSideSwitch = false
+    @Published private(set) var isEditingOrdinaryKey = false
     var isConfigurationOperationInProgress: Bool {
-        isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch
+        isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey
     }
     @Published private(set) var firmwareCapabilityProfile: FirmwareCapabilityProfile?
     @Published private(set) var bluetoothPermissionGranted = true
@@ -969,6 +970,60 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             })
         } catch {
             self.configurationSnapshot.recordFailure(.standby, message: error.localizedDescription, generation: generation)
+            throw error
+        }
+    }
+
+    func readOrdinaryKeyForEditing(mode: UInt8, index: UInt8) async throws -> OrdinaryKeyReadback {
+        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        try ensureConfigurationReadSession(generation)
+        isEditingOrdinaryKey = true
+        defer { isEditingOrdinaryKey = false }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.mayQueryOrdinaryKeys else { throw OLEDUploadError.unsupportedReadOnlyProfile }
+        try ensureConfigurationReadSession(generation)
+        return try await requireOrdinaryKey(mode: mode, index: index)
+    }
+
+    private func requireOrdinaryKey(mode: UInt8, index: UInt8) async throws -> OrdinaryKeyReadback {
+        let result = try await readOrdinaryKey(mode: mode, keyIndex: index)
+        guard case .value(let value) = result else { throw OLEDUploadError.invalidReadback }
+        return value
+    }
+
+    func setOrdinaryKeyConfirmed(baseline: OrdinaryKeyReadback, target: OrdinaryKeyReadback, expectedGeneration: UInt64) async throws -> OrdinaryKeyReadback {
+        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        try ensureConfigurationReadSession(generation)
+        guard generation == expectedGeneration else { throw OLEDUploadError.channelNotReady }
+        isEditingOrdinaryKey = true
+        defer { isEditingOrdinaryKey = false }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.mayQueryOrdinaryKeys else { throw OLEDUploadError.unsupportedReadOnlyProfile }
+        do {
+            guard let peripheral, let characteristic = commandChar else { throw OLEDUploadError.channelNotReady }
+            let type: CBCharacteristicWriteType = characteristic.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+            let maximum = peripheral.maximumWriteValueLength(for: type)
+            var planned: [Data] = []
+            if baseline.actionType != target.actionType || baseline.action != target.action,
+               let request = OrdinaryKeyConfiguration.actionRequest(target) { planned.append(request) }
+            if baseline.description != target.description,
+               let request = OrdinaryKeyConfiguration.descriptionRequest(target) { planned.append(request) }
+            guard planned.allSatisfy({ $0.count <= maximum }) else { throw ConfirmedSideSwitchSetting.Failure.transportLimit(maximum: maximum) }
+            return try await ConfirmedOrdinaryKeySetting.run(baseline: baseline, target: target, checkSession: {
+                try self.ensureConfigurationReadSession(generation)
+            }, read: { try await self.requireOrdinaryKey(mode: target.mode, index: target.keyIndex) }, voiceState: {
+                try await self.readVoiceOnboardingState()
+            }, write: { request in
+                guard let peripheral = self.peripheral, let characteristic = self.commandChar else { throw OLEDUploadError.channelNotReady }
+                let type: CBCharacteristicWriteType = characteristic.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+                let maximum = peripheral.maximumWriteValueLength(for: type)
+                guard request.count <= maximum else { throw ConfirmedSideSwitchSetting.Failure.transportLimit(maximum: maximum) }
+                _ = try await self.sendCommandAwaitingResponse(request, expectedCommand: request[2], confirmedWrite: .ordinaryKey)
+            })
+        } catch {
+            self.configurationSnapshot.recordFailure(.key(mode: target.mode, index: target.keyIndex), message: error.localizedDescription, generation: generation)
             throw error
         }
     }
