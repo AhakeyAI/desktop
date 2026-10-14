@@ -35,14 +35,7 @@ final class AppUpdateManager: ObservableObject {
         defer { isChecking = false }
 
         do {
-            var request = URLRequest(url: releaseAPI)
-            request.timeoutInterval = 20
-            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-            request.setValue("AhaKey-Studio/\(installedVersion)", forHTTPHeaderField: "User-Agent")
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-                throw UpdateError.releaseUnavailable
-            }
+            let data = try await loadLatestReleaseData()
             let release = try JSONDecoder().decode(AppRelease.self, from: data)
             UserDefaults.standard.set(Date(), forKey: lastCheckKey)
             if release.isNewer(than: installedVersion) {
@@ -53,6 +46,28 @@ final class AppUpdateManager: ObservableObject {
         } catch {
             if manual { statusMessage = "检查更新失败：\(error.localizedDescription)" }
         }
+    }
+
+    private func loadLatestReleaseData() async throws -> Data {
+        // 优先尊重系统代理。本机代理出口的 GitHub API 匿名配额耗尽时，
+        // 仅针对公开 Release 元数据尝试一次直连。
+        var request = URLRequest(url: releaseAPI)
+        request.timeoutInterval = 20
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("AhaKey-Studio/\(installedVersion)", forHTTPHeaderField: "User-Agent")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+        if status == 200 { return data }
+        if status == 403 || status == 429 {
+            let api = releaseAPI
+            let version = installedVersion
+            if let direct = try? await Task.detached(priority: .utility, operation: {
+                try GitHubReleaseTransport.fetchDirect(api: api, version: version)
+            }).value {
+                return direct
+            }
+        }
+        throw UpdateError.releaseHTTP(status)
     }
 
     func download(_ release: AppRelease) async {
@@ -103,14 +118,37 @@ final class AppUpdateManager: ObservableObject {
     }
 
     private enum UpdateError: LocalizedError {
-        case releaseUnavailable, downloadFailed, checksumMismatch
+        case releaseHTTP(Int), downloadFailed, checksumMismatch
 
         var errorDescription: String? {
             switch self {
-            case .releaseUnavailable: return "无法读取 GitHub 最新 Release。"
+            case .releaseHTTP(let status): return "GitHub 最新 Release 请求返回 HTTP \(status)。"
             case .downloadFailed: return "GitHub 安装包下载失败。"
             case .checksumMismatch: return "安装包 SHA-256 校验失败，已取消打开。"
             }
         }
+    }
+}
+
+private enum GitHubReleaseTransport {
+    static func fetchDirect(api: URL, version: String) throws -> Data {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+        process.arguments = [
+            "--silent", "--show-error", "--fail", "--location",
+            "--connect-timeout", "8", "--max-time", "20",
+            "--noproxy", "api.github.com",
+            "--header", "Accept: application/vnd.github+json",
+            "--header", "User-Agent: AhaKey-Studio/\(version)",
+            api.absoluteString,
+        ]
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { throw URLError(.cannotConnectToHost) }
+        return data
     }
 }
