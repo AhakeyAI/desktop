@@ -20,6 +20,8 @@ final class AhaTypeTextOptimizer: ObservableObject {
         updateStatus(from: config)
     }
 
+    var hasConfiguredCloudToken: Bool { !stringValue(loadConfig()["access_token"]).isEmpty }
+
     func setEnabled(_ enabled: Bool) {
         var config = loadConfig()
         config["typeless_enabled"] = enabled

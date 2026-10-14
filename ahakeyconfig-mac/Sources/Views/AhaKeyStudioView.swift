@@ -87,6 +87,12 @@ struct AhaKeyStudioView: View {
             )
             scheduleStartupPermissionOnboarding()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .ahaKeyVoiceDesktopPrepared)) { _ in
+            if let prepared = AhaKeyStudioStore.load() {
+                studioDraft = prepared
+                voiceRelay.updateRoutes(from: prepared)
+            }
+        }
         .onChange(of: studioDraft) { newValue in
             AhaKeyStudioStore.save(newValue)
             voiceRelay.updateRoutes(from: newValue)

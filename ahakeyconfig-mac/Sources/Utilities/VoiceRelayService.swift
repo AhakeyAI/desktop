@@ -290,6 +290,15 @@ final class VoiceRelayService: ObservableObject {
         }
     }
 
+    /// The sync barrier runs after updateRoutes' queued assignment.
+    var hasPreparedNativeF18Routes: Bool {
+        routeQueue.sync {
+            AhaKeyModeSlot.allCases.allSatisfy { mode in
+                routes.contains { $0.mode == mode && $0.action == .macOSDictation && $0.binding == VoiceTriggerBinding(keyCode: 79, modifiers: []) }
+            }
+        }
+    }
+
     // MARK: - Event Monitoring (CGEventTap)
 
     private func ensureMonitorsIfPossible() {

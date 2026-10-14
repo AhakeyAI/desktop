@@ -99,8 +99,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var isReadingSideSwitch = false
     @Published private(set) var isSettingSideSwitch = false
     @Published private(set) var isEditingOrdinaryKey = false
+    @Published private(set) var isManagingVoiceHandoff = false
     var isConfigurationOperationInProgress: Bool {
-        isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey
+        isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey || isManagingVoiceHandoff
     }
     @Published private(set) var firmwareCapabilityProfile: FirmwareCapabilityProfile?
     @Published private(set) var bluetoothPermissionGranted = true
@@ -970,6 +971,56 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             })
         } catch {
             self.configurationSnapshot.recordFailure(.standby, message: error.localizedDescription, generation: generation)
+            throw error
+        }
+    }
+
+    func readVoiceHandoffForEditing() async throws -> VoiceHandoffSnapshot {
+        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        try ensureConfigurationReadSession(generation)
+        isManagingVoiceHandoff = true
+        defer { isManagingVoiceHandoff = false }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.identity == .knownWS2Catalog else { throw OLEDUploadError.unsupportedReadOnlyProfile }
+        try ensureConfigurationReadSession(generation)
+        return try await readVoiceHandoffSnapshot()
+    }
+
+    private func readVoiceHandoffSnapshot() async throws -> VoiceHandoffSnapshot {
+        let state = try await readVoiceOnboardingState()
+        var keys: [OrdinaryKeyReadback] = []
+        for mode: UInt8 in 0..<4 { keys.append(try await requireOrdinaryKey(mode: mode, index: 0)) }
+        let snapshot = VoiceHandoffSnapshot(onboardingState: state, keys: keys)
+        guard snapshot.isValid else { throw ConfirmedVoiceHandoff.Failure.invalidSnapshot }
+        return snapshot
+    }
+
+    func takeOverVoiceConfirmed(baseline: VoiceHandoffSnapshot, expectedGeneration: UInt64,
+                               checkHostReady: () throws -> Void, prepareHost: () throws -> Void) async throws -> VoiceHandoffSnapshot {
+        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        try ensureConfigurationReadSession(generation)
+        guard generation == expectedGeneration else { throw OLEDUploadError.channelNotReady }
+        isManagingVoiceHandoff = true
+        defer { isManagingVoiceHandoff = false }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.identity == .knownWS2Catalog else { throw OLEDUploadError.unsupportedReadOnlyProfile }
+        do {
+            return try await ConfirmedVoiceHandoff.run(baseline: baseline, checkSession: {
+                try self.ensureConfigurationReadSession(generation)
+            }, checkHostReady: checkHostReady, read: { try await self.readVoiceHandoffSnapshot() }, prepareHost: prepareHost, write: { request in
+                guard let peripheral = self.peripheral, let characteristic = self.commandChar else { throw OLEDUploadError.channelNotReady }
+                let type: CBCharacteristicWriteType = characteristic.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+                let maximum = peripheral.maximumWriteValueLength(for: type)
+                guard request.count <= maximum else { throw ConfirmedSideSwitchSetting.Failure.transportLimit(maximum: maximum) }
+                _ = try await self.sendCommandAwaitingResponse(request, expectedCommand: request[2], confirmedWrite: .voiceHandoff)
+            })
+        } catch {
+            self.configurationSnapshot.recordFailure(.voice, message: error.localizedDescription, generation: generation)
+            for mode: UInt8 in 0..<4 {
+                self.configurationSnapshot.recordFailure(.key(mode: mode, index: 0), message: error.localizedDescription, generation: generation)
+            }
             throw error
         }
     }
