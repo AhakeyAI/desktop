@@ -4,6 +4,7 @@ import Foundation
 enum HookClient {
     private enum EventRoute {
         case sharedState(UInt8)
+        case claudePreToolUse
         case claudePermissionRequest
         case cursorToolPermission
         case codexState(UInt8)
@@ -15,7 +16,7 @@ enum HookClient {
         "Notification": .sharedState(0),
         "PermissionRequest": .claudePermissionRequest,
         "PostToolUse": .sharedState(2),
-        "PreToolUse": .sharedState(3),
+        "PreToolUse": .claudePreToolUse,
         "SessionStart": .sharedState(4),
         "Stop": .sharedState(5),
         // SubagentStop：Claude Code 将原 Stop 拆分后，手动终止任务时触发此事件而非 Stop
@@ -63,6 +64,8 @@ enum HookClient {
         switch route {
         case .sharedState(let value):
             HookSupport.handleFireAndForgetState(stateValue: value)
+        case .claudePreToolUse:
+            ClaudeHookHandler.handlePreToolUse()
         case .claudePermissionRequest:
             ClaudeHookHandler.handlePermissionRequest()
         case .cursorToolPermission:

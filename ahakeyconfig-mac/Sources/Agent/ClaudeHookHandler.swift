@@ -1,6 +1,43 @@
 import Foundation
 
 enum ClaudeHookHandler {
+    static func handlePreToolUse() {
+        let stdinData = HookSupport.readAllStdinSilently()
+        let ctx = HookSupport.parseStdinContext(stdinData, label: "Claude")
+        // Desktop hosts permission prompts through canUseTool. Decide before that callback runs.
+        let request: [String: Any] = ["cmd": "permission", "value": 3]
+        let reply = HookSupport.sendJsonRequest(request, timeout: HookSupport.permissionRequestTimeout)
+        let switchState = HookSupport.intValue(reply?["switchState"])
+        let isAuto = switchState == 0
+
+        if let output = preToolUseOutput(switchState: switchState),
+           let data = try? JSONSerialization.data(withJSONObject: output),
+           let json = String(data: data, encoding: .utf8) {
+            print(json)
+        }
+
+        HookSupport.appendDiagnostic(
+            ide: "claude",
+            hookEvent: "PreToolUse",
+            toolContext: ctx,
+            reply: reply,
+            switchState: switchState,
+            isAuto: isAuto,
+            claudeBehavior: isAuto ? "allow" : "ask",
+            cursorPermission: nil
+        )
+    }
+
+    static func preToolUseOutput(switchState: Int?) -> [String: Any]? {
+        guard switchState == 0 else { return nil }
+        return [
+            "hookSpecificOutput": [
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "allow",
+            ],
+        ]
+    }
+
     static func handlePermissionRequest() {
         let stdinData = HookSupport.readAllStdinSilently()
         let ctx = HookSupport.parseStdinContext(stdinData, label: "Claude")
