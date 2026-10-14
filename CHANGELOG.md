@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.2.3 — 2026-10-14
+
+### macOS — AhaType 与 Claude Code
+
+- 修复 AhaType 将带毫秒和时区的云端令牌有效期误判为过期，导致语音结果跳过云端整理的问题。
+- Claude Code 自动批准提前在 `PreToolUse` 阶段读取实体拨杆；桌面 Code 本地会话与 CLI TUI 均可使用，`PermissionRequest` 保留为兜底。
+- 对提供实体拨杆绑定验证结果的新版 Agent，仅在验证通过时自动批准；手动档或状态未知时交还 Claude 原生确认。
+- macOS 安装包内含 `ahakeyconfig-agent`；安装后可在「设备信息 · Agent」中安装并启用 Claude、Cursor、Codex、Kimi Hooks。
+
 ## v0.1.1-alpha — 2026-05-03
 
 macOS 客户端从 baseline 迁入阶段进入活跃功能开发期。本版本主要新增 Voice Agent 体系、飞书集成与 Agent 工作台。
