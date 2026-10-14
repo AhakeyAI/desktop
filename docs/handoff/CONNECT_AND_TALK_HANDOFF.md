@@ -203,3 +203,13 @@ WS2 的 0x92 授权仅由确认事务显式传递，普通 raw write 路径不�
 用户确认正常重启键盘并解锁 Mac。App 曾收到断线后自动重连，能力和设备快照已清空；重新明确点击读取待机，经 catalog 探测后读回 60 分钟。此前 2026-10-13 已将临时 30 恢复为原 60，故这次只记录“重启后恢复值仍一致”，不宣称临时 30 或真实完全断电 EEPROM 保持性已验证。
 
 详细日志开关已为关闭；通过设备信息把配置连接交还 Agent，socket 实时读回 switchState=1，界面确认 Agent 已连蓝牙、Codex 模式和手动批准。锁屏造成的收尾待办已完成。后续继续 W03/H01 时保留未知/Custom/Disabled 不自动放行的要求。
+
+
+## 15. H01 审批绑定验证（2026-10-14）
+
+- Agent 审批查询不再用缓存兜底：实时状态为自动时，读取 0x9F 已知目录、WS2 的 0x97 绑定，再复查状态。仅物理自动位置 0、两个读回位置一致、Factory Auto 且无自定义动作时放行。Custom/Disabled/Factory Manual、未知、超时和断线均保持原生审批。已验证 legacy 通用成功 ACK 路径兼容；错误 ACK 不推断为 legacy。手动位置直接保持手动，不做无用高级查询。
+- 审批请求合并同一轮读取；高级读取超时使审批通道失效并重连，防迟到回复被新请求复用。断线清理所有审批等待，状态查询超时绑定代次与轮次。仍须真实故障和旧固件回归，不称此为完全原子跨端配置。
+- wire v1：status 的 switchState 保留原始实体事实，仅展示；permission/approval_status 的 switchState 是保守审批结果（0=允许自动，否则 1），physicalSwitchState 单独携带真实位置或 null，并有 approvalAutoVerified/approvalPolicyVersion。这样旧 Kimi SDK 等只读取审批接口 switchState 的调用方也不会把 Custom 位置误放行。旧的外部 Codex SessionStart 若还读取原始 status 不能混用；本候选的 Hooks 已改用审批接口，必须配套安装。
+- 四类 Hook 共用验证规则，无新 Agent 证明不放行；Codex SessionStart 改查 approval_status，离线/未验证时写回 on-request，不延续之前的 never。该全局文件改写保留原有类型/语法保护；已有运行会话的重读行为不作保证。
+- UI 仅展示自动档/手动档，避免将物理位置标签冒充已批准决定；不增加软件拨档或配置绑定写入。W03 仍未开放，H02 其他退出/CLI 版本回归后续执行。
+- 160 项自动测试通过；其中已覆盖 policy 与实际 wire JSON，Agent 状态读取/超时在真实 BLE 上的路径还待 HIL。本批不修改固件或已保存键盘绑定。

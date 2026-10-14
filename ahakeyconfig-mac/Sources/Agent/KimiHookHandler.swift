@@ -13,7 +13,7 @@ enum KimiHookHandler {
 
         let request: [String: Any] = ["cmd": "permission", "value": Int(HookSupport.permissionLedValue)]
         let reply = HookSupport.sendJsonRequest(request, timeout: HookSupport.permissionRequestTimeout)
-        let switchState = HookSupport.intValue(reply?["switchState"])
+        let switchState = HookSupport.approvalSwitchState(reply)
         let isAuto = switchState == 0
 
         KimiHookDebugLog.append(event: "kimi_PreToolUse_agent_reply", details: [

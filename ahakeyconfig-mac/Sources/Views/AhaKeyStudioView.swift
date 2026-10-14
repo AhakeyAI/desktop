@@ -1696,8 +1696,8 @@ struct AhaKeyStudioView: View {
 
     private var currentSwitchTitle: String {
         switch liveKeyboardSwitchState {
-        case 0: "自动批准"
-        case 1: "手动批准"
+        case 0: "自动档"
+        case 1: "手动档"
         default: "档位未知"
         }
     }

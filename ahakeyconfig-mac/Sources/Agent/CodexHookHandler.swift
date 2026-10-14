@@ -49,10 +49,9 @@ enum CodexHookHandler {
     static var dependencies = Dependencies.production
 
     /// 两个 Hook 事件共用的唯一接线：把观测到的拨杆状态交给 typed policy seam。
-    /// 返回是否观测到状态（与旧语义一致：nil 时不触碰 config）。
+    /// 不可验证或离线时恢复原生询问，不沿用之前的自动策略。
     @discardableResult
     private static func syncPolicy(switchState: Int?) -> Bool {
-        guard let switchState else { return false }
         dependencies.policySink(switchState == 0)
         return true
     }
@@ -77,10 +76,10 @@ enum CodexHookHandler {
         // Codex 在会话开始即读取审批策略，之后才会决定是否触发 PermissionRequest，
         // 必须在这里同步才能让"自动/手动"在本次会话生效。
         // 注意：`cmd: "state"` 的回包不带 switchState（见 AhaKeyAgent.handleJsonCommand），
-        // 必须单独发 `status` 查询拨杆的真实状态。
+        // 必须单独发 `approval_status` 验证实时状态与绑定。
         if stateValue == 4 {
-            let statusReply = dependencies.sendRequest(["cmd": "status"], HookSupport.stateRequestTimeout)
-            syncPolicy(switchState: HookSupport.intValue(statusReply?["switchState"]))
+            let statusReply = dependencies.sendRequest(["cmd": "approval_status"], HookSupport.stateRequestTimeout)
+            syncPolicy(switchState: HookSupport.approvalSwitchState(statusReply))
         }
 
         dependencies.appendHookLog(
@@ -100,7 +99,7 @@ enum CodexHookHandler {
         let ctx = dependencies.parseContext(stdinData, "Codex")
         let request: [String: Any] = ["cmd": "permission", "value": Int(HookSupport.permissionLedValue)]
         let reply = dependencies.sendRequest(request, HookSupport.permissionRequestTimeout)
-        let switchState = HookSupport.intValue(reply?["switchState"])
+        let switchState = HookSupport.approvalSwitchState(reply)
         let isAuto = switchState == 0
 
         syncPolicy(switchState: switchState)

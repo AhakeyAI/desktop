@@ -541,7 +541,7 @@ final class CodexConfigLeverSyncTests: XCTestCase {
         CodexHookHandler.Dependencies(
             readStdin: { Data() },
             parseContext: { _, _ in [:] },
-            sendRequest: { request, _ in reply(request).map { ["switchState": $0] } },
+            sendRequest: { request, _ in reply(request).map { ["switchState": $0, "physicalSwitchState": $0, "approvalPolicyVersion": 1, "approvalAutoVerified": $0 == 0] } },
             appendHookLog: { _, _, _, _, _, _, _ in },
             emitPermissionStderr: { _, _, _, _ in },
             appendDiagnostic: { _, _, _, _, _, _, _, _, _, _, _ in },
@@ -585,7 +585,7 @@ final class CodexConfigLeverSyncTests: XCTestCase {
     func testBothHookEventsUseTheSameSeamWithLeverDerivedValues() {
         // state/status 查询给自动档(0)，permission 查询给手动档(1)。
         withFakeHookDependencies(reply: { request in
-            (request["cmd"] as? String) == "status" ? 0 : 1
+            (request["cmd"] as? String) == "approval_status" ? 0 : 1
         }) { recorder in
             CodexHookHandler.handleState(stateValue: 4)   // CodexSessionStart → 0 → true
             CodexHookHandler.handlePermissionRequest()    // CodexPermissionRequest → 1 → false
@@ -597,7 +597,7 @@ final class CodexConfigLeverSyncTests: XCTestCase {
         withFakeHookDependencies(reply: { _ in nil }) { recorder in
             CodexHookHandler.handleState(stateValue: 4)
             CodexHookHandler.handlePermissionRequest()
-            XCTAssertTrue(recorder.values.isEmpty, "未观测到拨杆状态时不得触碰 config")
+            XCTAssertEqual(recorder.values, [false, false], "不可验证时退出 AhaKey 自动策略")
         }
     }
 

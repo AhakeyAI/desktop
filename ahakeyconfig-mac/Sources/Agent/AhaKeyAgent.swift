@@ -50,7 +50,18 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private(set) var cachedLightMode: UInt8?
     /// 等待下一次 status 回包的回调队列（用于 querySwitchState）
     private var statusWaiters: [(AgentDeviceStatus?) -> Void] = []
+    private var statusWaiterEpoch: UInt64 = 0
     private var connectionGeneration: UInt64 = 0
+    private struct ApprovalRead {
+        let id: UUID
+        let generation: UInt64
+        let command: UInt8
+        let completion: (Data?) -> Void
+    }
+    private var pendingApprovalRead: ApprovalRead?
+    private var approvalChannelReady = true
+    private var approvalRequestID: UUID?
+    private var approvalWaiters: [([String: Any]) -> Void] = []
     /// 工具完成 / 用户提交等短暂态的自动回落。
     private var statusPollTimer: DispatchSourceTimer?
     private var pendingStateReset: DispatchWorkItem?
@@ -166,7 +177,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + 1.0, repeating: 1.5)
         timer.setEventHandler { [weak self] in
-            guard let self, self.statusWaiters.isEmpty else { return }
+            guard let self, self.statusWaiters.isEmpty, self.approvalWaiters.isEmpty, self.pendingApprovalRead == nil else { return }
             self.requestDeviceStatus()
         }
         statusPollTimer = timer
@@ -179,7 +190,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     /// 主动查询一次设备状态，等待下一个 notify 回包 (timeout 秒内)。
-    /// 超时时用缓存兜底；仍然没有则返回 nil。完成回调在 main 队列。
+    /// 超时返回 nil，不用缓存冒充当前实体读回。完成回调在 main 队列。
     func querySwitchState(timeout: TimeInterval = 1.5,
                           completion: @escaping (AgentDeviceStatus?) -> Void) {
         guard connectionLock.holdsLock, let commandChar, let peripheral else {
@@ -187,6 +198,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             return
         }
         let generation = connectionGeneration
+        if statusWaiters.isEmpty { statusWaiterEpoch &+= 1 }
+        let epoch = statusWaiterEpoch
         // 发设备状态查询命令 AA BB 00 CC DD
         let query = Data(header + [0x00] + trailer)
         let wt: CBCharacteristicWriteType =
@@ -196,23 +209,94 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         statusWaiters.append(completion)
         DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
             guard let self else { return }
-            guard self.connectionGeneration == generation else { return }
-            // 把目前仍在队列里的 waiter 全部用缓存兜底 fire 掉
+            guard self.connectionGeneration == generation, self.statusWaiterEpoch == epoch else { return }
+            // 仅结束这一轮的等待；已完成轮次的旧超时不得结束新查询。
             guard !self.statusWaiters.isEmpty else { return }
             let waiters = self.statusWaiters
             self.statusWaiters.removeAll()
-            let fallback = self.cachedStatus()
-            for w in waiters { w(fallback) }
+            for w in waiters { w(nil) }
         }
     }
 
-    private func cachedStatus() -> AgentDeviceStatus? {
-        guard let sw = cachedSwitchState else { return nil }
-        return AgentDeviceStatus(
-            battery: -1, signal: -1, firmwareMain: -1, firmwareSub: -1,
-            workMode: -1, lightMode: Int(cachedLightMode ?? 0), switchState: Int(sw)
-        )
+    private func readApprovalCommand(_ command: UInt8, completion: @escaping (Data?) -> Void) {
+        guard approvalChannelReady, pendingApprovalRead == nil, connectionLock.holdsLock,
+              let peripheral, let commandChar else { completion(nil); return }
+        let id = UUID(), generation = connectionGeneration
+        pendingApprovalRead = ApprovalRead(id: id, generation: generation, command: command, completion: completion)
+        peripheral.writeValue(Data(header + [command] + trailer), for: commandChar,
+                              type: commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let self, let pending = self.pendingApprovalRead,
+                  pending.id == id, self.connectionGeneration == generation else { return }
+            self.pendingApprovalRead = nil
+            self.approvalChannelReady = false
+            pending.completion(nil)
+            self.central.cancelPeripheralConnection(peripheral)
+        }
     }
+
+    private func queryApprovalStatus(completion: @escaping ([String: Any]) -> Void) {
+        approvalWaiters.append(completion)
+        guard approvalRequestID == nil else { return }
+        let id = UUID(), generation = connectionGeneration
+        approvalRequestID = id
+        guard approvalChannelReady, connectionLock.holdsLock else {
+            finishApproval(id: id, status: nil, profile: nil, binding: nil); return
+        }
+        querySwitchState(timeout: 1) { first in
+            guard self.approvalRequestID == id else { return }
+            guard first != nil, generation == self.connectionGeneration else {
+                self.finishApproval(id: id, status: nil, profile: nil, binding: nil); return
+            }
+            if first?.switchState != 0 {
+                self.finishApproval(id: id, status: first, profile: nil, binding: nil); return
+            }
+            self.readApprovalCommand(0x9F) { frame in
+                guard self.approvalRequestID == id else { return }
+                guard let frame, generation == self.connectionGeneration else {
+                    self.finishApproval(id: id, status: nil, profile: nil, binding: nil); return
+                }
+                let profile = frame.count == 6 && frame[3] == 0 ? FirmwareCapabilityProfile.legacyAfterStatusReadback() : FirmwareCapabilityProfile.catalogResponse(frame)
+                if profile.identity == .knownWS2Catalog {
+                    self.readApprovalCommand(0x97) { bindingFrame in
+                        guard self.approvalRequestID == id else { return }
+                        guard generation == self.connectionGeneration, let bindingFrame,
+                              let binding = WS2SettingsReadback.sideSwitch(bindingFrame) else {
+                            self.finishApproval(id: id, status: nil, profile: nil, binding: nil); return
+                        }
+                        self.querySwitchState(timeout: 1) { current in
+                            self.finishApproval(id: id, status: generation == self.connectionGeneration ? current : nil, profile: profile, binding: binding)
+                        }
+                    }
+                } else {
+                    self.querySwitchState(timeout: 1) { current in
+                        self.finishApproval(id: id, status: generation == self.connectionGeneration ? current : nil, profile: profile, binding: nil)
+                    }
+                }
+            }
+        }
+    }
+
+    private func finishApproval(id: UUID, status: AgentDeviceStatus?, profile: FirmwareCapabilityProfile?, binding: SideSwitchReadback?) {
+        guard approvalRequestID == id else { return }
+        approvalRequestID = nil
+        let body = Self.approvalReply(status, profile: profile, binding: binding, fresh: status != nil && approvalChannelReady)
+        let waiters = approvalWaiters
+        approvalWaiters.removeAll()
+        for waiter in waiters { waiter(body) }
+    }
+
+    static func approvalReply(_ status: AgentDeviceStatus?, profile: FirmwareCapabilityProfile?, binding: SideSwitchReadback?, fresh: Bool) -> [String: Any] {
+        var body = statusReply(status, cachedSwitch: nil, cachedLight: nil)
+        let allowed = ApprovalBindingPolicy.mayAutoApprove(physicalState: status?.switchState, fresh: fresh, profile: profile, binding: binding)
+        body["physicalSwitchState"] = status.map { $0.switchState } ?? NSNull()
+        // Approval endpoints fail closed even for older clients that only read switchState.
+        // The raw display endpoint remains unchanged.
+        body["switchState"] = allowed ? 0 : 1
+        body["approvalAutoVerified"] = allowed
+        return body
+    }
+
 
     @discardableResult
     func startSocketListener() -> Bool {
@@ -380,12 +464,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             lastHookStateAt = Date()
             didLogWatchdogHold = false
             sendState(UInt8(clamping: stateValue))
-            querySwitchState(timeout: 1.5) { status in
-                let body = Self.statusReply(status, cachedSwitch: self.cachedSwitchState,
-                                            cachedLight: self.cachedLightMode)
+            queryApprovalStatus { body in
                 self.emit("← permission 回包 switchState=\(String(describing: body["switchState"]))")
                 if let s = body["switchState"] as? Int, s != 0 {
-                    self.emit("（拨杆非 0：PermissionRequest 将交回终端手动确认）")
+                    self.emit("（自动批准条件未验证：PermissionRequest 交回原生确认）")
                 } else if body["switchState"] is NSNull {
                     self.emit("（switchState 缺省：批准链可能仍交回手动；请把「蓝牙」交给 Agent 并连上键盘。）")
                 }
@@ -396,6 +478,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             // 只有实体键盘通过 BLE 上报过拨杆状态，才视为已连接。
             if cachedSwitchState != nil {
                 Self.replyAndClose(clientFd, [
+                    "approvalPolicyVersion": 1, "approvalAutoVerified": false,
                     "switchState": cachedSwitchState.map { Int($0) } ?? NSNull(),
                     "lightMode": cachedLightMode.map { Int($0) } ?? NSNull(),
                 ])
@@ -407,11 +490,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             }
 
         case "approval_status":
-            // 给 Kimi CLI 的实时批准判断用：每次都主动向设备要当前拨杆，避免会话内沿用旧的 yolo/state。
-            querySwitchState(timeout: 1.5) { status in
-                Self.replyAndClose(clientFd, Self.statusReply(status, cachedSwitch: self.cachedSwitchState,
-                                                             cachedLight: self.cachedLightMode))
-            }
+            queryApprovalStatus { body in Self.replyAndClose(clientFd, body) }
 
         default:
             Self.replyAndClose(clientFd, ["error": "unknown cmd: \(cmd)"])
@@ -422,9 +501,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                             cachedSwitch: UInt8?,
                             cachedLight: UInt8?) -> [String: Any] {
         if let s = status {
-            return ["switchState": s.switchState, "lightMode": s.lightMode]
+            return ["switchState": s.switchState, "lightMode": s.lightMode, "approvalPolicyVersion": 1, "approvalAutoVerified": false]
         }
         return [
+            "approvalPolicyVersion": 1, "approvalAutoVerified": false,
             "switchState": cachedSwitch.map { Int($0) } ?? NSNull(),
             "lightMode": cachedLight.map { Int($0) } ?? NSNull(),
         ]
@@ -555,6 +635,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             return
         }
         connectionGeneration &+= 1
+        approvalChannelReady = true
         lastUUID = peripheral.identifier
         emit("已连接: \(peripheral.name ?? "?")")
         peripheral.discoverServices([serviceUUID])
@@ -564,6 +645,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         guard self.peripheral === peripheral else { return }
         connectionGeneration &+= 1
         stopStatusPolling()
+        let pendingRead = pendingApprovalRead
+        pendingApprovalRead = nil
+        if let id = approvalRequestID { finishApproval(id: id, status: nil, profile: nil, binding: nil) }
+        pendingRead?.completion(nil)
         Self.liveStateCoalescer = LiveStateWriteCoalescer()
         commandChar = nil
         notifyChar = nil
@@ -622,6 +707,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             ? commandNotificationFramer.append(data)
             : notifyNotificationFramer.append(data)
         for frame in frames {
+            if let pending = pendingApprovalRead, pending.generation == connectionGeneration,
+               DeviceResponseMatcher.matches(request: Data(header + [pending.command] + trailer), expectedCommand: pending.command, response: frame) {
+                pendingApprovalRead = nil
+                pending.completion(frame)
+            }
             guard let status = Self.parseDeviceStatus(frame) else { continue }
             handleDeviceStatus(status)
         }

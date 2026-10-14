@@ -1,6 +1,11 @@
 import Foundation
+import AhaKeyConfigShared
 
 enum HookSupport {
+    static func approvalSwitchState(_ reply: [String: Any]?) -> Int? {
+        ApprovalBindingPolicy.effectiveSwitchState(reply)
+    }
+
     static let permissionLedValue: UInt8 = 1
     static let socketPath = "/tmp/ahakey.sock"
     static let stateRequestTimeout: Double = 2.0
