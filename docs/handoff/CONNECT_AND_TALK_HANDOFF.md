@@ -298,3 +298,11 @@ Voice 保护：Mode3/Key1 原 73/E7/Record；尝试本地宏，只发送 catalog
 测试覆盖提案范围、非ASCII/超长拒绝、宏不截断、单键精确回执及其他草稿保留。现场启动后观察到用户当前为自动档、AhaType已开启、App持有配置连接；本轮保留这些选择，不宣称仍是前轮手动/AhaType关闭。为测试仅浏览画布到Mode3/Key4，未切实体模式。
 
 UI 测试在点击画布“修改”时工具报 Sky Computer Use native pipe closed before response。重试、JS reset后仍失败，getState全局清单又超时；GUI PID仍存活，无新AhaKey崩溃报告。未对工具故障使用其他GUI自动化绕过。尚未填写测试描述或发送临时键位写入；不能宣称统一面板、主画布提案载入/保存/恢复已经真机通过。已请求用户手动打开六标签面板作进一步核对。后续先恢复电脑使用工具或按人工反馈继续，不将190测试替代UI验收。App/语音和实体档位未主动改变，BLE保留为进入本轮时的App编辑所有权。
+
+### U01 并行安装冲突与 AhaType 修复合并
+
+用户说明16:13左右由另一Codex CLI会话安装0.2.3测试包。核对本轮安装前备份的实际元数据：版本0.2.3，提交59e70f370be69ed46627018786fb63fd8d9b4a71（不是1459976）。该提交在codex/fix-ahatype-expiry-v0.2.3，16:08提交，修复AhaType到期时间含fractional seconds时误报过期。16:45本轮d8ab4cc安装覆盖了该包，且d8尚未包含其修复；因此其他会话的验证结果不能混算为U01结果。并行安装覆盖已证实，CUA native pipe故障原因未确定，不将两者直接归因。
+
+原0.2.3/59e包完整保留在 /Users/heartline/Documents/Codex/local-backups/before-u01-d8ab4cc-20261014/AhaKey Studio.app。当前Applications仍是d8ab4cc；该候选打包未注入APP_VERSION，默认元数据为0.1.0，不能仅凭版本号判断源码。停止继续替换本机安装包，未回滚用户新设置或修改另一会话工作树。
+
+仅cherry-pick59e的两个文件为a086648，保留connect&talk适配内容和hasConfiguredCloudToken。191项测试通过，含future fractional expiry有效、expired expiry拒绝。使用APP_VERSION=0.2.3独立构建、Developer ID深层签名通过，新整合候选在 /Users/heartline/Documents/Codex/local-builds/connect-talk-u01-integrated-20261014/AhaKey Studio.app（source a086648）。未安装、未进行U01 UI/真机完整流程。后续单一候选统一验证；未经用户选择不再覆盖并行会话包。若切换回旧59e包，应成对退出/替换App和Agent，不把打开备份GUI但仍运行新Agent视为旧版回归。原生/Cloud配置保留当前用户选择。
