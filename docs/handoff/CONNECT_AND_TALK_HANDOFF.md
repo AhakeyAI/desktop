@@ -271,4 +271,20 @@ Voice 保护：Mode3/Key1 原 73/E7/Record；尝试本地宏，只发送 catalog
 
 测试覆盖正常顺序、已接管无硬件写入、权限不足、基线冲突、部分键/保存失败、阶段读回不一致、所有权变化、suppress ACK而读回失败、断线/代次及缺失模式；App 草稿测试确认只修改四个 Voice 的路由，其他键、显示和灯光保持。
 
-当前候选路径 /Users/heartline/Documents/Codex/local-builds/connect-talk-v01-voice-20261014/AhaKey Studio.app。构建完成，但 UI 更新时 Mac 锁屏，已请求用户解锁；尚未安装/界面验证。本轮没有发送任何 Voice 写入/suppress，没有改变当前 Consumer 听写或云端开关。后续先安装并只读核对、验证取消切换不写入；因为当前不能一键恢复 Consumer，真正切换需用户明确选择方案后再做实际听写。V01 不标记真机或发布验收完成。
+前次候选路径 /Users/heartline/Documents/Codex/local-builds/connect-talk-v01-voice-20261014/AhaKey Studio.app。初次构建后因 Mac 锁屏未安装；后续解锁、安装和真实接管结果见下方记录。本轮没有发送任何 Voice 写入/suppress，没有改变当前 Consumer 听写或云端开关。后续先安装并只读核对、验证取消切换不写入；因为当前不能一键恢复 Consumer，真正切换需用户明确选择方案后再做实际听写。V01 不标记真机或发布验收完成。
+
+### V01 安装、取消与真实接管（2026-10-14 后续）
+
+用户解锁后候选 d42a140 已安装。更新期间用户看到“应用程序已不能再打开”；工具日志为退出旧进程后继续获取窗口造成 procNotFound/-600。安装包深层签名通过，重新绑定并启动安装路径成功，未发现 AhaKey 崩溃报告。后续更新改为退出后用进程检查确认，不对已退出的旧窗口读取 AX，复制后重新获取 App；bbdb778 后续更新启动正常。提示与旧进程读取操作吻合，但不将其推断为 App 源码崩溃修复。
+
+新入口默认保留当前方案，只读返回 Mac Consumer=2，四个 Voice 保存值为 E7/6D/E7/6D。选择 App 原生方案、打开确认、取消、再次读回均不改变这些值；命令流只有00/9F/96 query/四87，没有73/04/suppress。用户随后明确选择“切换到 App 原生转写并继续真机测试”，才执行接管：本地备份成功、准备 App 路由，仅改 Mode1/3 的 Voice E7→6D，04 ACK、四87一致后96/3，最后96=3且四Voice均73/6D。描述保留原字节，其他按键未写。原始备份与流量只保存在本地，不推 GitHub。当前不再是 Consumer，而是已授权的 App 原生转写，需要 App 持续运行。
+
+当前 Mode4 真机短按开始/再次停止，用户确认正常回填、无 Siri/乱码/Dock异常。日志 F18 Mac keyCode79 down/up，录音与 finalize/paste 成功，bypass=true。长按/松手用户确认正常，至少两轮长按事件均完成录音/回填、bypass=true。Command/F18 在 combined/HID 状态均已释放。AhaType 关闭，未做云端整理真机验收。键盘电源未重启，断电保持性未覆盖。
+
+发现主画布仍将成功 Voice 接管列为未同步：bbdb778 在接管读回成功后确认 Voice 路由字段，其他键/描述/显示草稿不冒充已保存；186 测试与签名候选通过并安装。重启后用户明确实体切到 Codex 并确认短按回填正常，但路由日志仍为 mode0：核对 Agent 文件实际 workMode=2，确认 GUI 只监听自身 BLE core模式，未转发 Agent模式。不能把当时 mode0 路由日志称作 Codex 路由已同步。
+
+新增失败测试在真实状态文件读入点复现无模式通知、非法99被接受；1459976 转发新的在线有效 Agent 模式、GUI 跟随 workModeForDisplay、重连也同步缓存，非法模式不回退0。187 测试通过，含稳定去重和离线缓存门控；候选正在准备最终安装/路由核对。以上不宣称新旧设备、所有模式实体按键、AhaType、故障注入或最终发布验收全部通过。
+
+最终候选 1459976 已安装，签名验证通过、GUI 与 Agent 从安装目录运行；启动正常。保持 Agent 持有 BLE、未额外接管配置连接时，Agent 文件 workMode=2、主画布 Mode3/Codex、voice-relay 日志 hardware mode→2/Codex 三者一致，未同步改动0。模式同步失败测试已由失败变通过；全187测试通过。未重新请求重复录音测试：本次模式修正未改录音/识别/回填处理，之前短按/长按及重启后短按已由用户确认正常；完整四模式按键矩阵仍待覆盖。
+
+当前真实状态：固件 onboarding=3，四Voice为F18，用户选择的 App 原生转写已生效，AhaType关闭，不依赖Runtime，需App持续运行；不是原Consumer状态，不能自动恢复。后台重连完成，实体手动档；Codex on-request、Kimi default_yolo=false，Command/F18均已释放。协议详细日志关闭。接管前原Voice备份在本地目录，仅恢复旧E7绑定不能恢复Consumer，可能产生修饰键事件，禁止将备份当作一键恢复系统听写。AhaType云、键盘断电保持、新旧固件、真实故障注入及WS3/最终发布仍未完成。
