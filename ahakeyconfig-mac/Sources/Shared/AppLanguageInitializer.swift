@@ -2,35 +2,47 @@ import Foundation
 
 /// 应用启动时的语言初始化。
 ///
-/// 首次启动时读取系统首选语言，自动设置为中文或英文；
-/// 若用户已手动切换过语言，则不再覆盖。
+/// 默认跟随系统首选语言；用户选定语言后保持该选择。
 public enum AppLanguageInitializer {
-    private static let selectedLanguageKey = "AhaKeySelectedLanguage"
+    public static let selectedLanguageKey = "AhaKeySelectedLanguage"
+    public static let systemSelection = "system"
     private static let appleLanguagesKey = "AppleLanguages"
 
     /// 支持的语言标识。
     public static let supportedLanguages = ["zh-Hans", "en"]
 
-    /// 在应用启动时调用，仅在用户未手动设置过语言时同步系统语言。
+    /// 读取全局语言设置，避免应用自己的 AppleLanguages 覆盖系统选择。
+    public static func systemPreferredLanguages() -> [String] {
+        (UserDefaults.standard.persistentDomain(forName: UserDefaults.globalDomain)?["AppleLanguages"] as? [String])
+            ?? Locale.preferredLanguages
+    }
+
+    /// 在应用启动时同步系统语言或用户指定的语言。
     public static func applySystemLanguageIfNeeded(
         defaults: UserDefaults = .standard,
-        preferredLanguages: [String] = Locale.preferredLanguages
+        preferredLanguages: [String] = systemPreferredLanguages()
     ) {
-        if let selected = defaults.string(forKey: selectedLanguageKey),
-           supportedLanguages.contains(selected) {
-            if defaults.stringArray(forKey: appleLanguagesKey)?.first != selected {
-                defaults.set([selected], forKey: appleLanguagesKey)
-            }
-            return
-        }
+        let selected = defaults.string(forKey: selectedLanguageKey) ?? systemSelection
+        setLanguageSelection(selected, defaults: defaults, preferredLanguages: preferredLanguages)
+    }
 
-        let language = systemMatchingLanguage(preferredLanguages: preferredLanguages)
-        defaults.set([language], forKey: appleLanguagesKey)
-        defaults.set(language, forKey: selectedLanguageKey)
+    public static func setLanguageSelection(
+        _ selection: String,
+        defaults: UserDefaults = .standard,
+        preferredLanguages: [String] = systemPreferredLanguages()
+    ) {
+        let normalized = supportedLanguages.contains(selection) ? selection : systemSelection
+        let language = normalized == systemSelection
+            ? systemMatchingLanguage(preferredLanguages: preferredLanguages)
+            : normalized
+        defaults.set(normalized, forKey: selectedLanguageKey)
+        if defaults.stringArray(forKey: appleLanguagesKey)?.first != language {
+            defaults.set([language], forKey: appleLanguagesKey)
+        }
     }
 
     /// 根据 `Locale.preferredLanguages` 匹配支持的语言，默认英文。
-    public static func systemMatchingLanguage(preferredLanguages: [String] = Locale.preferredLanguages) -> String {
+    public static func systemMatchingLanguage(preferredLanguages: [String] = systemPreferredLanguages()) -> String {
         for identifier in preferredLanguages {
             let lowercased = identifier.lowercased()
             if lowercased.hasPrefix("zh") {

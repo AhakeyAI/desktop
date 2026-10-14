@@ -22,7 +22,19 @@ final class AppLanguageInitializerTests: XCTestCase {
 
         AppLanguageInitializer.applySystemLanguageIfNeeded(defaults: defaults, preferredLanguages: ["zh-SG", "en-US"])
 
-        XCTAssertEqual(defaults.string(forKey: "AhaKeySelectedLanguage"), "zh-Hans")
+        XCTAssertEqual(defaults.string(forKey: "AhaKeySelectedLanguage"), AppLanguageInitializer.systemSelection)
         XCTAssertEqual(defaults.stringArray(forKey: "AppleLanguages"), ["zh-Hans"])
+    }
+
+    func testSystemSelectionFollowsChangedSystemLanguage() throws {
+        let suite = "AhaKeyLanguageTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        AppLanguageInitializer.setLanguageSelection("system", defaults: defaults, preferredLanguages: ["zh-CN"])
+
+        AppLanguageInitializer.applySystemLanguageIfNeeded(defaults: defaults, preferredLanguages: ["en-GB"])
+
+        XCTAssertEqual(defaults.string(forKey: "AhaKeySelectedLanguage"), "system")
+        XCTAssertEqual(defaults.stringArray(forKey: "AppleLanguages"), ["en"])
     }
 }

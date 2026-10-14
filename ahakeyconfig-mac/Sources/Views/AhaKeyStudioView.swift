@@ -1,4 +1,5 @@
 import AppKit
+import AhaKeyConfigShared
 import CoreImage
 import Darwin
 import ImageIO
@@ -31,6 +32,7 @@ struct AhaKeyStudioView: View {
     @State private var showsCloudAccount = false
     @State private var showsAhaTypeLoginRequiredToast = false
     @State private var showsLanguageRestartAlert = false
+    @AppStorage(AppLanguageInitializer.selectedLanguageKey) private var selectedLanguage = AppLanguageInitializer.systemSelection
     @AppStorage(VibeBarVisibilityPreference.enabledKey) private var vibeBarEnabled = true
     @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
     @State private var isEditingInspector = false
@@ -275,6 +277,8 @@ struct AhaKeyStudioView: View {
                 .help("安装/修复 Agent 与 Hook，并启动 Agent 控制键盘。")
             }
 
+            languageMenu
+
             Menu {
                 Button(NSLocalizedString("清空剪贴板", comment: "")) {
                     NSPasteboard.general.clearContents()
@@ -301,9 +305,6 @@ struct AhaKeyStudioView: View {
                 Divider()
                 Button("云端账号") {
                     showsCloudAccount = true
-                }
-                Button(languageToggleButtonTitle) {
-                    toggleLanguage()
                 }
                 Button(vibeBarEnabled ? NSLocalizedString("关闭灵动岛", comment: "") : NSLocalizedString("开启灵动岛", comment: "")) {
                     vibeBarEnabled.toggle()
@@ -408,24 +409,48 @@ struct AhaKeyStudioView: View {
         )
     }
 
-    private var isChineseLanguage: Bool {
-        if let first = (UserDefaults.standard.object(forKey: "AppleLanguages") as? [String])?.first {
-            return first.hasPrefix("zh")
+    private var languageMenu: some View {
+        Menu {
+            languageOption(
+                NSLocalizedString("跟随系统", comment: "") + " (\(languageName(AppLanguageInitializer.systemMatchingLanguage())))",
+                selection: AppLanguageInitializer.systemSelection
+            )
+            Divider()
+            languageOption("简体中文", selection: "zh-Hans")
+            languageOption("English", selection: "en")
+        } label: {
+            Label(languageMenuTitle, systemImage: "globe")
+                .lineLimit(1)
         }
-        return (Locale.preferredLanguages.first ?? "zh-Hans").hasPrefix("zh")
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help(NSLocalizedString("语言", comment: ""))
     }
 
-    private var languageToggleButtonTitle: String {
-        isChineseLanguage
-            ? NSLocalizedString("切换为英文", comment: "")
-            : NSLocalizedString("切换为中文", comment: "")
+    private var languageMenuTitle: String {
+        selectedLanguage == AppLanguageInitializer.systemSelection
+            ? NSLocalizedString("系统语言", comment: "")
+            : languageName(selectedLanguage)
     }
 
-    private func toggleLanguage() {
-        let language = isChineseLanguage ? "en" : "zh-Hans"
-        UserDefaults.standard.set([language], forKey: "AppleLanguages")
-        UserDefaults.standard.set(language, forKey: "AhaKeySelectedLanguage")
-        showsLanguageRestartAlert = true
+    private func languageName(_ language: String) -> String {
+        language == "zh-Hans" ? "简体中文" : "English"
+    }
+
+    private func languageOption(_ title: String, selection: String) -> some View {
+        Button {
+            let previous = UserDefaults.standard.stringArray(forKey: "AppleLanguages")?.first
+            AppLanguageInitializer.setLanguageSelection(selection)
+            if UserDefaults.standard.stringArray(forKey: "AppleLanguages")?.first != previous {
+                showsLanguageRestartAlert = true
+            }
+        } label: {
+            if selectedLanguage == selection {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
     }
 
     private var canvasPane: some View {
@@ -945,7 +970,8 @@ struct AhaKeyStudioView: View {
             summaryRow(NSLocalizedString("触发方式", comment: ""), value: NSLocalizedString("短按 + 长按", comment: ""))
             let permCount = [nativeSpeech.microphoneGranted, nativeSpeech.speechRecognitionGranted,
                              nativeSpeech.siriEnabled, nativeSpeech.dictationEnabled].filter { $0 }.count
-            summaryRow("转写权限", value: "\(permCount)/4 已授权",
+            summaryRow(NSLocalizedString("转写权限", comment: ""),
+                       value: String(format: NSLocalizedString("%d/4 已授权", comment: ""), permCount),
                        dot: permCount == 4 ? .green : .orange)
         }
         summaryRow(NSLocalizedString("语音桥", comment: ""), value: voiceRelay.isListening ? NSLocalizedString("运行中", comment: "") : NSLocalizedString("等待权限", comment: ""),
@@ -1699,7 +1725,7 @@ struct AhaKeyStudioView: View {
                 .font(.callout)
             Divider()
                 .frame(height: 14)
-            Text("未同步改动 \(dirtyCount)")
+            Text(String(format: NSLocalizedString("未同步改动 %d", comment: ""), dirtyCount))
                 .font(.callout)
             Divider()
                 .frame(height: 14)

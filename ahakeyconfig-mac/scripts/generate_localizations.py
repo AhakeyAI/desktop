@@ -1168,6 +1168,9 @@ TRANSLATIONS = {
     "针对 Cursor Composer / Agent：Key2 发 ↵、Key3 发 ⌫（与裸键一致）。": "For Cursor Composer / Agent: Key2 sends ↵, Key3 sends ⌫ (same as the bare keys).",
 }
 TRANSLATIONS.update({
+    "系统语言": "System Language",
+    "跟随系统": "Follow System",
+    "语言": "Language",
     "恢复出厂设置": "Restore Factory Settings",
     "将当前模式恢复出厂默认值，等待写入键盘。": "Restore factory defaults for the current mode; changes will be written to the keyboard later.",
     "检查更新": "Check for Updates",
