@@ -381,6 +381,7 @@ struct DeviceInfoView: View {
             }
 
             standbySettingsSection
+            SideSwitchSettingsView(bleManager: bleManager)
             configurationReadbackSection
 
             // MARK: - 操作

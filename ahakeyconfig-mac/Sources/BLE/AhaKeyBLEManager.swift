@@ -96,8 +96,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var isChangingWorkMode = false
     @Published private(set) var isReadingStandby = false
     @Published private(set) var isSettingStandby = false
+    @Published private(set) var isReadingSideSwitch = false
+    @Published private(set) var isSettingSideSwitch = false
     var isConfigurationOperationInProgress: Bool {
-        isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby
+        isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch
     }
     @Published private(set) var firmwareCapabilityProfile: FirmwareCapabilityProfile?
     @Published private(set) var bluetoothPermissionGranted = true
@@ -967,6 +969,39 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             })
         } catch {
             self.configurationSnapshot.recordFailure(.standby, message: error.localizedDescription, generation: generation)
+            throw error
+        }
+    }
+
+    func readSideSwitchForEditing() async throws -> SideSwitchReadback {
+        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        try ensureConfigurationReadSession(generation)
+        isReadingSideSwitch = true
+        defer { isReadingSideSwitch = false }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.mayQuerySideSwitchBindings else { throw OLEDUploadError.unsupportedReadOnlyProfile }
+        try ensureConfigurationReadSession(generation)
+        return try await readSideSwitchBinding()
+    }
+
+    func setSideSwitchConfirmed(baseline: [SideSwitchReadback.Position], target: [SideSwitchReadback.Position], expectedGeneration: UInt64) async throws -> SideSwitchReadback {
+        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        try ensureConfigurationReadSession(generation)
+        guard generation == expectedGeneration else { throw OLEDUploadError.channelNotReady }
+        isSettingSideSwitch = true
+        defer { isSettingSideSwitch = false }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.mayQuerySideSwitchBindings else { throw OLEDUploadError.unsupportedReadOnlyProfile }
+        do {
+            return try await ConfirmedSideSwitchSetting.run(baseline: baseline, target: target, checkSession: {
+                try self.ensureConfigurationReadSession(generation)
+            }, read: { try await self.readSideSwitchBinding() }, write: { request in
+                _ = try await self.sendCommandAwaitingResponse(request, expectedCommand: 0x97, confirmedWrite: .sideSwitch)
+            })
+        } catch {
+            self.configurationSnapshot.recordFailure(.sideSwitch, message: error.localizedDescription, generation: generation)
             throw error
         }
     }

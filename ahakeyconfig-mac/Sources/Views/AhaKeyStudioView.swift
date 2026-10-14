@@ -2832,7 +2832,7 @@ private struct VoicePresetPicker: View {
     }
 }
 
-private struct ShortcutBindingEditor: View {
+struct ShortcutBindingEditor: View {
     @Binding var shortcut: ShortcutBinding
     @State private var isRecordingPrimaryKey = false
 

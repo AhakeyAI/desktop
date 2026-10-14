@@ -1,9 +1,9 @@
 import Foundation
 
-/// WS2 mode and standby writes each require a narrow confirmed-transaction
+/// WS2 mode, standby and side-binding writes require a narrow confirmed-transaction
 /// grant. Other configuration writes stay closed; unknown builds allow probes.
 public enum ConfigurationCommandPolicy {
-    public enum ConfirmedWrite { case none, mode, standby }
+    public enum ConfirmedWrite { case none, mode, standby, sideSwitch }
     public static func permits(_ data: Data, profile: FirmwareCapabilityProfile?, confirmedWrite: ConfirmedWrite = .none) -> Bool {
         let b = [UInt8](data)
         guard b.count >= 5, b[0] == 0xAA, b[1] == 0xBB,
@@ -19,7 +19,10 @@ public enum ConfigurationCommandPolicy {
             guard profile?.identity == .knownWS2Catalog else { return false }
             if b.count == 5 { return true }
             return confirmedWrite == .standby && b.count == 7 && [UInt16(0), 30, 60, 120].contains(UInt16(b[3]) | UInt16(b[4]) << 8)
-        case 0x96, 0x97: return profile?.identity == .knownWS2Catalog && b.count == 5
+        case 0x96: return profile?.identity == .knownWS2Catalog && b.count == 5
+        case 0x97:
+            guard profile?.identity == .knownWS2Catalog else { return false }
+            return b.count == 5 || (confirmedWrite == .sideSwitch && SideSwitchBindingConfiguration.validRequest(data))
         default: return false
         }
     }
