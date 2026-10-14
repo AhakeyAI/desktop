@@ -242,3 +242,21 @@ WS2 的 0x92 授权仅由确认事务显式传递，普通 raw write 路径不�
 用户切到物理自动位置后，安装目录候选 Agent 审批接口返回 physicalSwitchState=0、effective switchState=1、approvalAutoVerified=false/version1。实际安装 Hook 二进制受控调用：Claude ask、Cursor/Codex 不 allow；Codex on-request、Kimi default_yolo=false。界面仍正确展示实体自动档。用户已切回手动，实时确认 physical=1/effective=1/verified=false。恢复 set `AA BB 97 01 00 00 01 00 CC DD` 收到 ACK，随后 query `AA BB 97 00 01 02 00 00 01 00 CC DD` 与原 Factory Auto/Manual 一致。详细日志已关闭、连接交还 Agent；不能将受控 Hook 调用等同于完整 IDE 会话验收。
 
 收尾复核：Agent 已连蓝牙，界面显示实体手动档、电量 84%；实时审批 physical=1/effective=1/verified=false，安装目录 Codex Hook 不放行，磁盘策略 on-request，Kimi default_yolo=false。临时绑定已撤销。尚未执行断电保持性、长动作边界及真实蓝牙故障注入，不作为最终发布通过。
+
+## 17. W04 普通键差量保存（2026-10-14）
+
+源码及安装候选 `86b12a4`。入口在设备信息的“普通键 · 差量保存”，不导入旧 Studio 草稿、不开放旧全量保存或独立长按。模式与 Key 选择仅决定目标，不改变设备模式。预读真实动作/描述并检查基线，只发变化的 0x73 子命令，然后 0x04、0x87 全字段读回一致才确认；相同值不写不保存。
+
+- 描述变更严格 ASCII、最多 20 字节，按固件读回规则去尾空格；未编辑描述保留原字节。动作按 64 字节读回容量检查（11 + payload + desc），宏必须释放按键；无法完整表示的组合/宏保留原数据，需要显式重新创建，超长/未知读回只读。
+- ordinaryKey 独立授权仅开放已知 WS2 的合法 0x73（73/74/75）及 0x04，不开放显示/灯光/模式。事务互斥、连接代次、基线冲突和 BLE 发送长度保护。
+- 当前 CP4D 的 0x73 替换单个 user_key_bind，不需要旧客户端双层清除。0x04 持久化固件配置整体，不是原子事务；部分失败可能已改变 RAM，不自动回滚、不继续保存，ACK 不证明 EEPROM。预读后仍可能发生外部并发修改。
+- Voice 改动作先读 0x96，仅状态 3/4 可进入普通绑定写入；0/1/2/未知拒绝，不隐式 suppress。仅改描述无需接管。V01/V03 的显式语音移交仍未完成。
+- 175 项测试通过，覆盖编码、容量、差量/无改动、冲突、Voice 保护、部分失败、保存失败、读回不一致及交接中断。arm64 Release、Developer ID 深层签名通过。候选已安装，旧包已备份；未公证，仍为测试版。
+
+### W04 CP4D 真机验证与恢复
+
+Mode3/Key4 原 action73/payload2A/description Backspace。仅改描述 CT-W04：只发描述及 04，读回动作仍 2A。再改宏全部松开（74/payload04 00）并恢复描述 Backspace：发动作、描述、04，读回一致。最后仅发 `AA BB 73 73 02 03 2A CC DD` 及 04，87 读回与原基线完全一致。ACK 后独立读回，分片响应正确重组。没有其他键、模式、待机、绑定、Voice 或显示写入；04 仍是全配置持久化，不能断言固件内部仅存该键。
+
+Voice 保护：Mode3/Key1 原 73/E7/Record；尝试本地宏，只发送 catalog/87/96 查询，96=completed_mac2 后拒绝，没有 73/04/suppress。测试草稿已清除。完整只读快照 16 键成功，Voice 仍 E7/Record、待机60、Mac onboarding、Factory Auto/Manual 一致；原保存值不能等同于 Consumer 实际输出。
+
+日志关闭，蓝牙交还 Agent。实时审批 physical1/effective1/verifiedfalse，安装 Codex Hook 无 allow，on-request/Kimi default_yolo=false。最后 UI 检查时 Mac 已锁屏，未获取 Agent 重连界面截图，实时 RPC 证明后台恢复连接。无临时键位遗留。实体 Key4 按下、断电保持、真实故障注入及旧固件回归仍待执行，不宣称最终版验收完成。本地证据和原键备份在候选目录。
