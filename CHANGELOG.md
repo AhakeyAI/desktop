@@ -10,6 +10,7 @@
 - macOS 安装包内含 `ahakeyconfig-agent`；安装后可在「设备信息 · Agent」中安装并启用 Claude、Cursor、Codex、Kimi Hooks。
 - “更多”菜单新增“关闭灵动岛 / 开启灵动岛”，开关状态在重启后保留。
 - 修复图形界面遗漏 Homebrew 和 ChatGPT.app 内 Codex CLI 时的安装误报。
+- 修复 Cursor 桌面端 Hook 已返回允许但仍被命令白名单拦截的问题；自动档临时加入通配项，手动档恢复原配置并交还原生确认。
 
 ## v0.1.1-alpha — 2026-05-03
 

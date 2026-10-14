@@ -9,20 +9,8 @@ enum CursorHookHandler {
         let switchState = HookSupport.intValue(reply?["switchState"])
         let isAuto = switchState == 0
 
-        if isAuto {
-            // 自动模式：返回 allow，让操作直接执行
-            let out: [String: Any] = ["permission": "allow"]
-            if let data = try? JSONSerialization.data(withJSONObject: out, options: []),
-               let str = String(data: data, encoding: .utf8) {
-                print(str)
-            }
-        } else {
-            // 手动模式：返回 deny，阻止操作（Cursor 不支持询问模式）
-            let out: [String: Any] = ["permission": "deny"]
-            if let data = try? JSONSerialization.data(withJSONObject: out, options: []),
-               let str = String(data: data, encoding: .utf8) {
-                print(str)
-            }
+        let permission = permissionForEvent(hookEvent, isAuto: isAuto)
+        if !isAuto {
             HookSupport.emitPermissionStderr(
                 ide: "Cursor",
                 hookName: hookEvent,
@@ -37,6 +25,13 @@ enum CursorHookHandler {
             CursorPermissionsJsonLeverSync.apply(switchStateAuto: auto)
         }
 
+        // preToolUse 不执行 ask；交回 Cursor 自身权限层。beforeShellExecution / beforeMCPExecution 支持 ask。
+        let out: [String: Any] = ["permission": permission]
+        if let data = try? JSONSerialization.data(withJSONObject: out, options: []),
+           let str = String(data: data, encoding: .utf8) {
+            print(str)
+        }
+
         let cursorDebug = HookSupport.buildCursorHookDebug(
             stdinData: stdinData,
             commandPreview: ctx["commandPreview"] as? String
@@ -49,9 +44,14 @@ enum CursorHookHandler {
             switchState: switchState,
             isAuto: isAuto,
             claudeBehavior: nil,
-            cursorPermission: isAuto ? "allow" : "deny",
+            cursorPermission: permission,
             cursorDebug: cursorDebug,
             kimiPreToolDecision: nil
         )
+    }
+
+    static func permissionForEvent(_ hookEvent: String, isAuto: Bool) -> String {
+        if isAuto { return "allow" }
+        return hookEvent == "beforeShellExecution" || hookEvent == "beforeMCPExecution" ? "ask" : "allow"
     }
 }
