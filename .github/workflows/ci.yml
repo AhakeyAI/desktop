@@ -52,6 +52,9 @@ jobs:
       - name: Compile-check all targets (debug)
         run: swift build
 
+      - name: Test macOS app and Agent
+        run: swift test --skip-update
+
       - name: Package "AhaKey Studio.app" (release, ad-hoc signed)
         run: |
           chmod +x scripts/package_app.sh

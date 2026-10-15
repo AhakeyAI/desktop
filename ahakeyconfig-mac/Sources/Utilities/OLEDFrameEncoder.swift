@@ -14,9 +14,9 @@ enum OLEDFrameEncodingError: LocalizedError {
         case .cannotCreateImageSource:
             return "无法读取 GIF 文件。"
         case .noFrames:
-            return "没有可编码的图片帧。"
+            return NSLocalizedString("没有可编码的图片帧。", comment: "")
         case .cannotCreateContext:
-            return "无法创建 LCD 编码上下文。"
+            return NSLocalizedString("无法创建 LCD 编码上下文。", comment: "")
         case .sourceFileTooLarge(let fileSize, let maxBytes):
             let f = ByteCountFormatter()
             f.allowedUnits = [.useMB, .useKB, .useBytes]

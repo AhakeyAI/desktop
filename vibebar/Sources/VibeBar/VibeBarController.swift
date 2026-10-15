@@ -30,7 +30,7 @@ public final class VibeBarController {
     init() {}
 
     /// 在主 app 启动后调用一次。多次调用是空操作。
-    public func start(state: VibeBarState) {
+    public func start(state: VibeBarState, onExitIsland: @escaping () -> Void = {}) {
         guard notch == nil else { return }
         self.state = state
 
@@ -48,7 +48,11 @@ public final class VibeBarController {
                     self?.schedulePointerUpdate()
                 },
                 onCompact: { self?.compactNow() },
-                onOpenMain: { state.onOpenMainWindow?() }
+                onOpenMain: { state.onOpenMainWindow?() },
+                onExitIsland: { [weak self] in
+                    onExitIsland()
+                    self?.stop()
+                }
             )
         } compactLeading: { [weak self] in
             VibeBarCompactKeyboardItem(state: state,
@@ -66,6 +70,8 @@ public final class VibeBarController {
     }
 
     public func stop() {
+        let notchToHide = notch
+        windowProvider()?.orderOut(nil)
         if let globalMouseMonitor { NSEvent.removeMonitor(globalMouseMonitor) }
         if let localMouseMonitor { NSEvent.removeMonitor(localMouseMonitor) }
         globalMouseMonitor = nil
@@ -82,6 +88,9 @@ public final class VibeBarController {
         compactScreen = nil
         expandedContentFrame = nil
         windowProvider = { nil }
+        if let notchToHide {
+            Task { await notchToHide.hide() }
+        }
     }
 
     // MARK: - Notch state machine

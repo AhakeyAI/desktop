@@ -116,10 +116,6 @@ final class AgentManager: ObservableObject {
             .appendingPathComponent(".codex/config.toml").path
     }
 
-    private var codexAppCliPath: String {
-        "/Applications/Codex.app/Contents/Resources/codex"
-    }
-
     private var kimiConfigPath: String {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".kimi/config.toml").path
@@ -804,7 +800,7 @@ final class AgentManager: ObservableObject {
     /// 只读；由 `ahakeyconfig-agent` 在 `PermissionRequest` 与 Cursor 批准类 hook 中写入。
     func readPermissionRequestLog() -> String {
         (try? String(contentsOfFile: permissionRequestLogPath, encoding: .utf8))
-            ?? "尚无记录。在 Claude 中触发 PermissionRequest，在 Cursor 中让 Agent 调工具/Shell/MCP，或在 Kimi Code CLI 中触发工具调用后，会在此追加带 `ide` / `hookEvent` 的 JSON 行。若始终为空，请确认已安装 Agent、Hooks、蓝牙由 Agent 占用，且 `~/Library/.../AhaKeyConfig/diagnostics/` 可写。"
+            ?? "尚无记录。在 Claude Code 本地会话中触发工具调用，在 Cursor 中让 Agent 调工具/Shell/MCP，或在 Kimi Code CLI 中触发工具调用后，会在此追加带 `ide` / `hookEvent` 的 JSON 行。若始终为空，请确认已安装 Agent、Hooks、蓝牙由 Agent 占用，且 `~/Library/.../AhaKeyConfig/diagnostics/` 可写。"
     }
 
     /// 只读；由 `ahakeyconfig-agent hook Codex*` 子进程写入，用于判断 Codex 客户端/终端是否真的触发了 hook。
@@ -1110,16 +1106,19 @@ final class AgentManager: ObservableObject {
     }
 
     private func repairCodexCliPathIfNeeded() -> String {
-        if isExecutableOnPath("codex") {
+        let homeDirectory = FileManager.default.homeDirectoryForCurrentUser.path
+        let path = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+        if CodexCLIPathResolver.installedCLI(path: path, homeDirectory: homeDirectory) != nil {
             return ""
         }
-        guard FileManager.default.isExecutableFile(atPath: codexAppCliPath) else {
-            return "未在 PATH 中找到 `codex` 命令，也未找到 Codex App 自带 CLI：\(codexAppCliPath)。Hook 配置已安装；若需在终端使用 Codex，请先安装或更新 Codex 客户端。"
+        guard let codexAppCliPath = CodexCLIPathResolver.bundledCLI(homeDirectory: homeDirectory) else {
+            return "Codex Hooks 已安装，但未检测到 Codex CLI。若需在终端使用 Codex，请检查 CLI 安装。"
         }
 
         do {
             try FileManager.default.createDirectory(atPath: localBinDirectoryPath, withIntermediateDirectories: true)
-            if FileManager.default.fileExists(atPath: localCodexCliPath) {
+            if FileManager.default.fileExists(atPath: localCodexCliPath)
+                || (try? FileManager.default.destinationOfSymbolicLink(atPath: localCodexCliPath)) != nil {
                 try FileManager.default.removeItem(atPath: localCodexCliPath)
             }
             try FileManager.default.createSymbolicLink(atPath: localCodexCliPath, withDestinationPath: codexAppCliPath)

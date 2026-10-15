@@ -5,8 +5,8 @@ final class AhaTypeTextOptimizer: ObservableObject {
     static let shared = AhaTypeTextOptimizer()
 
     @Published private(set) var isEnabled = false
-    @Published private(set) var statusMessage = "AhaType 未启用。"
-    @Published private(set) var lastQuotaSummary = "尚未读取 AhaType 配置。"
+    @Published private(set) var statusMessage = NSLocalizedString("AhaType 未启用。", comment: "")
+    @Published private(set) var lastQuotaSummary = NSLocalizedString("尚未读取 AhaType 配置。", comment: "")
 
     private let fallbackAPIBase = "https://956798.xyz/prod-api"
 
@@ -71,27 +71,27 @@ final class AhaTypeTextOptimizer: ObservableObject {
         sanitize(&config)
         isEnabled = boolValue(config["typeless_enabled"])
         guard isEnabled else {
-            statusMessage = "AhaType 未启用，直接写入原始转写。"
+            statusMessage = NSLocalizedString("AhaType 未启用，直接写入原始转写。", comment: "")
             return text
         }
 
         guard tokenIsStillValid(config["token_valid_until"]) else {
-            statusMessage = "AhaType 登录已过期，直接写入原始转写。"
+            statusMessage = NSLocalizedString("AhaType 登录已过期，直接写入原始转写。", comment: "")
             return text
         }
 
         let token = stringValue(config["access_token"]).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !token.isEmpty else {
-            statusMessage = "AhaType 缺少登录令牌，直接写入原始转写。"
+            statusMessage = NSLocalizedString("AhaType 缺少登录令牌，直接写入原始转写。", comment: "")
             return text
         }
 
         guard let url = URL(string: "\(resolveAPIBase(legacyAPIBase: stringValue(config["api_base"])))/api/v1/typeless/process") else {
-            statusMessage = "AhaType 云端地址无效，直接写入原始转写。"
+            statusMessage = NSLocalizedString("AhaType 云端地址无效，直接写入原始转写。", comment: "")
             return text
         }
 
-        statusMessage = "AhaType 整理中…"
+        statusMessage = NSLocalizedString("AhaType 整理中…", comment: "")
 
         var request = URLRequest(url: url, timeoutInterval: 120)
         request.httpMethod = "POST"
@@ -107,7 +107,7 @@ final class AhaTypeTextOptimizer: ObservableObject {
                 return text
             }
             guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                statusMessage = "AhaType 返回非 JSON，已写入原始转写。"
+                statusMessage = NSLocalizedString("AhaType 返回非 JSON，已写入原始转写。", comment: "")
                 return text
             }
             let code = intValue(object["code"])
@@ -117,7 +117,7 @@ final class AhaTypeTextOptimizer: ObservableObject {
                 return text
             }
             guard let inner = object["data"] as? [String: Any] else {
-                statusMessage = "AhaType 返回缺少 data，已写入原始转写。"
+                statusMessage = NSLocalizedString("AhaType 返回缺少 data，已写入原始转写。", comment: "")
                 return text
             }
 
@@ -130,13 +130,13 @@ final class AhaTypeTextOptimizer: ObservableObject {
             let output = stringValue(inner["text"]).isEmpty ? stringValue(inner["result"]) : stringValue(inner["text"])
             let polished = output.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !polished.isEmpty else {
-                statusMessage = "AhaType 返回空文本，已写入原始转写。"
+                statusMessage = NSLocalizedString("AhaType 返回空文本，已写入原始转写。", comment: "")
                 return text
             }
-            statusMessage = "AhaType 已整理，准备粘贴。"
+            statusMessage = NSLocalizedString("AhaType 已整理，准备粘贴。", comment: "")
             return polished
         } catch {
-            statusMessage = "AhaType 网络错误，已写入原始转写。"
+            statusMessage = NSLocalizedString("AhaType 网络错误，已写入原始转写。", comment: "")
             return text
         }
     }
@@ -147,18 +147,18 @@ final class AhaTypeTextOptimizer: ObservableObject {
         let valid = tokenIsStillValid(config["token_valid_until"])
 
         if !enabled {
-            statusMessage = "AhaType 未启用。"
+            statusMessage = NSLocalizedString("AhaType 未启用。", comment: "")
         } else if token.isEmpty {
-            statusMessage = "AhaType 已开启，但尚未登录。"
+            statusMessage = NSLocalizedString("AhaType 已开启，但尚未登录。", comment: "")
         } else if !valid {
-            statusMessage = "AhaType 已开启，但登录已过期。"
+            statusMessage = NSLocalizedString("AhaType 已开启，但登录已过期。", comment: "")
         } else {
-            statusMessage = "AhaType 已开启，语音结果会先经云端整理。"
+            statusMessage = NSLocalizedString("AhaType 已开启，语音结果会先经云端整理。", comment: "")
         }
 
-        let daily = quotaLine(title: "日", used: config["used_daily"], limit: config["limit_daily"])
-        let weekly = quotaLine(title: "周", used: config["used_weekly"], limit: config["limit_weekly"])
-        let monthly = quotaLine(title: "月", used: config["used_monthly"], limit: config["limit_monthly"])
+        let daily = quotaLine(title: NSLocalizedString("日", comment: ""), used: config["used_daily"], limit: config["limit_daily"])
+        let weekly = quotaLine(title: NSLocalizedString("周", comment: ""), used: config["used_weekly"], limit: config["limit_weekly"])
+        let monthly = quotaLine(title: NSLocalizedString("月", comment: ""), used: config["used_monthly"], limit: config["limit_monthly"])
         let validUntil = stringValue(config["token_valid_until"])
         lastQuotaSummary = [daily, weekly, monthly]
             .filter { !$0.isEmpty }
@@ -167,7 +167,7 @@ final class AhaTypeTextOptimizer: ObservableObject {
             lastQuotaSummary += lastQuotaSummary.isEmpty ? "有效期 \(validUntil)" : " · 有效期 \(validUntil)"
         }
         if lastQuotaSummary.isEmpty {
-            lastQuotaSummary = "暂无配额信息。"
+            lastQuotaSummary = NSLocalizedString("暂无配额信息。", comment: "")
         }
     }
 
@@ -200,25 +200,7 @@ final class AhaTypeTextOptimizer: ObservableObject {
     }
 
     private func tokenIsStillValid(_ raw: Any?) -> Bool {
-        guard let date = parseDate(raw) else { return false }
-        return Date() < date
-    }
-
-    private func parseDate(_ raw: Any?) -> Date? {
-        let value = stringValue(raw).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !value.isEmpty else { return nil }
-
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        for format in ["yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd'T'HH:mm:ss"] {
-            formatter.dateFormat = format
-            if let date = formatter.date(from: value) { return date }
-        }
-
-        let iso = ISO8601DateFormatter()
-        if let date = iso.date(from: value) { return date }
-        return nil
+        AhaTypeTokenExpiry.isValid(raw)
     }
 
     private func mergeQuota(_ quota: [String: Any], into config: inout [String: Any]) {
@@ -258,7 +240,7 @@ final class AhaTypeTextOptimizer: ObservableObject {
             let data = try JSONSerialization.data(withJSONObject: sanitized, options: [.prettyPrinted, .sortedKeys])
             try data.write(to: configURL, options: .atomic)
         } catch {
-            statusMessage = "AhaType 配置写入失败。"
+            statusMessage = NSLocalizedString("AhaType 配置写入失败。", comment: "")
         }
     }
 
@@ -342,5 +324,39 @@ final class AhaTypeTextOptimizer: ObservableObject {
         default:
             return false
         }
+    }
+}
+
+enum AhaTypeTokenExpiry {
+    static func isValid(_ raw: Any?, now: Date = Date()) -> Bool {
+        guard let date = parseDate(raw) else { return false }
+        return now < date
+    }
+
+    private static func parseDate(_ raw: Any?) -> Date? {
+        let value: String
+        switch raw {
+        case let string as String:
+            value = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        case let number as NSNumber:
+            value = number.stringValue
+        default:
+            return nil
+        }
+        guard !value.isEmpty else { return nil }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        for format in ["yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd'T'HH:mm:ss"] {
+            formatter.dateFormat = format
+            if let date = formatter.date(from: value) { return date }
+        }
+
+        let iso = ISO8601DateFormatter()
+        if let date = iso.date(from: value) { return date }
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso.date(from: value) { return date }
+        return nil
     }
 }

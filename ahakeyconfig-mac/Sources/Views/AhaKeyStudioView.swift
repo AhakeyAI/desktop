@@ -1,4 +1,5 @@
 import AppKit
+import AhaKeyConfigShared
 import CoreImage
 import Darwin
 import ImageIO
@@ -12,6 +13,7 @@ struct AhaKeyStudioView: View {
     @StateObject private var ahaType = AhaTypeTextOptimizer.shared
     @StateObject private var cloudAccount = CloudAccountManager.shared
     @StateObject private var agentManager = AgentManager.shared
+    @ObservedObject private var updateManager = AppUpdateManager.shared
 
     @State private var studioDraft: AhaKeyStudioDraft
     @State private var lastSyncedDraft: AhaKeyStudioDraft
@@ -20,7 +22,7 @@ struct AhaKeyStudioView: View {
     @State private var lightBarPreview: IDEState
     @State private var modeCustomNames: [Int: String] = [:]
     @State private var lastSyncDate: Date?
-    @State private var syncStatusMessage = "修改会先保存在本地，连接设备后再同步。"
+    @State private var syncStatusMessage = NSLocalizedString("修改会先保存在本地，连接设备后再同步。", comment: "")
     @State private var isSyncing = false
     // AhaKeyStudio 交还蓝牙给 Agent 的过渡期：保持"已连接"显示，直到 Agent 接管或超时。
     @State private var isTransitioningToKeyboardControl = false
@@ -29,6 +31,9 @@ struct AhaKeyStudioView: View {
     @State private var showsFirmwareFlasher = false
     @State private var showsCloudAccount = false
     @State private var showsAhaTypeLoginRequiredToast = false
+    @State private var showsLanguageRestartAlert = false
+    @AppStorage(AppLanguageInitializer.selectedLanguageKey) private var selectedLanguage = AppLanguageInitializer.systemSelection
+    @AppStorage(VibeBarVisibilityPreference.enabledKey) private var vibeBarEnabled = true
     @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
     @State private var isEditingInspector = false
     @State private var showsDiagnostics = false
@@ -146,19 +151,55 @@ struct AhaKeyStudioView: View {
             get: { agentManager.agentUserAlert != nil },
             set: { if !$0 { agentManager.agentUserAlert = nil } }
         )) {
-            Button("好", role: .cancel) {
+            Button(NSLocalizedString("好", comment: ""), role: .cancel) {
                 agentManager.agentUserAlert = nil
             }
         } message: {
             Text(agentManager.agentUserAlert ?? "")
         }
-        .alert("AhaType 未注册登录", isPresented: $showsAhaTypeLoginRequiredToast) {
-            Button("知道了", role: .cancel) {}
-            Button("注册登录") {
-                showsCloudAccount = true
+        .alert(NSLocalizedString("AhaType 未注册登录", comment: ""), isPresented: $showsAhaTypeLoginRequiredToast) {
+            Button(NSLocalizedString("知道了", comment: ""), role: .cancel) {}
+            Button("注册登录") { showsCloudAccount = true }
+        } message: {
+            Text(NSLocalizedString("请先注册登录 AhaType 后再开启云端整理。", comment: ""))
+        }
+        .alert(NSLocalizedString("需要重启", comment: ""), isPresented: $showsLanguageRestartAlert) {
+            Button(NSLocalizedString("知道了", comment: ""), role: .cancel) {}
+        } message: {
+            Text(NSLocalizedString("语言更改将在下次启动 AhaKey Studio 后生效。", comment: ""))
+        }
+        .alert(NSLocalizedString("发现新版 AhaKey Studio", comment: ""), isPresented: Binding(
+            get: { updateManager.availableRelease != nil },
+            set: { if !$0 { updateManager.availableRelease = nil } }
+        )) {
+            Button(NSLocalizedString("稍后", comment: ""), role: .cancel) { updateManager.availableRelease = nil }
+            Button(NSLocalizedString("前往Github", comment: "")) {
+                updateManager.availableRelease = nil
+                NSWorkspace.shared.open(AppUpdateManager.releaseListURL)
+            }
+            if let release = updateManager.availableRelease {
+                if release.macDMG != nil {
+                    Button(NSLocalizedString("下载并打开安装包", comment: "")) {
+                        updateManager.availableRelease = nil
+                        Task { await updateManager.download(release) }
+                    }
+                }
             }
         } message: {
-            Text("请先注册登录 AhaType 后再开启云端整理。")
+            Text(String(format: NSLocalizedString("当前版本 %@，最新版本 %@。", comment: ""),
+                        updateManager.installedVersion, updateManager.availableRelease?.tagName ?? ""))
+        }
+        .alert(NSLocalizedString("软件更新", comment: ""), isPresented: Binding(
+            get: { updateManager.statusMessage != nil },
+            set: { if !$0 { updateManager.statusMessage = nil } }
+        )) {
+            Button("好", role: .cancel) { updateManager.statusMessage = nil }
+            Button(NSLocalizedString("前往Github", comment: "")) {
+                updateManager.statusMessage = nil
+                NSWorkspace.shared.open(AppUpdateManager.releaseListURL)
+            }
+        } message: {
+            Text(updateManager.statusMessage ?? "")
         }
         .sheet(isPresented: $showsOLEDPlaybackPreview) {
             OLEDMotionPreviewSheet(
@@ -190,24 +231,25 @@ struct AhaKeyStudioView: View {
 
             HStack(spacing: 8) {
                 infoPill(
-                    title: isEffectivelyConnected ? "已连接" : (bleManager.isScanning ? "扫描中" : "未连接"),
+                    title: isEffectivelyConnected ? NSLocalizedString("已连接", comment: "")
+                        : (bleManager.isScanning ? NSLocalizedString("扫描中", comment: "") : NSLocalizedString("未连接", comment: "")),
                     // 未连接时不再笼统显示「等待设备」，而是给出细分链路诊断（Issue #34）。
-                    subtitle: isEffectivelyConnected ? (bleManager.deviceName ?? "已连接") : bleManager.linkDiagnostic.shortMessage,
+                    subtitle: isEffectivelyConnected ? (bleManager.deviceName ?? NSLocalizedString("已连接", comment: "")) : bleManager.linkDiagnostic.shortMessage,
                     accent: isEffectivelyConnected ? .green : .orange,
                     width: 118
                 )
                 .help(isEffectivelyConnected ? "" : bleManager.linkDiagnostic.detail)
                 infoPill(
-                    title: "电量",
+                    title: NSLocalizedString("电量", comment: ""),
                     subtitle: isEffectivelyConnected
                         ? bleManager.batteryLevelForDisplay.map { "\($0)%" } ?? "—"
                         : "—",
                     accent: .blue
                 )
                 infoPill(
-                    title: "拨杆",
+                    title: NSLocalizedString("拨杆", comment: ""),
                     subtitle: currentSwitchTitle,
-                    accent: currentSwitchTitle == "自动批准" ? .mint : .indigo
+                    accent: currentSwitchTitle == NSLocalizedString("自动批准", comment: "") ? .mint : .indigo
                 )
             }
             .layoutPriority(2)
@@ -227,7 +269,7 @@ struct AhaKeyStudioView: View {
             configurationModeControl
 
             if shouldShowTopBarInstallStartButton {
-                Button("安装启动") {
+                Button(NSLocalizedString("安装启动", comment: "")) {
                     installStartAgentFromTopBar()
                 }
                 .buttonStyle(.borderedProminent)
@@ -235,42 +277,40 @@ struct AhaKeyStudioView: View {
                 .help("安装/修复 Agent 与 Hook，并启动 Agent 控制键盘。")
             }
 
-            Button {
-                NSPasteboard.general.clearContents()
-            } label: {
-                Image(systemName: "arrow.counterclockwise.circle")
-                    .imageScale(.medium)
-            }
-            .buttonStyle(.bordered)
-            .help("清空剪贴板")
+            languageMenu
 
             Menu {
-                Button("恢复当前模式默认值") {
-                    restoreCurrentModeDefaults()
+                Button(NSLocalizedString("清空剪贴板", comment: "")) {
+                    NSPasteboard.general.clearContents()
                 }
                 Button("重新连接设备") {
                     bleManager.disconnect()
                     bleManager.userInitiatedConnect()
                 }
-                Button("设备信息 · Agent…") {
-                    showsDeviceInfo = true
+                Button("恢复出厂设置") {
+                    restoreCurrentModeDefaults()
                 }
-                Button("固件升级 · USB ISP…") {
+                .help("将当前模式恢复出厂默认值，等待写入键盘。")
+                Divider()
+                Button(updateManager.isChecking ? NSLocalizedString("检查更新中", comment: "") : NSLocalizedString("检查更新", comment: "")) {
+                    Task { await updateManager.checkForUpdates(manual: true) }
+                }
+                .disabled(updateManager.isChecking || updateManager.isDownloading)
+                Button("固件升级") {
                     showsFirmwareFlasher = true
                 }
+                Button("设备信息") {
+                    showsDeviceInfo = true
+                }
                 Divider()
-                Button("云端账号 · AhaType…") {
+                Button("云端账号") {
                     showsCloudAccount = true
                 }
-                Button("刷新 AhaType 状态") {
-                    ahaType.refreshFromDisk()
+                Button(vibeBarEnabled ? NSLocalizedString("关闭灵动岛", comment: "") : NSLocalizedString("开启灵动岛", comment: "")) {
+                    vibeBarEnabled.toggle()
                 }
-                Divider()
                 Button("隐藏到后台") {
                     NSApp.keyWindow?.close()
-                }
-                Button("退出 AhaKey Studio") {
-                    NSApp.terminate(nil)
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
@@ -278,7 +318,7 @@ struct AhaKeyStudioView: View {
             }
             .menuStyle(.borderlessButton)
             .frame(width: 32, height: 28)
-            .help("更多")
+            .help(NSLocalizedString("更多", comment: ""))
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 18)
@@ -291,19 +331,15 @@ struct AhaKeyStudioView: View {
                 .fill(isEditingConfiguration ? Color.blue : Color.green)
                 .frame(width: 8, height: 8)
             VStack(alignment: .leading, spacing: 1) {
-                Text(isEditingConfiguration ? "编辑配置中" : "键盘控制中")
+                Text(isEditingConfiguration ? NSLocalizedString("编辑配置中", comment: "") : NSLocalizedString("键盘控制中", comment: ""))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.primary)
-                Text(configurationModeDetail)
+                Text(NSLocalizedString(configurationModeDetail, comment: ""))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
-            Spacer(minLength: 0)
-            Image(systemName: isEditingConfiguration ? "checkmark.circle" : "pencil.circle")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(isEditingConfiguration ? Color.blue : Color.green)
         }
         .frame(width: 138, alignment: .leading)
         .padding(.horizontal, 10)
@@ -315,32 +351,41 @@ struct AhaKeyStudioView: View {
     }
 
     private var configurationModeControl: some View {
-        Button(action: handleConfigurationModeButton) {
+        Button {
+            showsDeviceInfo = true
+        } label: {
             configurationModeStatus
         }
         .buttonStyle(.plain)
-        .disabled(isSyncing)
         .contentShape(RoundedRectangle(cornerRadius: 10))
-        .accessibilityLabel(configurationModeButtonTitle)
-        .accessibilityHint(configurationModeButtonHelp)
-        .help(configurationModeButtonHelp)
+        .accessibilityLabel("设备信息")
+        .help("打开设备信息")
     }
 
     private var ahaTypeModeStatus: some View {
         HStack(spacing: 7) {
-            Circle()
-                .fill(ahaType.isEnabled ? Color.green : Color.gray.opacity(0.55))
-                .frame(width: 8, height: 8)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(ahaType.isEnabled ? "AhaType 开启" : "AhaType 关闭")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.primary)
-                Text(ahaType.isEnabled ? "云端整理已启用" : "语音结果直接粘贴")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+            Button {
+                showsCloudAccount = true
+            } label: {
+                HStack(spacing: 7) {
+                    Circle()
+                        .fill(ahaType.isEnabled ? Color.green : Color.gray.opacity(0.55))
+                        .frame(width: 8, height: 8)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(ahaType.isEnabled ? NSLocalizedString("AhaType 开启", comment: "") : NSLocalizedString("AhaType 关闭", comment: ""))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        Text(ahaType.isEnabled ? NSLocalizedString("云端整理已启用", comment: "") : NSLocalizedString("语音结果直接粘贴", comment: ""))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("云端账号")
+            .help("打开云端账号")
             Toggle("", isOn: Binding(
                 get: { ahaType.isEnabled },
                 set: { enabled in
@@ -362,7 +407,50 @@ struct AhaKeyStudioView: View {
             RoundedRectangle(cornerRadius: 10)
                 .fill(Color(nsColor: .controlBackgroundColor))
         )
-        .help("开启后，macOS 原生语音转写会先经过 AhaType 云端整理，再粘贴到当前光标。")
+    }
+
+    private var languageMenu: some View {
+        Menu {
+            languageOption(
+                NSLocalizedString("跟随系统", comment: "") + " (\(languageName(AppLanguageInitializer.systemMatchingLanguage())))",
+                selection: AppLanguageInitializer.systemSelection
+            )
+            Divider()
+            languageOption("简体中文", selection: "zh-Hans")
+            languageOption("English", selection: "en")
+        } label: {
+            Label(languageMenuTitle, systemImage: "globe")
+                .lineLimit(1)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help(NSLocalizedString("语言", comment: ""))
+    }
+
+    private var languageMenuTitle: String {
+        selectedLanguage == AppLanguageInitializer.systemSelection
+            ? NSLocalizedString("系统语言", comment: "")
+            : languageName(selectedLanguage)
+    }
+
+    private func languageName(_ language: String) -> String {
+        language == "zh-Hans" ? "简体中文" : "English"
+    }
+
+    private func languageOption(_ title: String, selection: String) -> some View {
+        Button {
+            let previous = UserDefaults.standard.stringArray(forKey: "AppleLanguages")?.first
+            AppLanguageInitializer.setLanguageSelection(selection)
+            if UserDefaults.standard.stringArray(forKey: "AppleLanguages")?.first != previous {
+                showsLanguageRestartAlert = true
+            }
+        } label: {
+            if selectedLanguage == selection {
+                Label(title, systemImage: "checkmark")
+            } else {
+                Text(title)
+            }
+        }
     }
 
     private var canvasPane: some View {
@@ -537,7 +625,7 @@ struct AhaKeyStudioView: View {
                                 enterEditingConfiguration()
                                 withAnimation(.easeInOut(duration: 0.2)) { isEditingInspector = true }
                             } label: {
-                                Label("修改", systemImage: "pencil")
+                                Label(NSLocalizedString("修改", comment: ""), systemImage: "pencil")
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.regular)
@@ -558,7 +646,7 @@ struct AhaKeyStudioView: View {
                             returnToKeyboardControl()
                         }
                     } label: {
-                        Label("返回", systemImage: "chevron.left")
+                        Label(NSLocalizedString("返回", comment: ""), systemImage: "chevron.left")
                             .font(.callout.weight(.medium))
                     }
                     .buttonStyle(.bordered)
@@ -604,9 +692,9 @@ struct AhaKeyStudioView: View {
                 commitModeNameEdit()
             }
         }
-        .alert("写入结果", isPresented: $showsWriteResultAlert) {
-            Button("继续编辑", role: .cancel) {}
-            Button("完成编辑") {
+        .alert(NSLocalizedString("写入结果", comment: ""), isPresented: $showsWriteResultAlert) {
+            Button(NSLocalizedString("继续编辑", comment: ""), role: .cancel) {}
+            Button(NSLocalizedString("完成编辑", comment: "")) {
                 if writeResultAlertMessage.contains("成功") {
                     completeEditingAfterSuccessfulWrite()
                 }
@@ -640,13 +728,13 @@ struct AhaKeyStudioView: View {
                     .onHover { showsKeyHelp = $0 }
                     .popover(isPresented: $showsKeyHelp, arrowEdge: .leading) {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("如何使用")
+                            Text(NSLocalizedString("如何使用", comment: ""))
                                 .font(.headline)
                             Divider()
-                            Text("1. 点击虚拟键盘对应按键选中它。")
-                            Text("2. 语音键先选预设；其他键按需选单键或宏。")
+                            Text(NSLocalizedString("1. 点击虚拟键盘对应按键选中它。", comment: ""))
+                            Text(NSLocalizedString("2. 语音键先选预设；其他键按需选单键或宏。", comment: ""))
                             Text("3. 配置完成后点「写入键盘」同步到键盘。")
-                            Text("4. 切模式时 LCD 先显示描述，再回到该模式动图。")
+                            Text(NSLocalizedString("4. 切模式时 LCD 先显示描述，再回到该模式动图。", comment: ""))
                         }
                         .font(.callout)
                         .padding(16)
@@ -666,26 +754,26 @@ struct AhaKeyStudioView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HStack {
-                    Text("权限诊断")
+                    Text(NSLocalizedString("权限诊断", comment: ""))
                         .font(.system(size: 20, weight: .semibold))
                     Spacer()
-                    Button("关闭") { showsDiagnostics = false }
+                    Button(NSLocalizedString("关闭", comment: "")) { showsDiagnostics = false }
                         .buttonStyle(.bordered)
                 }
 
-                GroupBox("后台语音桥") {
+                GroupBox(NSLocalizedString("后台语音桥", comment: "")) {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(spacing: 10) {
                             Circle()
                                 .fill(voiceRelay.isListening ? Color.green : Color.orange)
                                 .frame(width: 10, height: 10)
-                            Text(voiceRelay.isListening ? "后台监听中" : "等待系统权限")
+                            Text(voiceRelay.isListening ? NSLocalizedString("后台监听中", comment: "") : NSLocalizedString("等待系统权限", comment: ""))
                                 .font(.callout.weight(.semibold))
                             Spacer()
                         }
                         HStack(spacing: 10) {
-                            permissionBadge(title: "输入监控", granted: voiceRelay.inputMonitoringGranted)
-                            permissionBadge(title: "辅助功能", granted: voiceRelay.accessibilityGranted)
+                            permissionBadge(title: NSLocalizedString("输入监控", comment: ""), granted: voiceRelay.inputMonitoringGranted)
+                            permissionBadge(title: NSLocalizedString("辅助功能", comment: ""), granted: voiceRelay.accessibilityGranted)
                         }
                         Text(voiceRelay.statusMessage)
                             .font(.caption)
@@ -697,7 +785,7 @@ struct AhaKeyStudioView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         HStack(spacing: 10) {
-                            Button("再次申请权限") {
+                            Button(NSLocalizedString("再次申请权限", comment: "")) {
                                 requestPermissionsThenOpenPrivacySettingsIfNeeded(
                                     bleManager: bleManager,
                                     voiceRelay: voiceRelay,
@@ -705,7 +793,7 @@ struct AhaKeyStudioView: View {
                                 )
                             }
                             .buttonStyle(.borderedProminent)
-                            Button("重新检查权限") {
+                            Button(NSLocalizedString("重新检查权限", comment: "")) {
                                 voiceRelay.refreshPermissions(deferredTCCRequery: true)
                             }
                             .buttonStyle(.bordered)
@@ -715,21 +803,21 @@ struct AhaKeyStudioView: View {
                     .padding(.top, 4)
                 }
 
-                GroupBox("苹果原生转写") {
+                GroupBox(NSLocalizedString("苹果原生转写", comment: "")) {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(spacing: 10) {
                             Circle()
                                 .fill(nativeSpeech.isRecording ? Color.red : (nativeSpeech.microphoneGranted && nativeSpeech.speechRecognitionGranted ? Color.green : Color.orange))
                                 .frame(width: 10, height: 10)
-                            Text(nativeSpeech.isRecording ? "录音转写中" : "等待触发")
+                            Text(nativeSpeech.isRecording ? NSLocalizedString("录音转写中", comment: "") : NSLocalizedString("等待触发", comment: ""))
                                 .font(.callout.weight(.semibold))
                             Spacer()
                         }
                         HStack(spacing: 10) {
-                            permissionBadge(title: "麦克风", granted: nativeSpeech.microphoneGranted)
-                            permissionBadge(title: "语音转写", granted: nativeSpeech.speechRecognitionGranted)
+                            permissionBadge(title: NSLocalizedString("麦克风", comment: ""), granted: nativeSpeech.microphoneGranted)
+                            permissionBadge(title: NSLocalizedString("语音转写", comment: ""), granted: nativeSpeech.speechRecognitionGranted)
                             permissionBadge(title: "Siri", granted: nativeSpeech.siriEnabled)
-                            permissionBadge(title: "听写", granted: nativeSpeech.dictationEnabled)
+                            permissionBadge(title: NSLocalizedString("听写", comment: ""), granted: nativeSpeech.dictationEnabled)
                         }
                         Text(nativeSpeech.statusMessage)
                             .font(.caption)
@@ -743,7 +831,7 @@ struct AhaKeyStudioView: View {
                             Circle()
                                 .fill(nativeSpeech.isRecording ? Color.red : Color.clear)
                                 .frame(width: 8, height: 8)
-                            Text(nativeSpeech.isRecording ? "录音中" : "转写测试")
+                            Text(nativeSpeech.isRecording ? NSLocalizedString("录音中", comment: "") : NSLocalizedString("转写测试", comment: ""))
                                 .font(.callout.weight(.semibold))
                             Spacer()
                             if !nativeSpeech.transcriptPreview.isEmpty {
@@ -759,17 +847,17 @@ struct AhaKeyStudioView: View {
                             }
                         }
                         HStack(spacing: 8) {
-                            Button(nativeSpeech.isRecording ? "结束并写入" : "开始录音") {
+                            Button(nativeSpeech.isRecording ? NSLocalizedString("结束并写入", comment: "") : NSLocalizedString("开始录音", comment: "")) {
                                 nativeSpeech.toggleRecordingFromVoiceKey()
                             }
                             .buttonStyle(.borderedProminent)
-                            Button("重新检查权限") {
+                            Button(NSLocalizedString("重新检查权限", comment: "")) {
                                 nativeSpeech.refreshPermissions(deferredTCCRequery: true)
                             }
                             .buttonStyle(.bordered)
                             RestartToApplyPermissionsButton()
                             if !nativeSpeechPermissionsReady {
-                                Button("打开系统设置") { openNativeSpeechPrivacySettings() }
+                                Button(NSLocalizedString("打开系统设置", comment: "")) { openNativeSpeechPrivacySettings() }
                                     .buttonStyle(.bordered)
                             }
                         }
@@ -779,15 +867,15 @@ struct AhaKeyStudioView: View {
 
                 let voiceKey = currentModeDraft.key(for: .voice)
                 if let preset = voiceKey.voicePreset, preset == .typeless {
-                    GroupBox("Fn 语音输入法") {
+                    GroupBox(NSLocalizedString("Fn 语音输入法", comment: "")) {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Typeless / 微信语音 / 豆包输入法使用 F19 触发，并注入 Fn 按住/松开。")
+                            Text(NSLocalizedString("Typeless / 微信语音 / 豆包输入法使用 F19 触发，并注入 Fn 按住/松开。", comment: ""))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            Text("排查请看 voice-relay.log（matched · function relay · post fn）。路径：~/Library/Application Support/AhaKeyConfig/diagnostics/")
+                            Text(NSLocalizedString("排查请看 voice-relay.log（matched · function relay · post fn）。路径：~/Library/Application Support/AhaKeyConfig/diagnostics/", comment: ""))
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
-                            Button("模拟按一次语音键") {
+                            Button(NSLocalizedString("模拟按一次语音键", comment: "")) {
                                 voiceRelay.simulateInspectorVoiceKeyTap(for: selectedMode)
                             }
                             .buttonStyle(.borderedProminent)
@@ -801,19 +889,19 @@ struct AhaKeyStudioView: View {
                     }
                 }
 
-                GroupBox("AhaType 状态") {
+                GroupBox(NSLocalizedString("AhaType 状态", comment: "")) {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Toggle(isOn: Binding(
                                 get: { ahaType.isEnabled },
                                 set: { ahaType.setEnabled($0) }
                             )) {
-                                Text("AhaType 云端整理")
+                                Text(NSLocalizedString("AhaType 云端整理", comment: ""))
                                     .font(.callout.weight(.semibold))
                             }
                             .toggleStyle(.switch)
                             Spacer()
-                            Button("刷新") { ahaType.refreshFromDisk() }
+                            Button(NSLocalizedString("刷新", comment: "")) { ahaType.refreshFromDisk() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         }
@@ -836,7 +924,7 @@ struct AhaKeyStudioView: View {
 
     private func summaryRow(_ title: String, value: String, dot: Color? = nil) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text(title)
+            Text(NSLocalizedString(title, comment: ""))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .frame(width: 76, alignment: .leading)
@@ -876,26 +964,27 @@ struct AhaKeyStudioView: View {
     private var voiceKeySummary: some View {
         let key = currentSelectedKey
         let preset = key.voicePreset ?? .custom
-        summaryRow("输入方式", value: preset.title)
-        summaryRow("快捷键", value: key.displaySummary)
+        summaryRow(NSLocalizedString("输入方式", comment: ""), value: preset.title)
+        summaryRow(NSLocalizedString("快捷键", comment: ""), value: key.displaySummary)
         if preset.isMacOSNativeFamily {
-            summaryRow("触发方式", value: "短按 + 长按")
+            summaryRow(NSLocalizedString("触发方式", comment: ""), value: NSLocalizedString("短按 + 长按", comment: ""))
             let permCount = [nativeSpeech.microphoneGranted, nativeSpeech.speechRecognitionGranted,
                              nativeSpeech.siriEnabled, nativeSpeech.dictationEnabled].filter { $0 }.count
-            summaryRow("转写权限", value: "\(permCount)/4 已授权",
+            summaryRow(NSLocalizedString("转写权限", comment: ""),
+                       value: String(format: NSLocalizedString("%d/4 已授权", comment: ""), permCount),
                        dot: permCount == 4 ? .green : .orange)
         }
-        summaryRow("语音桥", value: voiceRelay.isListening ? "运行中" : "等待权限",
+        summaryRow(NSLocalizedString("语音桥", comment: ""), value: voiceRelay.isListening ? NSLocalizedString("运行中", comment: "") : NSLocalizedString("等待权限", comment: ""),
                    dot: voiceRelay.isListening ? .green : .orange)
-        summaryRow("按键描述", value: key.description.isEmpty ? "—" : key.description)
+        summaryRow(NSLocalizedString("按键描述", comment: ""), value: key.description.isEmpty ? "—" : key.description)
     }
 
     @ViewBuilder
     private var actionKeySummary: some View {
         let key = currentSelectedKey
-        summaryRow("绑定", value: key.displaySummary)
+        summaryRow(NSLocalizedString("绑定", comment: ""), value: key.displaySummary)
         summaryRow("类型", value: key.usesMacro ? "固件宏（\(key.macro.count) 步）" : "单键 / 组合键")
-        summaryRow("按键描述", value: key.description.isEmpty ? "—" : key.description)
+        summaryRow(NSLocalizedString("按键描述", comment: ""), value: key.description.isEmpty ? "—" : key.description)
     }
 
     @ViewBuilder
@@ -918,11 +1007,11 @@ struct AhaKeyStudioView: View {
     @ViewBuilder
     private var switchSummary: some View {
         let agentReady = agentManager.isInstalled && agentManager.isRunning && agentManager.hooksInstalled
-        summaryRow("当前档位", value: currentSwitchTitle,
-                   dot: currentSwitchTitle == "自动批准" ? .green : .indigo)
+        summaryRow(NSLocalizedString("当前档位", comment: ""), value: currentSwitchTitle,
+                   dot: currentSwitchTitle == NSLocalizedString("自动批准", comment: "") ? .green : .indigo)
         summaryRow("Agent", value: agentReady ? "就绪" : "未就绪",
                    dot: agentReady ? .green : .orange)
-        summaryRow("作用范围", value: "Claude · Cursor · Codex · Kimi")
+        summaryRow(NSLocalizedString("作用范围", comment: ""), value: "Claude · Cursor · Codex · Kimi")
     }
 
     // MARK: - Inspector Level 2 Detail
@@ -930,12 +1019,12 @@ struct AhaKeyStudioView: View {
     private var keyInspector: some View {
         let key = currentSelectedKey
         return VStack(alignment: .leading, spacing: 16) {
-            GroupBox("按键描述") {
+            GroupBox(NSLocalizedString("按键描述", comment: "")) {
                 VStack(alignment: .leading, spacing: 8) {
-                    TextField("例如 Record / Accept / Reject / Backspace", text: selectedKeyDescriptionBinding)
+                    TextField(NSLocalizedString("例如 Record / Accept / Reject / Backspace", comment: ""), text: selectedKeyDescriptionBinding)
                         .textFieldStyle(.roundedBorder)
                     if currentSelectedKey.description.containsNonASCII {
-                        Text("设备 LCD 只稳定支持 ASCII。中文、emoji 和全角字符会在写入时被自动过滤，避免乱码。")
+                        Text(NSLocalizedString("设备 LCD 只稳定支持 ASCII。中文、emoji 和全角字符会在写入时被自动过滤，避免乱码。", comment: ""))
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
@@ -946,7 +1035,7 @@ struct AhaKeyStudioView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if selectedMode == .mode0 {
-                        Text("Mode 1 默认文案：Record / Accept / Reject / Backspace")
+                        Text(NSLocalizedString("Mode 1 默认文案：Record / Accept / Reject / Backspace", comment: ""))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -955,25 +1044,25 @@ struct AhaKeyStudioView: View {
             }
 
             if key.role == .voice {
-                GroupBox("语音输入方式") {
+                GroupBox(NSLocalizedString("语音输入方式", comment: "")) {
                     VStack(alignment: .leading, spacing: 12) {
                         VoicePresetPicker(
                             selectedPreset: key.voicePreset ?? .custom,
                             onSelect: applyVoicePreset
                         )
                         if (key.voicePreset ?? .custom).isMacOSNativeFamily {
-                            Text("只要 AhaKey Studio 在后台运行，Mode 1 出厂语音键发出的 F18 就会被直接接管到苹果原生转写。现在不再依赖系统听写快捷键。")
+                            Text(NSLocalizedString("只要 AhaKey Studio 在后台运行，Mode 1 出厂语音键发出的 F18 就会被直接接管到苹果原生转写。现在不再依赖系统听写快捷键。", comment: ""))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        Text("语音键的输入方式独立于当前 Mode，在任意 Mode 下都可使用相同的语音输入设置。")
+                        Text(NSLocalizedString("语音键的输入方式独立于当前 Mode，在任意 Mode 下都可使用相同的语音输入设置。", comment: ""))
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                     }
                     .padding(.top, 4)
                 }
             } else {
-                GroupBox("按键职责") {
+                GroupBox(NSLocalizedString("按键职责", comment: "")) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(key.role.manualText)
                             .font(.callout)
@@ -986,11 +1075,11 @@ struct AhaKeyStudioView: View {
             }
 
             // ── 触发方式（短按 / 长按 Tab）──────────────────────────────
-            GroupBox("触发方式") {
+            GroupBox(NSLocalizedString("触发方式", comment: "")) {
                 VStack(alignment: .leading, spacing: 12) {
                     Picker("", selection: $selectedTriggerTab) {
-                        Text("短按").tag(0)
-                        Text("长按").tag(1)
+                        Text(NSLocalizedString("短按", comment: "")).tag(0)
+                        Text(NSLocalizedString("长按", comment: "")).tag(1)
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
@@ -1001,17 +1090,17 @@ struct AhaKeyStudioView: View {
                         // ── 语音键触发方式 ──────────────────────────────
                         if selectedTriggerTab == 0 {
                             VStack(alignment: .leading, spacing: 10) {
-                                Label("按一下开始，再按一下结束", systemImage: "hand.tap.fill")
+                                Label(NSLocalizedString("按一下开始，再按一下结束", comment: ""), systemImage: "hand.tap.fill")
                                     .font(.callout.weight(.semibold))
                                 Text("录音结束后根据下方开关决定是否经 AhaType 整理，再写入光标。")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 Toggle(isOn: $nativeSpeech.shortPressAhaTypeEnabled) {
                                     HStack(spacing: 6) {
-                                        Text("使用 AhaType 整理")
+                                        Text(NSLocalizedString("使用 AhaType 整理", comment: ""))
                                             .font(.callout)
                                         if !ahaType.isEnabled {
-                                            Text("（AhaType 总开关已关闭）")
+                                            Text(NSLocalizedString("（AhaType 总开关已关闭）", comment: ""))
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)
                                         }
@@ -1028,13 +1117,13 @@ struct AhaKeyStudioView: View {
                                         .font(.system(.callout, design: .rounded).weight(.semibold))
                                         .lineLimit(1)
                                     Spacer()
-                                    Text(key.usesMacro ? "固件宏" : "底层 HID")
+                                    Text(key.usesMacro ? NSLocalizedString("固件宏", comment: "") : NSLocalizedString("底层 HID", comment: ""))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
                                 Picker("", selection: selectedKeyBindingModeBinding) {
-                                    Text("单键 / 组合键").tag(KeyBindingMode.shortcut)
-                                    Text("宏").tag(KeyBindingMode.macro)
+                                    Text(NSLocalizedString("单键 / 组合键", comment: "")).tag(KeyBindingMode.shortcut)
+                                    Text(NSLocalizedString("宏", comment: "")).tag(KeyBindingMode.macro)
                                 }
                                 .pickerStyle(.segmented)
                                 .labelsHidden()
@@ -1048,7 +1137,7 @@ struct AhaKeyStudioView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 if (key.voicePreset ?? .custom) != .custom {
-                                    Text("语音键预设会固定使用单键绑定；如需录制宏，请先把预设改为自定义快捷键。")
+                                    Text(NSLocalizedString("语音键预设会固定使用单键绑定；如需录制宏，请先把预设改为自定义快捷键。", comment: ""))
                                         .font(.caption)
                                         .foregroundStyle(.orange)
                                 }
@@ -1056,17 +1145,17 @@ struct AhaKeyStudioView: View {
                         } else {
                             // 长按 Tab（语音键）— 始终开启，仅配置 AhaType 与阈值
                             VStack(alignment: .leading, spacing: 10) {
-                                Label("按住录音，松手即发送", systemImage: "hand.draw.fill")
+                                Label(NSLocalizedString("按住录音，松手即发送", comment: ""), systemImage: "hand.draw.fill")
                                     .font(.callout.weight(.semibold))
-                                Text("按住键盘录音键不松手开始录音，松手后直接将 ASR 结果写入，响应更快。")
+                                Text(NSLocalizedString("按住键盘录音键不松手开始录音，松手后直接将 ASR 结果写入，响应更快。", comment: ""))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 Toggle(isOn: $nativeSpeech.longPressAhaTypeEnabled) {
                                     HStack(spacing: 6) {
-                                        Text("使用 AhaType 整理")
+                                        Text(NSLocalizedString("使用 AhaType 整理", comment: ""))
                                             .font(.callout)
                                         if !ahaType.isEnabled {
-                                            Text("（AhaType 总开关已关闭）")
+                                            Text(NSLocalizedString("（AhaType 总开关已关闭）", comment: ""))
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)
                                         }
@@ -1075,7 +1164,7 @@ struct AhaKeyStudioView: View {
                                 .toggleStyle(.switch)
                                 .disabled(!ahaType.isEnabled)
                                 HStack(spacing: 10) {
-                                    Text("触发阈值")
+                                    Text(NSLocalizedString("触发阈值", comment: ""))
                                         .font(.callout)
                                     Slider(
                                         value: Binding(
@@ -1101,13 +1190,13 @@ struct AhaKeyStudioView: View {
                                         .font(.system(.callout, design: .rounded).weight(.semibold))
                                         .lineLimit(2)
                                     Spacer()
-                                    Text(key.usesMacro ? "固件宏" : "底层 HID")
+                                    Text(key.usesMacro ? NSLocalizedString("固件宏", comment: "") : NSLocalizedString("底层 HID", comment: ""))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
                                 Picker("", selection: selectedKeyBindingModeBinding) {
-                                    Text("单键 / 组合键").tag(KeyBindingMode.shortcut)
-                                    Text("宏").tag(KeyBindingMode.macro)
+                                    Text(NSLocalizedString("单键 / 组合键", comment: "")).tag(KeyBindingMode.shortcut)
+                                    Text(NSLocalizedString("宏", comment: "")).tag(KeyBindingMode.macro)
                                 }
                                 .pickerStyle(.segmented)
                                 .labelsHidden()
@@ -1119,10 +1208,10 @@ struct AhaKeyStudioView: View {
                             }
                         } else {
                             VStack(alignment: .leading, spacing: 8) {
-                                Label("需要固件 v2+ 支持", systemImage: "exclamationmark.triangle")
+                                Label(NSLocalizedString("需要固件 v2+ 支持", comment: ""), systemImage: "exclamationmark.triangle")
                                     .font(.callout.weight(.semibold))
                                     .foregroundStyle(.orange)
-                                Text("长按绑定不同快捷键需固件升级后生效，当前仅短按绑定会写入设备。")
+                                Text(NSLocalizedString("长按绑定不同快捷键需固件升级后生效，当前仅短按绑定会写入设备。", comment: ""))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -1146,7 +1235,7 @@ struct AhaKeyStudioView: View {
 
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text("步骤（依次执行）")
+                Text(NSLocalizedString("步骤（依次执行）", comment: ""))
                     .font(.callout.weight(.semibold))
                 Spacer()
                 Text("\(stepCount) 步 · \(byteCount) / 98 字节")
@@ -1155,7 +1244,7 @@ struct AhaKeyStudioView: View {
             }
 
             if key.macro.isEmpty {
-                Text("空宏。点下方「添加步骤」开始录制。")
+                Text(NSLocalizedString("空宏。点下方「添加步骤」开始录制。", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -1174,7 +1263,7 @@ struct AhaKeyStudioView: View {
                 Button {
                     appendMacroStep()
                 } label: {
-                    Label("添加步骤", systemImage: "plus.circle.fill")
+                    Label(NSLocalizedString("添加步骤", comment: ""), systemImage: "plus.circle.fill")
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(overLimit)
@@ -1182,19 +1271,19 @@ struct AhaKeyStudioView: View {
                 Button(role: .destructive) {
                     updateSelectedKey { $0.macro = [] }
                 } label: {
-                    Label("清空", systemImage: "trash")
+                    Label(NSLocalizedString("清空", comment: ""), systemImage: "trash")
                 }
                 .buttonStyle(.bordered)
                 .disabled(key.macro.isEmpty)
             }
 
             if overLimit {
-                Text("超过固件单键宏 98 字节 / 49 步上限，同步时会被拒绝。")
+                Text(NSLocalizedString("超过固件单键宏 98 字节 / 49 步上限，同步时会被拒绝。", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.red)
             }
 
-            Text("固件按顺序串行发送；延时单位 3ms（最大 765ms）。需要更长延时请叠加多个延时步骤。")
+            Text(NSLocalizedString("固件按顺序串行发送；延时单位 3ms（最大 765ms）。需要更长延时请叠加多个延时步骤。", comment: ""))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -1225,7 +1314,7 @@ struct AhaKeyStudioView: View {
 
             if step.action.takesKeycodeParam {
                 Picker("", selection: macroStepKeycodeBinding(id: step.id)) {
-                    Text("未设置").tag(UInt8(0))
+                    Text(NSLocalizedString("未设置", comment: "")).tag(UInt8(0))
                     ForEach(HIDUsage.allOptions, id: \.code) { option in
                         Text(option.name).tag(option.code)
                     }
@@ -1404,10 +1493,10 @@ struct AhaKeyStudioView: View {
                 .padding(.top, 4)
             }
 
-            GroupBox("显示逻辑") {
+            GroupBox(NSLocalizedString("显示逻辑", comment: "")) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("切换到当前模式时，LCD 会先显示该模式的按键描述，约 1 秒后回到该模式动图。")
-                    Text("后续会继续增加文字状态、token 用量、模型环境等信息显示能力。")
+                    Text(NSLocalizedString("后续会继续增加文字状态、token 用量、模型环境等信息显示能力。", comment: ""))
                 }
                 .font(.callout)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1435,7 +1524,7 @@ struct AhaKeyStudioView: View {
                     .foregroundStyle(.green)
             }
 
-            GroupBox("状态灯效映射") {
+            GroupBox(NSLocalizedString("状态灯效映射", comment: "")) {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(IDEState.workflowOrder) { state in
                         HStack {
@@ -1455,7 +1544,7 @@ struct AhaKeyStudioView: View {
                 .padding(.top, 4)
             }
 
-            GroupBox("亮度") {
+            GroupBox(NSLocalizedString("亮度", comment: "")) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Slider(value: brightnessBinding, in: 1...100, step: 1)
@@ -1467,7 +1556,7 @@ struct AhaKeyStudioView: View {
                 .padding(.top, 4)
             }
 
-            GroupBox("状态预览") {
+            GroupBox(NSLocalizedString("状态预览", comment: "")) {
                 VStack(alignment: .leading, spacing: 12) {
                     Text(lightBarPreview.shortLabel)
                         .font(.system(.title3, design: .rounded).weight(.semibold))
@@ -1475,7 +1564,7 @@ struct AhaKeyStudioView: View {
                     Text("画布预览：\(currentModeDraft.lightBar.effect(for: lightBarPreview).title)")
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                    Text("点击状态会在虚拟键盘预览，并通过 0x91 临时预览到设备；保存请使用底部通用按钮。")
+                    Text(NSLocalizedString("点击状态会在虚拟键盘预览，并通过 0x91 临时预览到设备；保存请使用底部通用按钮。", comment: ""))
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -1515,17 +1604,17 @@ struct AhaKeyStudioView: View {
 
     private var switchInspector: some View {
         VStack(alignment: .leading, spacing: 16) {
-            GroupBox("实时档位") {
+            GroupBox(NSLocalizedString("实时档位", comment: "")) {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text(currentSwitchTitle)
                             .font(.system(.title3, design: .rounded).weight(.semibold))
                         Spacer()
                         Circle()
-                            .fill(currentSwitchTitle == "自动批准" ? Color.green : Color.indigo)
+                            .fill(currentSwitchTitle == NSLocalizedString("自动批准", comment: "") ? Color.green : Color.indigo)
                             .frame(width: 10, height: 10)
                     }
-                    Text("拨杆是物理档位，不是按下瞬态。0 档显示「自动批准」，1 档显示「手动批准」。这里只读取键盘上报的位置，不模拟物理拨动。")
+                    Text(NSLocalizedString("拨杆是物理档位，不是按下瞬态。0 档显示「自动批准」，1 档显示「手动批准」。这里只读取键盘上报的位置，不模拟物理拨动。", comment: ""))
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -1540,20 +1629,20 @@ struct AhaKeyStudioView: View {
                         Label("自动批准依赖 Agent 与 Hook，且须蓝牙由 Agent 占用", systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
                             .font(.callout.weight(.semibold))
-                        Text("Claude：PermissionRequest allow。Cursor：preToolUse 等与 cli-config。Codex：PermissionRequest allow。Kimi：安装过 AhaKey Kimi Hooks 后，**拨杆会直接接管当前会话的自动批准**；若刚装完或刚升级 kimi-cli，请**完全关闭并重新打开一次 kimi**。钩子 stdout 只对 **`permissionDecision: deny`** 有特殊拦截语义。Agent 须在跑且蓝牙由其占用。")
+                        Text("Claude Code：PreToolUse allow，PermissionRequest 兜底（桌面版须使用 Code 本地会话，Chat 不支持本地 Hook）。Cursor：preToolUse 等与 cli-config。Codex：PermissionRequest allow。Kimi：安装过 AhaKey Kimi Hooks 后，**拨杆会直接接管当前会话的自动批准**；若刚装完或刚升级 kimi-cli，请**完全关闭并重新打开一次 kimi**。钩子 stdout 只对 **`permissionDecision: deny`** 有特殊拦截语义。Agent 须在跑且蓝牙由其占用。")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
                 }
             }
 
-            GroupBox("如何理解这个部件") {
+            GroupBox(NSLocalizedString("如何理解这个部件", comment: "")) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("拨杆对 Claude / Cursor / Codex / Kimi **同时生效**，与键盘当前所在 Mode 无关。Agent 后台同时监听所有 IDE 的 Hook，拨杆拨动后四个 IDE 的批准行为立即切换。")
                     Divider()
-                    Text("自动批准：**Claude / Codex PermissionRequest**，**Cursor preToolUse**（含 cli-config）。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管**当前会话**的自动批准；刚装完或刚升级 kimi-cli 时，重开一次 kimi 即可。")
-                    Text("手动批准：会交回用户/终端确认。若 Cursor、Codex 或 Kimi 仍弹窗，请看 diagnostics 里的 ide 与 diagnostic 字段。")
-                    Text("若仍出现手动：在「设备信息」里打开「工具批准诊断」查看 permission-request.log（含 ide、hookEvent、diagnostic 等）。")
+                    Text("自动批准：**Claude Code PreToolUse**（PermissionRequest 兜底；桌面版仅 Code 本地会话）、**Codex PermissionRequest**、**Cursor preToolUse**（含 cli-config）。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管**当前会话**的自动批准；刚装完或刚升级 kimi-cli 时，重开一次 kimi 即可。")
+                    Text(NSLocalizedString("手动批准：会交回用户/终端确认。若 Cursor、Codex 或 Kimi 仍弹窗，请看 diagnostics 里的 ide 与 diagnostic 字段。", comment: ""))
+                    Text(NSLocalizedString("若仍出现手动：在「设备信息」里打开「工具批准诊断」查看 permission-request.log（含 ide、hookEvent、diagnostic 等）。", comment: ""))
                 }
                 .font(.callout)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1636,7 +1725,7 @@ struct AhaKeyStudioView: View {
                 .font(.callout)
             Divider()
                 .frame(height: 14)
-            Text("未同步改动 \(dirtyCount)")
+            Text(String(format: NSLocalizedString("未同步改动 %d", comment: ""), dirtyCount))
                 .font(.callout)
             Divider()
                 .frame(height: 14)
@@ -1650,27 +1739,27 @@ struct AhaKeyStudioView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            Button("权限诊断") {
+            Button(NSLocalizedString("权限诊断", comment: "")) {
                 showsDiagnostics = true
             }
             .buttonStyle(.borderless)
-            .help("查看语音权限状态与诊断日志")
+            .help(NSLocalizedString("查看语音权限状态与诊断日志", comment: ""))
             .sheet(isPresented: $showsDiagnostics) {
                 diagnosticsSheet
             }
 
-            Button("新手引导") {
+            Button(NSLocalizedString("新手引导", comment: "")) {
                 voiceRelay.showsPermissionOnboarding = false
                 unifiedOnboardingCompleted = false
             }
             .buttonStyle(.borderless)
-            .help("重新打开 AhaKey Studio 新手引导")
+            .help(NSLocalizedString("重新打开 AhaKey Studio 新手引导", comment: ""))
 
-            Button("帮助中心") {
+            Button(NSLocalizedString("帮助中心", comment: "")) {
                 showsHelpCenter = true
             }
             .buttonStyle(.borderless)
-            .help("打开内嵌的帮助中心")
+            .help(NSLocalizedString("打开内嵌的帮助中心", comment: ""))
             .sheet(isPresented: $showsHelpCenter) {
                 HelpCenterSheet(
                     studioDraft: studioDraft,
@@ -1699,9 +1788,9 @@ struct AhaKeyStudioView: View {
 
     private var currentSwitchTitle: String {
         switch liveKeyboardSwitchState {
-        case 0: "自动批准"
-        case 1: "手动批准"
-        default: "档位未知"
+        case 0: NSLocalizedString("自动批准", comment: "")
+        case 1: NSLocalizedString("手动批准", comment: "")
+        default: NSLocalizedString("档位未知", comment: "")
         }
     }
 
@@ -1792,26 +1881,6 @@ struct AhaKeyStudioView: View {
         return "需要安装 Agent 后才能控制键盘"
     }
 
-    private var configurationModeButtonTitle: String {
-        if isSyncing {
-            return "同步中…"
-        }
-        if isEditingConfiguration {
-            return "保存配置"
-        }
-        return "编辑配置"
-    }
-
-    private var configurationModeButtonHelp: String {
-        if isEditingConfiguration {
-            if hasUnsyncedChanges {
-                return "将当前草稿同步到键盘，然后把蓝牙交还给 Agent。"
-            }
-            return "没有未同步改动，直接把蓝牙交还给 Agent。"
-        }
-        return "临时由 AhaKey Studio 接管蓝牙，用于改键、LCD、同步和本机灯效测试。"
-    }
-
     private var voicePresetDetail: String {
         let preset = currentSelectedKey.voicePreset ?? .custom
         return preset.detail
@@ -1824,7 +1893,7 @@ struct AhaKeyStudioView: View {
                 .frame(width: 8, height: 8)
             Text(title)
                 .font(.caption.weight(.semibold))
-            Text(granted ? "已开启" : "未开启")
+            Text(granted ? NSLocalizedString("已开启", comment: "") : NSLocalizedString("未开启", comment: ""))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -2038,7 +2107,7 @@ struct AhaKeyStudioView: View {
                 try OLEDFrameEncoder.validateGIFSourceFileSize(at: url)
                 try OLEDFrameEncoder.validateFrameCount(at: url)
             } catch {
-                let msg = (error as? LocalizedError)?.errorDescription ?? "图片文件不符合上传限制。"
+                let msg = (error as? LocalizedError)?.errorDescription ?? NSLocalizedString("图片文件不符合上传限制。", comment: "")
                 syncStatusMessage = msg
                 updateCurrentMode { mode in
                     mode.oled.statusLine = msg
@@ -2051,14 +2120,6 @@ struct AhaKeyStudioView: View {
                 mode.oled.statusLine = "已选 \(max(frameCount, 1)) 帧图片预览；写入时将上传到 \(selectedMode.title) 固定分区。"
             }
             syncStatusMessage = "已更新 \(selectedMode.title) 的 LCD 预览；写入设备请使用底部通用按钮。"
-        }
-    }
-
-    private func handleConfigurationModeButton() {
-        if isEditingConfiguration {
-            finishEditingConfiguration()
-        } else {
-            enterEditingConfiguration()
         }
     }
 
@@ -2540,7 +2601,7 @@ struct AhaKeyStudioView: View {
                 Circle()
                     .fill(accent)
                     .frame(width: 8, height: 8)
-                Text(subtitle)
+                Text(NSLocalizedString(subtitle, comment: ""))
                     .font(.callout.weight(.medium))
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -2626,7 +2687,7 @@ private struct VoicePermissionOnboardingSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("新手权限引导")
+            Text(NSLocalizedString("新手权限引导", comment: ""))
                 .font(.system(size: 24, weight: .semibold))
 
             Text("AhaKey Studio 首次使用需要完成几项系统授权：连接键盘需要蓝牙，后台接管语音键需要输入监控与辅助功能，macOS 原生语音需要麦克风、语音转写、Siri 与听写。")
@@ -2635,29 +2696,29 @@ private struct VoicePermissionOnboardingSheet: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 permissionRow(title: "蓝牙", granted: bleManager.bluetoothPermissionGranted && bleManager.bluetoothPoweredOn, detail: bleManager.bluetoothPermissionGranted ? "打开系统蓝牙，用于发现、连接和同步 AhaKey 键盘。" : "在「隐私与安全性 > 蓝牙」中允许 AhaKey Studio 使用蓝牙。")
-                permissionRow(title: "麦克风", granted: nativeSpeech.microphoneGranted, detail: "允许 AhaKey Studio 使用苹果原生语音采集。")
-                permissionRow(title: "语音转写", granted: nativeSpeech.speechRecognitionGranted, detail: "允许 AhaKey Studio 使用苹果原生语音识别。")
-                permissionRow(title: "Siri", granted: nativeSpeech.siriEnabled, detail: "在「系统设置 > Siri 与聚焦」里开启 Siri，供 macOS 原生语音能力使用。")
-                permissionRow(title: "听写", granted: nativeSpeech.dictationEnabled, detail: "在「系统设置 > 键盘 > 听写」里开启听写，保证系统语音组件完整可用。")
-                permissionRow(title: "辅助功能", granted: voiceRelay.accessibilityGranted, detail: "允许 AhaKey Studio 把语音键转换成苹果原生转写或 Fn/Globe。")
-                permissionRow(title: "输入监控", granted: voiceRelay.inputMonitoringGranted, detail: "允许 AhaKey Studio 在后台监听实体语音键；设置完成后通常需要退出并重新打开。")
+                permissionRow(title: NSLocalizedString("麦克风", comment: ""), granted: nativeSpeech.microphoneGranted, detail: NSLocalizedString("允许 AhaKey Studio 使用苹果原生语音采集。", comment: ""))
+                permissionRow(title: NSLocalizedString("语音转写", comment: ""), granted: nativeSpeech.speechRecognitionGranted, detail: NSLocalizedString("允许 AhaKey Studio 使用苹果原生语音识别。", comment: ""))
+                permissionRow(title: "Siri", granted: nativeSpeech.siriEnabled, detail: NSLocalizedString("在「系统设置 > Siri 与聚焦」里开启 Siri，供 macOS 原生语音能力使用。", comment: ""))
+                permissionRow(title: NSLocalizedString("听写", comment: ""), granted: nativeSpeech.dictationEnabled, detail: NSLocalizedString("在「系统设置 > 键盘 > 听写」里开启听写，保证系统语音组件完整可用。", comment: ""))
+                permissionRow(title: NSLocalizedString("辅助功能", comment: ""), granted: voiceRelay.accessibilityGranted, detail: NSLocalizedString("允许 AhaKey Studio 把语音键转换成苹果原生转写或 Fn/Globe。", comment: ""))
+                permissionRow(title: NSLocalizedString("输入监控", comment: ""), granted: voiceRelay.inputMonitoringGranted, detail: NSLocalizedString("允许 AhaKey Studio 在后台监听实体语音键；设置完成后通常需要退出并重新打开。", comment: ""))
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("授权步骤")
+                Text(NSLocalizedString("授权步骤", comment: ""))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                 Text("1. 点「现在申请权限」，按系统弹窗允许蓝牙、麦克风和语音转写。")
-                Text("2. 自动打开系统设置后，依次开启 Siri、听写、辅助功能。")
-                Text("3. 最后开启输入监控；系统提示重启时退出并重新打开。")
-                Text("4. 回到这里点「我已完成，重新检查」继续体验输入。")
+                Text(NSLocalizedString("2. 自动打开系统设置后，依次开启 Siri、听写、辅助功能。", comment: ""))
+                Text(NSLocalizedString("3. 最后开启输入监控；系统提示重启时退出并重新打开。", comment: ""))
+                Text(NSLocalizedString("4. 回到这里点「我已完成，重新检查」继续体验输入。", comment: ""))
             }
             .font(.caption)
             .foregroundStyle(.secondary)
-            Text("若系统里已勾选允许，本应用仍显示未开启：请完全退出 AhaKey Studio 并再启动一次。输入监控、辅助功能等常按进程生效，只点「重新检查」或从后台切回，有时读到的仍是旧状态，重启后即可与系统设置一致。")
+            Text(NSLocalizedString("若系统里已勾选允许，本应用仍显示未开启：请完全退出 AhaKey Studio 并再启动一次。输入监控、辅助功能等常按进程生效，只点「重新检查」或从后台切回，有时读到的仍是旧状态，重启后即可与系统设置一致。", comment: ""))
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text("外发 / DMG / Xcode：默认正式包在系统「隐私与安全性」里显示为「AhaKey Studio」；用 Xcode 以 Debug 运行本工程时显示为「AhaKey Studio（调试）」，请按名称分别授权。路径或签名不同也会被系统当成另一款 App。")
+            Text(NSLocalizedString("外发 / DMG / Xcode：默认正式包在系统「隐私与安全性」里显示为「AhaKey Studio」；用 Xcode 以 Debug 运行本工程时显示为「AhaKey Studio（调试）」，请按名称分别授权。路径或签名不同也会被系统当成另一款 App。", comment: ""))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -2670,7 +2731,7 @@ private struct VoicePermissionOnboardingSheet: View {
             .foregroundStyle(.secondary)
 
             HStack(spacing: 12) {
-                Button("现在申请权限") {
+                Button(NSLocalizedString("现在申请权限", comment: "")) {
                     requestPermissionsThenOpenPrivacySettingsIfNeeded(
                         bleManager: bleManager,
                         voiceRelay: voiceRelay,
@@ -2679,35 +2740,35 @@ private struct VoicePermissionOnboardingSheet: View {
                 }
                 .buttonStyle(.borderedProminent)
 
-                Button("我已完成，重新检查") {
+                Button(NSLocalizedString("我已完成，重新检查", comment: "")) {
                     bleManager.refreshBluetoothAuthorization()
                     voiceRelay.refreshPermissions(deferredTCCRequery: true)
                     nativeSpeech.refreshPermissions(deferredTCCRequery: true)
                 }
                 .buttonStyle(.bordered)
 
-                RestartToApplyPermissionsButton(title: "退出并重新打开")
+                RestartToApplyPermissionsButton(title: NSLocalizedString("退出并重新打开", comment: ""))
 
                 if !allPermissionsReady {
-                    Button("打开系统设置") {
+                    Button(NSLocalizedString("打开系统设置", comment: "")) {
                         openCombinedVoicePrivacySettingsURL()
                     }
                     .buttonStyle(.bordered)
                 }
 
                 if DebugSigningFixer.isAvailable {
-                    Button(fixInProgress ? "重置中…" : "⚙️ 重置开发环境签名（通常不需要）") {
+                    Button(fixInProgress ? NSLocalizedString("重置中…", comment: "") : NSLocalizedString("⚙️ 重置开发环境签名（通常不需要）", comment: "")) {
                         runDebugSigningFix()
                     }
                     .buttonStyle(.bordered)
                     .tint(.purple)
                     .disabled(fixInProgress)
-                    .help("仅在异常情况下使用：证书过期 / 换 Mac / Team ID 变化 / 钥匙串损坏导致权限失效时，点一下会重新签名 app 并重置 TCC 授权。正式发行版（无源码目录）看不到此按钮。")
+                    .help(NSLocalizedString("仅在异常情况下使用：证书过期 / 换 Mac / Team ID 变化 / 钥匙串损坏导致权限失效时，点一下会重新签名 app 并重置 TCC 授权。正式发行版（无源码目录）看不到此按钮。", comment: ""))
                 }
 
                 Spacer()
 
-                Button("稍后再说") {
+                Button(NSLocalizedString("稍后再说", comment: "")) {
                     voiceRelay.dismissPermissionOnboarding()
                     dismiss()
                 }
@@ -2715,11 +2776,11 @@ private struct VoicePermissionOnboardingSheet: View {
             }
 
             if allPermissionsReady {
-                Text("新手权限已经齐了。关闭这个弹窗后，AhaKey Studio 可以连接键盘、后台监听语音键，macOS 原生语音也可以正常使用。")
+                Text(NSLocalizedString("新手权限已经齐了。关闭这个弹窗后，AhaKey Studio 可以连接键盘、后台监听语音键，macOS 原生语音也可以正常使用。", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.green)
             } else {
-                Text("仍有权限未开启。请按上方状态逐项处理，全部变为绿色后再关闭弹窗。")
+                Text(NSLocalizedString("仍有权限未开启。请按上方状态逐项处理，全部变为绿色后再关闭弹窗。", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
@@ -2740,10 +2801,10 @@ private struct VoicePermissionOnboardingSheet: View {
         }
         .alert(fixAlertTitle, isPresented: $showFixAlert) {
             if fixAlertIsSuccess {
-                Button("立即退出 App") { NSApp.terminate(nil) }
-                Button("稍后再退", role: .cancel) {}
+                Button(NSLocalizedString("立即退出 App", comment: "")) { NSApp.terminate(nil) }
+                Button(NSLocalizedString("稍后再退", comment: ""), role: .cancel) {}
             } else {
-                Button("好", role: .cancel) {}
+                Button(NSLocalizedString("好", comment: ""), role: .cancel) {}
             }
         } message: {
             Text(fixAlertMessage)
@@ -2755,7 +2816,7 @@ private struct VoicePermissionOnboardingSheet: View {
         DebugSigningFixer.run { result in
             fixInProgress = false
             fixAlertIsSuccess = result.success
-            fixAlertTitle = result.success ? "修复完成" : "修复失败"
+            fixAlertTitle = result.success ? NSLocalizedString("修复完成", comment: "") : NSLocalizedString("修复失败", comment: "")
             fixAlertMessage = result.output
             showFixAlert = true
         }
@@ -2789,7 +2850,7 @@ private struct VoicePermissionOnboardingSheet: View {
                 HStack(spacing: 8) {
                     Text(title)
                         .font(.headline)
-                    Text(granted ? "已开启" : "未开启")
+                    Text(granted ? NSLocalizedString("已开启", comment: "") : NSLocalizedString("未开启", comment: ""))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -2831,7 +2892,7 @@ private struct VoicePresetPicker: View {
                                 .font(.callout.weight(.semibold))
                             Spacer()
                             if !preset.availableInV1 {
-                                Text("开发中")
+                                Text(NSLocalizedString("开发中", comment: ""))
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
@@ -2883,7 +2944,7 @@ private struct ShortcutBindingEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("修饰键")
+                Text(NSLocalizedString("修饰键", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 HStack(spacing: 8) {
@@ -2896,7 +2957,7 @@ private struct ShortcutBindingEditor: View {
                         .help(modifier.title)
                     }
                     if !shortcut.modifiers.isEmpty {
-                        Button("清除修饰键") {
+                        Button(NSLocalizedString("清除修饰键", comment: "")) {
                             var next = shortcut
                             next.modifiers = []
                             shortcut = next
@@ -2908,7 +2969,7 @@ private struct ShortcutBindingEditor: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("主键")
+                Text(NSLocalizedString("主键", comment: ""))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -2945,7 +3006,7 @@ private struct PrimaryKeyInputField: View {
     @Binding var isRecording: Bool
 
     private var displayText: String {
-        shortcut.keyCode == 0 ? "直接按下键盘快捷键即可" : HIDUsage.name(for: shortcut.keyCode)
+        shortcut.keyCode == 0 ? NSLocalizedString("直接按下键盘快捷键即可", comment: "") : HIDUsage.name(for: shortcut.keyCode)
     }
 
     var body: some View {
@@ -2976,7 +3037,7 @@ private struct PrimaryKeyInputField: View {
                 Spacer()
 
                 Menu {
-                    Button("直接按下键盘快捷键即可") {
+                    Button(NSLocalizedString("直接按下键盘快捷键即可", comment: "")) {
                         shortcut = ShortcutBinding()
                         isRecording = false
                     }
@@ -2999,13 +3060,13 @@ private struct PrimaryKeyInputField: View {
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
                 .fixedSize()
-                .help("展开下拉列表")
+                .help(NSLocalizedString("展开下拉列表", comment: ""))
             }
             .padding(.horizontal, 10)
         }
         .frame(height: 36)
         .contentShape(Rectangle())
-        .help("直接按键设置主键，点击箭头展开下拉列表。")
+        .help(NSLocalizedString("直接按键设置主键，点击箭头展开下拉列表。", comment: ""))
     }
 }
 
@@ -3261,7 +3322,7 @@ private struct AhaKeyKeyboardCanvasView: View {
             onSelect(part)
         } label: {
             VStack(spacing: rect.height * 0.12) {
-                Text("灯条")
+                Text(NSLocalizedString("灯条", comment: ""))
                     .font(.system(size: max(rect.height * 0.18, 10), weight: .semibold))
                     .foregroundStyle(Color.black.opacity(0.72))
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -3392,11 +3453,11 @@ private struct AhaKeyKeyboardCanvasView: View {
                             }())
                                 .font(.system(size: screenHeight * 0.22, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.78))
-                            Text("未上传")
+                            Text(NSLocalizedString("未上传", comment: ""))
                                 .font(.system(size: screenHeight * 0.20, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.85))
                         }
-                        Text("等待自定义")
+                        Text(NSLocalizedString("等待自定义", comment: ""))
                             .font(.system(size: screenHeight * 0.18))
                             .foregroundStyle(.white.opacity(0.55))
                     }
@@ -3491,7 +3552,7 @@ private struct AhaKeyKeyboardCanvasView: View {
         }
         .buttonStyle(CanvasKeyButtonStyle())
         .position(x: rect.midX, y: rect.midY)
-        .help("点击切换 Mode（模拟实体键）")
+        .help(NSLocalizedString("点击切换 Mode（模拟实体键）", comment: ""))
     }
 
     private func switchButton(width: CGFloat, height: CGFloat) -> some View {
@@ -3512,7 +3573,7 @@ private struct AhaKeyKeyboardCanvasView: View {
                         .fill(Color.white)
                         .frame(width: rect.width * 0.36, height: rect.height * 0.65)
                         .overlay(Circle().fill(Color.gray.opacity(0.24)).frame(width: rect.width * 0.28, height: rect.width * 0.28))
-                        .offset(y: switchTitle == "自动批准" ? -rect.height * 0.08 : rect.height * 0.12)
+                        .offset(y: switchTitle == NSLocalizedString("自动批准", comment: "") ? -rect.height * 0.08 : rect.height * 0.12)
                 }
                 .frame(width: rect.width * 0.58, height: rect.height * 0.78)
 
@@ -4037,18 +4098,18 @@ private func activateAhaKeyWindowForTextInput() {
 
 /// 在系统「隐私与安全性」中改完权限后，用确认框引导用户：退出后由 `open -n` 自动拉起同一份 .app。
 private struct RestartToApplyPermissionsButton: View {
-    var title: String = "退出并重新打开…"
+    var title: String = NSLocalizedString("退出并重新打开…", comment: "")
     @State private var showConfirm = false
 
     var body: some View {
         Button(title) { showConfirm = true }
             .buttonStyle(.bordered)
-            .help("在系统设置中修改权限后，需重启本应用，检测才会与系统一致。")
-            .alert("需要重启以刷新权限", isPresented: $showConfirm) {
-                Button("取消", role: .cancel) {}
-                Button("立即重启") { relaunchApplicationForPermissionRefresh() }
+            .help(NSLocalizedString("在系统设置中修改权限后，需重启本应用，检测才会与系统一致。", comment: ""))
+            .alert(NSLocalizedString("需要重启以刷新权限", comment: ""), isPresented: $showConfirm) {
+                Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
+                Button(NSLocalizedString("立即重启", comment: "")) { relaunchApplicationForPermissionRefresh() }
             } message: {
-                Text("将先退出本应用，再自动重新打开。重新打开后「重新检查权限」会读取最新系统状态。")
+                Text(NSLocalizedString("将先退出本应用，再自动重新打开。重新打开后「重新检查权限」会读取最新系统状态。", comment: ""))
             }
     }
 }
@@ -4101,12 +4162,7 @@ private struct DeviceInfoSheetContainer: View {
                 Text("设备信息 · Agent")
                     .font(.headline)
                 Spacer(minLength: 0)
-                Button {
-                    dismiss()
-                } label: {
-                    Label("关闭", systemImage: "xmark.circle.fill")
-                }
-                .labelStyle(.titleAndIcon)
+                Button(NSLocalizedString("关闭", comment: "")) { dismiss() }
                 .buttonStyle(.bordered)
                 .keyboardShortcut(.escape, modifiers: [])
             }
@@ -4135,10 +4191,10 @@ private struct CloudAccountView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("云端账号 · AhaType")
+                Text(NSLocalizedString("云端账号 · AhaType", comment: ""))
                     .font(.headline)
                 Spacer()
-                Button("关闭") { dismiss() }
+                Button(NSLocalizedString("关闭", comment: "")) { dismiss() }
             }
             .padding(16)
 
@@ -4159,11 +4215,11 @@ private struct CloudAccountView: View {
                 .padding(18)
             }
         }
-        .alert("云端账号", isPresented: Binding(
+        .alert(NSLocalizedString("云端账号", comment: ""), isPresented: Binding(
             get: { account.alertMessage != nil },
             set: { if !$0 { account.alertMessage = nil } }
         )) {
-            Button("好", role: .cancel) { account.alertMessage = nil }
+            Button(NSLocalizedString("好", comment: ""), role: .cancel) { account.alertMessage = nil }
         } message: {
             Text(account.alertMessage ?? "")
         }
@@ -4183,11 +4239,11 @@ private struct CloudAccountView: View {
 
     private var loginSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("登录后可使用 AhaType 云端大模型整理。")
+            Text(NSLocalizedString("登录后可使用 AhaType 云端大模型整理。", comment: ""))
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
-            TextField("手机号", text: $account.phone)
+            TextField(NSLocalizedString("手机号", comment: ""), text: $account.phone)
                 .textFieldStyle(.roundedBorder)
                 .focused($focusedLoginField, equals: .phone)
                 .onTapGesture {
@@ -4196,7 +4252,7 @@ private struct CloudAccountView: View {
                 }
                 .onSubmit { focusedLoginField = .password }
 
-            SecureField("密码", text: $account.password)
+            SecureField(NSLocalizedString("密码", comment: ""), text: $account.password)
                 .textFieldStyle(.roundedBorder)
                 .focused($focusedLoginField, equals: .password)
                 .onTapGesture {
@@ -4205,13 +4261,13 @@ private struct CloudAccountView: View {
                 }
                 .onSubmit { account.login() }
 
-            Toggle("记住密码", isOn: $account.rememberPassword)
+            Toggle(NSLocalizedString("记住密码", comment: ""), isOn: $account.rememberPassword)
 
             HStack(spacing: 10) {
-                Button("登录") { account.login() }
+                Button(NSLocalizedString("登录", comment: "")) { account.login() }
                     .buttonStyle(.borderedProminent)
                     .disabled(account.isBusy)
-                Button("注册") { account.register() }
+                Button(NSLocalizedString("注册", comment: "")) { account.register() }
                     .buttonStyle(.bordered)
                     .disabled(account.isBusy)
             }
@@ -4229,9 +4285,9 @@ private struct CloudAccountView: View {
                 .textSelection(.enabled)
 
             VStack(alignment: .leading, spacing: 8) {
-                quotaRow(title: "每日", value: account.quotaText("daily"))
-                quotaRow(title: "每周", value: account.quotaText("weekly"))
-                quotaRow(title: "每月", value: account.quotaText("monthly"))
+                quotaRow(title: NSLocalizedString("每日", comment: ""), value: account.quotaText("daily"))
+                quotaRow(title: NSLocalizedString("每周", comment: ""), value: account.quotaText("weekly"))
+                quotaRow(title: NSLocalizedString("每月", comment: ""), value: account.quotaText("monthly"))
             }
             .padding(12)
             .background(
@@ -4240,16 +4296,16 @@ private struct CloudAccountView: View {
             )
 
             HStack(spacing: 10) {
-                Button("刷新") { account.refreshProfile() }
+                Button(NSLocalizedString("刷新", comment: "")) { account.refreshProfile() }
                     .buttonStyle(.borderedProminent)
                     .disabled(account.isBusy)
-                Button("切换账号") {
+                Button(NSLocalizedString("切换账号", comment: "")) {
                     account.prepareForRelogin()
                     focusedLoginField = .phone
                 }
                 .buttonStyle(.bordered)
                 .disabled(account.isBusy)
-                Button("退出登录") { account.logout() }
+                Button(NSLocalizedString("退出登录", comment: "")) { account.logout() }
                     .buttonStyle(.bordered)
                     .disabled(account.isBusy)
             }
@@ -4257,9 +4313,9 @@ private struct CloudAccountView: View {
             rechargeSection
 
             HStack(spacing: 10) {
-                TextField("免费券兑换码", text: $account.couponCode)
+                TextField(NSLocalizedString("免费券兑换码", comment: ""), text: $account.couponCode)
                     .textFieldStyle(.roundedBorder)
-                Button("兑换") { account.redeemCoupon() }
+                Button(NSLocalizedString("兑换", comment: "")) { account.redeemCoupon() }
                     .buttonStyle(.bordered)
                     .disabled(account.isBusy)
             }
@@ -4272,7 +4328,7 @@ private struct CloudAccountView: View {
 
     private var rechargeSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("充值订阅")
+            Text(NSLocalizedString("充值订阅", comment: ""))
                 .font(.callout.weight(.semibold))
 
             HStack(spacing: 8) {
@@ -4313,7 +4369,7 @@ private struct CloudAccountView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("\(order.plan.title) · \(order.amountText)")
                                 .font(.caption.weight(.semibold))
-                            Text("微信扫码完成支付，支付成功后会自动刷新额度。")
+                            Text(NSLocalizedString("微信扫码完成支付，支付成功后会自动刷新额度。", comment: ""))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             Text("订单：\(order.outTradeNo)")
@@ -4327,19 +4383,19 @@ private struct CloudAccountView: View {
                     }
 
                     HStack(spacing: 8) {
-                        Button("复制支付链接") {
+                        Button(NSLocalizedString("复制支付链接", comment: "")) {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(order.paymentURL, forType: .string)
                         }
                         .buttonStyle(.bordered)
 
-                        Button("刷新到账") {
+                        Button(NSLocalizedString("刷新到账", comment: "")) {
                             account.refreshCurrentPaymentOrder()
                         }
                         .buttonStyle(.bordered)
                         .disabled(account.isBusy)
 
-                        Button("关闭订单") {
+                        Button(NSLocalizedString("关闭订单", comment: "")) {
                             account.clearPaymentOrder()
                         }
                         .buttonStyle(.bordered)
@@ -4360,12 +4416,12 @@ private struct CloudAccountView: View {
                 get: { optimizer.isEnabled },
                 set: { optimizer.setEnabled($0) }
             )) {
-                Text("启用 AhaType 云端整理")
+                Text(NSLocalizedString("启用 AhaType 云端整理", comment: ""))
                     .font(.callout.weight(.semibold))
             }
             .toggleStyle(.switch)
 
-            Text("开启后，macOS 原生语音转写完成后会先请求云端整理，再粘贴整理后的文本。未登录、过期或网络失败时会自动回退原始转写。")
+            Text(NSLocalizedString("开启后，macOS 原生语音转写完成后会先请求云端整理，再粘贴整理后的文本。未登录、过期或网络失败时会自动回退原始转写。", comment: ""))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -4450,7 +4506,7 @@ private struct OLEDMotionPreviewSheet: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button("关闭") {
+                Button(NSLocalizedString("关闭", comment: "")) {
                     dismiss()
                 }
                 .buttonStyle(.bordered)
@@ -4588,10 +4644,10 @@ private struct HelpCenterSheet: View {
                 Image(systemName: "book.closed.fill")
                     .font(.title3)
                     .foregroundStyle(.tint)
-                Text("AhaKey Studio 帮助中心")
+                Text(NSLocalizedString("AhaKey Studio 帮助中心", comment: ""))
                     .font(.title3.weight(.semibold))
                 Spacer()
-                Button("完成") { dismiss() }
+                Button(NSLocalizedString("关闭", comment: "")) { dismiss() }
                     .keyboardShortcut(.cancelAction)
             }
             .padding(.horizontal, 20)
@@ -4775,12 +4831,12 @@ private struct OverviewTopicView: View {
         VStack(alignment: .leading, spacing: 8) {
             HelpTitle(
                 icon: "sparkles",
-                title: "总览",
-                subtitle: "AhaKey Studio 是 AhaKey 小键盘的 macOS 配置中心"
+                title: NSLocalizedString("总览", comment: ""),
+                subtitle: NSLocalizedString("AhaKey Studio 是 AhaKey 小键盘的 macOS 配置中心", comment: "")
             )
 
             HelpSection(
-                title: "三件套是怎么协同的",
+                title: NSLocalizedString("三件套是怎么协同的", comment: ""),
                 body: """
                 • 主 App（你正在用的）— 看配置、改键位、上传 LCD 动图、查诊断
                 • Agent 守护进程 — 后台常驻；监听 IDE 的 Hook（Claude / Cursor / Codex / Kimi），并在 BLE 上向键盘转发当前 AI 状态
@@ -4798,7 +4854,7 @@ private struct OverviewTopicView: View {
                 """
             )
 
-            HelpNote("info.circle.fill", tint: .blue, body: "首次连接，可以先打开「权限诊断」过一遍权限项；任何 Hook 不生效的问题大多在权限里。")
+            HelpNote("info.circle.fill", tint: .blue, body: NSLocalizedString("首次连接，可以先打开「权限诊断」过一遍权限项；任何 Hook 不生效的问题大多在权限里。", comment: ""))
         }
     }
 }
@@ -4810,15 +4866,15 @@ private struct ModesTopicView: View {
         VStack(alignment: .leading, spacing: 8) {
             HelpTitle(
                 icon: "square.grid.3x1.below.line.grid.1x2",
-                title: "四个 Mode",
-                subtitle: "硬件物理键码 + 软件配置同步切换"
+                title: NSLocalizedString("四个 Mode", comment: ""),
+                subtitle: NSLocalizedString("硬件物理键码 + 软件配置同步切换", comment: "")
             )
 
             ForEach(AhaKeyModeSlot.allCases) { mode in
                 modeCard(mode)
             }
 
-            HelpNote("hand.tap.fill", tint: .accentColor, body: "切换方式：键盘上的 Mode 拨杆，或主 App 顶部 Picker，或点画布上的 Mode 按钮。三处任一改动会同步另外两个。")
+            HelpNote("hand.tap.fill", tint: .accentColor, body: NSLocalizedString("切换方式：键盘上的 Mode 拨杆，或主 App 顶部 Picker，或点画布上的 Mode 按钮。三处任一改动会同步另外两个。", comment: ""))
         }
     }
 
@@ -4834,7 +4890,7 @@ private struct ModesTopicView: View {
                     .background(modeChipColor(mode), in: Capsule())
                 Text(mode.name).font(.headline)
                 if mode == selectedMode {
-                    Text("当前").font(.caption2)
+                    Text(NSLocalizedString("当前", comment: "")).font(.caption2)
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(Color.accentColor.opacity(0.18), in: Capsule())
                 }
@@ -4871,18 +4927,18 @@ private struct CanvasTopicView: View {
         VStack(alignment: .leading, spacing: 8) {
             HelpTitle(
                 icon: "keyboard",
-                title: "画布与按键",
-                subtitle: "中间那个像键盘的图就是你的小键盘 1:1 镜像，所有元件可点"
+                title: NSLocalizedString("画布与按键", comment: ""),
+                subtitle: NSLocalizedString("中间那个像键盘的图就是你的小键盘 1:1 镜像，所有元件可点", comment: "")
             )
 
-            HelpSection(title: "六大热区", body: "灯条、LCD 屏幕、Key1（语音）、Key2、Key3、Key4、拨杆。点哪个就在右侧 Inspector 看到那个元件的配置。")
+            HelpSection(title: NSLocalizedString("六大热区", comment: ""), body: NSLocalizedString("灯条、LCD 屏幕、Key1（语音）、Key2、Key3、Key4、拨杆。点哪个就在右侧 Inspector 看到那个元件的配置。", comment: ""))
 
             VStack(alignment: .leading, spacing: 10) {
-                hotspotRow("rainbow", "灯条", "点亮键盘顶端 8 颗 WS2812 LED；颜色和效果跟随 IDE Hook 状态。")
+                hotspotRow("rainbow", NSLocalizedString("灯条", comment: ""), NSLocalizedString("点亮键盘顶端 8 颗 WS2812 LED；颜色和效果跟随 IDE Hook 状态。", comment: ""))
                 hotspotRow("play.tv", "LCD 屏幕", "0.96\" IPS 显示；可上传 GIF 动图（160×80, RGB565）。")
-                hotspotRow("mic", "Key 1 / 语音键", "macOS 原生语音默认 F18；Typeless / 微信的 Fn 触发使用 F19。")
-                hotspotRow("checkmark.circle", "Key 2 / 通过键", "依 Mode 默认：Y / ↵ / ↵。可改成宏序列。")
-                hotspotRow("xmark.circle", "Key 3 / 拒绝键", "依 Mode 默认：N / ⌫ / Esc。可改成宏序列。")
+                hotspotRow("mic", NSLocalizedString("Key 1 / 语音键", comment: ""), NSLocalizedString("macOS 原生语音默认 F18；Typeless / 微信的 Fn 触发使用 F19。", comment: ""))
+                hotspotRow("checkmark.circle", NSLocalizedString("Key 2 / 通过键", comment: ""), NSLocalizedString("依 Mode 默认：Y / ↵ / ↵。可改成宏序列。", comment: ""))
+                hotspotRow("xmark.circle", NSLocalizedString("Key 3 / 拒绝键", comment: ""), NSLocalizedString("依 Mode 默认：N / ⌫ / Esc。可改成宏序列。", comment: ""))
                 hotspotRow("delete.left", "Key 4 / 删除键", "默认 Backspace，可改任意短按 / 长按。")
                 hotspotRow("switch.2", "拨杆", "实体档位决定 auto / manual 批准；客户端仅显示状态。")
             }
@@ -4929,7 +4985,7 @@ private struct PhysicalSwitchTopicView: View {
             HelpNote("info.circle", tint: .blue, body: "请使用键盘上的实体拨杆切换档位。点画布中的拨杆只打开说明，不会改变批准行为。")
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("现状一览").font(.subheadline.weight(.medium))
+                Text(NSLocalizedString("现状一览", comment: "")).font(.subheadline.weight(.medium))
                 stateRow("键盘上报档位", (bleManager.isConnected ? bleManager.switchState : bleManager.agentSwitchState).map(String.init) ?? "未知")
             }
             .padding(12)
@@ -4954,8 +5010,8 @@ private struct OLEDTopicView: View {
         VStack(alignment: .leading, spacing: 8) {
             HelpTitle(
                 icon: "play.tv",
-                title: "LCD 屏幕",
-                subtitle: "0.96\" IPS · 160×80 · RGB565 · 内置 16 Mbit Flash 存帧"
+                title: NSLocalizedString("LCD 屏幕", comment: ""),
+                subtitle: NSLocalizedString("0.96\" IPS · 160×80 · RGB565 · 内置 16 Mbit Flash 存帧", comment: "")
             )
 
             HelpSection(title: "默认动图（连接即自动同步）", body: """
@@ -4981,7 +5037,7 @@ private struct OLEDTopicView: View {
                 """)
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("现在键盘 flash 各 Mode 状态").font(.subheadline.weight(.medium))
+                Text(NSLocalizedString("现在键盘 flash 各 Mode 状态", comment: "")).font(.subheadline.weight(.medium))
                 ForEach(AhaKeyModeSlot.allCases) { mode in
                     HStack {
                         Text(mode.title + " · " + mode.name).font(.callout)
@@ -5013,27 +5069,27 @@ private struct LightBarTopicView: View {
         VStack(alignment: .leading, spacing: 8) {
             HelpTitle(
                 icon: "rainbow",
-                title: "灯条颜色",
-                subtitle: "8 颗 WS2812B，颜色由固件 update_claude_ws2812() 决定，1:1 还原在画布上"
+                title: NSLocalizedString("灯条颜色", comment: ""),
+                subtitle: NSLocalizedString("8 颗 WS2812B，颜色由固件 update_claude_ws2812() 决定，1:1 还原在画布上", comment: "")
             )
 
-            HelpSection(title: "颜色对照表", body: "下面是 Mode 1（Claude）下，固件按 IDE state 的实际行为：")
+            HelpSection(title: NSLocalizedString("颜色对照表", comment: ""), body: NSLocalizedString("下面是 Mode 1（Claude）下，固件按 IDE state 的实际行为：", comment: ""))
 
             VStack(alignment: .leading, spacing: 8) {
                 HelpSwatch(
                     color: Color(red: 240/255, green: 32/255, blue: 41/255),
-                    label: "0xF02029 (红)",
+                    label: NSLocalizedString("0xF02029 (红)", comment: ""),
                     detail: "SessionStart / Stop / PostToolUse / PermissionRequest / UserPromptSubmit"
                 )
                 HelpSwatch(
                     color: Color(red: 32/255, green: 80/255, blue: 255/255),
-                    label: "0x2050FF (蓝)",
-                    detail: "PreToolUse — 工具开始执行（manual 档专属）"
+                    label: NSLocalizedString("0x2050FF (蓝)", comment: ""),
+                    detail: NSLocalizedString("PreToolUse — 工具开始执行（manual 档专属）", comment: "")
                 )
                 HelpSwatch(
                     color: Color.gray.opacity(0.3),
-                    label: "OFF (熄灭)",
-                    detail: "SessionEnd — Claude 会话结束"
+                    label: NSLocalizedString("OFF (熄灭)", comment: ""),
+                    detail: NSLocalizedString("SessionEnd — Claude 会话结束", comment: "")
                 )
             }
 
@@ -5044,7 +5100,7 @@ private struct LightBarTopicView: View {
                 这就是你看到「Cursor 一跑灯条变彩虹」的原因——是 auto 档的视觉提示，不是 Cursor 专属。
                 """)
 
-            HelpNote("exclamationmark.triangle.fill", tint: .orange, body: "Mode 1 / Mode 2 时，固件的 update_claude_ws2812() 直接 return，**灯条不再随 IDE state 变**，会停在上一次设定的颜色上。这是固件设计，不是 bug。")
+            HelpNote("exclamationmark.triangle.fill", tint: .orange, body: NSLocalizedString("Mode 1 / Mode 2 时，固件的 update_claude_ws2812() 直接 return，**灯条不再随 IDE state 变**，会停在上一次设定的颜色上。这是固件设计，不是 bug。", comment: ""))
         }
     }
 }
@@ -5054,8 +5110,8 @@ private struct VoiceTopicView: View {
         VStack(alignment: .leading, spacing: 8) {
             HelpTitle(
                 icon: "mic.circle",
-                title: "语音输入",
-                subtitle: "macOS 原生语音走 F18；Fn / Globe 触发走 F19"
+                title: NSLocalizedString("语音输入", comment: ""),
+                subtitle: NSLocalizedString("macOS 原生语音走 F18；Fn / Globe 触发走 F19", comment: "")
             )
 
             HelpSection(title: "几种预设的差别", body: """
@@ -5072,7 +5128,7 @@ private struct VoiceTopicView: View {
                 两种模式在 Key 1 Inspector 的「触发方式」Tab 里切换。
                 """)
 
-            HelpNote("hand.raised.fill", tint: .red, body: "麦克风 + 输入监控 + 辅助功能三个权限都得给。打开「权限诊断」可以一键跳到系统设置对应页。")
+            HelpNote("hand.raised.fill", tint: .red, body: NSLocalizedString("麦克风 + 输入监控 + 辅助功能三个权限都得给。打开「权限诊断」可以一键跳到系统设置对应页。", comment: ""))
         }
     }
 }
@@ -5082,8 +5138,8 @@ private struct DiagnosticsTopicView: View {
         VStack(alignment: .leading, spacing: 8) {
             HelpTitle(
                 icon: "stethoscope",
-                title: "权限诊断",
-                subtitle: "点底栏的「权限诊断」按钮打开（不是这里的页面）"
+                title: NSLocalizedString("权限诊断", comment: ""),
+                subtitle: NSLocalizedString("点底栏的「权限诊断」按钮打开（不是这里的页面）", comment: "")
             )
 
             HelpSection(title: "权限清单", body: """
@@ -5102,7 +5158,7 @@ private struct DiagnosticsTopicView: View {
                 • Hook 已配置：Claude/Cursor/Codex/Kimi 的 .json / settings 都加好了 ahakey-hook 引用
                 """)
 
-            HelpSection(title: "转写测试在哪", body: "权限诊断弹窗里。可以不连键盘就验证 macOS 原生转写是否能识别。如果转写失败，多半是麦克风权限或没装语言模型（系统设置 → Siri 与听写 → 听写语言）。")
+            HelpSection(title: NSLocalizedString("转写测试在哪", comment: ""), body: NSLocalizedString("权限诊断弹窗里。可以不连键盘就验证 macOS 原生转写是否能识别。如果转写失败，多半是麦克风权限或没装语言模型（系统设置 → Siri 与听写 → 听写语言）。", comment: ""))
         }
     }
 }
@@ -5112,8 +5168,8 @@ private struct FAQTopicView: View {
         VStack(alignment: .leading, spacing: 8) {
             HelpTitle(
                 icon: "questionmark.bubble",
-                title: "常见问题",
-                subtitle: "如果下面没你的问题，可以提 issue 到 GitHub 仓库"
+                title: NSLocalizedString("常见问题", comment: ""),
+                subtitle: NSLocalizedString("如果下面没你的问题，可以提 issue 到 GitHub 仓库", comment: "")
             )
 
             faq(
@@ -5129,7 +5185,7 @@ private struct FAQTopicView: View {
             )
 
             faq(
-                q: "画布上灯条不变色",
+                q: NSLocalizedString("画布上灯条不变色", comment: ""),
                 a: """
                 • 检查右上角是否「已连接」
                 • 切到正在用的 Mode
@@ -5139,7 +5195,7 @@ private struct FAQTopicView: View {
             )
 
             faq(
-                q: "LCD 自动同步没触发",
+                q: NSLocalizedString("LCD 自动同步没触发", comment: ""),
                 a: """
                 自动同步只在主 App 自占 BLE 时才查图片元信息。流程：
                 1. 至少点一次「修改」让主 App 接管 BLE
@@ -5150,17 +5206,15 @@ private struct FAQTopicView: View {
             )
 
             faq(
-                q: "拨杆我点了，但键盘灯效没切",
+                q: NSLocalizedString("拨杆我点了，但键盘灯效没切", comment: ""),
                 a: """
                 最新固件中 0x91 已用于灯效预览。批准档位只由实体拨杆决定，客户端不会写入键盘 sw_state。
                 """
             )
 
             faq(
-                q: "OTA 升级有吗？",
-                a: """
-                规划中，下一版本会做。当前所有固件升级都需要 USB-ISP（拆机短 BOOT + wchisp）。详细方案在仓库 docs 里。
-                """
+                q: NSLocalizedString("OTA 升级有吗？", comment: ""),
+                a: NSLocalizedString("打开顶部“更多”菜单：选择“检查更新”查看客户端新版本并下载安装包；选择“固件升级”查看固件升级入口与 USB ISP 操作说明。当前固件仍通过 USB ISP 升级。", comment: "")
             )
         }
     }
