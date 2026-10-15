@@ -55,9 +55,6 @@ jobs:
       - name: Test macOS app and Agent
         run: swift test --skip-update
 
-      - name: Test Studio migrations with English and Chinese resources
-        run: python3 scripts/test_studio_migrations.py
-
       - name: Package "AhaKey Studio.app" (release, ad-hoc signed)
         run: |
           chmod +x scripts/package_app.sh

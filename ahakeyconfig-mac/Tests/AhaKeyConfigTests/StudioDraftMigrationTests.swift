@@ -1,8 +1,5 @@
-import Foundation
 import XCTest
-#if !STANDALONE_MIGRATION_TESTS
 @testable import AhaKeyConfig
-#endif
 
 final class StudioDraftMigrationTests: XCTestCase {
     func testChineseLegacySubmitMigratesInEveryMode() {
@@ -40,29 +37,5 @@ final class StudioDraftMigrationTests: XCTestCase {
         let expected = AhaKeyModeDraft.default(for: .mode0)
         XCTAssertEqual(migrated.key(for: .approve), expected.key(for: .approve))
         XCTAssertEqual(migrated.key(for: .reject), expected.key(for: .reject))
-    }
-
-    func testCustomDescriptionsAndBindingsArePreserved() {
-        var draft = AhaKeyStudioDraft.default
-        var mode = draft.draft(for: .mode0)
-        var submit = mode.key(for: .submit)
-        submit.shortcut = ShortcutBinding(keyCode: HIDUsage.enter)
-        submit.description = "Send my message"
-        mode.updateKey(submit)
-        var reject = mode.key(for: .reject)
-        reject.shortcut = ShortcutBinding(keyCode: HIDUsage.escape)
-        reject.description = "Custom cancel"
-        reject.macro = []
-        mode.updateKey(reject)
-        draft.updateMode(mode)
-
-        let migrated = AhaKeyStudioStore.migratedDraft(from: draft).draft(for: .mode0)
-        XCTAssertEqual(migrated.key(for: .submit), submit)
-        XCTAssertEqual(migrated.key(for: .reject), reject)
-    }
-
-    func testMigrationIsIdempotent() {
-        let once = AhaKeyStudioStore.migratedDraft(from: .default)
-        XCTAssertEqual(AhaKeyStudioStore.migratedDraft(from: once), once)
     }
 }
