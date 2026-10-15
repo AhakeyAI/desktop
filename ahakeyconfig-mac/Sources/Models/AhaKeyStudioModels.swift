@@ -1080,19 +1080,22 @@ enum AhaKeyStudioStore {
         UserDefaults.standard.set(data, forKey: key)
     }
 
-    private static func migratedDraft(from draft: AhaKeyStudioDraft) -> AhaKeyStudioDraft {
+    static func migratedDraft(from draft: AhaKeyStudioDraft) -> AhaKeyStudioDraft {
         var next = draft
         var mode0 = next.draft(for: .mode0)
+        // These are persisted values from older releases, not display strings.
+        // Match them independently of the current UI language.
         let legacyDescriptions: [AhaKeyKeyRole: String] = [
-            .voice: NSLocalizedString("语音", comment: ""),
-            .approve: NSLocalizedString("批准", comment: ""),
-            .reject: NSLocalizedString("拒绝", comment: ""),
-            .submit: NSLocalizedString("回车", comment: ""),
+            .voice: "语音",
+            .approve: "批准",
+            .reject: "拒绝",
         ]
 
         for role in AhaKeyKeyRole.allCases {
             var key = mode0.key(for: role)
-            if key.description.isEmpty || key.description == legacyDescriptions[role] {
+            // Key4's legacy label is needed by the Enter → Backspace migration below.
+            if role != .submit,
+               key.description.isEmpty || key.description == legacyDescriptions[role] {
                 key.description = role.defaultDescription
             }
             if role == .voice,
@@ -1166,14 +1169,14 @@ enum AhaKeyStudioStore {
             "当前仅支持动图",
             "切换模式时会先显示按键描述，再回到 Mode 1 默认动图。",
             "当前模式还未上传动图，后续可替换成你的自定义 GIF。",
-            NSLocalizedString("Cursor · ⌘↵ 接受改动 / ⌘⌫ 拒绝改动。", comment: ""),
-            NSLocalizedString("Claude Code · 终端权限菜单 Y/N。", comment: ""),
-            NSLocalizedString("Codex · 审批 ↵ / Esc。", comment: ""),
+            "Cursor · ⌘↵ 接受改动 / ⌘⌫ 拒绝改动。",
+            "Claude Code · 终端权限菜单 Y/N。",
+            "Codex · 审批 ↵ / Esc。",
         ]
         let legacyApproveBinding = ShortcutBinding(keyCode: HIDUsage.enter)
         let legacyRejectBinding = ShortcutBinding(keyCode: HIDUsage.escape)
-        let legacyApproveDescriptions: Set<String> = ["Accept", NSLocalizedString("批准", comment: ""), ""]
-        let legacyRejectDescriptions: Set<String> = ["Reject", NSLocalizedString("拒绝", comment: ""), ""]
+        let legacyApproveDescriptions: Set<String> = ["Accept", "批准", ""]
+        let legacyRejectDescriptions: Set<String> = ["Reject", "拒绝", ""]
 
         for mode in AhaKeyModeSlot.allCases {
             var modeDraft = next.draft(for: mode)
@@ -1220,7 +1223,7 @@ enum AhaKeyStudioStore {
             var submitKey = modeDraft.key(for: .submit)
             if submitKey.macro.isEmpty,
                submitKey.shortcut == ShortcutBinding(keyCode: HIDUsage.enter),
-               (submitKey.description == "Enter" || submitKey.description == NSLocalizedString("回车", comment: "") || submitKey.description.isEmpty)
+               (submitKey.description == "Enter" || submitKey.description == "回车" || submitKey.description.isEmpty)
             {
                 let targetSubmit = target.key(for: .submit)
                 submitKey.shortcut = targetSubmit.shortcut
@@ -1231,7 +1234,7 @@ enum AhaKeyStudioStore {
             submitKey = modeDraft.key(for: .submit)
             if submitKey.shortcut == ShortcutBinding(keyCode: HIDUsage.backspace),
                submitKey.macro.isEmpty,
-               ["", "backspace", "Back space", "Back Space", NSLocalizedString("删除", comment: ""), NSLocalizedString("删除键", comment: "")].contains(submitKey.description)
+               ["", "backspace", "Back space", "Back Space", "删除", "删除键"].contains(submitKey.description)
             {
                 submitKey.description = AhaKeyKeyRole.submit.defaultDescription
                 modeDraft.updateKey(submitKey)

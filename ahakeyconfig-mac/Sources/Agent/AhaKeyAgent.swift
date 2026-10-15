@@ -47,7 +47,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 最新 lightMode
     private(set) var cachedLightMode: UInt8?
     /// 等待下一次 status 回包的回调队列（用于 querySwitchState）
-    private var statusWaiters: [(AgentDeviceStatus?) -> Void] = []
+    private var statusWaiters = AgentStatusQueries()
     /// 工具完成 / 用户提交等短暂态的自动回落。
     private var statusPollTimer: DispatchSourceTimer?
     private var pendingStateReset: DispatchWorkItem?
@@ -176,7 +176,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     /// 主动查询一次设备状态，等待下一个 notify 回包 (timeout 秒内)。
-    /// 超时时用缓存兜底；仍然没有则返回 nil。完成回调在 main 队列。
+    /// 超时或断连返回 nil；审批不能使用上一次查询的缓存。完成回调在 main 队列。
     func querySwitchState(timeout: TimeInterval = 1.5,
                           completion: @escaping (AgentDeviceStatus?) -> Void) {
         guard let commandChar, let peripheral else {
@@ -189,24 +189,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
         peripheral.writeValue(query, for: commandChar, type: wt)
 
-        statusWaiters.append(completion)
+        let requestID = statusWaiters.append(completion)
         DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
-            guard let self else { return }
-            // 把目前仍在队列里的 waiter 全部用缓存兜底 fire 掉
-            guard !self.statusWaiters.isEmpty else { return }
-            let waiters = self.statusWaiters
-            self.statusWaiters.removeAll()
-            let fallback = self.cachedStatus()
-            for w in waiters { w(fallback) }
+            self?.statusWaiters.timeOut(requestID)
         }
-    }
-
-    private func cachedStatus() -> AgentDeviceStatus? {
-        guard let sw = cachedSwitchState else { return nil }
-        return AgentDeviceStatus(
-            battery: -1, signal: -1, firmwareMain: -1, firmwareSub: -1,
-            workMode: -1, lightMode: Int(cachedLightMode ?? 0), switchState: Int(sw)
-        )
     }
 
     @discardableResult
@@ -376,8 +362,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             didLogWatchdogHold = false
             sendState(UInt8(clamping: stateValue))
             querySwitchState(timeout: 1.5) { status in
-                let body = Self.statusReply(status, cachedSwitch: self.cachedSwitchState,
-                                            cachedLight: self.cachedLightMode)
+                let body = Self.permissionReply(status)
                 self.emit("← permission 回包 switchState=\(String(describing: body["switchState"]))")
                 if let s = body["switchState"] as? Int, s != 0 {
                     self.emit(NSLocalizedString("（拨杆非 0：PermissionRequest 将交回终端手动确认）", comment: ""))
@@ -404,13 +389,25 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         case "approval_status":
             // 给 Kimi CLI 的实时批准判断用：每次都主动向设备要当前拨杆，避免会话内沿用旧的 yolo/state。
             querySwitchState(timeout: 1.5) { status in
-                Self.replyAndClose(clientFd, Self.statusReply(status, cachedSwitch: self.cachedSwitchState,
-                                                             cachedLight: self.cachedLightMode))
+                Self.replyAndClose(clientFd, Self.permissionReply(status))
             }
 
         default:
             Self.replyAndClose(clientFd, ["error": "unknown cmd: \(cmd)"])
         }
+    }
+
+    /// Only a response to the current BLE query can authorize a tool. Display caches
+    /// deliberately do not participate in this reply, including on timeout/disconnect.
+    static func permissionReply(_ status: AgentDeviceStatus?) -> [String: Any] {
+        let physicalSwitch = status.flatMap { (0...1).contains($0.switchState) ? $0.switchState : nil }
+        return [
+            "approvalPolicyVersion": 1,
+            "physicalSwitchState": physicalSwitch.map { $0 as Any } ?? NSNull(),
+            "approvalAutoVerified": physicalSwitch == 0,
+            "switchState": physicalSwitch.map { $0 as Any } ?? NSNull(),
+            "lightMode": status.map { $0.lightMode as Any } ?? NSNull(),
+        ]
     }
 
     static func statusReply(_ status: AgentDeviceStatus?,
@@ -559,11 +556,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         cachedSwitchState = nil
         cachedLightMode = nil
         // 把 pending 的 waiter 全部通知为 nil（避免 hook 客户端一直等）
-        if !statusWaiters.isEmpty {
-            let waiters = statusWaiters
-            statusWaiters.removeAll()
-            for w in waiters { w(nil) }
-        }
+        statusWaiters.resolveAll(with: nil)
         emit("已断开，2s 后重连")
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
             self?.connectAutomatically()
@@ -630,10 +623,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             break
         }
 
-        guard !statusWaiters.isEmpty else { return }
-        let waiters = statusWaiters
-        statusWaiters.removeAll()
-        for w in waiters { w(status) }
+        statusWaiters.resolveAll(with: status)
     }
 
     // MARK: - 协议内联解析

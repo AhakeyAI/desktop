@@ -40,14 +40,14 @@ enum ClaudeHookHandler {
 
     private static func effectiveSwitchState(_ reply: [String: Any]?) -> Int? {
         guard let reply else { return nil }
-        // New Agents verify the physical lever and its firmware binding. A raw GPIO value
-        // must never override an explicit failed or unknown verification result.
-        if reply["approvalPolicyVersion"] != nil {
-            guard HookSupport.intValue(reply["approvalPolicyVersion"]) == 1,
-                  HookSupport.intValue(reply["physicalSwitchState"]) == 0,
-                  reply["approvalAutoVerified"] as? Bool == true else { return 1 }
-        }
-        return HookSupport.intValue(reply["switchState"])
+        // Older Agents may return a cached GPIO value after a failed BLE query.
+        // Only the current Agent's explicitly verified physical auto state may allow.
+        guard HookSupport.intValue(reply["approvalPolicyVersion"]) == 1,
+              let physicalSwitch = HookSupport.intValue(reply["physicalSwitchState"]),
+              (0...1).contains(physicalSwitch),
+              HookSupport.intValue(reply["switchState"]) == physicalSwitch else { return nil }
+        if physicalSwitch == 0, reply["approvalAutoVerified"] as? Bool != true { return nil }
+        return physicalSwitch
     }
 
     static func handlePermissionRequest() {
@@ -55,7 +55,7 @@ enum ClaudeHookHandler {
         let ctx = HookSupport.parseStdinContext(stdinData, label: "Claude")
         let request: [String: Any] = ["cmd": "permission", "value": Int(HookSupport.permissionLedValue)]
         let reply = HookSupport.sendJsonRequest(request, timeout: HookSupport.permissionRequestTimeout)
-        let switchState = HookSupport.intValue(reply?["switchState"])
+        let switchState = effectiveSwitchState(reply)
         let isAuto = switchState == 0
         let behavior: String
 
@@ -71,12 +71,7 @@ enum ClaudeHookHandler {
             behavior = "ask"
         }
 
-        let out: [String: Any] = [
-            "hookSpecificOutput": [
-                "hookEventName": "PermissionRequest",
-                "decision": ["behavior": behavior],
-            ],
-        ]
+        let out = permissionRequestOutput(reply: reply)
         if let data = try? JSONSerialization.data(withJSONObject: out, options: []),
            let str = String(data: data, encoding: .utf8) {
             print(str)
@@ -94,5 +89,14 @@ enum ClaudeHookHandler {
             cursorDebug: nil,
             kimiPreToolDecision: nil
         )
+    }
+
+    static func permissionRequestOutput(reply: [String: Any]?) -> [String: Any] {
+        [
+            "hookSpecificOutput": [
+                "hookEventName": "PermissionRequest",
+                "decision": ["behavior": effectiveSwitchState(reply) == 0 ? "allow" : "ask"],
+            ],
+        ]
     }
 }
