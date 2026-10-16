@@ -2,8 +2,9 @@ import Foundation
 import AhaKeyConfigShared
 
 enum HookSupport {
-    static func approvalSwitchState(_ reply: [String: Any]?) -> Int? {
-        ApprovalBindingPolicy.effectiveSwitchState(reply)
+    static func approvalSwitchState(_ reply: [String: Any]?, client: ApprovalAutomationControl.Client? = nil, controlDirectory: URL = ApprovalAutomationControl.productionDirectory) -> Int? {
+        guard ApprovalAutomationControl.isEnabled(client, directory: controlDirectory) else { return 1 }
+        return ApprovalBindingPolicy.effectiveSwitchState(reply)
     }
 
     static let permissionLedValue: UInt8 = 1

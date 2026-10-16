@@ -236,6 +236,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     private func queryApprovalStatus(completion: @escaping ([String: Any]) -> Void) {
+        guard ApprovalAutomationControl.isEnabled() else {
+            completion(["switchState": 1, "physicalSwitchState": NSNull(), "approvalAutoVerified": false, "approvalPolicyVersion": 1])
+            return
+        }
         approvalWaiters.append(completion)
         guard approvalRequestID == nil else { return }
         let id = UUID(), generation = connectionGeneration
@@ -488,6 +492,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                                                                  cachedLight: self.cachedLightMode))
                 }
             }
+
+        case "kimi_approval_status":
+            guard ApprovalAutomationControl.isEnabled(.kimi) else {
+                Self.replyAndClose(clientFd, ["ahakeyManaged": false]); return
+            }
+            queryApprovalStatus { body in Self.replyAndClose(clientFd, body) }
 
         case "approval_status":
             queryApprovalStatus { body in Self.replyAndClose(clientFd, body) }

@@ -49,6 +49,8 @@ public enum CodexConfigLeverSync {
     /// 同步结果。fail-safe 语义显式化：读不到 / 非 UTF-8 / 语法不受支持 / 写失败都
     /// **不改动**用户配置，且不做任何降级写入。
     public enum Outcome: Equatable {
+        /// Explicit lifecycle pause blocks automatic policy writes.
+        case automationDisabled
         /// Upgrade cleanup found no deprecated top-level scalar: zero writes.
         case noLegacyPolicy
         /// 配置文件不存在：不创建。
@@ -77,10 +79,8 @@ public enum CodexConfigLeverSync {
 
     /// 生产入口：`CodexSessionStart` / `CodexPermissionRequest` 的唯一 seam。
     public static func apply(switchStateAuto: Bool) {
-        _ = apply(
-            policy: ApprovalPolicy.forLever(switchStateAuto: switchStateAuto),
-            configURL: productionConfigURL
-        )
+        _ = apply(switchStateAuto: switchStateAuto, configURL: productionConfigURL,
+                  controlDirectory: ApprovalAutomationControl.productionDirectory)
     }
 
     /// Upgrade cleanup runs before Codex starts, when a broken policy would prevent hooks running.
@@ -92,8 +92,36 @@ public enum CodexConfigLeverSync {
 
     /// 测试注入入口：同样的 typed seam，只是换 fixture URL。
     @discardableResult
-    static func apply(switchStateAuto: Bool, configURL: URL) -> Outcome {
-        apply(policy: ApprovalPolicy.forLever(switchStateAuto: switchStateAuto), configURL: configURL)
+    static func apply(switchStateAuto: Bool, configURL: URL, controlDirectory: URL? = nil) -> Outcome {
+        let directory = controlDirectory ?? configURL.deletingLastPathComponent().appendingPathComponent("approval-control")
+        return ApprovalAutomationControl.locked(directory: directory) {
+            if switchStateAuto && !ApprovalAutomationControl.enabledUnlocked(.codex, directory: directory) { return .automationDisabled }
+            return apply(policy: ApprovalPolicy.forLever(switchStateAuto: switchStateAuto), configURL: configURL)
+        } ?? .writeFailed
+    }
+
+    private static func leaseURL(_ url: URL) -> URL { url.appendingPathExtension("ahakey-auto-lease") }
+    static func releaseOwnedAutomation(configURL: URL) -> Outcome {
+        guard FileManager.default.fileExists(atPath: leaseURL(configURL).path) else { return .noLegacyPolicy }
+        guard let data = try? Data(contentsOf: configURL) else { return .unreadableConfig }
+        switch TomlPolicyLocator.locate(Array(data)) {
+        case .existingScalar(_, let decoded) where decoded == "never":
+            return apply(policy: .onRequest, configURL: configURL)
+        case .existingScalar, .absent:
+            try? FileManager.default.removeItem(at: leaseURL(configURL)); return .alreadyDesired
+        case .duplicate: return .duplicateKey
+        case .unsupported(let reason): return .unsupportedSyntax(reason: reason)
+        }
+    }
+
+    private static func prepareLease(policy: ApprovalPolicy, configURL: URL) -> Bool {
+        guard policy == .never else { return true }
+        do { try Data([1]).write(to: leaseURL(configURL), options: .atomic); return true } catch { return false }
+    }
+    private static func finishWrite(_ bytes: [UInt8], policy: ApprovalPolicy, configURL: URL, outcome: Outcome) -> Outcome {
+        guard prepareLease(policy: policy, configURL: configURL), write(bytes, to: configURL) else { return .writeFailed }
+        if policy == .onRequest { try? FileManager.default.removeItem(at: leaseURL(configURL)) }
+        return outcome
     }
 
     /// 唯一 raw-policy 写入口。`private`（文件私有）⇒ 其它 Source 文件编译期不可调用，
@@ -113,10 +141,13 @@ public enum CodexConfigLeverSync {
 
         case let .existingScalar(range, decoded):
             if replacingOnlyLegacy, decoded != "untrusted" { return .noLegacyPolicy }
-            if decoded == policy.rawValue { return .alreadyDesired }
+            if decoded == policy.rawValue {
+                if policy == .onRequest && !replacingOnlyLegacy { try? fm.removeItem(at: leaseURL(configURL)) }
+                return .alreadyDesired
+            }
             var out = bytes
             out.replaceSubrange(range, with: Array("\"\(policy.rawValue)\"".utf8))
-            return write(out, to: configURL) ? .replaced : .writeFailed
+            return finishWrite(out, policy: policy, configURL: configURL, outcome: .replaced)
 
         case let .absent(insertionOffset, before, after):
             if replacingOnlyLegacy { return .noLegacyPolicy }
@@ -125,7 +156,7 @@ public enum CodexConfigLeverSync {
             insertion.append(contentsOf: after)
             var out = bytes
             out.insert(contentsOf: insertion, at: insertionOffset)
-            return write(out, to: configURL) ? .inserted : .writeFailed
+            return finishWrite(out, policy: policy, configURL: configURL, outcome: .inserted)
         }
     }
 

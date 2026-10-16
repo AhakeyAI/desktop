@@ -335,6 +335,9 @@ final class AgentManager: ObservableObject {
 
     /// 从 launchd 卸载 Agent（比 `stop` 更彻底：`KeepAlive` 下 stop 会立刻重启进程，仍占着蓝牙）。
     private func unloadAgentLaunchJobRemovingSocket() {
+        if !ApprovalAutomationControl.revoke() {
+            agentUserAlert = "自动批准策略撤销未完全确认，请核对 Codex/Kimi 配置；已打开的 CLI 会话需重新加载或重开。"
+        }
         guard FileManager.default.fileExists(atPath: plistPath) else {
             removeStaleSocketIfNeeded()
             return
@@ -478,10 +481,10 @@ final class AgentManager: ObservableObject {
         let expected = [agentBinaryPath, "--socket", socketPath]
         guard LaunchAgentConfiguration.needsRewrite(
             plistURL: URL(fileURLWithPath: plistPath), expectedArguments: expected
-        ) else { return true }
+        ) else { return ApprovalAutomationControl.resume() }
         // An already-loaded job keeps its previous arguments until it is unloaded.
         unloadAgentLaunchJobRemovingSocket()
-        return writeLaunchAgentPlist()
+        return writeLaunchAgentPlist() && ApprovalAutomationControl.resume()
     }
 
     func install() {
@@ -501,6 +504,9 @@ final class AgentManager: ObservableObject {
         // 2. 仅当用户希望 Agent 持有蓝牙时才 load（否则只写入 plist，避免装完立刻抢 GATT）
         var loadFailed = false
         if bluetoothConnectionOwner == .agentDaemon {
+            guard ApprovalAutomationControl.resume() else {
+                agentUserAlert = "无法启用审批管理，请检查应用支持目录权限。"; return
+            }
             let load = runLaunchctlDetailed(["load", plistPath])
             if !load.ok && !isBenignLaunchctlLoadMessage(load.mergedOutput) {
                 loadFailed = true
@@ -535,6 +541,9 @@ final class AgentManager: ObservableObject {
     }
 
     func uninstall(bleManager: AhaKeyBLEManager? = nil) {
+        if !ApprovalAutomationControl.revoke() {
+            agentUserAlert = "自动批准撤销未完全确认，请核对 Codex/Kimi；已有 CLI 会话需要重开。"
+        }
         // 1. 卸载 LaunchAgent
         _ = runLaunchctlQuiet(["unload", plistPath])
         try? FileManager.default.removeItem(atPath: plistPath)
@@ -885,6 +894,7 @@ final class AgentManager: ObservableObject {
 
         settings["hooks"] = hooks
         if saveClaudeSettings(settings) {
+            guard ApprovalAutomationControl.resume(.claude) else { return "无法恢复 Claude 审批管理权限。" }
             log.info("Claude hooks 已写入 ahakeyconfig-agent hook 子命令")
             return ""
         }
@@ -978,7 +988,10 @@ final class AgentManager: ObservableObject {
 
     /// 单独移除 Claude hooks
     func removeClaudeHooksOnly() {
+        let policyCleanupOK = ApprovalAutomationControl.revoke(.claude)
         removeClaudeHooks()
+        let cleanup = policyCleanupOK ? "已撤销 AhaKey 自动策略；已打开的 CLI 会话请重新加载或重开。" : "自动策略撤销未完全确认，请核对配置文件。"
+        agentUserAlert = (agentUserAlert.map { $0 + "\n\n" } ?? "") + cleanup
         refresh()
     }
 
@@ -1002,17 +1015,23 @@ final class AgentManager: ObservableObject {
 
     /// 单独移除 Cursor hooks
     func removeCursorHooksOnly() {
+        let policyCleanupOK = ApprovalAutomationControl.revoke(.cursor)
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
         agentUserAlert = performRemoveCursorHooksUserMessage()
+        let cleanup = policyCleanupOK ? "已撤销 AhaKey 自动策略；已打开的 CLI 会话请重新加载或重开。" : "自动策略撤销未完全确认，请核对配置文件。"
+        agentUserAlert = (agentUserAlert.map { $0 + "\n\n" } ?? "") + cleanup
         refresh()
     }
 
     /// 单独移除 Codex hooks。
     func removeCodexHooksOnly() {
+        let policyCleanupOK = ApprovalAutomationControl.revoke(.codex)
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
         agentUserAlert = removeCodexHooks()
+        let cleanup = policyCleanupOK ? "已撤销 AhaKey 自动策略；已打开的 CLI 会话请重新加载或重开。" : "自动策略撤销未完全确认，请核对配置文件。"
+        agentUserAlert = (agentUserAlert.map { $0 + "\n\n" } ?? "") + cleanup
         refresh()
     }
 
@@ -1036,9 +1055,12 @@ final class AgentManager: ObservableObject {
 
     /// 单独移除 Kimi Hooks 标记块。
     func removeKimiHooksOnly() {
+        let policyCleanupOK = ApprovalAutomationControl.revoke(.kimi)
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
         agentUserAlert = removeKimiHooks()
+        let cleanup = policyCleanupOK ? "已撤销 AhaKey 自动策略；已打开的 CLI 会话请重新加载或重开。" : "自动策略撤销未完全确认，请核对配置文件。"
+        agentUserAlert = (agentUserAlert.map { $0 + "\n\n" } ?? "") + cleanup
         refresh()
     }
 
@@ -1075,6 +1097,7 @@ final class AgentManager: ObservableObject {
             settings["version"] = 1
         }
         if saveCursorSettings(settings) {
+            guard ApprovalAutomationControl.resume(.cursor) else { return "无法恢复 Cursor 审批管理权限。" }
             log.info("Cursor hooks 已写入")
             return ""
         }
@@ -1108,6 +1131,7 @@ final class AgentManager: ObservableObject {
                 log.error("installCodexHooks: 写入后校验失败 \(self.codexConfigPath)")
                 return "Codex Hooks：已尝试写入 \(codexConfigPath)，但校验时未发现 AhaKey 标记块。请确认对「用户主目录 /.codex」有写权限，或关闭占用该文件的其它程序。"
             }
+            guard ApprovalAutomationControl.resume(.codex) else { return "无法恢复 Codex 审批管理权限。" }
             log.info("Codex hooks 已写入 ~/.codex/config.toml")
             let cliRepair = repairCodexCliPathIfNeeded()
             return cliRepair.isEmpty
@@ -1281,7 +1305,10 @@ final class AgentManager: ObservableObject {
         do {
             try config.write(toFile: kimiConfigPath, atomically: true, encoding: .utf8)
             log.info("Kimi hooks 已写入 ~/.kimi/config.toml")
-            return patchInstalledKimiCliForAhaKeyDialControl()
+            let result = patchInstalledKimiCliForAhaKeyDialControl()
+            guard result.isEmpty else { return result }
+            guard ApprovalAutomationControl.resume(.kimi) else { return "无法恢复 Kimi 审批管理权限。" }
+            return ""
         } catch {
             log.error("installKimiHooks: \(error.localizedDescription)")
             return "Kimi Hooks：无法写入 \(kimiConfigPath)：\(error.localizedDescription)"
@@ -1391,7 +1418,7 @@ final class AgentManager: ObservableObject {
                 with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
                     sock.settimeout(2.0)
                     sock.connect(_AHAKEY_SOCKET_PATH)
-                    sock.sendall(b'{"cmd":"approval_status"}\\n')
+                    sock.sendall(b'{"cmd":"kimi_approval_status"}\\n')
 
                     chunks: list[bytes] = []
                     while True:
@@ -1495,6 +1522,14 @@ final class AgentManager: ObservableObject {
                     )
                     return ApprovalResult(approved=True)
         """
+        let existing = try String(contentsOfFile: path, encoding: .utf8)
+        if existing.contains(marker) {
+            let upgraded = KimiApprovalRequestMigration.upgradeOwnedHelper(in: existing)
+            if upgraded != existing {
+                try upgraded.write(toFile: path, atomically: true, encoding: .utf8)
+                return .patched
+            }
+        }
         return try patchTextFile(
             atPath: path,
             marker: marker,

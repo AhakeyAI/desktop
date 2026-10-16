@@ -306,3 +306,14 @@ UI 测试在点击画布“修改”时工具报 Sky Computer Use native pipe cl
 原0.2.3/59e包完整保留在 /Users/heartline/Documents/Codex/local-backups/before-u01-d8ab4cc-20261014/AhaKey Studio.app。当前Applications仍是d8ab4cc；该候选打包未注入APP_VERSION，默认元数据为0.1.0，不能仅凭版本号判断源码。停止继续替换本机安装包，未回滚用户新设置或修改另一会话工作树。
 
 仅cherry-pick59e的两个文件为a086648，保留connect&talk适配内容和hasConfiguredCloudToken。191项测试通过，含future fractional expiry有效、expired expiry拒绝。使用APP_VERSION=0.2.3独立构建、Developer ID深层签名通过，新整合候选在 /Users/heartline/Documents/Codex/local-builds/connect-talk-u01-integrated-20261014/AhaKey Studio.app（source a086648）。未安装、未进行U01 UI/真机完整流程。后续单一候选统一验证；未经用户选择不再覆盖并行会话包。若切换回旧59e包，应成对退出/替换App和Agent，不把打开备份GUI但仍运行新Agent视为旧版回归。原生/Cloud配置保留当前用户选择。
+
+
+## 20. H02 审批退出收尾（2026-10-16）
+
+停止/卸载 Agent、GUI 接管蓝牙前先持久化全局暂停；单独移除 Claude/Cursor/Codex/Kimi Hooks 则暂停对应客户端。Hook 不再为暂停项生成自动放行，Codex/Kimi 自动策略写入与撤销使用同一文件锁，避免晚到写入覆盖停止结果。恢复 Agent 解除全局暂停，成功重装对应 Hooks 才解除对应暂停；单客户端恢复不能绕过全局暂停。
+
+Codex/Kimi 只有本版本实际改变自动值时才写 value-only lease 旁文件；退出只将有归属记录且仍为自动的顶层值收为 on-request/false。不复制或恢复整份旧配置，不撤回其他用户修改。Kimi 改为词法定位根 default_yolo 布尔，保留注释/换行/字符串/嵌套键；重复、非布尔或词法歧义不写。兼容释放旧 Kimi 的明确 AhaKey inline 标记；历史未标记 Codex never 无法可靠归属，不擅自覆盖。已有无归属自动值维持用户配置，不宣称已恢复安全策略。
+
+Kimi SDK 新请求为 kimi_approval_status；撤销 Kimi 管理时返回无 switchState，让新版补丁走原生逻辑。迁移仅修改 AhaKey loader 函数内的旧请求，保留其他函数请求。旧 Kimi 进程仍可能加载旧 helper；Codex/Kimi 运行会话可能缓存配置，需重开或按各 CLI 支持方式重载。本功能不能撤销已经发出的授权、正在运行的工具，也不承诺强杀/崩溃时执行 GUI 正常停止收尾。
+
+隔离回归：203 项测试通过，新增12项覆盖独立暂停/全局暂停、所有权释放、用户改动保留、Kimi 多行/CRLF/嵌套键/异常拒写、并发晚到自动写、Hook暂停与受限补丁迁移。未执行真实 CLI 安装/移除，未写用户 Codex/Kimi 配置、未切拨杆/Voice。早期测试读取曾创建 approval-control 的空锁文件，后已改为目录不存在时只读不创建；没有写生产暂停标记。本轮开始安装包为0.2.3/source1760a3f，保持原安装，独立候选不自动安装。UI/真实CLI会话、旧固件与WS3最终发布验收仍待完成。

@@ -79,7 +79,7 @@ enum CodexHookHandler {
         // 必须单独发 `approval_status` 验证实时状态与绑定。
         if stateValue == 4 {
             let statusReply = dependencies.sendRequest(["cmd": "approval_status"], HookSupport.stateRequestTimeout)
-            syncPolicy(switchState: HookSupport.approvalSwitchState(statusReply))
+            syncPolicy(switchState: HookSupport.approvalSwitchState(statusReply, client: .codex))
         }
 
         dependencies.appendHookLog(
@@ -99,7 +99,7 @@ enum CodexHookHandler {
         let ctx = dependencies.parseContext(stdinData, "Codex")
         let request: [String: Any] = ["cmd": "permission", "value": Int(HookSupport.permissionLedValue)]
         let reply = dependencies.sendRequest(request, HookSupport.permissionRequestTimeout)
-        let switchState = HookSupport.approvalSwitchState(reply)
+        let switchState = HookSupport.approvalSwitchState(reply, client: .codex)
         let isAuto = switchState == 0
 
         syncPolicy(switchState: switchState)
