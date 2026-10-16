@@ -28,6 +28,11 @@
 
 </div>
 
+### macOS WS1/WS2 adaptation checkpoint
+
+The legacy macOS client includes capability-gated configuration readback, confirmed per-key/mode/standby/lever-binding writes, and explicit App voice takeover without Runtime. This is an integration checkpoint, not a complete new-firmware release: WS3 display resources, remaining UI/device regression and CLI lifecycle validation are pending. See the [handoff and validation record](docs/handoff/CONNECT_AND_TALK_HANDOFF.md).
+
+
 ## <div align="center">Overview</div>
 
 AhaKey Desktop is the companion suite for the **AhaKey-X1 (Vibecoding Keyboard)**, with keyboard configuration, lever-gated AI approval, and an on-device voice agent on macOS.

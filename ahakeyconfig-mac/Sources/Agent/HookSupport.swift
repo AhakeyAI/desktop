@@ -250,7 +250,7 @@ enum HookSupport {
         var out: [String: Any] = [
             "userCliConfig": CursorCliLeverSync.diagnosticSnapshotForLog(),
             "userPermissionsJson": CursorPermissionsJsonLeverSync.diagnosticSnapshotForLog(),
-            "note": "IDE「Not in allowlist」用 ~/.cursor/permissions.json 的 terminalAllowlist，与 userCliConfig（cli-config=CLI）分离；见 cursor.com/docs/reference/permissions",
+            "note": NSLocalizedString("IDE「Not in allowlist」用 ~/.cursor/permissions.json 的 terminalAllowlist，与 userCliConfig（cli-config=CLI）分离；见 cursor.com/docs/reference/permissions", comment: ""),
             "stdinFields": cursorStdinDebugFields(stdinData),
             "processEnvCursorVscode": cursorRelatedEnvForLog(),
         ]

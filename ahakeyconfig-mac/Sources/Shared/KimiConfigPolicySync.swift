@@ -22,8 +22,11 @@ public enum KimiConfigPolicySync {
         var root = true, found: Value?, insertion = bytes.count
         for statement in statements {
             switch statement.kind {
-            case .table:
+            case .table(let path, _):
+                if path.first == "default_yolo" { throw ParseFailure.invalid }
                 if root { insertion = statement.range.lowerBound }; root = false
+            case .assignment(let path) where root && path.first == "default_yolo" && path.count != 1:
+                throw ParseFailure.invalid
             case .assignment(let path) where root && path == ["default_yolo"]:
                 guard found == nil, let equal = bytes[statement.range].firstIndex(of: 0x3D) else { throw ParseFailure.invalid }
                 var start = equal + 1

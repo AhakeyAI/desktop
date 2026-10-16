@@ -49,8 +49,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 最新 lightMode
     private(set) var cachedLightMode: UInt8?
     /// 等待下一次 status 回包的回调队列（用于 querySwitchState）
-    private var statusWaiters: [(AgentDeviceStatus?) -> Void] = []
-    private var statusWaiterEpoch: UInt64 = 0
+    private var statusWaiters = AgentStatusQueries()
     private var connectionGeneration: UInt64 = 0
     private struct ApprovalRead {
         let id: UUID
@@ -190,31 +189,24 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     /// 主动查询一次设备状态，等待下一个 notify 回包 (timeout 秒内)。
-    /// 超时返回 nil，不用缓存冒充当前实体读回。完成回调在 main 队列。
+    /// 超时或断连返回 nil；审批不能使用上一次查询的缓存。完成回调在 main 队列。
     func querySwitchState(timeout: TimeInterval = 1.5,
                           completion: @escaping (AgentDeviceStatus?) -> Void) {
-        guard connectionLock.holdsLock, let commandChar, let peripheral else {
+        guard approvalChannelReady, statusWaiters.acceptsResponses, connectionLock.holdsLock, let commandChar, let peripheral else {
             completion(nil)
             return
         }
-        let generation = connectionGeneration
-        if statusWaiters.isEmpty { statusWaiterEpoch &+= 1 }
-        let epoch = statusWaiterEpoch
         // 发设备状态查询命令 AA BB 00 CC DD
         let query = Data(header + [0x00] + trailer)
         let wt: CBCharacteristicWriteType =
             commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
         peripheral.writeValue(query, for: commandChar, type: wt)
 
-        statusWaiters.append(completion)
+        let requestID = statusWaiters.append(completion)
         DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
-            guard let self else { return }
-            guard self.connectionGeneration == generation, self.statusWaiterEpoch == epoch else { return }
-            // 仅结束这一轮的等待；已完成轮次的旧超时不得结束新查询。
-            guard !self.statusWaiters.isEmpty else { return }
-            let waiters = self.statusWaiters
-            self.statusWaiters.removeAll()
-            for w in waiters { w(nil) }
+            guard let self, self.statusWaiters.timeOut(requestID) else { return }
+            self.approvalChannelReady = false
+            self.central.cancelPeripheralConnection(peripheral)
         }
     }
 
@@ -507,6 +499,19 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
     }
 
+    /// Only a response to the current BLE query can authorize a tool. Display caches
+    /// deliberately do not participate in this reply, including on timeout/disconnect.
+    static func permissionReply(_ status: AgentDeviceStatus?) -> [String: Any] {
+        let physicalSwitch = status.flatMap { (0...1).contains($0.switchState) ? $0.switchState : nil }
+        return [
+            "approvalPolicyVersion": 1,
+            "physicalSwitchState": physicalSwitch.map { $0 as Any } ?? NSNull(),
+            "approvalAutoVerified": physicalSwitch == 0,
+            "switchState": physicalSwitch.map { $0 as Any } ?? NSNull(),
+            "lightMode": status.map { $0.lightMode as Any } ?? NSNull(),
+        ]
+    }
+
     static func statusReply(_ status: AgentDeviceStatus?,
                             cachedSwitch: UInt8?,
                             cachedLight: UInt8?) -> [String: Any] {
@@ -623,7 +628,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         if central.state == .poweredOn {
-            emit("蓝牙就绪")
+            emit(NSLocalizedString("蓝牙就绪", comment: ""))
             connectAutomatically()
         }
     }
@@ -646,6 +651,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         connectionGeneration &+= 1
         approvalChannelReady = true
+        statusWaiters = AgentStatusQueries()
         lastUUID = peripheral.identifier
         emit("已连接: \(peripheral.name ?? "?")")
         peripheral.discoverServices([serviceUUID])
@@ -671,11 +677,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         pendingStateReset?.cancel()
         pendingStateReset = nil
         // 把 pending 的 waiter 全部通知为 nil（避免 hook 客户端一直等）
-        if !statusWaiters.isEmpty {
-            let waiters = statusWaiters
-            statusWaiters.removeAll()
-            for w in waiters { w(nil) }
-        }
+        statusWaiters.resolveAll(with: nil)
         emit("已断开，2s 后重连")
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
             self?.connectAutomatically()
@@ -695,11 +697,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         for char in service.characteristics ?? [] {
             if char.uuid == commandCharUUID {
                 commandChar = char
-                emit("命令通道就绪")
+                emit(NSLocalizedString("命令通道就绪", comment: ""))
             } else if char.uuid == notifyCharUUID {
                 notifyChar = char
                 peripheral.setNotifyValue(true, for: char)
-                emit("通知通道已订阅")
+                emit(NSLocalizedString("通知通道已订阅", comment: ""))
             }
         }
         // Polling keeps GPIO state fresh even on firmware that omits unsolicited updates.
@@ -758,10 +760,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             break
         }
 
-        guard !statusWaiters.isEmpty else { return }
-        let waiters = statusWaiters
-        statusWaiters.removeAll()
-        for w in waiters { w(status) }
+        statusWaiters.resolveAll(with: status)
     }
 
     // MARK: - 协议内联解析

@@ -28,6 +28,11 @@
 
 </div>
 
+### macOS WS1/WS2 适配检查点
+
+旧版 macOS 客户端已接入按能力限制的配置读回、确认后的单键/工作模式/待机/拨杆绑定写入，以及明确选择后的 App 语音接管，不依赖 Runtime。当前为整合检查点，完整新固件版本仍待 WS3 显示资源、剩余界面/真机回归及 CLI 生命周期验收。详见[交接与验证记录](../handoff/CONNECT_AND_TALK_HANDOFF.md)。
+
+
 ## <div align="center">概述</div>
 
 AhaKey Desktop 是 **AhaKey-X1（Vibecoding Keyboard）** 的配套桌面套件，提供键盘配置、拨杆审批 AI，以及 macOS 本机语音 Agent。

@@ -12,7 +12,7 @@ final class ApprovalAutomationLifecycleTests: XCTestCase {
             try Data(codex.utf8).write(to: self.codex); try Data(kimi.utf8).write(to: self.kimi)
         }
         func revoke(_ client: ApprovalAutomationControl.Client? = nil) -> Bool {
-            ApprovalAutomationControl.revoke(client, directory: control, codexURL: codex, kimiURL: kimi)
+            ApprovalAutomationControl.revoke(client, directory: control, codexURL: codex, kimiURL: kimi, cursorDirectory: directory.appendingPathComponent("cursor"))
         }
         func remove() { try? FileManager.default.removeItem(at: directory) }
     }
@@ -82,7 +82,7 @@ final class ApprovalAutomationLifecycleTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: f.kimi), "# user\ndefault_yolo = true\n[plugin]\ndefault_yolo = false\n")
     }
     func testMalformedDuplicateOrNonBooleanKimiRemainsByteIdentical() throws {
-        for text in ["default_yolo = true\ndefault_yolo = false\n", "default_yolo = { value = true }\n", "prompt = '''broken\ndefault_yolo = false\n", "default_yolo = \"true\"\n"] {
+        for text in ["default_yolo.child = true\n", "[default_yolo]\nchild = true\n", "default_yolo = true\ndefault_yolo = false\n", "default_yolo = { value = true }\n", "prompt = '''broken\ndefault_yolo = false\n", "default_yolo = \"true\"\n"] {
             let f = try Fixture(kimi: text); defer { f.remove() }
             XCTAssertEqual(KimiConfigPolicySync.apply(auto: true, configURL: f.kimi, controlDirectory: f.control), .invalid)
             XCTAssertEqual(try String(contentsOf: f.kimi), text)

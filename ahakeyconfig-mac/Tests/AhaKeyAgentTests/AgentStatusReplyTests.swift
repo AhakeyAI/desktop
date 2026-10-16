@@ -61,4 +61,39 @@ final class AgentStatusReplyTests: XCTestCase {
         )
         XCTAssertTrue(unknown["switchState"] is NSNull)
     }
+
+    func testTimeoutRejectsLateAutoUntilNewConnectionAndStaleDeadlineDoesNotInvalidate() {
+        var queries = AgentStatusQueries()
+        let completed = queries.append { _ in }
+        queries.resolveAll(with: physicalAuto)
+        XCTAssertFalse(queries.timeOut(completed))
+        XCTAssertTrue(queries.acceptsResponses)
+        let timedOut = queries.append { XCTAssertNil($0) }
+        XCTAssertTrue(queries.timeOut(timedOut))
+        XCTAssertFalse(queries.acceptsResponses)
+        var late: AgentDeviceStatus?
+        _ = queries.append { late = $0 }
+        queries.resolveAll(with: physicalAuto)
+        XCTAssertNil(late)
+        queries = AgentStatusQueries() // production replaces the tracker only on didConnect
+        _ = queries.append { late = $0 }
+        queries.resolveAll(with: physicalAuto)
+        XCTAssertEqual(late, physicalAuto)
+    }
+    func testQueryTimeoutDoesNotReuseCachedAutoForEitherClaudeHook() throws {
+        let display = AhaKeyAgent.statusReply(nil, cachedSwitch: 0, cachedLight: 16)
+        XCTAssertEqual(display["switchState"] as? Int, 0)
+        var queries = AgentStatusQueries()
+        var result: [String: Any]?
+        let id = queries.append { result = AhaKeyAgent.permissionReply($0) }
+        queries.timeOut(id)
+
+        let reply = try XCTUnwrap(result)
+        XCTAssertTrue(reply["switchState"] is NSNull)
+        XCTAssertNil(ClaudeHookHandler.preToolUseOutput(reply: reply))
+        let output = ClaudeHookHandler.permissionRequestOutput(reply: reply)
+        let hook = output["hookSpecificOutput"] as? [String: Any]
+        let decision = hook?["decision"] as? [String: Any]
+        XCTAssertEqual(decision?["behavior"] as? String, "ask")
+    }
 }

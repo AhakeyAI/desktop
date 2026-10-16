@@ -14,10 +14,27 @@ enum CursorHookHandler {
         let switchState = HookSupport.approvalSwitchState(reply, client: .cursor)
         let isAuto = switchState == 0
 
-        if let output = standardOutput(for: switchState) {
-            print(output)
+        let permission = permissionForEvent(hookEvent, isAuto: isAuto)
+        if !isAuto {
+            HookSupport.emitPermissionStderr(
+                ide: "Cursor",
+                hookName: hookEvent,
+                reply: reply,
+                switchState: switchState
+            )
         }
-        // 手动/离线/超时均不覆盖 Cursor 的原生批准流程；Hook 也不再改写全局权限文件。
+
+        // 拨杆状态未知时也撤销此前的宽松配置，避免 Agent/BLE 失联后继续自动执行。
+        CursorCliLeverSync.apply(switchStateAuto: isAuto)
+        CursorPermissionsJsonLeverSync.apply(switchStateAuto: isAuto)
+
+        // preToolUse 不执行 ask；交回 Cursor 自身权限层。beforeShellExecution / beforeMCPExecution 支持 ask。
+        let out: [String: Any] = ["permission": permission]
+        if let data = try? JSONSerialization.data(withJSONObject: out, options: []),
+           let str = String(data: data, encoding: .utf8) {
+            print(str)
+        }
+        // 未验证的自动条件按手动处理，并恢复此前的 Cursor 自动权限。
 
         let cursorDebug = HookSupport.buildCursorHookDebug(
             stdinData: stdinData,
@@ -31,9 +48,14 @@ enum CursorHookHandler {
             switchState: switchState,
             isAuto: isAuto,
             claudeBehavior: nil,
-            cursorPermission: isAuto ? "allow" : "defer_to_native",
+            cursorPermission: permission,
             cursorDebug: cursorDebug,
             kimiPreToolDecision: nil
         )
+    }
+
+    static func permissionForEvent(_ hookEvent: String, isAuto: Bool) -> String {
+        if isAuto { return "allow" }
+        return hookEvent == "beforeShellExecution" || hookEvent == "beforeMCPExecution" ? "ask" : "allow"
     }
 }
