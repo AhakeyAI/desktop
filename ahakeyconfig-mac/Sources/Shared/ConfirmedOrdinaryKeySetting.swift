@@ -42,10 +42,10 @@ public enum ConfirmedOrdinaryKeySetting {
         case invalidValue, changedSinceRead, mismatch, voicePresetOwnsKey
         public var errorDescription: String? {
             switch self {
-            case .invalidValue: return "键位无法安全保存：请检查动作、宏释放、20 字节英文描述及读回容量。"
-            case .changedSinceRead: return "键盘该键已变化，请重新读取后编辑。"
-            case .mismatch: return "保存后键位读回不一致，设置未确认。"
-            case .voicePresetOwnsKey: return "Voice 键仍由固件平台预设接管；完成语音接管前不能修改其动作。"
+            case .invalidValue: return NSLocalizedString("键位无法安全保存：请检查动作、宏释放、20 字节英文描述及读回容量。", comment: "")
+            case .changedSinceRead: return NSLocalizedString("键盘该键已变化，请重新读取后编辑。", comment: "")
+            case .mismatch: return NSLocalizedString("保存后键位读回不一致，设置未确认。", comment: "")
+            case .voicePresetOwnsKey: return NSLocalizedString("Voice 键仍由固件平台预设接管；完成语音接管前不能修改其动作。", comment: "")
             }
         }
     }

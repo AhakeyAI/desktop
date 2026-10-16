@@ -26,11 +26,11 @@ public enum ConfirmedVoiceHandoff {
         case invalidSnapshot, changedSinceRead, bindingsMismatch, ownershipMismatch, hostNotReady
         public var errorDescription: String? {
             switch self {
-            case .invalidSnapshot: return "四个模式的 Voice 绑定尚未完整确认，不能接管。"
-            case .changedSinceRead: return "语音预设或 Voice 绑定已变化，请重新读取。"
-            case .bindingsMismatch: return "Voice 绑定读回不一致，未完成接管。"
-            case .ownershipMismatch: return "语音所有权读回不一致，接管结果未确认。"
-            case .hostNotReady: return "请先完成 App 语音权限设置，并结束当前录音。"
+            case .invalidSnapshot: return NSLocalizedString("四个模式的 Voice 绑定尚未完整确认，不能接管。", comment: "")
+            case .changedSinceRead: return NSLocalizedString("语音预设或 Voice 绑定已变化，请重新读取。", comment: "")
+            case .bindingsMismatch: return NSLocalizedString("Voice 绑定读回不一致，未完成接管。", comment: "")
+            case .ownershipMismatch: return NSLocalizedString("语音所有权读回不一致，接管结果未确认。", comment: "")
+            case .hostNotReady: return NSLocalizedString("请先完成 App 语音权限设置，并结束当前录音。", comment: "")
             }
         }
     }

@@ -28,48 +28,48 @@ struct OrdinaryKeySettingsView: View {
     var body: some View {
         Section {
             HStack {
-                Picker("模式", selection: $mode) {
+                Picker(NSLocalizedString("模式", comment: ""), selection: $mode) {
                     ForEach(0..<4, id: \.self) { Text("Mode \($0 + 1)").tag(UInt8($0)) }
                 }
-                Picker("按键", selection: $index) {
+                Picker(NSLocalizedString("按键", comment: ""), selection: $index) {
                     ForEach(0..<4, id: \.self) { Text("Key \($0 + 1)").tag(UInt8($0)) }
                 }
             }
             .disabled(busy)
             .onChange(of: mode) { _ in clearDraft() }
             .onChange(of: index) { _ in clearDraft() }
-            Text("键盘当前：\(currentText)").font(.caption).textSelection(.enabled)
+            Text(String(format: NSLocalizedString("键盘当前：%@", comment: ""), String(describing: currentText))).font(.caption).textSelection(.enabled)
             if let baseline, baseline.isKnownEditableAction {
                 KeyboardActionEditor(action: $action, allowEmptyShortcut: true, maximumPayloadBytes: max(0, 53 - (target?.description.count ?? 20)))
                     .disabled(busy || !sameSession)
-                TextField("待应用描述（英文，最多 20 字节）", text: Binding(get: { descriptionText }, set: {
+                TextField(NSLocalizedString("待应用描述（英文，最多 20 字节）", comment: ""), text: Binding(get: { descriptionText }, set: {
                     descriptionText = $0; descriptionEdited = true
                 }))
                 .disabled(busy || !sameSession)
-                Text("动作与描述读回共占用 \(11 + max(0, action.count - 2) + (target?.description.count ?? 0)) / 64 字节")
+                Text(String(format: NSLocalizedString("动作与描述读回共占用 %@ / 64 字节", comment: ""), String(describing: 11 + max(0, action.count - 2) + (target?.description.count ?? 0))))
                     .font(.caption).foregroundStyle(.secondary)
             }
             if let proposedKey {
-                Button("从画布载入此键草稿（不写入）") {
+                Button(NSLocalizedString("从画布载入此键草稿（不写入）", comment: "")) {
                     guard baseline != nil, sameSession, proposedKey.mode == mode, proposedKey.keyIndex == index else { return }
                     action = Data([proposedKey.actionType, UInt8(proposedKey.action.count)]) + proposedKey.action
                     descriptionText = String(data: proposedKey.description, encoding: .ascii) ?? ""
                     descriptionEdited = true
-                    message = "已载入待应用草稿，键盘当前值未改变；核对后点击应用。"
+                    message = NSLocalizedString("已载入待应用草稿，键盘当前值未改变；核对后点击应用。", comment: "")
                 }
                 .disabled(busy || !sameSession || baseline?.isKnownEditableAction != true || proposedKey.mode != mode || proposedKey.keyIndex != index)
             }
             if let proposalError { Text(proposalError).font(.caption).foregroundStyle(.orange) }
             HStack {
-                Button(busy ? "处理中…" : "读取当前按键") { readKey() }
-                Button("应用此键改动") { applyKey() }
+                Button(busy ? NSLocalizedString("处理中…", comment: "") : NSLocalizedString("读取当前按键", comment: "")) { readKey() }
+                Button(NSLocalizedString("应用此键改动", comment: "")) { applyKey() }
                     .disabled(!canApply)
             }
             .disabled(busy || !bleManager.isConnected)
             if let message { Text(message).font(.caption).textSelection(.enabled) }
-            Text("只编辑所选键，不切换模式或导入旧草稿。Voice 预设未移交时不能改其动作。超长或未知动作保持只读；失败可能已改变键盘临时值，不表示已回滚。保存后的断电保持性仍需验证。")
+            Text(NSLocalizedString("只编辑所选键，不切换模式或导入旧草稿。Voice 预设未移交时不能改其动作。超长或未知动作保持只读；失败可能已改变键盘临时值，不表示已回滚。保存后的断电保持性仍需验证。", comment: ""))
                 .font(.caption).foregroundStyle(.secondary)
-        } header: { Text("普通键 · 差量保存") }
+        } header: { Text(NSLocalizedString("普通键 · 差量保存", comment: "")) }
     }
 
     private var busy: Bool { bleManager.isConfigurationOperationInProgress }
@@ -93,20 +93,20 @@ struct OrdinaryKeySettingsView: View {
         return baseline.isKnownEditableAction && OrdinaryKeyConfiguration.valid(target)
     }
     private var currentText: String {
-        guard let result = bleManager.configurationSnapshot.keys[.key(mode: mode, index: index)] else { return "未确认" }
+        guard let result = bleManager.configurationSnapshot.keys[.key(mode: mode, index: index)] else { return NSLocalizedString("未确认", comment: "") }
         switch result {
         case .value(let key):
             let action: String
             switch key.actionType {
-            case 0: action = "无按键动作"
-            case 0x73: action = key.action.isEmpty ? "无按键动作" : key.action.map { HIDUsage.name(for: $0) }.joined(separator: " + ")
-            case 0x74: action = key.action.count % 2 == 0 ? "宏（\(key.action.count / 2) 步）" : "未识别宏，保留原数据"
-            default: action = "未识别动作，保留原数据"
+            case 0: action = NSLocalizedString("无按键动作", comment: "")
+            case 0x73: action = key.action.isEmpty ? NSLocalizedString("无按键动作", comment: "") : key.action.map { HIDUsage.name(for: $0) }.joined(separator: " + ")
+            case 0x74: action = key.action.count % 2 == 0 ? String(format: NSLocalizedString("宏（%@ 步）", comment: ""), String(describing: key.action.count / 2)) : NSLocalizedString("未识别宏，保留原数据", comment: "")
+            default: action = NSLocalizedString("未识别动作，保留原数据", comment: "")
             }
-            return "\(action) · 描述 \(String(data: key.description, encoding: .ascii) ?? "无法显示，保留原描述")"
-        case .tooLarge: return "超过固件读回容量，只读"
-        case .rejected(let status): return "读取被拒绝（\(status)）"
-        case .malformed: return "格式未确认"
+            return String(format: NSLocalizedString("%@ · 描述 %@", comment: ""), String(describing: action), String(describing: String(data: key.description, encoding: .ascii) ?? NSLocalizedString("无法显示，保留原描述", comment: "")))
+        case .tooLarge: return NSLocalizedString("超过固件读回容量，只读", comment: "")
+        case .rejected(let status): return String(format: NSLocalizedString("读取被拒绝（%@）", comment: ""), String(describing: status))
+        case .malformed: return NSLocalizedString("格式未确认", comment: "")
         }
     }
     private func clearDraft() {
@@ -138,8 +138,8 @@ struct OrdinaryKeySettingsView: View {
                 let actual = try await bleManager.setOrdinaryKeyConfirmed(baseline: baseline, target: target, expectedGeneration: generation)
                 load(actual)
                 NotificationCenter.default.post(name: .ahaKeyOrdinaryKeyConfirmed, object: actual)
-                message = "此键改动已保存并读回一致；断电保持性尚未验证。"
-            } catch { message = "设置未确认：\(error.localizedDescription)；待应用改动已保留。" }
+                message = NSLocalizedString("此键改动已保存并读回一致；断电保持性尚未验证。", comment: "")
+            } catch { message = String(format: NSLocalizedString("设置未确认：%@；待应用改动已保留。", comment: ""), String(describing: error.localizedDescription)) }
         }
     }
 }
