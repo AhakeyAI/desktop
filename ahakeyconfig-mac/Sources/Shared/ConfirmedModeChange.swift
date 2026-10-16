@@ -9,9 +9,9 @@ public enum ConfirmedModeChange {
         case mismatch(expected: UInt8, actual: UInt8)
         public var errorDescription: String? {
             switch self {
-            case .invalidMode: return "设备返回的模式无效。"
+            case .invalidMode: return NSLocalizedString("设备返回的模式无效。", comment: "")
             case .mismatch(let expected, let actual):
-                return "键盘读回为 Mode \(actual + 1)，未确认切换到 Mode \(expected + 1)。"
+                return String(format: NSLocalizedString("键盘读回为 Mode %@，未确认切换到 Mode %@。", comment: ""), String(describing: actual + 1), String(describing: expected + 1))
             }
         }
     }
