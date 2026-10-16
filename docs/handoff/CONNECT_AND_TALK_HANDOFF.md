@@ -317,3 +317,5 @@ Codex/Kimi 只有本版本实际改变自动值时才写 value-only lease 旁文
 Kimi SDK 新请求为 kimi_approval_status；撤销 Kimi 管理时返回无 switchState，让新版补丁走原生逻辑。迁移仅修改 AhaKey loader 函数内的旧请求，保留其他函数请求。旧 Kimi 进程仍可能加载旧 helper；Codex/Kimi 运行会话可能缓存配置，需重开或按各 CLI 支持方式重载。本功能不能撤销已经发出的授权、正在运行的工具，也不承诺强杀/崩溃时执行 GUI 正常停止收尾。
 
 隔离回归：203 项测试通过，新增12项覆盖独立暂停/全局暂停、所有权释放、用户改动保留、Kimi 多行/CRLF/嵌套键/异常拒写、并发晚到自动写、Hook暂停与受限补丁迁移。未执行真实 CLI 安装/移除，未写用户 Codex/Kimi 配置、未切拨杆/Voice。早期测试读取曾创建 approval-control 的空锁文件，后已改为目录不存在时只读不创建；没有写生产暂停标记。本轮开始安装包为0.2.3/source1760a3f，保持原安装，独立候选不自动安装。UI/真实CLI会话、旧固件与WS3最终发布验收仍待完成。
+
+H02 候选源码 d6cffdc；APP_VERSION=0.2.3、arm64 Release 构建和 Developer ID 深层签名验证通过。独立路径 /Users/heartline/Documents/Codex/local-builds/connect-talk-h02-lifecycle-20261016/AhaKey Studio.app，未安装或启动。构建后再次读安装元数据仍为0.2.3/source1760a3f28c6ca2acffe1e8b1df16dfb9d9d8bd84。下一步对这一独立候选进行受控真实CLI生命周期验证，避免与并行安装测试混算。
