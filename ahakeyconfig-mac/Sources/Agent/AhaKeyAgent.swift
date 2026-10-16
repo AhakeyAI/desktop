@@ -192,7 +192,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 超时或断连返回 nil；审批不能使用上一次查询的缓存。完成回调在 main 队列。
     func querySwitchState(timeout: TimeInterval = 1.5,
                           completion: @escaping (AgentDeviceStatus?) -> Void) {
-        guard connectionLock.holdsLock, let commandChar, let peripheral else {
+        guard approvalChannelReady, statusWaiters.acceptsResponses, connectionLock.holdsLock, let commandChar, let peripheral else {
             completion(nil)
             return
         }
@@ -204,7 +204,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
         let requestID = statusWaiters.append(completion)
         DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
-            self?.statusWaiters.timeOut(requestID)
+            guard let self, self.statusWaiters.timeOut(requestID) else { return }
+            self.approvalChannelReady = false
+            self.central.cancelPeripheralConnection(peripheral)
         }
     }
 
@@ -649,6 +651,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         connectionGeneration &+= 1
         approvalChannelReady = true
+        statusWaiters = AgentStatusQueries()
         lastUUID = peripheral.identifier
         emit("已连接: \(peripheral.name ?? "?")")
         peripheral.discoverServices([serviceUUID])

@@ -474,4 +474,3 @@ WS2 最终决定：
 - `0x97` 只做 side-switch config。
 - `0x87` 只做普通键单键 readback。
 - Restore Factory 还没实现，不要在上位机 UI 里当成已可用功能。
-

@@ -36,6 +36,13 @@ final class CursorApprovalPolicySyncTests: XCTestCase {
         XCTAssertEqual(result["terminalAllowlist"] as? [String], ["git", "ls"])
         XCTAssertEqual(result["newSetting"] as? Bool, true)
     }
+    func testNewCliFileKeepsVersionSchemaFromMain() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        XCTAssertTrue(CursorApprovalPolicySync.apply(auto: true, kind: .cli, directory: dir, controlDirectory: dir.appendingPathComponent("control")))
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: dir.appendingPathComponent("cli-config.json"))) as? [String: Any])
+        XCTAssertEqual(root["version"] as? Int, 1)
+    }
     func testMalformedUserConfigIsNeverReplaced() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: dir) }

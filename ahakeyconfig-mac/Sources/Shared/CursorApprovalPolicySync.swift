@@ -51,6 +51,7 @@ public enum CursorApprovalPolicySync {
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                 let target = url(kind, directory), leaseURL = target.appendingPathExtension("ahakey-auto-lease")
                 var root = try read(target)
+                if kind == .cli, root["version"] == nil { root["version"] = 1 }
                 let current = try list(root, kind)
                 var lease = FileManager.default.fileExists(atPath: leaseURL.path)
                     ? try JSONDecoder().decode(Lease.self, from: Data(contentsOf: leaseURL))
