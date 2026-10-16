@@ -30,3 +30,9 @@
 4. **最终发布**：旧客户端已有功能必须一同完成并通过新旧设备回归；新增WS4/5可独立发布。另行版本号、签名公证和发布，不以本PR当正式发布。
 
 详细证据：CONNECT_AND_TALK_HANDOFF.md。计划/WBS：../ahastudio/legacy-macos-ws12-adaptation-plan-2026-10-08.md及对应wbs md/csv。固件清单：FIRMWARE_FOLLOW_UP_2026-10-09.md。只提交源码文档，不提交安装包、用户配置、原键位备份、录音或凭证。
+
+## 最终检查结果
+
+最终候选源码0463463。224项测试全通过；两路独立审查复核确认状态超时P1、Kimi命名空间P2关闭，无新增实质阻塞。新Cursor schema fixture通过。0.2.3 arm64 Release与Developer ID深层签名校验通过，构建路径 /Users/heartline/Documents/Codex/local-builds/connect-talk-pr-integration-final-20261016/AhaKey Studio.app；未安装/未启动。只读确认当前安装source1760a3f。范围差异检查通过。后续仅注释/证据文档更新不改变候选运行逻辑。
+
+PR：head codex/connect-talk-v023-integration → base connect&talk。未向main提交或合并。此检查点保留上述真机/界面/WS3待验收事项，接手后先按此清单验证再继续后续功能。

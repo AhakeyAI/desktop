@@ -1,7 +1,7 @@
 import Foundation
 
-/// Tracks outstanding BLE reads. A timeout resolves only its own request as
-/// unknown; neither an old deadline nor a cached display value can authorize it.
+/// Tracks outstanding BLE reads. A real timeout invalidates the connection and
+/// resolves all pending reads as unknown; an expired old deadline has no effect.
 struct AgentStatusQueries {
     private var waiters: [UUID: (AgentDeviceStatus?) -> Void] = [:]
 
