@@ -324,3 +324,14 @@ H02 候选源码 d6cffdc；APP_VERSION=0.2.3、arm64 Release 构建和 Developer
 ## 21. 与main 0.2.3整合及检查点PR（2026-10-16）
 
 用户纠正本次PR目标为connect&talk，不是main。独立分支codex/connect-talk-v023-integration通过5f5c070合入main/1b8882a，解决6文件冲突并保留0.2.3功能。详细合并范围、验证边界和下一步完成定义见CONNECT_AND_TALK_PR_CHECKPOINT_2026-10-16.md。未覆盖已安装的1760a3f测试客户端，未操作键盘或生产CLI配置。
+
+
+## 22. Q01 首批：目录失败不得降级为旧固件（2026-10-16）
+
+基线135215b（PR #138已合入connect&talk），开发分支codex/connect-talk-q01-probe-safety。再次读取远端Fireware-harness，HEAD仍为d1b46a14a796790f2ffe0d228e6c5badcfc34d75；project-state仍要求把WS3 CP1重新应用到WS2 CP4D，CP2/3尚未完成，未发现可启用WS3的新构建。不改固件，也不开放显示资源写入。
+
+Q01静态检查发现App readFirmwareCapabilityProfile把任意6字节0x9F错误回包误判legacy；legacy授权会放开旧配置命令，因而不能将设备拒绝当作旧协议证据。新增共享probeResponse，App/Agent统一分类：仅同连接有效状态+精确AA BB 9F 00 CC DD可回退legacy；错误码、超时、畸形、其他命令ACK、缺状态不回退。保留已知目录和未知目录只读行为。App开始刷新时撤回旧profile；失败在同代连接清空能力/快照，身份变化也清空旧快照，不修改画布草稿；旧事务不能清空新连接状态。
+
+新增3项测试覆盖全部255种非零目录错误状态、旧ACK有无状态、畸形/错命令/额外字节、已知目录无状态拒绝，并检查错误目录不产生旧save写入权限或自动批准。全227项通过，既有迟到状态和请求超时回归继续通过。本轮未注入真实键盘故障、未覆盖U01界面/真实CLI生命周期、未安装或启动候选；当前安装仍为1760a3f。本批只完成Q01目录探测失败路径，不将整个Q01或最终发布标为完成。
+
+固件状态来源：https://github.com/AhakeyAI/AhaKey-X1-hardware-source/blob/d1b46a14a796790f2ffe0d228e6c5badcfc34d75/.ahakey-harness/project-state.yaml 。后续继续Q01配置事务失败/取消覆盖及U01/H02受控真机验收；WS3须新源码与实际HEX就绪再对接。
