@@ -252,7 +252,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 guard let frame, generation == self.connectionGeneration else {
                     self.finishApproval(id: id, status: nil, profile: nil, binding: nil); return
                 }
-                let profile = frame.count == 6 && frame[3] == 0 ? FirmwareCapabilityProfile.legacyAfterStatusReadback() : FirmwareCapabilityProfile.catalogResponse(frame)
+                let profile = FirmwareCapabilityProfile.probeResponse(frame, hasValidStatusReadback: first != nil)
                 if profile.identity == .knownWS2Catalog {
                     self.readApprovalCommand(0x97) { bindingFrame in
                         guard self.approvalRequestID == id else { return }

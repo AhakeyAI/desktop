@@ -724,6 +724,16 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     /// this connection has independently returned a valid status frame.
     func readFirmwareCapabilityProfile() async throws -> FirmwareCapabilityProfile {
         let generation = commandSessionGeneration
+        let previousProfile = firmwareCapabilityProfile
+        firmwareCapabilityProfile = nil
+        var accepted = false
+        defer {
+            if !accepted, generation == commandSessionGeneration {
+                // A failed refresh cannot leave old capabilities/facts writable.
+                firmwareCapabilityProfile = nil
+                configurationSnapshot.reset(generation: generation)
+            }
+        }
         if !hasValidStatusReadback {
             _ = try await sendCommandAwaitingResponse(
                 AhaKeyCommand.queryDeviceStatus(), expectedCommand: 0x00
@@ -736,15 +746,13 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             allowDeviceError: true
         )
         try ensureConfigurationReadSession(generation)
-        if response.frame.count == 6 {
-            guard hasValidStatusReadback else { throw OLEDUploadError.invalidReadback }
-            let profile = FirmwareCapabilityProfile.legacyAfterStatusReadback()
-            firmwareCapabilityProfile = profile
-            return profile
-        }
-        let profile = FirmwareCapabilityProfile.catalogResponse(response.frame)
+        let profile = FirmwareCapabilityProfile.probeResponse(
+            response.frame, hasValidStatusReadback: hasValidStatusReadback
+        )
         guard profile.identity != .unknown(nil) else { throw OLEDUploadError.invalidReadback }
+        if profile != previousProfile { configurationSnapshot.reset(generation: generation) }
         firmwareCapabilityProfile = profile
+        accepted = true
         return profile
     }
 

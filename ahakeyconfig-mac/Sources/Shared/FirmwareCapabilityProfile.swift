@@ -27,8 +27,19 @@ public struct FirmwareCapabilityProfile: Equatable {
         return FirmwareCapabilityProfile(identity: key == ws2CatalogKey ? .knownWS2Catalog : .unknown(key))
     }
 
-    /// Call only after 0x9F has timed out or proved unsupported and a valid 0x00
-    /// status frame has independently confirmed that an older device is present.
+    /// A short generic success ACK is the only verified legacy fallback. A device
+    /// rejection, timeout or malformed frame is never evidence of an older device.
+    /// The caller must also have a valid status from this same connection.
+    public static func probeResponse(_ frame: Data, hasValidStatusReadback: Bool) -> FirmwareCapabilityProfile {
+        guard hasValidStatusReadback else { return FirmwareCapabilityProfile(identity: .unknown(nil)) }
+        if frame == Data([0xAA, 0xBB, 0x9F, 0, 0xCC, 0xDD]) {
+            return legacyAfterStatusReadback()
+        }
+        return catalogResponse(frame)
+    }
+
+    /// Construct a legacy profile only after the probe validated the exact generic
+    /// success ACK and an independent status from the same connection.
     public static func legacyAfterStatusReadback() -> FirmwareCapabilityProfile {
         FirmwareCapabilityProfile(identity: .legacy)
     }
