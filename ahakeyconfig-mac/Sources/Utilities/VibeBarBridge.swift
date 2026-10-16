@@ -2,6 +2,10 @@ import Combine
 import Foundation
 import VibeBar
 
+enum VibeBarVisibilityPreference {
+    static let enabledKey = "vibeBar.enabled"
+}
+
 /// 把主 app 的 BLE / 语音服务状态镜像到 VibeBarState，让灵动岛 UI 自动跟随。
 @MainActor
 final class VibeBarBridge {

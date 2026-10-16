@@ -72,6 +72,7 @@ struct VibeBarExpandedMenu: View {
     let onFrameChanged: (CGRect, NSScreen) -> Void
     let onCompact: () -> Void
     let onOpenMain: () -> Void
+    let onExitIsland: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -122,6 +123,20 @@ struct VibeBarExpandedMenu: View {
             }
 
             HStack(spacing: 8) {
+                Button(action: onExitIsland) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "power")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 28, height: 28)
+                            .background(.white.opacity(0.12), in: Circle())
+                        Text("Exit island")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Exit island")
                 Spacer()
                 Text("Move cursor away to collapse")
                     .font(.system(size: 11))

@@ -42,11 +42,13 @@ public enum ApprovalAutomationControl {
     @discardableResult
     public static func revoke(_ client: Client? = nil, directory: URL = productionDirectory,
                               codexURL: URL = CodexConfigLeverSync.productionConfigURL,
-                              kimiURL: URL = KimiConfigPolicySync.productionConfigURL) -> Bool {
+                              kimiURL: URL = KimiConfigPolicySync.productionConfigURL,
+                              cursorDirectory: URL = CursorApprovalPolicySync.productionDirectory) -> Bool {
         locked(directory: directory) {
             let path = directory.appendingPathComponent(client.map { $0.rawValue + ".paused" } ?? "all.paused")
             do { try Data([1]).write(to: path, options: .atomic) } catch { return false }
             var success = true
+            if client == nil || client == .cursor { success = CursorApprovalPolicySync.releaseAll(directory: cursorDirectory) }
             if client == nil || client == .codex {
                 switch CodexConfigLeverSync.releaseOwnedAutomation(configURL: codexURL) {
                 case .writeFailed, .unreadableConfig, .duplicateKey, .unsupportedSyntax: success = false

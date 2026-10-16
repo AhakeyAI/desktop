@@ -45,7 +45,7 @@ struct DeviceInfoView: View {
                 }
                 .frame(height: 50)
             } header: {
-                Text("设备信息")
+                Text(NSLocalizedString("设备信息", comment: ""))
             }
 
             // MARK: - 蓝牙连接（App 与 Agent 二选一）
@@ -132,7 +132,7 @@ struct DeviceInfoView: View {
                             Circle()
                                 .fill(agentManager.isRunning ? Color.green : Color.gray.opacity(0.4))
                                 .frame(width: 8, height: 8)
-                            Text("LED 跟随 IDE 状态")
+                            Text(NSLocalizedString("LED 跟随 IDE 状态", comment: ""))
                             Text(agentBluetoothShortLabel())
                                 .foregroundStyle(.secondary)
                         }
@@ -160,7 +160,7 @@ struct DeviceInfoView: View {
                               ? "当前由本 App 占用蓝牙，Agent 应处于未加载。请先在「蓝牙连接」中选中 Agent 后再启停守护进程。"
                               : "从 launchd 加载并启动/卸载停止 Agent 进程。")
 
-                        Button("卸载", role: .destructive) {
+                        Button(NSLocalizedString("卸载", comment: ""), role: .destructive) {
                             agentManager.uninstall(bleManager: bleManager)
                         }
                         .buttonStyle(.bordered)
@@ -171,7 +171,7 @@ struct DeviceInfoView: View {
                                 ProgressView()
                                     .controlSize(.small)
                             }
-                            Button("安装并启用") {
+                            Button(NSLocalizedString("安装并启用", comment: "")) {
                                 agentManager.install()
                             }
                             .buttonStyle(.borderedProminent)
@@ -183,7 +183,7 @@ struct DeviceInfoView: View {
 
                 if agentManager.isInstalled {
                     HStack(spacing: 10) {
-                        Button("查看日志") {
+                        Button(NSLocalizedString("查看日志", comment: "")) {
                             showAgentLog.toggle()
                         }
                         .buttonStyle(.borderless)
@@ -230,7 +230,7 @@ struct DeviceInfoView: View {
                     }
                 }
             } header: {
-                Text("LED 状态同步 · Hook 联动")
+                Text(NSLocalizedString("LED 状态同步 · Hook 联动", comment: ""))
             } footer: {
                 if !agentManager.isAgentBinaryPresentInBundle {
                     Text("发版包内未包含 ahakeyconfig-agent，无法使用守护进程。请用完整「AhaKey Studio.app」或联系开发者。")
@@ -243,14 +243,14 @@ struct DeviceInfoView: View {
             .sheet(isPresented: $showAgentLog) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("诊断日志")
+                        Text(NSLocalizedString("诊断日志", comment: ""))
                             .font(.headline)
                         Spacer()
                         Button("关闭") { showAgentLog = false }
                     }
                     Picker("内容", selection: $agentLogPanel) {
                         Text("ahakeyconfig-agent 主日志").tag(0)
-                        Text("工具批准（permission-request.log）").tag(1)
+                        Text(NSLocalizedString("工具批准（permission-request.log）", comment: "")).tag(1)
                         Text("~/.cursor/hooks.json").tag(2)
                         Text("~/.cursor/cli-config.json").tag(3)
                         Text("~/.codex/config.toml").tag(4)
@@ -260,12 +260,12 @@ struct DeviceInfoView: View {
                     .labelsHidden()
                     .pickerStyle(.menu)
                     HStack {
-                        Button("刷新本页") {
+                        Button(NSLocalizedString("刷新本页", comment: "")) {
                             logPanelContentTick += 1
                             agentManager.refresh()
                         }
                         if agentLogPanel == 3 {
-                            Button("合并 CLI + IDE 终端白名单") {
+                            Button(NSLocalizedString("合并 CLI + IDE 终端白名单", comment: "")) {
                                 let a = agentManager.mergeUserCursorCliConfigForShellAutoApprove()
                                 let b = agentManager.mergeUserCursorPermissionsJsonForAgentTUI()
                                 agentManager.agentUserAlert = a + "\n\n——\n\n" + b
@@ -312,7 +312,7 @@ struct DeviceInfoView: View {
 
             // MARK: - BLE 连接状态
             Section {
-                CompatLabeledContent("连接") {
+                CompatLabeledContent(NSLocalizedString("连接", comment: "")) {
                     HStack(spacing: 6) {
                         Circle()
                             .fill(bleManager.isConnected ? Color.green : Color.orange)
@@ -320,7 +320,7 @@ struct DeviceInfoView: View {
                         Text(bleManager.bleConnectionStatus)
                     }
                 }
-                CompatLabeledContent("设备名") {
+                CompatLabeledContent(NSLocalizedString("设备名", comment: "")) {
                     if isEditingName {
                         HStack(spacing: 4) {
                             TextField("最长 15 字节", text: $editableName)
@@ -489,7 +489,7 @@ struct DeviceInfoView: View {
                     .padding(.top, 4)
                 }
             } header: {
-                Text("通信日志")
+                Text(NSLocalizedString("通信日志", comment: ""))
             }
         }
         .onAppear { bleManager.setDiagnosticsWindowVisible(true) }
@@ -499,7 +499,7 @@ struct DeviceInfoView: View {
             get: { agentManager.agentUserAlert != nil },
             set: { if !$0 { agentManager.agentUserAlert = nil } }
         )) {
-            Button("好", role: .cancel) {
+            Button(NSLocalizedString("好", comment: ""), role: .cancel) {
                 agentManager.agentUserAlert = nil
             }
         } message: {

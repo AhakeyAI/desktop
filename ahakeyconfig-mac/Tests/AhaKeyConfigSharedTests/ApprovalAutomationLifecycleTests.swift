@@ -12,7 +12,7 @@ final class ApprovalAutomationLifecycleTests: XCTestCase {
             try Data(codex.utf8).write(to: self.codex); try Data(kimi.utf8).write(to: self.kimi)
         }
         func revoke(_ client: ApprovalAutomationControl.Client? = nil) -> Bool {
-            ApprovalAutomationControl.revoke(client, directory: control, codexURL: codex, kimiURL: kimi)
+            ApprovalAutomationControl.revoke(client, directory: control, codexURL: codex, kimiURL: kimi, cursorDirectory: directory.appendingPathComponent("cursor"))
         }
         func remove() { try? FileManager.default.removeItem(at: directory) }
     }

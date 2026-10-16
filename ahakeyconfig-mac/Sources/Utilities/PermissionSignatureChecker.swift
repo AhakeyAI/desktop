@@ -84,7 +84,7 @@ enum PermissionSignatureChecker {
                 print("[PermissionSignatureChecker] 普通模式 tccutil 返回: \(task.terminationStatus), 输出: \(output)")
                 
                 if task.terminationStatus == 0 {
-                    completion(true, "麦克风权限已重置")
+                    completion(true, NSLocalizedString("麦克风权限已重置", comment: ""))
                     return
                 }
                 
@@ -107,7 +107,7 @@ enum PermissionSignatureChecker {
                     print("[PermissionSignatureChecker] sudo 模式 tccutil 返回: \(sudoTask.terminationStatus), 输出: \(sudoOutput)")
                     
                     if sudoTask.terminationStatus == 0 {
-                        completion(true, "麦克风权限已重置（使用 sudo）")
+                        completion(true, NSLocalizedString("麦克风权限已重置（使用 sudo）", comment: ""))
                     } else {
                         completion(false, "重置失败:\n普通模式: \(output)\nsudo模式: \(sudoOutput)")
                     }
