@@ -9,6 +9,10 @@ import com.example.ahakey.util.AiRuntimeStore;
 import com.fasterxml.jackson.databind.JsonNode;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
+import javafx.application.Platform;
+import java.util.function.Consumer;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import org.slf4j.Logger;
@@ -16,7 +20,6 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -34,16 +37,28 @@ public class AiRuntimeDisplayService {
     private final ObjectProperty<AiRuntimeDisplayMode> displayMode =
         new SimpleObjectProperty<>(AiRuntimeDisplayMode.SINGLE);
     private final ObservableList<AiRuntimeSlotBinding> slots = FXCollections.observableArrayList();
-    private final Map<String, Integer> lastActiveSlotByPlatform = new HashMap<>();
     private final Map<String, List<AiRuntimeSession>> sessionDiscoveryCache = new HashMap<>();
     private final Map<String, Long> sessionDiscoveryCacheMillis = new HashMap<>();
-    private AiRuntimeSlotBinding[] appliedSlots = new AiRuntimeSlotBinding[4];
+    private volatile AiRuntimeSlotBinding[] appliedSlots = new AiRuntimeSlotBinding[4];
     private String codexDataDir;
     private String cursorDataDir;
     private int primarySlotIndex = -1;
+    private volatile boolean snapshotPending;
+    private volatile long snapshotConnection = -1;
+    private final BooleanProperty modeChangePending = new SimpleBooleanProperty();
+    private final Object snapshotSendLock = new Object();
+    private final java.util.concurrent.atomic.AtomicLong snapshotRevision = new java.util.concurrent.atomic.AtomicLong();
 
     public AiRuntimeDisplayService(BleManager bleManager) {
         this.bleManager = bleManager;
+        bleManager.setDisplayIdleListener(() -> {
+            long connection = snapshotConnection;
+            if (snapshotPending && connection == bleManager.connectionGeneration()
+                    && displayMode.get() == AiRuntimeDisplayMode.MULTI) {
+                try { sendAppliedSnapshot(connection); }
+                catch (Exception e) { logger.debug("Latest runtime snapshot remains pending: {}", e.getMessage()); }
+            }
+        });
         AiRuntimeStore.Draft draft = AiRuntimeStore.loadOrDefault();
         displayMode.set(AiRuntimeDisplayMode.fromName(draft.displayMode));
         codexDataDir = draft.codexDataDir;
@@ -143,20 +158,43 @@ public class AiRuntimeDisplayService {
     }
 
     public void setDisplayMode(AiRuntimeDisplayMode mode) {
+        setDisplayMode(mode, error -> { if (error != null) logger.warn("{}", error); });
+    }
+
+    public BooleanProperty modeChangePendingProperty() { return modeChangePending; }
+
+    public void setDisplayMode(AiRuntimeDisplayMode mode, Consumer<String> completion) {
         AiRuntimeDisplayMode safe = mode == null ? AiRuntimeDisplayMode.SINGLE : mode;
-        if (safe == displayMode.get()) {
+        if (modeChangePending.get() || bleManager.isDisplayBusy() || bleManager.isDisplayWriteUncertain()) {
+            completion.accept("设备正在处理显示配置或保存结果未确认，展示模式未切换。");
             return;
         }
-        displayMode.set(safe);
-        persist();
+        if (safe == displayMode.get()) {
+            completion.accept(null);
+            return;
+        }
         if (isDeviceSupported()) {
+            long connection = bleManager.connectionGeneration();
+            modeChangePending.set(true);
             new Thread(() -> {
+                String failure = null;
                 try {
-                    bleManager.setRuntimeDisplayMode(safe);
+                    bleManager.setRuntimeDisplayMode(safe, connection);
                 } catch (Exception e) {
-                    logger.warn("Set runtime display mode failed: {}", e.getMessage());
+                    failure = "展示模式未确认：" + e.getMessage();
                 }
+                String result = failure;
+                Platform.runLater(() -> {
+                    modeChangePending.set(false);
+                    if (connection != bleManager.connectionGeneration() || !isDeviceSupported()) {
+                        completion.accept("键盘连接已改变，展示模式未确认。"); return;
+                    }
+                    if (result == null) { displayMode.set(safe); persist(); }
+                    completion.accept(result);
+                });
             }, "ai-runtime-mode-send").start();
+        } else {
+            displayMode.set(safe); persist(); completion.accept(null);
         }
     }
 
@@ -164,9 +202,11 @@ public class AiRuntimeDisplayService {
         if (!isDeviceSupported()) {
             return;
         }
+        long connection = bleManager.connectionGeneration();
+        AiRuntimeDisplayMode preference = displayMode.get();
         new Thread(() -> {
             try {
-                bleManager.setRuntimeDisplayMode(displayMode.get());
+                bleManager.setRuntimeDisplayMode(preference, connection);
             } catch (Exception e) {
                 logger.warn("Apply runtime display preference on connect failed: {}", e.getMessage());
             }
@@ -193,7 +233,6 @@ public class AiRuntimeDisplayService {
         }
         boolean wasPrimary = primarySlotIndex == slotIndex;
         slots.set(slotIndex, new AiRuntimeSlotBinding(slotIndex));
-        removeLastActiveSlot(slotIndex);
         if (wasPrimary) {
             primarySlotIndex = firstBoundSlot();
         }
@@ -207,7 +246,6 @@ public class AiRuntimeDisplayService {
     public void markDraftApplied(boolean codexHookLatest, boolean cursorHookLatest) {
         ApplyPlan plan = prepareApply(codexHookLatest, cursorHookLatest);
         appliedSlots = Arrays.stream(plan.slots()).map(this::copy).toArray(AiRuntimeSlotBinding[]::new);
-        lastActiveSlotByPlatform.clear();
     }
 
     public void applyToKeyboard() throws Exception {
@@ -224,7 +262,6 @@ public class AiRuntimeDisplayService {
         }
         bleManager.setRuntimeDisplayMode(displayMode.get());
         appliedSlots = Arrays.stream(plan.slots()).map(this::copy).toArray(AiRuntimeSlotBinding[]::new);
-        lastActiveSlotByPlatform.clear();
         if (displayMode.get() == AiRuntimeDisplayMode.MULTI) {
             sendAppliedSnapshot();
         }
@@ -232,138 +269,96 @@ public class AiRuntimeDisplayService {
     }
 
     public boolean handleHookEvent(String platform, IDEState state, JsonNode payload) {
-        if (displayMode.get() == AiRuntimeDisplayMode.SINGLE) {
-            try {
-                bleManager.updateState((byte) state.getCode());
-                return true;
-            } catch (Exception e) {
-                logger.warn("SINGLE runtime update failed: {}", e.getMessage());
-                return false;
-            }
-        }
-        if (displayMode.get() != AiRuntimeDisplayMode.MULTI
-            || (!"Codex".equals(platform) && !"Cursor".equals(platform))
-            || !isDeviceSupported()) {
-            return false;
-        }
-        String stableId = "Cursor".equals(platform)
-            ? firstNonBlank(
-                text(payload, "conversation_id"),
-                text(payload, "session_id"),
-                text(payload, "composerId"),
-                text(payload, "composer_id"),
-                text(payload, "conversationId"),
-                text(payload, "conversation_id")
-            )
-            : firstNonBlank(text(payload, "session_id"), text(payload, "sessionId"));
-        String transcriptPath = "Codex".equals(platform)
-            ? firstNonBlank(text(payload, "transcript_path"), text(payload, "transcriptPath"))
-            : "";
-        String workingDir = firstNonBlank(
-            text(payload, "cwd"),
-            text(payload, "current_working_directory"),
-            text(payload, "currentWorkingDirectory")
-        );
-        if (stableId.isBlank() && transcriptPath.isBlank() && workingDir.isBlank()) {
-            int fallbackSlot = fallbackTerminalSlotForPlatform(platform);
-            if (fallbackSlot < 0 || !isTerminalState(state)) {
-                logger.info("MULTI runtime event ignored without session identity: platform={}, state={}", platform, state);
-                return false;
-            }
-            return updateRuntimeSlotState(fallbackSlot, platform, state);
-        }
-        for (int i = 0; i < appliedSlots.length; i++) {
-            AiRuntimeSlotBinding slot = appliedSlots[i];
-            if (!matches(slot, platform, stableId, transcriptPath)) {
-                continue;
-            }
-            return updateRuntimeSlotState(i, platform, state);
-        }
-        if (!workingDir.isBlank()) {
-            int locationSlot = uniqueLocationSlotForPlatform(platform, workingDir);
-            if (locationSlot >= 0) {
-                return updateRuntimeSlotState(locationSlot, platform, state);
-            }
-        }
-        return false;
+        return handleHookEventResult(platform, state, payload) == Delivery.SENT;
     }
 
-    private boolean updateRuntimeSlotState(int slotIndex, String platform, IDEState state) {
-        AiRuntimeSlotBinding slot = appliedSlots[slotIndex];
-        lastActiveSlotByPlatform.put(platform, slotIndex);
-        if (Objects.equals(slot.getLastIdeState(), state.name())) {
-            return true;
-        }
-        slot.setLastIdeState(state.name());
-        slots.get(slotIndex).setLastIdeState(state.name());
-        persist();
-        try {
-            sendAppliedSnapshot();
-            return true;
-        } catch (Exception e) {
-            logger.warn("MULTI runtime snapshot failed: {}", e.getMessage());
-            return false;
+    public enum Delivery { SENT, PENDING, IGNORED, FAILED }
+    private static final long FACT_TTL_NANOS = java.util.concurrent.TimeUnit.MINUTES.toNanos(5);
+    private record RuntimeFact(IDEState state, long observedNanos, long connection) {
+        boolean fresh(long currentConnection) {
+            return connection == currentConnection && System.nanoTime() - observedNanos < FACT_TTL_NANOS;
         }
     }
+    private final Map<String, RuntimeFact> liveFacts = new java.util.concurrent.ConcurrentHashMap<>();
+    private String singleOwner = "";
+    private long singleOwnerAt;
+    private long singleOwnerConnection = -1;
 
-    private int fallbackTerminalSlotForPlatform(String platform) {
-        int runningSlot = uniqueRunningSlotForPlatform(platform);
-        if (runningSlot >= 0) {
-            return runningSlot;
-        }
-        int only = -1;
-        int count = 0;
-        for (int i = 0; i < appliedSlots.length; i++) {
-            AiRuntimeSlotBinding slot = appliedSlots[i];
-            if (slot != null && slot.isBound() && platform.equals(slot.getProvider())) {
-                only = i;
-                count++;
+    public Delivery handleHookEventResult(String platform, IDEState state, JsonNode payload) {
+        String id = "Cursor".equals(platform)
+                ? firstNonBlank(text(payload, "conversation_id"), text(payload, "conversationId"),
+                    text(payload, "composerId"), text(payload, "composer_id"))
+                : firstNonBlank(text(payload, "session_id"), text(payload, "sessionId"));
+        String transcript = "Codex".equals(platform)
+                ? firstNonBlank(text(payload, "transcript_path"), text(payload, "transcriptPath")) : "";
+        var source = "Codex".equals(platform)
+                ? codexDiscovery.eventSource(Path.of(codexDataDir), id)
+                : CodexSessionDiscoveryService.EventSource.UNKNOWN;
+        Delivery result;
+        String matchedId = "";
+        synchronized (snapshotSendLock) {
+            liveFacts.entrySet().removeIf(entry -> !entry.getValue().fresh(bleManager.connectionGeneration()));
+            if (source == CodexSessionDiscoveryService.EventSource.BACKGROUND) {
+                result = Delivery.IGNORED;
+            } else if (displayMode.get() == AiRuntimeDisplayMode.SINGLE) {
+                String identity = id.isBlank() ? "" : platform + ":" + id;
+                boolean terminal = state == IDEState.TASK_COMPLETED || state == IDEState.STOP || state == IDEState.SESSION_END;
+                if (singleOwnerConnection != bleManager.connectionGeneration()
+                        || System.nanoTime() - singleOwnerAt >= FACT_TTL_NANOS) singleOwner = "";
+                if (terminal && !singleOwner.isBlank() && !singleOwner.equals(identity)) {
+                    result = Delivery.IGNORED;
+                } else {
+                    if (!terminal) {
+                        singleOwner = identity;
+                        singleOwnerAt = System.nanoTime();
+                        singleOwnerConnection = bleManager.connectionGeneration();
+                    }
+                    if (!id.isBlank()) liveFacts.put(identity,
+                            new RuntimeFact(state, System.nanoTime(), bleManager.connectionGeneration()));
+                    try {
+                        result = bleManager.sendRuntimeState((byte) state.getCode()) ? Delivery.SENT
+                                : bleManager.isConnected() ? Delivery.PENDING : Delivery.FAILED;
+                    } catch (Exception e) { result = Delivery.FAILED; }
+                }
+            } else if (!isDeviceSupported() || (!"Codex".equals(platform) && !"Cursor".equals(platform))) {
+                result = Delivery.IGNORED;
+            } else {
+                int matched = -1;
+                for (int i = 0; i < appliedSlots.length; i++) {
+                    if (matches(appliedSlots[i], platform, id, transcript)) {
+                        if (matched >= 0) { matched = -2; break; }
+                        matched = i;
+                    }
+                }
+                if (matched < 0) result = Delivery.IGNORED;
+                else {
+                    AiRuntimeSlotBinding slot = appliedSlots[matched];
+                    matchedId = slot.getStableId();
+                    liveFacts.put(slot.getProvider() + ":" + slot.getStableId(),
+                            new RuntimeFact(state, System.nanoTime(), bleManager.connectionGeneration()));
+                    slot.setLastIdeState(state.name());
+                    AiRuntimeSlotBinding draft = slots.get(matched);
+                    if (Objects.equals(draft.getStableId(), slot.getStableId()) && Objects.equals(draft.getProvider(), slot.getProvider()))
+                        draft.setLastIdeState(state.name());
+                    snapshotRevision.incrementAndGet();
+                    try { result = sendAppliedSnapshot(bleManager.connectionGeneration()) ? Delivery.SENT : Delivery.PENDING; }
+                    catch (Exception e) { result = Delivery.FAILED; }
+                }
             }
         }
-        if (count == 1) {
-            return only;
-        }
-
-        if (primarySlotIndex >= 0 && primarySlotIndex < appliedSlots.length) {
-            AiRuntimeSlotBinding primary = appliedSlots[primarySlotIndex];
-            if (primary != null && primary.isBound() && platform.equals(primary.getProvider())) {
-                return primarySlotIndex;
-            }
-        }
-        return -1;
+        // Never log the original Hook input, transcript contents, cwd or chat text.
+        logger.info("Runtime event platform={} session={} matchedSession={} state={} source={} result={} connection={}",
+                platform, diagnosticId(id), diagnosticId(matchedId), state, source, result, bleManager.connectionGeneration());
+        return result;
     }
 
-    private int uniqueRunningSlotForPlatform(String platform) {
-        int runningSlot = -1;
-        int runningCount = 0;
-        for (int i = 0; i < appliedSlots.length; i++) {
-            AiRuntimeSlotBinding slot = appliedSlots[i];
-            if (slot != null && slot.isBound() && platform.equals(slot.getProvider()) && isRunningSlot(slot)) {
-                runningSlot = i;
-                runningCount++;
-            }
-        }
-        return runningCount == 1 ? runningSlot : -1;
+    private String diagnosticId(String id) {
+        return id.matches("[A-Za-z0-9_-]{1,128}") ? id : id.isBlank() ? "absent" : "redacted";
     }
 
-    private boolean isRunningSlot(AiRuntimeSlotBinding slot) {
-        if (slot == null || slot.getLastIdeState() == null || slot.getLastIdeState().isBlank()) {
-            return false;
-        }
-        try {
-            return com.example.ahakey.model.AiRuntimeSlotState.fromIdeState(IDEState.valueOf(slot.getLastIdeState()))
-                == com.example.ahakey.model.AiRuntimeSlotState.RUNNING;
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
-    }
-
-    private void removeLastActiveSlot(int slotIndex) {
-        lastActiveSlotByPlatform.entrySet().removeIf(entry -> entry.getValue() == slotIndex);
-    }
-
-    private boolean isTerminalState(IDEState state) {
-        return state == IDEState.TASK_COMPLETED || state == IDEState.STOP || state == IDEState.SESSION_END;
+    private void applyLiveFact(AiRuntimeSlotBinding slot) {
+        RuntimeFact fact = liveFacts.get(slot.getProvider() + ":" + slot.getStableId());
+        slot.setLastIdeState(fact != null && fact.fresh(bleManager.connectionGeneration()) ? fact.state().name() : "");
     }
 
     public ApplyPlan prepareApply(boolean codexHookLatest, boolean cursorHookLatest) {
@@ -399,6 +394,7 @@ public class AiRuntimeDisplayService {
             String reason = reasons[i];
             if (reason == null) {
                 AiRuntimeSlotBinding copy = copy(source);
+                applyLiveFact(copy);
                 copy.setForeground(i == desiredPrimary);
                 prepared[i] = copy;
                 usable++;
@@ -503,60 +499,35 @@ public class AiRuntimeDisplayService {
         if (!platform.equals(slot.getProvider())) {
             return false;
         }
-        if (!stableId.isBlank() && stableId.equals(slot.getStableId())) {
-            return true;
-        }
+        if (!stableId.isBlank()) return stableId.equals(slot.getStableId());
         if (!transcriptPath.isBlank() && transcriptPath.equalsIgnoreCase(slot.getTranscriptPath())) {
             return true;
         }
         return false;
     }
 
-    private int uniqueLocationSlotForPlatform(String platform, String workingDir) {
-        int matchedSlot = -1;
-        int matchedCount = 0;
-        for (int i = 0; i < appliedSlots.length; i++) {
-            AiRuntimeSlotBinding slot = appliedSlots[i];
-            if (slot != null && slot.isBound() && platform.equals(slot.getProvider())
-                && (sameLocation(workingDir, slot.getCwd()) || sameLocation(workingDir, slot.getProjectName()))) {
-                matchedSlot = i;
-                matchedCount++;
-            }
-        }
-        return matchedCount == 1 ? matchedSlot : -1;
-    }
-
-    private boolean sameLocation(String left, String right) {
-        String normalizedLeft = normalizeLocation(left);
-        String normalizedRight = normalizeLocation(right);
-        return !normalizedLeft.isBlank() && normalizedLeft.equalsIgnoreCase(normalizedRight);
-    }
-
-    private String normalizeLocation(String value) {
-        if (value == null || value.isBlank()) {
-            return "";
-        }
-        String normalized = value.trim();
-        if (normalized.startsWith("\\\\?\\")) {
-            normalized = normalized.substring(4);
-        }
-        if (normalized.startsWith("file:/")) {
-            try {
-                normalized = Path.of(URI.create(normalized)).toString();
-            } catch (Exception ignored) {
-                normalized = normalized.replace("file:///", "");
-            }
-        }
-        return normalized.replace('/', '\\');
-    }
-
     private void sendAppliedSnapshot() throws Exception {
+        sendAppliedSnapshot(bleManager.connectionGeneration());
+    }
+
+    private boolean sendAppliedSnapshot(long connection) throws Exception {
+        synchronized (snapshotSendLock) {
+        if (connection != bleManager.connectionGeneration()) return false;
+        snapshotPending = true;
+        snapshotConnection = connection;
+        if (bleManager.isDisplayBusy() || bleManager.isDisplayWriteUncertain()) return false;
+        long revision = snapshotRevision.get();
         boolean anyUsable = Arrays.stream(appliedSlots).anyMatch(slot -> slot != null && slot.isBound());
         if (!anyUsable) {
             logger.info("Skip 0x99 snapshot because no usable runtime slot is available");
-            return;
+            return false;
         }
-        bleManager.sendMultiRuntimeSnapshot(Arrays.stream(appliedSlots).map(this::copy).toArray(AiRuntimeSlotBinding[]::new));
+        AiRuntimeSlotBinding[] snapshot = Arrays.stream(appliedSlots).map(this::copy).toArray(AiRuntimeSlotBinding[]::new);
+        for (AiRuntimeSlotBinding slot : snapshot) applyLiveFact(slot);
+        bleManager.sendMultiRuntimeSnapshot(snapshot, connection);
+        snapshotPending = connection == bleManager.connectionGeneration() && snapshotRevision.get() != revision;
+        return true;
+        }
     }
 
     private String text(JsonNode node, String field) {
@@ -602,7 +573,7 @@ public class AiRuntimeDisplayService {
         draft.codexDataDir = codexDataDir;
         draft.cursorDataDir = cursorDataDir;
         draft.primarySlotIndex = primarySlotIndex;
-        draft.slots = slots.toArray(new AiRuntimeSlotBinding[0]);
+        draft.slots = slots.stream().map(this::copy).peek(slot -> slot.setLastIdeState("")).toArray(AiRuntimeSlotBinding[]::new);
         AiRuntimeStore.save(draft);
     }
 

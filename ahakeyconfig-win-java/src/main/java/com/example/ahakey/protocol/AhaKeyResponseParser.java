@@ -4,6 +4,55 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 public final class AhaKeyResponseParser {
+    public record DisplayRead(int kind, int selector, int aiState, int value, int writeState,
+                              int frames, long bytes, long crc) { }
+
+    public static DisplayRead parseDisplayRead(byte[] frame, int kind, int... selectors) {
+        CommandResponse response = parseCommandResponse(frame);
+        if (response == null || response.cmd() != AhaKeyProtocol.CMD_DISPLAY_READ || response.status() != 0)
+            return null;
+        int length = kind == 0 ? 8 : kind == 1 || kind == 2 ? 10 : kind == 3 ? 18 : -1;
+        if (frame.length != length || (frame[4] & 255) != kind) return null;
+        if (selectors.length != (kind == 0 ? 0 : kind == 1 ? 2 : 1)) return null;
+        for (int i = 0; i < selectors.length; i++) if ((frame[5 + i] & 255) != selectors[i]) return null;
+        int value = frame[kind == 1 ? 7 : kind == 2 ? 6 : 5] & 255;
+        if (kind == 0 && (value < 1 || value > 100)) return null;
+        if (kind == 2 && (value > 1 || (frame[7] & 255) > 3 || (value == 1) != (frame[7] == 2))) return null;
+        if (kind == 3) {
+            java.nio.ByteBuffer data = java.nio.ByteBuffer.wrap(frame).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+            int frames = data.getShort(6) & 65535;
+            long bytes = Integer.toUnsignedLong(data.getInt(8));
+            long crc = Integer.toUnsignedLong(data.getInt(12));
+            if (frames > AhaKeyProtocol.resourceCapacity(selectors[0]) || bytes != (long) frames * AhaKeyProtocol.OLED_FRAME_SLOT_SIZE
+                    || (frames == 0 && crc != 0)) return null;
+            return new DisplayRead(kind, selectors[0], -1, 0, -1, frames, bytes, crc);
+        }
+        return new DisplayRead(kind, kind == 0 ? -1 : selectors[0], kind == 1 ? selectors[1] : -1,
+                value, kind == 2 ? frame[7] & 255 : -1, 0, 0, 0);
+    }
+
+    public static boolean isDisplayAck(byte[] frame, byte opcode) {
+        return AhaKeyProtocol.isValidFrame(frame) && frame.length == 6 && frame[2] == opcode
+                && (frame[3] == 0 || frame[3] == 1);
+    }
+
+    // -1: legacy opcode; 0: incomplete; -2: malformed; positive: exact CP2 frame length.
+    public static int displayReplyLength(byte[] data, int start, int available) {
+        if (available < 3) return 0;
+        int cmd = data[start + 2] & 255;
+        if (cmd != 0x88 && cmd != 0x89 && cmd != 0x8A && cmd != 0x8B && cmd != 0x8C && cmd != 0x8E) return -1;
+        if (available < 4) return 0;
+        int status = data[start + 3] & 255;
+        if (status > 1) return -2;
+        int length = 6;
+        if (cmd == 0x88 && status == 0) {
+            if (available < 5) return 0;
+            length = switch (data[start + 4] & 255) { case 0 -> 8; case 1, 2 -> 10; case 3 -> 18; default -> -2; };
+            if (length < 0) return length;
+        }
+        if (available < length) return 0;
+        return data[start + length - 2] == (byte) 0xCC && data[start + length - 1] == (byte) 0xDD ? length : -2;
+    }
     public record CommandResponse(byte cmd, byte status, byte[] payload) {
     }
 

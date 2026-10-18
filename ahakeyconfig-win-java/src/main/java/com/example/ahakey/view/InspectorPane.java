@@ -85,6 +85,15 @@ public class InspectorPane extends ScrollPane {
 
         studioState.selectedPartProperty().addListener((obs, oldValue, newValue) -> rebuild());
         studioState.selectedModeProperty().addListener((obs, oldValue, newValue) -> rebuild());
+        studioState.displayConfig().revision.addListener((o, a, b) -> {
+            if (studioState.getSelectedPart() == StudioPart.OLED) rebuild();
+        });
+        studioState.displayConfig().loading.addListener((o, a, b) -> {
+            if (!b && studioState.getSelectedPart() == StudioPart.LIGHT_BAR) rebuild();
+        });
+        studioState.displayConfig().busy.addListener((o, a, b) -> {
+            if (!b && studioState.getSelectedPart() == StudioPart.LIGHT_BAR) rebuild();
+        });
         studioState.lightBarPreviewProperty().addListener((obs, oldValue, newValue) -> rebuild());
         studioState.cp4cInputConfigEnabledProperty().addListener((obs, oldValue, newValue) -> rebuild());
         studioState.inputBaselineRevisionProperty().addListener((obs, oldValue, newValue) -> rebuild());
@@ -742,6 +751,7 @@ public class InspectorPane extends ScrollPane {
 
     private VBox createLightBarGroup() {
         VBox root = new VBox(16);
+        var display = studioState.displayConfig();
         ModeSlot mode = studioState.getSelectedMode();
 
         VBox brightnessBox = createGroupBox(languageManager.getString("inspector.light-brightness"), () -> {
@@ -749,21 +759,18 @@ public class InspectorPane extends ScrollPane {
             HBox row = new HBox(10);
             row.setAlignment(Pos.CENTER_LEFT);
 
-            Spinner<Integer> spinner = new Spinner<>(1, 100, studioState.getLightBrightness());
-            spinner.setEditable(true);
-            spinner.setPrefWidth(96);
-            spinner.valueProperty().addListener((obs, oldValue, newValue) -> {
-                if (newValue != null) {
-                    studioState.setLightBrightness(newValue);
-                }
-            });
+            Spinner<Integer> spinner = brightnessSpinner(display);
 
-            Button test = new Button(languageManager.getString("inspector.test-brightness"));
-            test.disableProperty().bind(deviceStatus.isConnectedProperty().not());
-            test.setOnAction(e -> controller.sendLightBrightnessToDevice());
+            Button test = new Button(languageManager.getString("display.preview"));
+            test.disableProperty().bind(display.writeReady.not().or(display.busy));
+            test.setOnAction(e -> { spinner.commitValue(); controller.sendLightBrightnessToDevice(); });
 
-            row.getChildren().addAll(new Label(languageManager.getString("inspector.brightness")), spinner, test);
-            Label note = new Label(languageManager.getString("inspector.brightness-note"));
+            Button save = new Button(languageManager.getString("display.save-brightness"));
+            save.disableProperty().bind(display.writeReady.not().or(display.busy));
+            save.setOnAction(e -> { spinner.commitValue(); controller.saveGlobalLightBrightness(); });
+            spinner.disableProperty().bind(display.busy);
+            row.getChildren().addAll(new Label(languageManager.getString("inspector.brightness")), spinner, test, save);
+            Label note = new Label(languageManager.getString("display.global-brightness"));
             note.getStyleClass().add("group-note");
             note.setWrapText(true);
             box.getChildren().addAll(row, note);
@@ -790,24 +797,33 @@ public class InspectorPane extends ScrollPane {
 
                 ComboBox<LightEffectStyle> combo = new ComboBox<>();
                 combo.getItems().addAll(LightEffectStyle.values());
-                combo.setValue(studioState.getAiLightEffect(mode, ideState));
-                combo.setMinWidth(180);
-                combo.setPrefWidth(210);
+                combo.setValue(LightEffectStyle.fromCodeOrNull(display.effect(mode.getIndex(), ideState.getCode())));
+                combo.setPromptText(languageManager.getString("display.unknown-effect"));
+                combo.setMinWidth(100);
+                combo.setPrefWidth(180);
+                HBox.setHgrow(combo, Priority.ALWAYS);
+                combo.disableProperty().bind(display.busy);
                 combo.valueProperty().addListener((obs, oldValue, newValue) -> {
                     if (newValue != null) {
-                        studioState.setAiLightEffect(mode, ideState, newValue);
+                        display.editEffect(mode.getIndex(), ideState.getCode(), newValue.getCode() & 255);
                     }
                 });
 
-                Button test = new Button(languageManager.getString("inspector.test"));
-                test.disableProperty().bind(deviceStatus.isConnectedProperty().not());
+                Button test = new Button(languageManager.getString("display.preview"));
+                test.disableProperty().bind(Bindings.createBooleanBinding(
+                        () -> !display.writeReady.get() || display.busy.get() || combo.getValue() == null || combo.getValue() == LightEffectStyle.OFF,
+                        display.writeReady, display.busy, combo.valueProperty()));
                 test.setOnAction(e -> controller.previewLightEffectOnDevice(combo.getValue()));
 
                 top.getChildren().addAll(title, help, spacer, combo, test);
                 Label desc = new Label(ideState.getDescription());
+                Label draftStatus = new Label();
+                draftStatus.textProperty().bind(Bindings.createStringBinding(
+                        () -> display.effectDirty(mode.getIndex(), ideState.getCode()) ? "草稿" : "",
+                        display.revision));
                 desc.getStyleClass().add("group-note");
                 desc.setWrapText(true);
-                row.getChildren().addAll(top, desc);
+                row.getChildren().addAll(top, desc, draftStatus);
                 box.getChildren().add(row);
                 box.getChildren().add(new Separator());
             }
@@ -816,23 +832,52 @@ public class InspectorPane extends ScrollPane {
             actions.setAlignment(Pos.CENTER_LEFT);
             Button sync = new Button(languageManager.getString("inspector.save-light-config"));
             sync.getStyleClass().add("button-prominent");
-            sync.disableProperty().bind(deviceStatus.isConnectedProperty().not());
+            sync.disableProperty().bind(display.writeReady.not().or(display.busy));
             sync.setOnAction(e -> controller.syncCurrentModeLightConfig());
             actions.getChildren().add(sync);
 
-            Label note = new Label(languageManager.getString("inspector.light-note") + " " + mode.getTitle());
+            Label note = new Label(mode.getTitle() + " · SINGLE AI 状态灯效");
             note.getStyleClass().add("group-note");
             note.setWrapText(true);
             box.getChildren().addAll(actions, note);
             return box;
         });
 
-        root.getChildren().addAll(createAiRuntimeGroup(), brightnessBox, statesBox);
+        bindRuntimeSection(statesBox, controller.getAiRuntimeDisplayService(), AiRuntimeDisplayMode.SINGLE);
+        root.getChildren().addAll(createAiRuntimeGroup(true), brightnessBox, statesBox, createAiRuntimeGroup(false), displayActions());
         return root;
     }
 
-    private VBox createAiRuntimeGroup() {
-        return createGroupBox("AI 运行展示", () -> {
+    private static Spinner<Integer> brightnessSpinner(com.example.ahakey.model.DisplayConfigState display) {
+        Spinner<Integer> spinner = new Spinner<>(1, 100, display.brightness.get());
+        spinner.setEditable(true);
+        spinner.setPrefWidth(96);
+        spinner.getValueFactory().setConverter(new javafx.util.StringConverter<>() {
+            @Override public String toString(Integer value) { return Integer.toString(value); }
+            @Override public Integer fromString(String text) {
+                if (text == null || text.isBlank()) return spinner.getValue();
+                try { return Math.max(1, Math.min(100, Integer.parseInt(text))); }
+                catch (NumberFormatException e) { return spinner.getValue(); }
+            }
+        });
+        spinner.getEditor().setTextFormatter(new javafx.scene.control.TextFormatter<String>(change ->
+                change.getControlNewText().matches("[0-9]{0,3}") ? change : null));
+        spinner.valueProperty().addListener((o, a, b) -> { if (b != null) display.editBrightness(b); });
+        return spinner;
+    }
+
+    private void bindRuntimeSection(VBox section, com.example.ahakey.service.AiRuntimeDisplayService service, AiRuntimeDisplayMode mode) {
+        bindRuntimeSection(section, service.displayModeProperty(), mode, studioState.displayConfig().busy, service.modeChangePendingProperty());
+    }
+
+    private static void bindRuntimeSection(VBox section, javafx.beans.property.ObjectProperty<AiRuntimeDisplayMode> current,
+            AiRuntimeDisplayMode mode, javafx.beans.property.BooleanProperty busy, javafx.beans.property.BooleanProperty pending) {
+        section.getStyleClass().add("runtime-mode-section");
+        section.disableProperty().bind(current.isNotEqualTo(mode).or(busy).or(pending));
+    }
+
+    private VBox createAiRuntimeGroup(boolean modeOnly) {
+        return createGroupBox(modeOnly ? "AI 运行展示 · 全局" : "MULTI · 任务槽", () -> {
             VBox box = new VBox(12);
             var service = controller.getAiRuntimeDisplayService();
 
@@ -843,10 +888,21 @@ public class InspectorPane extends ScrollPane {
             multi.setToggleGroup(modeGroup);
             single.setSelected(service.getDisplayMode() == AiRuntimeDisplayMode.SINGLE);
             multi.setSelected(service.getDisplayMode() == AiRuntimeDisplayMode.MULTI);
-            single.setOnAction(e -> controller.setAiRuntimeDisplayMode(AiRuntimeDisplayMode.SINGLE));
-            multi.setOnAction(e -> controller.setAiRuntimeDisplayMode(AiRuntimeDisplayMode.MULTI));
+            single.disableProperty().bind(studioState.displayConfig().busy.or(studioState.displayConfig().loading).or(service.modeChangePendingProperty()));
+            multi.disableProperty().bind(single.disableProperty());
+            single.setOnAction(e -> {
+                controller.setAiRuntimeDisplayMode(AiRuntimeDisplayMode.SINGLE);
+                single.setSelected(service.getDisplayMode() == AiRuntimeDisplayMode.SINGLE);
+                multi.setSelected(service.getDisplayMode() == AiRuntimeDisplayMode.MULTI);
+            });
+            multi.setOnAction(e -> {
+                controller.setAiRuntimeDisplayMode(AiRuntimeDisplayMode.MULTI);
+                single.setSelected(service.getDisplayMode() == AiRuntimeDisplayMode.SINGLE);
+                multi.setSelected(service.getDisplayMode() == AiRuntimeDisplayMode.MULTI);
+            });
             HBox modeRow = new HBox(8, new Label("展示模式"), single, multi);
             modeRow.setAlignment(Pos.CENTER_LEFT);
+            if (modeOnly) { box.getChildren().add(modeRow); return box; }
 
             VBox slotBox = new VBox(6);
             for (AiRuntimeSlotBinding slot : service.getSlots()) {
@@ -861,6 +917,8 @@ public class InspectorPane extends ScrollPane {
             manage.setOnAction(e -> showAiRuntimeSlotDialog());
             Button apply = new Button("应用到键盘");
             apply.getStyleClass().add("button-prominent");
+            apply.disableProperty().bind(deviceStatus.isConnectedProperty().not().or(studioState.displayConfig().busy)
+                    .or(studioState.displayConfig().loading).or(service.modeChangePendingProperty()));
             apply.setOnAction(e -> controller.applyAiRuntimeToKeyboard(getScene() == null ? null : getScene().getWindow()));
             actions.getChildren().addAll(manage, apply);
 
@@ -870,7 +928,8 @@ public class InspectorPane extends ScrollPane {
             support.getStyleClass().add("group-note");
             support.setWrapText(true);
 
-            box.getChildren().addAll(modeRow, slotBox, actions, support);
+            box.getChildren().addAll(slotBox, actions, support);
+            bindRuntimeSection(box, service, AiRuntimeDisplayMode.MULTI);
             return box;
         });
     }
@@ -924,6 +983,8 @@ public class InspectorPane extends ScrollPane {
         Button apply = new Button("应用到键盘");
         apply.getStyleClass().add("button-prominent");
         apply.setOnAction(e -> controller.applyAiRuntimeToKeyboard(dialog.getDialogPane().getScene().getWindow()));
+        apply.disableProperty().bind(deviceStatus.isConnectedProperty().not()
+                .or(studioState.displayConfig().loading));
 
         Button hookManager = new Button("去 Hook 管理");
         hookManager.setOnAction(e -> controller.openHookManager());
@@ -933,6 +994,7 @@ public class InspectorPane extends ScrollPane {
         note.setWrapText(true);
         HBox actionRow = new HBox(8, apply, hookManager);
         root.getChildren().addAll(dirBox, tree, slotGuide, slotsBox, lightGuide, actionRow, note);
+        bindRuntimeSection(root, service, AiRuntimeDisplayMode.MULTI);
         dialog.getDialogPane().setContent(root);
         Task<RuntimeTreeLoad> loadTask = new Task<>() {
             @Override
@@ -1179,104 +1241,91 @@ public class InspectorPane extends ScrollPane {
     }
 
     private VBox createOledGroup() {
-        VBox root = new VBox(16);
-        OledModeDraft draft = studioState.getOledDraft();
-
-        root.getChildren().add(createGroupBox(languageManager.getString("inspector.oled-preview"), () -> {
-            VBox box = new VBox(12);
-
-            // OLED 预览区域
-            StackPane previewArea = new StackPane();
-            previewArea.getStyleClass().add("oled-preview");
-            ImageView previewImage = new ImageView();
-            previewImage.setFitWidth(160);
-            previewImage.setFitHeight(80);
-            previewImage.setPreserveRatio(true);
-            
-            if (draft.getLocalAssetPath() != null) {
-                try {
-                    Image gifImage = new Image("file:" + draft.getLocalAssetPath());
-                    previewImage.setImage(gifImage);
-                } catch (Exception e) {
-                    previewImage.setImage(null);
-                }
-            }
-            
-            previewArea.getChildren().add(previewImage);
-            box.getChildren().add(previewArea);
-
-            Label asset = new Label(
-                draft.getLocalAssetPath() != null ? draft.getLocalAssetPath() : languageManager.getString("inspector.oled-none")
-            );
-            asset.getStyleClass().add("group-note");
-            asset.setWrapText(true);
-
-            HBox actions = new HBox(8);
-            Button pick = new Button(languageManager.getString("inspector.oled-select"));
-            pick.getStyleClass().add("button-prominent");
-            pick.setMinWidth(80);
-            pick.setOnAction(e -> {
-                Window w = getScene() != null ? getScene().getWindow() : null;
-                controller.selectOledGif(w);
-                rebuild();
+        var display = studioState.displayConfig();
+        VBox root = new VBox(12);
+        ToggleGroup tabs = new ToggleGroup();
+        HBox groups = new HBox(6);
+        String[] names = {languageManager.getString("display.default-screen"), "SINGLE", "MULTI"};
+        for (int group = 0; group < names.length; group++) {
+            final int selectedGroup = group;
+            ToggleButton button = new ToggleButton(names[group]);
+            button.setToggleGroup(tabs);
+            button.setSelected(display.group.get() == group);
+            button.disableProperty().bind(display.busy);
+            button.setOnAction(e -> controller.getDisplayConfigService().select(selectedGroup, display.substate.get()));
+            groups.getChildren().add(button);
+        }
+        root.getChildren().add(groups);
+        if (display.group.get() == 2) root.getChildren().add(caption(
+                languageManager.getString("display.multi-note")));
+        if (display.group.get() == 2) root.getChildren().add(caption(languageManager.getString("display.multi-mode-guide")));
+        int count = display.group.get() == 0 ? 1 : 3;
+        for (int sub = 0; sub < count; sub++) {
+            int index = display.group.get() == 2 ? 16 + sub : studioState.getSelectedMode().getIndex() * 4 + (display.group.get() == 0 ? 0 : sub + 1);
+            final int selectedSub = sub;
+            var resource = display.resources.get(index);
+            VBox card = new VBox(8);
+            card.getStyleClass().add("oled-resource");
+            if (index == display.selectedEntry.get()) card.getStyleClass().add("oled-resource-selected");
+            card.disableProperty().bind(display.busy.or(display.ready.not()));
+            Label title = new Label(resource.targetName());
+            title.setWrapText(true);
+            Label status = new Label(resource.statusText());
+            status.setWrapText(true);
+            Label frames = new Label(String.format(languageManager.getString("display.frames"), resource.asset() == null ? 0 : resource.asset().frames(), resource.capacity()));
+            FlowPane actions = new FlowPane(8, 6);
+            Button choose = new Button(languageManager.getString(resource.asset() == null ? "display.choose-file" : "display.replace-file"));
+            choose.setOnAction(e -> {
+                controller.getDisplayConfigService().select(display.group.get(), selectedSub);
+                controller.selectOledGif(getScene() == null ? null : getScene().getWindow());
             });
-            Button upload = new Button(languageManager.getString("inspector.oled-upload"));
-            upload.getStyleClass().add("button-prominent");
-            upload.setMinWidth(90);
-            upload.disableProperty().bind(Bindings.createBooleanBinding(
-                () -> !deviceStatus.isConnected() || studioState.uploadingOledProperty().get()
-                    || draft.getLocalAssetPath() == null,
-                deviceStatus.isConnectedProperty(),
-                studioState.uploadingOledProperty(),
-                draft.localAssetPathProperty()
-            ));
-            upload.textProperty().bind(Bindings.createStringBinding(
-                () -> studioState.uploadingOledProperty().get() ? languageManager.getString("inspector.oled-uploading") : languageManager.getString("inspector.oled-upload"),
-                studioState.uploadingOledProperty()
-            ));
-            upload.setOnAction(e -> controller.uploadCurrentOledToDevice());
-            Button clear = new Button(languageManager.getString("inspector.clear"));
-            clear.setMinWidth(60);
+            Button clear = new Button();
+            clear.setGraphic(com.example.ahakey.util.Icons.xCircle("16px"));
+            clear.setTooltip(new Tooltip(languageManager.getString("display.clear-local")));
+            clear.setDisable(resource.asset() == null);
             clear.setOnAction(e -> {
-                studioState.clearOledPreview();
-                rebuild();
+                controller.getDisplayConfigService().select(display.group.get(), selectedSub);
+                controller.clearCurrentOled();
             });
-            actions.getChildren().addAll(pick, upload, clear);
-
-            Spinner<Integer> fps = new Spinner<>(1, 30, draft.getFramesPerSecond());
-            fps.setEditable(true);
-            fps.valueProperty().addListener((o, a, b) -> {
-                if (b != null) {
-                    draft.setFramesPerSecond(b);
-                }
+            actions.getChildren().addAll(choose, clear);
+            card.getChildren().addAll(title, status, frames, actions);
+            card.setOnMouseClicked(e -> {
+                if (display.selectedEntry.get() != index)
+                    controller.getDisplayConfigService().select(display.group.get(), selectedSub);
             });
-            Label progress = new Label();
-            progress.textProperty().bind(studioState.oledUploadDetailProperty());
-            progress.getStyleClass().add("group-note");
-
-            Label limits = new Label(languageManager.getString("inspector.oled-limits"));
-            limits.getStyleClass().add("group-note");
-            limits.setWrapText(true);
-
-            box.getChildren().addAll(asset, actions, new Label(languageManager.getString("inspector.fps")), fps, progress, limits);
-            return box;
-        }));
-
-        root.getChildren().add(createGroupBox(languageManager.getString("inspector.screen-text"), () -> {
-            VBox box = new VBox(10);
-            TextField titleField = new TextField(studioState.getOledSummary());
-            titleField.getStyleClass().add("text-field");
-            titleField.textProperty().addListener((obs, o, n) -> studioState.setOledSummary(n));
-            TextField captionField = new TextField(studioState.getOledCaption());
-            captionField.getStyleClass().add("text-field");
-            captionField.textProperty().addListener((obs, o, n) -> studioState.setOledCaption(n));
-            Label note = new Label(languageManager.getString("inspector.desc-warning"));
-            note.getStyleClass().add("warning-note");
-            note.setWrapText(true);
-            box.getChildren().addAll(new Label(languageManager.getString("inspector.main-title")), titleField, new Label(languageManager.getString("inspector.sub-title")), captionField, note);
-            return box;
-        }));
+            root.getChildren().add(card);
+        }
+        Button upload = new Button(languageManager.getString("display.upload-apply"));
+        upload.getStyleClass().add("button-prominent");
+        upload.disableProperty().bind(Bindings.createBooleanBinding(
+                () -> !display.writeReady.get() || display.busy.get() || !display.current().canUpload(),
+                display.writeReady, display.busy, display.revision));
+        upload.textProperty().bind(Bindings.when(studioState.uploadingOledProperty()).then(languageManager.getString("display.uploading")).otherwise(languageManager.getString("display.upload-apply")));
+        upload.setOnAction(e -> controller.uploadCurrentOledToDevice());
+        root.getChildren().add(upload);
+        Label progress = new Label();
+        progress.textProperty().bind(display.progress);
+        progress.setWrapText(true);
+        root.getChildren().addAll(progress, displayActions());
         return root;
+    }
+
+    private VBox displayActions() {
+        var display = studioState.displayConfig();
+        Button refresh = new Button();
+        refresh.setGraphic(com.example.ahakey.util.Icons.refresh("16px"));
+        refresh.setTooltip(new Tooltip(languageManager.getString("display.refresh")));
+        refresh.disableProperty().bind(deviceStatus.isConnectedProperty().not().or(display.busy).or(display.loading));
+        refresh.setOnAction(e -> controller.getDisplayConfigService().refresh());
+        Button identity = new Button(languageManager.getString("display.confirm-firmware"));
+        identity.disableProperty().bind(deviceStatus.isConnectedProperty().not().or(display.busy));
+        identity.setOnAction(e -> controller.confirmDisplayFirmware());
+        Label message = new Label();
+        message.setWrapText(true);
+        message.textProperty().bind(display.message);
+        Label loading = new Label();
+        loading.textProperty().bind(Bindings.when(display.loading).then(languageManager.getString("display.syncing")).otherwise(""));
+        return new VBox(8, new FlowPane(8, 6, refresh, identity), loading, message);
     }
 
     private VBox createToggleGroup() {

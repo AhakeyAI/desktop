@@ -44,6 +44,8 @@ public final class AiRuntimeStore {
                 for (int i = 0; i < Math.min(saved.slots.length, defaults.slots.length); i++) {
                     if (saved.slots[i] != null) {
                         saved.slots[i].setSlotIndex(i);
+                        // Bindings survive restart; a persisted event is not a current runtime fact.
+                        saved.slots[i].setLastIdeState("");
                         defaults.slots[i] = saved.slots[i];
                     }
                 }

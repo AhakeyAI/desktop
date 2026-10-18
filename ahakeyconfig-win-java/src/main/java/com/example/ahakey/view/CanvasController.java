@@ -89,6 +89,11 @@ public class CanvasController {
     
     @FXML
     private Region lightSeg4;
+    @FXML private Region lightSeg5;
+    @FXML private Region lightSeg6;
+    @FXML private Region lightSeg7;
+    @FXML private Region lightSeg8;
+    @FXML private Label oledDraftBadge;
     
     private StudioState studioState;
     private DeviceStatus deviceStatus;
@@ -114,6 +119,11 @@ public class CanvasController {
         bindEvents();
         refreshPreview();
         setStableLightPreview();
+        startLightAnimation();
+        studioState.displayConfig().revision.addListener((o, a, b) -> refreshOledPreviewImage(studioState.getSelectedMode()));
+        oledCard.sceneProperty().addListener((o, a, b) -> {
+            if (b == null) stopAnimation(); else startLightAnimation();
+        });
     }
     
     public void setDeviceStatus(DeviceStatus deviceStatus) {
@@ -133,6 +143,13 @@ public class CanvasController {
     }
     
     private void bindEvents() {
+        oledCard.disableProperty().bind(studioState.displayConfig().busy);
+        lightBarCard.disableProperty().bind(studioState.displayConfig().busy);
+        key1Card.disableProperty().bind(studioState.uploadingOledProperty());
+        key2Card.disableProperty().bind(studioState.uploadingOledProperty());
+        key3Card.disableProperty().bind(studioState.uploadingOledProperty());
+        key4Card.disableProperty().bind(studioState.uploadingOledProperty());
+        toggleCard.disableProperty().bind(studioState.uploadingOledProperty());
         lightBarCard.setOnMouseClicked(e -> studioState.setSelectedPart(StudioPart.LIGHT_BAR));
         oledCard.setOnMouseClicked(e -> studioState.setSelectedPart(StudioPart.OLED));
         key1Card.setOnMouseClicked(e -> studioState.setSelectedPart(StudioPart.KEY1));
@@ -175,29 +192,34 @@ public class CanvasController {
         if (key4Caption != null) key4Caption.setText(studioState.getKeyConfig(mode, StudioPart.KEY4).getDescription());
     }
 
+    private com.example.ahakey.model.OledResourceState.Asset displayedAsset;
+    private final java.util.List<javafx.scene.image.Image> oledFrames = new java.util.ArrayList<>();
+    private int oledFrame;
+
     private void refreshOledPreviewImage(ModeSlot mode) {
-        if (oledPreviewImage == null) {
-            return;
+        if (oledPreviewImage == null) return;
+        var resource = studioState.displayConfig().current();
+        if (resource.asset() != displayedAsset) {
+            displayedAsset = resource.asset();
+            oledFrames.clear();
+            oledFrame = 0;
+            if (displayedAsset != null) {
+                byte[] bytes = displayedAsset.bytes();
+                for (int i = 0; i < displayedAsset.frames(); i++) {
+                    var decoded = com.example.ahakey.util.OLEDFrameEncoder.decodeFrame(bytes, i * 28672);
+                    var image = new javafx.scene.image.WritableImage(160, 80);
+                    for (int y = 0; y < 80; y++) for (int x = 0; x < 160; x++)
+                        image.getPixelWriter().setArgb(x, y, 0xff000000 | decoded.getRGB(x, y));
+                    oledFrames.add(image);
+                }
+            }
         }
-        String path = studioState.getOledDraft(mode).getLocalAssetPath();
-        if (path == null || path.isBlank()) {
-            oledPreviewImage.setImage(null);
-            oledPreviewImage.setVisible(false);
-            if (oledTitle != null) oledTitle.setVisible(true);
-            if (oledCaption != null) oledCaption.setVisible(true);
-            return;
-        }
-        try {
-            oledPreviewImage.setImage(new Image("file:" + path, 140, 80, true, true));
-            oledPreviewImage.setVisible(true);
-            if (oledTitle != null) oledTitle.setVisible(false);
-            if (oledCaption != null) oledCaption.setVisible(false);
-        } catch (Exception e) {
-            oledPreviewImage.setImage(null);
-            oledPreviewImage.setVisible(false);
-            if (oledTitle != null) oledTitle.setVisible(true);
-            if (oledCaption != null) oledCaption.setVisible(true);
-        }
+        oledPreviewImage.setImage(oledFrames.isEmpty() ? null : oledFrames.get(oledFrame % oledFrames.size()));
+        oledPreviewImage.setVisible(!oledFrames.isEmpty());
+        oledTitle.setText(resource.deviceKnown() && resource.device().valid() ? "设备已有" : "");
+        oledTitle.setVisible(oledFrames.isEmpty());
+        oledCaption.setVisible(false);
+        oledDraftBadge.setVisible(resource.localStatus() == com.example.ahakey.model.OledResourceState.LocalStatus.DRAFT);
     }
 
     private void refreshToggleThumb() {
@@ -208,9 +230,7 @@ public class CanvasController {
     }
 
     private void setStableLightPreview() {
-        if (lightSeg1 != null) {
-            setAll(COLOR_DIM, 0.45);
-        }
+        if (lightSeg1 != null) renderLight(new int[8]);
     }
     
     private void refreshHotspots() {
@@ -233,140 +253,32 @@ public class CanvasController {
         }
     }
     
+    private final com.example.ahakey.service.FirmwareLightSimulator lightSimulator =
+            new com.example.ahakey.service.FirmwareLightSimulator();
+
     private void startLightAnimation() {
-        if (lightAnimation != null) {
-            lightAnimation.stop();
-        }
-        
-        lightAnimation = new Timeline(new KeyFrame(Duration.millis(150), event -> {
-            updateLightEffect();
-            animationFrame++;
+        if (lightAnimation != null) lightAnimation.stop();
+        lightAnimation = new Timeline(new KeyFrame(Duration.millis(50), event -> {
+            var display = studioState.displayConfig();
+            if (display.devicePreview.get() && System.nanoTime() >= display.previewUntilNanos.get()) {
+                display.endPreview();
+                display.message.set("设备预览已结束。");
+            }
+            int effect = display.simulatedEffect.get();
+            renderLight(effect < 0 ? new int[8] : lightSimulator.step(effect, display.simulatedBrightness.get()));
+            if (++animationFrame % 2 == 0 && !oledFrames.isEmpty()) {
+                oledFrame = (oledFrame + 1) % oledFrames.size();
+                oledPreviewImage.setImage(oledFrames.get(oledFrame));
+            }
         }));
         lightAnimation.setCycleCount(Timeline.INDEFINITE);
         lightAnimation.play();
     }
-    
-    private void updateLightEffect() {
-        if (studioState == null || lightSeg1 == null) {
-            return;
-        }
-        
-        LightEffectStyle effect = currentLightEffect();
-        switch (effect) {
-            case OFF -> setAll("#111827", 0.25);
-            case BREATHING, APPROVAL_WAIT -> updateBreathingEffect(COLOR_BRIGHT);
-            case MIDDLE_LIGHT, BLUE_THINKING -> updateMiddleLightEffect();
-            case WARNING_BLINK, LOW_BATTERY -> updateBlinkEffect(COLOR_RED);
-            case SUCCESS_SWEEP -> updateSweepEffect(COLOR_GREEN);
-            case TYPING_RIPPLE, PULSE_CENTER -> updatePulseCenterEffect();
-            case SCAN_BAR -> updateScanEffect(COLOR_AMBER);
-            case CHARGING_FLOW -> updateScanEffect(COLOR_GREEN);
-            case RAINBOW_MOVE, RAINBOW_WAVE, RAINBOW_WAVE_SLOW -> updateRainbowEffect();
-            case SINGLE_MOVE, COMET -> updateSingleMoveEffect();
-            default -> updateSingleMoveEffect();
-        }
-    }
 
-    private LightEffectStyle currentLightEffect() {
-        IDEState state = studioState.getLightBarPreview().getIdeState();
-        return studioState.getAiLightEffect(studioState.getSelectedMode(), state);
-    }
-    
-    private void updateSingleMoveEffect() {
-        int position = animationFrame % 8;
-        double[] brightness = new double[4];
-        
-        if (position < 4) {
-            brightness[position] = 1.0;
-            if (position > 0) brightness[position - 1] = 0.3;
-            if (position < 3) brightness[position + 1] = 0.3;
-        } else {
-            int pos = 7 - position;
-            brightness[pos] = 1.0;
-            if (pos > 0) brightness[pos - 1] = 0.3;
-            if (pos < 3) brightness[pos + 1] = 0.3;
-        }
-        
-        setLightSegment(lightSeg1, brightness[0]);
-        setLightSegment(lightSeg2, brightness[1]);
-        setLightSegment(lightSeg3, brightness[2]);
-        setLightSegment(lightSeg4, brightness[3]);
-    }
-    
-    private void updateBreathingEffect(String color) {
-        double phase = (animationFrame * Math.PI * 2) / 20;
-        double brightness = (Math.sin(phase) + 1) / 2;
-        
-        setLightSegment(lightSeg1, color, brightness);
-        setLightSegment(lightSeg2, color, brightness);
-        setLightSegment(lightSeg3, color, brightness);
-        setLightSegment(lightSeg4, color, brightness);
-    }
-    
-    private void updateMiddleLightEffect() {
-        setLightSegment(lightSeg1, 0.2);
-        setLightSegment(lightSeg2, 1.0);
-        setLightSegment(lightSeg3, 1.0);
-        setLightSegment(lightSeg4, 0.2);
-    }
-
-    private void updateBlinkEffect(String color) {
-        double b = (animationFrame % 6) < 3 ? 1.0 : 0.2;
-        setAll(color, b);
-    }
-
-    private void updateSweepEffect(String color) {
-        int lit = animationFrame % 5;
-        setLightSegment(lightSeg1, color, lit >= 1 ? 1.0 : 0.2);
-        setLightSegment(lightSeg2, color, lit >= 2 ? 1.0 : 0.2);
-        setLightSegment(lightSeg3, color, lit >= 3 ? 1.0 : 0.2);
-        setLightSegment(lightSeg4, color, lit >= 4 ? 1.0 : 0.2);
-    }
-
-    private void updatePulseCenterEffect() {
-        double phase = (animationFrame * Math.PI * 2) / 16;
-        double center = 0.4 + ((Math.sin(phase) + 1) / 2) * 0.6;
-        setLightSegment(lightSeg1, COLOR_DIM, 0.25);
-        setLightSegment(lightSeg2, COLOR_BRIGHT, center);
-        setLightSegment(lightSeg3, COLOR_BRIGHT, center);
-        setLightSegment(lightSeg4, COLOR_DIM, 0.25);
-    }
-
-    private void updateScanEffect(String color) {
-        int position = animationFrame % 4;
-        setLightSegment(lightSeg1, color, position == 0 ? 1.0 : 0.25);
-        setLightSegment(lightSeg2, color, position == 1 ? 1.0 : 0.25);
-        setLightSegment(lightSeg3, color, position == 2 ? 1.0 : 0.25);
-        setLightSegment(lightSeg4, color, position == 3 ? 1.0 : 0.25);
-    }
-
-    private void updateRainbowEffect() {
-        String[] colors = {"#ff453a", "#ff9f0a", "#34c759", "#0a84ff", "#bf5af2"};
-        setLightSegment(lightSeg1, colors[(animationFrame + 0) % colors.length], 1.0);
-        setLightSegment(lightSeg2, colors[(animationFrame + 1) % colors.length], 1.0);
-        setLightSegment(lightSeg3, colors[(animationFrame + 2) % colors.length], 1.0);
-        setLightSegment(lightSeg4, colors[(animationFrame + 3) % colors.length], 1.0);
-    }
-
-    private void setAll(String color, double brightness) {
-        setLightSegment(lightSeg1, color, brightness);
-        setLightSegment(lightSeg2, color, brightness);
-        setLightSegment(lightSeg3, color, brightness);
-        setLightSegment(lightSeg4, color, brightness);
-    }
-    
-    private void setLightSegment(Region seg, double brightness) {
-        if (brightness >= 1.0) {
-            seg.setStyle("-fx-background-color: " + COLOR_BRIGHT + "; -fx-opacity: 1.0;");
-        } else if (brightness >= 0.5) {
-            seg.setStyle("-fx-background-color: " + COLOR_CENTER + "; -fx-opacity: " + brightness + ";");
-        } else {
-            seg.setStyle("-fx-background-color: " + COLOR_DIM + "; -fx-opacity: " + (0.3 + brightness * 0.4) + ";");
-        }
-    }
-
-    private void setLightSegment(Region seg, String color, double brightness) {
-        seg.setStyle("-fx-background-color: " + color + "; -fx-opacity: " + Math.max(0.15, Math.min(1.0, brightness)) + ";");
+    private void renderLight(int[] colors) {
+        Region[] segments = {lightSeg1, lightSeg2, lightSeg3, lightSeg4, lightSeg5, lightSeg6, lightSeg7, lightSeg8};
+        for (int i = 0; i < segments.length; i++)
+            if (segments[i] != null) segments[i].setStyle(String.format("-fx-background-color: #%06x; -fx-opacity: 1;", colors[i]));
     }
     
     public void stopAnimation() {

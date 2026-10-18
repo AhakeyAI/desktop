@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Map;
 
 public class StudioState {
+    private final DisplayConfigState displayConfig = new DisplayConfigState();
+    public DisplayConfigState displayConfig() { return displayConfig; }
     private static final DateTimeFormatter SYNC_TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
 
     private final ObjectProperty<ModeSlot> selectedMode = new SimpleObjectProperty<>(ModeSlot.MODE0);

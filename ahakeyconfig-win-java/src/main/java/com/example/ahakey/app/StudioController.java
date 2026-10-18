@@ -11,8 +11,6 @@ import com.example.ahakey.service.BleManager;
 import com.example.ahakey.service.DeviceSyncService;
 import com.example.ahakey.service.HookDispatchServer;
 import com.example.ahakey.service.HookInstaller;
-import com.example.ahakey.service.OledUploadService;
-import com.example.ahakey.util.OLEDFrameEncoder;
 import com.example.ahakey.util.StudioStore;
 import com.example.ahakey.util.LanguageManager;
 import javafx.application.Platform;
@@ -39,6 +37,7 @@ public class StudioController {
     private final AgentManager agentManager = new AgentManager();
     private final VoiceRelayPlatform voiceRelay = new VoiceRelayPlatform();
     private final BleManager bleManager;
+    private final com.example.ahakey.service.DisplayConfigService displayConfigService;
     private final AiRuntimeDisplayService aiRuntimeDisplayService;
     private final HookInstaller aiRuntimeHookInstaller;
     private final boolean simulateBle;
@@ -89,6 +88,7 @@ public class StudioController {
                 firmwareCatalogKeyRequested = false;
                 enterEditingAfterConnect = false;
                 Platform.runLater(() -> {
+                    displayConfigService.connectionChanged();
                     deviceStatus.setConnected(false);
                     deviceStatus.clearFirmwareIdentity();
                     studioState.setCp4cInputConfigEnabled(false);
@@ -117,6 +117,8 @@ public class StudioController {
             }
         });
 
+        displayConfigService = new com.example.ahakey.service.DisplayConfigService(studioState, bleManager);
+        displayConfigService.setErrorHandler(message -> showOledWarning("显示配置", message));
         voiceRelay.configure(() -> studioState, deviceStatus::getWorkMode);
         refreshVoiceRoutes();
         voiceRelay.start();
@@ -172,8 +174,11 @@ public class StudioController {
     }
 
     public void setAiRuntimeDisplayMode(AiRuntimeDisplayMode mode) {
-        aiRuntimeDisplayService.setDisplayMode(mode);
-        studioState.syncStatusProperty().set("AI 运行展示已切换为：" + mode.getTitle());
+        if (studioState.displayConfig().busy.get() || studioState.displayConfig().loading.get()) {
+            studioState.syncStatusProperty().set("正在处理显示配置，展示模式未切换。"); return;
+        }
+        aiRuntimeDisplayService.setDisplayMode(mode, error -> studioState.syncStatusProperty().set(
+                error == null ? "AI 运行展示已切换为：" + mode.getTitle() : error));
     }
 
     private boolean isAiRuntimeHookLatest(String platform) {
@@ -195,6 +200,9 @@ public class StudioController {
     }
 
     public void applyAiRuntimeToKeyboard(javafx.stage.Window owner) {
+        if (aiRuntimeDisplayService.getDisplayMode() != AiRuntimeDisplayMode.MULTI
+                || studioState.displayConfig().busy.get() || studioState.displayConfig().loading.get()
+                || aiRuntimeDisplayService.modeChangePendingProperty().get() || bleManager.isDisplayWriteUncertain()) return;
         boolean applyingMulti = aiRuntimeDisplayService.getDisplayMode() == AiRuntimeDisplayMode.MULTI;
         HookInstaller.HookStatus codexStatus = applyingMulti ? aiRuntimeHookInstaller.getHookStatus("Codex") : HookInstaller.HookStatus.LATEST;
         HookInstaller.HookStatus cursorStatus = applyingMulti ? aiRuntimeHookInstaller.getHookStatus("Cursor") : HookInstaller.HookStatus.LATEST;
@@ -312,6 +320,7 @@ public class StudioController {
     }
 
     public void shutdown() {
+        displayConfigService.close();
         voiceRelay.stop();
         stopStatusPolling();
         hookDispatchServer.stop();
@@ -413,6 +422,7 @@ public class StudioController {
     }
 
     public void selectKeyboardMode(ModeSlot mode) {
+        if (studioState.displayConfig().busy.get()) return;
         if (mode == null) {
             return;
         }
@@ -517,6 +527,10 @@ public class StudioController {
     }
 
     public void syncAllModes(boolean returnToAgentWhenDone) {
+        if (studioState.displayConfig().busy.get() || bleManager.isDisplayWriteUncertain()) {
+            studioState.syncStatusProperty().set("显示配置事务尚未结束，暂不能保存其他配置。");
+            return;
+        }
         if (!deviceStatus.isConnected() && !simulateBle) {
             studioState.syncStatusProperty().set("连接键盘后可保存/应用");
             return;
@@ -540,6 +554,8 @@ public class StudioController {
         }
 
         var commands = DeviceSyncService.commandsForModes(studioState, ModeSlot.values());
+        commands.removeIf(command -> command.data()[2] == AhaKeyProtocol.CMD_SET_AI_LIGHT_CONFIG
+                || command.data()[2] == AhaKeyProtocol.CMD_SET_LIGHT_BRIGHTNESS);
         studioState.syncingProperty().set(true);
         studioState.syncStatusProperty().set("正在通过 " + transport + " 写入设备配置...");
         studioState.syncStatusProperty().set("正在写入设备配置...");
@@ -580,63 +596,35 @@ public class StudioController {
         );
     }
     public void previewLightOnDevice() {
-        LightBarPreviewState preview = studioState.getLightBarPreview();
-        if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("连接键盘后可测试/保存");
-            return;
-        }
-        // 使用 IDE 状态码发送（适配当前固件，固件根据 claude_state 映射灯效）
-        IDEState ideState = preview.getIdeState();
-        if (!simulateBle) {
-            bleManager.updateState((byte) ideState.getCode());
-        }
-        studioState.syncStatusProperty().set(
-            "已发送灯效预览：" + preview.getTitle() + " → " + ideState.getFullLabel()
-        );
+        previewLightEffectOnDevice(studioState.getAiLightEffect(studioState.getSelectedMode(), studioState.getLightBarPreview().getIdeState()));
     }
-
     public void previewLightEffectOnDevice(LightEffectStyle effect) {
-        if (effect == null) {
-            return;
+        if (effect != null && aiRuntimeDisplayService.getDisplayMode() == AiRuntimeDisplayMode.SINGLE)
+            displayConfigService.preview(effect.getCode() & 255);
+    }
+    public void sendLightBrightnessToDevice() { displayConfigService.preview(null); }
+    public void syncCurrentModeLightConfig() {
+        if (aiRuntimeDisplayService.getDisplayMode() == AiRuntimeDisplayMode.SINGLE) displayConfigService.saveModeLights();
+    }
+    public void saveGlobalLightBrightness() { displayConfigService.saveBrightness(); }
+    public com.example.ahakey.service.DisplayConfigService getDisplayConfigService() { return displayConfigService; }
+
+    public void confirmDisplayFirmware() {
+        if (!deviceStatus.isConnected()) return;
+        String sha = "D7D10510482228B74A2978BD8272F6A4E32668CF6B4F31F491A8503B0DC11E2E";
+        long connection = bleManager.connectionGeneration();
+        if (confirmDisplayAction("确认当前键盘已刷入 WD-005 配对固件？\nHEX SHA256：\n" + sha)) {
+            try { displayConfigService.confirmFirmware(connection, sha); }
+            catch (Exception e) { showOledWarning("固件身份未确认", e.getMessage()); }
         }
-        if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("连接键盘后可测试/保存");
-            return;
-        }
-        if (!simulateBle) {
-            bleManager.setLightEffect(effect.getCode());
-        }
-        studioState.syncStatusProperty().set("已发送灯效测试：" + effect.getTitle());
     }
 
-    public void sendLightBrightnessToDevice() {
-        if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("连接键盘后可测试/保存");
-            return;
-        }
-        int brightness = studioState.getLightBrightness();
-        studioState.syncStatusProperty().set("正在测试灯光亮度：" + brightness);
-        if (simulateBle) {
-            studioState.syncStatusProperty().set("已发送灯光亮度：" + brightness);
-            return;
-        }
-        new Thread(() -> {
-            bleManager.setLightBrightness(brightness);
-            bleManager.setLightEffect(LightEffectStyle.RAINBOW_MOVE.getCode());
-            Platform.runLater(() -> studioState.syncStatusProperty().set("已发送灯光亮度：" + brightness));
-        }, "brightness-test").start();
-    }
-    public void syncCurrentModeLightConfig() {
-        ModeSlot mode = studioState.getSelectedMode();
-        if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("连接键盘后可保存/应用");
-            return;
-        }
-        if (!simulateBle) {
-            bleManager.setAiLightConfig(mode.getIndex(), studioState.getAiLightEffectBytes(mode));
-            bleManager.setLightBrightness(studioState.getLightBrightness());
-        }
-        studioState.syncStatusProperty().set("已保存 " + mode.getTitle() + " 的 AI 状态灯效和亮度。");
+    private boolean confirmDisplayAction(String message) {
+        var alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
+        alert.setTitle("确认");
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        return alert.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL) == javafx.scene.control.ButtonType.OK;
     }
 
     public void updateSwitchState(int state) {
@@ -655,20 +643,6 @@ public class StudioController {
         );
     }
 
-    private boolean isStaticOledImage(String lowerPath) {
-        return lowerPath.endsWith(".png") || lowerPath.endsWith(".jpg") || lowerPath.endsWith(".jpeg");
-    }
-
-    private boolean isGifImage(String lowerPath) {
-        return lowerPath.endsWith(".gif");
-    }
-
-    private int localSafeGifFrameLimit() {
-        return OledUploadService.perModeCapacity(Math.min(
-            OledUploadService.fallbackTotalFrameSlots(),
-            AhaKeyProtocol.OLED_MAX_FRAMES
-        ));
-    }
 
     private void showOledWarning(String title, String message) {
         javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.WARNING);
@@ -709,209 +683,30 @@ public class StudioController {
         return result.isPresent() && result.get() == okButton;
     }
 
-    private int validateLocalOledAsset(Path path, boolean isStaticImage) throws Exception {
-        OLEDFrameEncoder.validateGifSourceFileSize(path);
-        if (isStaticImage) {
-            return 1;
-        }
-        int count = OLEDFrameEncoder.frameCount(path);
-        int limit = localSafeGifFrameLimit();
-        if (count <= 0) {
-            throw new IllegalStateException(languageManager.getString("dialog.gif-no-frames"));
-        }
-        if (count > limit) {
-            throw new IllegalStateException(
-                String.format(languageManager.getString("dialog.gif-too-many-frames"), count, limit)
-            );
-        }
-        return count;
-    }
-
     public void selectOledGif(javafx.stage.Window owner) {
+        if (studioState.displayConfig().busy.get()) return;
+        int entry = studioState.displayConfig().selectedEntry.get();
         FileChooser chooser = new FileChooser();
-        chooser.setTitle(languageManager.getString("dialog.select-gif"));
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(languageManager.getString("dialog.filter-gif"), "*.gif"));
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(languageManager.getString("dialog.filter-png"), "*.png"));
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(languageManager.getString("dialog.filter-jpg"), "*.jpg", "*.jpeg"));
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(languageManager.getString("dialog.filter-all"), "*.gif", "*.png", "*.jpg", "*.jpeg"));
+        chooser.setTitle("选择 OLED 资源");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("GIF / PNG / JPEG", "*.gif", "*.png", "*.jpg", "*.jpeg"));
         var file = chooser.showOpenDialog(owner);
-        if (file == null) {
-            return;
-        }
-        try {
-            Path path = file.toPath();
-            String fileName = file.getName().toLowerCase();
-            boolean isStaticImage = isStaticOledImage(fileName);
-            if (!isStaticImage && !isGifImage(fileName)) {
-                throw new IllegalStateException("只支持 GIF、PNG、JPG、JPEG 文件。");
-            }
-            int count = validateLocalOledAsset(path, isStaticImage);
-            studioState.applyOledGifSelection(path.toString(), count);
-            studioState.syncStatusProperty().set(
-                isStaticImage
-                    ? "已选择 " + studioState.getSelectedMode().getTitle() + " 的图片，连接键盘后可上传。"
-                    : "已选择 " + studioState.getSelectedMode().getTitle() + " 的 GIF（" + count + " 帧），连接键盘后可上传。"
-            );
-        } catch (Exception e) {
-            String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-            studioState.syncStatusProperty().set("GIF / 图片导入失败：" + message);
-            showOledWarning("GIF / 图片不适合上传", message);
-        }
-    }
-
-    public void previewOledOnDevice() {
-        if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("连接键盘后可保存/应用");
-            return;
-        }
-        OledModeDraft draft = studioState.getOledDraft();
-        String path = draft.getLocalAssetPath();
-        if (path == null || path.isBlank()) {
-            studioState.syncStatusProperty().set("请先选择 GIF。");
-            return;
-        }
-        if (simulateBle) {
-            studioState.syncStatusProperty().set("（模拟）OLED 预览已跳过。");
-            return;
-        }
-        OledUploadService.previewGif(
-            bleManager,
-            Path.of(path),
-            draft.getFramesPerSecond(),
-            msg -> Platform.runLater(() -> studioState.syncStatusProperty().set(msg)),
-            err -> Platform.runLater(() -> {
-                studioState.syncStatusProperty().set("OLED 预览失败：" + err);
-                showOledWarning("OLED 预览失败", err);
-            })
-        );
+        if (file != null) displayConfigService.importFile(file.toPath(), entry);
     }
 
     public void uploadCurrentOledToDevice() {
-        if (!deviceStatus.isConnected() && !simulateBle) {
-            studioState.syncStatusProperty().set("连接键盘后可保存/应用");
-            return;
-        }
-        OledModeDraft draft = studioState.getOledDraft();
-        String path = draft.getLocalAssetPath();
-        if (path == null || path.isBlank()) {
-            studioState.syncStatusProperty().set("请先选择 GIF 或图片。");
-            return;
-        }
-        if (simulateBle) {
-            studioState.syncStatusProperty().set("（模拟）OLED 上传已跳过。");
-            return;
-        }
+        var state = studioState.displayConfig();
+        var target = state.current();
+        if (state.busy.get() || !state.writeReady.get() || !target.canUpload()) return;
+        if (confirmDisplayAction("确认上传到 " + target.targetName() + "？"))
+            displayConfigService.upload(target);
+    }
 
-        ModeSlot mode = studioState.getSelectedMode();
-        Path imagePath = Path.of(path);
-        String lowerPath = path.toLowerCase();
-        boolean isStaticImage = isStaticOledImage(lowerPath);
-        if (!isStaticImage && !isGifImage(lowerPath)) {
-            String message = "只支持 GIF、PNG、JPG、JPEG 文件。";
-            studioState.syncStatusProperty().set(message);
-            showOledWarning("无法上传 OLED GIF / 图片", message);
-            return;
-        }
-        try {
-            int frameCount = validateLocalOledAsset(imagePath, isStaticImage);
-            if (frameCount != draft.getFrameCount()) {
-                studioState.applyOledGifSelection(path, frameCount);
-            }
-        } catch (Exception e) {
-            String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-            studioState.syncStatusProperty().set("OLED 上传已取消：" + message);
-            showOledWarning("无法上传 OLED GIF / 图片", message);
-            return;
-        }
-
-        logger.info("[OLED上传] 当前选择模式: {} (索引: {}){}", mode.getShortName(), mode.getIndex(),
-            isStaticImage ? ", 类型: 静态图片" : ", 类型: GIF动图");
-
-        javafx.stage.Stage progressStage = new javafx.stage.Stage();
-        progressStage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
-        progressStage.setTitle(isStaticImage ? "上传 OLED 图片" : "上传 OLED GIF");
-        progressStage.setResizable(false);
-
-        javafx.scene.layout.VBox dialogContent = new javafx.scene.layout.VBox(12);
-        dialogContent.setPadding(new javafx.geometry.Insets(16));
-
-        javafx.scene.control.Label titleLabel = new javafx.scene.control.Label(
-            isStaticImage ? "正在上传 OLED 图片..." : "正在上传 OLED GIF..."
-        );
-        titleLabel.getStyleClass().add("dialog-title");
-
-        javafx.scene.control.ProgressBar progressBar = new javafx.scene.control.ProgressBar(0);
-        progressBar.setPrefWidth(300);
-
-        javafx.scene.control.Label detailLabel = new javafx.scene.control.Label("准备数据...");
-        detailLabel.getStyleClass().add("dialog-detail");
-
-        dialogContent.getChildren().addAll(titleLabel, progressBar, detailLabel);
-
-        javafx.scene.Scene dialogScene = new javafx.scene.Scene(dialogContent);
-        dialogScene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
-        progressStage.setScene(dialogScene);
-        progressStage.show();
-
-        studioState.uploadingOledProperty().set(true);
-
-        Runnable clearUploading = () -> {
-            progressStage.close();
-            studioState.uploadingOledProperty().set(false);
-        };
-
-        if (isStaticImage) {
-            OledUploadService.uploadStaticImage(
-                bleManager,
-                mode,
-                imagePath,
-                progress -> Platform.runLater(() -> {
-                    double progressValue = progress.totalFrames() > 0 ? (double) progress.completedFrames() / progress.totalFrames() : 0;
-                    progressBar.setProgress(progressValue);
-                    detailLabel.setText(progress.detail());
-                    studioState.oledUploadDetailProperty().set(progress.detail());
-                }),
-                msg -> Platform.runLater(() -> {
-                    clearUploading.run();
-                    draft.setStatusLine("上传完成");
-                    draft.setCaptionLine(mode.getTitle() + " - 静态图片");
-                    studioState.setOledSummary("上传完成");
-                    studioState.setOledCaption(mode.getTitle() + " - 静态图片");
-                    studioState.syncStatusProperty().set(msg);
-                }),
-                err -> Platform.runLater(() -> {
-                    clearUploading.run();
-                    studioState.syncStatusProperty().set(mode.getTitle() + " OLED 上传失败：" + err);
-                    showOledWarning("OLED 上传失败", err);
-                })
-            );
-        } else {
-            OledUploadService.uploadGif(
-                bleManager,
-                mode,
-                imagePath,
-                draft.getFramesPerSecond(),
-                progress -> Platform.runLater(() -> {
-                    double progressValue = progress.totalFrames() > 0 ? (double) progress.completedFrames() / progress.totalFrames() : 0;
-                    progressBar.setProgress(progressValue);
-                    detailLabel.setText(progress.detail());
-                    studioState.oledUploadDetailProperty().set(progress.detail());
-                }),
-                msg -> Platform.runLater(() -> {
-                    clearUploading.run();
-                    draft.setStatusLine("上传完成");
-                    draft.setCaptionLine(mode.getTitle() + " - " + draft.getFrameCount() + " 帧");
-                    studioState.setOledSummary("上传完成");
-                    studioState.setOledCaption(mode.getTitle() + " - " + draft.getFrameCount() + " 帧");
-                    studioState.syncStatusProperty().set(msg);
-                }),
-                err -> Platform.runLater(() -> {
-                    clearUploading.run();
-                    studioState.syncStatusProperty().set(mode.getTitle() + " OLED 上传失败：" + err);
-                    showOledWarning("OLED 上传失败", err);
-                })
-            );
-        }
+    public void clearCurrentOled() {
+        var resource = studioState.displayConfig().current();
+        if (studioState.displayConfig().busy.get() || resource.asset() == null) return;
+        if ((resource.localStatus() == OledResourceState.LocalStatus.APPLIED || resource.device() != null && resource.device().valid())
+                && !confirmDisplayAction("这只会清除本机草稿和预览，不会删除键盘上已应用的资源。")) return;
+        displayConfigService.clear(resource);
     }
     public void applyVoicePreset(VoicePreset preset) {
         var key = studioState.getKeyConfig(StudioPart.KEY1);
@@ -966,13 +761,14 @@ public class StudioController {
         deviceStatus.setFirmwareCatalogKey(status.getFirmwareCatalogKey());
         deviceStatus.setSwitchState(status.getSwitchState());
         requestFirmwareCatalogKeyAfterConnect();
+        displayConfigService.connectionChanged();
         ModeSlot deviceMode = ModeSlot.fromIndex(status.getWorkMode());
         ModeSlot previousMode = studioState.getSelectedMode();
         boolean suppressModeStatus = status.isConnected() && shouldSuppressModeStatus(deviceMode);
         if (!suppressModeStatus) {
             deviceStatus.setWorkMode(status.getWorkMode());
         }
-        if (status.isConnected() && deviceMode != previousMode && !suppressModeStatus) {
+        if (status.isConnected() && deviceMode != previousMode && !suppressModeStatus && !studioState.displayConfig().busy.get()) {
             studioState.setSelectedMode(deviceMode);
             clearModeSwitchStatusGuard();
             if (studioState.hasUnsavedDraft(previousMode)) {

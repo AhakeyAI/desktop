@@ -173,8 +173,8 @@ public class HookDispatchServer {
             HookPayload payload = parsePayload(line.trim());
             EventEntry entry = EVENT_MAP.get(payload.eventName());
             if (entry == null) {
-                logger.warn("Unknown hook event: {} raw={}", payload.eventName(), line);
-                writer.println("{\"ok\":false,\"error\":\"unknown event: " + payload.eventName() + "\"}");
+                logger.warn("Unknown hook event rejected; raw input omitted");
+                writer.println("{\"ok\":false,\"error\":\"unknown event\"}");
                 return;
             }
 
@@ -241,9 +241,12 @@ public class HookDispatchServer {
     }
 
     private void handleGeneric(PrintWriter writer, String eventName, IDEState state, String platform, JsonNode payload) {
-        boolean displayUpdated = sendRuntimeState(platform, state, payload);
+        AiRuntimeDisplayService.Delivery delivery = runtimeDisplayService == null
+                ? (sendRuntimeState(platform, state, payload) ? AiRuntimeDisplayService.Delivery.SENT : AiRuntimeDisplayService.Delivery.FAILED)
+                : runtimeDisplayService.handleHookEventResult(platform, state, payload);
+        boolean displayUpdated = delivery == AiRuntimeDisplayService.Delivery.SENT;
         writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"state\":" + state.getCode()
-            + ",\"displayUpdated\":" + displayUpdated + "}");
+            + ",\"displayUpdated\":" + displayUpdated + ",\"delivery\":\"" + delivery.name() + "\"}");
     }
 
     private boolean sendRuntimeState(String platform, IDEState state, JsonNode payload) {
@@ -251,8 +254,7 @@ public class HookDispatchServer {
             if (runtimeDisplayService != null) {
                 return runtimeDisplayService.handleHookEvent(platform, state, payload);
             }
-            bleManager.updateState((byte) state.getCode());
-            return true;
+            return bleManager.sendRuntimeState((byte) state.getCode());
         } catch (Exception e) {
             logger.warn("[{}] runtime state update failed: {}", platform, e.getMessage());
             return false;
@@ -271,7 +273,7 @@ public class HookDispatchServer {
                     return new HookPayload(eventName, node);
                 }
             } catch (Exception e) {
-                logger.debug("Hook JSON parse failed: {}", e.getMessage());
+                logger.debug("Hook JSON parse failed: {}", e.getClass().getSimpleName());
                 HookPayload fallback = parseMalformedJsonPayload(line);
                 if (fallback != null && !fallback.eventName().isBlank()) {
                     return fallback;

@@ -48,6 +48,202 @@ public class BleManager {
     private static final int NOTIFY_REASSEMBLY_MAX_BYTES = 512;
     private final byte[] notifyReassemblyBuffer = new byte[NOTIFY_REASSEMBLY_MAX_BYTES];
     private int notifyReassemblyLength = 0;
+    private volatile long connectionGeneration;
+    private volatile boolean displayWriteUncertain;
+    private volatile boolean displayReadUncertain;
+    private volatile long displayAdmissionGeneration = -1;
+    private DisplayLease displayLease;
+    private byte[] displayReply;
+    private byte displayExpected;
+    private int legacyWaiters;
+    private volatile Byte deferredRuntimeState;
+    private long deferredRuntimeAt;
+    private volatile long lastOptionalQueryNanos;
+    private Runnable displayIdleListener = () -> {};
+    public void setDisplayIdleListener(Runnable listener) { displayIdleListener = listener; }
+
+    public final class DisplayLease implements AutoCloseable {
+        private final long generation;
+        private final boolean usb;
+        private final Thread owner = Thread.currentThread();
+        private final boolean writing;
+        private boolean closed;
+        private DisplayLease(boolean writing) {
+            this.generation = connectionGeneration;
+            this.usb = usbTransport.isOpen();
+            this.writing = writing;
+        }
+        public long generation() { return generation; }
+        @Override public void close() {
+            if (release()) notifyDisplayIdle();
+        }
+        private boolean release() {
+            boolean notify;
+            commandLock.lock();
+            try {
+                notify = displayLease == this && generation == connectionGeneration && !displayWriteUncertain;
+                closed = true; if (displayLease == this) displayLease = null; responseReady.signalAll();
+            }
+            finally { commandLock.unlock(); }
+            return notify;
+        }
+    }
+
+    private void notifyDisplayIdle() {
+        flushDeferredRuntimeState();
+        try { displayIdleListener.run(); }
+        catch (RuntimeException e) { logger.warn("Deferred runtime update failed: {}", e.getMessage()); }
+    }
+
+    public long connectionGeneration() { return connectionGeneration; }
+    public boolean isDisplayWriteUncertain() { return displayWriteUncertain; }
+    public void requireDisplayRecovery(long generation) {
+        commandLock.lock();
+        try { if (generation == connectionGeneration) displayWriteUncertain = true; }
+        finally { commandLock.unlock(); }
+    }
+    public boolean isDisplayBusy() { commandLock.lock(); try { return displayLease != null; } finally { commandLock.unlock(); } }
+    public boolean isDisplayAdmitted() {
+        return isConnected && cachedStatus.isConnected() && displayAdmissionGeneration == connectionGeneration;
+    }
+    // Internal paired testing must explicitly confirm the exact installed HEX, never infer this from 0x88/catalog.
+    public void confirmDisplayFirmware(long generation, String hexSha256) {
+        if (!"D7D10510482228B74A2978BD8272F6A4E32668CF6B4F31F491A8503B0DC11E2E".equalsIgnoreCase(hexSha256)
+                || generation != connectionGeneration || !isConnected || !cachedStatus.isConnected())
+            throw new IllegalArgumentException("当前连接的 CP2 固件身份未确认。");
+        displayAdmissionGeneration = generation;
+    }
+
+    private void resetDisplaySession() {
+        commandLock.lock();
+        try {
+            connectionGeneration++;
+            displayAdmissionGeneration = -1;
+            displayWriteUncertain = false;
+            displayReadUncertain = false;
+            displayReply = null;
+            displayLease = null;
+            deferredRuntimeState = null;
+            pendingNotifyFramesByCommand.clear();
+            synchronized (notifyReassemblyBuffer) { notifyReassemblyLength = 0; }
+            responseReady.signalAll();
+        } finally { commandLock.unlock(); }
+    }
+
+    public DisplayLease openDisplayLease(boolean writing) throws IOException {
+        return openDisplayLease(writing, connectionGeneration);
+    }
+
+    @FunctionalInterface
+    public interface DisplayReadTask { void run(DisplayLease lease) throws Exception; }
+
+    // Share the legacy transaction queue: background reads must not reject identity/input/mode flows.
+    public void readDisplayConfig(long generation, DisplayReadTask task) throws Exception {
+        boolean notify = false;
+        try {
+            synchronized (commandTransactionLock) {
+                commandLock.lockInterruptibly();
+                DisplayLease lease;
+                try {
+                    long remaining = TimeUnit.MILLISECONDS.toNanos(RESPONSE_TIMEOUT_MS);
+                    while (legacyWaiters != 0) {
+                        if (generation != connectionGeneration || !isConnected) throw new IOException("键盘连接已改变。");
+                        if (remaining <= 0) throw new IOException("等待设备事务结束超时，请稍后刷新。");
+                        remaining = responseReady.awaitNanos(remaining);
+                    }
+                    lease = openDisplayLease(false, generation);
+                } finally { commandLock.unlock(); }
+                try { task.run(lease); }
+                finally { notify = lease.release(); }
+            }
+        } finally {
+            // CP1 snapshot delivery also uses commandTransactionLock; never call it while holding that monitor.
+            if (notify) notifyDisplayIdle();
+        }
+    }
+    public void invalidateDisplayRead(DisplayLease lease) {
+        commandLock.lock();
+        try { if (lease.generation == connectionGeneration) displayReadUncertain = true; }
+        finally { commandLock.unlock(); }
+    }
+    public DisplayLease openDisplayLease(boolean writing, long expectedGeneration) throws IOException {
+        commandLock.lock();
+        try {
+            if (expectedGeneration != connectionGeneration) throw new IOException("键盘连接已改变。");
+            if (!isConnected || !cachedStatus.isConnected()) throw new IOException("键盘连接已断开。");
+            if (displayLease != null || legacyWaiters != 0) throw new IOException("设备正在处理其他事务。");
+            if (writing && (!isDisplayAdmitted() || displayWriteUncertain))
+                throw new IOException(displayWriteUncertain ? "设备保存结果未确认，请重新连接后同步。" : "请先确认当前键盘的 CP2 固件身份。");
+            if (!writing && displayReadUncertain) throw new IOException("上次读取结果未确认，请重新连接后同步。");
+            displayLease = new DisplayLease(writing);
+            return displayLease;
+        } finally { commandLock.unlock(); }
+    }
+
+    public byte[] exchangeDisplay(DisplayLease lease, byte[] request) throws Exception {
+        long queuedAt = System.nanoTime();
+        commandLock.lockInterruptibly();
+        long acquiredAt = System.nanoTime();
+        long sentAt = 0;
+        String outcome = "NOT_SENT";
+        boolean sent = false;
+        try {
+            checkDisplayLease(lease);
+            int opcode = request[2] & 255;
+            if (opcode != 0x88 && opcode != 0x89 && opcode != 0x8A && opcode != 0x8B && opcode != 0x8C && opcode != 0x8E)
+                throw new IllegalArgumentException("CP2 opcode");
+            if (opcode != 0x88 && (!lease.writing || displayWriteUncertain || !isDisplayAdmitted())) throw new IOException("显示配置写入未准入。");
+            if (opcode == 0x88 && displayReadUncertain) throw new IOException("读取结果未确认，请重新连接。");
+            displayExpected = request[2];
+            displayReply = null;
+            sent = true;
+            outcome = "WRITE_ATTEMPTED_UNKNOWN";
+            if (lease.usb) usbTransport.sendCommand(request);
+            else writePacket(BleTcpPacket.WRITE_COMMAND, request);
+            sentAt = System.nanoTime();
+            outcome = "ACK_UNKNOWN";
+            long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RESPONSE_TIMEOUT_MS);
+            while (true) {
+                checkDisplayLease(lease);
+                if (displayReply != null) {
+                    byte[] reply = displayReply;
+                    displayReply = null;
+                    if (AhaKeyResponseParser.displayReplyLength(reply, 0, reply.length) != reply.length)
+                        throw new IOException("显示配置响应格式无效。");
+                    outcome = reply[3] == 0 ? "ACK_OK" : "ACK_FAIL";
+                    return reply;
+                }
+                long remaining = deadline - System.nanoTime();
+                if (remaining <= 0) throw new IOException("设备保存或读取结果未确认，请重新连接后同步。");
+                responseReady.awaitNanos(Math.min(remaining, TimeUnit.MILLISECONDS.toNanos(100)));
+            }
+        } catch (Exception e) {
+            if (sent && lease.generation == connectionGeneration) {
+                if (request[2] == AhaKeyProtocol.CMD_DISPLAY_READ) displayReadUncertain = true;
+                else displayWriteUncertain = true;
+            }
+            throw e;
+        } finally {
+            long finishedAt = System.nanoTime();
+            displayExpected = 0;
+            commandLock.unlock();
+            int opcode = request[2] & 255;
+            if (opcode >= 0x8A && opcode <= 0x8C) {
+                long offset = opcode == 0x8B ? Integer.toUnsignedLong(java.nio.ByteBuffer.wrap(request, 4, 4)
+                        .order(java.nio.ByteOrder.LITTLE_ENDIAN).getInt()) : 0;
+                logger.info("CP2 exchange connection={} transport={} opcode={} entry={} offset={} outcome={} queueUs={} writeUs={} ackUs={}",
+                        lease.generation, lease.usb ? "USB" : "BLE", opcode, request[3] & 255, offset, outcome,
+                        (acquiredAt - queuedAt) / 1000, sentAt == 0 ? -1 : (sentAt - acquiredAt) / 1000,
+                        sentAt == 0 ? -1 : (finishedAt - sentAt) / 1000);
+            }
+        }
+    }
+
+    private void checkDisplayLease(DisplayLease lease) throws IOException {
+        if (lease == null || lease != displayLease || lease.closed || lease.owner != Thread.currentThread()
+                || lease.generation != connectionGeneration || !isConnected || !cachedStatus.isConnected()
+                || lease.usb != usbTransport.isOpen()) throw new IOException("键盘连接已改变，本次事务已停止。");
+    }
 
     private volatile boolean isConnected;
     private volatile boolean isScanning;
@@ -116,6 +312,7 @@ public class BleManager {
                 socket.setTcpNoDelay(true);
                 outputStream = socket.getOutputStream();
                 inputStream = socket.getInputStream();
+                resetDisplaySession();
                 logger.info("[BLE] Socket连接成功，耗时={}ms", System.currentTimeMillis() - phaseStart);
                 
                 isConnected = true;
@@ -153,6 +350,7 @@ public class BleManager {
     
     private int connectAttemptCount = 0;
     public void disconnect() {
+        resetDisplaySession();
         long startTime = System.currentTimeMillis();
         logger.info("[BLE] === 开始断开连接 ===");
         
@@ -250,8 +448,14 @@ public class BleManager {
     }
 
     public void sendCommand(byte[] command) throws IOException {
-        if (commandLock.isLocked() && !commandLock.isHeldByCurrentThread()) {
-            logger.debug("Skip async command while waiting for a command response: {}", bytesToHex(command, Math.min(20, command.length)));
+        if (!commandLock.tryLock()) throw new IOException("设备正在处理其他命令。");
+        try {
+        if (command[2] != AhaKeyProtocol.CMD_QUERY_STATUS && (displayLease != null || displayWriteUncertain))
+            throw new IOException("显示配置事务占用或保存结果未确认。");
+        if (displayLease != null) {
+            checkDisplayTransport();
+            if (displayLease.usb) usbTransport.sendCommand(command);
+            else writePacket(BleTcpPacket.WRITE_COMMAND, command);
             return;
         }
         logger.debug("发送命令: {}", bytesToHex(command, Math.min(20, command.length)));
@@ -260,6 +464,12 @@ public class BleManager {
         } else {
             writePacket(BleTcpPacket.WRITE_COMMAND, command);
         }
+        } finally { commandLock.unlock(); }
+    }
+
+    private void checkDisplayTransport() throws IOException {
+        if (!isConnected || displayLease.generation != connectionGeneration || displayLease.usb != usbTransport.isOpen())
+            throw new IOException("键盘连接已改变。");
     }
 
     public boolean isUsbTransportOpen() {
@@ -432,12 +642,16 @@ public class BleManager {
     }
 
     public void writeData(byte[] chunk) throws IOException {
+        commandLock.lock();
+        try {
+        if (displayLease != null || displayWriteUncertain) throw new IOException("显示配置事务占用或保存结果未确认。");
         logger.debug("发送数据块: {} 字节", chunk.length);
         if (ensureUsbConnected()) {
             usbTransport.sendData(chunk);
         } else {
             writePacket(BleTcpPacket.WRITE_DATA, chunk);
         }
+        } finally { commandLock.unlock(); }
     }
 
     public void writeLargeData(long address, byte[] data) throws Exception {
@@ -491,6 +705,16 @@ public class BleManager {
 
     public void queryStatus() {
         try {
+            // Coalesce poller/status callers only; explicit approval refresh uses the forced path.
+            if (commandLock.isLocked()) return;
+            if (isDisplayBusy() && System.nanoTime() - lastOptionalQueryNanos < TimeUnit.SECONDS.toNanos(1)) return;
+            lastOptionalQueryNanos = System.nanoTime();
+            queryStatusNow();
+        } catch (RuntimeException e) { logger.debug("Optional status query skipped: {}", e.getMessage()); }
+    }
+
+    private void queryStatusNow() {
+        try {
             if (commandLock.isLocked()) {
                 return;
             }
@@ -515,7 +739,7 @@ public class BleManager {
      */
     public void queryStatusAndWait(long timeoutMs) {
         long beforeTs = lastStatusUpdateTime;
-        queryStatus();
+        queryStatusNow();
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (lastStatusUpdateTime == beforeTs && System.currentTimeMillis() < deadline) {
             try {
@@ -534,19 +758,48 @@ public class BleManager {
 
     public void updateState(byte state) {
         try {
-            sendCommand(AhaKeyProtocol.updateState(state));
+            sendRuntimeState(state);
         } catch (IOException e) {
             callback.onError("发送状态更新失败: " + e.getMessage());
         }
     }
 
+    public boolean sendRuntimeState(byte state) throws IOException {
+        commandLock.lock();
+        try {
+            if (!isConnected || !cachedStatus.isConnected()) return false;
+            deferredRuntimeState = state;
+            deferredRuntimeAt = System.nanoTime();
+            if (displayLease != null || displayWriteUncertain) return false;
+            sendCommand(AhaKeyProtocol.updateState(state));
+            deferredRuntimeState = null;
+            return true;
+        } finally { commandLock.unlock(); }
+    }
+    private void flushDeferredRuntimeState() {
+        commandLock.lock();
+        try {
+            if (deferredRuntimeState != null && System.nanoTime() - deferredRuntimeAt >= TimeUnit.MINUTES.toNanos(5))
+                deferredRuntimeState = null;
+            if (displayLease != null || displayWriteUncertain) return;
+            if (deferredRuntimeState != null && isConnected) sendRuntimeState(deferredRuntimeState);
+        } catch (IOException e) { logger.debug("Runtime state remains pending: {}", e.getMessage()); }
+        finally { commandLock.unlock(); }
+    }
+
     public void setRuntimeDisplayMode(com.example.ahakey.model.AiRuntimeDisplayMode mode) throws Exception {
+        setRuntimeDisplayMode(mode, connectionGeneration);
+    }
+
+    public void setRuntimeDisplayMode(com.example.ahakey.model.AiRuntimeDisplayMode mode, long generation) throws Exception {
         synchronized (commandTransactionLock) {
             commandLock.lock();
             try {
+                if (generation != connectionGeneration) throw new IOException("键盘连接已改变。");
                 pendingNotifyFramesByCommand.clear();
                 sendCommand(AhaKeyProtocol.setRuntimeDisplayMode(mode));
-                waitForResponseFrame(AhaKeyProtocol.CMD_RUNTIME_DISPLAY_MODE, false);
+                waitForResponseFrame(AhaKeyProtocol.CMD_RUNTIME_DISPLAY_MODE, true, false);
+                if (generation != connectionGeneration) throw new IOException("键盘连接已改变，展示模式未确认。");
             } finally {
                 commandLock.unlock();
             }
@@ -554,12 +807,18 @@ public class BleManager {
     }
 
     public void sendMultiRuntimeSnapshot(com.example.ahakey.model.AiRuntimeSlotBinding[] slots) throws Exception {
+        sendMultiRuntimeSnapshot(slots, connectionGeneration);
+    }
+
+    public void sendMultiRuntimeSnapshot(com.example.ahakey.model.AiRuntimeSlotBinding[] slots, long generation) throws Exception {
         synchronized (commandTransactionLock) {
             commandLock.lock();
             try {
+                if (generation != connectionGeneration) throw new IOException("键盘连接已改变。");
                 pendingNotifyFramesByCommand.clear();
                 sendCommand(AhaKeyProtocol.multiRuntimeSnapshot(slots));
-                waitForResponseFrame(AhaKeyProtocol.CMD_MULTI_RUNTIME_SNAPSHOT, false);
+                waitForResponseFrame(AhaKeyProtocol.CMD_MULTI_RUNTIME_SNAPSHOT, true, false);
+                if (generation != connectionGeneration) throw new IOException("键盘连接已改变。");
             } finally {
                 commandLock.unlock();
             }
@@ -732,7 +991,9 @@ public class BleManager {
                 return false;
             }
             closeTcpOnly();
-            usbTransport.open(this::onBleNotify);
+            resetDisplaySession();
+            long generation = connectionGeneration;
+            usbTransport.open(data -> onSessionNotify(generation, data));
             isConnected = true;
             isScanning = false;
             cachedStatus.clearFirmwareIdentity();
@@ -750,6 +1011,7 @@ public class BleManager {
     }
 
     private boolean ensureUsbConnected() {
+        if (displayLease != null || displayWriteUncertain || displayReadUncertain) return usbTransport.isOpen();
         if (usbTransport.isOpen()) {
             return true;
         }
@@ -758,7 +1020,9 @@ public class BleManager {
         }
         try {
             closeTcpOnly();
-            usbTransport.open(this::onBleNotify);
+            resetDisplaySession();
+            long generation = connectionGeneration;
+            usbTransport.open(data -> onSessionNotify(generation, data));
             isConnected = true;
             isScanning = false;
             cachedStatus.setConnected(true);
@@ -799,6 +1063,8 @@ public class BleManager {
     }
 
     private byte[] waitForResponseFrame(byte expectedCmd, boolean throwOnDeviceError, boolean waitForReconnect, long timeoutMs) throws Exception {
+        legacyWaiters++;
+        try {
         logger.debug("开始等待响应 0x{}", Integer.toHexString(expectedCmd & 0xFF));
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
         
@@ -850,6 +1116,7 @@ public class BleManager {
             }
             responseReady.awaitNanos(remaining);
         }
+        } finally { legacyWaiters--; responseReady.signalAll(); }
     }
 
     public DeviceStatus queryDeviceStatusSnapshot(long timeoutMs, boolean failOnDisconnect) throws Exception {
@@ -893,21 +1160,24 @@ public class BleManager {
 
     private void startReader() {
         logger.info("[BLE] startReader 开始创建读取线程");
+        final long generation = connectionGeneration;
+        final InputStream sessionInput = inputStream;
         readerThread = new Thread(() -> {
             logger.info("[BLE] readerThread 已启动");
             byte[] header = new byte[3];
             try {
                 while (isConnected && !Thread.currentThread().isInterrupted()) {
-                    if (!readFully(inputStream, header, 3)) {
+                    if (!readFully(sessionInput, header, 3)) {
                         logger.warn("[BLE] readerThread: 读取头部失败，连接可能已断开");
                         break;
                     }
                     int len = (header[1] & 0xFF) | ((header[2] & 0xFF) << 8);
                     byte[] body = len > 0 ? new byte[len] : new byte[0];
-                    if (len > 0 && !readFully(inputStream, body, len)) {
+                    if (len > 0 && !readFully(sessionInput, body, len)) {
                         logger.warn("[BLE] readerThread: 读取数据失败，连接可能已断开");
                         break;
                     }
+                    if (generation != connectionGeneration) break;
                     handlePacket(header[0], body);
                 }
             } catch (IOException e) {
@@ -997,6 +1267,7 @@ public class BleManager {
                     // 如果是从连接变为断开，更新状态并唤醒等待线程
                     if (!bleConnected && wasConnected) {
                         isConnected = false;
+                        resetDisplaySession();
                         commandLock.lock();
                         try {
                             responseReady.signalAll();
@@ -1034,6 +1305,12 @@ public class BleManager {
         }
     }
 
+    private void onSessionNotify(long generation, byte[] data) {
+        commandLock.lock();
+        try { if (generation == connectionGeneration) onBleNotify(data); }
+        finally { commandLock.unlock(); }
+    }
+
     private List<byte[]> reassembleNotifyFrames(byte[] data) {
         List<byte[]> frames = new ArrayList<>();
         if (data == null || data.length == 0) {
@@ -1041,11 +1318,6 @@ public class BleManager {
         }
 
         synchronized (notifyReassemblyBuffer) {
-            if (notifyReassemblyLength > 0 && startsWithFrameHeader(data) && findFrameEnd(notifyReassemblyBuffer, notifyReassemblyLength) < 0) {
-                logger.warn("Discarding incomplete BLE notify frame before a new frame header");
-                notifyReassemblyLength = 0;
-            }
-
             if (data.length > notifyReassemblyBuffer.length - notifyReassemblyLength) {
                 logger.warn("BLE notify 重组缓冲区溢出，丢弃未完成分片");
                 notifyReassemblyLength = 0;
@@ -1061,7 +1333,9 @@ public class BleManager {
             while (true) {
                 int start = findFrameStart(notifyReassemblyBuffer, notifyReassemblyLength);
                 if (start < 0) {
-                    notifyReassemblyLength = 0;
+                    boolean trailingHeader = notifyReassemblyLength > 0 && notifyReassemblyBuffer[notifyReassemblyLength - 1] == (byte) 0xAA;
+                    notifyReassemblyLength = trailingHeader ? 1 : 0;
+                    if (trailingHeader) notifyReassemblyBuffer[0] = (byte) 0xAA;
                     return frames;
                 }
                 if (start > 0) {
@@ -1094,6 +1368,9 @@ public class BleManager {
     }
 
     private int findFrameEnd(byte[] buffer, int len) {
+        int fixed = AhaKeyResponseParser.displayReplyLength(buffer, 0, len);
+        if (fixed > 0) return fixed - 2;
+        if (fixed != -1) return -1;
         for (int i = 3; i + 1 < len; i++) {
             if (buffer[i] == (byte) 0xCC && buffer[i + 1] == (byte) 0xDD) {
                 return i;
@@ -1113,6 +1390,17 @@ public class BleManager {
     }
 
     private void processNotifyFrame(byte[] data) {
+        int opcode = data.length > 2 ? data[2] & 255 : -1;
+        if (opcode == 0x88 || opcode == 0x89 || opcode == 0x8A || opcode == 0x8B || opcode == 0x8C || opcode == 0x8E) {
+            commandLock.lock();
+            try {
+                if (displayLease != null && displayLease.generation == connectionGeneration && displayExpected == data[2]) {
+                    displayReply = data.clone();
+                    responseReady.signalAll();
+                }
+            } finally { commandLock.unlock(); }
+            return;
+        }
         if (!AhaKeyProtocol.isValidFrame(data)) {
             logger.warn("无效的帧格式 - isValidFrame 返回 false");
             // 检查帧头帧尾

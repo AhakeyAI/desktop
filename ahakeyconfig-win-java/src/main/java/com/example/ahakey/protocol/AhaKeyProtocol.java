@@ -6,6 +6,82 @@ import com.example.ahakey.model.AiRuntimeSlotBinding;
 import com.example.ahakey.model.AiRuntimeSlotState;
 
 public class AhaKeyProtocol {
+    public static final byte CMD_DISPLAY_READ = (byte) 0x88;
+    public static final byte CMD_DISPLAY_PREVIEW = (byte) 0x89;
+    public static final byte CMD_RESOURCE_BEGIN = (byte) 0x8A;
+    public static final byte CMD_RESOURCE_CHUNK = (byte) 0x8B;
+    public static final byte CMD_RESOURCE_COMMIT = (byte) 0x8C;
+    public static final byte CMD_DISPLAY_SAVE = (byte) 0x8E;
+    public static final int RESOURCE_COUNT = 19;
+    public static final int RESOURCE_CHUNK_BYTES = 48;
+
+    public static int resourceCapacity(int entry) {
+        requireRange(entry, 0, 18, "entry");
+        return entry < 16 && entry % 4 == 0 ? 8 : 12;
+    }
+
+    public static byte[] displayRead(int kind, int... selectors) {
+        requireRange(kind, 0, 3, "read kind");
+        int count = kind == 0 ? 0 : kind == 1 ? 2 : 1;
+        if (selectors.length != count) throw new IllegalArgumentException("selectors");
+        if (kind == 1) {
+            requireRange(selectors[0], 0, 3, "mode");
+            requireRange(selectors[1], 0, 8, "AI state");
+        } else if (kind > 1) requireRange(selectors[0], 0, 18, "entry");
+        byte[] data = new byte[count + 1];
+        data[0] = (byte) kind;
+        for (int i = 0; i < count; i++) data[i + 1] = (byte) selectors[i];
+        return buildFrame(CMD_DISPLAY_READ, data);
+    }
+
+    public static byte[] previewBrightness(int brightness) {
+        requireRange(brightness, 1, 100, "brightness");
+        return buildFrame(CMD_DISPLAY_PREVIEW, new byte[]{0, (byte) brightness});
+    }
+
+    public static byte[] previewLight(int effect, int brightness) {
+        requireRange(effect, 1, 16, "effect");
+        requireRange(brightness, 1, 100, "brightness");
+        return buildFrame(CMD_DISPLAY_PREVIEW, new byte[]{1, (byte) effect, (byte) brightness});
+    }
+
+    public static byte[] saveDisplayBrightness(int brightness) {
+        requireRange(brightness, 1, 100, "brightness");
+        return buildFrame(CMD_DISPLAY_SAVE, new byte[]{0, (byte) brightness});
+    }
+
+    public static byte[] saveDisplayLight(int mode, int ai, int effect) {
+        requireRange(mode, 0, 3, "mode");
+        requireRange(ai, 0, 8, "AI state");
+        requireRange(effect, 0, 16, "effect");
+        return buildFrame(CMD_DISPLAY_SAVE, new byte[]{1, (byte) mode, (byte) ai, (byte) effect});
+    }
+
+    public static byte[] resourceBegin(int entry, int frames, long crc) {
+        requireRange(frames, 1, resourceCapacity(entry), "frames");
+        if (crc < 0 || crc > 0xffffffffL) throw new IllegalArgumentException("CRC32");
+        java.nio.ByteBuffer data = java.nio.ByteBuffer.allocate(11).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        data.put((byte) entry).putInt(frames * OLED_FRAME_SLOT_SIZE).putShort((short) frames).putInt((int) crc);
+        return buildFrame(CMD_RESOURCE_BEGIN, data.array());
+    }
+
+    public static byte[] resourceChunk(int entry, int offset, byte[] payload) {
+        int capacity = resourceCapacity(entry) * OLED_FRAME_SLOT_SIZE;
+        requireRange(payload.length, 1, RESOURCE_CHUNK_BYTES, "chunk length");
+        requireRange(offset, 0, capacity - payload.length, "offset");
+        java.nio.ByteBuffer data = java.nio.ByteBuffer.allocate(6 + payload.length).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        data.put((byte) entry).putInt(offset).put((byte) payload.length).put(payload);
+        return buildFrame(CMD_RESOURCE_CHUNK, data.array());
+    }
+
+    public static byte[] resourceCommit(int entry) {
+        resourceCapacity(entry);
+        return buildFrame(CMD_RESOURCE_COMMIT, new byte[]{(byte) entry});
+    }
+
+    private static void requireRange(int value, int min, int max, String field) {
+        if (value < min || value > max) throw new IllegalArgumentException(field + ": " + value);
+    }
     private static final byte[] HEADER = {(byte) 0xAA, (byte) 0xBB};
     private static final byte[] TRAILER = {(byte) 0xCC, (byte) 0xDD};
     

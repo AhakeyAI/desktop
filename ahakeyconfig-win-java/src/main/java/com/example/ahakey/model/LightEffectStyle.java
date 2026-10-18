@@ -48,12 +48,17 @@ public enum LightEffectStyle {
     }
 
     public static LightEffectStyle fromCode(int code) {
+        LightEffectStyle result = fromCodeOrNull(code);
+        return result == null ? OFF : result;
+    }
+
+    public static LightEffectStyle fromCodeOrNull(int code) {
         for (LightEffectStyle style : values()) {
             if ((style.code & 0xFF) == code) {
                 return style;
             }
         }
-        return OFF;
+        return null;
     }
 
     public static LightEffectStyle fromId(String id) {

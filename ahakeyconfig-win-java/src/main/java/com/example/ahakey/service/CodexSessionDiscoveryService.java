@@ -23,6 +23,34 @@ public class CodexSessionDiscoveryService {
     private static final Logger logger = LoggerFactory.getLogger(CodexSessionDiscoveryService.class);
     private final ObjectMapper mapper = new ObjectMapper();
 
+    public enum EventSource { USER, BACKGROUND, UNKNOWN }
+
+    /** Bounded, read-only metadata lookup. Missing/new sessions remain UNKNOWN, never background. */
+    public EventSource eventSource(Path dataDir, String stableId) {
+        if (dataDir == null || stableId == null || stableId.isBlank()) return EventSource.UNKNOWN;
+        Path db = dataDir.resolve("state_5.sqlite");
+        if (!Files.isRegularFile(db)) return EventSource.UNKNOWN;
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + db.toUri() + "?mode=ro");
+             var query = connection.prepareStatement("select source, thread_source from threads where id = ? limit 1")) {
+            query.setString(1, stableId);
+            query.setQueryTimeout(1);
+            try (ResultSet rs = query.executeQuery()) {
+                if (!rs.next()) return EventSource.UNKNOWN;
+                String source = value(rs.getString(1));
+                String kind = value(rs.getString(2));
+                if ("composer_predictions".equals(kind) || "guardian_review".equals(kind)) return EventSource.BACKGROUND;
+                if (source.startsWith("{")) {
+                    String other = mapper.readTree(source).path("subagent").path("other").asText("");
+                    if ("guardian".equals(other) || "composer_predictions".equals(other)) return EventSource.BACKGROUND;
+                }
+                return "user".equals(kind) ? EventSource.USER : EventSource.UNKNOWN;
+            }
+        } catch (Exception e) {
+            logger.debug("Runtime source metadata unavailable: {}", e.getClass().getSimpleName());
+            return EventSource.UNKNOWN;
+        }
+    }
+
     public List<AiRuntimeSession> discover(Path dataDir) {
         if (dataDir == null || !Files.isDirectory(dataDir)) {
             return List.of();
@@ -41,7 +69,7 @@ public class CodexSessionDiscoveryService {
         List<AiRuntimeSession> sessions = new ArrayList<>();
         try {
             Class.forName("org.sqlite.JDBC");
-            String url = "jdbc:sqlite:" + db.toAbsolutePath();
+            String url = "jdbc:sqlite:" + db.toUri() + "?mode=ro";
             try (Connection connection = DriverManager.getConnection(url);
                  Statement statement = connection.createStatement()) {
                 statement.setQueryTimeout(2);
