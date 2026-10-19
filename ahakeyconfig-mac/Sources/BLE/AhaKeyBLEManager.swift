@@ -93,7 +93,13 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var supportsConfigurableLighting: Bool?
     @Published private(set) var configurationSnapshot = DeviceConfigurationSnapshot()
     @Published private(set) var ws3DisplaySnapshot: WS3DisplaySnapshot?
+    @Published private(set) var ws3SingleLightSnapshot: WS3SingleLightSnapshot?
     @Published private(set) var isReadingWS3Display = false
+    @Published private(set) var isUpdatingWS3Display = false
+    var canEditWS3Display: Bool {
+        isConnected && !commandChannelUnsynchronized && firmwareCapabilityProfile?.identity == .knownWS2Catalog &&
+            ws3DisplaySnapshot?.verifiesDisplaySettings(in: commandSessionGeneration) == true
+    }
     @Published private(set) var isReadingConfigurationSnapshot = false
     @Published private(set) var isChangingWorkMode = false
     @Published private(set) var isReadingStandby = false
@@ -103,7 +109,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var isEditingOrdinaryKey = false
     @Published private(set) var isManagingVoiceHandoff = false
     var isConfigurationOperationInProgress: Bool {
-        isUploadingOLED || isReadingWS3Display || isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey || isManagingVoiceHandoff
+        isUploadingOLED || isReadingWS3Display || isUpdatingWS3Display || isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey || isManagingVoiceHandoff
     }
     @Published private(set) var firmwareCapabilityProfile: FirmwareCapabilityProfile?
     @Published private(set) var bluetoothPermissionGranted = true
@@ -528,7 +534,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func writeCommand(_ data: Data, confirmedWrite: ConfigurationCommandPolicy.ConfirmedWrite) {
-        guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite) else {
+        guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite,
+                                               ws3DisplayReadbackVerified: canEditWS3Display) else {
             appendLog("当前固件配置写入尚未验证，已阻止写入", isError: true)
             return
         }
@@ -730,12 +737,14 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let previousProfile = firmwareCapabilityProfile
         firmwareCapabilityProfile = nil
         ws3DisplaySnapshot = nil
+        ws3SingleLightSnapshot = nil
         var accepted = false
         defer {
             if !accepted, generation == commandSessionGeneration {
                 // A failed refresh cannot leave old capabilities/facts writable.
                 firmwareCapabilityProfile = nil
                 ws3DisplaySnapshot = nil
+                ws3SingleLightSnapshot = nil
                 configurationSnapshot.reset(generation: generation)
             }
         }
@@ -836,6 +845,17 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
     }
 
+    private func readWS3DisplayValue(_ item: WS3DisplayItem, generation: UInt64) async throws -> WS3DisplayValue {
+        try ensureConfigurationReadSession(generation)
+        guard let request = item.request else { throw OLEDUploadError.invalidCommandFrame }
+        let response = try await sendCommandAwaitingResponse(request, expectedCommand: 0x88, allowDeviceError: true)
+        try ensureConfigurationReadSession(generation)
+        guard let value = WS3DisplayValue.parse(response.frame, for: item) else { throw OLEDUploadError.invalidReadback }
+        if value == .unsupported { throw OLEDUploadError.unsupportedWS3Readback }
+        if case .rejected(let status) = value { throw OLEDUploadError.deviceRejected(command: 0x88, status: status) }
+        return value
+    }
+
     /// Safe discovery of the CP2 read-only surface. Older CP4D's generic ACK
     /// is treated as unsupported and never authorizes resource writes.
     func readWS3DisplayForEditing() async throws -> WS3DisplaySnapshot {
@@ -844,18 +864,12 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         try ensureConfigurationReadSession(generation)
         isReadingWS3Display = true
         ws3DisplaySnapshot = nil
+        ws3SingleLightSnapshot = nil
         defer { isReadingWS3Display = false }
         let profile = try await readFirmwareCapabilityProfile()
         guard profile.identity == .knownWS2Catalog else { throw OLEDUploadError.unsupportedReadOnlyProfile }
         func read(_ item: WS3DisplayItem) async throws -> WS3DisplayValue {
-            try self.ensureConfigurationReadSession(generation)
-            guard let request = item.request else { throw OLEDUploadError.invalidCommandFrame }
-            let response = try await self.sendCommandAwaitingResponse(request, expectedCommand: 0x88, allowDeviceError: true)
-            try self.ensureConfigurationReadSession(generation)
-            guard let value = WS3DisplayValue.parse(response.frame, for: item) else { throw OLEDUploadError.invalidReadback }
-            if value == .unsupported { throw OLEDUploadError.unsupportedWS3Readback }
-            if case .rejected(let status) = value { throw OLEDUploadError.deviceRejected(command: 0x88, status: status) }
-            return value
+            try await self.readWS3DisplayValue(item, generation: generation)
         }
         guard case .brightness(let brightness) = try await read(.brightness) else { throw OLEDUploadError.invalidReadback }
         var resources: [WS3ResourceReadback] = []
@@ -869,6 +883,68 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let snapshot = WS3DisplaySnapshot(generation: generation, brightness: brightness, resources: resources)
         ws3DisplaySnapshot = snapshot
         return snapshot
+    }
+
+    func readWS3SingleLightForEditing(mode: UInt8, state: UInt8) async throws -> WS3SingleLightSnapshot {
+        guard !isConfigurationOperationInProgress, canEditWS3Display else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        isReadingWS3Display = true
+        ws3SingleLightSnapshot = nil
+        defer { isReadingWS3Display = false }
+        guard case .singleLight(let effect) = try await readWS3DisplayValue(.singleLight(mode: mode, state: state), generation: generation) else {
+            throw OLEDUploadError.invalidReadback
+        }
+        let result = WS3SingleLightSnapshot(generation: generation, mode: mode, state: state, effect: effect)
+        ws3SingleLightSnapshot = result
+        return result
+    }
+
+    func previewWS3Display(_ preview: WS3DisplayPreview) async throws {
+        guard !isConfigurationOperationInProgress, canEditWS3Display else { throw OLEDUploadError.channelNotReady }
+        guard let request = preview.request else { throw ConfirmedWS3DisplaySetting.Failure.invalidValue }
+        let generation = commandSessionGeneration
+        isUpdatingWS3Display = true
+        defer { isUpdatingWS3Display = false }
+        try ensureConfigurationReadSession(generation)
+        _ = try await sendCommandAwaitingResponse(request, expectedCommand: 0x89, confirmedWrite: .ws3Display)
+        try ensureConfigurationReadSession(generation)
+        // ACK proves command acceptance only. Firmware expires preview in 10s;
+        // never start a client refresh loop or claim the rendered scene was observed.
+    }
+
+    func saveWS3DisplaySetting(_ target: WS3DisplaySetting, baseline: UInt8, expectedGeneration: UInt64) async throws {
+        guard !isConfigurationOperationInProgress, canEditWS3Display,
+              expectedGeneration == commandSessionGeneration else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        isUpdatingWS3Display = true
+        defer { isUpdatingWS3Display = false }
+        do {
+            let actual = try await ConfirmedWS3DisplaySetting.run(target: target, baseline: baseline, checkSession: {
+                try self.ensureConfigurationReadSession(generation)
+            }, read: { item in
+                let value = try await self.readWS3DisplayValue(item, generation: generation)
+                switch value {
+                case .brightness(let value), .singleLight(let value): return value
+                default: throw OLEDUploadError.invalidReadback
+                }
+            }, write: { request in
+                _ = try await self.sendCommandAwaitingResponse(request, expectedCommand: 0x8E, confirmedWrite: .ws3Display)
+            })
+            switch target {
+            case .brightness:
+                if let snapshot = ws3DisplaySnapshot {
+                    ws3DisplaySnapshot = WS3DisplaySnapshot(generation: generation, brightness: actual, resources: snapshot.resources)
+                }
+            case .singleLight(let mode, let state, _):
+                ws3SingleLightSnapshot = WS3SingleLightSnapshot(generation: generation, mode: mode, state: state, effect: actual)
+            }
+        } catch {
+            if generation == commandSessionGeneration {
+                ws3DisplaySnapshot = nil
+                ws3SingleLightSnapshot = nil
+            }
+            throw error
+        }
     }
 
     /// Explicit read only: never applies local drafts or persists device settings.
@@ -1537,6 +1613,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         hasValidStatusReadback = false
         firmwareCapabilityProfile = nil
         ws3DisplaySnapshot = nil
+        ws3SingleLightSnapshot = nil
         configurationSnapshot.reset(generation: commandSessionGeneration)
         if let pending = pendingCommandResponse {
             pendingCommandResponse = nil
@@ -1613,6 +1690,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         hasValidStatusReadback = false
         firmwareCapabilityProfile = nil
         ws3DisplaySnapshot = nil
+        ws3SingleLightSnapshot = nil
         configurationSnapshot.reset(generation: commandSessionGeneration)
         appendLog("Configuration interrupted; reconnect and read back before continuing.", isError: true)
         if let peripheral {
@@ -1656,7 +1734,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let ticket = try await acquireCommandTurn()
         let generation = ticket.generation
         defer { commandTurns.release(ticket) }
-        guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite) else {
+        guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite,
+                                               ws3DisplayReadbackVerified: canEditWS3Display) else {
             throw OLEDUploadError.unsupportedReadOnlyProfile
         }
         try Task.checkCancellation()

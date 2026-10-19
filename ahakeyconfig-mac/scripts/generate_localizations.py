@@ -1421,6 +1421,33 @@ ZH_OVERRIDES = {
 }
 
 
+# WS3 CP2 display preview and confirmed item saves.
+TRANSLATIONS.update({
+    "显示设置超出当前固件支持范围。": "The display setting is outside this firmware’s supported range.",
+    "键盘当前显示设置已变化，请重新读取后再应用。": "The keyboard display setting has changed. Read it again before applying.",
+    "显示设置读回不一致，未确认保存；已发出的更改可能已生效。": "Display readback does not match. Save is unconfirmed; changes already sent may have taken effect.",
+    "读取不会保存。预览和保存只在本次连接读回确认后开放。素材上传、清空和恢复仍未开放。": "Reading does not save. Preview and save require verified readback on this connection. Resource upload, clearing and restore are not available yet.",
+    "全局灯光亮度": "Global Light Brightness",
+    "预览亮度（10 秒）": "Preview Brightness (10 Seconds)",
+    "保存亮度并核对": "Save and Verify Brightness",
+    "预览请求已接受，未保存；键盘将在约 10 秒后结束预览，实际显示请在键盘上确认。": "Preview request accepted without saving. The keyboard ends preview after about 10 seconds; check the result on the keyboard.",
+    "此项已保存并读回一致；断电保持性仍需验证。": "This item was saved and read back consistently. Power-cycle persistence still needs verification.",
+    "单任务模式灯效": "Single-Task Mode Light Effect",
+    "工作状态": "Workflow State",
+    "键盘当前灯效：%@": "Current Keyboard Light Effect: %@",
+    "未知灯效 %@（只读）": "Unknown Effect %@ (Read-Only)",
+    "读取此模式状态灯效": "Read This Mode and State’s Effect",
+    "待保存灯效": "Pending Light Effect",
+    "预览灯效（10 秒）": "Preview Light Effect (10 Seconds)",
+    "保存此灯效并核对": "Save and Verify This Effect",
+    "灯效保存只修改所选模式与状态，不会立即播放或切换工作模式。熄灭可以保存，不支持预览。": "Saving an effect changes only the selected mode and state. It does not immediately play the effect or switch modes. Off can be saved but cannot be previewed.",
+    "停止临时预览": "Stop Temporary Preview",
+    "停止预览请求已接受，未修改保存配置。": "Stop preview request accepted. Saved settings are unchanged.",
+    "元数据不等于实际图像内容校验。保存失败或取消不代表回滚；重新连接后须重新读取。": "Metadata does not verify image contents. Failed or cancelled saves do not imply rollback; read again after reconnecting.",
+    "此设备支持分别确认按键、待机、拨杆与语音设置；显示与灯光需单独读回确认，素材写入未开放。": "This device supports confirmed keys, standby, lever and voice settings. Display and lighting require separate verified readback; resource writes are unavailable."
+})
+
+
 def escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
