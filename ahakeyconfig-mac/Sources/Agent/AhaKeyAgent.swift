@@ -563,6 +563,29 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 抢锁失败后的 15s 重试项
     private var lockRetryItem: DispatchWorkItem?
 
+    private func invalidateBLEConnection() {
+        approvalChannelReady = false
+        connectionGeneration &+= 1
+        stopStatusPolling()
+        let pendingRead = pendingApprovalRead
+        pendingApprovalRead = nil
+        if let id = approvalRequestID { finishApproval(id: id, status: nil, profile: nil, binding: nil) }
+        pendingRead?.completion(nil)
+        Self.liveStateCoalescer = LiveStateWriteCoalescer()
+        commandChar = nil
+        notifyChar = nil
+        commandNotificationFramer.reset()
+        notifyNotificationFramer.reset()
+        self.peripheral = nil
+        cachedSwitchState = nil
+        cachedLightMode = nil
+        lastLoggedStatus = nil
+        pendingStateReset?.cancel()
+        pendingStateReset = nil
+        // 把 pending 的 waiter 全部通知为 nil（避免 hook 客户端一直等）
+        statusWaiters.resolveAll(with: nil)
+    }
+
     private func connectAutomatically() {
         guard central.state == .poweredOn, connectionAttempt.mayBegin else { return }
         guard acquireConnectionLock() else { return }
@@ -659,6 +682,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             connectionDeadline?.cancel()
             connectionDeadline = nil
             connectionAttempt.reset()
+            invalidateBLEConnection()
         }
     }
 
@@ -692,25 +716,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         connectionDeadline?.cancel()
         connectionDeadline = nil
         connectionAttempt.ended(target: peripheral.identifier)
-        connectionGeneration &+= 1
-        stopStatusPolling()
-        let pendingRead = pendingApprovalRead
-        pendingApprovalRead = nil
-        if let id = approvalRequestID { finishApproval(id: id, status: nil, profile: nil, binding: nil) }
-        pendingRead?.completion(nil)
-        Self.liveStateCoalescer = LiveStateWriteCoalescer()
-        commandChar = nil
-        notifyChar = nil
-        commandNotificationFramer.reset()
-        notifyNotificationFramer.reset()
-        self.peripheral = nil
-        cachedSwitchState = nil
-        cachedLightMode = nil
-        lastLoggedStatus = nil
-        pendingStateReset?.cancel()
-        pendingStateReset = nil
-        // 把 pending 的 waiter 全部通知为 nil（避免 hook 客户端一直等）
-        statusWaiters.resolveAll(with: nil)
+        invalidateBLEConnection()
         guard !connectionAttempt.requiresManualRetry else {
             emit(NSLocalizedString("等待系统配对", comment: ""))
             return
@@ -726,8 +732,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         connectionDeadline?.cancel()
         connectionDeadline = nil
         connectionAttempt.ended(target: peripheral.identifier)
-        self.peripheral = nil
-        approvalChannelReady = false
+        invalidateBLEConnection()
         emit("连接失败: \(error?.localizedDescription ?? "未知")")
         guard !connectionAttempt.requiresManualRetry else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.connectAutomatically() }

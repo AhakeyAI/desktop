@@ -457,6 +457,22 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         startScan()
     }
 
+    /// Called directly by the native powered-off callback; no radio is created here.
+    func handleBluetoothPoweredOff() {
+        connectionDeadlineTask?.cancel()
+        connectionDeadlineTask = nil
+        connectionAttempt.reset()
+        awaitingPeripheralDisconnect = false
+        isScanning = false
+        peripheral = nil
+        stopRSSIPolling()
+        stopStatusPolling()
+        invalidateConnectionState()
+        // The old peripheral callback is now ignored. Complete a pending handoff
+        // here rather than leaving the suppressed App holding the Agent's lock.
+        if suppressAutomaticConnection { connectionLock.release() }
+    }
+
     private func beginPeripheralConnection(_ target: CBPeripheral) {
         guard acceptsConnectionCallbacks, !awaitingPeripheralDisconnect,
               let ticket = connectionAttempt.begin(target: target.identifier,
@@ -2115,15 +2131,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
                 self.appendLog(NSLocalizedString("蓝牙已开启", comment: ""), category: .lifecycle)
                 self.connectAutomatically()
             case .poweredOff:
-                self.connectionDeadlineTask?.cancel()
-                self.connectionDeadlineTask = nil
-                self.connectionAttempt.reset()
-                self.awaitingPeripheralDisconnect = false
-                self.isScanning = false
-                self.peripheral = nil
-                self.stopRSSIPolling()
-                self.stopStatusPolling()
-                self.invalidateConnectionState()
+                self.handleBluetoothPoweredOff()
                 self.refreshBluetoothAuthorization()
                 self.appendLog("蓝牙已关闭", isError: true)
                 self.bleConnectionStatus = "蓝牙关闭"
