@@ -544,6 +544,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     func uploadOLEDFrames(_ frames: [Data], fps: Int, mode: UInt8 = 0, startIndex: UInt16 = 0) async throws {
+        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
         guard firmwareCapabilityProfile?.identity == .legacy else { throw OLEDUploadError.unsupportedReadOnlyProfile }
         guard acceptsConnectionCallbacks, let peripheral, let dataChar, let commandChar else {
             throw OLEDUploadError.channelNotReady
