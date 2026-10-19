@@ -28,6 +28,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var commandNotificationFramer = DeviceNotificationFramer()
     private var notifyNotificationFramer = DeviceNotificationFramer()
     private var lastUUID: UUID?
+    private var connectionAttempt = BLEConnectionAttemptGuard()
+    private var connectionDeadline: DispatchWorkItem?
     private let serviceUUID = CBUUID(string: "7340")
     private let hidServiceUUID = CBUUID(string: "1812")
     private let batteryServiceUUID = CBUUID(string: "180F")
@@ -562,15 +564,14 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var lockRetryItem: DispatchWorkItem?
 
     private func connectAutomatically() {
+        guard central.state == .poweredOn, connectionAttempt.mayBegin else { return }
         guard acquireConnectionLock() else { return }
         // 1. 用已知 UUID
         if let uuid = lastUUID {
             let known = central.retrievePeripherals(withIdentifiers: [uuid])
             if let p = known.first {
                 emit("直连已知设备: \(uuid.uuidString.prefix(8))…")
-                peripheral = p
-                p.delegate = self
-                central.connect(p, options: nil)
+                beginPeripheralConnection(p)
                 return
             }
         }
@@ -579,9 +580,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         let connected = central.retrieveConnectedPeripherals(withServices: [serviceUUID, hidServiceUUID, batteryServiceUUID])
         if let p = connected.first(where: { matchesDeviceName($0.name) }) {
             emit("系统已连接: \(p.name ?? "?")")
-            peripheral = p
-            p.delegate = self
-            central.connect(p, options: nil)
+            beginPeripheralConnection(p)
             return
         }
 
@@ -590,6 +589,28 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         // Freshly paired WS3 keyboards may advertise only HID/Battery. Keep the
         // name whitelist in didDiscover; discovering is never approval evidence.
         central.scanForPeripherals(withServices: [serviceUUID, hidServiceUUID, batteryServiceUUID], options: nil)
+    }
+
+    private func beginPeripheralConnection(_ target: CBPeripheral) {
+        guard connectionLock.holdsLock,
+              let ticket = connectionAttempt.begin(target: target.identifier,
+                  retryAutomatically: lastUUID == target.identifier) else { return }
+        peripheral = target
+        target.delegate = self
+        central.connect(target, options: nil)
+        connectionDeadline?.cancel()
+        let deadline = DispatchWorkItem { [weak self] in
+            guard let self, self.peripheral === target, self.connectionAttempt.timeOut(ticket) else { return }
+            self.central.stopScan()
+            self.approvalChannelReady = false
+            self.emit(NSLocalizedString("连接等待超时", comment: ""))
+            if self.connectionAttempt.requiresManualRetry {
+                self.emit(NSLocalizedString("新设备连接等待超时，已取消待连接请求并暂停自动重试；请先在 macOS 蓝牙中完成配对，再点击连接设备。", comment: ""))
+            }
+            self.central.cancelPeripheralConnection(target)
+        }
+        connectionDeadline = deadline
+        DispatchQueue.main.asyncAfter(deadline: .now() + BLEConnectionAttemptGuard.deadlineSeconds, execute: deadline)
     }
 
     /// 发起连接前必须持有跨进程连接锁；被 GUI 持有时不 attach，15s 后重试（不刷日志）。
@@ -634,25 +655,30 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         if central.state == .poweredOn {
             emit(NSLocalizedString("蓝牙就绪", comment: ""))
             connectAutomatically()
+        } else if central.state == .poweredOff {
+            connectionDeadline?.cancel()
+            connectionDeadline = nil
+            connectionAttempt.reset()
         }
     }
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
                         advertisementData: [String: Any], rssi RSSI: NSNumber) {
         let name = peripheral.name ?? advertisementData[CBAdvertisementDataLocalNameKey] as? String ?? ""
-        guard matchesDeviceName(name) else { return }
+        guard matchesDeviceName(name), connectionAttempt.mayBegin, connectionLock.holdsLock else { return }
         central.stopScan()
         emit("发现: \(name)")
-        self.peripheral = peripheral
-        peripheral.delegate = self
-        central.connect(peripheral, options: nil)
+        beginPeripheralConnection(peripheral)
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        guard connectionLock.holdsLock, self.peripheral === peripheral else {
+        guard connectionLock.holdsLock, self.peripheral === peripheral,
+              connectionAttempt.connected(target: peripheral.identifier) else {
             central.cancelPeripheralConnection(peripheral)
             return
         }
+        connectionDeadline?.cancel()
+        connectionDeadline = nil
         connectionGeneration &+= 1
         approvalChannelReady = true
         statusWaiters = AgentStatusQueries()
@@ -663,6 +689,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         guard self.peripheral === peripheral else { return }
+        connectionDeadline?.cancel()
+        connectionDeadline = nil
+        connectionAttempt.ended(target: peripheral.identifier)
         connectionGeneration &+= 1
         stopStatusPolling()
         let pendingRead = pendingApprovalRead
@@ -682,10 +711,26 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         pendingStateReset = nil
         // 把 pending 的 waiter 全部通知为 nil（避免 hook 客户端一直等）
         statusWaiters.resolveAll(with: nil)
+        guard !connectionAttempt.requiresManualRetry else {
+            emit(NSLocalizedString("等待系统配对", comment: ""))
+            return
+        }
         emit("已断开，2s 后重连")
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
             self?.connectAutomatically()
         }
+    }
+
+    func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        guard self.peripheral === peripheral else { return }
+        connectionDeadline?.cancel()
+        connectionDeadline = nil
+        connectionAttempt.ended(target: peripheral.identifier)
+        self.peripheral = nil
+        approvalChannelReady = false
+        emit("连接失败: \(error?.localizedDescription ?? "未知")")
+        guard !connectionAttempt.requiresManualRetry else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in self?.connectAutomatically() }
     }
 
     // MARK: - CBPeripheralDelegate

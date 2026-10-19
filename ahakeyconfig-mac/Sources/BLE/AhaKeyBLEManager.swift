@@ -210,6 +210,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     )
     /// 记住上次连接的 UUID，用于快速重连
     private var lastPeripheralUUID: UUID?
+    private var connectionAttempt = BLEConnectionAttemptGuard()
+    private var connectionDeadlineTask: Task<Void, Never>?
     /// 为 true 时，本 App 不扫描、不连接、不响应掉线/轮询重连（物理键盘由 `ahakeyconfig-agent` 占用时由 AgentManager 置位）
     private var suppressAutomaticConnection = false
     /// Do not start a new CoreBluetooth connection before cancellation completes.
@@ -342,6 +344,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     /// 由「设备信息 / 顶栏」等**用户显式**发起连接时调用：取消「交给 Agent」时的抑制并尝试连接。
     func userInitiatedConnect() {
+        guard !awaitingPeripheralDisconnect, connectionAttempt.resumeByUser() else { return }
         ensureCentralManager()
         setSuppressedForAgentOwningKeyboard(false)
         connectAutomatically()
@@ -351,6 +354,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     func setSuppressedForAgentOwningKeyboard(_ suppress: Bool) {
         suppressAutomaticConnection = suppress
         if suppress {
+            connectionDeadlineTask?.cancel()
+            connectionDeadlineTask = nil
+            connectionAttempt.reset()
             // Stop scanning before yielding ownership. Retain the lock until CoreBluetooth
             // confirms cancellation of an active/pending connection.
             central?.stopScan()
@@ -404,6 +410,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             return
         }
         guard !awaitingPeripheralDisconnect else { return }
+        guard connectionAttempt.mayBegin else { return }
         guard central?.state == .poweredOn else {
             pendingConnect = true
             switch central?.state {
@@ -421,9 +428,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             let known = central?.retrievePeripherals(withIdentifiers: [uuid]) ?? []
             if let p = known.first {
                 appendLog("用已知 UUID 直连: \(p.name ?? uuid.uuidString)")
-                self.peripheral = p
-                p.delegate = self
-                central?.connect(p, options: nil)
+                beginPeripheralConnection(p)
                 bleConnectionStatus = "连接中…"
                 linkDiagnostic = .connecting
                 return
@@ -443,15 +448,39 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 appendLog("设备已被系统/语音链路连接但未广播配置服务，主动接管 0x7340: \(existing.name ?? "?")")
                 linkDiagnostic = .systemConnectedNoConfigLink
             }
-            self.peripheral = existing
-            existing.delegate = self
-            central?.connect(existing, options: nil)
+            beginPeripheralConnection(existing)
             bleConnectionStatus = "连接中…"
             return
         }
 
         // 3. 扫描
         startScan()
+    }
+
+    private func beginPeripheralConnection(_ target: CBPeripheral) {
+        guard acceptsConnectionCallbacks, !awaitingPeripheralDisconnect,
+              let ticket = connectionAttempt.begin(target: target.identifier,
+                  retryAutomatically: lastPeripheralUUID == target.identifier) else { return }
+        peripheral = target
+        target.delegate = self
+        central?.connect(target, options: nil)
+        connectionDeadlineTask?.cancel()
+        connectionDeadlineTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(nanoseconds: UInt64(BLEConnectionAttemptGuard.deadlineSeconds * 1_000_000_000)) }
+            catch { return }
+            guard let self, self.peripheral === target, self.connectionAttempt.timeOut(ticket) else { return }
+            self.central?.stopScan()
+            self.isScanning = false
+            self.autoReconnectTimer?.invalidate()
+            self.autoReconnectTimer = nil
+            self.awaitingPeripheralDisconnect = true
+            self.bleConnectionStatus = NSLocalizedString("连接等待超时", comment: "")
+            if self.connectionAttempt.requiresManualRetry {
+                self.linkDiagnostic = .pairingRequired
+                self.appendLog(NSLocalizedString("新设备连接等待超时，已取消待连接请求并暂停自动重试；请先在 macOS 蓝牙中完成配对，再点击连接设备。", comment: ""), isError: true)
+            }
+            self.central?.cancelPeripheralConnection(target)
+        }
     }
 
     /// 用更宽的标准 service 集合在「系统已连接」外设里查找 AhaKey 设备——即使它已停止广播 0x7340。
@@ -491,6 +520,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     func startScan() {
+        guard connectionAttempt.mayBegin, !awaitingPeripheralDisconnect else { return }
         guard central?.state == .poweredOn else {
             pendingConnect = true
             return
@@ -1345,7 +1375,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     /// 退避式自动重连轮询（阶段 3）：按 `reconnectBackoff` 的间隔逐级拉长（4s → 8s → 15s → 30s 封顶）。
     private func startAutoReconnectPolling() {
-        guard !suppressAutomaticConnection else { return }
+        guard !suppressAutomaticConnection, !connectionAttempt.requiresManualRetry else { return }
         scheduleAutoReconnectAttempt(after: reconnectBackoff.next())
     }
 
@@ -1359,7 +1389,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func performAutoReconnectAttempt() {
-        guard !suppressAutomaticConnection else { return }
+        guard !suppressAutomaticConnection, !connectionAttempt.requiresManualRetry else { return }
         // 条件不满足（扫描中/连接中/蓝牙未开）：不消耗退避步进，按当前间隔再试
         guard central?.state == .poweredOn,
               !isConnected, !isScanning,
@@ -1987,6 +2017,7 @@ enum LinkDiagnostic: Equatable {
     case ownedByAgent                  // BLE 交由 ahakeyconfig-agent 占用（本 App 不直连，属预期）
     case systemConnectedNoConfigLink   // 设备已被系统 / 语音(HID) 链路连接，但 0x7340 配置链路未建立
     case noDeviceFound                 // 未发现设备（未开机 / 不在范围 / 未配对）
+    case pairingRequired
 
     /// 顶栏 pill 用的极简副标题。
     var shortMessage: String {
@@ -1999,6 +2030,7 @@ enum LinkDiagnostic: Equatable {
         case .ownedByAgent: return "Agent 占用中"
         case .systemConnectedNoConfigLink: return "配置链路未连"
         case .noDeviceFound: return "未发现设备"
+        case .pairingRequired: return NSLocalizedString("等待系统配对", comment: "")
         }
     }
 
@@ -2014,6 +2046,7 @@ enum LinkDiagnostic: Equatable {
         case .ownedByAgent: return "蓝牙当前交由 ahakeyconfig-agent 占用，本 App 不直接连接（这是预期行为）。配置链路状态请参考 Agent；如需本 App 直连，请在设备信息里把「蓝牙连接」切回本 App。"
         case .systemConnectedNoConfigLink: return "设备已通过系统蓝牙（HID / 语音链路）连接，但 AhaKey 配置服务 0x7340 尚未建立。本 App 正在尝试主动接管该链路；若长时间无效，请在「系统设置 > 蓝牙」忽略此设备后重新配对。"
         case .noDeviceFound: return "未发现 AhaKey 设备。请确认设备已开机、处于蓝牙范围内并已与本机配对。"
+        case .pairingRequired: return NSLocalizedString("新设备连接未完成，已暂停自动重试。请先在 macOS 蓝牙设置完成配对，再点击连接设备。", comment: "")
         }
     }
 
@@ -2082,6 +2115,15 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
                 self.appendLog(NSLocalizedString("蓝牙已开启", comment: ""), category: .lifecycle)
                 self.connectAutomatically()
             case .poweredOff:
+                self.connectionDeadlineTask?.cancel()
+                self.connectionDeadlineTask = nil
+                self.connectionAttempt.reset()
+                self.awaitingPeripheralDisconnect = false
+                self.isScanning = false
+                self.peripheral = nil
+                self.stopRSSIPolling()
+                self.stopStatusPolling()
+                self.invalidateConnectionState()
                 self.refreshBluetoothAuthorization()
                 self.appendLog("蓝牙已关闭", isError: true)
                 self.bleConnectionStatus = "蓝牙关闭"
@@ -2108,15 +2150,14 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
         guard Self.matchesDeviceName(name) else { return }
 
         Task { @MainActor in
-            guard self.acceptsConnectionCallbacks else { return }
+            guard self.acceptsConnectionCallbacks, self.connectionAttempt.mayBegin,
+                  !self.awaitingPeripheralDisconnect else { return }
             self.appendLog("发现设备: \(name) RSSI=\(RSSI)")
             // 扫到目标设备广播：退避重置回 4s 并立即连接
             self.reconnectBackoff.reset()
             self.central?.stopScan()
             self.isScanning = false
-            self.peripheral = peripheral
-            peripheral.delegate = self
-            self.central?.connect(peripheral, options: nil)
+            self.beginPeripheralConnection(peripheral)
             self.bleConnectionStatus = "连接中…"
         }
     }
@@ -2124,10 +2165,13 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
     nonisolated func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         Task { @MainActor in
             guard self.acceptsConnectionCallbacks, !self.awaitingPeripheralDisconnect,
-                  self.peripheral === peripheral else {
+                  self.peripheral === peripheral,
+                  self.connectionAttempt.connected(target: peripheral.identifier) else {
                 central.cancelPeripheralConnection(peripheral)
                 return
             }
+            self.connectionDeadlineTask?.cancel()
+            self.connectionDeadlineTask = nil
             self.resetCommandSession()
             self.apply(.connected(name: peripheral.name, uuid: peripheral.identifier.uuidString))
             self.lastPeripheralUUID = peripheral.identifier
@@ -2154,12 +2198,20 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
     nonisolated func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         Task { @MainActor in
             guard self.peripheral === peripheral else { return }
+            self.connectionDeadlineTask?.cancel()
+            self.connectionDeadlineTask = nil
+            self.connectionAttempt.ended(target: peripheral.identifier)
             self.invalidateConnectionState()
             self.awaitingPeripheralDisconnect = false
             if self.peripheral === peripheral { self.peripheral = nil }
             if self.suppressAutomaticConnection {
                 self.peripheral = nil
                 self.connectionLock.release()
+                return
+            }
+            if self.connectionAttempt.requiresManualRetry {
+                self.bleConnectionStatus = NSLocalizedString("等待系统配对", comment: "")
+                self.linkDiagnostic = .pairingRequired
                 return
             }
             self.bleConnectionStatus = "连接失败"
@@ -2171,6 +2223,9 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
     nonisolated func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         Task { @MainActor in
             guard self.peripheral === peripheral else { return }
+            self.connectionDeadlineTask?.cancel()
+            self.connectionDeadlineTask = nil
+            self.connectionAttempt.ended(target: peripheral.identifier)
             self.awaitingPeripheralDisconnect = false
             let dropped = self.writeQueue.count
             let openBatches = self.writeBatches.count
@@ -2181,7 +2236,8 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
                 )
             }
             self.invalidateConnectionState()
-            self.bleConnectionStatus = NSLocalizedString("已断开", comment: "")
+            self.bleConnectionStatus = self.connectionAttempt.requiresManualRetry ? NSLocalizedString("等待系统配对", comment: "") : NSLocalizedString("已断开", comment: "")
+            if self.connectionAttempt.requiresManualRetry { self.linkDiagnostic = .pairingRequired }
             // 不清 peripheral 和 lastPeripheralUUID——用于直连重试
             self.peripheral = nil
             self.stopRSSIPolling()

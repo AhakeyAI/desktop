@@ -1448,6 +1448,15 @@ TRANSLATIONS.update({
 })
 
 
+# Bounded pending BLE connections and manual pairing recovery.
+TRANSLATIONS.update({
+    "连接等待超时": "Connection Attempt Timed Out",
+    "等待系统配对": "Waiting for System Pairing",
+    "新设备连接等待超时，已取消待连接请求并暂停自动重试；请先在 macOS 蓝牙中完成配对，再点击连接设备。": "The new device connection timed out. The pending request was cancelled and automatic retries paused. Pair in macOS Bluetooth first, then click Connect Device.",
+    "新设备连接未完成，已暂停自动重试。请先在 macOS 蓝牙设置完成配对，再点击连接设备。": "The new device connection did not complete. Automatic retries are paused. Pair in macOS Bluetooth settings first, then click Connect Device."
+})
+
+
 def escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
