@@ -367,3 +367,16 @@ CommandTurnQueue统一串行命令所有权。排队任务取消即移除，但�
 具体字节契约、候选证据与下一步D02/D03/D04见 docs/ahastudio/ws3-display-readback-contract-2026-10-19.md。不要继续把“CP2尚未实现”作为等待理由；可以推进mac接口，实机写入和最终发布仍需锁定固件及联调。当前只读UI、实际旧固件兼容、CoreBluetooth取消仍待真机。
 
 只读接口双路复核无阻塞项；按复核建议，旧OLED上传入口也检查配置忙碌，避免反向并发。全部248测试继续通过。最终候选需以本批最新源码重建，前一批22ddb7b仅含取消、不含新只读显示入口；不要混算两批真机结果。
+
+
+## 26. 同源候选真机只读与审批生命周期（2026-10-19）
+
+用户确认并行旧包测试结束后安装6094a27，发现英文更多菜单“键盘设置…”漏译；99b0c20补齐一个资源键，重建0.2.3/arm64 Developer ID签名候选并安装成功。最终GUI/Agent同在Applications，后台接管BLE，中文系统语言，画布未同步0。候选与原包、私有配置均已在本机隔离备份；没有推送用户配置或原始宏。
+
+六标签和中英文主要布局可用；待机60分钟、Claude模式、出厂两档绑定、Mode1/Key1 F18/Record、四Voice/onboarding3读回正常。显式载入画布提案不写入。既有CP4D设备的0x88通用ACK被正确提示不支持，没有伪造WS3值或开放写入。GUI编辑/Agent日常所有权交接成功，交接清除旧快照。
+
+实体手动/自动往返和Codex/Cursor Hook进程通过：手动Codex on-request且无allow、Cursor Shell ask；自动never且有归属lease、两者allow。自动时正常停止后台，all.paused持久化、socket关闭，有归属Codex值收回on-request；再启动恢复。原先无归属never保留的路径单独记录，不把它算恢复手动成功。Codex Hook真实UI移除/重装通过：仅暂停Codex，清除其6入口/归属自动值，Cursor仍自动；重装恢复6入口与客户端管理。原配置除目标审批字段外文本一致。直接Hook进程验证不能替代已经运行CLI/IDE缓存重载。
+
+短时30秒11点待机采样：GUI CPU累计+0.32秒，Agent+0.09秒，未见持续高占用；不覆盖长时/灯条/GIF/灵动岛矩阵。电量状态到85%，没有持续0，不代表全电量校准验收。没有改Voice/onboarding、写入显示资源或刷固件；当前仍App/F18，不把此前Consumer可行结论当作本轮Consumer实测。
+
+完整记录：docs/validation/connect-talk-hil-2026-10-19/README.md。剩余：真实在途取消/迟到帧/DATA故障与断电保持、其他三客户端移除重装/运行会话重载、新WS3固件完整快照及D02–D05、长时CPU/电量/灵动岛回归。PR#140目标connect&talk，未以本轮只读与部分生命周期测试宣称最终发布通过。
