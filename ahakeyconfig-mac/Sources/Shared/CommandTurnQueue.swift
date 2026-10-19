@@ -37,6 +37,9 @@ public final class CommandTurnQueue {
                 // Cancellation can race with a queue handoff. No transport write
                 // has happened yet, so returning this unconsumed turn is safe.
                 try Task.checkCancellation()
+                guard isCurrent(granted) else {
+                    throw isInvalidated ? Failure.invalidated : Failure.reset
+                }
                 return granted
             } catch {
                 if active == ticket { release(ticket) }

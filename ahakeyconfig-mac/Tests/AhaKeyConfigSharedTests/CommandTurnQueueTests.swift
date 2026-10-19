@@ -92,6 +92,24 @@ final class CommandTurnQueueTests: XCTestCase {
         XCTAssertEqual(queue.waitingCount, 0)
     }
     @MainActor
+    func testRevocationAfterHandoffCannotReturnAnInvalidTicket() async throws {
+        for invalidate in [true, false] {
+            let queue = CommandTurnQueue()
+            let first = try await queue.acquire()
+            let waiting = Task { try await queue.acquire() }
+            await waitForQueue(queue, count: 1)
+            queue.release(first)
+            // Invalidate/reset before the granted continuation runs again.
+            if invalidate { queue.invalidate() } else { queue.reset(generation: 8) }
+            do { _ = try await waiting.value; XCTFail("revoked ticket escaped acquire") }
+            catch { XCTAssertEqual(error as? CommandTurnQueue.Failure, invalidate ? .invalidated : .reset) }
+            queue.reset(generation: 9)
+            let next = try await queue.acquire()
+            XCTAssertTrue(queue.isCurrent(next))
+            queue.release(next)
+        }
+    }
+    @MainActor
     func testCancellationRacingWithHandoffReturnsUnconsumedTurn() async throws {
         let queue = CommandTurnQueue()
         let first = try await queue.acquire()

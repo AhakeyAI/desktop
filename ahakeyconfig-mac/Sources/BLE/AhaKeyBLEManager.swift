@@ -1618,7 +1618,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             throw OLEDUploadError.unsupportedReadOnlyProfile
         }
         try Task.checkCancellation()
-        guard generation == commandSessionGeneration, commandChar != nil, peripheral != nil else {
+        guard commandTurns.isCurrent(ticket), generation == commandSessionGeneration,
+              !awaitingPeripheralDisconnect, commandChar != nil, peripheral != nil else {
             throw OLEDUploadError.channelNotReady
         }
         nextCommandRequestID &+= 1
