@@ -1,4 +1,5 @@
 import Foundation
+import AhaKeyConfigShared
 
 enum ClaudeHookHandler {
     static func handlePreToolUse() {
@@ -28,8 +29,8 @@ enum ClaudeHookHandler {
         )
     }
 
-    static func preToolUseOutput(reply: [String: Any]?) -> [String: Any]? {
-        guard effectiveSwitchState(reply) == 0 else { return nil }
+    static func preToolUseOutput(reply: [String: Any]?, controlDirectory: URL = ApprovalAutomationControl.productionDirectory) -> [String: Any]? {
+        guard effectiveSwitchState(reply, controlDirectory: controlDirectory) == 0 else { return nil }
         return [
             "hookSpecificOutput": [
                 "hookEventName": "PreToolUse",
@@ -38,8 +39,8 @@ enum ClaudeHookHandler {
         ]
     }
 
-    private static func effectiveSwitchState(_ reply: [String: Any]?) -> Int? {
-        HookSupport.approvalSwitchState(reply, client: .claude)
+    private static func effectiveSwitchState(_ reply: [String: Any]?, controlDirectory: URL = ApprovalAutomationControl.productionDirectory) -> Int? {
+        HookSupport.approvalSwitchState(reply, client: .claude, controlDirectory: controlDirectory)
     }
 
     static func handlePermissionRequest() {
@@ -83,11 +84,11 @@ enum ClaudeHookHandler {
         )
     }
 
-    static func permissionRequestOutput(reply: [String: Any]?) -> [String: Any] {
+    static func permissionRequestOutput(reply: [String: Any]?, controlDirectory: URL = ApprovalAutomationControl.productionDirectory) -> [String: Any] {
         [
             "hookSpecificOutput": [
                 "hookEventName": "PermissionRequest",
-                "decision": ["behavior": effectiveSwitchState(reply) == 0 ? "allow" : "ask"],
+                "decision": ["behavior": effectiveSwitchState(reply, controlDirectory: controlDirectory) == 0 ? "allow" : "ask"],
             ],
         ]
     }

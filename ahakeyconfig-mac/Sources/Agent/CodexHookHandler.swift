@@ -17,6 +17,7 @@ enum CodexHookHandler {
         var writeStdout: (String) -> Void
         /// 唯一 policy seam：值为「拨杆是否自动档」。
         var policySink: (Bool) -> Void
+        var approvalControlDirectory: URL = ApprovalAutomationControl.productionDirectory
 
         static let production = Dependencies(
             readStdin: { HookSupport.readAllStdinSilently() },
@@ -79,7 +80,7 @@ enum CodexHookHandler {
         // 必须单独发 `approval_status` 验证实时状态与绑定。
         if stateValue == 4 {
             let statusReply = dependencies.sendRequest(["cmd": "approval_status"], HookSupport.stateRequestTimeout)
-            syncPolicy(switchState: HookSupport.approvalSwitchState(statusReply, client: .codex))
+            syncPolicy(switchState: HookSupport.approvalSwitchState(statusReply, client: .codex, controlDirectory: dependencies.approvalControlDirectory))
         }
 
         dependencies.appendHookLog(
@@ -99,7 +100,7 @@ enum CodexHookHandler {
         let ctx = dependencies.parseContext(stdinData, "Codex")
         let request: [String: Any] = ["cmd": "permission", "value": Int(HookSupport.permissionLedValue)]
         let reply = dependencies.sendRequest(request, HookSupport.permissionRequestTimeout)
-        let switchState = HookSupport.approvalSwitchState(reply, client: .codex)
+        let switchState = HookSupport.approvalSwitchState(reply, client: .codex, controlDirectory: dependencies.approvalControlDirectory)
         let isAuto = switchState == 0
 
         syncPolicy(switchState: switchState)
