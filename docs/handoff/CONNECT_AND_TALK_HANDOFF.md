@@ -392,3 +392,15 @@ CommandTurnQueue统一串行命令所有权。排队任务取消即移除，但�
 发现App/Agent扫描只7340，与新固件实际1812/180F广播不符；df6d18b扩扫描及Agent connected lookup，保留设备名和审批验证。0.2.3/arm64源df6d18b已签名安装运行，但连接仍待核实，不能把该补丁称为系统配对根因修复。三条待验证方向为USB/无线状态差异、旧配对/身份变化、固件就绪问题，不以未实现CP1.5直接归因。
 
 最新现场和后续步骤见docs/validation/connect-talk-hil-2026-10-19/WS3_NEW_FIRMWARE.md。当前配置写入暂停；下一步先完成新505C系统配对/蓝牙和完整0x88只读，再做D03临时预览/单项保存/恢复/断电测试。真实取消、D02呈现、D04/D05资源及最终发布仍未完成。
+
+## 28. 505C配对异常与pending连接隔离（2026-10-19）
+
+用户澄清USB OK是屏幕提示，Studio未连接；拔USB正常无线开机后，系统附近设备505C悬停显示断开连接，但尝试连接失败。该组合不等于HID已配对。复查App内存诊断证实df6在12:42及14:34已发现505C，扫描修复通过发现阶段；之前仅凭主界面未连接不能推断仍没发现设备。
+
+只读bluetoothd记录14:55:19–14:58:17同一Studio目标约215次connect及215次encryptionStatusChangedCb status4803/isPairing0，IORegistry无AhaKey HID节点。退出App/Agent后连续120秒新增同类记录均0。原始日志只存本机私有备份；不将4803未经核对就解释成特定协议错误。Apple明确pending connect不会自动超时，故原客户端未设截止的请求可持续触发底层尝试，普通断开回调退避无法约束它。
+
+7a329a8接入App/Agent共享连接attempt guard：15秒deadline显式cancel，一次一请求，取消完成前不重发，迟到connect/旧deadline不得发布状态；新目标超时/早期失败暂停自动重试，由用户恢复，已在本进程建立过BLE连接的目标保留后台重连。该标记不代表HID就绪、不参与审批放行。用户系统配对仍未恢复的根因保持未确定，不宣称已完成HID-first。
+
+复核各发现一个P2并在ed64166修复：App关蓝牙时若正交接Agent须当场释放retained lock；Agent关蓝牙须清旧事实/特征/代次/waiters。新增真实flock+生产powerOff入口回归修前2断言失败、修后通过，合计267测试通过，复核确认无新增阻塞项。新候选尚须15秒取消、错误计数、用户恢复和旧设备重连真机，App当前保持关闭，避免干扰“App/Agent退出时只做一次系统配对”的待反馈对照。
+
+完整证据及下一步见docs/validation/connect-talk-hil-2026-10-19/BLUETOOTH_CONNECTION_DIAGNOSIS.md。必要的后续仅限目标配对清理，不进行整份EEPROM擦除或盲回放键位。D03与资源测试仍等HID和配置链路恢复，草稿PR#141继续目标connect&talk，不自动合并。
