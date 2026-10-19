@@ -380,3 +380,15 @@ CommandTurnQueue统一串行命令所有权。排队任务取消即移除，但�
 短时30秒11点待机采样：GUI CPU累计+0.32秒，Agent+0.09秒，未见持续高占用；不覆盖长时/灯条/GIF/灵动岛矩阵。电量状态到85%，没有持续0，不代表全电量校准验收。没有改Voice/onboarding、写入显示资源或刷固件；当前仍App/F18，不把此前Consumer可行结论当作本轮Consumer实测。
 
 完整记录：docs/validation/connect-talk-hil-2026-10-19/README.md。剩余：真实在途取消/迟到帧/DATA故障与断电保持、其他三客户端移除重装/运行会话重载、新WS3固件完整快照及D02–D05、长时CPU/电量/灵动岛回归。PR#140目标connect&talk，未以本轮只读与部分生命周期测试宣称最终发布通过。
+
+## 27. 合并#140、D03与新固件刷写后连接排查（2026-10-19）
+
+用户要求CI通过后合入connect&talk再继续。#140最终5b764cb全CI成功，已合并89eecab。新分支codex/connect-talk-ws3-display-controls、草稿PR#141继续D03：同代完整0x88后才窄授权89/8E，10秒临时预览/停止、亮度与单模式状态灯效保存，基线冲突保护、ACK后读回、未知灯效只读、取消后不声称回滚。素材/98仍关闭，不改Consumer/F5决定。契约见docs/ahastudio/ws3-display-controls-contract-2026-10-19.md。
+
+完整回归遇到本机all.paused影响既有Hook测试的7个断言失败，da93952注入临时控制目录并保留生产默认；新增fixture暂停优先测试。D03加10项测试，最终260项全通过。89eecab..1b16fec及后续发现流程变更均已做Standards/Spec独立复核，无阻塞项。
+
+用户明确同意刷memory-fix候选；完成16键等私有备份、旧CP4D恢复HEX与原包保留。换数据线/扩展坞端口后识别CH582，刷入SHA256 ffb9208f79084aa24a832ad2562a14dbbea5df4d114a135cb5b2eb98d4e05539，Verify OK；未主动擦除Data EEPROM或改CFG。用户随后报告重连中、无线失败、USB有连接提示。系统蓝牙附近设备出现AhaKey505C（原515C），还未确认配对/配置连接。刷写成功不等于新固件UAT成功，Voice/原配置是否保留尚未读回。
+
+发现App/Agent扫描只7340，与新固件实际1812/180F广播不符；df6d18b扩扫描及Agent connected lookup，保留设备名和审批验证。0.2.3/arm64源df6d18b已签名安装运行，但连接仍待核实，不能把该补丁称为系统配对根因修复。三条待验证方向为USB/无线状态差异、旧配对/身份变化、固件就绪问题，不以未实现CP1.5直接归因。
+
+最新现场和后续步骤见docs/validation/connect-talk-hil-2026-10-19/WS3_NEW_FIRMWARE.md。当前配置写入暂停；下一步先完成新505C系统配对/蓝牙和完整0x88只读，再做D03临时预览/单项保存/恢复/断电测试。真实取消、D02呈现、D04/D05资源及最终发布仍未完成。
