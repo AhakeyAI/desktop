@@ -404,3 +404,9 @@ CommandTurnQueue统一串行命令所有权。排队任务取消即移除，但�
 复核各发现一个P2并在ed64166修复：App关蓝牙时若正交接Agent须当场释放retained lock；Agent关蓝牙须清旧事实/特征/代次/waiters。新增真实flock+生产powerOff入口回归修前2断言失败、修后通过，合计267测试通过，复核确认无新增阻塞项。新候选尚须15秒取消、错误计数、用户恢复和旧设备重连真机，App当前保持关闭，避免干扰“App/Agent退出时只做一次系统配对”的待反馈对照。
 
 完整证据及下一步见docs/validation/connect-talk-hil-2026-10-19/BLUETOOTH_CONNECTION_DIAGNOSIS.md。必要的后续仅限目标配对清理，不进行整份EEPROM擦除或盲回放键位。D03与资源测试仍等HID和配置链路恢复，草稿PR#141继续目标connect&talk，不自动合并。
+
+### 第28节后续：Forget后恢复及D03首批真机闭环
+
+用户确认App关闭系统仍失败；当前固件Forget组合（第4大键+模式/电源约2秒）清绑定并重配后恢复。IORegistry确认505C的BLE键盘HID节点，ed64166直接配置连接成功。0x88完整亮度/19资源读回通过，原35%、有效自定义资源0/19；临时50%预览由用户确认约10秒恢复，读回保存值35%。明确保存50%、Claude/通知原effect10改effect5并读回；用户正常重启后自动重连，重新查询确认保持。现已恢复35%/effect10并读回，无待恢复设置。
+
+实际0x88在途取消测试通过，快照/能力撤回并禁写，重连后重新读；四Voice/onboarding3/F18保持。交还同源Agent后fresh approval_status确认实体auto及factory binding，手动档对照已请求用户尚待反馈，不能先标通过。最近连接日志短采样无4803；30秒CPU累计GUI+0.26秒/Agent+0.07秒，不替代长时回归。截图与精确边界见docs/validation/connect-talk-hil-2026-10-19/WS3_ACCEPTANCE_CHECKPOINT.md。原始键位和日志仍仅本机私有备份。PR141保持检查点范围，D02/资源与全故障矩阵仍待完成。
