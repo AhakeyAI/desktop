@@ -59,29 +59,36 @@ public enum ConfirmedOrdinaryKeySetting {
         let descriptionChanged = baseline.description != target.description
         guard !actionChanged || OrdinaryKeyConfiguration.actionRequest(target) != nil,
               !descriptionChanged || OrdinaryKeyConfiguration.descriptionRequest(target) != nil else { throw Failure.invalidValue }
+        try Task.checkCancellation()
         try checkSession()
         let current = try await read()
+        try Task.checkCancellation()
         try checkSession()
         guard current == baseline else { throw Failure.changedSinceRead }
         if !actionChanged && !descriptionChanged { return current }
         if actionChanged && target.keyIndex == 0 {
             let state = try await voiceState()
+            try Task.checkCancellation()
             try checkSession()
             guard state == 3 || state == 4 else { throw Failure.voicePresetOwnsKey }
         }
         if actionChanged {
             try await write(OrdinaryKeyConfiguration.actionRequest(target)!)
+            try Task.checkCancellation()
             try checkSession()
         }
         if descriptionChanged {
             try await write(OrdinaryKeyConfiguration.descriptionRequest(target)!)
+            try Task.checkCancellation()
             try checkSession()
         }
         // Existing firmware persists its configuration with 0x04; ACK is not
         // EEPROM verification. A failure may leave changed RAM; never claim rollback.
         try await write(Data([0xAA, 0xBB, 0x04, 0xCC, 0xDD]))
+        try Task.checkCancellation()
         try checkSession()
         let actual = try await read()
+        try Task.checkCancellation()
         try checkSession()
         guard actual == target else { throw Failure.mismatch }
         return actual

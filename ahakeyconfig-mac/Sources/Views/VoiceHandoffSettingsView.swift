@@ -67,7 +67,7 @@ struct VoiceHandoffSettingsView: View {
             do {
                 baseline = try await bleManager.readVoiceHandoffForEditing()
                 generation = bleManager.configurationSnapshot.generation
-            } catch { baseline = nil; message = error.localizedDescription }
+            } catch { baseline = nil; message = KeyboardSettingsFeedback.message(for: error) }
         }
     }
     private func apply() {
@@ -82,7 +82,7 @@ struct VoiceHandoffSettingsView: View {
                 NotificationCenter.default.post(name: .ahaKeyVoiceDesktopConfirmed, object: nil)
                 message = NSLocalizedString("键盘接管和四个触发绑定已读回确认。请在文本框短按开始、再次短按停止，验证实际语音输入；读回不能证明系统已转写。", comment: "")
             } catch {
-                message = String(format: NSLocalizedString("切换未确认：%@；App 路由或键盘可能已有部分变更，请重新读取核对。", comment: ""), String(describing: error.localizedDescription))
+                message = String(format: NSLocalizedString("切换未确认：%@；App 路由或键盘可能已有部分变更，请重新读取核对。", comment: ""), String(describing: KeyboardSettingsFeedback.message(for: error)))
             }
         }
     }

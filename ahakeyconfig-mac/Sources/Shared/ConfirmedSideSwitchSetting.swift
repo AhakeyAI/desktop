@@ -101,14 +101,18 @@ public enum ConfirmedSideSwitchSetting {
                            checkSession: () throws -> Void, read: () async throws -> SideSwitchReadback,
                            write: (Data) async throws -> Void) async throws -> SideSwitchReadback {
         guard let request = SideSwitchBindingConfiguration.request(positions: target) else { throw Failure.invalidBindings }
+        try Task.checkCancellation()
         try checkSession()
         let current = try await read()
+        try Task.checkCancellation()
         try checkSession()
         guard current.positions == baseline else { throw Failure.changedSinceRead }
         if current.positions == target { return current }
         try await write(request)
+        try Task.checkCancellation()
         try checkSession()
         let actual = try await read()
+        try Task.checkCancellation()
         try checkSession()
         guard actual.positions == target else { throw Failure.mismatch }
         return actual

@@ -41,9 +41,11 @@ public enum ConfirmedVoiceHandoff {
                            checkHostReady: () throws -> Void, read: () async throws -> VoiceHandoffSnapshot,
                            prepareHost: () throws -> Void, write: (Data) async throws -> Void) async throws -> VoiceHandoffSnapshot {
         guard baseline.isValid, baseline.desktopBindings.allSatisfy(OrdinaryKeyConfiguration.valid) else { throw Failure.invalidSnapshot }
+        try Task.checkCancellation()
         try checkSession()
         try checkHostReady()
         let current = try await read()
+        try Task.checkCancellation()
         try checkSession()
         guard current == baseline else { throw Failure.changedSinceRead }
         try checkHostReady()
@@ -51,6 +53,7 @@ public enum ConfirmedVoiceHandoff {
         // If a subsequent device operation fails, this explicitly selected host
         // route remains prepared; do not claim an automatic rollback.
         try prepareHost()
+        try Task.checkCancellation()
         try checkSession()
         let targets = baseline.desktopBindings
         let changed = zip(current.keys, targets).filter { $0 != $1 }.map { $1 }
@@ -58,20 +61,25 @@ public enum ConfirmedVoiceHandoff {
             for key in changed {
                 guard let request = OrdinaryKeyConfiguration.actionRequest(key) else { throw Failure.invalidSnapshot }
                 try await write(request)
+                try Task.checkCancellation()
                 try checkSession()
             }
             try await write(Data([0xAA, 0xBB, 0x04, 0xCC, 0xDD]))
+            try Task.checkCancellation()
             try checkSession()
         }
         let staged = changed.isEmpty ? current : try await read()
+        try Task.checkCancellation()
         try checkSession()
         guard staged.keys == targets else { throw Failure.bindingsMismatch }
         guard staged.onboardingState == baseline.onboardingState else { throw Failure.changedSinceRead }
         if staged.onboardingState == 3 { return staged }
         try checkHostReady()
         try await write(suppressRequest)
+        try Task.checkCancellation()
         try checkSession()
         let actual = try await read()
+        try Task.checkCancellation()
         try checkSession()
         guard actual.onboardingState == 3 else { throw Failure.ownershipMismatch }
         guard actual.keys == targets else { throw Failure.bindingsMismatch }

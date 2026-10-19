@@ -23,14 +23,18 @@ public enum ConfirmedModeChange {
         writeMode: (UInt8) async throws -> Void
     ) async throws -> UInt8 {
         guard target < 4 else { throw Failure.invalidMode }
+        try Task.checkCancellation()
         try checkSession()
         let current = try await readMode()
+        try Task.checkCancellation()
         try checkSession()
         guard current < 4 else { throw Failure.invalidMode }
         if current == target { return current }
         try await writeMode(target)
+        try Task.checkCancellation()
         try checkSession()
         let actual = try await readMode()
+        try Task.checkCancellation()
         try checkSession()
         guard actual < 4 else { throw Failure.invalidMode }
         guard actual == target else { throw Failure.mismatch(expected: target, actual: actual) }

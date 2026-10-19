@@ -39,7 +39,7 @@ struct SideSwitchSettingsView: View {
                             }
                             baseline = actual
                             generation = bleManager.configurationSnapshot.generation
-                        } catch { message = error.localizedDescription }
+                        } catch { message = KeyboardSettingsFeedback.message(for: error) }
                     }
                 }
                 Button(bleManager.isSettingSideSwitch ? NSLocalizedString("应用中…", comment: "") : NSLocalizedString("应用两档绑定", comment: "")) {
@@ -51,7 +51,7 @@ struct SideSwitchSettingsView: View {
                             self.baseline = actual
                             self.draft = SideSwitchBindingDraft(readback: actual)
                             message = NSLocalizedString("两档绑定已读回一致；断电后的保存结果仍需重启验证。", comment: "")
-                        } catch { message = String(format: NSLocalizedString("绑定未确认：%@；待应用设置已保留。", comment: ""), String(describing: error.localizedDescription)) }
+                        } catch { message = String(format: NSLocalizedString("绑定未确认：%@；待应用设置已保留。", comment: ""), String(describing: KeyboardSettingsFeedback.message(for: error))) }
                     }
                 }
                 .disabled(!canApply)

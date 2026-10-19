@@ -127,7 +127,7 @@ struct OrdinaryKeySettingsView: View {
                 let actual = try await bleManager.readOrdinaryKeyForEditing(mode: mode, index: index)
                 guard actual.mode == mode, actual.keyIndex == index else { return }
                 if baseline == nil || !sameSession { load(actual) } else { baseline = actual }
-            } catch { message = error.localizedDescription }
+            } catch { message = KeyboardSettingsFeedback.message(for: error) }
         }
     }
     private func applyKey() {
@@ -139,7 +139,7 @@ struct OrdinaryKeySettingsView: View {
                 load(actual)
                 NotificationCenter.default.post(name: .ahaKeyOrdinaryKeyConfirmed, object: actual)
                 message = NSLocalizedString("此键改动已保存并读回一致；断电保持性尚未验证。", comment: "")
-            } catch { message = String(format: NSLocalizedString("设置未确认：%@；待应用改动已保留。", comment: ""), String(describing: error.localizedDescription)) }
+            } catch { message = String(format: NSLocalizedString("设置未确认：%@；待应用改动已保留。", comment: ""), String(describing: KeyboardSettingsFeedback.message(for: error))) }
         }
     }
 }

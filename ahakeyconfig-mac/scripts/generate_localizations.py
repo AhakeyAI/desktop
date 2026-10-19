@@ -1397,6 +1397,13 @@ TRANSLATIONS.update({
     "请先完成 App 语音权限设置，并结束当前录音。": "Complete App voice permissions and finish the current recording first."
 })
 
+TRANSLATIONS.update({
+    "\u53d6\u6d88\u5f53\u524d\u64cd\u4f5c": "Cancel Current Operation",
+    "\u53d6\u6d88\u540e\u9700\u91cd\u65b0\u8fde\u63a5\u5e76\u8bfb\u53d6\uff1b\u5df2\u53d1\u51fa\u7684\u66f4\u6539\u53ef\u80fd\u5df2\u751f\u6548\uff0c\u8349\u7a3f\u4ecd\u4fdd\u7559\u3002": "Reconnect and read again after cancelling. Changes already sent may have taken effect; your draft is retained."
+})
+
+TRANSLATIONS.update({"\u64cd\u4f5c\u5df2\u53d6\u6d88\uff1b\u5df2\u53d1\u51fa\u7684\u66f4\u6539\u53ef\u80fd\u5df2\u751f\u6548\uff0c\u8bf7\u91cd\u65b0\u8fde\u63a5\u5e76\u8bfb\u53d6\u3002": "Operation cancelled. Changes already sent may have taken effect; reconnect and read again."})
+
 ZH_OVERRIDES = {
     "Breathing": "呼吸",
     "Close": "关闭",

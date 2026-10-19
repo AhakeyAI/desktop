@@ -23,14 +23,18 @@ public enum ConfirmedStandbySetting {
                            read: () async throws -> UInt16,
                            write: (UInt16) async throws -> Void) async throws -> UInt16 {
         guard supportedMinutes.contains(target) else { throw Failure.invalidValue }
+        try Task.checkCancellation()
         try checkSession()
         let current = try await read()
+        try Task.checkCancellation()
         try checkSession()
         guard supportedMinutes.contains(current) else { throw Failure.invalidValue }
         if current == target { return current }
         try await write(target)
+        try Task.checkCancellation()
         try checkSession()
         let actual = try await read()
+        try Task.checkCancellation()
         try checkSession()
         guard supportedMinutes.contains(actual) else { throw Failure.invalidValue }
         guard actual == target else { throw Failure.mismatch(expected: target, actual: actual) }

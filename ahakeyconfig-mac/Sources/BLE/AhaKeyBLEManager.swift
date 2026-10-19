@@ -236,11 +236,11 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private var pendingCommandResponse: PendingCommandResponse?
-    private var commandTurnWaiters: [CheckedContinuation<UInt64, Error>] = []
-    private var commandTurnOccupied = false
+    private let commandTurns = CommandTurnQueue()
+    private var commandTurnOccupied: Bool { commandTurns.isOccupied }
     private var commandSessionGeneration: UInt64 = 0
     private var nextCommandRequestID: UInt64 = 0
-    private var commandChannelUnsynchronized = false
+    private var commandChannelUnsynchronized: Bool { commandTurns.isInvalidated }
     private var hasValidStatusReadback = false
     private struct PendingDataWrite {
         let id: UInt64
@@ -1485,32 +1485,15 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
     }
 
-    private func acquireCommandTurn() async throws -> UInt64 {
-        if commandChannelUnsynchronized { throw OLEDUploadError.responseChannelUnsynchronized }
-        if commandTurnOccupied {
-            return try await withCheckedThrowingContinuation { continuation in
-                commandTurnWaiters.append(continuation)
-            }
-        }
-        commandTurnOccupied = true
-        return commandSessionGeneration
-    }
-
-    private func releaseCommandTurn(_ generation: UInt64) {
-        guard generation == commandSessionGeneration else { return }
-        if commandChannelUnsynchronized {
-            let waiters = commandTurnWaiters
-            commandTurnWaiters.removeAll()
-            waiters.forEach { $0.resume(throwing: OLEDUploadError.responseChannelUnsynchronized) }
-        } else if !commandTurnWaiters.isEmpty {
-            commandTurnWaiters.removeFirst().resume(returning: generation)
-            return
-        }
-        commandTurnOccupied = false
+    private func acquireCommandTurn() async throws -> CommandTurnQueue.Ticket {
+        do { return try await commandTurns.acquire() }
+        catch CommandTurnQueue.Failure.invalidated { throw OLEDUploadError.responseChannelUnsynchronized }
+        catch CommandTurnQueue.Failure.reset { throw OLEDUploadError.channelNotReady }
     }
 
     private func resetCommandSession() {
         commandSessionGeneration &+= 1
+        commandTurns.reset(generation: commandSessionGeneration)
         hasValidStatusReadback = false
         firmwareCapabilityProfile = nil
         configurationSnapshot.reset(generation: commandSessionGeneration)
@@ -1524,11 +1507,6 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             pending.timeoutTask.cancel()
             pending.continuation.resume(throwing: OLEDUploadError.channelNotReady)
         }
-        let waiters = commandTurnWaiters
-        commandTurnWaiters.removeAll()
-        waiters.forEach { $0.resume(throwing: OLEDUploadError.channelNotReady) }
-        commandTurnOccupied = false
-        commandChannelUnsynchronized = false
     }
 
     /// Invalidate device facts as soon as ownership is yielded, before the
@@ -1561,13 +1539,53 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         pendingCommandResponse = nil
         // ACKs have no transaction ID. A late reply could otherwise complete
         // a later request for the same command, so writes wait for reconnect.
-        commandChannelUnsynchronized = true
+        invalidateCommandResponseChannel()
         pending.continuation.resume(throwing: OLEDUploadError.timeout(command: pending.command))
-        appendLog("设备响应超时，断开配置链路以清除迟到回包", isError: true)
+    }
+
+    /// Cancelling an already-sent command is not a rollback. Its untagged ACK
+    /// must not be consumed by another operation on this connection.
+    func cancelConfigurationOperation() {
+        guard isConfigurationOperationInProgress else { return }
+        if let pending = pendingCommandResponse {
+            cancelCommandResponse(id: pending.id, generation: pending.generation)
+        } else if let pending = pendingDataWrite {
+            cancelDataWrite(id: pending.id, generation: pending.generation)
+        } else { invalidateCommandResponseChannel() }
+    }
+
+    private func invalidateCommandResponseChannel() {
+        commandTurns.invalidate()
+        // A poisoned channel also terminates any companion data/control request.
+        // The initiating caller already removed its own pending entry and keeps
+        // its original cancellation/timeout error.
+        if let pending = pendingCommandResponse {
+            pendingCommandResponse = nil
+            pending.timeoutTask.cancel()
+            pending.continuation.resume(throwing: OLEDUploadError.responseChannelUnsynchronized)
+        }
+        if let pending = pendingDataWrite {
+            pendingDataWrite = nil
+            pending.timeoutTask.cancel()
+            pending.continuation.resume(throwing: OLEDUploadError.responseChannelUnsynchronized)
+        }
+        hasValidStatusReadback = false
+        firmwareCapabilityProfile = nil
+        configurationSnapshot.reset(generation: commandSessionGeneration)
+        appendLog("Configuration interrupted; reconnect and read back before continuing.", isError: true)
         if let peripheral {
             awaitingPeripheralDisconnect = true
             central?.cancelPeripheralConnection(peripheral)
         }
+    }
+
+    private func cancelCommandResponse(id: UInt64, generation: UInt64) {
+        guard let pending = pendingCommandResponse,
+              pending.id == id, pending.generation == generation else { return }
+        pendingCommandResponse = nil
+        pending.timeoutTask.cancel()
+        invalidateCommandResponseChannel()
+        pending.continuation.resume(throwing: CancellationError())
     }
 
     private func completeCommandResponse(_ frame: Data) {
@@ -1593,8 +1611,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         _ data: Data, expectedCommand: UInt8, timeoutSeconds: Double = 5.0,
         allowDeviceError: Bool = false, confirmedWrite: ConfigurationCommandPolicy.ConfirmedWrite = .none
     ) async throws -> CommandResponse {
-        let generation = try await acquireCommandTurn()
-        defer { releaseCommandTurn(generation) }
+        let ticket = try await acquireCommandTurn()
+        let generation = ticket.generation
+        defer { commandTurns.release(ticket) }
         guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite) else {
             throw OLEDUploadError.unsupportedReadOnlyProfile
         }
@@ -1604,19 +1623,27 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
         nextCommandRequestID &+= 1
         let id = nextCommandRequestID
-        let result: CommandResponse = try await withCheckedThrowingContinuation { continuation in
-            let timeoutTask = Task { [weak self] in
-                do {
-                    try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
-                } catch { return }
-                self?.timeoutCommandResponse(id: id, generation: generation)
+        let result: CommandResponse = try await withTaskCancellationHandler(operation: {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                let timeoutTask = Task { [weak self] in
+                    do {
+                        try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
+                    } catch { return }
+                    self?.timeoutCommandResponse(id: id, generation: generation)
+                }
+                pendingCommandResponse = PendingCommandResponse(
+                    id: id, generation: generation, request: data, command: expectedCommand,
+                    continuation: continuation, timeoutTask: timeoutTask
+                )
+                writeCommand(data, confirmedWrite: confirmedWrite)
             }
-            pendingCommandResponse = PendingCommandResponse(
-                id: id, generation: generation, request: data, command: expectedCommand,
-                continuation: continuation, timeoutTask: timeoutTask
-            )
-            writeCommand(data, confirmedWrite: confirmedWrite)
-        }
+        }, onCancel: { [weak self] in
+            Task { @MainActor in self?.cancelCommandResponse(id: id, generation: generation) }
+        })
+        try Task.checkCancellation()
+        guard commandTurns.isCurrent(ticket), generation == commandSessionGeneration,
+              !awaitingPeripheralDisconnect else { throw OLEDUploadError.channelNotReady }
         guard allowDeviceError || result.status == 0 else {
             throw OLEDUploadError.deviceRejected(command: expectedCommand, status: result.status)
         }
@@ -1637,40 +1664,56 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         nextDataWriteID &+= 1
         let id = nextDataWriteID
         let generation = commandSessionGeneration
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            let timeoutTask = Task { [weak self] in
-                do {
-                    try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
-                } catch { return }
-                self?.timeoutDataWrite(id: id, generation: generation)
-            }
-            pendingDataWrite = PendingDataWrite(
-                id: id, generation: generation, continuation: continuation, timeoutTask: timeoutTask
-            )
-            let negotiatedLength = max(1, peripheral.maximumWriteValueLength(for: type))
-            let maxPacketLength = min(negotiatedLength, AhaKeyCommand.oledPacketSize)
-            appendLog("→ DATA \(data.count)B, 分片 \(maxPacketLength)B (协商上限 \(negotiatedLength)B)", category: .verbose)
-            Task { [weak self] in
-                guard let self else { return }
-                for offset in stride(from: 0, to: data.count, by: maxPacketLength) {
-                    guard self.peripheral === peripheral,
-                          self.pendingDataWrite?.id == id else { return }
-                    let end = min(offset + maxPacketLength, data.count)
-                    peripheral.writeValue(Data(data[offset ..< end]), for: characteristic, type: type)
-                    do { try await Task.sleep(nanoseconds: 12_000_000) } catch { return }
+        try await withTaskCancellationHandler(operation: {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                let timeoutTask = Task { [weak self] in
+                    do {
+                        try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
+                    } catch { return }
+                    self?.timeoutDataWrite(id: id, generation: generation)
+                }
+                pendingDataWrite = PendingDataWrite(
+                    id: id, generation: generation, continuation: continuation, timeoutTask: timeoutTask
+                )
+                let negotiatedLength = max(1, peripheral.maximumWriteValueLength(for: type))
+                let maxPacketLength = min(negotiatedLength, AhaKeyCommand.oledPacketSize)
+                appendLog("→ DATA \(data.count)B, 分片 \(maxPacketLength)B (协商上限 \(negotiatedLength)B)", category: .verbose)
+                Task { [weak self] in
+                    guard let self else { return }
+                    for offset in stride(from: 0, to: data.count, by: maxPacketLength) {
+                        guard !self.commandChannelUnsynchronized, !self.awaitingPeripheralDisconnect,
+                              self.peripheral === peripheral, self.pendingDataWrite?.generation == generation,
+                              self.pendingDataWrite?.id == id else { return }
+                        let end = min(offset + maxPacketLength, data.count)
+                        peripheral.writeValue(Data(data[offset ..< end]), for: characteristic, type: type)
+                        do { try await Task.sleep(nanoseconds: 12_000_000) } catch { return }
+                    }
                 }
             }
-        }
+        }, onCancel: { [weak self] in
+            Task { @MainActor in self?.cancelDataWrite(id: id, generation: generation) }
+        })
+        try Task.checkCancellation()
+        guard generation == commandSessionGeneration, !commandChannelUnsynchronized,
+              !awaitingPeripheralDisconnect else { throw OLEDUploadError.channelNotReady }
+    }
+
+    private func cancelDataWrite(id: UInt64, generation: UInt64) {
+        guard let pending = pendingDataWrite,
+              pending.id == id, pending.generation == generation else { return }
+        pendingDataWrite = nil
+        pending.timeoutTask.cancel()
+        invalidateCommandResponseChannel()
+        pending.continuation.resume(throwing: CancellationError())
     }
 
     private func timeoutDataWrite(id: UInt64, generation: UInt64) {
         guard let pending = pendingDataWrite,
               pending.id == id, pending.generation == generation else { return }
         pendingDataWrite = nil
-        commandChannelUnsynchronized = true
+        invalidateCommandResponseChannel()
         pending.continuation.resume(throwing: OLEDUploadError.timeout(command: AhaKeyCommand.cmdWriteResult))
-        appendLog("OLED 数据写入响应超时，断开配置链路", isError: true)
-        if let peripheral { central?.cancelPeripheralConnection(peripheral) }
     }
 
     private func completeDataWrite(status: UInt8) {

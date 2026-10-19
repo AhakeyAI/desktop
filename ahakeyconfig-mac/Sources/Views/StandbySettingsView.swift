@@ -24,7 +24,7 @@ struct StandbySettingsView: View {
                         do {
                             let actual = try await bleManager.readStandbyForEditing()
                             if standbyDraft == nil { standbyDraft = actual }
-                        } catch { standbyMessage = error.localizedDescription }
+                        } catch { standbyMessage = KeyboardSettingsFeedback.message(for: error) }
                     }
                 }
                 Button(bleManager.isSettingStandby ? NSLocalizedString("应用中…", comment: "") : NSLocalizedString("应用待机设置", comment: "")) {
@@ -34,7 +34,7 @@ struct StandbySettingsView: View {
                         do {
                             let actual = try await bleManager.setStandbyConfirmed(target)
                             standbyMessage = actual == 0 ? NSLocalizedString("键盘已确认不自动待机。", comment: "") : String(format: NSLocalizedString("键盘已确认待机时间为 %@ 分钟。", comment: ""), String(describing: actual))
-                        } catch { standbyMessage = String(format: NSLocalizedString("设置未确认：%@；待应用选项已保留。", comment: ""), String(describing: error.localizedDescription)) }
+                        } catch { standbyMessage = String(format: NSLocalizedString("设置未确认：%@；待应用选项已保留。", comment: ""), String(describing: KeyboardSettingsFeedback.message(for: error))) }
                     }
                 }
                 .disabled(standbyDraft == nil || bleManager.configurationSnapshot.standbyMinutes == nil || bleManager.firmwareCapabilityProfile?.mayQueryStandby != true)

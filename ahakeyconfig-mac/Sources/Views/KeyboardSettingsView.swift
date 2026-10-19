@@ -45,6 +45,13 @@ struct KeyboardSettingsView: View {
                     }
                 }.disabled(busy)
             }
+            if busy {
+                HStack {
+                    Button(NSLocalizedString("取消当前操作", comment: "")) { bleManager.cancelConfigurationOperation() }
+                    Text(NSLocalizedString("取消后需重新连接并读取；已发出的更改可能已生效，草稿仍保留。", comment: ""))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
             Text(capabilityMessage).font(.caption).foregroundStyle(.secondary)
             TabView(selection: $tab) {
                 Form {
@@ -93,7 +100,7 @@ private struct WorkModeSettingsView: View {
                     do {
                         let actual = try await bleManager.switchWorkModeConfirmed(target)
                         message = String(format: NSLocalizedString("键盘已确认切换到 %@。", comment: ""), String(describing: AhaKeyModeSlot(rawValue: Int(actual))?.name ?? NSLocalizedString("所选模式", comment: "")))
-                    } catch { message = String(format: NSLocalizedString("切换未确认：%@", comment: ""), String(describing: error.localizedDescription)) }
+                    } catch { message = String(format: NSLocalizedString("切换未确认：%@", comment: ""), String(describing: KeyboardSettingsFeedback.message(for: error))) }
                 }
             }.disabled(target == nil || !bleManager.isConnected || bleManager.isConfigurationOperationInProgress)
             if let message { Text(message).font(.caption) }
