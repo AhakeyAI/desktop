@@ -61,12 +61,8 @@ struct KeyboardSettingsView: View {
                 Form { StandbySettingsView(bleManager: bleManager) }.tabItem { Text(NSLocalizedString("待机", comment: "")) }.tag(KeyboardSettingsTab.standby)
                 Form { SideSwitchSettingsView(bleManager: bleManager) }.tabItem { Text(NSLocalizedString("实体拨杆", comment: "")) }.tag(KeyboardSettingsTab.lever)
                 Form { VoiceHandoffSettingsView(bleManager: bleManager) }.tabItem { Text(NSLocalizedString("语音方案", comment: "")) }.tag(KeyboardSettingsTab.voice)
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(NSLocalizedString("显示与灯光", comment: "")).font(.headline)
-                    Text(NSLocalizedString("画布中的素材和预览仍保留。新固件的显示、灯光保存尚未适配完成，当前不能在此应用。", comment: ""))
-                    Text(NSLocalizedString("旧版设备继续使用画布原有保存流程。", comment: ""))
-                    Spacer()
-                }.padding().tabItem { Text(NSLocalizedString("显示与灯光", comment: "")) }.tag(KeyboardSettingsTab.display)
+                WS3DisplaySettingsView(bleManager: bleManager)
+                    .tabItem { Text(NSLocalizedString("显示与灯光", comment: "")) }.tag(KeyboardSettingsTab.display)
             }.disabled(busy)
         }
         .padding(20).frame(width: 800, height: 720)

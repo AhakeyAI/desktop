@@ -92,6 +92,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var bleConnectionStatus: String = NSLocalizedString("未连接", comment: "")
     @Published private(set) var supportsConfigurableLighting: Bool?
     @Published private(set) var configurationSnapshot = DeviceConfigurationSnapshot()
+    @Published private(set) var ws3DisplaySnapshot: WS3DisplaySnapshot?
+    @Published private(set) var isReadingWS3Display = false
     @Published private(set) var isReadingConfigurationSnapshot = false
     @Published private(set) var isChangingWorkMode = false
     @Published private(set) var isReadingStandby = false
@@ -101,7 +103,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var isEditingOrdinaryKey = false
     @Published private(set) var isManagingVoiceHandoff = false
     var isConfigurationOperationInProgress: Bool {
-        isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey || isManagingVoiceHandoff
+        isUploadingOLED || isReadingWS3Display || isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey || isManagingVoiceHandoff
     }
     @Published private(set) var firmwareCapabilityProfile: FirmwareCapabilityProfile?
     @Published private(set) var bluetoothPermissionGranted = true
@@ -726,11 +728,13 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let generation = commandSessionGeneration
         let previousProfile = firmwareCapabilityProfile
         firmwareCapabilityProfile = nil
+        ws3DisplaySnapshot = nil
         var accepted = false
         defer {
             if !accepted, generation == commandSessionGeneration {
                 // A failed refresh cannot leave old capabilities/facts writable.
                 firmwareCapabilityProfile = nil
+                ws3DisplaySnapshot = nil
                 configurationSnapshot.reset(generation: generation)
             }
         }
@@ -829,6 +833,41 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         guard generation == commandSessionGeneration, isConnected, !commandChannelUnsynchronized else {
             throw OLEDUploadError.channelNotReady
         }
+    }
+
+    /// Safe discovery of the CP2 read-only surface. Older CP4D's generic ACK
+    /// is treated as unsupported and never authorizes resource writes.
+    func readWS3DisplayForEditing() async throws -> WS3DisplaySnapshot {
+        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        try ensureConfigurationReadSession(generation)
+        isReadingWS3Display = true
+        ws3DisplaySnapshot = nil
+        defer { isReadingWS3Display = false }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.identity == .knownWS2Catalog else { throw OLEDUploadError.unsupportedReadOnlyProfile }
+        func read(_ item: WS3DisplayItem) async throws -> WS3DisplayValue {
+            try self.ensureConfigurationReadSession(generation)
+            guard let request = item.request else { throw OLEDUploadError.invalidCommandFrame }
+            let response = try await self.sendCommandAwaitingResponse(request, expectedCommand: 0x88, allowDeviceError: true)
+            try self.ensureConfigurationReadSession(generation)
+            guard let value = WS3DisplayValue.parse(response.frame, for: item) else { throw OLEDUploadError.invalidReadback }
+            if value == .unsupported { throw OLEDUploadError.unsupportedWS3Readback }
+            if case .rejected(let status) = value { throw OLEDUploadError.deviceRejected(command: 0x88, status: status) }
+            return value
+        }
+        guard case .brightness(let brightness) = try await read(.brightness) else { throw OLEDUploadError.invalidReadback }
+        var resources: [WS3ResourceReadback] = []
+        for id: UInt8 in 0..<19 {
+            let basic = try await read(.resourceBasic(id))
+            let integrity = try await read(.resourceIntegrity(id))
+            guard let resource = WS3ResourceReadback(id: id, basic: basic, integrity: integrity) else { throw OLEDUploadError.invalidReadback }
+            resources.append(resource)
+        }
+        try ensureConfigurationReadSession(generation)
+        let snapshot = WS3DisplaySnapshot(generation: generation, brightness: brightness, resources: resources)
+        ws3DisplaySnapshot = snapshot
+        return snapshot
     }
 
     /// Explicit read only: never applies local drafts or persists device settings.
@@ -1496,6 +1535,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         commandTurns.reset(generation: commandSessionGeneration)
         hasValidStatusReadback = false
         firmwareCapabilityProfile = nil
+        ws3DisplaySnapshot = nil
         configurationSnapshot.reset(generation: commandSessionGeneration)
         if let pending = pendingCommandResponse {
             pendingCommandResponse = nil
@@ -1571,6 +1611,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
         hasValidStatusReadback = false
         firmwareCapabilityProfile = nil
+        ws3DisplaySnapshot = nil
         configurationSnapshot.reset(generation: commandSessionGeneration)
         appendLog("Configuration interrupted; reconnect and read back before continuing.", isError: true)
         if let peripheral {
@@ -1910,6 +1951,7 @@ enum OLEDUploadError: LocalizedError {
     case invalidDeviceStatusPayload
     case invalidReadback
     case unsupportedReadOnlyProfile
+    case unsupportedWS3Readback
     case invalidCommandFrame
     case unsupportedLightingFirmware(main: Int, sub: Int, reportedBrightness: Int)
 
@@ -1935,6 +1977,8 @@ enum OLEDUploadError: LocalizedError {
             return "设备返回的状态信息无法解析。"
         case .invalidReadback:
             return "设备返回的配置内容无法解析。"
+        case .unsupportedWS3Readback:
+            return NSLocalizedString("当前固件未提供 WS3 显示读回，未修改键盘显示配置。", comment: "")
         case .unsupportedReadOnlyProfile:
             return "尚未确认当前固件支持这项只读查询。"
         case .invalidCommandFrame:

@@ -1404,6 +1404,14 @@ TRANSLATIONS.update({
 
 TRANSLATIONS.update({"\u64cd\u4f5c\u5df2\u53d6\u6d88\uff1b\u5df2\u53d1\u51fa\u7684\u66f4\u6539\u53ef\u80fd\u5df2\u751f\u6548\uff0c\u8bf7\u91cd\u65b0\u8fde\u63a5\u5e76\u8bfb\u53d6\u3002": "Operation cancelled. Changes already sent may have taken effect; reconnect and read again."})
 
+TRANSLATIONS.update({
+    "\u8bfb\u53d6\u663e\u793a\u4fe1\u606f\uff08\u53ea\u8bfb\uff09": "Read Display Information (Read-Only)",
+    "\u53ea\u8bfb\u53d6\u4eae\u5ea6\u548c\u8d44\u6e90\u5143\u6570\u636e\uff0c\u4e0d\u4e0a\u4f20\u3001\u6e05\u7a7a\u6216\u4fdd\u5b58\u3002\u5143\u6570\u636e\u4e0d\u7b49\u4e8e\u5b9e\u9645\u56fe\u50cf\u5185\u5bb9\u6821\u9a8c\u3002": "Reads brightness and resource metadata only, without uploading, clearing or saving. Metadata is not a verification of actual image contents.",
+    "\u952e\u76d8\u62a5\u544a\u4eae\u5ea6\uff1a%@%%": "Keyboard-reported brightness: %@%%",
+    "\u952e\u76d8\u62a5\u544a\u6709\u6548\u7684\u81ea\u5b9a\u4e49\u7d20\u6750\uff1a%@ / 19": "Keyboard reports valid custom resources: %@ / 19",
+    "\u5f53\u524d\u56fa\u4ef6\u672a\u63d0\u4f9b WS3 \u663e\u793a\u8bfb\u56de\uff0c\u672a\u4fee\u6539\u952e\u76d8\u663e\u793a\u914d\u7f6e\u3002": "This firmware does not provide WS3 display readback. The keyboard display configuration was not changed."
+})
+
 ZH_OVERRIDES = {
     "Breathing": "呼吸",
     "Close": "关闭",
