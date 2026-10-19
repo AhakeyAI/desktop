@@ -21,6 +21,7 @@ public enum ConfigurationCommandPolicy {
         case 0x00, 0x9F: return b.count == 5
         case 0x83: return b.count == 6 && b[3] < 4
         case 0x90: return b.count == 6 && b[3] <= 8
+        case 0x88: return profile?.identity == .knownWS2Catalog && WS3DisplayItem.from(request: data) != nil
         case 0x87: return profile?.mayQueryOrdinaryKeys == true && b.count == 7 && b[3] < 4 && b[4] < 4
         case 0x95:
             guard profile?.identity == .knownWS2Catalog else { return false }

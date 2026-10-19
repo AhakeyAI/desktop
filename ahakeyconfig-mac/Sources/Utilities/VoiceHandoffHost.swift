@@ -4,7 +4,7 @@ import AhaKeyConfigShared
 enum DesktopSpeechChoice: String, CaseIterable, Identifiable {
     case native, ahaType
     var id: String { rawValue }
-    var title: String { self == .native ? "App 原生转写" : "App 转写 + AhaType" }
+    var title: String { self == .native ? NSLocalizedString("App 原生转写", comment: "") : NSLocalizedString("App 转写 + AhaType", comment: "") }
 }
 
 extension Notification.Name {
@@ -16,7 +16,7 @@ extension Notification.Name {
 enum VoiceHandoffHost {
     enum Failure: Error, LocalizedError {
         case cloudNotConfigured
-        var errorDescription: String? { "请先登录 AhaType；有效账号及额度在实际转写时验证。" }
+        var errorDescription: String? { NSLocalizedString("请先登录 AhaType；有效账号及额度在实际转写时验证。", comment: "") }
     }
     static func checkReady(_ choice: DesktopSpeechChoice) throws {
         let relay = VoiceRelayService.shared

@@ -2,6 +2,9 @@
 
 > 2026-10-09 修订：第 1–9 节描述 WS1/WS2 第一阶段；第 10 节增加最终用户版范围和验收门。语音采用 Consumer Voice 优先、实际系统听写验收后才默认使用，F5 为同步切换键盘输出与系统快捷键的兜底。最新固件接口和 PR #78 状态仍须远端复核。
 
+> 2026-10-16 最新决定：用户确认 Consumer Voice 已验证可行，F5 方案暂缓。本轮不再开发或测试 F5，也不将其作为当前发布前置；下方原 F5 规划保留为历史/未来可选范围。
+
+
 日期：2026-10-08
 状态：分阶段开发计划；交接分支尚未实现本轮适配代码。
 配套：[WBS](./legacy-macos-ws12-adaptation-wbs-2026-10-08.md)、[可导入 CSV](./legacy-macos-ws12-adaptation-wbs-2026-10-08.csv)、[依赖及对接记录](./legacy-macos-firmware-adaptation-prerequisites-2026-10-08.md)。

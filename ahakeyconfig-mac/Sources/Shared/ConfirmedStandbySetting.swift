@@ -8,8 +8,8 @@ public enum ConfirmedStandbySetting {
         case mismatch(expected: UInt16, actual: UInt16)
         public var errorDescription: String? {
             switch self {
-            case .invalidValue: return "待机时间只支持 0、30、60、120 分钟。"
-            case .mismatch(let expected, let actual): return "键盘读回 \(actual) 分钟，未确认设置为 \(expected) 分钟。"
+            case .invalidValue: return NSLocalizedString("待机时间只支持 0、30、60、120 分钟。", comment: "")
+            case .mismatch(let expected, let actual): return String(format: NSLocalizedString("键盘读回 %@ 分钟，未确认设置为 %@ 分钟。", comment: ""), String(describing: actual), String(describing: expected))
             }
         }
     }
@@ -23,14 +23,18 @@ public enum ConfirmedStandbySetting {
                            read: () async throws -> UInt16,
                            write: (UInt16) async throws -> Void) async throws -> UInt16 {
         guard supportedMinutes.contains(target) else { throw Failure.invalidValue }
+        try Task.checkCancellation()
         try checkSession()
         let current = try await read()
+        try Task.checkCancellation()
         try checkSession()
         guard supportedMinutes.contains(current) else { throw Failure.invalidValue }
         if current == target { return current }
         try await write(target)
+        try Task.checkCancellation()
         try checkSession()
         let actual = try await read()
+        try Task.checkCancellation()
         try checkSession()
         guard supportedMinutes.contains(actual) else { throw Failure.invalidValue }
         guard actual == target else { throw Failure.mismatch(expected: target, actual: actual) }

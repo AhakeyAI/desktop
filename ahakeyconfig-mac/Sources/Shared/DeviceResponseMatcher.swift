@@ -28,6 +28,9 @@ public enum DeviceResponseMatcher {
                 response, requestedMode: sent[3], requestedKeyIndex: sent[4]
             ) { return true }
             return false
+        case 0x88:
+            guard let item = WS3DisplayItem.from(request: request) else { return false }
+            return WS3DisplayValue.parse(response, for: item) != nil
         case 0x95:
             return sent.count == 5 ? received.count == 8 : received.count == 6
         case 0x96:

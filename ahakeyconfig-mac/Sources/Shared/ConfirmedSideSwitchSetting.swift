@@ -88,10 +88,10 @@ public enum ConfirmedSideSwitchSetting {
         case transportLimit(maximum: Int)
         public var errorDescription: String? {
             switch self {
-            case .invalidBindings: return "拨杆绑定无效：两档动作合计最多 52 字节，宏必须松开所有按键。"
-            case .changedSinceRead: return "键盘绑定已变化，请重新读取后编辑。"
-            case .mismatch: return "保存后读回的绑定不一致，设置未确认。"
-            case .transportLimit(let maximum): return "当前蓝牙命令最多发送 \(maximum) 字节，请缩短动作或重新连接。"
+            case .invalidBindings: return NSLocalizedString("拨杆绑定无效：两档动作合计最多 52 字节，宏必须松开所有按键。", comment: "")
+            case .changedSinceRead: return NSLocalizedString("键盘绑定已变化，请重新读取后编辑。", comment: "")
+            case .mismatch: return NSLocalizedString("保存后读回的绑定不一致，设置未确认。", comment: "")
+            case .transportLimit(let maximum): return String(format: NSLocalizedString("当前蓝牙命令最多发送 %@ 字节，请缩短动作或重新连接。", comment: ""), String(describing: maximum))
             }
         }
     }
@@ -101,14 +101,18 @@ public enum ConfirmedSideSwitchSetting {
                            checkSession: () throws -> Void, read: () async throws -> SideSwitchReadback,
                            write: (Data) async throws -> Void) async throws -> SideSwitchReadback {
         guard let request = SideSwitchBindingConfiguration.request(positions: target) else { throw Failure.invalidBindings }
+        try Task.checkCancellation()
         try checkSession()
         let current = try await read()
+        try Task.checkCancellation()
         try checkSession()
         guard current.positions == baseline else { throw Failure.changedSinceRead }
         if current.positions == target { return current }
         try await write(request)
+        try Task.checkCancellation()
         try checkSession()
         let actual = try await read()
+        try Task.checkCancellation()
         try checkSession()
         guard actual.positions == target else { throw Failure.mismatch }
         return actual

@@ -7,8 +7,8 @@ enum StudioKeyWriteProposal {
         case description, action
         var errorDescription: String? {
             switch self {
-            case .description: return "画布描述必须为英文字符，最多 20 字节；请修改后再载入。"
-            case .action: return "画布动作无法完整保存和读回，请检查宏释放及动作容量。"
+            case .description: return NSLocalizedString("画布描述必须为英文字符，最多 20 字节；请修改后再载入。", comment: "")
+            case .action: return NSLocalizedString("画布动作无法完整保存和读回，请检查宏释放及动作容量。", comment: "")
             }
         }
     }

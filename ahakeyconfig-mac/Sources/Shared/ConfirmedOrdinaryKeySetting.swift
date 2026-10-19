@@ -42,10 +42,10 @@ public enum ConfirmedOrdinaryKeySetting {
         case invalidValue, changedSinceRead, mismatch, voicePresetOwnsKey
         public var errorDescription: String? {
             switch self {
-            case .invalidValue: return "键位无法安全保存：请检查动作、宏释放、20 字节英文描述及读回容量。"
-            case .changedSinceRead: return "键盘该键已变化，请重新读取后编辑。"
-            case .mismatch: return "保存后键位读回不一致，设置未确认。"
-            case .voicePresetOwnsKey: return "Voice 键仍由固件平台预设接管；完成语音接管前不能修改其动作。"
+            case .invalidValue: return NSLocalizedString("键位无法安全保存：请检查动作、宏释放、20 字节英文描述及读回容量。", comment: "")
+            case .changedSinceRead: return NSLocalizedString("键盘该键已变化，请重新读取后编辑。", comment: "")
+            case .mismatch: return NSLocalizedString("保存后键位读回不一致，设置未确认。", comment: "")
+            case .voicePresetOwnsKey: return NSLocalizedString("Voice 键仍由固件平台预设接管；完成语音接管前不能修改其动作。", comment: "")
             }
         }
     }
@@ -59,29 +59,36 @@ public enum ConfirmedOrdinaryKeySetting {
         let descriptionChanged = baseline.description != target.description
         guard !actionChanged || OrdinaryKeyConfiguration.actionRequest(target) != nil,
               !descriptionChanged || OrdinaryKeyConfiguration.descriptionRequest(target) != nil else { throw Failure.invalidValue }
+        try Task.checkCancellation()
         try checkSession()
         let current = try await read()
+        try Task.checkCancellation()
         try checkSession()
         guard current == baseline else { throw Failure.changedSinceRead }
         if !actionChanged && !descriptionChanged { return current }
         if actionChanged && target.keyIndex == 0 {
             let state = try await voiceState()
+            try Task.checkCancellation()
             try checkSession()
             guard state == 3 || state == 4 else { throw Failure.voicePresetOwnsKey }
         }
         if actionChanged {
             try await write(OrdinaryKeyConfiguration.actionRequest(target)!)
+            try Task.checkCancellation()
             try checkSession()
         }
         if descriptionChanged {
             try await write(OrdinaryKeyConfiguration.descriptionRequest(target)!)
+            try Task.checkCancellation()
             try checkSession()
         }
         // Existing firmware persists its configuration with 0x04; ACK is not
         // EEPROM verification. A failure may leave changed RAM; never claim rollback.
         try await write(Data([0xAA, 0xBB, 0x04, 0xCC, 0xDD]))
+        try Task.checkCancellation()
         try checkSession()
         let actual = try await read()
+        try Task.checkCancellation()
         try checkSession()
         guard actual == target else { throw Failure.mismatch }
         return actual
