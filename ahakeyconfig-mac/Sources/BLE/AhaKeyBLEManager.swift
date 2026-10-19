@@ -500,7 +500,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         linkDiagnostic = .scanning
         appendLog("开始扫描 AhaKey 设备…")
         central?.scanForPeripherals(
-            withServices: [Self.serviceUUID],
+            // CP4D/WS3 advertises HID + Battery, not necessarily 0x7340.
+            // Service filters are ORed; the discovery callback still checks the name.
+            withServices: [Self.serviceUUID, Self.hidServiceUUID, Self.batteryServiceUUID],
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
         )
 

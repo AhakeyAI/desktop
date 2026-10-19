@@ -29,6 +29,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var notifyNotificationFramer = DeviceNotificationFramer()
     private var lastUUID: UUID?
     private let serviceUUID = CBUUID(string: "7340")
+    private let hidServiceUUID = CBUUID(string: "1812")
+    private let batteryServiceUUID = CBUUID(string: "180F")
     private let commandCharUUID = CBUUID(string: "7343")
     private let notifyCharUUID = CBUUID(string: "7344")
     /// 设备名前缀白名单：官方 "AhaKey" 及 vibe coding 固件的 "vibe code"（与主 App 保持一致）。
@@ -574,7 +576,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
 
         // 2. 系统已连接
-        let connected = central.retrieveConnectedPeripherals(withServices: [serviceUUID])
+        let connected = central.retrieveConnectedPeripherals(withServices: [serviceUUID, hidServiceUUID, batteryServiceUUID])
         if let p = connected.first(where: { matchesDeviceName($0.name) }) {
             emit("系统已连接: \(p.name ?? "?")")
             peripheral = p
@@ -585,7 +587,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
         // 3. 扫描
         emit("开始扫描…")
-        central.scanForPeripherals(withServices: [serviceUUID], options: nil)
+        // Freshly paired WS3 keyboards may advertise only HID/Battery. Keep the
+        // name whitelist in didDiscover; discovering is never approval evidence.
+        central.scanForPeripherals(withServices: [serviceUUID, hidServiceUUID, batteryServiceUUID], options: nil)
     }
 
     /// 发起连接前必须持有跨进程连接锁；被 GUI 持有时不 attach，15s 后重试（不刷日志）。
