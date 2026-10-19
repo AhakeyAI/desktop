@@ -1268,6 +1268,7 @@ TRANSLATIONS.update({
 # WS1/WS2 keyboard settings and transaction messages.
 TRANSLATIONS.update({
     "键盘设置": "Keyboard Settings",
+    "键盘设置…": "Keyboard Settings…",
     "关闭并回到画布": "Close and Return to Canvas",
     "关闭并返回日常连接": "Close and Return to Daily Connection",
     "打开和浏览不会保存。先读取键盘当前值，再明确应用；重新连接后需重新读取。": "Opening and browsing do not save changes. Read the keyboard first, then apply explicitly. Read again after reconnecting.",
