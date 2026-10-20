@@ -376,8 +376,14 @@ final class AgentManager: ObservableObject {
         }
     }
 
+    /// Revoke cached UI state before any synchronous launchd/config work.
+    func prepareForAgentUnload() {
+        refreshBLEConnectionStatus(shouldQuery: false)
+    }
+
     /// 从 launchd 卸载 Agent（比 `stop` 更彻底：`KeepAlive` 下 stop 会立刻重启进程，仍占着蓝牙）。
     private func unloadAgentLaunchJobRemovingSocket() {
+        prepareForAgentUnload()
         if !ApprovalAutomationControl.revoke() {
             agentUserAlert = "自动批准策略撤销未完全确认，请核对 Codex/Kimi 配置；已打开的 CLI 会话需重新加载或重开。"
         }

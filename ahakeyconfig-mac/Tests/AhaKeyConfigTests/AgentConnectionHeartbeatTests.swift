@@ -72,7 +72,9 @@ final class AgentConnectionHeartbeatTests: XCTestCase {
         await fulfillment(of: [started], timeout: 2)
         for _ in 0..<10 { manager.refreshBLEConnectionStatus(shouldQuery: true) }
         XCTAssertEqual(script.calls, 2)
-        manager.refreshBLEConnectionStatus(shouldQuery: false)
+        // Exercise the same pure entry point used before production unload;
+        // do not touch the user's launchd job or approval configuration.
+        manager.prepareForAgentUnload()
         XCTAssertFalse(manager.isAgentBLEConnected)
         release.signal()
         await fulfillment(of: [returned], timeout: 2)
