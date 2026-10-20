@@ -410,3 +410,5 @@ CommandTurnQueue统一串行命令所有权。排队任务取消即移除，但�
 用户确认App关闭系统仍失败；当前固件Forget组合（第4大键+模式/电源约2秒）清绑定并重配后恢复。IORegistry确认505C的BLE键盘HID节点，ed64166直接配置连接成功。0x88完整亮度/19资源读回通过，原35%、有效自定义资源0/19；临时50%预览由用户确认约10秒恢复，读回保存值35%。明确保存50%、Claude/通知原effect10改effect5并读回；用户正常重启后自动重连，重新查询确认保持。现已恢复35%/effect10并读回，无待恢复设置。
 
 实际0x88在途取消测试通过，快照/能力撤回并禁写，重连后重新读；四Voice/onboarding3/F18保持。交还同源Agent后fresh approval_status确认实体auto及factory binding，手动档对照已请求用户尚待反馈，不能先标通过。最近连接日志短采样无4803；30秒CPU累计GUI+0.26秒/Agent+0.07秒，不替代长时回归。截图与精确边界见docs/validation/connect-talk-hil-2026-10-19/WS3_ACCEPTANCE_CHECKPOINT.md。原始键位和日志仍仅本机私有备份。PR141保持检查点范围，D02/资源与全故障矩阵仍待完成。
+
+第28节手动档对照已完成：用户切手动后新505C fresh physical=1/approvalAutoVerified=false，界面显示手动批准；Cursor Shell ask，Claude PreToolUse无allow及PermissionRequest ask，Codex PermissionRequest无allow、on-request，Kimi配置false。已请求用户切回自动，尚未收到确认；期间不切换连接归属或更改键位，以保持对照。自动Hook往返和全16键比对仍待。
