@@ -29,8 +29,8 @@
 
 ## 尚未覆盖
 
-- 新固件手动档已通过：用户切手动后fresh physical=1、verified=false，界面手动；Cursor beforeShellExecution=ask，Claude PreToolUse无allow/PermissionRequest=ask，Codex PermissionRequest无allow且on-request，Kimi配置false。已请求切回自动，实际自动Hook往返仍待用户确认；直接Hook进程不等于运行中CLI缓存重载。
-- 对全部16键与待机/拨杆的旧备份逐字节比对：四Voice已确认，其余待执行。
+- 新固件手动档已通过：用户切手动后fresh physical=1、verified=false，界面手动；Cursor beforeShellExecution=ask，Claude PreToolUse无allow/PermissionRequest=ask，Codex PermissionRequest无allow且on-request，Kimi配置false。2026-10-20亮屏重拨后fresh0/verified=true，Cursor/Claude/Codex实际Hook均allow、Codex never；直接Hook进程不等于运行中CLI缓存重载。
+- 2026-10-20已完成16键逐字节、待机/Voice引导/拨杆绑定比对，全部一致；新记录见../connect-talk-hil-2026-10-20/README.md。
 - 新设备失败状态的真实15秒取消/错误计数、取消完成后的手动恢复；正常配对后不能靠故意破坏配对来宣称覆盖。5项隔离状态机测试通过，不等于该故障真机已复现转绿。
 - 0x89灯效预览和显式stop的独立视觉矩阵、所有模式/状态保存、恢复后再次断电及跨端互操作。
 - 资源上传/清空/恢复、CP1呈现/D02、DATA中断/迟到帧/全故障矩阵、长时CPU/灵动岛/电量校准以及最终公证发布。

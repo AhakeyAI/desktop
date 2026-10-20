@@ -412,3 +412,12 @@ CommandTurnQueue统一串行命令所有权。排队任务取消即移除，但�
 实际0x88在途取消测试通过，快照/能力撤回并禁写，重连后重新读；四Voice/onboarding3/F18保持。交还同源Agent后fresh approval_status确认实体auto及factory binding，手动档对照已请求用户尚待反馈，不能先标通过。最近连接日志短采样无4803；30秒CPU累计GUI+0.26秒/Agent+0.07秒，不替代长时回归。截图与精确边界见docs/validation/connect-talk-hil-2026-10-19/WS3_ACCEPTANCE_CHECKPOINT.md。原始键位和日志仍仅本机私有备份。PR141保持检查点范围，D02/资源与全故障矩阵仍待完成。
 
 第28节手动档对照已完成：用户切手动后新505C fresh physical=1/approvalAutoVerified=false，界面显示手动批准；Cursor Shell ask，Claude PreToolUse无allow及PermissionRequest ask，Codex PermissionRequest无allow、on-request，Kimi配置false。已请求用户切回自动，尚未收到确认；期间不切换连接归属或更改键位，以保持对照。自动Hook往返和全16键比对仍待。
+
+
+## 29. 新固件自动档与全键位收尾（2026-10-20）
+
+用户回自动时设备起初离线，fresh physical=null自动验证false，未运行allow Hook。唤醒后first fresh仍physical1；亮屏重拨后fresh0/factory verified true，Cursor/Claude/Codex实际安装Hook均放行、Codex never/有归属lease。与昨日手动对照组成完整往返；未把缓存或口头档位当硬件授权。Kimi当前会话及所有CLI缓存刷新仍未覆盖。
+
+完整只读16键、待机、Voice引导、拨杆绑定与刷写前私有备份一致；使用生产DeviceFrameDecoder处理分片和二进制边界，原始数据未提交，仅无载荷汇总JSON。日志已关，最后交还同源Agent，fresh0/verified true、Codex allow/never恢复，诊断面板关闭，无新设置写入。详见docs/validation/connect-talk-hil-2026-10-20/README.md。
+
+另发现基线已有GUI连接缓存刷新缺口：设备离线时isAgentBLEConnected可能仍保留旧值，主界面显示已连接/旧档位；审批fresh查询仍安全回退。此项单列后续客户端修复，不宣称最终发布验收完整。休眠/唤醒首次物理读回1暂不定性固件问题。D02/资源/全故障矩阵仍按WBS推进。
