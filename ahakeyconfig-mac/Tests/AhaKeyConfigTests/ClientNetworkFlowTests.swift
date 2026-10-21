@@ -128,6 +128,32 @@ final class ClientNetworkFlowTests: XCTestCase {
         XCTAssertEqual(redirects, 1)
     }
 
+    func testExpiredTokenDoesNotSendSpeechAndLateFailureCannotClearNewToken() async throws {
+        var redirects = 0
+        let (optimizer, folder) = try optimizer { _ in redirects += 1 }
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("config.json")
+        var payload = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as! [String: Any]
+        payload["token_valid_until"] = "2000-01-01T00:00:00Z"
+        try JSONSerialization.data(withJSONObject: payload).write(to: file)
+        ClientStubProtocol.handle = { _ in XCTFail("expired token should not reach network"); return (500, "") }
+        _ = await optimizer.processIfEnabled("speech")
+        XCTAssertEqual(redirects, 1)
+        payload["access_token"] = "old-token"
+        payload["token_valid_until"] = "2099-01-01T00:00:00Z"
+        try JSONSerialization.data(withJSONObject: payload).write(to: file)
+        ClientStubProtocol.handle = { _ in
+            var fresh = (try! JSONSerialization.jsonObject(with: Data(contentsOf: file))) as! [String: Any]
+            fresh["access_token"] = "new-token"
+            try! JSONSerialization.data(withJSONObject: fresh).write(to: file)
+            return (401, "")
+        }
+        _ = await optimizer.processIfEnabled("speech")
+        XCTAssertEqual(redirects, 1)
+        let latest = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as! [String: Any]
+        XCTAssertEqual(latest["access_token"] as? String, "new-token")
+    }
+
     func testQuietProfile401ReturnsAccountToLoginAndStaleTokenCannotLogOutNewAccount() async throws {
         ClientStubProtocol.handle = { _ in (401, "") }
         let (optimizer, folder) = try optimizer { _ in }

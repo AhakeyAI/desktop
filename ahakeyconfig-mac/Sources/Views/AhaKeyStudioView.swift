@@ -100,7 +100,13 @@ struct AhaKeyStudioView: View {
             }
             scheduleStartupPermissionOnboarding()
             ahaType.refreshFromDisk()
-            if ahaType.isEnabled && ahaType.requiresLogin { cloudAccount.requireLogin(); showsCloudAccount = true }
+            if ahaType.isEnabled {
+                if !cloudAccount.isLoggedIn || ahaType.requiresLogin {
+                    cloudAccount.requireLogin(); showsCloudAccount = true
+                } else {
+                    cloudAccount.refreshProfile(showAlertOnFailure: false)
+                }
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .ahaKeyVoiceDesktopPrepared)) { _ in
             if let prepared = AhaKeyStudioStore.load() {
