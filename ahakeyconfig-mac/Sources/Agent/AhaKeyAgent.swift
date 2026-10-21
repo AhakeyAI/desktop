@@ -65,6 +65,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         let completion: (Result<Data, Error>) -> Void
     }
     private var pendingPresentationRead: PresentationRead?
+    private var presentationReplyBytes = 0
+    private var presentationReplyCommands: Set<UInt8> = []
     private var workspaceSleepObserver: NSObjectProtocol?
     private struct ApprovalRead {
         let id: UUID
@@ -651,10 +653,17 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             pendingPresentationRead = PresentationRead(id: id, generation: epoch, request: request) {
                 continuation.resume(with: $0)
             }
+            presentationReplyBytes = 0; presentationReplyCommands = []
             peripheral.writeValue(request, for: commandChar,
                 type: commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse)
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
                 guard let self, self.connectionGeneration == epoch, self.pendingPresentationRead?.id == id else { return }
+                // One bounded failure diagnostic, not a per-notification trace.
+                // Requests here contain only catalog/display selectors or states.
+                let commands = self.presentationReplyCommands.sorted().map { String(format: "%02X", $0) }.joined(separator: ",")
+                let arguments = request.dropFirst(3).dropLast(2).map { String(format: "%02X", $0) }.joined(separator: " ")
+                let message = "[ahakey-display] request timeout opcode=\(String(format: "%02X", request[2])) args=\(arguments) bytes=\(self.presentationReplyBytes) seen=\(commands)\n"
+                FileHandle.standardError.write(Data(message.utf8))
                 self.poisonPresentationConnection()
             }
         }
@@ -905,7 +914,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         let frames = characteristic.uuid == commandCharUUID
             ? commandNotificationFramer.append(data)
             : notifyNotificationFramer.append(data)
+        if pendingPresentationRead != nil { presentationReplyBytes += data.count }
         for frame in frames {
+            if pendingPresentationRead != nil, frame.count >= 3 { presentationReplyCommands.insert(frame[2]) }
             if let pending = pendingPresentationRead, pending.generation == connectionGeneration,
                DeviceResponseMatcher.matches(request: pending.request, expectedCommand: pending.request[2], response: frame) {
                 pendingPresentationRead = nil

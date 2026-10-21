@@ -14,10 +14,10 @@ struct WS3TaskOverviewView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(NSLocalizedString("任务概览", comment: "")).font(.headline)
-            Text(NSLocalizedString("读取不会切换显示。选择并应用显示方式后，后台才会同步任务。", comment: ""))
+            Text(NSLocalizedString("读取不会切换显示；新的显示方式需要明确选择并应用。", comment: ""))
                 .font(.caption).foregroundStyle(.secondary)
             Button(reading ? NSLocalizedString("读取中…", comment: "") : NSLocalizedString("读取当前任务（只读）", comment: "")) {
-                reading = true; failed = false; overview = nil
+                reading = true; failed = false; overview = nil; modeMessage = nil
                 Task { @MainActor in
                     defer { reading = false }
                     overview = await agentManager.readTaskOverview()
@@ -37,7 +37,7 @@ struct WS3TaskOverviewView: View {
                         defer { reading = false }
                         do {
                             overview = try await agentManager.applyPresentationMode(modeDraft)
-                            modeMessage = NSLocalizedString("显示方式请求已接受，旧任务已清除；实际画面请在键盘上确认。", comment: "")
+                            modeMessage = NSLocalizedString("显示方式请求已接受；任务从新事件开始同步，实际画面请在键盘上确认。", comment: "")
                         } catch {
                             overview = nil
                             modeMessage = error.localizedDescription
