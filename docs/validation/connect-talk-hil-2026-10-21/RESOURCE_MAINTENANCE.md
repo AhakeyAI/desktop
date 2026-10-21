@@ -13,9 +13,9 @@
 
 ![恢复临时位置后的界面](screenshots/resource-default-restored.jpeg)
 
-## 等待/未覆盖
+## 重启保持与未覆盖
 
-已请求用户正常重启，随后核对EMPTY标记断电保持、Codex原图元数据与实际显示。等待期间已关闭设置，恢复日常Agent连接；fresh确认physical/effective=1、verified=false且connected=true。收到反馈后需重新进入配置并读取。当前尚未标重启保持通过。
+用户已正常重启并确认Codex原图实际显示正常。重连配置后重新完整读取19项：亮度35%、有效1/19；位置18仍为默认显示（无自定义素材），恢复按钮禁用。重新选择原JPEG并执行只读核对，位置8的entry/frames/bytes/CRC元数据一致，界面明确未写入键盘。单位置默认标记断电保持与原图保留通过；截图仅本机私有。
 
 活动资源的实际默认回退画面、19位置全矩阵、真正传输中取消/断连/拒绝故障和CP3/整库/整机恢复仍未做，不扩大本批结论。0x8D只是持久化元数据解除引用，原Flash字节可能保留，不是安全擦除或历史图片备份/找回。测试位置18最终回原EMPTY标记；未向Codex位置8、键位、Voice或亮度发送写入。
 
@@ -25,3 +25,6 @@
 
 
 只读负例也已实际验证：在Codex位置选择内置cursor文件后点击核对，界面报告元数据不同、未更改键盘；再选择原JPEG，比较恢复一致。仅本地文件选择与0x88查询，无该用户位置的上传/恢复写入。
+
+
+重启验收收尾：已关闭设置并恢复日常Agent，主界面已连接AhaKey 505C、Codex、手动批准，语音桥运行中；fresh approval_status physicalSwitchState=1、switchState=1、approvalAutoVerified=false。此次收尾只读，没有发送键位、Voice、亮度或素材写入。PR148目标connect&talk，最终文档CI通过后合入；完整CP3与全故障矩阵另行推进。
