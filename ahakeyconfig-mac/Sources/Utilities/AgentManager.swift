@@ -57,7 +57,7 @@ final class AgentManager: ObservableObject {
     @Published private(set) var isAgentOperationInProgress = false
 
     private let label = "lab.jawa.ahakeyconfig.agent"
-    private let socketPath = "/tmp/ahakey.sock"
+    private let socketPath: String
     private var ownershipTransitionGeneration: UInt64 = 0
     private let connectionQuery: @Sendable (String) -> Bool
     private var connectionHeartbeatTimer: Timer?
@@ -157,8 +157,9 @@ final class AgentManager: ObservableObject {
             .appendingPathComponent(".cursor/permissions.json").path
     }
 
-    init(startServices: Bool = true,
+    init(startServices: Bool = true, socketPath: String = "/tmp/ahakey.sock",
          connectionQuery: @escaping @Sendable (String) -> Bool = { AgentManager.querySocketBLEConnected(socketPath: $0) }) {
+        self.socketPath = socketPath
         self.connectionQuery = connectionQuery
         // Tests can exercise the production heartbeat without user files, launchd or sockets.
         guard startServices else { return }
@@ -195,8 +196,17 @@ final class AgentManager: ObservableObject {
         let timer = Timer(timeInterval: interval, repeats: true) { [weak self] timer in
             Task { @MainActor [weak self] in
                 guard let self else { timer.invalidate(); return }
-                self.refreshBLEConnectionStatus(shouldQuery: shouldQuery?() ??
-                    (self.isRunning && self.bluetoothConnectionOwner == .agentDaemon))
+                let shouldRead: Bool
+                if let shouldQuery {
+                    shouldRead = shouldQuery()
+                } else {
+                    // launchd may publish its socket after the one-shot refresh.
+                    // Do not let cached false permanently disable the heartbeat.
+                    let running = self.checkRunning()
+                    if self.isRunning != running { self.isRunning = running }
+                    shouldRead = running && self.bluetoothConnectionOwner == .agentDaemon
+                }
+                self.refreshBLEConnectionStatus(shouldQuery: shouldRead)
             }
         }
         connectionHeartbeatTimer = timer
