@@ -451,3 +451,5 @@ PR143已CI全通过并合入connect&talk/6094d89。新增Hook可选真实session
 首c75有2次UI模式申请2秒超时，安全断线重连、无假成功，根因未定；随后单/多RPC及UI成功。e9cb504修只读后旧错误残留、加单次超时诊断，未盲调延迟或宣称超时已修。e9cb504已签名安装，0→1→0→1四轮均成功约2.1–2.5秒。当前MULTI，合成Claude waiting、Cursor done及当前Codex running已显示在UI，等待用户确认物理绿/黄/红分段、一空槽熄灭（300秒会过期；若反馈过晚要重发）。不能在反馈前切走或将视觉标通过。当前实体手动档，键位/Voice/资源/亮度未改，固件未刷。
 
 精确结果见docs/validation/connect-talk-hil-2026-10-21/PRESENTATION_ROUTING.md，契约见docs/ahastudio/ws3-presentation-routing-contract-2026-10-21.md。仍缺物理清屏/QuietSleep/故障全矩阵、App直连和前台来源、D03全矩阵及D04/D05。集成目标connect&talk，不是main；需保留超时未解决记录。
+
+视觉等待期间的小修：源码05ad518只把“未读取概览”与“已读取但未设置模式”分开，双轴窄复核及arm64 Release/Developer ID签名通过；R3已构建但未安装，以免中断当前R2/e9cb504的物理视觉验收。功能后端与R2相同。收到反馈后先清理合成会话/恢复日常状态，再安装R3并补界面验证。
