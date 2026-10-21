@@ -8,9 +8,17 @@ final class AhaTypeTextOptimizer: ObservableObject {
     @Published private(set) var statusMessage = NSLocalizedString("AhaType 未启用。", comment: "")
     @Published private(set) var lastQuotaSummary = NSLocalizedString("尚未读取 AhaType 配置。", comment: "")
 
+    @Published private(set) var requiresLogin = false
+    private let session: URLSession
+    private let customConfigURL: URL?
+    private let onLoginRequired: ((String?) -> Void)?
+
     private let fallbackAPIBase = "https://956798.xyz/prod-api"
 
-    private init() {
+    init(configURL: URL? = nil, session: URLSession = .shared, onLoginRequired: ((String?) -> Void)? = nil) {
+        customConfigURL = configURL
+        self.session = session
+        self.onLoginRequired = onLoginRequired
         refreshFromDisk()
     }
 
@@ -77,14 +85,9 @@ final class AhaTypeTextOptimizer: ObservableObject {
             return text
         }
 
-        guard tokenIsStillValid(config["token_valid_until"]) else {
-            statusMessage = NSLocalizedString("AhaType 登录已过期，直接写入原始转写。", comment: "")
-            return text
-        }
-
         let token = stringValue(config["access_token"]).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !token.isEmpty else {
-            statusMessage = NSLocalizedString("AhaType 缺少登录令牌，直接写入原始转写。", comment: "")
+        guard !token.isEmpty, tokenIsStillValid(config["token_valid_until"]) else {
+            requestLogin(token: token)
             return text
         }
 
@@ -102,13 +105,20 @@ final class AhaTypeTextOptimizer: ObservableObject {
         request.httpBody = try? JSONSerialization.data(withJSONObject: ["text": source], options: [])
 
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
+            guard stringValue(loadConfig()["access_token"]) == token else { return text }
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            if CloudAuthenticationFailure.matches(status: statusCode, code: object.map { intValue($0["code"]) },
+                message: object.map { responseMessage($0) } ?? "") {
+                requestLogin(token: token)
+                return text
+            }
             guard statusCode == 200 else {
                 statusMessage = "AhaType 请求失败（HTTP \(statusCode)），已写入原始转写。"
                 return text
             }
-            guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            guard let object else {
                 statusMessage = NSLocalizedString("AhaType 返回非 JSON，已写入原始转写。", comment: "")
                 return text
             }
@@ -143,11 +153,21 @@ final class AhaTypeTextOptimizer: ObservableObject {
         }
     }
 
+    private func requestLogin(token: String) {
+        // A late response for an old token must not log out a newer login.
+        guard stringValue(loadConfig()["access_token"]) == token else { return }
+        clearSessionKeepToggle()
+        statusMessage = NSLocalizedString("登录已失效，请重新登录。", comment: "")
+        if let onLoginRequired { onLoginRequired(token.isEmpty ? nil : token) }
+        else { CloudAccountManager.shared.requireLogin(ifTokenMatches: token.isEmpty ? nil : token) }
+    }
+
     private func updateStatus(from config: [String: Any]) {
         let enabled = boolValue(config["typeless_enabled"])
         let token = stringValue(config["access_token"]).trimmingCharacters(in: .whitespacesAndNewlines)
         let valid = tokenIsStillValid(config["token_valid_until"])
 
+        requiresLogin = enabled && (token.isEmpty || !valid)
         if !enabled {
             statusMessage = NSLocalizedString("AhaType 未启用。", comment: "")
         } else if token.isEmpty {
@@ -278,7 +298,8 @@ final class AhaTypeTextOptimizer: ObservableObject {
     }
 
     private var configURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser
+        if let customConfigURL { return customConfigURL }
+        return FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/VibeKeyboard", isDirectory: true)
             .appendingPathComponent("typeless_config.json")
     }
