@@ -1099,6 +1099,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             guard case .singleLight(let effect) = try await readWS3DisplayValue(.singleLight(mode: mode, state: state), generation: generation) else {
                 throw OLEDUploadError.invalidReadback
             }
+            try ensureConfigurationReadSession(generation)
             let result = WS3SingleLightSnapshot(generation: generation, mode: mode, state: state, effect: effect)
             ws3SingleLightSnapshot = result
             ws3LightCatalogSnapshot = ws3LightCatalogSnapshot?.replacing(result)
@@ -1140,6 +1141,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             }, write: { request in
                 _ = try await self.sendCommandAwaitingResponse(request, expectedCommand: 0x8E, confirmedWrite: .ws3Display)
             })
+            try ensureConfigurationReadSession(generation)
             switch target {
             case .brightness:
                 if let snapshot = ws3DisplaySnapshot {
