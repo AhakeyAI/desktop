@@ -234,18 +234,39 @@ final class AgentManager: ObservableObject {
         }
     }
 
-    /// 向 agent socket 发 status 命令，switchState 非 null 即代表 BLE 已连上键盘。
-    /// 同步执行，需在后台线程调用。
-    nonisolated private static func querySocketBLEConnected(socketPath: String) -> Bool {
-        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else { return false }
-        defer { close(fd) }
+    /// Snapshot only; never opens a configuration connection or writes device state.
+    func readTaskOverview() async -> WS3TaskOverview? {
+        guard bluetoothConnectionOwner == .agentDaemon, isRunning else { return nil }
+        let ownership = ownershipTransitionGeneration
+        let publication = connectionPublicationGeneration
+        let path = socketPath
+        let report = await Task.detached(priority: .utility) {
+            Self.querySocketData(socketPath: path, command: "presentation_tasks").flatMap(WS3TaskOverview.decode)
+        }.value
+        guard ownershipTransitionGeneration == ownership, connectionPublicationGeneration == publication,
+              bluetoothConnectionOwner == .agentDaemon, isRunning else { return nil }
+        return report
+    }
 
+    nonisolated private static func querySocketBLEConnected(socketPath: String) -> Bool {
+        guard let data = querySocketData(socketPath: socketPath, command: "status"),
+              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return false }
+        return !(json["switchState"] is NSNull) && json["switchState"] != nil
+    }
+
+    /// Newline-framed bounded read: a task overview can exceed the old 256-byte
+    /// status buffer, and a stream read may return only part of a message.
+    nonisolated static func querySocketData(socketPath: String, command: String) -> Data? {
+        var addr = sockaddr_un()
+        guard socketPath.utf8.count < MemoryLayout.size(ofValue: addr.sun_path) else { return nil }
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd >= 0 else { return nil }
+        defer { close(fd) }
         var tv = timeval(tv_sec: 2, tv_usec: 0)
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
         setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
-
-        var addr = sockaddr_un()
+        var noSigPipe: Int32 = 1
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
         addr.sun_family = sa_family_t(AF_UNIX)
         socketPath.withCString { src in
             withUnsafeMutablePointer(to: &addr.sun_path) { dst in
@@ -257,23 +278,25 @@ final class AgentManager: ObservableObject {
                 connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
             }
         }
-        guard ok == 0 else { return false }
-
-        guard let payload = "{\"cmd\":\"status\"}\n".data(using: .utf8) else { return false }
-        let wrote = payload.withUnsafeBytes { ptr -> Int in
-            guard let base = ptr.baseAddress else { return -1 }
-            return write(fd, base, ptr.count)
+        guard ok == 0, var payload = try? JSONSerialization.data(withJSONObject: ["cmd": command]) else { return nil }
+        payload.append(0x0A)
+        let deadline = ProcessInfo.processInfo.systemUptime + 2
+        var offset = 0
+        while offset < payload.count {
+            guard ProcessInfo.processInfo.systemUptime < deadline else { return nil }
+            let written = payload.withUnsafeBytes { write(fd, $0.baseAddress!.advanced(by: offset), payload.count - offset) }
+            guard written > 0 else { return nil }
+            offset += written
         }
-        guard wrote > 0 else { return false }
-
-        var buf = [UInt8](repeating: 0, count: 256)
-        let n = read(fd, &buf, buf.count)
-        guard n > 0 else { return false }
-
-        guard let json = try? JSONSerialization.jsonObject(with: Data(buf[0..<n])) as? [String: Any] else {
-            return false
+        var response = Data(), buffer = [UInt8](repeating: 0, count: 1024)
+        while response.count < 8192 {
+            guard ProcessInfo.processInfo.systemUptime < deadline else { return nil }
+            let count = read(fd, &buffer, min(buffer.count, 8192 - response.count))
+            guard count > 0 else { return nil }
+            response.append(contentsOf: buffer.prefix(count))
+            if let end = response.firstIndex(of: 0x0A) { return Data(response[..<end]) }
         }
-        return !(json["switchState"] is NSNull) && json["switchState"] != nil
+        return nil
     }
 
     // MARK: - 蓝牙占用方（App ↔ Agent 二选一）

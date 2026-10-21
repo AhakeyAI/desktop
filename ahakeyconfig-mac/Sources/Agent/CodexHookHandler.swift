@@ -70,6 +70,8 @@ enum CodexHookHandler {
         if let delayMilliseconds = plan.delayMilliseconds {
             request["delayMs"] = delayMilliseconds
         }
+        request = WS3TaskMetadata.enrich(request, client: .codex,
+            event: codexAgentEventName(forStateValue: stateValue), stdin: stdinData)
         let reply = dependencies.sendRequest(request, HookSupport.stateRequestTimeout)
         let switchState = HookSupport.intValue(reply?["switchState"])
 
@@ -98,7 +100,8 @@ enum CodexHookHandler {
     static func handlePermissionRequest() {
         let stdinData = dependencies.readStdin()
         let ctx = dependencies.parseContext(stdinData, "Codex")
-        let request: [String: Any] = ["cmd": "permission", "value": Int(HookSupport.permissionLedValue)]
+        let request = WS3TaskMetadata.enrich(["cmd": "permission", "value": Int(HookSupport.permissionLedValue)],
+            client: .codex, event: "PermissionRequest", stdin: stdinData)
         let reply = dependencies.sendRequest(request, HookSupport.permissionRequestTimeout)
         let switchState = HookSupport.approvalSwitchState(reply, client: .codex, controlDirectory: dependencies.approvalControlDirectory)
         let isAuto = switchState == 0

@@ -55,6 +55,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 等待下一次 status 回包的回调队列（用于 querySwitchState）
     private var statusWaiters = AgentStatusQueries()
     private var connectionGeneration: UInt64 = 0
+    private var presentationTasks = WS3TaskRegistry()
     private struct ApprovalRead {
         let id: UUID
         let generation: UInt64
@@ -437,7 +438,22 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     /// 在主队列执行的 JSON 命令分发。回包由 `replyAndClose` 负责异步写入 + 关 fd。
     private func handleJsonCommand(cmd: String, obj: [String: Any], clientFd: Int32) {
+        let connected = connectionLock.holdsLock && commandChar != nil && peripheral != nil && cachedSwitchState != nil
+        if !connected { presentationTasks.clear() }
+        if connected, ["state", "state_with_reset", "permission"].contains(cmd),
+           let task = obj["task"] as? [String: String], let metadata = WS3TaskMetadata(dictionary: task),
+           let value = obj["value"] as? Int, (0...8).contains(value) {
+            presentationTasks.observe(metadata, state: UInt8(value), at: ProcessInfo.processInfo.systemUptime)
+        }
         switch cmd {
+        case "presentation_tasks":
+            let overview = presentationTasks.overview(connected: connected, at: ProcessInfo.processInfo.systemUptime)
+            if let data = try? JSONEncoder().encode(overview),
+               let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+                Self.replyAndClose(clientFd, body)
+            } else {
+                Self.replyAndClose(clientFd, ["error": "task overview unavailable"])
+            }
         case "state":
             if let v = obj["value"] as? Int {
                 lastHookStateAt = Date()
@@ -564,6 +580,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var lockRetryItem: DispatchWorkItem?
 
     private func invalidateBLEConnection() {
+        presentationTasks.clear()
         approvalChannelReady = false
         connectionGeneration &+= 1
         stopStatusPolling()

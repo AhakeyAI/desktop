@@ -6,7 +6,8 @@ enum ClaudeHookHandler {
         let stdinData = HookSupport.readAllStdinSilently()
         let ctx = HookSupport.parseStdinContext(stdinData, label: "Claude")
         // Desktop hosts permission prompts through canUseTool. Decide before that callback runs.
-        let request: [String: Any] = ["cmd": "permission", "value": 3]
+        let request = WS3TaskMetadata.enrich(["cmd": "permission", "value": 3],
+            client: .claude, event: "PreToolUse", stdin: stdinData)
         let reply = HookSupport.sendJsonRequest(request, timeout: HookSupport.permissionRequestTimeout)
         let switchState = effectiveSwitchState(reply)
         let isAuto = switchState == 0
@@ -46,7 +47,8 @@ enum ClaudeHookHandler {
     static func handlePermissionRequest() {
         let stdinData = HookSupport.readAllStdinSilently()
         let ctx = HookSupport.parseStdinContext(stdinData, label: "Claude")
-        let request: [String: Any] = ["cmd": "permission", "value": Int(HookSupport.permissionLedValue)]
+        let request = WS3TaskMetadata.enrich(["cmd": "permission", "value": Int(HookSupport.permissionLedValue)],
+            client: .claude, event: "PermissionRequest", stdin: stdinData)
         let reply = HookSupport.sendJsonRequest(request, timeout: HookSupport.permissionRequestTimeout)
         let switchState = effectiveSwitchState(reply)
         let isAuto = switchState == 0

@@ -1,4 +1,5 @@
 import Foundation
+import AhaKeyConfigShared
 
 /// 仅负责事件路由；各 IDE 的具体逻辑已拆到独立 handler，避免互相影响。
 enum HookClient {
@@ -63,7 +64,13 @@ enum HookClient {
 
         switch route {
         case .sharedState(let value):
-            HookSupport.handleFireAndForgetState(stateValue: value)
+            if let client = WS3TaskMetadata.client(for: event) {
+                let request = WS3TaskMetadata.enrich(["cmd": "state", "value": Int(value)], client: client,
+                    event: event, stdin: HookSupport.readAllStdinSilently())
+                _ = HookSupport.sendJsonRequest(request, timeout: HookSupport.stateRequestTimeout)
+            } else {
+                HookSupport.handleFireAndForgetState(stateValue: value)
+            }
         case .claudePreToolUse:
             ClaudeHookHandler.handlePreToolUse()
         case .claudePermissionRequest:
