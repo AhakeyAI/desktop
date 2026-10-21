@@ -440,3 +440,5 @@ CommandTurnQueue统一串行命令所有权。排队任务取消即移除，但�
 PR143已CI全通过并合入connect&talk/6094d89。新增Hook可选真实session/conversation metadata，Agent按源+会话哈希维护4稳定槽，300秒TTL、满容量不挤活跃任务、断连清空，不凭全局LED或cwd捏造任务身份。显示页只读概览通过presentation_tasks读取，不发GATT或写配置；异步结果校验所有权/发布代次。socket读取支持分片和超过256字节消息，8192上限与超时保护；新增10项/全287测试通过。
 
 0x98/99写门控、前台事实、显式SINGLE/MULTI选择与真实OLED路由尚未开放；Quiet/Sleep/App直连和子代理独立追踪仍需后续。不是D02整体完成。契约和完成边界见docs/ahastudio/ws3-task-observation-contract-2026-10-21.md；候选安装/HIL结果单独追加。
+
+第32节后续：慢概览跨断连/重连回归修正后全288通过，双轴复核通过。本机已安装d984034签名候选；已安装Hook→Agent→四槽容量提示→只读界面、合成会话清理、Agent停止/重启无重放及手动审批回归通过。测试后日常Agent连接、手动档、详细日志关闭。精确证据见docs/validation/connect-talk-hil-2026-10-21/TASK_OVERVIEW.md；没有0x98/99生产发送，D02屏幕路由仍待。
