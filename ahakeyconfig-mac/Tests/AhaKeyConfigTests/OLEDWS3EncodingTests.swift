@@ -6,7 +6,7 @@ import AhaKeyConfigShared
 @testable import AhaKeyConfig
 
 final class OLEDWS3EncodingTests: XCTestCase {
-    private func gif(frameCount: Int) throws -> URL {
+    private func gif(frameCount: Int, distinctFrames: Bool = false) throws -> URL {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("frames.gif")
@@ -17,7 +17,15 @@ final class OLEDWS3EncodingTests: XCTestCase {
         context.fill(CGRect(x: 0, y: 0, width: 160, height: 80))
         let image = try XCTUnwrap(context.makeImage())
         let destination = try XCTUnwrap(CGImageDestinationCreateWithURL(url as CFURL, UTType.gif.identifier as CFString, frameCount, nil))
-        for _ in 0..<frameCount { CGImageDestinationAddImage(destination, image, nil) }
+        for index in 0..<frameCount {
+            if distinctFrames {
+                let colors: [CGColor] = [CGColor(red: 1, green: 0, blue: 0, alpha: 1),
+                    CGColor(red: 0, green: 1, blue: 0, alpha: 1), CGColor(red: 0, green: 0, blue: 1, alpha: 1)]
+                context.setFillColor(colors[index % colors.count])
+                context.fill(CGRect(x: 0, y: 0, width: 160, height: 80))
+                CGImageDestinationAddImage(destination, try XCTUnwrap(context.makeImage()), nil)
+            } else { CGImageDestinationAddImage(destination, image, nil) }
+        }
         XCTAssertTrue(CGImageDestinationFinalize(destination))
         return url
     }
@@ -36,6 +44,23 @@ final class OLEDWS3EncodingTests: XCTestCase {
         let payload = try WS3ResourcePayload(entryID: 0, frames: frames)
         XCTAssertEqual(payload.bytes.prefix(25_600), frames[0])
         XCTAssertEqual(payload.bytes.suffix(3072), Data(repeating: 0xFF, count: 3072))
+    }
+
+    func testDistinctGIFFramesRemainDistinctAndInOrderThroughCP2Padding() throws {
+        let url = try gif(frameCount: 3, distinctFrames: true)
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let frames = try OLEDFrameEncoder.frames(fromGIFAt: url, maximumFrames: 12)
+        XCTAssertEqual(frames.count, 3)
+        XCTAssertEqual(Set(frames).count, 3)
+        let pixels = frames.map { UInt16($0[0]) << 8 | UInt16($0[1]) }
+        XCTAssertGreaterThanOrEqual((pixels[0] >> 11) & 31, 28)
+        XCTAssertGreaterThanOrEqual((pixels[1] >> 5) & 63, 56)
+        XCTAssertGreaterThanOrEqual(pixels[2] & 31, 28)
+        let payload = try WS3ResourcePayload(entryID: 18, frames: frames)
+        for index in frames.indices {
+            let start = index * 28_672
+            XCTAssertEqual(payload.bytes.subdata(in: start..<(start + 25_600)), frames[index])
+        }
     }
 
     func testGIFOverTargetCapacityIsRejectedWithoutTruncationButLegacyLimitRemains() throws {

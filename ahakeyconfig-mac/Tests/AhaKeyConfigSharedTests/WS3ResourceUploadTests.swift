@@ -9,6 +9,7 @@ final class WS3ResourceUploadTests: XCTestCase {
         var committed = false
         var reject: UInt8?
         var crcMismatch = false
+        var writingEntry: UInt8?
         var epoch: UInt64 = 7
         var intercept: ((Data) throws -> Void)?
         init(_ payload: WS3ResourcePayload) { self.payload = payload }
@@ -25,7 +26,7 @@ final class WS3ResourceUploadTests: XCTestCase {
             if b[2] == reject { return Data([0xAA, 0xBB, b[2], 1, 0xCC, 0xDD]) }
             if b[2] == 0x8C { committed = true }
             if b[2] == 0x88 {
-                if b[3] == 2 { return Data([0xAA, 0xBB, 0x88, 0, 2, b[4], committed ? 1 : 0, committed ? 2 : 0, 0xCC, 0xDD]) }
+                if b[3] == 2 { return Data([0xAA, 0xBB, 0x88, 0, 2, b[4], committed ? 1 : 0, committed ? 2 : (writingEntry == b[4] ? 1 : 0), 0xCC, 0xDD]) }
                 let frames = committed ? payload.frameCount : 0
                 let bytes = committed ? UInt32(payload.bytes.count) : 0
                 let crc = committed ? payload.crc32 ^ (crcMismatch ? 1 : 0) : 0
@@ -146,6 +147,69 @@ final class WS3ResourceUploadTests: XCTestCase {
         do { _ = try await io.run(); XCTFail() }
         catch { XCTAssertEqual(error as? WS3ResourceUploadError, .verificationMismatch) }
         XCTAssertTrue(io.committed)
+    }
+
+    func testWritingSlotBlocksNewUploadEvenToDifferentSlotWithoutCommands() async throws {
+        for writingID: UInt8 in [8, 18] {
+            let io = try Firmware(payload(8))
+            let writing = WS3ResourceReadback(id: writingID,
+                basic: .resourceBasic(userValid: false, writeState: .writing),
+                integrity: .resourceIntegrity(frames: 0, bytes: 0, crc32: 0))!
+            let baseline = WS3DisplaySnapshot(generation: 7, brightness: 35,
+                resources: io.baseline.resources.map { $0.id == writingID ? writing : $0 })
+            do { _ = try await io.run(baseline: baseline); XCTFail() }
+            catch { XCTAssertEqual(error as? WS3ResourceUploadError, .uploadInProgress) }
+            XCTAssertTrue(io.requests.isEmpty)
+        }
+    }
+
+    func testFreshWritingTargetBlocksBeginAndFreshEmptyAllowsRetry() async throws {
+        let io = try Firmware(payload())
+        io.writingEntry = 8
+        do { _ = try await io.run(); XCTFail() }
+        catch { XCTAssertEqual(error as? WS3ResourceUploadError, .uploadInProgress) }
+        XCTAssertEqual(io.requests.map { $0[2] }, [0x88, 0x88])
+        // A new connection's complete EMPTY readback permits an explicit retry.
+        io.writingEntry = nil; io.requests = []
+        let retried = try await io.run()
+        XCTAssertTrue(retried.reportsValidUserResource)
+    }
+
+    func testMultiframeUploadCrossesPaddedFrameBoundariesWithoutDroppingBytes() async throws {
+        let frames = (0..<3).map { Data(repeating: UInt8($0 + 1), count: 25_600) }
+        let io = try Firmware(WS3ResourcePayload(entryID: 18, frames: frames))
+        let actual = try await io.run()
+        XCTAssertEqual(actual.frames, 3)
+        XCTAssertEqual(actual.payloadBytes, 86_016)
+        var reconstructed = Data()
+        for request in io.requests where request[2] == 0x8B {
+            let b = [UInt8](request)
+            let offset = (0..<4).reduce(UInt32(0)) { $0 | UInt32(b[4 + $1]) << ($1 * 8) }
+            XCTAssertEqual(offset, UInt32(reconstructed.count))
+            reconstructed.append(contentsOf: b[9..<(9 + Int(b[8]))])
+        }
+        XCTAssertEqual(reconstructed, io.payload.bytes)
+        for index in frames.indices {
+            let start = index * 28_672
+            XCTAssertEqual(reconstructed.subdata(in: start..<(start + 25_600)), frames[index])
+            XCTAssertEqual(reconstructed.subdata(in: (start + 25_600)..<(start + 28_672)), Data(repeating: 0xFF, count: 3072))
+        }
+        XCTAssertEqual(io.requests.filter { $0[2] == 0x8C }.count, 1)
+    }
+
+    func testCancellationAfterFirstFrameStopsAllRemainingFramesAndCommit() async throws {
+        let io = try Firmware(WS3ResourcePayload(entryID: 18, frames: Array(repeating: Data(count: 25_600), count: 3)))
+        var delivered = 0
+        io.intercept = { request in
+            if request[2] == 0x8B {
+                if delivered >= 28_672 { throw CancellationError() }
+                delivered += Int(request[8])
+            }
+        }
+        do { _ = try await io.run(); XCTFail() } catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertGreaterThanOrEqual(delivered, 28_672)
+        XCTAssertLessThan(delivered, 28_720)
+        XCTAssertFalse(io.requests.contains { [0x8C, 0x8D, 0x8E, 0x04].contains($0[2]) })
     }
 
     func testSplitAndOversizedACKsAreNotMisassociated() {

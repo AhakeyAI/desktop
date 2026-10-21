@@ -7,6 +7,8 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "键盘仍有未完成的素材上传。请正常重启键盘，重新连接并读取显示信息后再试。":
+        "The keyboard still has an unfinished resource upload. Restart the keyboard normally, reconnect and read display information before trying again.",
     "USB 接口": "USB Interface",
     "USB HID 写入失败（%d）": "USB HID write failed (%d)",
     "USB HID 有线配置通道已断开，配置写入回退 BLE": "USB HID configuration disconnected; configuration writes fell back to BLE",

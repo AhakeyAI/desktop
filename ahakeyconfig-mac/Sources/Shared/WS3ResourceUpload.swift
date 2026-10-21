@@ -1,9 +1,11 @@
 import Foundation
 
 public enum WS3ResourceUploadError: Error, LocalizedError, Equatable {
+    case uploadInProgress
     case invalidPayload, tooManyFrames(Int), invalidMTU, unverifiedConnection, conflict, rejected(UInt8, UInt8), invalidReply, verificationMismatch
     public var errorDescription: String? {
         switch self {
+        case .uploadInProgress: return NSLocalizedString("键盘仍有未完成的素材上传。请正常重启键盘，重新连接并读取显示信息后再试。", comment: "")
         case .invalidPayload: return NSLocalizedString("素材格式无效，请重新选择图片或 GIF。", comment: "")
         case .tooManyFrames(let max): return String(format: NSLocalizedString("此素材位置最多支持 %d 帧，请缩短动画后重试。", comment: ""), max)
         case .invalidMTU: return NSLocalizedString("当前蓝牙通道不能发送素材分块，请重新连接。", comment: "")
@@ -100,6 +102,9 @@ public enum ConfirmedWS3ResourceUpload {
               let previous = baseline.resources.first(where: { $0.id == payload.entryID }) else {
             throw WS3ResourceUploadError.unverifiedConnection
         }
+        guard !baseline.resources.contains(where: { $0.writeState == .writing }) else {
+            throw WS3ResourceUploadError.uploadInProgress
+        }
         // BEGIN is 16B. A CHUNK has 11B framing/selector/offset overhead.
         guard maximumWriteLength >= 16 else { throw WS3ResourceUploadError.invalidMTU }
         let chunkSize = min(48, maximumWriteLength - 11)
@@ -131,7 +136,9 @@ public enum ConfirmedWS3ResourceUpload {
             }
             guard reply[3] == 0 else { throw WS3ResourceUploadError.rejected(request[2], reply[3]) }
         }
-        guard try await read() == previous else { throw WS3ResourceUploadError.conflict }
+        let fresh = try await read()
+        guard fresh.writeState != .writing else { throw WS3ResourceUploadError.uploadInProgress }
+        guard fresh == previous else { throw WS3ResourceUploadError.conflict }
         try await send(.begin(payload))
         progress(0, payload.bytes.count)
         for offset in stride(from: 0, to: payload.bytes.count, by: chunkSize) {
