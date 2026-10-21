@@ -474,3 +474,6 @@ D02-C PR145已合入connect&talk/4ca05c0。本批新分支codex/connect-talk-cli
 PR146已合入connect&talk/d39c3ea。新分支codex/connect-talk-ws3-resource-upload，55efdef/d772223实现19项资源选择/后台编码/当前连接完整proof/目标baseline冲突保护/8A→串行8B内联CMD→8C→元数据核对。每帧25600 RGB565BE+FF补齐28672，最多8/12帧、固件10fps，真实MTU减11、payload最多48，不走旧DATA，不发04/8E/8D。取消/失败断配置连接，不承诺physical HID已断，必要时提示正常重启；D05清空恢复另做。进度200ms节流，332全量测试及双轴复核通过。
 
 签名0.2.3/d772223已安装；App配置连接完整19项读回亮度35%、有效自定义0/19，已选内置codex.gif1帧到Codex默认位置并呈现覆盖确认，尚无新资源写入。等待用户对具体持久化素材写入的确认（其他18项/键位/Voice不变），然后真机显示/重启/取消恢复。不能将准备通过标记上传验收通过。详见docs/validation/connect-talk-hil-2026-10-21/RESOURCE_UPLOAD.md，下一步继续原生确认对话框并先检查连接是否仍有效。
+
+
+D04首次真实写入后续：用户改为自选静态JPEG，已按授权通过原生UI上传Codex默认位置；598块→Commit→valid/frames1/bytes28672/CRC元数据一致，35%亮度、有效自定义1/19。用户已确认实体Codex实际显示正常；其他资源/键位/Voice未写。用户图片及截图仅本机私有，不推送到PR。当前等待用户正常重启反馈及重连只读核验；取消/多帧/全位置矩阵仍待。PR147四项CI均已通过，但继续Draft至本批保持性收尾。当前App配置连接，Agent暂停以保持单一归属；测试结束应关闭设置恢复日常Agent，并fresh核对手动审批。
