@@ -7,6 +7,15 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "灯效总览回复不完整，未确认完整结果，请重新读取。": "The lighting overview reply is incomplete. Read it again to confirm all settings.",
+    "当前固件不支持完整灯效读回。": "This firmware does not support complete lighting readback.",
+    "键盘拒绝了灯效总览读取，请重新读取。": "The keyboard rejected the lighting overview request. Read it again.",
+    "四模式灯效总览": "Lighting overview for all modes",
+    "读取全部 36 项灯效（只读）": "Read all 36 lighting settings (read only)",
+    "正在读取灯效总览…": "Reading lighting overview…",
+    "只读取键盘保存值，不切换工作模式、不播放灯效，也不覆盖草稿。未知灯效保持只读。":
+        "Reads saved values without switching modes, playing effects or replacing drafts. Unknown effects remain read only.",
+    "已读取四个模式共 36 项灯效，未写入键盘。": "Read 36 lighting settings across four modes. Nothing was written to the keyboard.",
     "上次素材上传未确认完成。请重新连接并读取；若读取被拒绝，请正常重启键盘。原素材不保证恢复。":
         "The previous resource upload was not confirmed. Reconnect and read back; if rejected, restart the keyboard normally. The original resource may not be recoverable.",
     "键盘仍有未完成的素材上传。请正常重启键盘，重新连接并读取显示信息后再试。":
