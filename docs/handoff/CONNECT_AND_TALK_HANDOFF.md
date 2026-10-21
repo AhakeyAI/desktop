@@ -512,3 +512,13 @@ PR149已合入connect&talk/9d21d8b。PR150分支codex/connect-talk-ws3-interrupt
 归还后台发现旧缓存isRunning=false阻止后续心跳：RPC实际connected/auto有效，但首页长期未连接。c7137dc默认5秒先廉价Socket stat再按owner查询，保留原单查询及代次撤销、不重复Hook/配置/launchd发现。真实Timer晚发布/移除隔离端点的回归旧实现4失败，新358全过。最终候选启动及另一次“进设置→只读19项→关闭交后台”均无需设备信息手动刷新，首页自行恢复AhaKey505C/60%/自动批准；fresh connected=true、physical/effective=0、autoVerified=true，语音桥运行中。键位/Voice/亮度未写，固件未刷。
 
 本批真机检查点已收尾，无待用户重启或临时素材清理。PR150完成最终文档CI后按授权合入connect&talk，不合main。下一步完整19位置/最大8与12帧、其他拒绝/超时/EEPROM/无线故障、旧固件与H02/L02/CP3范围仍按WBS推进；不把首路径通过当最终版本全部完成。原始日志/用户图片/AX证据只本机私有；公开fixture仅生成三色GIF。界面工具曾断管，恢复后关键结果已重新核对，不需重复旧的Codex/键盘重启请求。证据docs/validation/connect-talk-hil-2026-10-21/UPLOAD_INTERRUPTION.md，固件owner边界见FIRMWARE_FOLLOW_UP_2026-10-09.md末节。
+
+## 40. 固件优化反馈与D03只读灯效总览（2026-10-21）
+
+PR150已合入connect&talk/39d4d70。用户要求汇总重启风险并明确授权创建固件GitHub issue；当前8项清单FIRMWARE_OPTIMIZATION_LIST_2026-10-21.md已提交硬件仓库Issue7，区分真机/静态/待验证/合同限制。F5仍暂缓，不要求重写Harness或提前交Windows工程；历史清单已回链当前列表。
+
+新分支codex/connect-talk-ws3-light-catalog，代码2795aa5，365测试（新7项）及两轴复核通过；签名0.2.3 arm64候选已安装。新增4×9只读总览：本连接完整19项proof后只发36项0x88，精确地址/帧校验，全完成才发布；OFF和未知值保留，未知只读。Manager复用UUID/代次票据，断线/能力撤回清表，单项读/保存更新对应格，既有保存前baseline检查保留。总览不覆盖草稿或切换模式，不预览/保存。
+
+真机首轮蓝牙超时后旧facts撤回、无部分成功，原因未定位；重连后36标签/9行4列/四个OFF读取成功，截图布局通过。受控读取中取消后自动重连，重新完整19项及36项成功，无需键盘重启。Claude会话结束读回OFF、预览禁用；再次总览保留OFF草稿，最后切通知清回请选择，没有保存或预览。35%/有效1项/Codex1帧保持，键位/Voice/素材未写，固件未刷。
+
+已交还Agent，fresh connected=true、physical/effective=0、autoVerified=true；首页58%/自动批准、语音桥运行中。静态表10秒CPU+0.02秒仅短样本。证据LIGHT_CATALOG.md，公开截图无用户图片。PR151目标connect&talk，最终文档CI通过后合入；本批无待用户动作。D03全模式保存/保持、OFF保存、停止预览及完整无线/旧固件/CLI/CP3矩阵仍待。
