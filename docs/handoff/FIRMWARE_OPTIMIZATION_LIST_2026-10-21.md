@@ -6,6 +6,8 @@
 
 P1表示优先处理影响操作恢复、输入可靠性或已承诺功能的事项；P2表示特定边界、优化或联合验收。标为待复现/验证的项目，不当作已确认固件缺陷。
 
+反馈入口：[https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7)（按用户要求提交至固件仓库）。
+
 ## 汇总列表
 
 | 编号 | 优先级与状态 | 事项 / 已知事实 | 请固件方评估或验证 | 当前Mac处理与影响 |

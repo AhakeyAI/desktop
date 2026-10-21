@@ -16,9 +16,12 @@ struct WS3DisplaySettingsView: View {
         return value
     }
     private var light: WS3SingleLightSnapshot? {
-        guard let value = bleManager.ws3SingleLightSnapshot, value.mode == mode, value.state == state,
-              value.generation == bleManager.configurationSnapshot.generation else { return nil }
-        return value
+        let generation = bleManager.configurationSnapshot.generation
+        if let value = bleManager.ws3SingleLightSnapshot, value.mode == mode, value.state == state,
+           value.generation == generation { return value }
+        guard display != nil, let catalog = bleManager.ws3LightCatalogSnapshot,
+              catalog.generation == generation else { return nil }
+        return catalog.light(mode: mode, state: state)
     }
     private var ready: Bool { bleManager.canEditWS3Display && !bleManager.isConfigurationOperationInProgress }
     private var pendingBrightness: UInt8 { brightnessDraft ?? display?.brightness ?? 50 }
@@ -65,6 +68,8 @@ struct WS3DisplaySettingsView: View {
                         }
                     }
                 }.disabled(!ready)
+                Divider()
+                WS3LightCatalogView(bleManager: bleManager)
                 Divider()
                 Text(NSLocalizedString("单任务模式灯效", comment: "")).font(.headline)
                 HStack {

@@ -94,6 +94,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var configurationSnapshot = DeviceConfigurationSnapshot()
     @Published private(set) var ws3DisplaySnapshot: WS3DisplaySnapshot?
     @Published private(set) var ws3SingleLightSnapshot: WS3SingleLightSnapshot?
+    @Published private(set) var ws3LightCatalogSnapshot: WS3LightCatalogSnapshot?
     enum WS3DisplayOperationKind { case reading, updating }
     struct WS3DisplayOperationTicket: Equatable {
         fileprivate let id: UUID
@@ -825,6 +826,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         firmwareCapabilityProfile = nil
         ws3DisplaySnapshot = nil
         ws3SingleLightSnapshot = nil
+        ws3LightCatalogSnapshot = nil
         var accepted = false
         defer {
             if !accepted, generation == commandSessionGeneration {
@@ -832,6 +834,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 firmwareCapabilityProfile = nil
                 ws3DisplaySnapshot = nil
                 ws3SingleLightSnapshot = nil
+                ws3LightCatalogSnapshot = nil
                 configurationSnapshot.reset(generation: generation)
             }
         }
@@ -952,6 +955,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let displayOperation = beginWS3DisplayOperation(.reading)
         ws3DisplaySnapshot = nil
         ws3SingleLightSnapshot = nil
+        ws3LightCatalogSnapshot = nil
         defer { finishWS3DisplayOperation(displayOperation) }
         let profile = try await readFirmwareCapabilityProfile()
         guard profile.identity == .knownWS2Catalog else { throw OLEDUploadError.unsupportedReadOnlyProfile }
@@ -1066,18 +1070,43 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
     }
 
+    /// Publish only a complete, current-connection four-mode catalog.
+    func readWS3LightCatalogForEditing() async throws -> WS3LightCatalogSnapshot {
+        guard !isConfigurationOperationInProgress, canEditWS3Display,
+              let baseline = ws3DisplaySnapshot else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        let displayOperation = beginWS3DisplayOperation(.reading)
+        ws3LightCatalogSnapshot = nil
+        ws3SingleLightSnapshot = nil
+        defer { finishWS3DisplayOperation(displayOperation) }
+        let result = try await ConfirmedWS3LightCatalog.read(baseline: baseline, generation: generation,
+            checkSession: { try self.ensureConfigurationReadSession(generation) },
+            exchange: { request in
+                try await self.sendCommandAwaitingResponse(request, expectedCommand: 0x88, allowDeviceError: true).frame
+            })
+        try ensureConfigurationReadSession(generation)
+        ws3LightCatalogSnapshot = result
+        return result
+    }
+
     func readWS3SingleLightForEditing(mode: UInt8, state: UInt8) async throws -> WS3SingleLightSnapshot {
         guard !isConfigurationOperationInProgress, canEditWS3Display else { throw OLEDUploadError.channelNotReady }
         let generation = commandSessionGeneration
         let displayOperation = beginWS3DisplayOperation(.reading)
         ws3SingleLightSnapshot = nil
         defer { finishWS3DisplayOperation(displayOperation) }
-        guard case .singleLight(let effect) = try await readWS3DisplayValue(.singleLight(mode: mode, state: state), generation: generation) else {
-            throw OLEDUploadError.invalidReadback
+        do {
+            guard case .singleLight(let effect) = try await readWS3DisplayValue(.singleLight(mode: mode, state: state), generation: generation) else {
+                throw OLEDUploadError.invalidReadback
+            }
+            let result = WS3SingleLightSnapshot(generation: generation, mode: mode, state: state, effect: effect)
+            ws3SingleLightSnapshot = result
+            ws3LightCatalogSnapshot = ws3LightCatalogSnapshot?.replacing(result)
+            return result
+        } catch {
+            if generation == commandSessionGeneration { ws3LightCatalogSnapshot = nil }
+            throw error
         }
-        let result = WS3SingleLightSnapshot(generation: generation, mode: mode, state: state, effect: effect)
-        ws3SingleLightSnapshot = result
-        return result
     }
 
     func previewWS3Display(_ preview: WS3DisplayPreview) async throws {
@@ -1117,12 +1146,15 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                     ws3DisplaySnapshot = WS3DisplaySnapshot(generation: generation, brightness: actual, resources: snapshot.resources)
                 }
             case .singleLight(let mode, let state, _):
-                ws3SingleLightSnapshot = WS3SingleLightSnapshot(generation: generation, mode: mode, state: state, effect: actual)
+                let updated = WS3SingleLightSnapshot(generation: generation, mode: mode, state: state, effect: actual)
+                ws3SingleLightSnapshot = updated
+                ws3LightCatalogSnapshot = ws3LightCatalogSnapshot?.replacing(updated)
             }
         } catch {
             if generation == commandSessionGeneration {
                 ws3DisplaySnapshot = nil
                 ws3SingleLightSnapshot = nil
+                ws3LightCatalogSnapshot = nil
             }
             throw error
         }
@@ -1798,6 +1830,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         firmwareCapabilityProfile = nil
         ws3DisplaySnapshot = nil
         ws3SingleLightSnapshot = nil
+        ws3LightCatalogSnapshot = nil
         configurationSnapshot.reset(generation: commandSessionGeneration)
         if let pending = pendingCommandResponse {
             pendingCommandResponse = nil
@@ -1875,6 +1908,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         firmwareCapabilityProfile = nil
         ws3DisplaySnapshot = nil
         ws3SingleLightSnapshot = nil
+        ws3LightCatalogSnapshot = nil
         configurationSnapshot.reset(generation: commandSessionGeneration)
         appendLog("Configuration interrupted; reconnect and read back before continuing.", isError: true)
         if let peripheral {
