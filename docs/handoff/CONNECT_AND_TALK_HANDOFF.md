@@ -421,3 +421,8 @@ CommandTurnQueue统一串行命令所有权。排队任务取消即移除，但�
 完整只读16键、待机、Voice引导、拨杆绑定与刷写前私有备份一致；使用生产DeviceFrameDecoder处理分片和二进制边界，原始数据未提交，仅无载荷汇总JSON。日志已关，最后交还同源Agent，fresh0/verified true、Codex allow/never恢复，诊断面板关闭，无新设置写入。详见docs/validation/connect-talk-hil-2026-10-20/README.md。
 
 另发现基线已有GUI连接缓存刷新缺口：设备离线时isAgentBLEConnected可能仍保留旧值，主界面显示已连接/旧档位；审批fresh查询仍安全回退。此项单列后续客户端修复，不宣称最终发布验收完整。休眠/唤醒首次物理读回1暂不定性固件问题。D02/资源/全故障矩阵仍按WBS推进。
+
+
+## 30. 连接心跳候选真机验收（2026-10-21）
+
+源码af7645b/0.2.3候选已安装，270测试及双轴复核通过。5秒只读socket心跳修复基线离线UI残留；停止入口同步撤销旧查询发布权。用户正常关机后主界面自动撤回连接和档位，正常无线开机自动恢复，fresh physical1/manual与UI一致；生产停止入口也立即清除，随后重新启动交还日常后台。没有写键位、Voice或显示设置。短采样无持续高CPU，不替代长时/故障全矩阵。证据见docs/validation/connect-talk-hil-2026-10-21/README.md。PR141目标connect&talk，最终文档CI通过后按用户既有授权合并；D02及D04/D05等后续范围继续按WBS，不宣称发布完成。
