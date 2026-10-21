@@ -1,5 +1,6 @@
 import AhaKeyConfigShared
 import CoreBluetooth
+import AppKit
 import Foundation
 import os.log
 
@@ -55,7 +56,16 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 等待下一次 status 回包的回调队列（用于 querySwitchState）
     private var statusWaiters = AgentStatusQueries()
     private var connectionGeneration: UInt64 = 0
-    private var presentationTasks = WS3TaskRegistry()
+    private var presentationSession: AgentPresentationSession!
+    private var presentationPoisoned = false
+    private struct PresentationRead {
+        let id: UUID
+        let generation: UInt64
+        let request: Data
+        let completion: (Result<Data, Error>) -> Void
+    }
+    private var pendingPresentationRead: PresentationRead?
+    private var workspaceSleepObserver: NSObjectProtocol?
     private struct ApprovalRead {
         let id: UUID
         let generation: UInt64
@@ -99,7 +109,20 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         // 旧版虚拟拨杆的持久化值不得再影响实体拨杆的批准行为。
         UserDefaults.standard.removeObject(forKey: "lab.jawa.ahakeyconfig.agent.userSwitchOverride")
         super.init()
+        presentationSession = AgentPresentationSession(exchange: { [weak self] data in
+            guard let self else { throw WS3PresentationError.unavailable }
+            return try await self.exchangePresentation(data)
+        }, sendSingleDefault: { [weak self] in self?.sendPresentationDefault() ?? false }, onFault: { [weak self] in
+            self?.poisonPresentationConnection()
+        })
+        workspaceSleepObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.poisonPresentationConnection() }
         central = CBCentralManager(delegate: self, queue: nil)
+    }
+
+    deinit {
+        if let workspaceSleepObserver { NSWorkspace.shared.notificationCenter.removeObserver(workspaceSleepObserver) }
     }
 
     // MARK: - Public
@@ -107,8 +130,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     func sendState(_ state: UInt8) {
         pendingStateReset?.cancel()
         pendingStateReset = nil
-        guard connectionLock.holdsLock, let commandChar, let peripheral else {
+        guard !presentationPoisoned, connectionLock.holdsLock, let commandChar, let peripheral else {
             emit("LED 状态 \(state): 未连接")
+            return
+        }
+        if !presentationSession.allowsLegacySingle {
+            lastSentState = state
+            Self.writeLiveState(stateValue: state)
             return
         }
         let data = Data(header + [0x90, state] + trailer)
@@ -181,7 +209,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + 1.0, repeating: 1.5)
         timer.setEventHandler { [weak self] in
-            guard let self, self.statusWaiters.isEmpty, self.approvalWaiters.isEmpty, self.pendingApprovalRead == nil else { return }
+            guard let self, self.statusWaiters.isEmpty, self.approvalWaiters.isEmpty, self.pendingApprovalRead == nil, self.pendingPresentationRead == nil else { return }
             self.requestDeviceStatus()
         }
         statusPollTimer = timer
@@ -233,7 +261,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     private func queryApprovalStatus(completion: @escaping ([String: Any]) -> Void) {
-        guard ApprovalAutomationControl.isEnabled() else {
+        guard !presentationSession.isChangingMode, !presentationPoisoned, ApprovalAutomationControl.isEnabled() else {
             completion(["switchState": 1, "physicalSwitchState": NSNull(), "approvalAutoVerified": false, "approvalPolicyVersion": 1])
             return
         }
@@ -438,21 +466,41 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     /// 在主队列执行的 JSON 命令分发。回包由 `replyAndClose` 负责异步写入 + 关 fd。
     private func handleJsonCommand(cmd: String, obj: [String: Any], clientFd: Int32) {
-        let connected = connectionLock.holdsLock && commandChar != nil && peripheral != nil && cachedSwitchState != nil
-        if !connected { presentationTasks.clear() }
+        let connected = !presentationPoisoned && connectionLock.holdsLock && commandChar != nil && peripheral != nil && cachedSwitchState != nil
+        presentationSession.updateConnection(connected: connected, generation: connectionGeneration)
         if connected, ["state", "state_with_reset", "permission"].contains(cmd),
            let task = obj["task"] as? [String: String], let metadata = WS3TaskMetadata(dictionary: task),
            let value = obj["value"] as? Int, (0...8).contains(value) {
-            presentationTasks.observe(metadata, state: UInt8(value), at: ProcessInfo.processInfo.systemUptime)
+            presentationSession.observe(metadata, state: UInt8(value))
         }
         switch cmd {
         case "presentation_tasks":
-            let overview = presentationTasks.overview(connected: connected, at: ProcessInfo.processInfo.systemUptime)
-            if let data = try? JSONEncoder().encode(overview),
-               let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
-                Self.replyAndClose(clientFd, body)
-            } else {
-                Self.replyAndClose(clientFd, ["error": "task overview unavailable"])
+            replyWithPresentationOverview(clientFd)
+        case "presentation_mode":
+            guard connected, approvalChannelReady else {
+                Self.replyAndClose(clientFd, ["error": WS3PresentationError.unavailable.rawValue]); return
+            }
+            guard let mode = Self.parsePresentationMode(obj["mode"]) else {
+                Self.replyAndClose(clientFd, ["error": WS3PresentationError.invalidReply.rawValue]); return
+            }
+            guard approvalRequestID == nil, pendingApprovalRead == nil else {
+                Self.replyAndClose(clientFd, ["error": WS3PresentationError.busy.rawValue]); return
+            }
+            Task { @MainActor [weak self] in
+                guard let self else { close(clientFd); return }
+                guard self.approvalRequestID == nil, self.pendingApprovalRead == nil else {
+                    Self.replyAndClose(clientFd, ["error": WS3PresentationError.busy.rawValue]); return
+                }
+                if self.presentationSession.requestedMode != mode {
+                    self.pendingStateReset?.cancel(); self.pendingStateReset = nil
+                    self.lastHookStateAt = nil
+                }
+                do {
+                    _ = try await self.presentationSession.activate(mode)
+                    self.replyWithPresentationOverview(clientFd)
+                } catch {
+                    Self.replyAndClose(clientFd, ["error": (error as? WS3PresentationError ?? .connectionChanged).rawValue])
+                }
             }
         case "state":
             if let v = obj["value"] as? Int {
@@ -491,6 +539,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             }
 
         case "status":
+            if presentationPoisoned {
+                Self.replyAndClose(clientFd, Self.statusReply(nil, cachedSwitch: nil, cachedLight: nil)); return
+            }
             // 只有实体键盘通过 BLE 上报过拨杆状态，才视为已连接。
             if cachedSwitchState != nil {
                 Self.replyAndClose(clientFd, [
@@ -558,6 +609,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     private static func replyAndClose(_ fd: Int32, _ dict: [String: Any]) {
         DispatchQueue.global(qos: .utility).async {
+            var noSigPipe: Int32 = 1
+            setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
             if let data = try? JSONSerialization.data(withJSONObject: dict, options: []) {
                 var out = data
                 out.append(0x0A) // \n 作为消息边界
@@ -570,6 +623,64 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
     }
 
+    // MARK: - Confirmed runtime presentation (main queue)
+
+    static func parsePresentationMode(_ value: Any?) -> WS3PresentationMode? {
+        guard let value, let data = try? JSONSerialization.data(withJSONObject: value, options: [.fragmentsAllowed]) else { return nil }
+        return try? JSONDecoder().decode(WS3PresentationMode.self, from: data)
+    }
+
+    private func replyWithPresentationOverview(_ fd: Int32) {
+        if let data = try? JSONEncoder().encode(presentationSession.overview()),
+           let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+            Self.replyAndClose(fd, body)
+        } else { Self.replyAndClose(fd, ["error": WS3PresentationError.invalidReply.rawValue]) }
+    }
+
+    @MainActor
+    func prepareForTermination() async { await presentationSession.quiesce() }
+
+    @MainActor
+    private func exchangePresentation(_ request: Data) async throws -> Data {
+        try await withCheckedThrowingContinuation { continuation in
+            guard !presentationPoisoned, pendingPresentationRead == nil, connectionLock.holdsLock,
+                  let peripheral, let commandChar else {
+                continuation.resume(throwing: WS3PresentationError.unavailable); return
+            }
+            let id = UUID(), epoch = connectionGeneration
+            pendingPresentationRead = PresentationRead(id: id, generation: epoch, request: request) {
+                continuation.resume(with: $0)
+            }
+            peripheral.writeValue(request, for: commandChar,
+                type: commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+                guard let self, self.connectionGeneration == epoch, self.pendingPresentationRead?.id == id else { return }
+                self.poisonPresentationConnection()
+            }
+        }
+    }
+
+    private func sendPresentationDefault() -> Bool {
+        guard !presentationPoisoned, connectionLock.holdsLock, let peripheral, let commandChar else { return false }
+        peripheral.writeValue(WS3PresentationCommand.single(state: 8).request!, for: commandChar,
+            type: commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse)
+        Self.writeLiveState(stateValue: 8)
+        return true
+    }
+
+    /// ACKs carry no transaction ID. After timeout/sleep, never reuse this
+    /// channel; late ACKs cannot authorize a new mode or snapshot.
+    private func poisonPresentationConnection() {
+        presentationPoisoned = true
+        approvalChannelReady = false
+        presentationSession.updateConnection(connected: false, generation: connectionGeneration)
+        pendingStateReset?.cancel(); pendingStateReset = nil
+        let pending = pendingPresentationRead
+        pendingPresentationRead = nil
+        pending?.completion(.failure(WS3PresentationError.timedOut))
+        if let peripheral { central.cancelPeripheralConnection(peripheral) }
+    }
+
     // MARK: - Connection
 
     /// 跨进程 BLE 连接锁（阶段 3，flock）：发起连接前必须持有；抢不到绝对不 attach（含系统已连接外设）
@@ -580,7 +691,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var lockRetryItem: DispatchWorkItem?
 
     private func invalidateBLEConnection() {
-        presentationTasks.clear()
+        presentationSession.updateConnection(connected: false, generation: connectionGeneration)
+        let presentationRead = pendingPresentationRead
+        pendingPresentationRead = nil
+        presentationRead?.completion(.failure(WS3PresentationError.connectionChanged))
         approvalChannelReady = false
         connectionGeneration &+= 1
         stopStatusPolling()
@@ -722,6 +836,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         connectionDeadline = nil
         connectionGeneration &+= 1
         approvalChannelReady = true
+        presentationPoisoned = false
+        presentationSession.updateConnection(connected: false, generation: connectionGeneration)
         statusWaiters = AgentStatusQueries()
         lastUUID = peripheral.identifier
         emit("已连接: \(peripheral.name ?? "?")")
@@ -790,6 +906,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             ? commandNotificationFramer.append(data)
             : notifyNotificationFramer.append(data)
         for frame in frames {
+            if let pending = pendingPresentationRead, pending.generation == connectionGeneration,
+               DeviceResponseMatcher.matches(request: pending.request, expectedCommand: pending.request[2], response: frame) {
+                pendingPresentationRead = nil
+                pending.completion(.success(frame))
+            }
             if let pending = pendingApprovalRead, pending.generation == connectionGeneration,
                DeviceResponseMatcher.matches(request: Data(header + [pending.command] + trailer), expectedCommand: pending.command, response: frame) {
                 pendingApprovalRead = nil
@@ -801,7 +922,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     private func handleDeviceStatus(_ status: AgentDeviceStatus) {
+        if let previous = lastLoggedStatus, previous.workMode != status.workMode {
+            presentationSession.keyboardWorkModeChanged()
+        }
         cachedSwitchState = UInt8(clamping: status.switchState)
+        presentationSession.updateConnection(connected: !presentationPoisoned, generation: connectionGeneration)
         cachedLightMode = UInt8(clamping: status.lightMode)
         if lastLoggedStatus != status {
             lastLoggedStatus = status

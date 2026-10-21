@@ -62,11 +62,26 @@ public struct WS3TaskOverview: Codable, Equatable, Sendable {
     public let tasks: [WS3ObservedTask]
     /// Counts discarded events, not unique tasks (which cannot be inferred).
     public let unrepresentedEvents: Int
+    /// Optional fields keep older read-only Agent responses decodable.
+    public let requestedMode: WS3PresentationMode?
+    public let presentationBusy: Bool?
+
+    public init(connected: Bool, tasks: [WS3ObservedTask], unrepresentedEvents: Int,
+                requestedMode: WS3PresentationMode? = nil, presentationBusy: Bool? = nil) {
+        self.connected = connected; self.tasks = tasks; self.unrepresentedEvents = unrepresentedEvents
+        self.requestedMode = requestedMode; self.presentationBusy = presentationBusy
+    }
+
+    public func reportingPresentation(mode: WS3PresentationMode?, busy: Bool) -> Self {
+        Self(connected: connected, tasks: tasks, unrepresentedEvents: unrepresentedEvents,
+             requestedMode: mode, presentationBusy: busy)
+    }
 
     public static func decode(_ data: Data) -> Self? {
         guard let value = try? JSONDecoder().decode(Self.self, from: data),
               value.tasks.count <= 4, value.unrepresentedEvents >= 0,
               value.connected || value.tasks.isEmpty,
+              value.connected || value.requestedMode == nil,
               Set(value.tasks.map(\.slot)).count == value.tasks.count,
               value.tasks.allSatisfy({ (0..<4).contains($0.slot) && $0.reference.count == 64 && $0.reference.allSatisfy { $0.isHexDigit && $0.isASCII } }) else { return nil }
         return value
@@ -85,30 +100,36 @@ public struct WS3TaskRegistry {
     private var entries: [Entry?] = Array(repeating: nil, count: 4)
     private var unrepresentedEvents = 0
     public init() {}
+    public var nextExpiry: TimeInterval? { entries.compactMap { $0.map { $0.updatedAt + 300 } }.min() }
 
     public mutating func clear() { self = Self() }
 
-    public mutating func observe(_ metadata: WS3TaskMetadata, state: UInt8, at now: TimeInterval) {
+    @discardableResult
+    public mutating func observe(_ metadata: WS3TaskMetadata, state: UInt8, at now: TimeInterval) -> Bool {
         expire(at: now)
         let key = metadata.reference
         let existing = entries.firstIndex { $0?.reference == key }
-        if state == 8 { if let existing { entries[existing] = nil }; return }
+        if state == 8 {
+            guard let existing else { return false }
+            entries[existing] = nil; return true
+        }
         let taskState: WS3TaskState
         switch state {
         case 0: taskState = metadata.event == "PreCompact" ? .running : .waiting
         case 1: taskState = .waiting
         case 2, 3, 7: taskState = .running
         case 5, 6: taskState = .done
-        default: return // SessionStart/idle is not a running task.
+        default: return false // SessionStart/idle is not a running task.
         }
         // Late stop events do not invent tasks we never observed running.
-        if taskState == .done, existing == nil { return }
+        if taskState == .done, existing == nil { return false }
         let oldestDone = entries.indices.filter { entries[$0]?.state == .done }
             .min { entries[$0]!.updatedAt < entries[$1]!.updatedAt }
         guard let slot = existing ?? entries.firstIndex(where: { $0 == nil }) ?? oldestDone else {
-            unrepresentedEvents = min(unrepresentedEvents + 1, 1_000_000); return
+            unrepresentedEvents = min(unrepresentedEvents + 1, 1_000_000); return false
         }
         entries[slot] = Entry(reference: key, client: metadata.client, state: taskState, updatedAt: now)
+        return true
     }
 
     public mutating func overview(connected: Bool, at now: TimeInterval) -> WS3TaskOverview {

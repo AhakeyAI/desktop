@@ -14,7 +14,7 @@ public struct DeviceFrameDecoder {
 
     public static func recognizes(_ command: UInt8) -> Bool {
         switch command {
-        case 0x00, 0x87, 0x88, 0x95, 0x96, 0x97, 0x9F: return true
+        case 0x00, 0x87, 0x88, 0x90, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9A, 0x9F: return true
         default: return false
         }
     }
@@ -70,6 +70,7 @@ public struct DeviceFrameDecoder {
         if status != 0 { return .complete(6) }
 
         switch command {
+        case 0x90, 0x98, 0x99, 0x9A: return .complete(6)
         case 0x87:
             guard bytes.count >= 9 else { return .incomplete }
             let descriptionLengthIndex = 8 + Int(bytes[7])
