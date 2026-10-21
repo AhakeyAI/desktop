@@ -1,9 +1,45 @@
 import Combine
 import Foundation
 import XCTest
+import AhaKeyConfigShared
 @testable import AhaKeyConfig
 
 final class AgentConnectionHeartbeatTests: XCTestCase {
+    @MainActor
+    func testSlowTaskOverviewIsRevokedAcrossDisconnectAndReconnect() async {
+        let script = QueryScript()
+        script.onCall = { $0 != 2 }
+        let manager = AgentManager(startServices: false, connectionQuery: { script.query($0) })
+        let connected = expectation(description: "initial connected")
+        let disconnected = expectation(description: "actual heartbeat disconnect")
+        let reconnected = expectation(description: "actual heartbeat reconnect")
+        var changes = 0
+        let observer = manager.$isAgentBLEConnected.dropFirst().sink { _ in
+            changes += 1
+            [connected, disconnected, reconnected][changes - 1].fulfill()
+        }
+        manager.refreshBLEConnectionStatus(shouldQuery: true)
+        await fulfillment(of: [connected], timeout: 2)
+        let started = expectation(description: "old overview entered")
+        let release = DispatchSemaphore(value: 0)
+        let pending = Task { @MainActor in
+            await manager.readTaskOverview(shouldQuery: { true }, query: { _ in
+                started.fulfill()
+                _ = release.wait(timeout: .now() + 3)
+                return WS3TaskOverview.decode(Data(#"{"connected":true,"tasks":[],"unrepresentedEvents":0}"#.utf8))
+            })
+        }
+        await fulfillment(of: [started], timeout: 2)
+        manager.refreshBLEConnectionStatus(shouldQuery: true)
+        await fulfillment(of: [disconnected], timeout: 2)
+        manager.refreshBLEConnectionStatus(shouldQuery: true)
+        await fulfillment(of: [reconnected], timeout: 2)
+        release.signal()
+        let result = await pending.value
+        XCTAssertNil(result, "A reply from before disconnect must not survive reconnect")
+        withExtendedLifetime(observer) {}
+    }
+
     private final class QueryScript: @unchecked Sendable {
         private let lock = NSLock()
         private var count = 0

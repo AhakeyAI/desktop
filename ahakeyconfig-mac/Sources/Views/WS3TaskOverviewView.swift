@@ -36,7 +36,7 @@ struct WS3TaskOverviewView: View {
                     }
                 }
                 if overview.unrepresentedEvents > 0 {
-                    Text(NSLocalizedString("四个位置已占满，部分新任务事件未纳入；当前列表不代表全部任务。", comment: ""))
+                    Text(NSLocalizedString("本次连接有新任务事件因位置占满而未纳入；列表可能不完整。", comment: ""))
                         .foregroundStyle(.orange)
                 }
                 Text(NSLocalizedString("以上为读取时的快照；任务变化后请重新读取。", comment: ""))

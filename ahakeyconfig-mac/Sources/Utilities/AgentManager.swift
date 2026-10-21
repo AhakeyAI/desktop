@@ -229,22 +229,35 @@ final class AgentManager: ObservableObject {
                 self.connectionQueryID = nil
                 guard self.connectionPublicationGeneration == generation,
                       self.ownershipTransitionGeneration == ownership else { return }
-                if self.isAgentBLEConnected != connected { self.isAgentBLEConnected = connected }
+                if self.isAgentBLEConnected != connected {
+                    // An overview read started on the old BLE connection must
+                    // not republish its facts after disconnect or reconnect.
+                    self.connectionPublicationGeneration &+= 1
+                    self.isAgentBLEConnected = connected
+                }
             }
         }
     }
 
     /// Snapshot only; never opens a configuration connection or writes device state.
     func readTaskOverview() async -> WS3TaskOverview? {
-        guard bluetoothConnectionOwner == .agentDaemon, isRunning else { return nil }
+        await readTaskOverview(shouldQuery: {
+            self.bluetoothConnectionOwner == .agentDaemon && self.isRunning
+        }, query: { path in
+            Self.querySocketData(socketPath: path, command: "presentation_tasks").flatMap(WS3TaskOverview.decode)
+        })
+    }
+
+    /// Same publication path with isolated IO/lifecycle inputs for race regressions.
+    func readTaskOverview(shouldQuery: @MainActor () -> Bool,
+                          query: @escaping @Sendable (String) -> WS3TaskOverview?) async -> WS3TaskOverview? {
+        guard shouldQuery() else { return nil }
         let ownership = ownershipTransitionGeneration
         let publication = connectionPublicationGeneration
         let path = socketPath
-        let report = await Task.detached(priority: .utility) {
-            Self.querySocketData(socketPath: path, command: "presentation_tasks").flatMap(WS3TaskOverview.decode)
-        }.value
+        let report = await Task.detached(priority: .utility) { query(path) }.value
         guard ownershipTransitionGeneration == ownership, connectionPublicationGeneration == publication,
-              bluetoothConnectionOwner == .agentDaemon, isRunning else { return nil }
+              shouldQuery() else { return nil }
         return report
     }
 

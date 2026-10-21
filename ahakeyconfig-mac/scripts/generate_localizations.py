@@ -1464,7 +1464,7 @@ TRANSLATIONS.update({
     "键盘未连接，旧任务已清除。": "Keyboard disconnected. Previous tasks have been cleared.",
     "尚未收到可识别的任务会话。": "No identifiable task sessions received yet.",
     "位置 %d · %@ · %@": "Slot %d · %@ · %@",
-    "四个位置已占满，部分新任务事件未纳入；当前列表不代表全部任务。": "All four slots were occupied. Some new task events were not included; this list is incomplete.",
+    "本次连接有新任务事件因位置占满而未纳入；列表可能不完整。": "Some task events were omitted because all slots were occupied during this connection. This list may be incomplete.",
     "以上为读取时的快照；任务变化后请重新读取。": "Snapshot at the time of reading. Read again after tasks change.",
     "未获得任务信息，请确认后台已更新并运行后重试。": "Task information unavailable. Update and start the background service, then retry.",
     "请先返回日常连接，再读取后台任务。": "Return to the daily connection before reading background tasks.",
