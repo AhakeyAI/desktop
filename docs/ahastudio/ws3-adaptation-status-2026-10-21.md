@@ -42,3 +42,6 @@ Fireware-harness最新HEAD为076382b2214289ac7bc1735d669d7de78730c4da。相对70
 后续进展：PR143已CI全通过并合入6094d89。D02-B1补真实session/conversation标识、四槽/TTL/容量管理、Agent只读socket与显示页概览，287测试通过；仍不发0x98/99、不猜前台、不声称子代理独立任务或MULTI已开启。详细边界见ws3-task-observation-contract-2026-10-21.md。
 
 D02-B1候选d984034已安装：真实Codex会话概览、合成会话四槽容量提示、清理/Agent重启无重放及手动Hook回归通过；新增11项/全288通过，双轴复核通过。详情见../validation/connect-talk-hil-2026-10-21/TASK_OVERVIEW.md；0x98/99生产路由仍未开放。
+
+
+D02-C后续：显式SINGLE/MULTI、40次当前连接能力验证、串行完整快照/过期清理、正常退出清理已实现，302测试和双轴复核通过；本机已安装e9cb504签名候选，多轮模式往返成功。实际分段灯效待用户反馈；c75两次2秒超时仍未归因，稳定性不标全部通过。详见ws3-presentation-routing-contract-2026-10-21.md及../validation/connect-talk-hil-2026-10-21/PRESENTATION_ROUTING.md。当前MULTI与合成waiting/done用于视觉验收，反馈后清理；未写持久化显示配置、资源、键位或Voice。

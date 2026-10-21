@@ -442,3 +442,12 @@ PR143已CI全通过并合入connect&talk/6094d89。新增Hook可选真实session
 0x98/99写门控、前台事实、显式SINGLE/MULTI选择与真实OLED路由尚未开放；Quiet/Sleep/App直连和子代理独立追踪仍需后续。不是D02整体完成。契约和完成边界见docs/ahastudio/ws3-task-observation-contract-2026-10-21.md；候选安装/HIL结果单独追加。
 
 第32节后续：慢概览跨断连/重连回归修正后全288通过，双轴复核通过。本机已安装d984034签名候选；已安装Hook→Agent→四槽容量提示→只读界面、合成会话清理、Agent停止/重启无重放及手动审批回归通过。测试后日常Agent连接、手动档、详细日志关闭。精确证据见docs/validation/connect-talk-hil-2026-10-21/TASK_OVERVIEW.md；没有0x98/99生产发送，D02屏幕路由仍待。
+
+
+## 33. D02-C显式显示模式与发送候选（2026-10-21）
+
+工作分支codex/connect-talk-ws3-presentation-routing，基线f522520/PR144。实现40次当次连接只读证明后设置98、MULTI先清空99，随后新会话事件串行50ms合并、300秒单次TTL清理；SINGLE旧90兼容。无启动/重连模式重放，ACK只表示接收；正常退出清理、sleep停同步有代次/超时保护。302测试、双轴及窄复核通过。
+
+首c75有2次UI模式申请2秒超时，安全断线重连、无假成功，根因未定；随后单/多RPC及UI成功。e9cb504修只读后旧错误残留、加单次超时诊断，未盲调延迟或宣称超时已修。e9cb504已签名安装，0→1→0→1四轮均成功约2.1–2.5秒。当前MULTI，合成Claude waiting、Cursor done及当前Codex running已显示在UI，等待用户确认物理绿/黄/红分段、一空槽熄灭（300秒会过期；若反馈过晚要重发）。不能在反馈前切走或将视觉标通过。当前实体手动档，键位/Voice/资源/亮度未改，固件未刷。
+
+精确结果见docs/validation/connect-talk-hil-2026-10-21/PRESENTATION_ROUTING.md，契约见docs/ahastudio/ws3-presentation-routing-contract-2026-10-21.md。仍缺物理清屏/QuietSleep/故障全矩阵、App直连和前台来源、D03全矩阵及D04/D05。集成目标connect&talk，不是main；需保留超时未解决记录。
