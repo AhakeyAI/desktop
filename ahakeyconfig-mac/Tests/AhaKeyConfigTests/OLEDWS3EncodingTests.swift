@@ -28,7 +28,11 @@ final class OLEDWS3EncodingTests: XCTestCase {
         let frames = try OLEDFrameEncoder.frames(fromGIFAt: url, maximumFrames: 8)
         XCTAssertEqual(frames.count, 1)
         XCTAssertEqual(frames[0].count, 25_600)
-        XCTAssertEqual(Array(frames[0].prefix(4)), [0xF8, 0x00, 0xF8, 0x00])
+        // GIF/CoreGraphics color management can add green to device red.
+        // The red component must still occupy the high RGB565 byte (BE),
+        // and a uniform source must encode to identical consecutive pixels.
+        XCTAssertGreaterThanOrEqual(frames[0][0] & 0xF8, 0xE0)
+        XCTAssertEqual(frames[0].prefix(2), frames[0].subdata(in: 2..<4))
         let payload = try WS3ResourcePayload(entryID: 0, frames: frames)
         XCTAssertEqual(payload.bytes.prefix(25_600), frames[0])
         XCTAssertEqual(payload.bytes.suffix(3072), Data(repeating: 0xFF, count: 3072))
