@@ -182,14 +182,13 @@ struct DeviceInfoView: View {
                 }
 
                 if agentManager.isInstalled {
-                    HStack(spacing: 10) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 145), alignment: .leading)],
+                              alignment: .leading, spacing: 10) {
                         Button(NSLocalizedString("查看日志", comment: "")) {
                             showAgentLog.toggle()
                         }
                         .buttonStyle(.borderless)
                         .font(.caption)
-
-                        Spacer()
 
                         if agentManager.claudeHooksInstalled {
                             Button("移除 Claude Hooks") { agentManager.removeClaudeHooksOnly() }
@@ -492,6 +491,7 @@ struct DeviceInfoView: View {
                 Text(NSLocalizedString("通信日志", comment: ""))
             }
         }
+        .formStyle(.grouped)
         .onAppear { bleManager.setDiagnosticsWindowVisible(true) }
         .onDisappear { bleManager.setDiagnosticsWindowVisible(false) }
         // 「设备信息」在 sheet 中展示时，父视图的 `.alert` 往往不会置顶显示，导致 Hooks 安装/报错像「无反应」。在此重复绑定以确保可见。
@@ -517,6 +517,8 @@ struct DeviceInfoView: View {
                 .foregroundStyle(.secondary)
             Text(value)
                 .font(.body.monospacedDigit())
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
     }
