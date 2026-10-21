@@ -40,7 +40,7 @@ struct WS3DisplaySettingsView: View {
                     Text(String(format: NSLocalizedString("键盘报告亮度：%@%%", comment: ""), String(display.brightness)))
                     Text(String(format: NSLocalizedString("键盘报告有效的自定义素材：%@ / 19", comment: ""), String(display.resources.filter(\.reportsValidUserResource).count)))
                 }
-                Text(NSLocalizedString("读取不会保存。预览和保存只在本次连接读回确认后开放。素材上传需单独选择并确认；清空和恢复仍未开放。", comment: ""))
+                Text(NSLocalizedString("读取不会保存。预览和保存只在本次连接读回确认后开放。素材上传与恢复默认需分别确认，仅作用于所选位置。", comment: ""))
                     .font(.caption).foregroundStyle(.secondary)
                 Divider()
                 WS3ResourceUploadView(bleManager: bleManager, initialEntry: initialResourceEntry)

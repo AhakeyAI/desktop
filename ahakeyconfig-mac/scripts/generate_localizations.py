@@ -1552,6 +1552,49 @@ TRANSLATIONS.update({'上传到这个素材位置？': 'Upload to this resource 
  '键盘素材已变化，请重新读取后再上传。': 'The keyboard resource changed. Read again before uploading.',
  '默认画面': 'Default display'})
 
+TRANSLATIONS.update({'已重新读取此位置并核对元数据，未写入键盘。': 'Read and compared this slot again without writing to the keyboard.',
+ '恢复后的素材状态不一致，尚未确认成功；请重新连接并读取。': 'Resource status did not match after restoring. Reconnect and '
+                                 'read again.',
+ '恢复未确认完成。已发出的更改可能生效，请重新读取；原自定义素材不保证恢复。': 'Restoration is unconfirmed. Sent changes may have taken '
+                                          'effect; read again. The previous custom resource may '
+                                          'not be recoverable.',
+ '恢复此位置的默认显示…': 'Restore default display for this slot…',
+ '恢复这个位置的默认显示？': 'Restore default display for this slot?',
+ '所选文件与最近读回的素材元数据一致；实际画面仍需在键盘确认。': 'The selected file matches the latest resource metadata. '
+                                   'Confirm the actual image on the keyboard.',
+ '所选文件与最近读回的素材元数据不同；本次核对未更改键盘。': 'The selected file differs from the latest resource metadata. '
+                                 'This check did not change the keyboard.',
+ '核对只比较键盘最近读回的元数据，不会上传。恢复仅停用此处自定义素材，不能找回以前的图片或恢复其他设置。': 'Checking compares reported metadata '
+                                                        'without uploading. Restoring disables '
+                                                        'only this custom resource; it cannot '
+                                                        'recover previous images or reset other '
+                                                        'settings.',
+ '此位置仍在上传中，不能恢复默认显示。': 'This slot is still uploading and cannot be restored yet.',
+ '此位置已恢复默认显示，空素材标记读回一致；请在键盘确认实际显示。': 'Default display restored for this slot and the empty marker '
+                                     'confirmed. Check the actual display on the keyboard.',
+ '此位置未读到有效自定义素材；选择文件不会自动上传。': 'No valid custom resource was reported for this slot. Selecting a '
+                              'file does not upload it.',
+ '此位置的素材已变化，未执行恢复；请重新读取。': 'This resource changed. Nothing was restored; read again.',
+ '此位置的自定义图片将不再使用；失败不保证回滚。其他素材、按键和语音不变。': 'The custom image in this slot will no longer be used. '
+                                         'Failure does not guarantee rollback. Other resources, '
+                                         'keys and voice are unchanged.',
+ '确认恢复此位置': 'Restore this slot',
+ '素材读回无效，当前状态未确认。': 'Invalid resource readback; current status is unconfirmed.',
+ '请在当前连接重新读取完整显示信息。': 'Read all display information again on this connection.',
+ '读取不会保存。预览和保存只在本次连接读回确认后开放。素材上传与恢复默认需分别确认，仅作用于所选位置。': 'Reading does not save. Preview and save '
+                                                       'require readback on this connection. '
+                                                       'Upload and restore require separate '
+                                                       'confirmation and affect only the selected '
+                                                       'slot.',
+ '重新核对所选素材（只读）': 'Recheck selected resource (read-only)',
+ '键盘拒绝恢复默认显示，请重新读取后再试。': 'The keyboard rejected restoring the default display. Read again before '
+                         'retrying.'})
+
+TRANSLATIONS.update({'键盘当前：默认显示（无自定义素材）。': 'Current keyboard slot: default display (no custom resource).',
+ '键盘当前：素材上传中，暂不能恢复默认。': 'Current keyboard slot: upload in progress; restoring is unavailable.',
+ '键盘当前：自定义素材不可用，按固件规则回退显示。': 'The custom resource is unavailable; firmware fallback display is '
+                             'used.'})
+
 def escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
