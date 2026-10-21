@@ -490,3 +490,12 @@ PR147已CI全过并合入aa6e844。新分支codex/connect-talk-ws3-resource-rest
 
 
 重启验收收尾：已关闭设置并恢复日常Agent，主界面已连接AhaKey 505C、Codex、手动批准，语音桥运行中；fresh approval_status physicalSwitchState=1、switchState=1、approvalAutoVerified=false。此次收尾只读，没有发送键位、Voice、亮度或素材写入。PR148目标connect&talk，最终文档CI通过后合入；完整CP3与全故障矩阵另行推进。
+
+
+## 38. 多帧 GIF 与上传恢复保护（2026-10-21）
+
+PR148已CI全通过并合入connect&talk/5d45b4d。本批分支codex/connect-talk-ws3-multiframe-validation，2b23c2d：已有任意WRITING快照或目标fresh WRITING不得BEGIN，UI给正常重启/重读说明，无自动retry/8D abort。生产active可能拒绝88，未承诺总能读到WRITING。新增5项回归，全349项测试及双轴复核通过；签名0.2.3 arm64候选已安装。
+
+真机原EMPTY18临时上传3帧红/绿/蓝GIF，1792块/86016字节/CRC元数据确认；隔离官方Socket后唯一done任务，用户确认OLED正常循环，无异常，125次后台读回稳定。结束清合成任务、恢复SINGLE与官方Socket；重进设置显式8D恢复18，EMPTY确认、有效1/19、亮度35%，原Codex图片只读元数据仍一致。已关闭设置回日常Agent；键位/Voice/用户素材未写。活跃上传CPU10秒+4.03秒，闭设置播放阶段GUI+0.01秒/Agent+0.04秒，仅短样本无长期结论。
+
+PR149目标connect&talk，最终验收文档CI通过后合入。三帧断电保持、真实在途取消/断连恢复、19位置/最大帧及CP3仍待，不把自动取消测试算真实中断。下一项优先真机取消恢复，需预留正常重启配合；继续保留Codex位置8。证据见docs/validation/connect-talk-hil-2026-10-21/MULTIFRAME_RECOVERY.md。

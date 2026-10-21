@@ -27,6 +27,7 @@ struct WS3ResourceUploadView: View {
         return value
     }
     private var ready: Bool { bleManager.canEditWS3Display && !bleManager.isConfigurationOperationInProgress && !isPreparing }
+    private var uploadInProgress: Bool { snapshot?.resources.contains { $0.writeState == .writing } == true }
     private var selected: WS3ResourceReadback? { snapshot?.resources.first { $0.id == entry } }
 
     var body: some View {
@@ -51,7 +52,11 @@ struct WS3ResourceUploadView: View {
                 }
             }
             Button(NSLocalizedString("上传并核对素材", comment: "")) { confirmsUpload = true }
-                .buttonStyle(.borderedProminent).disabled(!ready || payload?.entryID != entry || selected?.writeState == .writing)
+                .buttonStyle(.borderedProminent).disabled(!ready || payload?.entryID != entry || uploadInProgress)
+            if uploadInProgress {
+                Text(WS3ResourceUploadError.uploadInProgress.localizedDescription)
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             HStack {
                 Button(NSLocalizedString("重新核对所选素材（只读）", comment: "")) { verify() }
                     .disabled(!ready || payload?.entryID != entry)
@@ -177,7 +182,7 @@ struct WS3ResourceUploadView: View {
     }
 
     private func upload() {
-        guard ready, let payload, payload.entryID == entry, let snapshot else { return }
+        guard ready, !uploadInProgress, let payload, payload.entryID == entry, let snapshot else { return }
         message = nil
         operation = Task { @MainActor in
             do {
