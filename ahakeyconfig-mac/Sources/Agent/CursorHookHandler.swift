@@ -1,4 +1,5 @@
 import Foundation
+import AhaKeyConfigShared
 
 enum CursorHookHandler {
     static func standardOutput(for switchState: Int?) -> String? {
@@ -9,7 +10,8 @@ enum CursorHookHandler {
         let stdinData = HookSupport.readAllStdinSilently()
         _ = CursorPermissionsJsonLeverSync.removeLegacyGeneratedPermissionsIfSafe()
         let ctx = HookSupport.parseStdinContext(stdinData, label: "Cursor")
-        let request: [String: Any] = ["cmd": "permission", "value": Int(HookSupport.permissionLedValue)]
+        let request = WS3TaskMetadata.enrich(["cmd": "permission", "value": Int(HookSupport.permissionLedValue)],
+            client: .cursor, event: hookEvent, stdin: stdinData)
         let reply = HookSupport.sendJsonRequest(request, timeout: HookSupport.permissionRequestTimeout)
         let switchState = HookSupport.approvalSwitchState(reply, client: .cursor)
         let isAuto = switchState == 0

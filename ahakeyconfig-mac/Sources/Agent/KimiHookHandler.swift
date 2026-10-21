@@ -1,4 +1,5 @@
 import Foundation
+import AhaKeyConfigShared
 
 enum KimiHookHandler {
     static func handlePreToolPermission() {
@@ -11,7 +12,8 @@ enum KimiHookHandler {
         ])
         KimiHookDebugLog.stderrLine("PreToolUse hook start bytes=\(stdinData.count); full log=\(KimiHookDebugLog.logPath)")
 
-        let request: [String: Any] = ["cmd": "permission", "value": Int(HookSupport.permissionLedValue)]
+        let request = WS3TaskMetadata.enrich(["cmd": "permission", "value": Int(HookSupport.permissionLedValue)],
+            client: .kimi, event: "KimiPreToolUse", stdin: stdinData)
         let reply = HookSupport.sendJsonRequest(request, timeout: HookSupport.permissionRequestTimeout)
         let switchState = HookSupport.approvalSwitchState(reply, client: .kimi)
         let isAuto = switchState == 0
