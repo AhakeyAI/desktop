@@ -7,6 +7,8 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "上次素材上传未确认完成。请重新连接并读取；若读取被拒绝，请正常重启键盘。原素材不保证恢复。":
+        "The previous resource upload was not confirmed. Reconnect and read back; if rejected, restart the keyboard normally. The original resource may not be recoverable.",
     "键盘仍有未完成的素材上传。请正常重启键盘，重新连接并读取显示信息后再试。":
         "The keyboard still has an unfinished resource upload. Restart the keyboard normally, reconnect and read display information before trying again.",
     "USB 接口": "USB Interface",
