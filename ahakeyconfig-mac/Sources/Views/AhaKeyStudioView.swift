@@ -227,7 +227,8 @@ struct AhaKeyStudioView: View {
         }
         .sheet(isPresented: $showsDeviceInfo) {
             DeviceInfoSheetContainer(bleManager: bleManager)
-                .frame(width: 720, height: 720)
+                .frame(width: min(960, (NSScreen.main?.visibleFrame.width ?? 1024) - 64),
+                       height: min(760, (NSScreen.main?.visibleFrame.height ?? 840) - 80))
         }
         .sheet(isPresented: $showsFirmwareFlasher) {
             FirmwareFlasherView(bleManager: bleManager)
@@ -4134,7 +4135,7 @@ private struct DeviceInfoSheetContainer: View {
     var body: some View {
         VStack(spacing: 0) {
             deviceInfoTitleChrome
-            sheetScrollView
+            sheetFormContent
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(nsColor: .windowBackgroundColor))
@@ -4144,29 +4145,12 @@ private struct DeviceInfoSheetContainer: View {
     }
 
     @ViewBuilder
-    private var sheetScrollView: some View {
-        if #available(macOS 13.0, *) {
-            ScrollView {
-                sheetFormContent
-            }
-            .scrollIndicators(.visible)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            ScrollView {
-                sheetFormContent
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-
-    @ViewBuilder
     private var sheetFormContent: some View {
         DeviceInfoView(bleManager: bleManager)
             .padding(.horizontal, 18)
             .padding(.bottom, 18)
             .padding(.top, 6)
-            .frame(maxWidth: .infinity)
-            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var deviceInfoTitleChrome: some View {
