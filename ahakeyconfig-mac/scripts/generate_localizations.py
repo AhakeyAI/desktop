@@ -1498,6 +1498,60 @@ TRANSLATIONS.update({"显示方式尚未读取。": "Display mode has not been r
 
 TRANSLATIONS.update({'正在校验安装包…': 'Verifying installer…', '正在下载更新…': 'Downloading update…', '安装更新': 'Install update', '打开文件位置': 'Show in Finder', '下载更新': 'Download update', '重试检查': 'Check again', '下载完成。点击安装，按提示将应用拖入“应用程序”。': 'Download complete. Click Install, then drag the app to Applications.', '无法打开安装包，请打开文件所在位置后手动安装。': 'Could not open the installer. Show it in Finder to install manually.', '登录已失效，请重新登录。': 'Your session has expired. Please sign in again.', '请先登录。': 'Please sign in first.'})
 
+TRANSLATIONS.update({'上传到这个素材位置？': 'Upload to this resource slot?',
+ '上传后素材元数据不一致，未确认成功，请重新连接并读取。': 'Resource metadata did not match after upload. Reconnect and read '
+                                'again.',
+ '上传并核对素材': 'Upload and verify resource',
+ '上传并覆盖此位置': 'Upload and replace this slot',
+ '只上传所选位置，不修改其他设置。预览为首帧；上传后仍需在键盘确认实际显示。中断不代表恢复原素材。': 'Only the selected slot is uploaded. Preview '
+                                                     'shows the first frame; confirm the image on '
+                                                     'the keyboard. Interrupting does not restore '
+                                                     'the previous resource.',
+ '已确认 %d / %d 个分块；完成后还会核对元数据。': 'Acknowledged %d / %d chunks; metadata is checked afterward.',
+ '帧': 'frames',
+ '开始上传后可能覆盖原素材；失败或取消不保证回滚。其他素材和键位不变。': 'Uploading may replace the previous resource. Failure or '
+                                       'cancellation does not guarantee rollback. Other resources '
+                                       'and key bindings are unchanged.',
+ '当前蓝牙通道不能发送素材分块，请重新连接。': 'The Bluetooth channel cannot send resource chunks. Reconnect and try '
+                          'again.',
+ '打开显示素材设置…': 'Open display resource settings…',
+ '新固件请在显示素材设置中选择位置并上传；画布草稿不会自动覆盖键盘素材。': 'For new firmware, choose a slot and upload in display '
+                                        'resource settings. Canvas drafts do not automatically '
+                                        'replace keyboard resources.',
+ '显示素材上传': 'Display resource upload',
+ '正在准备素材…': 'Preparing resource…',
+ '此位置最多 %d 帧；播放速度由当前固件固定为 10 帧/秒。': 'This slot supports up to %d frames. Current firmware plays at '
+                                    'a fixed 10 fps.',
+ '此素材位置最多支持 %d 帧，请缩短动画后重试。': 'This resource slot supports up to %d frames. Shorten the animation '
+                             'and try again.',
+ '此设备支持分别确认按键、待机、拨杆与语音设置；显示与灯光需单独读回确认，素材上传只修改明确选择的位置。': 'Confirm keys, standby, switch and voice '
+                                                        'settings separately. Read display '
+                                                        'settings first; resource uploads change '
+                                                        'only the selected slot.',
+ '素材上传回复无效，上传未确认。': 'Invalid resource upload reply; upload is unconfirmed.',
+ '素材上传完成，帧数、长度和 CRC 元数据已核对一致；请在键盘确认画面并验证重启保持。': 'Upload complete; frame count, length and CRC '
+                                                'metadata match. Confirm the image and restart '
+                                                'persistence on the keyboard.',
+ '素材上传未确认完成。已写入内容可能生效，请重新连接并读取；如仍不可读，请正常重启键盘。原素材不保证恢复。': 'Upload is unconfirmed. Written data may '
+                                                         'have taken effect. Reconnect and read '
+                                                         'again; restart the keyboard if needed. '
+                                                         'The previous resource may not be '
+                                                         'recoverable.',
+ '素材位置': 'Resource slot',
+ '素材格式无效，请重新选择图片或 GIF。': 'Invalid resource format. Choose an image or GIF again.',
+ '请在当前连接重新读取显示信息，再上传素材。': 'Read display information on this connection before uploading.',
+ '读取不会保存。预览和保存只在本次连接读回确认后开放。素材上传需单独选择并确认；清空和恢复仍未开放。': 'Reading does not save. Preview and save '
+                                                      'require readback on this connection. Choose '
+                                                      'and confirm resource uploads separately; '
+                                                      'clear and restore remain unavailable.',
+ '选择图片或 GIF…': 'Choose image or GIF…',
+ '键盘当前没有有效自定义素材，使用固件默认显示。': 'No valid custom resource is reported; firmware default display is '
+                            'used.',
+ '键盘当前：自定义素材，%d 帧。': 'Current keyboard resource: custom, %d frames.',
+ '键盘拒绝了素材请求，上传未完成。': 'The keyboard rejected the resource request. Upload is incomplete.',
+ '键盘素材已变化，请重新读取后再上传。': 'The keyboard resource changed. Read again before uploading.',
+ '默认画面': 'Default display'})
+
 def escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 

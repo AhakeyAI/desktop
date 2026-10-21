@@ -72,8 +72,8 @@ public enum WS3DisplayValue: Equatable {
 }
 
 public struct WS3ResourceReadback: Equatable {
-    static let frameBytes: UInt32 = 7 * 4096
-    static func maximumFrames(_ id: UInt8) -> UInt16 { [UInt8(0), 4, 8, 12].contains(id) ? 8 : 12 }
+    public static let frameBytes: UInt32 = 7 * 4096
+    public static func maximumFrames(_ id: UInt8) -> UInt16 { [UInt8(0), 4, 8, 12].contains(id) ? 8 : 12 }
     public let id: UInt8
     public let userValid: Bool
     public let writeState: WS3ResourceWriteState
