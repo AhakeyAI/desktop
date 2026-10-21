@@ -479,4 +479,4 @@ PR146已合入connect&talk/d39c3ea。新分支codex/connect-talk-ws3-resource-up
 D04首次真实写入后续：用户改为自选静态JPEG，已按授权通过原生UI上传Codex默认位置；598块→Commit→valid/frames1/bytes28672/CRC元数据一致，35%亮度、有效自定义1/19。用户已确认实体Codex实际显示正常；其他资源/键位/Voice未写。用户图片及截图仅本机私有，不推送到PR。当前等待用户正常重启反馈及重连只读核验；取消/多帧/全位置矩阵仍待。PR147四项CI均已通过，但继续Draft至本批保持性收尾。当前App配置连接，Agent暂停以保持单一归属；测试结束应关闭设置恢复日常Agent，并fresh核对手动审批。
 
 
-D04保持性收尾：用户正常重启并确认图片仍正常；App旧连接facts撤回，恢复后重新读完整19项为35%/有效1项/Codex默认1帧，未重复写入图片。静态JPEG主路径与断电保持通过；未单独导出重启前后数值CRC、未字节读取Flash或18个其他资源，完整多帧/全槽/取消故障矩阵仍待。已关闭配置面板交还Agent，随后核对fresh手动；PR147待最终CI合入connect&talk，不合main。
+D04保持性收尾：用户正常重启并确认图片仍正常；App旧连接facts撤回，恢复后重新读完整19项为35%/有效1项/Codex默认1帧，未重复写入图片。静态JPEG主路径与断电保持通过；未单独导出重启前后数值CRC、未字节读取Flash或18个其他资源，完整多帧/全槽/取消故障矩阵仍待。已关闭配置面板交还Agent，fresh确认physical/effective=1、verified=false且连接正常；PR147待最终CI合入connect&talk，不合main。

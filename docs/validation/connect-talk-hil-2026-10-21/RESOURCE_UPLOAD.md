@@ -37,4 +37,4 @@
 
 该结果支持本次静态素材的视觉与正常断电保持；没有单独导出/跨重启逐字段比较数值CRC，不将元数据结构读回当Flash原字节验证。截图含用户图片，仅本机保留。
 
-关闭设置并把BLE交还同源Agent后，需fresh确认手动审批。取消恢复、多帧GIF和全部位置实际呈现仍留在后续矩阵，不归入本轮静态通过声明；D05清空/恢复继续关闭。本批按最终CI结果集成connect&talk。
+关闭设置并把BLE交还同源Agent后，fresh approval_status确认physical=1/effective=1、approvalAutoVerified=false；presentation_tasks connected=true，界面显示67%与手动批准。取消恢复、多帧GIF和全部位置实际呈现仍留在后续矩阵，不归入本轮静态通过声明；D05清空/恢复继续关闭。本批按最终CI结果集成connect&talk。
