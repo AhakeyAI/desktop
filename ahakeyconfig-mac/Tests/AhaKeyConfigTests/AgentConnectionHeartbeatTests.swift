@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import Darwin
 import XCTest
 import AhaKeyConfigShared
 @testable import AhaKeyConfig
@@ -38,6 +39,53 @@ final class AgentConnectionHeartbeatTests: XCTestCase {
         let result = await pending.value
         XCTAssertNil(result, "A reply from before disconnect must not survive reconnect")
         withExtendedLifetime(observer) {}
+    }
+
+    @MainActor
+    func testLateSocketPublicationBecomesVisibleWithoutFullRefresh() async throws {
+        let path = "/tmp/ahakey-hb-" + UUID().uuidString
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        XCTAssertGreaterThanOrEqual(fd, 0)
+        defer { close(fd); unlink(path) }
+        let script = QueryScript()
+        script.onCall = { _ in true }
+        let manager = AgentManager(startServices: false, socketPath: path,
+            connectionQuery: { script.query($0) })
+        let connected = expectation(description: "late socket picked up")
+        let disconnected = expectation(description: "removed socket withdrawn")
+        let observer = manager.$isAgentBLEConnected.dropFirst().sink { value in
+            (value ? connected : disconnected).fulfill()
+        }
+        defer { manager.stopConnectionHeartbeat(); withExtendedLifetime(observer) {} }
+        manager.startConnectionHeartbeat(interval: 0.01)
+        try await Task.sleep(nanoseconds: 40_000_000)
+        XCTAssertFalse(manager.isRunning)
+        XCTAssertEqual(script.calls, 0)
+        var address = sockaddr_un()
+        address.sun_family = sa_family_t(AF_UNIX)
+        address.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
+        let pathCapacity = MemoryLayout.size(ofValue: address.sun_path)
+        XCTAssertLessThan(path.utf8.count, pathCapacity)
+        path.withCString { text in
+            withUnsafeMutablePointer(to: &address.sun_path) { pointer in
+                pointer.withMemoryRebound(to: CChar.self, capacity: pathCapacity) {
+                    _ = strcpy($0, text)
+                }
+            }
+        }
+        let result = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        XCTAssertEqual(result, 0)
+        await fulfillment(of: [connected], timeout: 1)
+        XCTAssertTrue(manager.isRunning)
+        XCTAssertTrue(manager.isAgentBLEConnected)
+        XCTAssertEqual(unlink(path), 0)
+        await fulfillment(of: [disconnected], timeout: 1)
+        XCTAssertFalse(manager.isRunning)
+        XCTAssertFalse(manager.isAgentBLEConnected)
     }
 
     private final class QueryScript: @unchecked Sendable {

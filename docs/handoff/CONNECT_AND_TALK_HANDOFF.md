@@ -499,3 +499,16 @@ PR148已CI全通过并合入connect&talk/5d45b4d。本批分支codex/connect-tal
 真机原EMPTY18临时上传3帧红/绿/蓝GIF，1792块/86016字节/CRC元数据确认；隔离官方Socket后唯一done任务，用户确认OLED正常循环，无异常，125次后台读回稳定。结束清合成任务、恢复SINGLE与官方Socket；重进设置显式8D恢复18，EMPTY确认、有效1/19、亮度35%，原Codex图片只读元数据仍一致。已关闭设置回日常Agent；键位/Voice/用户素材未写。活跃上传CPU10秒+4.03秒，闭设置播放阶段GUI+0.01秒/Agent+0.04秒，仅短样本无长期结论。
 
 PR149目标connect&talk，最终验收文档CI通过后合入。三帧断电保持、真实在途取消/断连恢复、19位置/最大帧及CP3仍待，不把自动取消测试算真实中断。下一项优先真机取消恢复，需预留正常重启配合；继续保留Codex位置8。证据见docs/validation/connect-talk-hil-2026-10-21/MULTIFRAME_RECOVERY.md。
+
+
+## 39. 取消恢复、三帧保持与后台晚启动（2026-10-21）
+
+PR149已合入connect&talk/9d21d8b。PR150分支codex/connect-talk-ws3-interruption-hil，最终签名0.2.3 arm64/c7137dc已安装、deep/strict通过；358测试和Standards/Spec窄复核通过。0524f35的资源协议/反馈实现与c7137dc相同，后者额外修后台晚启动状态恢复。
+
+旧候选真实取消UI15/598、线30块后停止，无Commit/8D/04/8E；Mac保持HID时固件owner未释放，重连83/9F拒绝，正常关开后读回18不可用。发现连接变化清掉恢复文案，补按entry保留提示，UUID+实时Manager代次检查，旧回调不能发布成功或清新提示；反馈限当前设置会话。
+
+新候选三帧上传UI26/1792时取消，旧facts撤回、自动重连后恢复提示保留，AX断言通过。用户确认新取消后的正常关开；完整读取后同位置明确重传1792块，帧数/长度/CRC一致，旧提示清除。用户另一次正常重启已提交的三帧资源；fresh完整19项+选中文件只读比较仍一致。最终显式恢复18，EMPTY确认、有效1/19、亮度35%，原Coffee JPEG在位置8重新只读匹配，未重写/恢复用户图片。
+
+归还后台发现旧缓存isRunning=false阻止后续心跳：RPC实际connected/auto有效，但首页长期未连接。c7137dc默认5秒先廉价Socket stat再按owner查询，保留原单查询及代次撤销、不重复Hook/配置/launchd发现。真实Timer晚发布/移除隔离端点的回归旧实现4失败，新358全过。最终候选启动及另一次“进设置→只读19项→关闭交后台”均无需设备信息手动刷新，首页自行恢复AhaKey505C/60%/自动批准；fresh connected=true、physical/effective=0、autoVerified=true，语音桥运行中。键位/Voice/亮度未写，固件未刷。
+
+本批真机检查点已收尾，无待用户重启或临时素材清理。PR150完成最终文档CI后按授权合入connect&talk，不合main。下一步完整19位置/最大8与12帧、其他拒绝/超时/EEPROM/无线故障、旧固件与H02/L02/CP3范围仍按WBS推进；不把首路径通过当最终版本全部完成。原始日志/用户图片/AX证据只本机私有；公开fixture仅生成三色GIF。界面工具曾断管，恢复后关键结果已重新核对，不需重复旧的Codex/键盘重启请求。证据docs/validation/connect-talk-hil-2026-10-21/UPLOAD_INTERRUPTION.md，固件owner边界见FIRMWARE_FOLLOW_UP_2026-10-09.md末节。

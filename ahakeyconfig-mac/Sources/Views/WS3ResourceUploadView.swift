@@ -9,6 +9,7 @@ struct WS3ResourceUploadView: View {
     @State private var thumbnail: NSImage?
     @State private var filename = ""
     @State private var message: String?
+    @State private var uploadFeedback = WS3UploadFeedback()
     @State private var isChoosing = false
     @State private var isPreparing = false
     @State private var confirmsUpload = false
@@ -77,6 +78,10 @@ struct WS3ResourceUploadView: View {
                 ProgressView(value: Double(progress.completedChunks), total: Double(max(1, progress.totalChunks)))
                 Text(String(format: NSLocalizedString("已确认 %d / %d 个分块；完成后还会核对元数据。", comment: ""), progress.completedChunks, progress.totalChunks)).font(.caption)
             }
+            ForEach(uploadFeedback.unconfirmedEntries.sorted(), id: \.self) { affected in
+                Text(title(affected) + " · " + NSLocalizedString("上次素材上传未确认完成。请重新连接并读取；若读取被拒绝，请正常重启键盘。原素材不保证恢复。", comment: ""))
+                    .font(.caption).textSelection(.enabled)
+            }
             if let message { Text(message).font(.caption).textSelection(.enabled) }
         }
         .fileImporter(isPresented: $isChoosing, allowedContentTypes: [.gif, .png, .jpeg, .bmp, .tiff], allowsMultipleSelection: false) { result in
@@ -102,6 +107,7 @@ struct WS3ResourceUploadView: View {
             confirmsRestore = false; restoreBaseline = nil
         }
         .onChange(of: bleManager.configurationSnapshot.generation) { _ in
+            uploadFeedback.connectionChanged(to: bleManager.configurationSnapshot.generation)
             message = nil; confirmsRestore = false; restoreBaseline = nil
         }
         .onDisappear { preparation?.cancel(); operation?.cancel() }
@@ -158,11 +164,16 @@ struct WS3ResourceUploadView: View {
     private func verify() {
         guard ready, let payload, payload.entryID == entry else { return }
         message = nil
+        let generation = bleManager.configurationSnapshot.generation
         operation = Task { @MainActor in
             do {
                 _ = try await bleManager.verifyWS3Resource(payload)
+                guard generation == bleManager.configurationSnapshot.generation else { return }
                 message = NSLocalizedString("已重新读取此位置并核对元数据，未写入键盘。", comment: "")
-            } catch { message = error.localizedDescription }
+            } catch {
+                guard generation == bleManager.configurationSnapshot.generation else { return }
+                message = error.localizedDescription
+            }
         }
     }
 
@@ -174,8 +185,11 @@ struct WS3ResourceUploadView: View {
         operation = Task { @MainActor in
             do {
                 _ = try await bleManager.restoreWS3ResourceDefault(entry: target, baseline: baseline)
+                guard baseline.generation == bleManager.configurationSnapshot.generation else { return }
+                uploadFeedback.restoredDefault(entry: target)
                 message = NSLocalizedString("此位置已恢复默认显示，空素材标记读回一致；请在键盘确认实际显示。", comment: "")
             } catch {
+                guard baseline.generation == bleManager.configurationSnapshot.generation else { return }
                 message = NSLocalizedString("恢复未确认完成。已发出的更改可能生效，请重新读取；原自定义素材不保证恢复。", comment: "") + "\n" + error.localizedDescription
             }
         }
@@ -184,12 +198,15 @@ struct WS3ResourceUploadView: View {
     private func upload() {
         guard ready, !uploadInProgress, let payload, payload.entryID == entry, let snapshot else { return }
         message = nil
+        let attempt = uploadFeedback.begin(entry: entry, generation: snapshot.generation)
         operation = Task { @MainActor in
             do {
                 _ = try await bleManager.uploadWS3Resource(payload, baseline: snapshot)
+                guard uploadFeedback.confirm(attempt, currentGeneration: bleManager.configurationSnapshot.generation) else { return }
                 message = NSLocalizedString("素材上传完成，帧数、长度和 CRC 元数据已核对一致；请在键盘确认画面并验证重启保持。", comment: "")
             } catch {
-                message = NSLocalizedString("素材上传未确认完成。已写入内容可能生效，请重新连接并读取；如仍不可读，请正常重启键盘。原素材不保证恢复。", comment: "") + "\n" + error.localizedDescription
+                guard uploadFeedback.fail(attempt, currentGeneration: bleManager.configurationSnapshot.generation) else { return }
+                message = error.localizedDescription
             }
         }
     }
