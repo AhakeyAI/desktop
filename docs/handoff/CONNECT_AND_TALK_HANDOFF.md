@@ -448,8 +448,8 @@ PR143已CI全通过并合入connect&talk/6094d89。新增Hook可选真实session
 
 工作分支codex/connect-talk-ws3-presentation-routing，基线f522520/PR144。实现40次当次连接只读证明后设置98、MULTI先清空99，随后新会话事件串行50ms合并、300秒单次TTL清理；SINGLE旧90兼容。无启动/重连模式重放，ACK只表示接收；正常退出清理、sleep停同步有代次/超时保护。302测试、双轴及窄复核通过。
 
-首c75有2次UI模式申请2秒超时，安全断线重连、无假成功，根因未定；随后单/多RPC及UI成功。e9cb504修只读后旧错误残留、加单次超时诊断，未盲调延迟或宣称超时已修。e9cb504已签名安装，0→1→0→1四轮均成功约2.1–2.5秒。当前MULTI，合成Claude waiting、Cursor done及当前Codex running已显示在UI，等待用户确认物理绿/黄/红分段、一空槽熄灭（300秒会过期；若反馈过晚要重发）。不能在反馈前切走或将视觉标通过。当前实体手动档，键位/Voice/资源/亮度未改，固件未刷。
+首c75有2次UI模式申请2秒超时，安全断线重连、无假成功，根因未定；e9cb504只修UI残留和增加有限诊断，多轮往返成功。另一次0x9F超时仅见旧90回包，尚未证明根因或修复，不以放宽等待掩盖。PR145四项CI通过，因模式读取超时未解决仍保持Draft，目标connect&talk，不是main。
 
-精确结果见docs/validation/connect-talk-hil-2026-10-21/PRESENTATION_ROUTING.md，契约见docs/ahastudio/ws3-presentation-routing-contract-2026-10-21.md。仍缺物理清屏/QuietSleep/故障全矩阵、App直连和前台来源、D03全矩阵及D04/D05。集成目标connect&talk，不是main；需保留超时未解决记录。
+用户已确认隔离固定输入的绿/黄/红三段稳定、第四段熄灭；同源Agent读回36次一致。首轮绿红变化的任务记录存在真实会话加入与槽位替换，不作为固定输入故障证据。确认后已清理测试任务、恢复官方socket、请求回SINGLE并核对正常连接/实体手动。最终UI小修05ad518已签名安装；未读/已读未设置文案、只读不切模式、日常Agent连接和手动批准界面通过。键位/Voice/资源/亮度未改，固件未刷。
 
-视觉等待期间的小修：源码05ad518只把“未读取概览”与“已读取但未设置模式”分开，双轴窄复核及arm64 Release/Developer ID签名通过；R3已构建但未安装，以免中断当前R2/e9cb504的物理视觉验收。功能后端与R2相同。收到反馈后先清理合成会话/恢复日常状态，再安装R3并补界面验证。
+精确结果见docs/validation/connect-talk-hil-2026-10-21/PRESENTATION_ROUTING.md，契约见docs/ahastudio/ws3-presentation-routing-contract-2026-10-21.md。仍缺超时根因修复、物理默认OLED/清屏/QuietSleep/故障全矩阵、App直连和前台来源、D03全矩阵及D04/D05。
