@@ -202,10 +202,10 @@ struct WS3ResourceUploadView: View {
         operation = Task { @MainActor in
             do {
                 _ = try await bleManager.uploadWS3Resource(payload, baseline: snapshot)
-                guard uploadFeedback.confirm(attempt) else { return }
+                guard uploadFeedback.confirm(attempt, currentGeneration: bleManager.configurationSnapshot.generation) else { return }
                 message = NSLocalizedString("素材上传完成，帧数、长度和 CRC 元数据已核对一致；请在键盘确认画面并验证重启保持。", comment: "")
             } catch {
-                guard uploadFeedback.fail(attempt) else { return }
+                guard uploadFeedback.fail(attempt, currentGeneration: bleManager.configurationSnapshot.generation) else { return }
                 message = error.localizedDescription
             }
         }

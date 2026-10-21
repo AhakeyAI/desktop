@@ -20,7 +20,8 @@ public struct WS3UploadFeedback: Equatable {
     }
 
     @discardableResult
-    public mutating func confirm(_ ticket: UUID) -> Bool {
+    public mutating func confirm(_ ticket: UUID, currentGeneration: UInt64) -> Bool {
+        connectionChanged(to: currentGeneration)
         guard attempt == ticket else { return false }
         if let entryID { unconfirmedEntries.remove(entryID) }
         attempt = nil; phase = .confirmed
@@ -28,7 +29,8 @@ public struct WS3UploadFeedback: Equatable {
     }
 
     @discardableResult
-    public mutating func fail(_ ticket: UUID) -> Bool {
+    public mutating func fail(_ ticket: UUID, currentGeneration: UInt64) -> Bool {
+        connectionChanged(to: currentGeneration)
         guard attempt == ticket else { return false }
         if let entryID { unconfirmedEntries.insert(entryID) }
         attempt = nil; phase = .unconfirmed
