@@ -453,3 +453,10 @@ PR143已CI全通过并合入connect&talk/6094d89。新增Hook可选真实session
 用户已确认隔离固定输入的绿/黄/红三段稳定、第四段熄灭；同源Agent读回36次一致。首轮绿红变化的任务记录存在真实会话加入与槽位替换，不作为固定输入故障证据。确认后已清理测试任务、恢复官方socket、请求回SINGLE并核对正常连接/实体手动。最终UI小修05ad518已签名安装；未读/已读未设置文案、只读不切模式、日常Agent连接和手动批准界面通过。键位/Voice/资源/亮度未改，固件未刷。
 
 精确结果见docs/validation/connect-talk-hil-2026-10-21/PRESENTATION_ROUTING.md，契约见docs/ahastudio/ws3-presentation-routing-contract-2026-10-21.md。仍缺超时根因修复、物理默认OLED/清屏/QuietSleep/故障全矩阵、App直连和前台来源、D03全矩阵及D04/D05。
+
+
+## 34. D02-C 旧命令争用修复（2026-10-21）
+
+fd358fa已提交并安装签名候选：同一旧候选的“90状态后立即MULTI”首轮复现9F超时，400ms仅诊断对照8/8成功；固件ready_len时忽略下一命令。新增legacy00/90 FIFO及显示前回包/审批reservation等待，避免新9F抢入；无固定延迟或盲重试。超时不复用高级通道、重连撤旧账；旧12字节status、排队取消及正常慢审批均有回归。311测试与双轴再复核通过。
+
+新候选零间隔12/12真机往返成功，MULTI+实体自动档10/10 permission真实审批链并发正常；清合成任务恢复SINGLE，用户切回手动，fresh physical/effective=1、verified=false，Codex on-request。可复用HIL脚本ahakeyconfig-mac/scripts/validate-presentation-mode.py，默认零间隔、结束回SINGLE。PR145待最终CI/审核后按已授权合入connect&talk；首次无诊断的两次失败不倒推为同一原因，完整故障/无线矩阵仍待。D03全矩阵、D04资源上传、D05恢复和App直连/前台仍按清单推进。
