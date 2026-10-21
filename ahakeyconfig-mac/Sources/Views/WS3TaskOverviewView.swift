@@ -49,6 +49,9 @@ struct WS3TaskOverviewView: View {
             }.disabled(reading || agentManager.bluetoothConnectionOwner != .agentDaemon || !agentManager.isRunning)
             if let mode = overview?.requestedMode {
                 Text(String(format: NSLocalizedString("本次连接已请求：%@", comment: ""), modeLabel(mode)))
+            } else if overview == nil {
+                Text(NSLocalizedString("显示方式尚未读取。", comment: ""))
+                    .font(.caption).foregroundStyle(.secondary)
             } else {
                 Text(NSLocalizedString("当前连接尚未设置显示方式。", comment: ""))
                     .font(.caption).foregroundStyle(.secondary)

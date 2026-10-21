@@ -1494,6 +1494,8 @@ TRANSLATIONS.update({
     "仅作用于当前连接，断线后需重新应用。多任务只显示能识别会话的任务；旧版事件请使用单任务模式。": "Applies to this connection only; reapply after disconnecting. Multiple tasks require identifiable sessions. Use single task for older events."
 })
 
+TRANSLATIONS.update({"显示方式尚未读取。": "Display mode has not been read yet."})
+
 def escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
