@@ -480,3 +480,10 @@ D04首次真实写入后续：用户改为自选静态JPEG，已按授权通过�
 
 
 D04保持性收尾：用户正常重启并确认图片仍正常；App旧连接facts撤回，恢复后重新读完整19项为35%/有效1项/Codex默认1帧，未重复写入图片。静态JPEG主路径与断电保持通过；未单独导出重启前后数值CRC、未字节读取Flash或18个其他资源，完整多帧/全槽/取消故障矩阵仍待。已关闭配置面板交还Agent，fresh确认physical/effective=1、verified=false且连接正常；PR147待最终CI合入connect&talk，不合main。
+
+
+## 37. D05 CP2素材核对与单位置恢复候选（2026-10-21）
+
+PR147已CI全过并合入aa6e844。新分支codex/connect-talk-ws3-resource-restore，实现92fd4fa并签名安装0.2.3；344全量和双轴复核通过。D05接当前19项proof上的所选素材元数据只读比较、显式单位置8D默认恢复；冲突不写、EMPTY幂等、WRITING拒绝、精确ACK+post EMPTY全0确认；不是raw字节读取/旧图找回/安全擦除/整机恢复。六个显示操作共享UUID/代次ticket，修旧defer解锁新操作，含实际reset回归。
+
+真机：原Codex JPEG只读比较一致，未重复写；原EMPTY18临时cursor一帧上传→取消恢复确认（只读仍一致）→正式8D→EMPTY后读成功，总有效2→1，35%不变；原JPEG再次只读CRC元数据仍一致。当前等待用户正常重启验证EMPTY保持/原图仍在，App配置连接占用；结束需恢复Agent日常连接与fresh手动审批。用户图片截图不公开；证据见docs/validation/connect-talk-hil-2026-10-21/RESOURCE_MAINTENANCE.md。完整CP3/全部位置与在途故障矩阵仍待。
