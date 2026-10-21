@@ -499,3 +499,12 @@ PR148已CI全通过并合入connect&talk/5d45b4d。本批分支codex/connect-tal
 真机原EMPTY18临时上传3帧红/绿/蓝GIF，1792块/86016字节/CRC元数据确认；隔离官方Socket后唯一done任务，用户确认OLED正常循环，无异常，125次后台读回稳定。结束清合成任务、恢复SINGLE与官方Socket；重进设置显式8D恢复18，EMPTY确认、有效1/19、亮度35%，原Codex图片只读元数据仍一致。已关闭设置回日常Agent；键位/Voice/用户素材未写。活跃上传CPU10秒+4.03秒，闭设置播放阶段GUI+0.01秒/Agent+0.04秒，仅短样本无长期结论。
 
 PR149目标connect&talk，最终验收文档CI通过后合入。三帧断电保持、真实在途取消/断连恢复、19位置/最大帧及CP3仍待，不把自动取消测试算真实中断。下一项优先真机取消恢复，需预留正常重启配合；继续保留Codex位置8。证据见docs/validation/connect-talk-hil-2026-10-21/MULTIFRAME_RECOVERY.md。
+
+
+## 39. 真机取消发现的恢复提示问题（待重启，2026-10-21）
+
+PR149已CI全通过合入connect&talk/9d21d8b。本批codex/connect-talk-ws3-interruption-hil；向原EMPTY18临时上传内置cursor1帧，在UI15/598时取消，实际30个8B/末offset1392，总BEGIN1、COMMIT/8D/04/8E均0，后续无8B。配置已断开重连，但固件拒绝83/9F；物理HID链路仍保持owner，需要正常关开。用户已收到请求，**尚未确认重启，18尚未恢复默认，不能宣称日常恢复或真机通过**。
+
+发现generation onChange清掉上传恢复指引；32372ff初修、0524f35完善confirm/fail实时代次检查（不依赖UI回调先发生）。UI按entry保留未确认提示，其他位置成功不抹掉，旧ticket不可发布结果；指定位置成功重传或default后读确认才清。反馈限当前设置会话，不跨App重启持久化。新增8/全357测试及两轴窄复核通过；原详细日志已关闭。
+
+后续：安装0524f35签名0.2.3候选，等用户正常重启后重连读19项并清理18；用新候选再做真实取消确认提示，再关开恢复、核对Codex原图。最后做三帧正常提交的断电保持并清理，不把这些待办写成通过。PR保持Draft直到本批恢复收尾。证据docs/validation/connect-talk-hil-2026-10-21/UPLOAD_INTERRUPTION.md。保留用户位置8/Voice/键位/35%亮度，不发8D当abort、不刷固件。
