@@ -69,7 +69,7 @@ enum OLEDFrameEncoder {
         }
     }
 
-    static func frames(fromGIFAt url: URL) throws -> [Data] {
+    static func frames(fromGIFAt url: URL, maximumFrames: Int = AhaKeyCommand.oledMaxFramesPerMode) throws -> [Data] {
         try validateGIFSourceFileSize(at: url)
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
             throw OLEDFrameEncodingError.cannotCreateImageSource
@@ -79,14 +79,14 @@ enum OLEDFrameEncoder {
         guard count > 0 else {
             throw OLEDFrameEncodingError.noFrames
         }
-        guard count <= AhaKeyCommand.oledMaxFramesPerMode else {
-            throw OLEDFrameEncodingError.tooManyFrames(count: count, max: AhaKeyCommand.oledMaxFramesPerMode)
+        guard count <= maximumFrames else {
+            throw OLEDFrameEncodingError.tooManyFrames(count: count, max: maximumFrames)
         }
 
         var frames: [Data] = []
         frames.reserveCapacity(count)
         for index in 0 ..< count {
-            guard let image = CGImageSourceCreateImageAtIndex(source, index, nil) else { continue }
+            guard let image = CGImageSourceCreateImageAtIndex(source, index, nil) else { throw OLEDFrameEncodingError.cannotCreateImageSource }
             frames.append(try encodeFrame(image))
         }
 

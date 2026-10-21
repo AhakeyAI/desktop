@@ -1415,6 +1415,11 @@ struct AhaKeyStudioView: View {
 
     private var oledInspector: some View {
         VStack(alignment: .leading, spacing: 16) {
+            if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+                Button(NSLocalizedString("打开显示素材设置…", comment: "")) { openKeyboardSettings() }
+                Text(NSLocalizedString("新固件请在显示素材设置中选择位置并上传；画布草稿不会自动覆盖键盘素材。", comment: ""))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             GroupBox("当前模式的 LCD 动图") {
                 VStack(alignment: .leading, spacing: 14) {
                     ZStack {

@@ -3,7 +3,7 @@ import Foundation
 /// WS2 mode, standby and side-binding writes require a narrow confirmed-transaction
 /// grant. Other configuration writes stay closed; unknown builds allow probes.
 public enum ConfigurationCommandPolicy {
-    public enum ConfirmedWrite { case none, mode, standby, sideSwitch, ordinaryKey, voiceHandoff, ws3Display }
+    public enum ConfirmedWrite { case none, mode, standby, sideSwitch, ordinaryKey, voiceHandoff, ws3Display, ws3Resource }
     public static func permits(_ data: Data, profile: FirmwareCapabilityProfile?, confirmedWrite: ConfirmedWrite = .none,
                                ws3DisplayReadbackVerified: Bool = false) -> Bool {
         let b = [UInt8](data)
@@ -23,6 +23,9 @@ public enum ConfigurationCommandPolicy {
         case 0x83: return b.count == 6 && b[3] < 4
         case 0x90: return b.count == 6 && b[3] <= 8
         case 0x88: return profile?.identity == .knownWS2Catalog && WS3DisplayItem.from(request: data) != nil
+        case 0x8A, 0x8B, 0x8C:
+            return confirmedWrite == .ws3Resource && ws3DisplayReadbackVerified &&
+                profile?.identity == .knownWS2Catalog && WS3ResourceUploadCommand.validRequest(data)
         case 0x89, 0x8E:
             guard confirmedWrite == .ws3Display, ws3DisplayReadbackVerified,
                   profile?.identity == .knownWS2Catalog else { return false }

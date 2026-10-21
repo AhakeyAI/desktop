@@ -3,6 +3,7 @@ import AhaKeyConfigShared
 
 struct WS3DisplaySettingsView: View {
     @ObservedObject var bleManager: AhaKeyBLEManager
+    var initialResourceEntry: UInt8 = 0
     @State private var message: String?
     @State private var brightnessDraft: UInt8?
     @State private var mode: UInt8 = 0
@@ -39,8 +40,10 @@ struct WS3DisplaySettingsView: View {
                     Text(String(format: NSLocalizedString("键盘报告亮度：%@%%", comment: ""), String(display.brightness)))
                     Text(String(format: NSLocalizedString("键盘报告有效的自定义素材：%@ / 19", comment: ""), String(display.resources.filter(\.reportsValidUserResource).count)))
                 }
-                Text(NSLocalizedString("读取不会保存。预览和保存只在本次连接读回确认后开放。素材上传、清空和恢复仍未开放。", comment: ""))
+                Text(NSLocalizedString("读取不会保存。预览和保存只在本次连接读回确认后开放。素材上传需单独选择并确认；清空和恢复仍未开放。", comment: ""))
                     .font(.caption).foregroundStyle(.secondary)
+                Divider()
+                WS3ResourceUploadView(bleManager: bleManager, initialEntry: initialResourceEntry)
                 Divider()
                 Text(NSLocalizedString("全局灯光亮度", comment: "")).font(.headline)
                 HStack {

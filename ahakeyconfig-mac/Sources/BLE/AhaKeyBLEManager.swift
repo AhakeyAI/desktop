@@ -582,6 +582,13 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func writeCommand(_ data: Data, confirmedWrite: ConfigurationCommandPolicy.ConfirmedWrite) {
+        // Resource transactions own the command channel. Unsolicited legacy
+        // display writes must not race a chunk into firmware's one ready slot.
+        if isUploadingOLED, firmwareCapabilityProfile?.identity == .knownWS2Catalog,
+           confirmedWrite != .ws3Resource, ![UInt8(0x00), 0x88].contains(data.count > 2 ? data[2] : 0xFF) {
+            appendLog("素材上传占用通道，未发送其他配置命令", category: .verbose)
+            return
+        }
         guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite,
                                                ws3DisplayReadbackVerified: canEditWS3Display) else {
             appendLog("当前固件配置写入尚未验证，已阻止写入", isError: true)
@@ -595,7 +602,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let writeType: CBCharacteristicWriteType =
             commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
         peripheral.writeValue(data, for: commandChar, type: writeType)
-        appendLog("→ CMD \(data.count)B: \(data.hexString)", category: .verbose)
+        if logStore.isVerboseLoggingEnabled {
+            appendLog("→ CMD \(data.count)B: \(data.hexString)", category: .verbose)
+        }
     }
 
     func uploadOLEDFrames(_ frames: [Data], fps: Int, mode: UInt8 = 0, startIndex: UInt16 = 0) async throws {
@@ -931,6 +940,52 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let snapshot = WS3DisplaySnapshot(generation: generation, brightness: brightness, resources: resources)
         ws3DisplaySnapshot = snapshot
         return snapshot
+    }
+
+    func uploadWS3Resource(_ payload: WS3ResourcePayload, baseline: WS3DisplaySnapshot) async throws -> WS3ResourceReadback {
+        guard !isConfigurationOperationInProgress, canEditWS3Display,
+              baseline.generation == commandSessionGeneration,
+              let peripheral, let commandChar else { throw WS3ResourceUploadError.unverifiedConnection }
+        let generation = commandSessionGeneration
+        let writeType: CBCharacteristicWriteType = commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+        let maximum = peripheral.maximumWriteValueLength(for: writeType)
+        let chunkSize = min(48, maximum - 11)
+        guard maximum >= 16, chunkSize > 0 else { throw WS3ResourceUploadError.invalidMTU }
+        isUploadingOLED = true
+        let totalChunks = (payload.bytes.count + chunkSize - 1) / chunkSize
+        oledUploadProgress = .init(completedChunks: 0, totalChunks: totalChunks, completedFrames: 0, totalFrames: Int(payload.frameCount))
+        defer {
+            if generation == commandSessionGeneration { isUploadingOLED = false; oledUploadProgress = nil }
+        }
+        var lastProgressAt = ProcessInfo.processInfo.systemUptime
+        do {
+            let actual = try await ConfirmedWS3ResourceUpload.run(payload: payload, baseline: baseline,
+                generation: generation, maximumWriteLength: maximum, checkSession: {
+                    try self.ensureConfigurationReadSession(generation)
+                }, exchange: { request in
+                    try await self.sendCommandAwaitingResponse(request, expectedCommand: request[2],
+                        confirmedWrite: request[2] == 0x88 ? .none : .ws3Resource).frame
+                }, progress: { bytes, total in
+                    let now = ProcessInfo.processInfo.systemUptime
+                    guard bytes == total || now - lastProgressAt >= 0.2 else { return }
+                    lastProgressAt = now
+                    self.oledUploadProgress = .init(completedChunks: (bytes + chunkSize - 1) / chunkSize,
+                        totalChunks: totalChunks, completedFrames: bytes / Int(WS3ResourceReadback.frameBytes), totalFrames: Int(payload.frameCount))
+                })
+            try ensureConfigurationReadSession(generation)
+            ws3DisplaySnapshot = WS3DisplaySnapshot(generation: generation, brightness: baseline.brightness,
+                resources: baseline.resources.map { $0.id == actual.id ? actual : $0 })
+            appendLog("素材上传完成，帧数/长度/CRC元数据读回一致")
+            return actual
+        } catch {
+            if generation == commandSessionGeneration {
+                // Revoke the configuration link, without promising that macOS
+                // released the physical HID link or firmware upload owner.
+                // 8D is destructive clear, never a cancellation shortcut.
+                invalidateCommandResponseChannel()
+            }
+            throw error
+        }
     }
 
     func readWS3SingleLightForEditing(mode: UInt8, state: UInt8) async throws -> WS3SingleLightSnapshot {
