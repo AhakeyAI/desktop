@@ -1,0 +1,827 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "revision": 5,
+  "build_round": 9,
+  "mode": "FRESH_ACTUAL_REVIEW",
+  "decision": "pass",
+  "pack_sha256": "79b4a6d87283e22acae6b537a106a9007f426caf06fb5fcda57b15ea49074087",
+  "code_fingerprint": "98fe4428d5187e7f900a30df99b2432c7a540fcc02f7707a7aa1ac659d2213b9",
+  "approval_sha256": "5ca53dc27d3bb53b05e7b48932f7a39b8db387fb730f112fa6e6c031e69ec6cf",
+  "diff_sha256": "5bdf26aff58dcf1539dbc99018e244b7567bcffbdbe16016d12342371d56a6c7",
+  "session": "wd005-r9-fresh-661dbf42-aca6-4120-80a3-c7eab9e3f37a",
+  "audit_started_recorded_at": "2026-10-21T07:05:40.309741+00:00",
+  "session_kind": "audit_run_identifier_not_codex_thread_id",
+  "independence": "fresh_dla_conversation",
+  "independence_note": "本记录由收到FRESH_ACTUAL_REVIEW委派的新独立DLA审阅对话生成。session为本轮实际生成并使用的审计运行标识，不声称是Codex线程UUID。没有复制原DLA结论作为本轮分析；原REVIEW仅作流程和输入事实读取。辅助Standards与Spec分支均只读，主审对核心链路及疑点独立复核。",
+  "original_dla_session": "原DLA对话，2026-10-21 round9实际复审",
+  "builder_session": "已有DIB实现对话，revision5/round9 submit 2026-10-21T02:25:45+00:00",
+  "assistants": [
+    {
+      "agent": "/root/standards",
+      "axis": "Standards",
+      "role": "辅助逐文件规范/资源/UI/测试隔离核查",
+      "writes": false
+    },
+    {
+      "agent": "/root/spec",
+      "axis": "Spec",
+      "role": "辅助合同/协议/运行态与调用链核查",
+      "writes": false
+    }
+  ],
+  "analysis": "对固定包累计35文件作独立实际审阅，覆盖新增文件全文及既有文件变更hunk和上下游调用。自动准入只能由当前连接0x9F精确响应发布；连接代次/读取身份票据和FX提交双重校验，失败不伪造旧版。CP2整个上传持有lease，帧按固定长度解析，未知ACK不靠新身份或普通回读解锁，逐包不重发。CP1精确会话归属、5分钟事实寿命与原始事件时间补发保留，磁盘绑定不恢复历史运行态。UI操作真实disable且标题原因独立，本地资源成品先提交索引后发布、草稿与设备事实分离。测试仅内存USB/TCP和局部FX；既有656项及Owner Preview通过没有替代审阅。未发现当前生产调用链可达的确定阻断缺陷或未批准范围扩张，decision=pass仅为此固定源码包的fresh实际审阅结论，不是formal review已登记、UAT、候选、安装包或发布通过。",
+  "per_file": [
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "hunks": [
+        "@@ -11,8 +11,6 @@",
+        "@@ -39,6 +37,7 @@",
+        "@@ -52,6 +51,8 @@",
+        "@@ -68,7 +69,9 @@",
+        "@@ -86,9 +89,12 @@",
+        "@@ -104,7 +110,9 @@",
+        "@@ -117,6 +125,8 @@",
+        "@@ -172,8 +182,11 @@",
+        "@@ -195,6 +208,9 @@",
+        "@@ -312,6 +328,7 @@",
+        "@@ -397,9 +414,11 @@",
+        "@@ -413,6 +432,7 @@",
+        "@@ -517,6 +537,10 @@",
+        "@@ -540,6 +564,8 @@",
+        "@@ -580,63 +606,42 @@",
+        "@@ -655,20 +660,6 @@",
+        "@@ -709,209 +700,30 @@",
+        "@@ -964,15 +776,17 @@",
+        "@@ -1004,32 +818,42 @@"
+      ],
+      "after_sha256": "c12d4279cf2f070f8d4a88e3f57c05a4964144ac7cd5e5a86fcef9a479e54f80",
+      "before_sha256": "b5bddccdd4b60a505b2be78886c3ee60ba1c0f6f5dccddcd520c93ea17ddf129",
+      "lines": 1012,
+      "purpose": "控制器实际入口与旧写入路径",
+      "reviewed_hunks": "69–128、182–219、331、432、537–566、606–647、700–730、776–856：创建/关闭唯一显示服务；导入与确认冻结资源、过滤全量保存中的旧0x84/0x85、将原OLED raw路径替换为CP2；身份回调与FX提交核对generation/身份对象；按键、侧拨、语音和模式抑制逻辑保留。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DeviceStatus.java",
+      "hunks": [
+        "@@ -6,6 +6,11 @@",
+        "@@ -69,6 +74,7 @@"
+      ],
+      "after_sha256": "ea9cf896738e39b8128f044a63f365d365b91dfe2bf11f231dbbba2a4a98124d",
+      "before_sha256": "d4c6abaa177cee49c067d0c0582cade572010250d57a041d6b7df121d608996e",
+      "lines": 113,
+      "purpose": "可观察身份状态与版本回退",
+      "reviewed_hunks": "9–13、74–80、110–121：身份枚举单独存储；清理根据连接归UNKNOWN/DISCONNECTED；基础主次版本显示回退保留。可写缓存字符串不等于BleManager可信准入。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+      "hunks": [
+        "@@ -0,0 +1,90 @@"
+      ],
+      "after_sha256": "b7f0ef25d78138cf4555a310f092017013cc7d4cf66735341b4a9336707a6fe5",
+      "before_sha256": null,
+      "lines": 90,
+      "purpose": "草稿、设备操作与本地模拟状态",
+      "reviewed_hunks": "34–44：19目标及busy冻结；49–73：编辑revision保护后到ACK，亮度与九项灯效分别dirty；78–89：设备预览以ACK时刻起算，结束不重置独立本地模拟。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/LightEffectStyle.java",
+      "hunks": [
+        "@@ -48,12 +48,17 @@"
+      ],
+      "after_sha256": "3658cd8555ab5cb88a3a0ec51d9912b3c446ebf0c43bad7d5d33ce89064a9a9a",
+      "before_sha256": "f9f4adb7b6f9e7dcb56b2a36e22f40d8b6ec8be228f3c49f8a8f44b6cf7402b7",
+      "lines": 97,
+      "purpose": "灯效未知值表达",
+      "reviewed_hunks": "50–62：新增fromCodeOrNull供新界面保留未知；原fromCode仍保持OFF回退，未改变其他调用方含义。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/OledResourceState.java",
+      "hunks": [
+        "@@ -0,0 +1,112 @@"
+      ],
+      "after_sha256": "5336eb30fc1ef093efc9449877bf8b90b1d2a7c77f721d801151e91067f2fb0e",
+      "before_sha256": null,
+      "lines": 112,
+      "purpose": "资源成品与设备元数据模型",
+      "reviewed_hunks": "13–55：字节防御复制、CRC/slot填充/容量校验；69–111：草稿、失败、历史已应用和当前设备known分离。Metadata交叉拒绝BASIC/INTEGRITY矛盾；Commit未知仅完整匹配后可确认，普通同CRC草稿不擅自应用。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+      "hunks": [
+        "@@ -20,6 +20,8 @@"
+      ],
+      "after_sha256": "8131a2f9a179b7c7ef7919b7ba0f05b7747f3f92b2c409eb39eded61f338a816",
+      "before_sha256": "0dfb88370956926f52c362f009a252499a237202bcf76a051ad30235a660a35a",
+      "lines": 697,
+      "purpose": "显示状态宿主",
+      "reviewed_hunks": "23–24：增加唯一DisplayConfigState及访问器，旧按键、语音和模式模型未迁移或重写。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+      "hunks": [
+        "@@ -6,6 +6,82 @@",
+        "@@ -119,6 +195,16 @@"
+      ],
+      "after_sha256": "b1309d9462f20baca91b610fadc3256f913c334e37ec7f5f51e84da1706b93f7",
+      "before_sha256": "249928492d0a97f7ba193c9e5c8a6d6f94627b3450c3decc2032d24992ed085d",
+      "lines": 455,
+      "purpose": "CP2报文与精确兼容判断",
+      "reviewed_hunks": "9–84、199–207：19目标、8/12帧、48字节Chunk、LE元数据和固定28672 slot；0x9F逐字节精确r001及零填充，不按字符串大小放行未知版本；保留既有命令编码。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+      "hunks": [
+        "@@ -4,6 +4,55 @@"
+      ],
+      "after_sha256": "4e0588ed8910cc62eff33b2d4eb6a18ae5dc5abbae24fa796bc21f70f20ba534",
+      "before_sha256": "5587db9fcc32bd0fbbb8f208f23c264e0062212e386ca44846d95d7b97137dce",
+      "lines": 270,
+      "purpose": "CP2长度与字段校验",
+      "reviewed_hunks": "8–57：6字节FAIL/ACK和8/10/18字节读取严格分流，selector、状态、长度和完整性校验；CP2二进制CRC中的帧尾不能提前截断，旧opcode仍走旧解析。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "hunks": [
+        "@@ -9,55 +9,70 @@",
+        "@@ -72,25 +87,25 @@",
+        "@@ -116,47 +131,72 @@",
+        "@@ -164,9 +204,11 @@",
+        "@@ -191,12 +233,11 @@",
+        "@@ -204,11 +245,10 @@",
+        "@@ -222,151 +262,112 @@",
+        "@@ -399,6 +400,7 @@",
+        "@@ -414,15 +416,15 @@",
+        "@@ -496,67 +498,42 @@",
+        "@@ -602,7 +579,7 @@"
+      ],
+      "after_sha256": "835535bf0c31930473869a2a05bf0f7a454548d865bf02f90c9e942bf1fb08bc",
+      "before_sha256": "c7103e6a30c329bb8fa49165d656ce3fac86379fec288a57fb14e7003c66b971",
+      "lines": 594,
+      "purpose": "CP1归属、运行事实与最新快照",
+      "reviewed_hunks": "153–215：能力统一与模式ACK后更新；278–367：按provider/id归属、来源明确才排除后台、当前连接5分钟事实；501–539：ID冲突不走路径/cwd兜底，唯一transcript与快照过滤；579–583：持久绑定不保存运行态。真实发送、等待和忽略分别反馈，保留主槽规则。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "hunks": [
+        "@@ -48,6 +48,211 @@",
+        "@@ -116,6 +321,7 @@",
+        "@@ -153,6 +359,7 @@",
+        "@@ -250,16 +457,34 @@",
+        "@@ -297,25 +522,77 @@",
+        "@@ -432,12 +709,16 @@",
+        "@@ -491,6 +772,16 @@",
+        "@@ -515,7 +806,7 @@",
+        "@@ -534,19 +825,52 @@",
+        "@@ -554,12 +878,18 @@",
+        "@@ -694,7 +1024,15 @@",
+        "@@ -726,13 +1064,19 @@",
+        "@@ -750,15 +1094,18 @@",
+        "@@ -799,6 +1146,8 @@",
+        "@@ -850,6 +1199,7 @@",
+        "@@ -872,6 +1222,7 @@",
+        "@@ -893,22 +1244,25 @@",
+        "@@ -927,6 +1281,12 @@",
+        "@@ -997,6 +1357,7 @@",
+        "@@ -1034,6 +1395,12 @@",
+        "@@ -1041,11 +1408,6 @@",
+        "@@ -1061,7 +1423,9 @@",
+        "@@ -1094,6 +1458,9 @@",
+        "@@ -1113,6 +1480,17 @@",
+        "@@ -1135,6 +1513,7 @@"
+      ],
+      "after_sha256": "18ad17fa2a77da56f02536c7a331cf4010c310c5707997598d90650f1ecaa82c",
+      "before_sha256": "8be6ec34e915c32c4c78e57226df9b266fca9424534ebad8563eb57ffc4ca4ea",
+      "lines": 1564,
+      "purpose": "传输会话、身份、事务与ACK隔离",
+      "reviewed_hunks": "51–253：lease固定线程/transport/generation，写未知与读未知独立；459–487：真正发送入口拦截竞争CP2/CP1；524–596：0x9F队列、去重、票据、失败发布；834–858：SINGLE最新补发不更新旧TTL；1067–1120、1245–1403：USB/BLE会话回包隔离；1460–1495：CP2定长重组与ACK投递。readDisplayConfig退出事务monitor后才补发，避免snapshot锁反转。公开API的条件性并发风险另列。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CodexSessionDiscoveryService.java",
+      "hunks": [
+        "@@ -23,6 +23,34 @@",
+        "@@ -41,7 +69,7 @@"
+      ],
+      "after_sha256": "81443cba8648d5967bc5f5c12d360e98c284a54b6f7c9b2aa4362ed00c106380",
+      "before_sha256": "fbe84398537c9c31f9048e6e0223c4526498d2ab5d346b29fb4b0f6dc3e1bd3b",
+      "lines": 242,
+      "purpose": "只读来源元数据分类",
+      "reviewed_hunks": "29–51、69–75：只读SQLite按稳定ID取有限source/thread_source；仅明确guardian/prediction排除，缺失/异常UNKNOWN保留新用户会话；原标题和索引发现优先级未替换，不读取聊天正文。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "hunks": [
+        "@@ -0,0 +1,316 @@"
+      ],
+      "after_sha256": "56af7456cf1e1fb578a799d8a11d0cf4b8dbfd97fa89bd99ee88f6ac8a550f12",
+      "before_sha256": null,
+      "lines": 316,
+      "purpose": "显示业务与唯一串行调度",
+      "reviewed_hunks": "22、107–162、164–223、242–315：后台导入先存后发布、清除保留设备事实、冻结上传目标；按区域串行读取与load/connection票据；亮度独立保存，灯效逐项ACK/部分成功；设备FX过滤旧连接，关闭worker。当前唯一worker排除旧exchange与新CP2事务并行退出。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/FirmwareLightSimulator.java",
+      "hunks": [
+        "@@ -0,0 +1,116 @@"
+      ],
+      "after_sha256": "38362fdd55ea2852539633a5472715caac8c7a785ca4205c4c42639d2bd6bc1d",
+      "before_sha256": null,
+      "lines": 116,
+      "purpose": "八灯本地算法",
+      "reviewed_hunks": "6–115：0–16效果、整数亮度、运动/相位逻辑与固件算法对应；结果是本地模拟，不调用设备，不宣称光度等同实机。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookDispatchServer.java",
+      "hunks": [
+        "@@ -173,8 +173,8 @@",
+        "@@ -241,9 +241,12 @@",
+        "@@ -251,8 +254,7 @@",
+        "@@ -271,7 +273,7 @@"
+      ],
+      "after_sha256": "124f268d2fea9b600ac9a3b3b0bb98d5358b92ec6bbdc461b48e27e99e87a27b",
+      "before_sha256": "7082ea250a4c26890d939aec3eee67584236ae965768a63a59b76a164ddd656a",
+      "lines": 341,
+      "purpose": "Hook结果反馈与诊断",
+      "reviewed_hunks": "173–177、243–262、273–277：接收与发送分离，返回SENT/PENDING/IGNORED/FAILED；不把待补发写成displayUpdated；原权限/端口保留，未知输入和解析失败不记录原始正文。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+      "hunks": [
+        "@@ -0,0 +1,140 @@"
+      ],
+      "after_sha256": "7a6bc434109fa33e4a19088f0a56062621aa583fd226a6452b6bde0d03ad3a7c",
+      "before_sha256": null,
+      "lines": 140,
+      "purpose": "本地资源库提交与清理",
+      "reviewed_hunks": "34–68、77–138：损坏库拒绝覆盖，immutable成品先写、原子索引为提交点；清除留下tombstone防旧路径迁移复活，共享文件保护；删除失败明确索引已提交。无引用旧版保留符合合同。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledUploadService.java",
+      "hunks": [
+        "@@ -1,211 +1,91 @@"
+      ],
+      "after_sha256": "53d9615ad65154c497d730d947a910817712cb4fc165f60557680a94444f589c",
+      "before_sha256": "c6dff343511506c2ae3f5511c3992b600d5703d13b283f78fca7c1add08194b1",
+      "lines": 91,
+      "purpose": "Begin/Chunk/Commit上传",
+      "reviewed_hunks": "33–80：整个事务一个lease，48字节逐ACK推进，不重试Chunk；Commit前持久化未知记录；非明确拒绝异常在lease释放前设恢复隔离；失败含阶段/已确认字节与资源需同步提示，不承诺旧资源保留。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "hunks": [
+        "@@ -37,7 +37,7 @@",
+        "@@ -103,7 +103,8 @@",
+        "@@ -130,6 +131,10 @@",
+        "@@ -140,20 +145,23 @@",
+        "@@ -170,8 +178,8 @@",
+        "@@ -183,25 +191,28 @@",
+        "@@ -219,6 +230,9 @@"
+      ],
+      "after_sha256": "7eab2185e42c2ee47ae752afc2e9487b31d78a6b6efe1dd335df79c7c64048e0",
+      "before_sha256": "40fa3333ec2c53bb3aea0a62fa549c49b9dc7ecfba350d160a741656ea799c34",
+      "lines": 406,
+      "purpose": "USB发送与读线程生命周期",
+      "reviewed_hunks": "103–108、145–153：CP2不走失败后二次写，短写报错；157–215：线程捕获本代句柄/消费者并过滤旧回调，退出仅清自己对应的当前字段；230–235：CP2定长提帧。旧命令fallback保留；真实Windows句柄/驱动行为未执行。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/AiRuntimeStore.java",
+      "hunks": [
+        "@@ -44,6 +44,8 @@"
+      ],
+      "after_sha256": "8a8fb975fde42b545ac1d412c1419b4faf32fded02af5d1af3599b74049201c0",
+      "before_sha256": "20f46871ce7b72f0f432a649827ba87cfa292771510d38302834599e7c801135",
+      "lines": 92,
+      "purpose": "绑定持久化兼容",
+      "reviewed_hunks": "46–49：加载清空历史lastIdeState，保留绑定、路径及偏好；运行事实不能凭磁盘旧值恢复。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+      "hunks": [
+        "@@ -7,6 +7,8 @@",
+        "@@ -16,6 +18,7 @@",
+        "@@ -32,7 +35,7 @@",
+        "@@ -53,15 +56,15 @@",
+        "@@ -70,26 +73,65 @@",
+        "@@ -112,16 +154,85 @@"
+      ],
+      "after_sha256": "39d59d80342f5a3f7ee05808af839608a4a1a6dcbb64b3bd5189c297b63791fd",
+      "before_sha256": "ea4021e87b77705f831b254b93e83c3533483b894faebc4dba562986005e1044",
+      "lines": 256,
+      "purpose": "受限资源解码与RGB565成品",
+      "reviewed_hunks": "62–137：GIF逻辑画布/局部偏移/disposal、8/12帧拒绝超限及像素上限；139–201：黑底等比、RGB565回解预览和零填充；reader/stream释放，导入由后台服务调用。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "hunks": [
+        "@@ -89,6 +89,11 @@",
+        "@@ -114,6 +119,11 @@",
+        "@@ -133,6 +143,13 @@",
+        "@@ -175,29 +192,34 @@",
+        "@@ -208,9 +230,7 @@",
+        "@@ -233,140 +253,32 @@"
+      ],
+      "after_sha256": "80235ad206dc519568a726dfb05a13baebfebba41d6f69903f972aa3c76a85eb",
+      "before_sha256": "f184d86720f24162e6bb39e6476a13e8a1d4bb95af18ff788ca8f002dd4b6b0e",
+      "lines": 289,
+      "purpose": "唯一成品预览与八灯动画",
+      "reviewed_hunks": "145–159、199–223、259–287：热点busy锁；由持久化RGB565成品重建预览，设备已有占位和草稿标识分离；50ms灯效和100ms OLED动画，提供停止入口。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "hunks": [
+        "@@ -85,6 +85,15 @@",
+        "@@ -742,6 +751,7 @@",
+        "@@ -749,28 +759,27 @@",
+        "@@ -790,24 +799,33 @@",
+        "@@ -816,23 +834,88 @@",
+        "@@ -843,10 +926,22 @@",
+        "@@ -861,18 +956,25 @@",
+        "@@ -924,6 +1026,8 @@",
+        "@@ -933,6 +1037,7 @@",
+        "@@ -1179,104 +1284,91 @@"
+      ],
+      "after_sha256": "45bad529a669fcf6a0afe3c07e3e2f75fd98f7e694d9c1890ff563142143e4c5",
+      "before_sha256": "c205757b160baf25e61cf678136d161ebc3bdfaebdb3d702f7bbd62ede1a0b1d",
+      "lines": 1861,
+      "purpose": "四分区、禁用原因及资源操作",
+      "reviewed_hunks": "752–850、876–977、1284–1375：全局亮度独立、九项SINGLE及MULTI槽位按模式禁用；标题/原因位于操作容器之外；R9实际构造调用中性runtimeSlotSupport，身份原因仍由动态绑定决定；OLED本地导入与设备上传能力分开。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/resources/fxml/CanvasLayout.fxml",
+      "hunks": [
+        "@@ -13,11 +13,15 @@",
+        "@@ -55,11 +59,12 @@"
+      ],
+      "after_sha256": "825140d9608cb6582a248f68cd82ea4232918d3e58854d2168a31f90c486e30e",
+      "before_sha256": "36dd93fc46d0d52a4c4897a4d2c700d14c087a5bb204535ad552501aea7dd971",
+      "lines": 85,
+      "purpose": "画布节点映射",
+      "reviewed_hunks": "16–26、62–68：八灯节点、160×80预览与草稿标签对应控制器；未新增全局导航。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/resources/messages_en.properties",
+      "hunks": [
+        "@@ -243,3 +243,35 @@"
+      ],
+      "after_sha256": "70275381f6e2d9fa8f8108f3a79ed45297907b140923cbc842fa69808053a22b",
+      "before_sha256": "88bc4b10b7d3a476c5b572a2dfc2af1b16daf6ec676d6a58e6d05d22b53b223a",
+      "lines": 277,
+      "purpose": "英文反馈资源",
+      "reviewed_hunks": "247–278：身份/忙/模式原因及本地槽位说明均有对应键；slot-local-note只说明本地保留，不授予设备权限。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/resources/messages_zh.properties",
+      "hunks": [
+        "@@ -243,3 +243,35 @@"
+      ],
+      "after_sha256": "a40bad173698f9ba490ed6ca956ad72cca53072c24d6dc7422c0012bd34b5138",
+      "before_sha256": "c833f7df933e07eca7348f4d05727e4354efb5f834065dc368878315604e68f2",
+      "lines": 277,
+      "purpose": "中文反馈资源",
+      "reviewed_hunks": "247–278：读取中、失败、未知和不支持区分；中性本地槽位说明与英文含义一致。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/main/resources/style.css",
+      "hunks": [
+        "@@ -312,8 +312,8 @@",
+        "@@ -357,13 +357,36 @@"
+      ],
+      "after_sha256": "983a9f0001e8560216f4c445b75c8f4c40ccd993652bfc2e1d72bb291fb23881",
+      "before_sha256": "1bd61461665f4e846c138de284d04db54251a322705b2c41059f7892f771246e",
+      "lines": 817,
+      "purpose": "局部可读性与禁用样式",
+      "reviewed_hunks": "314–317、359–389：八灯尺寸、OLED黑底和局部分区禁用文字对比；未用全局取消disable替代可读性修复。已查看现有局部ui-01.png，未运行新截图。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigCapabilityChecks.java",
+      "hunks": [
+        "@@ -0,0 +1,331 @@"
+      ],
+      "after_sha256": "fdb4c9404f55b7573b23c9cc0471f1f83eef7483b0a46d44793157a076060801",
+      "before_sha256": null,
+      "lines": 331,
+      "purpose": "自动能力与R9修复隔离回归",
+      "reviewed_hunks": "47–162、164–328：startup/body/shutdown异常安全恢复home，保留原异常与suppressed；真实support工厂双语六状态；两条内存传输验证当前响应、代次及未知ACK仍锁定。149项为已有日志，组件断言不是完整Controller/Inspector。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigChecks.java",
+      "hunks": [
+        "@@ -0,0 +1,422 @@"
+      ],
+      "after_sha256": "585455f0ec2364ab412d1a1a202c2d119aad19108b82a2ce1ad6bfefaa9adc8c",
+      "before_sha256": null,
+      "lines": 422,
+      "purpose": "模型/编码/上传基础断言",
+      "reviewed_hunks": "69–144、183–201、204–319、389–414：临时图像与库、真实协议/上传/互斥；FakeSession共用OfflineBleManager，回复内存注入而生产send/lease逻辑保留。175项已有记录。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigEncodingProbe.java",
+      "hunks": [
+        "@@ -0,0 +1,20 @@"
+      ],
+      "after_sha256": "9143d4c5449dd4e56a9e381cd48b8a61b749635c57c36671a2dd821e7dbc65a0",
+      "before_sha256": null,
+      "lines": 20,
+      "purpose": "输出编码探针",
+      "reviewed_hunks": "9–18：stdout/stderr/JUL/指定文件样本，handler关闭；不是设备或完整应用检查，未将此探针另计入656项。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigFxChecks.java",
+      "hunks": [
+        "@@ -0,0 +1,152 @@"
+      ],
+      "after_sha256": "3aa6b3d363936052f001219d702deaf63191ff6e988e37284c7fdab242e2d4a8",
+      "before_sha256": null,
+      "lines": 152,
+      "purpose": "局部FX与成品展示检查",
+      "reviewed_hunks": "28–95、98–138：显式临时库、关闭服务、Canvas/FXML/亮度spinner检查；36项已有记录，仅局部FX范围。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigIsolationChecks.java",
+      "hunks": [
+        "@@ -0,0 +1,151 @@"
+      ],
+      "after_sha256": "20ffaef9af18d9a03d31f4f159b4ea9e4dd3d6eb8e151a1b94892089aee4a116",
+      "before_sha256": null,
+      "lines": 151,
+      "purpose": "I/O隔离和匿名补发检查",
+      "reviewed_hunks": "20–35、44–118、122–138：临时home、无真实socket/reader、内存发现/断连、真实lease释放补发。64项已有记录，未启动连接服务。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRaceChecks.java",
+      "hunks": [
+        "@@ -0,0 +1,327 @@"
+      ],
+      "after_sha256": "16a00f57a1d1da89b69436b006ba7944f4fd7573fcfe375701ad590badf3925c",
+      "before_sha256": null,
+      "lines": 327,
+      "purpose": "受控并发和迟到结果检查",
+      "reviewed_hunks": "26–60、64–251、262–307：错误保留、受控ACK/FX/generation竞争、MemoryUsb和service关闭；72项已有记录，不替代真实驱动时序。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3Checks.java",
+      "hunks": [
+        "@@ -0,0 +1,241 @@"
+      ],
+      "after_sha256": "bf1a88ba7a7769eb36874be7401956fe3c6bb8ee681ee93d6a3335e823dd4c49",
+      "before_sha256": null,
+      "lines": 241,
+      "purpose": "运行态与上传故障检查",
+      "reviewed_hunks": "20–36、39–115、118–241：临时home/SQLite，来源/精确身份/TTL，Hook内部处理但不启动listener；内存USB/BLE检查Begin拒绝、Chunk超时、Commit未知和无重试。72项已有记录。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3UiChecks.java",
+      "hunks": [
+        "@@ -0,0 +1,81 @@"
+      ],
+      "after_sha256": "083b03aa562069069b7cbfe9066f238603e0b38b601ecb753612c306e312ebc8",
+      "before_sha256": null,
+      "lines": 81,
+      "purpose": "局部CSS与禁用检查",
+      "reviewed_hunks": "17–81：独立FX、局部helper和对比度截图；42项已有记录，既有截图可读但不是完整Inspector/高DPI证明。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRound5Checks.java",
+      "hunks": [
+        "@@ -0,0 +1,136 @@"
+      ],
+      "after_sha256": "369aee701b6be648f1e2b83b7cdf64ccc146d48cf54838e0c9bad6b996364e60",
+      "before_sha256": null,
+      "lines": 136,
+      "purpose": "前台归属与原始TTL回归",
+      "reviewed_hunks": "19–30、38–127：临时home、发现结果显式替身；匿名/有身份终态、最新替换、发送失败重试不刷新TTL和未知ACK保护。46项已有记录；临时目录清理一致性风险另列。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/OfflineBleManager.java",
+      "hunks": [
+        "@@ -0,0 +1,64 @@"
+      ],
+      "after_sha256": "ea6f8220f2dcacee0e185cdf359b336d4233a88a336cc7e45f5b6f7c7716a1a2",
+      "before_sha256": null,
+      "lines": 64,
+      "purpose": "测试I/O封闭夹具",
+      "reviewed_hunks": "20–34、37–64：构造反射注入内存USB，发现只读内存，connect在建线程/Socket前拒绝；open/isOpen/close/sendCommand/sendData均内存实现且不调用super。没有覆写BleManager.sendCommand/exchange/lease/reset。",
+      "within_contract": true,
+      "conclusion": "未发现确定阻断缺陷；执行覆盖限制见全局列表。"
+    }
+  ],
+  "review_axes": {
+    "Standards": {
+      "decision": "pass",
+      "confirmed_findings": 0,
+      "analysis": "命名/分层/资源关闭和异常保护未发现确定规范违规；OLED提交点、局部禁用和测试I/O替身符合仓库要求。维护性风险与覆盖缺口单列，不把启发式code smell作为强制失败。"
+    },
+    "Spec": {
+      "decision": "pass",
+      "confirmed_findings": 0,
+      "analysis": "有效revision5覆盖自动准入和中性反馈，revision3覆盖运行态修复，累计原合同A01–A11保留。实际控制器入口接到新服务，旧写入过滤、协议布局、资源持久化和草稿隔离符合批准；未发现确定缺失/越界实现。"
+    }
+  },
+  "blocking_findings": [],
+  "implementation_risks": [
+    {
+      "id": "RISK-01",
+      "severity": "非阻断条件性实现风险",
+      "file": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "line": 237,
+      "analysis": "exchangeDisplay的finally无条件清displayExpected。若未来允许跨连接多线程直接调用公开CP2 API，旧请求退出可清掉新请求的期待opcode。当前唯一DisplayConfigService.worker串行所有生产CP2操作，旧请求返回前新lease不能发起，故未认定当前可达bug；不得将本风险扩大成需Owner豁免的已发现缺陷。",
+      "counterevidence": [
+        "DisplayConfigService.java:22",
+        "DisplayConfigService.java:173",
+        "DisplayConfigService.java:295",
+        "StudioController.java:128"
+      ]
+    },
+    {
+      "id": "RISK-02",
+      "severity": "非阻断测试维护风险",
+      "file": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRound5Checks.java",
+      "line": 19,
+      "analysis": "旧测试临时目录/FX退出策略不完全统一，Round5临时目录未完整清理可能残留受控临时文件。已检查无真实USB/TCP连接或真实用户配置覆写路径。R9 capability测试修复了本轮已提出的startup异常恢复；不宣称其他套件所有失败组合均已验证。"
+    }
+  ],
+  "coverage_limits": [
+    "完整Controller/Inspector、实际键鼠、高DPI、完整应用生命周期没有在本轮执行；R9局部VBox/反射helper和ui-01.png只证明其限定范围。",
+    "本轮只核查既有8进程656断言及日志；没有重跑、没有新增机器测试PASS。生命周期尚无null-home、单独shutdown失败及逐个删除失败全部组合的执行证据。",
+    "USB/BLE均有内存发送分支覆盖；Windows原生句柄时序、真实BLE性能、无线断连/重连、桥接修复源码到现场EXE的身份绑定不能由此证明。",
+    "Owner原话及preview-result为Preview整体通过，清单偏离线UI/有线USB；不自动扩展到非法包、旧固件、上传中断连、长时/持久化或完整A01–A11。",
+    "UP-01/UP-02历史根因、来源缺失事件的全部竞态和RT-03外部固件收口继续保留；正常路径通过不证明这些问题的全部条件已解决。",
+    "同名r001中间固件不能凭版本字符串区分是已批准产品限制；实际HEX/gate与桥接身份仍需正式交付核验，没有自动纳入CP2.5。",
+    "上述覆盖缺口未获本审阅豁免或自动后置；原DLA应逐条匹配已有证据，仅对具体差额取得适用验证或明确Owner决定。"
+  ],
+  "evidence_verification": {
+    "protected_baseline": {
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\ACTUAL_DIFF.txt": "5bdf26aff58dcf1539dbc99018e244b7567bcffbdbe16016d12342371d56a6c7",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\PACK.json": "870e82c4af6147da9589298495a5f31e8a882b114bb57b7cbfa71f5848c45754",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\REVIEW_ENTRY_BEFORE_R9.json": "cdecc6d2e58253cfbf2dfd9e944980079dc415ed398193376a88c629a2b7a4c1",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\REVIEW_FORM.json": "2db8441a87567623c62b4203659aeca3e7e180d299cf0306d9ef70382c7e3cea",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\app\\StudioController.java": "c12d4279cf2f070f8d4a88e3f57c05a4964144ac7cd5e5a86fcef9a479e54f80",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\model\\DeviceStatus.java": "ea9cf896738e39b8128f044a63f365d365b91dfe2bf11f231dbbba2a4a98124d",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\model\\DisplayConfigState.java": "b7f0ef25d78138cf4555a310f092017013cc7d4cf66735341b4a9336707a6fe5",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\model\\LightEffectStyle.java": "3658cd8555ab5cb88a3a0ec51d9912b3c446ebf0c43bad7d5d33ce89064a9a9a",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\model\\OledResourceState.java": "5336eb30fc1ef093efc9449877bf8b90b1d2a7c77f721d801151e91067f2fb0e",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\model\\StudioState.java": "8131a2f9a179b7c7ef7919b7ba0f05b7747f3f92b2c409eb39eded61f338a816",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\protocol\\AhaKeyProtocol.java": "b1309d9462f20baca91b610fadc3256f913c334e37ec7f5f51e84da1706b93f7",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\protocol\\AhaKeyResponseParser.java": "4e0588ed8910cc62eff33b2d4eb6a18ae5dc5abbae24fa796bc21f70f20ba534",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\service\\AiRuntimeDisplayService.java": "835535bf0c31930473869a2a05bf0f7a454548d865bf02f90c9e942bf1fb08bc",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\service\\BleManager.java": "18ad17fa2a77da56f02536c7a331cf4010c310c5707997598d90650f1ecaa82c",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\service\\CodexSessionDiscoveryService.java": "81443cba8648d5967bc5f5c12d360e98c284a54b6f7c9b2aa4362ed00c106380",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\service\\DisplayConfigService.java": "56af7456cf1e1fb578a799d8a11d0cf4b8dbfd97fa89bd99ee88f6ac8a550f12",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\service\\FirmwareLightSimulator.java": "38362fdd55ea2852539633a5472715caac8c7a785ca4205c4c42639d2bd6bc1d",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\service\\HookDispatchServer.java": "124f268d2fea9b600ac9a3b3b0bb98d5358b92ec6bbdc461b48e27e99e87a27b",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\service\\OledResourceStore.java": "7a6bc434109fa33e4a19088f0a56062621aa583fd226a6452b6bde0d03ad3a7c",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\service\\OledUploadService.java": "53d9615ad65154c497d730d947a910817712cb4fc165f60557680a94444f589c",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\service\\UsbHidTransport.java": "7eab2185e42c2ee47ae752afc2e9487b31d78a6b6efe1dd335df79c7c64048e0",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\util\\AiRuntimeStore.java": "8a8fb975fde42b545ac1d412c1419b4faf32fded02af5d1af3599b74049201c0",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\util\\OLEDFrameEncoder.java": "39d59d80342f5a3f7ee05808af839608a4a1a6dcbb64b3bd5189c297b63791fd",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\view\\CanvasController.java": "80235ad206dc519568a726dfb05a13baebfebba41d6f69903f972aa3c76a85eb",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\java\\com\\example\\ahakey\\view\\InspectorPane.java": "45bad529a669fcf6a0afe3c07e3e2f75fd98f7e694d9c1890ff563142143e4c5",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\resources\\messages_en.properties": "70275381f6e2d9fa8f8108f3a79ed45297907b140923cbc842fa69808053a22b",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\resources\\messages_zh.properties": "a40bad173698f9ba490ed6ca956ad72cca53072c24d6dc7422c0012bd34b5138",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\resources\\style.css": "983a9f0001e8560216f4c445b75c8f4c40ccd993652bfc2e1d72bb291fb23881",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\main\\resources\\fxml\\CanvasLayout.fxml": "825140d9608cb6582a248f68cd82ea4232918d3e58854d2168a31f90c486e30e",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\test\\java\\com\\example\\ahakey\\displayconfig\\DisplayConfigCapabilityChecks.java": "fdb4c9404f55b7573b23c9cc0471f1f83eef7483b0a46d44793157a076060801",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\test\\java\\com\\example\\ahakey\\displayconfig\\DisplayConfigChecks.java": "585455f0ec2364ab412d1a1a202c2d119aad19108b82a2ce1ad6bfefaa9adc8c",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\test\\java\\com\\example\\ahakey\\displayconfig\\DisplayConfigEncodingProbe.java": "9143d4c5449dd4e56a9e381cd48b8a61b749635c57c36671a2dd821e7dbc65a0",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\test\\java\\com\\example\\ahakey\\displayconfig\\DisplayConfigFxChecks.java": "3aa6b3d363936052f001219d702deaf63191ff6e988e37284c7fdab242e2d4a8",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\test\\java\\com\\example\\ahakey\\displayconfig\\DisplayConfigIsolationChecks.java": "20ffaef9af18d9a03d31f4f159b4ea9e4dd3d6eb8e151a1b94892089aee4a116",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\test\\java\\com\\example\\ahakey\\displayconfig\\DisplayConfigRaceChecks.java": "16a00f57a1d1da89b69436b006ba7944f4fd7573fcfe375701ad590badf3925c",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\test\\java\\com\\example\\ahakey\\displayconfig\\DisplayConfigRevision3Checks.java": "bf1a88ba7a7769eb36874be7401956fe3c6bb8ee681ee93d6a3335e823dd4c49",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\test\\java\\com\\example\\ahakey\\displayconfig\\DisplayConfigRevision3UiChecks.java": "083b03aa562069069b7cbfe9066f238603e0b38b601ecb753612c306e312ebc8",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\test\\java\\com\\example\\ahakey\\displayconfig\\DisplayConfigRound5Checks.java": "369aee701b6be648f1e2b83b7cdf64ccc146d48cf54838e0c9bad6b996364e60",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\after\\src\\test\\java\\com\\example\\ahakey\\displayconfig\\OfflineBleManager.java": "ea6f8220f2dcacee0e185cdf359b336d4233a88a336cc7e45f5b6f7c7716a1a2",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\java\\com\\example\\ahakey\\app\\StudioController.java": "b5bddccdd4b60a505b2be78886c3ee60ba1c0f6f5dccddcd520c93ea17ddf129",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\java\\com\\example\\ahakey\\model\\DeviceStatus.java": "d4c6abaa177cee49c067d0c0582cade572010250d57a041d6b7df121d608996e",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\java\\com\\example\\ahakey\\model\\LightEffectStyle.java": "f9f4adb7b6f9e7dcb56b2a36e22f40d8b6ec8be228f3c49f8a8f44b6cf7402b7",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\java\\com\\example\\ahakey\\model\\StudioState.java": "0dfb88370956926f52c362f009a252499a237202bcf76a051ad30235a660a35a",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\java\\com\\example\\ahakey\\protocol\\AhaKeyProtocol.java": "249928492d0a97f7ba193c9e5c8a6d6f94627b3450c3decc2032d24992ed085d",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\java\\com\\example\\ahakey\\protocol\\AhaKeyResponseParser.java": "5587db9fcc32bd0fbbb8f208f23c264e0062212e386ca44846d95d7b97137dce",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\java\\com\\example\\ahakey\\service\\AiRuntimeDisplayService.java": "c7103e6a30c329bb8fa49165d656ce3fac86379fec288a57fb14e7003c66b971",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\java\\com\\example\\ahakey\\service\\BleManager.java": "8be6ec34e915c32c4c78e57226df9b266fca9424534ebad8563eb57ffc4ca4ea",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\java\\com\\example\\ahakey\\service\\CodexSessionDiscoveryService.java": "fbe84398537c9c31f9048e6e0223c4526498d2ab5d346b29fb4b0f6dc3e1bd3b",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\java\\com\\example\\ahakey\\service\\HookDispatchServer.java": "7082ea250a4c26890d939aec3eee67584236ae965768a63a59b76a164ddd656a",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\java\\com\\example\\ahakey\\service\\OledUploadService.java": "c6dff343511506c2ae3f5511c3992b600d5703d13b283f78fca7c1add08194b1",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\java\\com\\example\\ahakey\\service\\UsbHidTransport.java": "40fa3333ec2c53bb3aea0a62fa549c49b9dc7ecfba350d160a741656ea799c34",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\java\\com\\example\\ahakey\\util\\AiRuntimeStore.java": "20f46871ce7b72f0f432a649827ba87cfa292771510d38302834599e7c801135",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\java\\com\\example\\ahakey\\util\\OLEDFrameEncoder.java": "ea4021e87b77705f831b254b93e83c3533483b894faebc4dba562986005e1044",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\java\\com\\example\\ahakey\\view\\CanvasController.java": "f184d86720f24162e6bb39e6476a13e8a1d4bb95af18ff788ca8f002dd4b6b0e",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\java\\com\\example\\ahakey\\view\\InspectorPane.java": "c205757b160baf25e61cf678136d161ebc3bdfaebdb3d702f7bbd62ede1a0b1d",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\resources\\messages_en.properties": "88bc4b10b7d3a476c5b572a2dfc2af1b16daf6ec676d6a58e6d05d22b53b223a",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\resources\\messages_zh.properties": "c833f7df933e07eca7348f4d05727e4354efb5f834065dc368878315604e68f2",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\resources\\style.css": "1bd61461665f4e846c138de284d04db54251a322705b2c41059f7892f771246e",
+      ".ahakey-desktop-harness\\changes\\WD-005\\reviews\\20261021T023808688339Z-41baa7\\before\\src\\main\\resources\\fxml\\CanvasLayout.fxml": "36dd93fc46d0d52a4c4897a4d2c700d14c087a5bb204535ad552501aea7dd971",
+      ".ahakey-desktop-harness\\changes\\WD-005\\ACCEPTANCE.md": "c6ebf4b485d9671fcb66400dcf350897f322f4439f257a2748c264c36d35ff2c",
+      ".ahakey-desktop-harness\\changes\\WD-005\\AUTO_CAPABILITY_UI_CONTRACT_R5_20261021.md": "4df299b3b87a9799c181ee9d9ed0f9ef4868f430d7979c6b9aff0732b66febc5",
+      ".ahakey-desktop-harness\\changes\\WD-005\\BRIDGE_01_DLA_REVIEW_20261018.md": "7eb9fef6160bd94e42737786a49ad634c8808a080e1e8d5caf8860445d31f3c7",
+      ".ahakey-desktop-harness\\changes\\WD-005\\BRIDGE_REPAIR_FINAL_RECONCILE_RESULT_20261018.md": "73a2b3dd3714c886e96ad629c9636ba74c2a1f68c764ce64c0f82d37bb26e234",
+      ".ahakey-desktop-harness\\changes\\WD-005\\BRIDGE_REPAIR_IN_PROGRESS_COORDINATION_20261018.md": "389ef336b005f4881f668226399f40b3bc772a2f8f10ac49bd348432f3632f74",
+      ".ahakey-desktop-harness\\changes\\WD-005\\builder_submission.json": "b5ef2e1c9e11a9c43739220fa717a87b14a1442e4124668020a8e13a89949f7a",
+      ".ahakey-desktop-harness\\changes\\WD-005\\CAPABILITY_UI_RECONCILE_RESULT_20261021.md": "6a93718d156227dca6684fc1a13ab79b50b1fd54fcac801894fe016914156965",
+      ".ahakey-desktop-harness\\changes\\WD-005\\change.json": "f1796bef244f6bbdec507d67306282e521596dd1c3dcc26667e23ac558ff7857",
+      ".ahakey-desktop-harness\\changes\\WD-005\\CLOSEOUT_PLAN_R9_20261021.md": "935ac026557eb26a137023940509effc22908976926b28c81f9871e597b510d7",
+      ".ahakey-desktop-harness\\changes\\WD-005\\CONSOLIDATED_FIX_ROUTE_RESULT_20261018.md": "b421bf5c32aaa07209fd49705a2b45cded425e43dcd3d65198349115dd2ccb6c",
+      ".ahakey-desktop-harness\\changes\\WD-005\\CONTINUATION_VERIFICATION_R5_20261020.md": "17c8f15aca56ec95bab6be3d6a38e48694cc9b1903be86c61cbf53cb29e3a0d1",
+      ".ahakey-desktop-harness\\changes\\WD-005\\CONTRACT.md": "6fc54cd021c463396354783602629f036ee6c7a02919ee7408dbb8b20e31a5c5",
+      ".ahakey-desktop-harness\\changes\\WD-005\\CROSS_COMPONENT_WORK_20261018.md": "356f313a3dcb0d603129a441760a4de4d0736c6856b52f8f76ec408a47be63f4",
+      ".ahakey-desktop-harness\\changes\\WD-005\\DECISIONS.md": "5d5e82ad0d1543a4c4ac7b90ab43a46d2b9486d82bc44b0d1743b43dd6191bef",
+      ".ahakey-desktop-harness\\changes\\WD-005\\DESIGN_REVIEW.md": "6084d6b7d51061508faac80df1241fbb9651c2dcd184bb4a0dc47626f62a4c4d",
+      ".ahakey-desktop-harness\\changes\\WD-005\\DLA_ACTUAL_REVIEW_20261016.md": "60b6261ab9c3528507b45ca10fc2ff8608366cb4909c31ae09c9e77d6ed18084",
+      ".ahakey-desktop-harness\\changes\\WD-005\\DLA_ACTUAL_REVIEW_R4_20261018.json": "01688785c6c79e1907c8d82c99fc7c30940e84ec5eaf149a03ccd6f4c7dbaf89",
+      ".ahakey-desktop-harness\\changes\\WD-005\\DLA_ACTUAL_REVIEW_R4_20261018.md": "597cb45b228fac750da36b4814f2d4bd827f3d1969e77000c425d6d1a3422da4",
+      ".ahakey-desktop-harness\\changes\\WD-005\\DLA_ACTUAL_REVIEW_R5_20261020.json": "30723fefdf58638d737a5e4c267cce291c999fedee9730423ecdd3b0f5867989",
+      ".ahakey-desktop-harness\\changes\\WD-005\\DLA_ACTUAL_REVIEW_R5_20261020.md": "b8ec81490a330efe907731b7f9b27c24e039d008fe0f8a6692895ebee7159de7",
+      ".ahakey-desktop-harness\\changes\\WD-005\\DLA_ACTUAL_REVIEW_R7_20261020.json": "cdecc6d2e58253cfbf2dfd9e944980079dc415ed398193376a88c629a2b7a4c1",
+      ".ahakey-desktop-harness\\changes\\WD-005\\DLA_ACTUAL_REVIEW_R7_20261020.md": "d92c95f462f5a55c8b53b970e1c55d10e97d58c36b69b232e0aa2aa890d8d30f",
+      ".ahakey-desktop-harness\\changes\\WD-005\\DLA_ACTUAL_REVIEW_R8_20261021.json": "23ffe82c8bc8d07e29374f2fc8f35fb567468345a28dd5f83d808b52d1c62435",
+      ".ahakey-desktop-harness\\changes\\WD-005\\DLA_ACTUAL_REVIEW_R8_20261021.md": "abb6420c0675a9d31c9c08da4ace0f1f3a805dcd7c8f6ede7de8567be4c0e183",
+      ".ahakey-desktop-harness\\changes\\WD-005\\DLA_ACTUAL_REVIEW_R9_20261021.json": "a1339d8053265571edebe3339be38722504adf20f948227dded610ea7ad6c41c",
+      ".ahakey-desktop-harness\\changes\\WD-005\\DLA_ACTUAL_REVIEW_R9_20261021.md": "39464ac4b51cec22056effe2ea0c194f938dda6d898db9e7eff2e5c7aa9a6785",
+      ".ahakey-desktop-harness\\changes\\WD-005\\DLA_ACTUAL_REVIEW_ROUND_2_20261016.md": "5565ce2424b22def2cf3cedda4c6a7da72d4e86ae8840c8fb0589ad5fd714ac3",
+      ".ahakey-desktop-harness\\changes\\WD-005\\DLA_ACTUAL_REVIEW_ROUND_3_20261017.md": "d1a92ed2e49d121052f7a3bd0edbe15927e75f12769d8dcd0a688c583dc92b80",
+      ".ahakey-desktop-harness\\changes\\WD-005\\EXECUTION_REPORT.md": "749264589c44656848f062fcf3b4ecf35784bef80f7356dc1f204834d69a19a2",
+      ".ahakey-desktop-harness\\changes\\WD-005\\EXECUTION_REPORT_FIX_ROUND_2.md": "47edd5b155d39a65ef8959cfccb3414b9420c3d020a6278b7bb948064cbdf96e",
+      ".ahakey-desktop-harness\\changes\\WD-005\\EXECUTION_REPORT_REVISION_3_ROUND_4_20261018.md": "7bd7019b725b8aa364845f2257845ac26c9a3461e16aab9b7171a526166835db",
+      ".ahakey-desktop-harness\\changes\\WD-005\\EXECUTION_REPORT_REVISION_3_ROUND_5_20261020.md": "6f895b3be9127864e7b5d1720af559e597a2c05152ab657e18bd0948401ed2f5",
+      ".ahakey-desktop-harness\\changes\\WD-005\\EXECUTION_REPORT_REVISION_4_ROUND_7_20261020.md": "bcb2190300ad6746e95f5c345415a0d6de8e82a8a06861ed3983bdd6a8665de1",
+      ".ahakey-desktop-harness\\changes\\WD-005\\EXECUTION_REPORT_REVISION_5_ROUND_8_20261021.md": "c0c346a8420ce2efd0104300b981f7f8b08e9396edd634e49646d58304d5f5ef",
+      ".ahakey-desktop-harness\\changes\\WD-005\\EXECUTION_REPORT_REVISION_5_ROUND_9_20261021.md": "d6085b122f7213ce5141627145f79ef87d24475f13022e2276272cbbe4f94ea3",
+      ".ahakey-desktop-harness\\changes\\WD-005\\FIRST_SOURCE_SAVEPOINT_20261018.md": "070320ad71d9eb064f08480607ad1ab0e0634d00444c9cb31232b76100a7e9c6",
+      ".ahakey-desktop-harness\\changes\\WD-005\\FIRST_SOURCE_SAVEPOINT_MANIFEST_20261018.json": "df4bf3459a703b942065ce4c796b112ba94f3c17094e71604fc9e76db69f53d8",
+      ".ahakey-desktop-harness\\changes\\WD-005\\FIRST_SOURCE_SAVEPOINT_RECEIPT_20261018.md": "cf0ba5038742c7016e8a15fc122014fcbc99165467c0f9cf1e2b1298b011a003",
+      ".ahakey-desktop-harness\\changes\\WD-005\\FIX_ROUND2_PROGRESS_20261016.md": "2fba628ab2d8eb688fa87495e67ad5fc49b80453890b88dade15067f7f83eb01",
+      ".ahakey-desktop-harness\\changes\\WD-005\\foreign_acceptance.json": "70518dd3fde56fade1c263ca30d7542110d729c2cdc233804d21aaa11e16211d",
+      ".ahakey-desktop-harness\\changes\\WD-005\\FORMAL_REVIEW_ROUND_2_20261017.json": "22febdb448c0bb6fe7de9e613520e3ce4c9f94f1a00550473a51efc3cb711a60",
+      ".ahakey-desktop-harness\\changes\\WD-005\\FRESH_REVIEW_BINDING_ROUND_2_20261017.json": "167aa3ee4539b90f68067e1690360b48a8be46f2671f644622952636968efc2d",
+      ".ahakey-desktop-harness\\changes\\WD-005\\FRESH_REVIEW_RECONCILIATION_20261017.md": "5528138c324269a4ca555d09f0539e61eb7e52a5458605be8fcac56990a57962",
+      ".ahakey-desktop-harness\\changes\\WD-005\\guard-origin.json": "14ae1345c35c61e66ef55c03971cb623de04f9bde0f4d1219fff4bf2ec5316da",
+      ".ahakey-desktop-harness\\changes\\WD-005\\IMPLEMENTATION_CHECKS.json": "3b98234005fdf874db313887e70ce3625e15d020309a75b540afb42efde72fe3",
+      ".ahakey-desktop-harness\\changes\\WD-005\\IMPLEMENTATION_CHECKS_ROUND_2.json": "92166a4105ddf0e02a192d3be2a5f5ec46288ee5ec0475c4994a2f72e9b72e10",
+      ".ahakey-desktop-harness\\changes\\WD-005\\IMPLEMENTATION_CHECKS_ROUND_4_20261018.json": "12e9692c3aca3cf087d0df9fbe8cb259198ea5881a591cafc0d45effea951183",
+      ".ahakey-desktop-harness\\changes\\WD-005\\IMPLEMENTATION_CHECKS_ROUND_5_20261020.json": "ce34ca74508b393f4bcbe7f2683c0d41f867a9b8f0f9cbee9f15040e93910c7a",
+      ".ahakey-desktop-harness\\changes\\WD-005\\IMPLEMENTATION_CHECKS_ROUND_7_20261020.json": "cc120c81718d9bf8ec543225ff88f8981c01dc7b986bf75356649c8c48c06457",
+      ".ahakey-desktop-harness\\changes\\WD-005\\IMPLEMENTATION_CHECKS_ROUND_8_20261021.json": "26d638a7afb0ab833f832994f603ec28e4a7cd1c03a65ac7de928d22baf0454e",
+      ".ahakey-desktop-harness\\changes\\WD-005\\IMPLEMENTATION_CHECKS_ROUND_9_20261021.json": "85ccfb0608223c429c5f432596cc6a1c3b7c6a792e5dab81e6c072be66f633f4",
+      ".ahakey-desktop-harness\\changes\\WD-005\\IMPLEMENTATION_RECEIPT.json": "24c2f57b59409f2b74292b6fee7875bedb23855dfe3750158472621a1f0f9344",
+      ".ahakey-desktop-harness\\changes\\WD-005\\IMPLEMENTATION_SCOPE.md": "12c937826c84fff190028348247e2e4204afde04257788016d3e418978483906",
+      ".ahakey-desktop-harness\\changes\\WD-005\\LAUNCH_ENCODING_RECIPE_R4_20261018.md": "1b9892c240d3ec40eb26b836bd9203fc4ab573439c934b08c74c02057c2f40b6",
+      ".ahakey-desktop-harness\\changes\\WD-005\\NO_CODE_RESUBMISSION_ROUND_3_20261017.md": "e9bdba3ea401240777e4804c3944a1fe0931a3a0696b54db1a87dc8f0d4afab3",
+      ".ahakey-desktop-harness\\changes\\WD-005\\OWNER_HANDOFF_POST_SAVEPOINT_BLOCKER_R4_20261018.json": "b33d02eb901f1d32b7efae4596dfa59c00fa5517041877f16db98d36380094aa",
+      ".ahakey-desktop-harness\\changes\\WD-005\\OWNER_HANDOFF_ROUND_4_BLOCKED_20261018.json": "875b6befed00cf4b2f5ac58f76438377a861b759f29b5154f2c30d1b2f507de4",
+      ".ahakey-desktop-harness\\changes\\WD-005\\OWNER_IMPLEMENT_HANDOFF_INPUT.json": "cc39dea509b676cf023b402671731e3b62e922ddc957d41810bf3ff98696f5e2",
+      ".ahakey-desktop-harness\\changes\\WD-005\\OWNER_TEST.md": "e5f56308a3d75e5b3721505dd3a3d0c4056bdf18d4d5c82fd4b73fa0ff329682",
+      ".ahakey-desktop-harness\\changes\\WD-005\\POST_SAVEPOINT_CONTINUATION_R4_20261018.md": "5fc9f9c85c299b62d470df7aaa05fff4e513c940af74ae8e193842ae50ba49af",
+      ".ahakey-desktop-harness\\changes\\WD-005\\POST_SAVEPOINT_HASH_OBSERVATION_R4_20261018.json": "991caa897ec299f177acbf9e22ccd3af8352594c5b4dfde21e249a779da72fd2",
+      ".ahakey-desktop-harness\\changes\\WD-005\\POST_SAVEPOINT_SUBMIT_BLOCKER_R4_20261018.md": "c02ba57ee4c411e52b26ad7b2cf8bf1dbf9406a2614230635d3dd9f0dc5beb4e",
+      ".ahakey-desktop-harness\\changes\\WD-005\\PREVIEW_BUILD_HANDOFF_R7_20261020.md": "0b850fd9f8d8c42ce18f8f62f0b30dfa0c1e4363a898724345b42e4c415d6076",
+      ".ahakey-desktop-harness\\changes\\WD-005\\PREVIEW_BUILD_HANDOFF_R9_20261021.md": "9324593c8efba2a4d314f38c570618009b4acf3a5d4f75b90df8c2ae3072421b",
+      ".ahakey-desktop-harness\\changes\\WD-005\\PREVIEW_BUILD_HANDOFF_ROUND_3_20261017.md": "1cabbfc7d5a897770467b4c0f05a8401d990c231d6cee90e1ffaed949b77d2a9",
+      ".ahakey-desktop-harness\\changes\\WD-005\\PREVIEW_FIX_CONTRACT_R3_20261018.md": "3095efebc0f5ec802bd9d5f3edd76278d899681aaf20164d6b38e90b1c9854f8",
+      ".ahakey-desktop-harness\\changes\\WD-005\\PREVIEW_FIX_REQUEST_LATEST.json": "8e2267753ba3d5c6bd4960899484db003f06ee7b7d2f6ba7efea0b5142d06841",
+      ".ahakey-desktop-harness\\changes\\WD-005\\PREVIEW_LATEST.json": "d266801837ccb4d16fa23f9593324c89dcbb882a700e54aaebe441ff270f0b2a",
+      ".ahakey-desktop-harness\\changes\\WD-005\\PREVIEW_PREP_BLOCKER_20261017.md": "753fa85c5d1a3c12bd9fdda4b920e1f291b6a7fe4ad6930d2318753fd855222b",
+      ".ahakey-desktop-harness\\changes\\WD-005\\PREVIEW_RESULT_LATEST.json": "c9e98ceadf0484b73e48024fc18bc6863684b79bd323dbd2eac223357e464ea1",
+      ".ahakey-desktop-harness\\changes\\WD-005\\PROTOCOL_AND_STATE.md": "2f0cff7afc3340109abd02c932c9024cede07995471a458e16d56d563c391be7",
+      ".ahakey-desktop-harness\\changes\\WD-005\\R6_ISOLATION_INTERFACE_PROPOSAL_20261020.md": "0dcc0723de173234d6cdfd4019421fbd91244041cc60eac1b73bf9be5a2bec01",
+      ".ahakey-desktop-harness\\changes\\WD-005\\R6_ISOLATION_RECONCILE_RESULT_20261020.md": "a1af21f08cc9142d7123694456b58e81b713bca70c1f2b7a375c59251550efa8",
+      ".ahakey-desktop-harness\\changes\\WD-005\\R6_ISOLATION_SCOPE_BLOCKER_20261020.md": "e77d9041576d8d2cbead8e67e872c5d65fe429add6617a1620833eeeafa0bb50",
+      ".ahakey-desktop-harness\\changes\\WD-005\\REFERENCES.json": "1bb3f96c441a6eaa891be6ec3fdc98b58f3e3a45197ba397c26d16027472636f",
+      ".ahakey-desktop-harness\\changes\\WD-005\\REFERENCE_RECONCILE_RESULT_20261017.md": "12e620e394a7fd39a5f23f2dfd56933fafd0ef663c5ee204816552132627e712",
+      ".ahakey-desktop-harness\\changes\\WD-005\\REGISTRATION.md": "2f2db582d388cf8481f814d6d87b85ceab98d0b041666a3935f39bc78d21e1cf",
+      ".ahakey-desktop-harness\\changes\\WD-005\\REVIEW.json": "a1339d8053265571edebe3339be38722504adf20f948227dded610ea7ad6c41c",
+      ".ahakey-desktop-harness\\changes\\WD-005\\REVIEW.md": "2cbade0f9328ecaa3f8c0cbe072a871f01534d21d451b1d44f11e47efd67f192",
+      ".ahakey-desktop-harness\\changes\\WD-005\\review_pack.json": "870e82c4af6147da9589298495a5f31e8a882b114bb57b7cbfa71f5848c45754",
+      ".ahakey-desktop-harness\\changes\\WD-005\\start-fingerprint.json": "849598f1b9d53bf9ff8e804459a1b053e6ce946d8c9b7db75c039cb07a1e1fc0",
+      ".ahakey-desktop-harness\\changes\\WD-005\\START_GIT.json": "f81903c5fe187eb72e1afdb474576a94e3c9609cc3afd2e638bd6f9f802b76bf",
+      ".ahakey-desktop-harness\\changes\\WD-005\\STATIC_IO_ISOLATION_R7_20261020.md": "d62301ae1a42e95dc846246e5c40e67cf1deec4e6306dbe9c7efb08507ff2039",
+      ".ahakey-desktop-harness\\changes\\WD-005\\STATIC_IO_ISOLATION_R8_20261021.md": "f89f20e19afcddf9492b7e86e195906d87887f8c6ccf69247bcf309280a759bb",
+      ".ahakey-desktop-harness\\changes\\WD-005\\STATIC_IO_ISOLATION_R9_20261021.md": "607ce864f3619340f3f4dd7ae580f4ca7a7432f7f3e6f0f60357669bafe53283",
+      ".ahakey-desktop-harness\\changes\\WD-005\\verification.json": "305c47c6e992432abcf84cb8b2638978333ec78fd1724adfe47f11d3364851ac",
+      ".ahakey-desktop-harness/STATE.json": "2e26bc2f4bd615403082906cf3d08908856eabc9b3c1e8a485214e8c5726748c"
+    },
+    "canonical_pack_match": true,
+    "diff_hash_match": true,
+    "current_source_match": true,
+    "effective_approval_match": true,
+    "after_snapshot_byte_matches": 35,
+    "verification_and_checks_unique_hashes": 22,
+    "evidence_mismatches": [],
+    "existing_test_processes": 8,
+    "existing_assertions": 656,
+    "existing_test_breakdown": {
+      "DisplayConfigCapabilityChecks": 149,
+      "DisplayConfigIsolationChecks": 64,
+      "DisplayConfigChecks": 175,
+      "DisplayConfigFxChecks": 36,
+      "DisplayConfigRaceChecks": 72,
+      "DisplayConfigRevision3Checks": 72,
+      "DisplayConfigRound5Checks": 46,
+      "DisplayConfigRevision3UiChecks": 42
+    },
+    "reexecuted_by_this_review": false,
+    "logs_reviewed": "读取R9报告、检查表、compile-01.log，各类-01.log完成标记及故障/超时/归属/隔离相关记录；故障注入日志中的WARN/ACK_FAIL不误计为套件失败。查看既有ui-01.png。哈希一致只证明字节绑定，不认证执行者或全部运行真相。"
+  },
+  "baseline_assessment": {
+    "original_commit": "41c034171e60b2d4962b0adbe8f3cffbf80a0436",
+    "current_head_record": "f595262207796dbf325cb9951ed3dc02b4887362",
+    "start_file_sha256": "849598f1b9d53bf9ff8e804459a1b053e6ce946d8c9b7db75c039cb07a1e1fc0",
+    "missing_start_bytes": [],
+    "isolation": "读取WD-005与暂停WD-002隔离证据。历史dirty/config_server/桥接及其他仓未纳入本任务授权；原起点与旧批准未改变。HEAD存档不是当前正式candidate。"
+  },
+  "protocol_assessment": "直接只读核对Firmware候选70ca334f65d73b6a2f20a0598e55c6da59f26526的command_solve.c和resource_upload_transaction.c，并按批准PROTOCOL_AND_STATE核对线协议。正常写ACK为opcode/status，Begin/Chunk/Commit顺序与FAIL/未知语义一致；无新增0x8D/0x8F或共享协议扩张。该核对不是formal firmware-admit或已刷证明。",
+  "observed_gates": {
+    "state_revision": 86,
+    "phase": "VERIFY",
+    "mode": "DLA_REVIEW",
+    "formal_review": "pending，须原DLA绑定本新记录后经正式命令登记",
+    "git_candidate": "尚未建立当前正式候选",
+    "formal_build": "BUILD_RECEIPT缺失",
+    "delivery": "test_packet、DELIVERY_PROFILE、FORMAL_FIRMWARE_GATE、ACCEPTANCE_COVERAGE及正式中文brief待收口",
+    "preview": "preview-20261021T024920511394Z-2ae03d已登记PASS，仅Preview",
+    "real_device": "pending",
+    "owner_uat": "pending"
+  },
+  "executed": [
+    "只读文件/固定累计diff/调用链审查",
+    "只读guard-status",
+    "哈希、快照与记录结构核对",
+    "只读Firmware Git对象",
+    "新增本JSON及配套中文分析"
+  ],
+  "not_executed": [
+    "生产/测试/固件/桥接修改",
+    "构建、测试或应用运行",
+    "设备、Hook、安装、下载、烧录",
+    "Git写入、发布",
+    "覆盖原REVIEW/fresh/pack/批准/起点/冻结报告",
+    "正式review登记或全局路由修改"
+  ],
+  "handoff": "返回原DLA。先核对本记录与固定pack/当前源码/批准的绑定，再正式回填fresh及review；随后按CLOSEOUT_PLAN_R9生成审查精确candidate-plan并分层完成候选、构建/配对身份、覆盖及归档。不得把本pass直接当CLOSED或复用Preview为正式UAT。"
+}

@@ -86,6 +86,8 @@ public final class DisplayConfigRaceChecks {
             }
             f.answer(delayed.get());
             check("F1-identity-" + readFirst, CATALOG.equals(identity.get(10, TimeUnit.SECONDS)));
+            // The controller now refreshes deferred CP2 reads only after successful admission.
+            if (!readFirst) fx(() -> f.service.capabilityChanged());
             awaitFx(() -> !f.studio.displayConfig().loading.get());
             check("F1-input-flow-" + readFirst, f.count(0x97) == 1 && f.count(0x87) == 16);
             check("F1-metadata-not-dropped-" + readFirst, f.count(0x88) == 14);
@@ -263,11 +265,7 @@ public final class DisplayConfigRaceChecks {
         DisplayConfigService service;
         int deviceMode;
         Fixture() throws Exception {
-            wire.field("usbTransport", new UsbHidTransport() {
-                @Override public boolean isOpen() { return true; }
-                @Override public void sendCommand(byte[] frame) { wire.respond.accept(frame.clone()); }
-                @Override public void close() { }
-            });
+            wire.useUsb();
             wire.ble.getCachedStatus().setFirmwareCatalogKey(CATALOG);
             normalReplies();
             Path library = Files.createTempDirectory(root, "library-");
@@ -304,7 +302,7 @@ public final class DisplayConfigRaceChecks {
         }
         void reset() throws Exception {
             var reset = BleManager.class.getDeclaredMethod("resetDisplaySession"); reset.setAccessible(true); reset.invoke(wire.ble);
-            wire.ble.confirmDisplayFirmware(wire.ble.connectionGeneration(), HEX);
+            wire.identify();
         }
         @Override public void close() throws Exception { fx(() -> service.close()); }
     }
@@ -323,7 +321,7 @@ public final class DisplayConfigRaceChecks {
         AtomicBoolean done = new AtomicBoolean();
         await(() -> { try { fx(() -> done.set(condition.getAsBoolean())); return done.get(); } catch (Exception e) { throw new IllegalStateException(e); } });
     }
-    private static Object field(Object target, String name) throws Exception { Field f = target.getClass().getDeclaredField(name); f.setAccessible(true); return f.get(target); }
+    private static Object field(Object target, String name) throws Exception { Field f = (target instanceof BleManager ? BleManager.class : target.getClass()).getDeclaredField(name); f.setAccessible(true); return f.get(target); }
     private static void field(Object target, String name, Object value) throws Exception { Field f = target.getClass().getDeclaredField(name); f.setAccessible(true); f.set(target, value); }
     private static void check(String id, boolean condition) { if (!condition) throw new AssertionError(id); checks++; System.out.println("PASS " + id); }
 }

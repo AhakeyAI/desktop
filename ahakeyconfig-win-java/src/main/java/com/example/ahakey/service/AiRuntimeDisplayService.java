@@ -154,7 +154,7 @@ public class AiRuntimeDisplayService {
         if (!bleManager.isConnected() || bleManager.getCachedStatus() == null || !bleManager.getCachedStatus().isConnected()) {
             return false;
         }
-        return AhaKeyProtocol.isWs3Cp1RuntimeDisplaySupported(bleManager.getCachedStatus().getFirmwareCatalogKey());
+        return bleManager.isDisplayAdmitted();
     }
 
     public void setDisplayMode(AiRuntimeDisplayMode mode) {
@@ -194,7 +194,9 @@ public class AiRuntimeDisplayService {
                 });
             }, "ai-runtime-mode-send").start();
         } else {
-            displayMode.set(safe); persist(); completion.accept(null);
+            if (safe == AiRuntimeDisplayMode.MULTI) {
+                completion.accept("当前连接尚未识别到支持的固件版本，多任务模式未切换。");
+            } else { displayMode.set(safe); persist(); completion.accept(null); }
         }
     }
 
@@ -280,7 +282,9 @@ public class AiRuntimeDisplayService {
         }
     }
     private final Map<String, RuntimeFact> liveFacts = new java.util.concurrent.ConcurrentHashMap<>();
-    private String singleOwner = "";
+    // Display occupancy is distinct from a stable session identity; anonymous tools remain owners.
+    private record SingleOwner(String provider, String sessionId) {}
+    private SingleOwner singleOwner;
     private long singleOwnerAt;
     private long singleOwnerConnection = -1;
 
@@ -303,18 +307,20 @@ public class AiRuntimeDisplayService {
             } else if (displayMode.get() == AiRuntimeDisplayMode.SINGLE) {
                 String identity = id.isBlank() ? "" : platform + ":" + id;
                 boolean terminal = state == IDEState.TASK_COMPLETED || state == IDEState.STOP || state == IDEState.SESSION_END;
+                // A trusted terminal fact must survive even when another session owns SINGLE.
+                if (!id.isBlank()) liveFacts.put(identity,
+                        new RuntimeFact(state, System.nanoTime(), bleManager.connectionGeneration()));
+                SingleOwner eventOwner = new SingleOwner(platform, id);
                 if (singleOwnerConnection != bleManager.connectionGeneration()
-                        || System.nanoTime() - singleOwnerAt >= FACT_TTL_NANOS) singleOwner = "";
-                if (terminal && !singleOwner.isBlank() && !singleOwner.equals(identity)) {
+                        || System.nanoTime() - singleOwnerAt >= FACT_TTL_NANOS) singleOwner = null;
+                if (terminal && singleOwner != null && !singleOwner.equals(eventOwner)) {
                     result = Delivery.IGNORED;
                 } else {
                     if (!terminal) {
-                        singleOwner = identity;
+                        singleOwner = eventOwner;
                         singleOwnerAt = System.nanoTime();
                         singleOwnerConnection = bleManager.connectionGeneration();
                     }
-                    if (!id.isBlank()) liveFacts.put(identity,
-                            new RuntimeFact(state, System.nanoTime(), bleManager.connectionGeneration()));
                     try {
                         result = bleManager.sendRuntimeState((byte) state.getCode()) ? Delivery.SENT
                                 : bleManager.isConnected() ? Delivery.PENDING : Delivery.FAILED;

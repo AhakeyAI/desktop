@@ -159,11 +159,7 @@ public final class DisplayConfigRevision3Checks {
     private static DisplayConfigChecks.FakeSession wire(boolean usb, List<byte[]> sent) throws Exception {
         var wire = new DisplayConfigChecks.FakeSession();
         wire.ble.getCachedStatus().setFirmwareCatalogKey("x1-c582-hw1-p1-1.0.0-r001");
-        if (usb) wire.field("usbTransport", new UsbHidTransport() {
-            @Override public boolean isOpen() { return true; }
-            @Override public void sendCommand(byte[] frame) { wire.respond.accept(frame.clone()); }
-            @Override public void close() { }
-        });
+        if (usb) wire.useUsb();
         wire.respond = r -> { sent.add(r.clone()); wire.reply(AhaKeyProtocol.buildFrame(r[2],new byte[]{0})); };
         return wire;
     }

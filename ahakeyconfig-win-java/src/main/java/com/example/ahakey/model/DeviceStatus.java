@@ -6,6 +6,11 @@ import org.slf4j.LoggerFactory;
 import javafx.beans.property.*;
 
 public class DeviceStatus {
+    public enum IdentityState { DISCONNECTED, UNKNOWN, READING, SUPPORTED, UNSUPPORTED, FAILED }
+    private final ObjectProperty<IdentityState> identityState = new SimpleObjectProperty<>(IdentityState.DISCONNECTED);
+    public IdentityState getIdentityState() { return identityState.get(); }
+    public ObjectProperty<IdentityState> identityStateProperty() { return identityState; }
+    public void setIdentityState(IdentityState value) { identityState.set(value); }
     
     private static final Logger logger = LoggerFactory.getLogger(DeviceStatus.class);
     private final BooleanProperty isConnected = new SimpleBooleanProperty(false);
@@ -69,6 +74,7 @@ public class DeviceStatus {
         firmwareMain.set(-1);
         firmwareSub.set(-1);
         firmwareCatalogKey.set("");
+        identityState.set(isConnected() ? IdentityState.UNKNOWN : IdentityState.DISCONNECTED);
     }
     
     // Convenience methods

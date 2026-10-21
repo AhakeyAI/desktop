@@ -1,0 +1,90 @@
+{
+  "change_id": "WD-005",
+  "checks": {
+    "machine": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-005/EXECUTION_REPORT_REVISION_5_ROUND_9_20261021.md": "d6085b122f7213ce5141627145f79ef87d24475f13022e2276272cbbe4f94ea3",
+        ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_9_20261021.json": "85ccfb0608223c429c5f432596cc6a1c3b7c6a792e5dab81e6c072be66f633f4",
+        ".ahakey-desktop-harness/changes/WD-005/STATIC_IO_ISOLATION_R9_20261021.md": "607ce864f3619340f3f4dd7ae580f4ca7a7432f7f3e6f0f60357669bafe53283",
+        ".ahakey-desktop-harness/evidence/20261021-wd005-r9/compile-01.log": "47352ee5a23f2c6c48a9e9cdd269967830e0b36fb38fbcb21556bc37e186634b",
+        ".ahakey-desktop-harness/evidence/20261021-wd005-r9/diff-check.log": "0704bd5ab935f60715c3ebd372c62d40b0687b508923225667dea42e1c4acccc",
+        ".ahakey-desktop-harness/evidence/20261021-wd005-r9/source-delta.json": "a14669ef0cd321fb4a48c0825229f6bce3a654249c6bb8bb03d7ead2eeff3645"
+      },
+      "role": "DIB",
+      "at": "2026-10-21T02:25:09+00:00",
+      "code_fingerprint": "98fe4428d5187e7f900a30df99b2432c7a540fcc02f7707a7aa1ac659d2213b9",
+      "build_round": 9,
+      "approval_sha256": "5ca53dc27d3bb53b05e7b48932f7a39b8db387fb730f112fa6e6c031e69ec6cf"
+    },
+    "core_regression": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-005/EXECUTION_REPORT_REVISION_5_ROUND_9_20261021.md": "d6085b122f7213ce5141627145f79ef87d24475f13022e2276272cbbe4f94ea3",
+        ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_9_20261021.json": "85ccfb0608223c429c5f432596cc6a1c3b7c6a792e5dab81e6c072be66f633f4",
+        ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigChecks-01.log": "f5c52a50b2eb634f77b83edd124a7d47f7c863c7f0821bb7ca2180eafc8085a0",
+        ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigFxChecks-01.log": "31d699cf4bf5cc99a8b1054fc9e6573e22842fc0cdc1bd5ba12e98011e78333a"
+      },
+      "role": "DIB",
+      "at": "2026-10-21T02:25:14+00:00",
+      "code_fingerprint": "98fe4428d5187e7f900a30df99b2432c7a540fcc02f7707a7aa1ac659d2213b9",
+      "build_round": 9,
+      "approval_sha256": "5ca53dc27d3bb53b05e7b48932f7a39b8db387fb730f112fa6e6c031e69ec6cf"
+    },
+    "special_regression": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-005/EXECUTION_REPORT_REVISION_5_ROUND_9_20261021.md": "d6085b122f7213ce5141627145f79ef87d24475f13022e2276272cbbe4f94ea3",
+        ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_9_20261021.json": "85ccfb0608223c429c5f432596cc6a1c3b7c6a792e5dab81e6c072be66f633f4",
+        ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigCapabilityChecks-01.log": "49bc52b2a9161bc7eecebcb6ee6a6cce8f214c14e4b3354b9166acf24fb371d0",
+        ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigIsolationChecks-01.log": "861b155902af347ea74628094016ed8efb75607162ce9f6d49a0ee7990cc5593",
+        ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigRaceChecks-01.log": "44e82905aeef944e05807d1c10fcc7f98cb97f734672d556495a6e684eb6d3f5",
+        ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigRevision3Checks-01.log": "1c01caf1d591cb51b7206023b648f4360267b970201b4e74df912bf83a7d57f8",
+        ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigRound5Checks-01.log": "4fc57d0fd70d5e9b2d989d9a1a4b1dca170c608e9ca8d5409812a04a6fc4b886"
+      },
+      "role": "DIB",
+      "at": "2026-10-21T02:25:18+00:00",
+      "code_fingerprint": "98fe4428d5187e7f900a30df99b2432c7a540fcc02f7707a7aa1ac659d2213b9",
+      "build_round": 9,
+      "approval_sha256": "5ca53dc27d3bb53b05e7b48932f7a39b8db387fb730f112fa6e6c031e69ec6cf"
+    },
+    "mock": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-005/EXECUTION_REPORT_REVISION_5_ROUND_9_20261021.md": "d6085b122f7213ce5141627145f79ef87d24475f13022e2276272cbbe4f94ea3",
+        ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_9_20261021.json": "85ccfb0608223c429c5f432596cc6a1c3b7c6a792e5dab81e6c072be66f633f4",
+        ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigCapabilityChecks-01.log": "49bc52b2a9161bc7eecebcb6ee6a6cce8f214c14e4b3354b9166acf24fb371d0",
+        ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigRevision3UiChecks-01.log": "180c4bfb1168f32e9c9816516e3a3a7822aada55feb880452915457971e4b7b3",
+        ".ahakey-desktop-harness/evidence/20261021-wd005-r9/ui-01.png": "b9590c373619fe26426e78ce790a953a778984407cb8bf821430b64769898568"
+      },
+      "role": "DIB",
+      "at": "2026-10-21T02:25:24+00:00",
+      "code_fingerprint": "98fe4428d5187e7f900a30df99b2432c7a540fcc02f7707a7aa1ac659d2213b9",
+      "build_round": 9,
+      "approval_sha256": "5ca53dc27d3bb53b05e7b48932f7a39b8db387fb730f112fa6e6c031e69ec6cf"
+    },
+    "real_device": {
+      "status": "pending"
+    },
+    "owner_uat": {
+      "status": "pending"
+    },
+    "review": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-005/FORMAL_REVIEW_R9_20261021.json": "77f8b6efcb00badba83f3df0b8dbd200db671de1f9bd1955ba3f4335cea32049",
+        ".ahakey-desktop-harness/changes/WD-005/reviews/20261021T023808688339Z-41baa7/FRESH_ACTUAL_REVIEW_R9_20261021_661dbf42.md": "e923354fa5827f9bee27b962a0db7a6eb9b1c7bba332eaf362b209c3b44d7a35"
+      },
+      "role": "DLA",
+      "at": "2026-10-21T08:21:19+00:00",
+      "code_fingerprint": "98fe4428d5187e7f900a30df99b2432c7a540fcc02f7707a7aa1ac659d2213b9",
+      "build_round": 9,
+      "approval_sha256": "5ca53dc27d3bb53b05e7b48932f7a39b8db387fb730f112fa6e6c031e69ec6cf"
+    }
+  }
+}

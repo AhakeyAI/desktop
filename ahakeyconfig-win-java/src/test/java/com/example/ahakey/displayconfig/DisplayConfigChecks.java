@@ -205,7 +205,7 @@ public final class DisplayConfigChecks {
         Method usbFrame = Class.forName("com.example.ahakey.service.UsbHidTransport").getDeclaredMethod("extractFrame", byte[].class, int.class); usbFrame.setAccessible(true);
         byte[] frame = integrity(18, 12, 0xDDCCBBAAL);
         for (int split = 1; split < frame.length; split++) {
-            BleManager ble = new BleManager(callback());
+            BleManager ble = new OfflineBleManager(callback());
             List<?> first = (List<?>) bleFrames.invoke(ble, (Object) Arrays.copyOf(frame, split));
             List<?> second = (List<?>) bleFrames.invoke(ble, (Object) Arrays.copyOfRange(frame, split, frame.length));
             check("A05-BLE-split-" + split, first.isEmpty() && second.size() == 1 && Arrays.equals((byte[])second.get(0), frame));
@@ -213,7 +213,7 @@ public final class DisplayConfigChecks {
         byte[] report = new byte[65]; System.arraycopy(frame, 0, report, 1, frame.length);
         check("A05-USB-binary-delimiters", Arrays.equals((byte[]) usbFrame.invoke(null, report, report.length), frame));
         byte[] joined = new byte[frame.length + 6]; System.arraycopy(frame, 0, joined, 0, frame.length); System.arraycopy(ack(0x8E, 0), 0, joined, frame.length, 6);
-        check("A05-BLE-coalesced", ((List<?>) bleFrames.invoke(new BleManager(callback()), (Object) joined)).size() == 2);
+        check("A05-BLE-coalesced", ((List<?>) bleFrames.invoke(new OfflineBleManager(callback()), (Object) joined)).size() == 2);
     }
     private static void transport() throws Exception {
         FakeSession session = new FakeSession();
@@ -293,7 +293,7 @@ public final class DisplayConfigChecks {
         check("A10-runtime-wire", Arrays.equals(AhaKeyProtocol.updateState((byte)4),hex("aabb9004ccdd")));
         Method reassemble=BleManager.class.getDeclaredMethod("reassembleNotifyFrames",byte[].class); reassemble.setAccessible(true);
         byte[] legacy=hex("aabb9200ccdd");
-        List<?> frames=(List<?>)reassemble.invoke(new BleManager(callback()),(Object)legacy);
+        List<?> frames=(List<?>)reassemble.invoke(new OfflineBleManager(callback()),(Object)legacy);
         check("A10-legacy-ACK-framing",frames.size()==1 && Arrays.equals((byte[])frames.get(0),legacy));
         check("A10-legacy-ACK-parser",AhaKeyResponseParser.parseCommandResponse(legacy).status()==0);
         var state=new com.example.ahakey.model.StudioState();
@@ -316,8 +316,6 @@ public final class DisplayConfigChecks {
             check("A10-runtime-latest-deferred",!session.ble.sendRuntimeState((byte)4));
             Field pending=BleManager.class.getDeclaredField("deferredRuntimeState"); pending.setAccessible(true);
             check("A10-runtime-latest-only",(Byte)pending.get(session.ble)==4);
-            // Pin the fake TCP transport when the lease closes; never enumerate physical USB in this test.
-            session.field("displayReadUncertain",true);
         }
         check("A10-runtime-flushed-once",requests.size()==2 && Arrays.equals(requests.get(1),hex("aabb9004ccdd")));
     }
@@ -388,10 +386,14 @@ public final class DisplayConfigChecks {
         };
     }
     static final class FakeSession {
-        final BleManager ble = new BleManager(callback());
+        final OfflineBleManager ble = new OfflineBleManager(callback());
         Consumer<byte[]> respond;
         final Method notify;
         FakeSession() throws Exception {
+            this(true);
+        }
+        FakeSession(boolean admitted) throws Exception {
+            ble.usb.commands = request -> respond.accept(request);
             notify = BleManager.class.getDeclaredMethod("processNotifyFrame", byte[].class); notify.setAccessible(true);
             field("isConnected", true); ble.getCachedStatus().setConnected(true);
             field("outputStream", new ByteArrayOutputStream() {
@@ -400,8 +402,15 @@ public final class DisplayConfigChecks {
                     respond.accept(request);
                 }
             });
-            ble.confirmDisplayFirmware(0, HEX);
+            if (admitted) identify();
         }
+        void identify() throws Exception {
+            Consumer<byte[]> previous = respond;
+            respond = request -> reply(AhaKeyProtocol.buildFrame((byte)0x9F,
+                    ("\0x1-c582-hw1-p1-1.0.0-r001").getBytes(java.nio.charset.StandardCharsets.US_ASCII)));
+            try { ble.readFirmwareCatalogKey(); } finally { respond = previous; }
+        }
+        void useUsb() { ble.usb.open(this::reply); }
         void field(String name, Object value) throws Exception { Field field = BleManager.class.getDeclaredField(name); field.setAccessible(true); field.set(ble, value); }
         void reply(byte[] bytes) { try { notify.invoke(ble, (Object)bytes); } catch (Exception e) { throw new IllegalStateException(e); } }
     }

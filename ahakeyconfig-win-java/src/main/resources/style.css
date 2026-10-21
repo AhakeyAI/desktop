@@ -378,6 +378,7 @@
 .oled-resource:disabled { -fx-opacity: 1; -fx-background-color: #edf0f3; }
 .oled-resource:disabled .label { -fx-opacity: 1; -fx-text-fill: #465563; }
 .runtime-mode-section:disabled { -fx-opacity: 1; -fx-background-color: #edf0f3; }
+.display-disabled-reason { -fx-text-fill: #35424f; -fx-opacity: 1; -fx-font-size: 12px; }
 .runtime-mode-section:disabled .label { -fx-opacity: 1; -fx-text-fill: #465563; }
 .runtime-mode-section:disabled .button,
 .runtime-mode-section:disabled .combo-box { -fx-opacity: 0.7; }

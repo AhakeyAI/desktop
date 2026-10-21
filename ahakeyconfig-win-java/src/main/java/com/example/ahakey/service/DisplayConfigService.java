@@ -83,11 +83,22 @@ public final class DisplayConfigService implements AutoCloseable {
         }
         updateWriteReady();
     }
-    public void confirmFirmware(long connection, String sha) {
-        ble.confirmDisplayFirmware(connection, sha);
+    public void capabilityChanged() {
         updateWriteReady(); refresh();
     }
     private void updateWriteReady() {
+        state.capabilityReady.set(ble.isDisplayAdmitted());
+        String identity = switch (ble.firmwareIdentity().state()) {
+            case READING -> "display.identity-reading";
+            case FAILED -> "display.identity-failed";
+            case UNSUPPORTED -> "display.identity-unsupported";
+            default -> "display.identity-unknown";
+        };
+        state.disabledReasonKey.set(!ble.isConnected() || !ble.getCachedStatus().isConnected() ? "display.identity-disconnected"
+                : !ble.isDisplayAdmitted() ? identity
+                : ble.isDisplayWriteUncertain() ? "display.recovery-required"
+                : state.busy.get() ? (studio.uploadingOledProperty().get() ? "display.upload-busy" : "display.operation-busy")
+                : studio.modeSwitchingProperty().get() ? "display.mode-pending" : "");
         state.writeReady.set(ble.isDisplayAdmitted() && !ble.isDisplayWriteUncertain()
                 && !state.busy.get() && !studio.modeSwitchingProperty().get());
     }
@@ -154,7 +165,7 @@ public final class DisplayConfigService implements AutoCloseable {
         long ticket = ++loadGeneration;
         state.loading.set(false);
         StudioPart part = studio.getSelectedPart();
-        if (state.busy.get() || studio.modeSwitchingProperty().get() || !wasConnected || (part != StudioPart.OLED && part != StudioPart.LIGHT_BAR)) return;
+        if (state.busy.get() || studio.modeSwitchingProperty().get() || !wasConnected || !ble.isDisplayAdmitted() || (part != StudioPart.OLED && part != StudioPart.LIGHT_BAR)) return;
         if (part == StudioPart.OLED && !state.ready.get()) return;
         int mode = studio.getSelectedMode().getIndex();
         long connection = ble.connectionGeneration();

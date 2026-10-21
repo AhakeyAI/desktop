@@ -2,10 +2,10 @@
   "schema_version": 3,
   "id": "WD-005",
   "title": "WS3 CP2 OLED与灯光配置",
-  "revision": 3,
-  "phase": "IMPLEMENT",
+  "revision": 5,
+  "phase": "VERIFY",
   "status": "ACTIVE",
-  "build_round": 4,
+  "build_round": 9,
   "assignment": {
     "owner_record": ".ahakey-desktop-harness/evidence/20261015-wd005-owner-scope-approval.json",
     "record_sha256": "04879c694266ab63023e2e90c8b8a74247f010b70069d3a7c8767063ddab0359",
@@ -23,6 +23,7 @@
     "src/main/java/com/example/ahakey/view/CanvasController.java",
     "src/main/java/com/example/ahakey/app/StudioController.java",
     "src/main/java/com/example/ahakey/model/StudioState.java",
+    "src/main/java/com/example/ahakey/model/DeviceStatus.java",
     "src/main/java/com/example/ahakey/model/OledModeDraft.java",
     "src/main/java/com/example/ahakey/model/LightEffectStyle.java",
     "src/main/java/com/example/ahakey/model/OledResourceState.java",
@@ -64,7 +65,9 @@
     "DESIGN_REVIEW.md",
     "REGISTRATION.md",
     "PREVIEW_FIX_CONTRACT_R3_20261018.md",
-    "CROSS_COMPONENT_WORK_20261018.md"
+    "CROSS_COMPONENT_WORK_20261018.md",
+    "R6_ISOLATION_INTERFACE_PROPOSAL_20261020.md",
+    "AUTO_CAPABILITY_UI_CONTRACT_R5_20261021.md"
   ],
   "ui_mode": "existing",
   "ui_note_ref": "PREVIEW_FIX_CONTRACT_R3_20261018.md",
@@ -78,11 +81,11 @@
     "高影响独立差异审阅与正式配对真机验收"
   ],
   "approval": {
-    "at": "2026-10-18T08:22:42+00:00",
-    "owner_record": ".ahakey-desktop-harness/evidence/20261018-wd005-consolidated-fix-owner-authorization.md",
-    "owner_record_sha256": "7a501aa3df5dce57194767fcf5aa5151a39703a38e05d20b24c5d0d5be493a7e",
+    "at": "2026-10-21T01:03:12+00:00",
+    "owner_record": ".ahakey-desktop-harness/evidence/20261021-wd005-capability-ui-owner-authorization.md",
+    "owner_record_sha256": "99a84fd0a13c877bea33261ec50dc1bb43907198ce4be15b684b55d7a3cf5987",
     "inputs": {
-      "meta_sha256": "4abeb706606bc518677e22ecb3c1e131180ea6ee70fe23b42a88faee4b045285",
+      "meta_sha256": "a9f10d85674b19ceb463197eed5cafdbb48226892a20360ae68216717e357738",
       "assets": {
         "CONTRACT.md": "6fc54cd021c463396354783602629f036ee6c7a02919ee7408dbb8b20e31a5c5",
         "REFERENCES.json": "1bb3f96c441a6eaa891be6ec3fdc98b58f3e3a45197ba397c26d16027472636f",
@@ -93,7 +96,9 @@
         "DESIGN_REVIEW.md": "6084d6b7d51061508faac80df1241fbb9651c2dcd184bb4a0dc47626f62a4c4d",
         "REGISTRATION.md": "2f2db582d388cf8481f814d6d87b85ceab98d0b041666a3935f39bc78d21e1cf",
         "PREVIEW_FIX_CONTRACT_R3_20261018.md": "3095efebc0f5ec802bd9d5f3edd76278d899681aaf20164d6b38e90b1c9854f8",
-        "CROSS_COMPONENT_WORK_20261018.md": "356f313a3dcb0d603129a441760a4de4d0736c6856b52f8f76ec408a47be63f4"
+        "CROSS_COMPONENT_WORK_20261018.md": "356f313a3dcb0d603129a441760a4de4d0736c6856b52f8f76ec408a47be63f4",
+        "R6_ISOLATION_INTERFACE_PROPOSAL_20261020.md": "0dcc0723de173234d6cdfd4019421fbd91244041cc60eac1b73bf9be5a2bec01",
+        "AUTO_CAPABILITY_UI_CONTRACT_R5_20261021.md": "4df299b3b87a9799c181ee9d9ed0f9ef4868f430d7979c6b9aff0732b66febc5"
       },
       "reference_sha256": "fa5f7f46024beb473a44622e595b701998b1e28108893af969586af3b0ab1f84"
     },
@@ -113,17 +118,17 @@
   "activated_at": "2026-10-15T12:02:37+00:00",
   "isolation_record": ".ahakey-desktop-harness/evidence/20261015-wd005-isolation-from-wd002.md",
   "fix_request": {
-    "at": "2026-10-16T06:40:43+00:00",
-    "record": ".ahakey-desktop-harness/changes/WD-005/REVIEW.json",
-    "sha256": "c88d49fd4a69b1ca793742d3b69966b41ad7bc3f7c24cda1a7aac46dd536eefd"
+    "at": "2026-10-21T02:07:31+00:00",
+    "record": ".ahakey-desktop-harness/changes/WD-005/DLA_ACTUAL_REVIEW_R8_20261021.json",
+    "sha256": "23ffe82c8bc8d07e29374f2fc8f35fb567468345a28dd5f83d808b52d1c62435"
   },
   "contract_revision": {
-    "at": "2026-10-18T08:22:41+00:00",
-    "reason_record": ".ahakey-desktop-harness/evidence/20261018-wd005-consolidated-fix-reconcile-reason.md",
-    "reason_sha256": "1fbd4aed875dd0e440c3ad3935fc8a27af76b8a602a01b313ef59b5d56e6321d",
-    "owner_record": ".ahakey-desktop-harness/evidence/20261018-wd005-consolidated-fix-owner-authorization.md",
-    "owner_sha256": "7a501aa3df5dce57194767fcf5aa5151a39703a38e05d20b24c5d0d5be493a7e",
-    "previous_revision": 2
+    "at": "2026-10-21T01:03:12+00:00",
+    "reason_record": ".ahakey-desktop-harness/evidence/20261021-wd005-capability-ui-reconcile-reason.md",
+    "reason_sha256": "28287db1557658d6c771452d5796373b6897be028553af5e6b843c7dd2103af3",
+    "owner_record": ".ahakey-desktop-harness/evidence/20261021-wd005-capability-ui-owner-authorization.md",
+    "owner_sha256": "99a84fd0a13c877bea33261ec50dc1bb43907198ce4be15b684b55d7a3cf5987",
+    "previous_revision": 4
   },
   "preview_fix_round": 1,
   "preview_fix_request": {

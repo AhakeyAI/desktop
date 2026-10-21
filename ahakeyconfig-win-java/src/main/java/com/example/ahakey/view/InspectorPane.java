@@ -762,11 +762,13 @@ public class InspectorPane extends ScrollPane {
             Spinner<Integer> spinner = brightnessSpinner(display);
 
             Button test = new Button(languageManager.getString("display.preview"));
-            test.disableProperty().bind(display.writeReady.not().or(display.busy));
+            test.disableProperty().bind(display.writeReady.not().or(display.busy)
+                    .or(controller.getAiRuntimeDisplayService().modeChangePendingProperty()));
             test.setOnAction(e -> { spinner.commitValue(); controller.sendLightBrightnessToDevice(); });
 
             Button save = new Button(languageManager.getString("display.save-brightness"));
-            save.disableProperty().bind(display.writeReady.not().or(display.busy));
+            save.disableProperty().bind(display.writeReady.not().or(display.busy)
+                    .or(controller.getAiRuntimeDisplayService().modeChangePendingProperty()));
             save.setOnAction(e -> { spinner.commitValue(); controller.saveGlobalLightBrightness(); });
             spinner.disableProperty().bind(display.busy);
             row.getChildren().addAll(new Label(languageManager.getString("inspector.brightness")), spinner, test, save);
@@ -777,7 +779,7 @@ public class InspectorPane extends ScrollPane {
             return box;
         });
 
-        VBox statesBox = createGroupBox(mode.getTitle() + " " + languageManager.getString("inspector.ai-light-effects"), () -> {
+        VBox statesBox = createGroupBox(mode.getTitle() + " · " + languageManager.getString("display.single-effects"), () -> {
             VBox box = new VBox(12);
             for (IDEState ideState : IDEState.values()) {
                 VBox row = new VBox(6);
@@ -843,7 +845,8 @@ public class InspectorPane extends ScrollPane {
             return box;
         });
 
-        bindRuntimeSection(statesBox, controller.getAiRuntimeDisplayService(), AiRuntimeDisplayMode.SINGLE);
+        addDisplayReason(brightnessBox, null);
+        addDisplayReason(statesBox, AiRuntimeDisplayMode.SINGLE);
         root.getChildren().addAll(createAiRuntimeGroup(true), brightnessBox, statesBox, createAiRuntimeGroup(false), displayActions());
         return root;
     }
@@ -876,8 +879,43 @@ public class InspectorPane extends ScrollPane {
         section.disableProperty().bind(current.isNotEqualTo(mode).or(busy).or(pending));
     }
 
+    private void addDisplayReason(VBox group, AiRuntimeDisplayMode target) {
+        var display = studioState.displayConfig();
+        var runtime = controller.getAiRuntimeDisplayService();
+        decorateDisplaySection(group, display, runtime.displayModeProperty(), runtime.modeChangePendingProperty(), target);
+    }
+
+    private static void decorateDisplaySection(VBox group, com.example.ahakey.model.DisplayConfigState display,
+            javafx.beans.property.ObjectProperty<AiRuntimeDisplayMode> current,
+            javafx.beans.property.BooleanProperty pending, AiRuntimeDisplayMode target) {
+        VBox operations = (VBox)group.getChildren().get(1);
+        Label reason = displayReason(display, current, pending, target);
+        group.getChildren().add(1, reason);
+        if (target != null) bindRuntimeSection(operations, current, target, display.busy, pending);
+    }
+
+    private static Label displayReason(com.example.ahakey.model.DisplayConfigState display,
+            javafx.beans.property.ObjectProperty<AiRuntimeDisplayMode> current,
+            javafx.beans.property.BooleanProperty pending, AiRuntimeDisplayMode target) {
+        Label reason = new Label();
+        reason.setWrapText(true);
+        reason.getStyleClass().add("display-disabled-reason");
+        reason.textProperty().bind(Bindings.createStringBinding(() -> {
+            String key = display.disabledReasonKey.get();
+            if (key.isEmpty() && display.busy.get()) key = "display.operation-busy";
+            if (key.isEmpty() && display.loading.get()) key = "display.syncing";
+            if (key.isEmpty() && pending.get()) key = "display.mode-pending";
+            if (key.isEmpty() && target != null && current.get() != target)
+                key = target == AiRuntimeDisplayMode.SINGLE ? "display.single-disabled" : "display.multi-disabled";
+            return key.isEmpty() ? "" : LanguageManager.getInstance().getString(key);
+        }, display.disabledReasonKey, display.busy, display.loading, current, pending));
+        reason.visibleProperty().bind(reason.textProperty().isNotEmpty());
+        reason.managedProperty().bind(reason.visibleProperty());
+        return reason;
+    }
+
     private VBox createAiRuntimeGroup(boolean modeOnly) {
-        return createGroupBox(modeOnly ? "AI 运行展示 · 全局" : "MULTI · 任务槽", () -> {
+        VBox group = createGroupBox(languageManager.getString(modeOnly ? "display.runtime-mode" : "display.multi-slots"), () -> {
             VBox box = new VBox(12);
             var service = controller.getAiRuntimeDisplayService();
 
@@ -888,8 +926,9 @@ public class InspectorPane extends ScrollPane {
             multi.setToggleGroup(modeGroup);
             single.setSelected(service.getDisplayMode() == AiRuntimeDisplayMode.SINGLE);
             multi.setSelected(service.getDisplayMode() == AiRuntimeDisplayMode.MULTI);
-            single.disableProperty().bind(studioState.displayConfig().busy.or(studioState.displayConfig().loading).or(service.modeChangePendingProperty()));
-            multi.disableProperty().bind(single.disableProperty());
+            single.disableProperty().bind(studioState.displayConfig().busy.or(studioState.displayConfig().loading)
+                    .or(service.modeChangePendingProperty()).or(studioState.displayConfig().capabilityReady.and(studioState.displayConfig().writeReady.not())));
+            multi.disableProperty().bind(single.disableProperty().or(studioState.displayConfig().writeReady.not()));
             single.setOnAction(e -> {
                 controller.setAiRuntimeDisplayMode(AiRuntimeDisplayMode.SINGLE);
                 single.setSelected(service.getDisplayMode() == AiRuntimeDisplayMode.SINGLE);
@@ -917,21 +956,25 @@ public class InspectorPane extends ScrollPane {
             manage.setOnAction(e -> showAiRuntimeSlotDialog());
             Button apply = new Button("应用到键盘");
             apply.getStyleClass().add("button-prominent");
-            apply.disableProperty().bind(deviceStatus.isConnectedProperty().not().or(studioState.displayConfig().busy)
+            apply.disableProperty().bind(studioState.displayConfig().writeReady.not().or(studioState.displayConfig().busy)
                     .or(studioState.displayConfig().loading).or(service.modeChangePendingProperty()));
             apply.setOnAction(e -> controller.applyAiRuntimeToKeyboard(getScene() == null ? null : getScene().getWindow()));
             actions.getChildren().addAll(manage, apply);
 
-            Label support = new Label(service.isDeviceSupported() || !deviceStatus.isConnected()
-                ? "槽位绑定保存在本机；连接支持 WS3 CP1 的键盘后可应用。"
-                : "当前固件不支持多任务运行展示，本地绑定不受影响。");
-            support.getStyleClass().add("group-note");
-            support.setWrapText(true);
+            Label support = runtimeSlotSupport();
 
             box.getChildren().addAll(slotBox, actions, support);
-            bindRuntimeSection(box, service, AiRuntimeDisplayMode.MULTI);
             return box;
         });
+        addDisplayReason(group, modeOnly ? null : AiRuntimeDisplayMode.MULTI);
+        return group;
+    }
+
+    private static Label runtimeSlotSupport() {
+        Label support = new Label(LanguageManager.getInstance().getString("display.slot-local-note"));
+        support.getStyleClass().add("group-note");
+        support.setWrapText(true);
+        return support;
     }
 
     private void showAiRuntimeSlotDialog() {
@@ -983,8 +1026,8 @@ public class InspectorPane extends ScrollPane {
         Button apply = new Button("应用到键盘");
         apply.getStyleClass().add("button-prominent");
         apply.setOnAction(e -> controller.applyAiRuntimeToKeyboard(dialog.getDialogPane().getScene().getWindow()));
-        apply.disableProperty().bind(deviceStatus.isConnectedProperty().not()
-                .or(studioState.displayConfig().loading));
+        apply.disableProperty().bind(studioState.displayConfig().writeReady.not()
+                .or(studioState.displayConfig().loading).or(service.modeChangePendingProperty()));
 
         Button hookManager = new Button("去 Hook 管理");
         hookManager.setOnAction(e -> controller.openHookManager());
@@ -1298,8 +1341,9 @@ public class InspectorPane extends ScrollPane {
         Button upload = new Button(languageManager.getString("display.upload-apply"));
         upload.getStyleClass().add("button-prominent");
         upload.disableProperty().bind(Bindings.createBooleanBinding(
-                () -> !display.writeReady.get() || display.busy.get() || !display.current().canUpload(),
-                display.writeReady, display.busy, display.revision));
+                () -> !display.writeReady.get() || display.busy.get() || !display.current().canUpload()
+                        || controller.getAiRuntimeDisplayService().modeChangePendingProperty().get(),
+                display.writeReady, display.busy, display.revision, controller.getAiRuntimeDisplayService().modeChangePendingProperty()));
         upload.textProperty().bind(Bindings.when(studioState.uploadingOledProperty()).then(languageManager.getString("display.uploading")).otherwise(languageManager.getString("display.upload-apply")));
         upload.setOnAction(e -> controller.uploadCurrentOledToDevice());
         root.getChildren().add(upload);
@@ -1316,16 +1360,15 @@ public class InspectorPane extends ScrollPane {
         refresh.setGraphic(com.example.ahakey.util.Icons.refresh("16px"));
         refresh.setTooltip(new Tooltip(languageManager.getString("display.refresh")));
         refresh.disableProperty().bind(deviceStatus.isConnectedProperty().not().or(display.busy).or(display.loading));
-        refresh.setOnAction(e -> controller.getDisplayConfigService().refresh());
-        Button identity = new Button(languageManager.getString("display.confirm-firmware"));
-        identity.disableProperty().bind(deviceStatus.isConnectedProperty().not().or(display.busy));
-        identity.setOnAction(e -> controller.confirmDisplayFirmware());
+        refresh.setOnAction(e -> controller.refreshDisplayCapabilities());
         Label message = new Label();
         message.setWrapText(true);
         message.textProperty().bind(display.message);
         Label loading = new Label();
         loading.textProperty().bind(Bindings.when(display.loading).then(languageManager.getString("display.syncing")).otherwise(""));
-        return new VBox(8, new FlowPane(8, 6, refresh, identity), loading, message);
+        Label reason = displayReason(display, controller.getAiRuntimeDisplayService().displayModeProperty(),
+                controller.getAiRuntimeDisplayService().modeChangePendingProperty(), null);
+        return new VBox(8, new FlowPane(8, 6, refresh), reason, loading, message);
     }
 
     private VBox createToggleGroup() {

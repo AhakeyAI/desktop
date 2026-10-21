@@ -51,7 +51,12 @@ public class BleManager {
     private volatile long connectionGeneration;
     private volatile boolean displayWriteUncertain;
     private volatile boolean displayReadUncertain;
-    private volatile long displayAdmissionGeneration = -1;
+    public record FirmwareIdentity(long generation, long ticket, DeviceStatus.IdentityState state, String catalogKey) {}
+    private volatile FirmwareIdentity firmwareIdentity = new FirmwareIdentity(0, 0, DeviceStatus.IdentityState.DISCONNECTED, "");
+    public FirmwareIdentity firmwareIdentity() { return firmwareIdentity; }
+    public boolean isCurrentIdentity(FirmwareIdentity identity) {
+        return identity == firmwareIdentity && identity.generation() == connectionGeneration;
+    }
     private DisplayLease displayLease;
     private byte[] displayReply;
     private byte displayExpected;
@@ -104,21 +109,24 @@ public class BleManager {
     }
     public boolean isDisplayBusy() { commandLock.lock(); try { return displayLease != null; } finally { commandLock.unlock(); } }
     public boolean isDisplayAdmitted() {
-        return isConnected && cachedStatus.isConnected() && displayAdmissionGeneration == connectionGeneration;
+        FirmwareIdentity identity = firmwareIdentity;
+        return isConnected && cachedStatus.isConnected() && isCurrentIdentity(identity)
+                && identity.state() == DeviceStatus.IdentityState.SUPPORTED;
     }
-    // Internal paired testing must explicitly confirm the exact installed HEX, never infer this from 0x88/catalog.
-    public void confirmDisplayFirmware(long generation, String hexSha256) {
-        if (!"D7D10510482228B74A2978BD8272F6A4E32668CF6B4F31F491A8503B0DC11E2E".equalsIgnoreCase(hexSha256)
-                || generation != connectionGeneration || !isConnected || !cachedStatus.isConnected())
-            throw new IllegalArgumentException("当前连接的 CP2 固件身份未确认。");
-        displayAdmissionGeneration = generation;
+    private void publishIdentity(DeviceStatus.IdentityState state, String key) {
+        firmwareIdentity = new FirmwareIdentity(connectionGeneration, firmwareIdentity.ticket() + 1, state, key);
+        cachedStatus.setFirmwareCatalogKey(key);
+        cachedStatus.setIdentityState(state);
+    }
+    private void requireCapability() throws IOException {
+        if (!isDisplayAdmitted()) throw new IOException("当前连接尚未识别到支持的固件版本。");
     }
 
     private void resetDisplaySession() {
         commandLock.lock();
         try {
             connectionGeneration++;
-            displayAdmissionGeneration = -1;
+            publishIdentity(DeviceStatus.IdentityState.DISCONNECTED, "");
             displayWriteUncertain = false;
             displayReadUncertain = false;
             displayReply = null;
@@ -173,7 +181,7 @@ public class BleManager {
             if (!isConnected || !cachedStatus.isConnected()) throw new IOException("键盘连接已断开。");
             if (displayLease != null || legacyWaiters != 0) throw new IOException("设备正在处理其他事务。");
             if (writing && (!isDisplayAdmitted() || displayWriteUncertain))
-                throw new IOException(displayWriteUncertain ? "设备保存结果未确认，请重新连接后同步。" : "请先确认当前键盘的 CP2 固件身份。");
+                throw new IOException(displayWriteUncertain ? "设备保存结果未确认，请重新连接后同步。" : "当前连接尚未识别到支持的固件版本。");
             if (!writing && displayReadUncertain) throw new IOException("上次读取结果未确认，请重新连接后同步。");
             displayLease = new DisplayLease(writing);
             return displayLease;
@@ -189,6 +197,7 @@ public class BleManager {
         boolean sent = false;
         try {
             checkDisplayLease(lease);
+            requireCapability();
             int opcode = request[2] & 255;
             if (opcode != 0x88 && opcode != 0x89 && opcode != 0x8A && opcode != 0x8B && opcode != 0x8C && opcode != 0x8E)
                 throw new IllegalArgumentException("CP2 opcode");
@@ -450,7 +459,12 @@ public class BleManager {
     public void sendCommand(byte[] command) throws IOException {
         if (!commandLock.tryLock()) throw new IOException("设备正在处理其他命令。");
         try {
-        if (command[2] != AhaKeyProtocol.CMD_QUERY_STATUS && (displayLease != null || displayWriteUncertain))
+        int opcode = command[2] & 255;
+        if (opcode == 0x88 || opcode == 0x89 || opcode == 0x8A || opcode == 0x8B || opcode == 0x8C || opcode == 0x8E)
+            throw new IOException("显示配置命令必须通过已准入事务发送。");
+        if (opcode == 0x98 || opcode == 0x99) requireCapability();
+        if (command[2] != AhaKeyProtocol.CMD_QUERY_STATUS && (displayLease != null
+                || (displayWriteUncertain && command[2] != AhaKeyProtocol.CMD_FIRMWARE_CATALOG_KEY)))
             throw new IOException("显示配置事务占用或保存结果未确认。");
         if (displayLease != null) {
             checkDisplayTransport();
@@ -460,6 +474,7 @@ public class BleManager {
         }
         logger.debug("发送命令: {}", bytesToHex(command, Math.min(20, command.length)));
         if (ensureUsbConnected()) {
+            if (opcode == 0x98 || opcode == 0x99) requireCapability();
             usbTransport.sendCommand(command);
         } else {
             writePacket(BleTcpPacket.WRITE_COMMAND, command);
@@ -507,25 +522,77 @@ public class BleManager {
     }
 
     public String readFirmwareCatalogKey() throws Exception {
+        return readFirmwareCatalogKey(connectionGeneration);
+    }
+
+    public String readFirmwareCatalogKey(long generation) throws Exception {
+        FirmwareIdentity queued = firmwareIdentity;
         synchronized (commandTransactionLock) {
             commandLock.lock();
+            FirmwareIdentity reading = null;
             try {
+                if (generation != connectionGeneration || !isConnected || !cachedStatus.isConnected())
+                    throw new IOException("键盘连接已改变。");
+                // Do not revoke an upload's admission while waiting for its complete lease.
+                legacyWaiters++;
+                try {
+                    long remaining = TimeUnit.MILLISECONDS.toNanos(RESPONSE_TIMEOUT_MS);
+                    while (displayLease != null) {
+                        if (displayLease.owner == Thread.currentThread() || remaining <= 0)
+                            throw new IOException("设备正在处理显示配置，请稍后刷新。");
+                        remaining = responseReady.awaitNanos(remaining);
+                        if (generation != connectionGeneration || !isConnected || !cachedStatus.isConnected())
+                            throw new IOException("键盘连接已改变。");
+                    }
+                } finally { legacyWaiters--; responseReady.signalAll(); }
+                // Coalesce readers queued behind the same completed identity request.
+                if (queued != firmwareIdentity && firmwareIdentity.state() != DeviceStatus.IdentityState.READING) {
+                    if (firmwareIdentity.state() == DeviceStatus.IdentityState.FAILED) throw new IOException("固件版本读取失败。");
+                    return firmwareIdentity.catalogKey();
+                }
+                publishIdentity(DeviceStatus.IdentityState.READING, "");
+                reading = firmwareIdentity;
+                callback.onStatusReceived(cachedStatus);
                 pendingNotifyFramesByCommand.clear();
                 logger.info("Reading firmware catalog key with command 0x9F");
                 sendCommand(AhaKeyProtocol.queryFirmwareCatalogKey());
-                byte[] frame = waitForResponseFrame(AhaKeyProtocol.CMD_FIRMWARE_CATALOG_KEY, false);
+                if (!isCurrentIdentity(reading)) throw new IOException("键盘连接已改变。");
+                byte[] frame = waitForIdentityResponse(reading);
                 String catalogKey = AhaKeyResponseParser.parseFirmwareCatalogKey(frame);
                 if (catalogKey == null || catalogKey.isBlank()) {
                     throw new IOException("无法解析键盘固件版本");
                 }
                 logger.info("Firmware catalog key: {}", catalogKey);
-                cachedStatus.setFirmwareCatalogKey(catalogKey);
+                if (!isCurrentIdentity(reading)) throw new IOException("键盘连接已改变。");
+                publishIdentity(AhaKeyProtocol.isDisplayCapabilityResponse(frame)
+                        ? DeviceStatus.IdentityState.SUPPORTED : DeviceStatus.IdentityState.UNKNOWN, catalogKey);
                 callback.onStatusReceived(cachedStatus);
                 return catalogKey;
+            } catch (Exception e) {
+                if (reading != null && isCurrentIdentity(reading)) {
+                    publishIdentity(DeviceStatus.IdentityState.FAILED, "");
+                    callback.onStatusReceived(cachedStatus);
+                }
+                throw e;
             } finally {
                 commandLock.unlock();
             }
         }
+    }
+
+    private byte[] waitForIdentityResponse(FirmwareIdentity reading) throws Exception {
+        legacyWaiters++;
+        try {
+            long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RESPONSE_TIMEOUT_MS);
+            while (isCurrentIdentity(reading) && isConnected && cachedStatus.isConnected()) {
+                Deque<byte[]> frames = pendingNotifyFramesByCommand.get(AhaKeyProtocol.CMD_FIRMWARE_CATALOG_KEY);
+                if (frames != null && !frames.isEmpty()) return frames.removeFirst();
+                long remaining = deadline - System.nanoTime();
+                if (remaining <= 0) throw new IOException("固件版本读取超时。");
+                responseReady.awaitNanos(remaining);
+            }
+            throw new IOException("键盘连接已改变。");
+        } finally { legacyWaiters--; responseReady.signalAll(); }
     }
 
     public AhaKeyResponseParser.SideSwitchConfig readSideSwitchConfig() throws Exception {
@@ -782,7 +849,11 @@ public class BleManager {
             if (deferredRuntimeState != null && System.nanoTime() - deferredRuntimeAt >= TimeUnit.MINUTES.toNanos(5))
                 deferredRuntimeState = null;
             if (displayLease != null || displayWriteUncertain) return;
-            if (deferredRuntimeState != null && isConnected) sendRuntimeState(deferredRuntimeState);
+            if (deferredRuntimeState != null && isConnected && cachedStatus.isConnected()) {
+                // Retry the original fact; only a newly received event may advance its TTL.
+                sendCommand(AhaKeyProtocol.updateState(deferredRuntimeState));
+                deferredRuntimeState = null;
+            }
         } catch (IOException e) { logger.debug("Runtime state remains pending: {}", e.getMessage()); }
         finally { commandLock.unlock(); }
     }
@@ -953,7 +1024,15 @@ public class BleManager {
     }
 
     public void clearCachedFirmwareIdentity() {
-        cachedStatus.clearFirmwareIdentity();
+        commandLock.lock();
+        try {
+            if (displayLease != null) return;
+            cachedStatus.clearFirmwareIdentity();
+            publishIdentity(isConnected && cachedStatus.isConnected()
+                    ? DeviceStatus.IdentityState.UNKNOWN : DeviceStatus.IdentityState.DISCONNECTED, "");
+            responseReady.signalAll();
+            callback.onStatusReceived(cachedStatus);
+        } finally { commandLock.unlock(); }
     }
 
     public boolean isUsbConnected() {
@@ -985,9 +1064,13 @@ public class BleManager {
         }
     }
 
+    protected boolean isUsbDevicePresent() {
+        return UsbHidTransport.isPresent();
+    }
+
     private boolean tryConnectUsb() {
         try {
-            if (!UsbHidTransport.isPresent()) {
+            if (!isUsbDevicePresent()) {
                 return false;
             }
             closeTcpOnly();
@@ -1015,7 +1098,7 @@ public class BleManager {
         if (usbTransport.isOpen()) {
             return true;
         }
-        if (!UsbHidTransport.isPresent()) {
+        if (!isUsbDevicePresent()) {
             return false;
         }
         try {
@@ -1139,6 +1222,7 @@ public class BleManager {
                     status.setDeviceName(cachedStatus.getDeviceName());
                 }
                 status.setFirmwareCatalogKey(cachedStatus.getFirmwareCatalogKey());
+                status.setIdentityState(firmwareIdentity.state());
                 cachedStatus = status;
                 lastStatusUpdateTime = System.currentTimeMillis();
                 callback.onStatusReceived(status);
@@ -1178,7 +1262,7 @@ public class BleManager {
                         break;
                     }
                     if (generation != connectionGeneration) break;
-                    handlePacket(header[0], body);
+                    handleSessionPacket(generation, header[0], body);
                 }
             } catch (IOException e) {
                 logger.warn("[BLE] readerThread: 读取异常 - {}", e.getMessage());
@@ -1197,6 +1281,12 @@ public class BleManager {
         readerThread.setDaemon(true);
         readerThread.start();
         logger.info("[BLE] startReader: 读取线程已启动");
+    }
+
+    private void handleSessionPacket(long generation, byte type, byte[] data) {
+        commandLock.lock();
+        try { if (generation == connectionGeneration) handlePacket(type, data); }
+        finally { commandLock.unlock(); }
     }
 
     private void handlePacket(byte type, byte[] data) {
@@ -1423,6 +1513,7 @@ public class BleManager {
                 status.setDeviceName(cachedStatus.getDeviceName());
             }
             status.setFirmwareCatalogKey(cachedStatus.getFirmwareCatalogKey());
+            status.setIdentityState(firmwareIdentity.state());
             status.setConnected(true);
             cachedStatus = status;
             enqueueNotifyFrame(data);

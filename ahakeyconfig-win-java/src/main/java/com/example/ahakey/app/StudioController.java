@@ -51,6 +51,8 @@ public class StudioController {
     private ScheduledExecutorService statusPoller;
     private ScheduledFuture<?> pollFuture;
     private volatile boolean firmwareCatalogKeyRequested = false;
+    private volatile long firmwareCatalogRequestGeneration = -1;
+    private BleManager.FirmwareIdentity handledFirmwareIdentity;
     private volatile boolean enterEditingAfterConnect = false;
     private final AtomicBoolean cp4cInputReadbackInProgress = new AtomicBoolean(false);
     private volatile ModeSlot pendingModeSwitchTarget = null;
@@ -67,7 +69,9 @@ public class StudioController {
             @Override
             public void onConnected() {
                 logger.info("收到设备连接通知");
+                long generation = bleManager.connectionGeneration();
                 Platform.runLater(() -> {
+                    if (generation != bleManager.connectionGeneration() || !bleManager.isConnected()) return;
                     DeviceStatus status = bleManager.getCachedStatus();
                     applyBleStatus(status);
                     if (enterEditingAfterConnect) {
@@ -85,9 +89,11 @@ public class StudioController {
 
             @Override
             public void onDisconnected() {
+                long generation = bleManager.connectionGeneration();
                 firmwareCatalogKeyRequested = false;
                 enterEditingAfterConnect = false;
                 Platform.runLater(() -> {
+                    if (generation != bleManager.connectionGeneration() || bleManager.getCachedStatus().isConnected()) return;
                     displayConfigService.connectionChanged();
                     deviceStatus.setConnected(false);
                     deviceStatus.clearFirmwareIdentity();
@@ -104,7 +110,9 @@ public class StudioController {
 
             @Override
             public void onStatusReceived(DeviceStatus status) {
+                var identity = bleManager.firmwareIdentity();
                 Platform.runLater(() -> {
+                    if (!bleManager.isCurrentIdentity(identity)) return;
                     applyBleStatus(status);
                     // 不再强制同步设备工作模式到UI选择，让用户自由选择要编辑的模式
                 });
@@ -406,9 +414,11 @@ public class StudioController {
     public void readFirmwareCatalogKeyForDeviceInfo() {
         if (!simulateBle && deviceStatus.isConnected()) {
             firmwareCatalogKeyRequested = true;
+            long generation = bleManager.connectionGeneration();
+            firmwareCatalogRequestGeneration = generation;
             try {
-                String catalogKey = bleManager.readFirmwareCatalogKey();
-                handleFirmwareCatalogKey(catalogKey);
+                bleManager.readFirmwareCatalogKey(generation);
+                handleFirmwareCatalogKey(bleManager.firmwareIdentity(), generation);
             } catch (Exception e) {
                 logger.info("Firmware catalog key read skipped/fallback: {}", e.getMessage());
             }
@@ -609,14 +619,21 @@ public class StudioController {
     public void saveGlobalLightBrightness() { displayConfigService.saveBrightness(); }
     public com.example.ahakey.service.DisplayConfigService getDisplayConfigService() { return displayConfigService; }
 
-    public void confirmDisplayFirmware() {
-        if (!deviceStatus.isConnected()) return;
-        String sha = "D7D10510482228B74A2978BD8272F6A4E32668CF6B4F31F491A8503B0DC11E2E";
-        long connection = bleManager.connectionGeneration();
-        if (confirmDisplayAction("确认当前键盘已刷入 WD-005 配对固件？\nHEX SHA256：\n" + sha)) {
-            try { displayConfigService.confirmFirmware(connection, sha); }
-            catch (Exception e) { showOledWarning("固件身份未确认", e.getMessage()); }
-        }
+    public void refreshDisplayCapabilities() {
+        long generation = bleManager.connectionGeneration();
+        new Thread(() -> {
+            try {
+                if (!bleManager.isDisplayAdmitted()) {
+                    bleManager.readFirmwareCatalogKey(generation);
+                    handleFirmwareCatalogKey(bleManager.firmwareIdentity(), generation);
+                }
+                var identity = bleManager.firmwareIdentity();
+                Platform.runLater(() -> {
+                    if (generation == bleManager.connectionGeneration() && bleManager.isCurrentIdentity(identity))
+                        displayConfigService.capabilityChanged();
+                });
+            } catch (Exception e) { logger.info("Firmware refresh: {}", e.getMessage()); }
+        }, "display-capability-refresh").start();
     }
 
     private boolean confirmDisplayAction(String message) {
@@ -759,6 +776,7 @@ public class StudioController {
         deviceStatus.setFirmwareMain(status.getFirmwareMain());
         deviceStatus.setFirmwareSub(status.getFirmwareSub());
         deviceStatus.setFirmwareCatalogKey(status.getFirmwareCatalogKey());
+        deviceStatus.setIdentityState(bleManager.firmwareIdentity().state());
         deviceStatus.setSwitchState(status.getSwitchState());
         requestFirmwareCatalogKeyAfterConnect();
         displayConfigService.connectionChanged();
@@ -800,32 +818,42 @@ public class StudioController {
     }
 
     private void requestFirmwareCatalogKeyAfterConnect() {
-        if (!deviceStatus.isConnected() || firmwareCatalogKeyRequested || !deviceStatus.getFirmwareCatalogKey().isBlank()) {
+        long generation = bleManager.connectionGeneration();
+        if (!deviceStatus.isConnected() || (firmwareCatalogKeyRequested && firmwareCatalogRequestGeneration == generation)
+                || !deviceStatus.getFirmwareCatalogKey().isBlank()) {
             return;
         }
         firmwareCatalogKeyRequested = true;
+        firmwareCatalogRequestGeneration = generation;
         new Thread(() -> {
             try {
-                String catalogKey = bleManager.readFirmwareCatalogKey();
-                handleFirmwareCatalogKey(catalogKey);
+                bleManager.readFirmwareCatalogKey(generation);
+                handleFirmwareCatalogKey(bleManager.firmwareIdentity(), generation);
             } catch (Exception e) {
                 logger.info("Firmware catalog key read skipped/fallback: {}", e.getMessage());
-                Platform.runLater(() -> studioState.setCp4cInputConfigEnabled(false));
+                var identity = bleManager.firmwareIdentity();
+                Platform.runLater(() -> {
+                    if (generation == bleManager.connectionGeneration() && bleManager.isCurrentIdentity(identity)
+                            && !bleManager.isDisplayAdmitted()) studioState.setCp4cInputConfigEnabled(false);
+                });
             }
         }, "firmware-catalog-key-connect-read").start();
     }
 
-    private void handleFirmwareCatalogKey(String catalogKey) {
-        if (!AhaKeyProtocol.isCp4cCatalogKey(catalogKey)) {
-            Platform.runLater(() -> studioState.setCp4cInputConfigEnabled(false));
-            return;
-        }
+    private void handleFirmwareCatalogKey(BleManager.FirmwareIdentity identity, long generation) {
         Platform.runLater(() -> {
+            if (identity.generation() != generation || !bleManager.isCurrentIdentity(identity) || identity == handledFirmwareIdentity) return;
+            handledFirmwareIdentity = identity;
+            displayConfigService.capabilityChanged();
+            if (!bleManager.isDisplayAdmitted()) {
+                studioState.setCp4cInputConfigEnabled(false);
+                return;
+            }
             studioState.setCp4cInputConfigEnabled(true);
             studioState.setInputReadbackStatus("已识别 CP4C 固件，正在读取输入配置...");
+            aiRuntimeDisplayService.onDeviceReady();
+            startCp4cInputReadback(identity.catalogKey());
         });
-        aiRuntimeDisplayService.onDeviceReady();
-        startCp4cInputReadback(catalogKey);
     }
 
     private void startCp4cInputReadback(String catalogKey) {
