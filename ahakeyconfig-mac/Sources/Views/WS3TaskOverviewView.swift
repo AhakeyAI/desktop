@@ -1,26 +1,71 @@
 import SwiftUI
 import AhaKeyConfigShared
 
-/// An explicitly refreshed observation, not a claim that MULTI is active.
+/// Explicitly refreshed facts and an explicit runtime mode request. ACKs are
+/// not presented as visual readback, and no choice is saved/replayed.
 struct WS3TaskOverviewView: View {
     @ObservedObject private var agentManager = AgentManager.shared
     @State private var overview: WS3TaskOverview?
     @State private var reading = false
     @State private var failed = false
+    @State private var modeDraft: WS3PresentationMode?
+    @State private var modeMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(NSLocalizedString("任务概览", comment: "")).font(.headline)
-            Text(NSLocalizedString("查看后台收到的会话任务；此处不会开启键盘多任务显示。", comment: ""))
+            Text(NSLocalizedString("读取不会切换显示；新的显示方式需要明确选择并应用。", comment: ""))
                 .font(.caption).foregroundStyle(.secondary)
             Button(reading ? NSLocalizedString("读取中…", comment: "") : NSLocalizedString("读取当前任务（只读）", comment: "")) {
-                reading = true; failed = false; overview = nil
+                reading = true; failed = false; overview = nil; modeMessage = nil
                 Task { @MainActor in
                     defer { reading = false }
                     overview = await agentManager.readTaskOverview()
                     failed = overview == nil
                 }
             }.disabled(reading || agentManager.bluetoothConnectionOwner != .agentDaemon || !agentManager.isRunning)
+            HStack {
+                Picker(NSLocalizedString("显示方式", comment: ""), selection: $modeDraft) {
+                    Text(NSLocalizedString("请选择", comment: "")).tag(Optional<WS3PresentationMode>.none)
+                    Text(NSLocalizedString("单任务", comment: "")).tag(Optional(WS3PresentationMode.single))
+                    Text(NSLocalizedString("多任务", comment: "")).tag(Optional(WS3PresentationMode.multi))
+                }
+                Button(reading ? NSLocalizedString("处理中…", comment: "") : NSLocalizedString("应用显示方式", comment: "")) {
+                    guard let modeDraft else { return }
+                    reading = true; failed = false; modeMessage = nil
+                    Task { @MainActor in
+                        defer { reading = false }
+                        do {
+                            overview = try await agentManager.applyPresentationMode(modeDraft)
+                            modeMessage = NSLocalizedString("显示方式请求已接受；任务从新事件开始同步，实际画面请在键盘上确认。", comment: "")
+                        } catch {
+                            overview = nil
+                            modeMessage = error.localizedDescription
+                        }
+                    }
+                }
+                .disabled(reading || overview?.connected != true || overview?.presentationBusy != false ||
+                          modeDraft == nil || modeDraft == overview?.requestedMode)
+            }.disabled(reading || agentManager.bluetoothConnectionOwner != .agentDaemon || !agentManager.isRunning)
+            if let mode = overview?.requestedMode {
+                Text(String(format: NSLocalizedString("本次连接已请求：%@", comment: ""), modeLabel(mode)))
+            } else if overview == nil {
+                Text(NSLocalizedString("显示方式尚未读取。", comment: ""))
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text(NSLocalizedString("当前连接尚未设置显示方式。", comment: ""))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if overview?.presentationBusy == true {
+                Text(NSLocalizedString("正在应用显示方式，请稍后重新读取。", comment: ""))
+            }
+            if overview != nil, overview?.presentationBusy == nil {
+                Text(NSLocalizedString("后台尚不支持设置显示方式，请更新并重启后台。", comment: ""))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if let modeMessage { Text(modeMessage).font(.caption).textSelection(.enabled) }
+            Text(NSLocalizedString("仅作用于当前连接，断线后需重新应用。多任务只显示能识别会话的任务；旧版事件请使用单任务模式。", comment: ""))
+                .font(.caption).foregroundStyle(.secondary)
             if let overview {
                 if !overview.connected {
                     Text(NSLocalizedString("键盘未连接，旧任务已清除。", comment: ""))
@@ -51,9 +96,13 @@ struct WS3TaskOverviewView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
-        .onChange(of: agentManager.isAgentBLEConnected) { _ in overview = nil; failed = false }
-        .onChange(of: agentManager.bluetoothConnectionOwner) { _ in overview = nil; failed = false }
-        .onChange(of: agentManager.isRunning) { _ in overview = nil; failed = false }
+        .onChange(of: agentManager.isAgentBLEConnected) { _ in overview = nil; failed = false; modeMessage = nil }
+        .onChange(of: agentManager.bluetoothConnectionOwner) { _ in overview = nil; failed = false; modeMessage = nil }
+        .onChange(of: agentManager.isRunning) { _ in overview = nil; failed = false; modeMessage = nil }
+    }
+
+    private func modeLabel(_ mode: WS3PresentationMode) -> String {
+        NSLocalizedString(mode == .single ? "单任务" : "多任务", comment: "")
     }
 
     private func stateLabel(_ state: WS3TaskState) -> String {

@@ -33,5 +33,24 @@ guard agent.startSocketListener() else {
     exit(EXIT_FAILURE)
 }
 
+// launchctl unload/stop can leave the system's HID connection alive. Allow a
+// bounded, proven-runtime cleanup before releasing this process's BLE lock.
+var terminating = false
+var terminationSources: [DispatchSourceSignal] = []
+for sig in [SIGTERM, SIGINT] {
+    signal(sig, SIG_IGN)
+    let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+    source.setEventHandler {
+        guard !terminating else { return }
+        terminating = true
+        Task { @MainActor in
+            await agent.prepareForTermination()
+            exit(EXIT_SUCCESS)
+        }
+    }
+    source.resume()
+    terminationSources.append(source)
+}
+
 // 保持运行
 RunLoop.main.run()

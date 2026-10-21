@@ -2,7 +2,7 @@ import Foundation
 
 /// CP1 wire contract, retained in CP2 accepted source 70ca334. This codec
 /// grants no device capability and does not send or replay runtime state.
-public enum WS3PresentationMode: UInt8 { case single = 0, multi = 1 }
+public enum WS3PresentationMode: UInt8, Codable, Sendable { case single = 0, multi = 1 }
 public enum WS3TaskState: UInt8, Codable, Sendable { case running = 1, waiting = 2, done = 3 }
 
 public struct WS3TaskSlot: Equatable {

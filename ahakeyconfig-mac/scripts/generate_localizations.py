@@ -1473,6 +1473,29 @@ TRANSLATIONS.update({
     "已完成": "Done"
 })
 
+TRANSLATIONS.update({
+    "请先连接键盘并返回日常连接。": "Connect the keyboard and return to the daily connection first.",
+    "键盘正在处理请求，请稍后重试。": "The keyboard is processing a request. Try again shortly.",
+    "此固件尚未确认支持新的显示方式，未切换。": "This firmware has not been verified to support the new display modes. No mode switch was sent.",
+    "连接已变化，显示请求未确认，请重新读取并应用。": "The connection changed. Read again and reapply the unconfirmed display request.",
+    "显示请求未确认；已发出的更改可能已生效，请重新读取并应用。": "Display request unconfirmed. Changes already sent may have taken effect; read again and reapply.",
+    "显示请求超时，已停止同步；请重新连接后再试。": "The display request timed out and sync stopped. Reconnect and try again.",
+    "读取不会切换显示；新的显示方式需要明确选择并应用。": "Reading does not change the display. Explicitly select and apply a new display mode.",
+    "显示方式": "Display mode",
+    "单任务": "Single task",
+    "多任务": "Multiple tasks",
+    "处理中…": "Processing…",
+    "应用显示方式": "Apply display mode",
+    "显示方式请求已接受；任务从新事件开始同步，实际画面请在键盘上确认。": "Display mode request accepted. Tasks will sync from new events; verify the actual display on the keyboard.",
+    "本次连接已请求：%@": "Requested for this connection: %@",
+    "当前连接尚未设置显示方式。": "No display mode has been requested for this connection.",
+    "正在应用显示方式，请稍后重新读取。": "Applying display mode. Read again shortly.",
+    "后台尚不支持设置显示方式，请更新并重启后台。": "Update and restart the background service to set display modes.",
+    "仅作用于当前连接，断线后需重新应用。多任务只显示能识别会话的任务；旧版事件请使用单任务模式。": "Applies to this connection only; reapply after disconnecting. Multiple tasks require identifiable sessions. Use single task for older events."
+})
+
+TRANSLATIONS.update({"显示方式尚未读取。": "Display mode has not been read yet."})
+
 def escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 

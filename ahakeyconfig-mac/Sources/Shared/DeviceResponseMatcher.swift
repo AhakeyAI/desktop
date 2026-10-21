@@ -31,7 +31,7 @@ public enum DeviceResponseMatcher {
         case 0x88:
             guard let item = WS3DisplayItem.from(request: request) else { return false }
             return WS3DisplayValue.parse(response, for: item) != nil
-        case 0x89, 0x8E:
+        case 0x89, 0x8E, 0x90, 0x98, 0x99, 0x9A:
             return received.count == 6
         case 0x95:
             return sent.count == 5 ? received.count == 8 : received.count == 6

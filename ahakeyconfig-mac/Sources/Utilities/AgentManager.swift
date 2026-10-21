@@ -261,6 +261,24 @@ final class AgentManager: ObservableObject {
         return report
     }
 
+    /// Explicit user action only. It is not called by refresh, reconnect or a
+    /// saved preference. The Agent owns capability checks and serial BLE IO.
+    func applyPresentationMode(_ mode: WS3PresentationMode) async throws -> WS3TaskOverview {
+        guard bluetoothConnectionOwner == .agentDaemon, isRunning else { throw WS3PresentationError.unavailable }
+        let ownership = ownershipTransitionGeneration, publication = connectionPublicationGeneration
+        let path = socketPath
+        let data = await Task.detached(priority: .utility) {
+            Self.querySocketData(socketPath: path, command: "presentation_mode",
+                                 parameters: ["mode": Int(mode.rawValue)], timeoutSeconds: 25)
+        }.value
+        guard ownershipTransitionGeneration == ownership, connectionPublicationGeneration == publication,
+              bluetoothConnectionOwner == .agentDaemon, isRunning else { throw WS3PresentationError.connectionChanged }
+        guard let data else { throw WS3PresentationError.timedOut }
+        if let report = WS3TaskOverview.decode(data), report.connected, report.requestedMode == mode { return report }
+        let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        throw (body?["error"] as? String).flatMap(WS3PresentationError.init(rawValue:)) ?? .invalidReply
+    }
+
     nonisolated private static func querySocketBLEConnected(socketPath: String) -> Bool {
         guard let data = querySocketData(socketPath: socketPath, command: "status"),
               let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return false }
@@ -269,13 +287,15 @@ final class AgentManager: ObservableObject {
 
     /// Newline-framed bounded read: a task overview can exceed the old 256-byte
     /// status buffer, and a stream read may return only part of a message.
-    nonisolated static func querySocketData(socketPath: String, command: String) -> Data? {
+    nonisolated static func querySocketData(socketPath: String, command: String,
+                                           parameters: [String: Int] = [:], timeoutSeconds: Int = 2) -> Data? {
         var addr = sockaddr_un()
         guard socketPath.utf8.count < MemoryLayout.size(ofValue: addr.sun_path) else { return nil }
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { return nil }
         defer { close(fd) }
-        var tv = timeval(tv_sec: 2, tv_usec: 0)
+        let timeout = min(25, max(1, timeoutSeconds))
+        var tv = timeval(tv_sec: timeout, tv_usec: 0)
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
         setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
         var noSigPipe: Int32 = 1
@@ -291,9 +311,11 @@ final class AgentManager: ObservableObject {
                 connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
             }
         }
-        guard ok == 0, var payload = try? JSONSerialization.data(withJSONObject: ["cmd": command]) else { return nil }
+        var request: [String: Any] = ["cmd": command]
+        for (key, value) in parameters where key != "cmd" { request[key] = value }
+        guard ok == 0, var payload = try? JSONSerialization.data(withJSONObject: request) else { return nil }
         payload.append(0x0A)
-        let deadline = ProcessInfo.processInfo.systemUptime + 2
+        let deadline = ProcessInfo.processInfo.systemUptime + Double(timeout)
         var offset = 0
         while offset < payload.count {
             guard ProcessInfo.processInfo.systemUptime < deadline else { return nil }
@@ -303,7 +325,10 @@ final class AgentManager: ObservableObject {
         }
         var response = Data(), buffer = [UInt8](repeating: 0, count: 1024)
         while response.count < 8192 {
-            guard ProcessInfo.processInfo.systemUptime < deadline else { return nil }
+            let remaining = deadline - ProcessInfo.processInfo.systemUptime
+            guard remaining > 0 else { return nil }
+            var remainingTimeout = timeval(tv_sec: Int(remaining), tv_usec: suseconds_t(max(1, Int((remaining - floor(remaining)) * 1_000_000))))
+            setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &remainingTimeout, socklen_t(MemoryLayout<timeval>.size))
             let count = read(fd, &buffer, min(buffer.count, 8192 - response.count))
             guard count > 0 else { return nil }
             response.append(contentsOf: buffer.prefix(count))

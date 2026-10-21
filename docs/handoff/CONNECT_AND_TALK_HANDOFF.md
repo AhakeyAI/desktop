@@ -442,3 +442,21 @@ PR143已CI全通过并合入connect&talk/6094d89。新增Hook可选真实session
 0x98/99写门控、前台事实、显式SINGLE/MULTI选择与真实OLED路由尚未开放；Quiet/Sleep/App直连和子代理独立追踪仍需后续。不是D02整体完成。契约和完成边界见docs/ahastudio/ws3-task-observation-contract-2026-10-21.md；候选安装/HIL结果单独追加。
 
 第32节后续：慢概览跨断连/重连回归修正后全288通过，双轴复核通过。本机已安装d984034签名候选；已安装Hook→Agent→四槽容量提示→只读界面、合成会话清理、Agent停止/重启无重放及手动审批回归通过。测试后日常Agent连接、手动档、详细日志关闭。精确证据见docs/validation/connect-talk-hil-2026-10-21/TASK_OVERVIEW.md；没有0x98/99生产发送，D02屏幕路由仍待。
+
+
+## 33. D02-C显式显示模式与发送候选（2026-10-21）
+
+工作分支codex/connect-talk-ws3-presentation-routing，基线f522520/PR144。实现40次当次连接只读证明后设置98、MULTI先清空99，随后新会话事件串行50ms合并、300秒单次TTL清理；SINGLE旧90兼容。无启动/重连模式重放，ACK只表示接收；正常退出清理、sleep停同步有代次/超时保护。302测试、双轴及窄复核通过。
+
+首c75有2次UI模式申请2秒超时，安全断线重连、无假成功，根因未定；e9cb504只修UI残留和增加有限诊断，多轮往返成功。另一次0x9F超时仅见旧90回包，尚未证明根因或修复，不以放宽等待掩盖。PR145四项CI通过，因模式读取超时未解决仍保持Draft，目标connect&talk，不是main。
+
+用户已确认隔离固定输入的绿/黄/红三段稳定、第四段熄灭；同源Agent读回36次一致。首轮绿红变化的任务记录存在真实会话加入与槽位替换，不作为固定输入故障证据。确认后已清理测试任务、恢复官方socket、请求回SINGLE并核对正常连接/实体手动。最终UI小修05ad518已签名安装；未读/已读未设置文案、只读不切模式、日常Agent连接和手动批准界面通过。键位/Voice/资源/亮度未改，固件未刷。
+
+精确结果见docs/validation/connect-talk-hil-2026-10-21/PRESENTATION_ROUTING.md，契约见docs/ahastudio/ws3-presentation-routing-contract-2026-10-21.md。仍缺超时根因修复、物理默认OLED/清屏/QuietSleep/故障全矩阵、App直连和前台来源、D03全矩阵及D04/D05。
+
+
+## 34. D02-C 旧命令争用修复（2026-10-21）
+
+fd358fa已提交并安装签名候选：同一旧候选的“90状态后立即MULTI”首轮复现9F超时，400ms仅诊断对照8/8成功；固件ready_len时忽略下一命令。新增legacy00/90 FIFO及显示前回包/审批reservation等待，避免新9F抢入；无固定延迟或盲重试。超时不复用高级通道、重连撤旧账；旧12字节status、排队取消及正常慢审批均有回归。311测试与双轴再复核通过。
+
+新候选零间隔12/12真机往返成功，MULTI+实体自动档10/10 permission真实审批链并发正常；清合成任务恢复SINGLE，用户切回手动，fresh physical/effective=1、verified=false，Codex on-request。可复用HIL脚本ahakeyconfig-mac/scripts/validate-presentation-mode.py，默认零间隔、结束回SINGLE。PR145待最终CI/审核后按已授权合入connect&talk；首次无诊断的两次失败不倒推为同一原因，完整故障/无线矩阵仍待。D03全矩阵、D04资源上传、D05恢复和App直连/前台仍按清单推进。
