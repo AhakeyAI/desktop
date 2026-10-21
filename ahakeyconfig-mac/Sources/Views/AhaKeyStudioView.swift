@@ -40,7 +40,6 @@ struct AhaKeyStudioView: View {
     }
     @State private var showsFirmwareFlasher = false
     @State private var showsCloudAccount = false
-    @State private var showsAhaTypeLoginRequiredToast = false
     @State private var showsLanguageRestartAlert = false
     @AppStorage(AppLanguageInitializer.selectedLanguageKey) private var selectedLanguage = AppLanguageInitializer.systemSelection
     @AppStorage(VibeBarVisibilityPreference.enabledKey) private var vibeBarEnabled = true
@@ -87,6 +86,7 @@ struct AhaKeyStudioView: View {
         }
         .frame(minWidth: 1180, minHeight: 680)
         .background(Color(nsColor: .windowBackgroundColor))
+        .overlay(alignment: .bottomLeading) { AppUpdateCard(manager: updateManager) }
         .onAppear {
             agentManager.applyStoredBluetoothPreferenceOnLaunch(bleManager: bleManager)
             voiceRelay.start()
@@ -99,6 +99,14 @@ struct AhaKeyStudioView: View {
                 NotificationCenter.default.post(name: .ahaKeyKeyboardWorkModeChanged, object: nil, userInfo: ["workMode": actualMode])
             }
             scheduleStartupPermissionOnboarding()
+            ahaType.refreshFromDisk()
+            if ahaType.isEnabled {
+                if !cloudAccount.isLoggedIn || ahaType.requiresLogin {
+                    cloudAccount.requireLogin(); showsCloudAccount = true
+                } else {
+                    cloudAccount.refreshProfile(showAlertOnFailure: false)
+                }
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .ahaKeyVoiceDesktopPrepared)) { _ in
             if let prepared = AhaKeyStudioStore.load() {
@@ -170,49 +178,16 @@ struct AhaKeyStudioView: View {
         } message: {
             Text(agentManager.agentUserAlert ?? "")
         }
-        .alert(NSLocalizedString("AhaType 未注册登录", comment: ""), isPresented: $showsAhaTypeLoginRequiredToast) {
-            Button(NSLocalizedString("知道了", comment: ""), role: .cancel) {}
-            Button("注册登录") { showsCloudAccount = true }
-        } message: {
-            Text(NSLocalizedString("请先注册登录 AhaType 后再开启云端整理。", comment: ""))
+        .onChange(of: ahaType.requiresLogin) { required in
+            if required { cloudAccount.requireLogin(); showsCloudAccount = true }
+        }
+        .onChange(of: cloudAccount.loginRequestID) { value in
+            if value != nil { showsCloudAccount = true }
         }
         .alert(NSLocalizedString("需要重启", comment: ""), isPresented: $showsLanguageRestartAlert) {
             Button(NSLocalizedString("知道了", comment: ""), role: .cancel) {}
         } message: {
             Text(NSLocalizedString("语言更改将在下次启动 AhaKey Studio 后生效。", comment: ""))
-        }
-        .alert(NSLocalizedString("发现新版 AhaKey Studio", comment: ""), isPresented: Binding(
-            get: { updateManager.availableRelease != nil },
-            set: { if !$0 { updateManager.availableRelease = nil } }
-        )) {
-            Button(NSLocalizedString("稍后", comment: ""), role: .cancel) { updateManager.availableRelease = nil }
-            Button(NSLocalizedString("前往Github", comment: "")) {
-                updateManager.availableRelease = nil
-                NSWorkspace.shared.open(AppUpdateManager.releaseListURL)
-            }
-            if let release = updateManager.availableRelease {
-                if release.macDMG != nil {
-                    Button(NSLocalizedString("下载并打开安装包", comment: "")) {
-                        updateManager.availableRelease = nil
-                        Task { await updateManager.download(release) }
-                    }
-                }
-            }
-        } message: {
-            Text(String(format: NSLocalizedString("当前版本 %@，最新版本 %@。", comment: ""),
-                        updateManager.installedVersion, updateManager.availableRelease?.tagName ?? ""))
-        }
-        .alert(NSLocalizedString("软件更新", comment: ""), isPresented: Binding(
-            get: { updateManager.statusMessage != nil },
-            set: { if !$0 { updateManager.statusMessage = nil } }
-        )) {
-            Button("好", role: .cancel) { updateManager.statusMessage = nil }
-            Button(NSLocalizedString("前往Github", comment: "")) {
-                updateManager.statusMessage = nil
-                NSWorkspace.shared.open(AppUpdateManager.releaseListURL)
-            }
-        } message: {
-            Text(updateManager.statusMessage ?? "")
         }
         .sheet(isPresented: $showsOLEDPlaybackPreview) {
             OLEDMotionPreviewSheet(
@@ -408,8 +383,9 @@ struct AhaKeyStudioView: View {
             Toggle("", isOn: Binding(
                 get: { ahaType.isEnabled },
                 set: { enabled in
-                    if enabled, !cloudAccount.isLoggedIn {
-                        showsAhaTypeLoginRequiredToast = true
+                    if enabled, !cloudAccount.isLoggedIn || ahaType.requiresLogin {
+                        cloudAccount.requireLogin()
+                        showsCloudAccount = true
                     } else {
                         ahaType.setEnabled(enabled)
                     }
@@ -438,18 +414,12 @@ struct AhaKeyStudioView: View {
             languageOption("简体中文", selection: "zh-Hans")
             languageOption("English", selection: "en")
         } label: {
-            Label(languageMenuTitle, systemImage: "globe")
-                .lineLimit(1)
+            Image(systemName: "globe")
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
         .help(NSLocalizedString("语言", comment: ""))
-    }
-
-    private var languageMenuTitle: String {
-        selectedLanguage == AppLanguageInitializer.systemSelection
-            ? NSLocalizedString("系统语言", comment: "")
-            : languageName(selectedLanguage)
+        .accessibilityLabel(NSLocalizedString("语言", comment: ""))
     }
 
     private func languageName(_ language: String) -> String {
@@ -4219,6 +4189,9 @@ private struct CloudAccountView: View {
             Button(NSLocalizedString("好", comment: ""), role: .cancel) { account.alertMessage = nil }
         } message: {
             Text(account.alertMessage ?? "")
+        }
+        .onChange(of: account.isLoggedIn) { loggedIn in
+            if !loggedIn { focusedLoginField = .phone }
         }
         .onAppear {
             activateAhaKeyWindowForTextInput()

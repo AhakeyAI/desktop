@@ -1496,6 +1496,8 @@ TRANSLATIONS.update({
 
 TRANSLATIONS.update({"显示方式尚未读取。": "Display mode has not been read yet."})
 
+TRANSLATIONS.update({'正在校验安装包…': 'Verifying installer…', '正在下载更新…': 'Downloading update…', '安装更新': 'Install update', '打开文件位置': 'Show in Finder', '下载更新': 'Download update', '重试检查': 'Check again', '下载完成。点击安装，按提示将应用拖入“应用程序”。': 'Download complete. Click Install, then drag the app to Applications.', '无法打开安装包，请打开文件所在位置后手动安装。': 'Could not open the installer. Show it in Finder to install manually.', '登录已失效，请重新登录。': 'Your session has expired. Please sign in again.', '请先登录。': 'Please sign in first.'})
+
 def escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 

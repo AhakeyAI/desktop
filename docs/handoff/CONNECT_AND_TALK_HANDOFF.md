@@ -460,3 +460,10 @@ PR143已CI全通过并合入connect&talk/6094d89。新增Hook可选真实session
 fd358fa已提交并安装签名候选：同一旧候选的“90状态后立即MULTI”首轮复现9F超时，400ms仅诊断对照8/8成功；固件ready_len时忽略下一命令。新增legacy00/90 FIFO及显示前回包/审批reservation等待，避免新9F抢入；无固定延迟或盲重试。超时不复用高级通道、重连撤旧账；旧12字节status、排队取消及正常慢审批均有回归。311测试与双轴再复核通过。
 
 新候选零间隔12/12真机往返成功，MULTI+实体自动档10/10 permission真实审批链并发正常；清合成任务恢复SINGLE，用户切回手动，fresh physical/effective=1、verified=false，Codex on-request。可复用HIL脚本ahakeyconfig-mac/scripts/validate-presentation-mode.py，默认零间隔、结束回SINGLE。PR145待最终CI/审核后按已授权合入connect&talk；首次无诊断的两次失败不倒推为同一原因，完整故障/无线矩阵仍待。D03全矩阵、D04资源上传、D05恢复和App直连/前台仍按清单推进。
+
+
+## 35. 客户端语言/更新/AhaType入口（2026-10-21）
+
+D02-C PR145已合入connect&talk/4ca05c0。本批新分支codex/connect-talk-client-update-login，eafa0c7/e6422c4：地球去文字；启动检查及左下角下载/速度/进度/校验完成安装和文件入口；403/429公开页同仓库digest后备；AhaType认证失效回登录（网络/配额失败保留登录），启用时启动静默验证，旧响应不清新Token。全320+新增针对性9项通过，双轴复核通过，最终候选0.2.3/e6422c4签名安装。
+
+真实QA同源临时版本号0.2.2用于触发公开v0.2.3更新：自动提示→下载→校验→安装窗口/定位文件均通过，结束恢复0.2.3最终候选并卸载DMG。真实失效账号已回登录表单，用户需要重新登录；未代登录或支付。详见docs/validation/connect-talk-hil-2026-10-21/CLIENT_FLOWS.md。本批不改固件/键位；后续D04等固件适配仍在原清单，不被该UI改进替代。按既有流程PR目标connect&talk。

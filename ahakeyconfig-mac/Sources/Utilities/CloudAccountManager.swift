@@ -14,6 +14,11 @@ final class CloudAccountManager: ObservableObject {
     @Published private(set) var paymentOrder: CloudPaymentOrder?
     @Published private(set) var statusMessage = NSLocalizedString("尚未登录。", comment: "")
     @Published var alertMessage: String?
+    @Published private(set) var loginRequestID: UUID?
+
+    private let defaults: UserDefaults
+    private let session: URLSession
+    private let optimizer: AhaTypeTextOptimizer
 
     private let fallbackAPIBase = "https://956798.xyz/prod-api"
     private let tokenKey = "lab.jawa.ahakeyconfig.cloud.accessToken"
@@ -21,8 +26,10 @@ final class CloudAccountManager: ObservableObject {
     private let phoneKey = "lab.jawa.ahakeyconfig.cloud.phone"
     private let passwordKey = "lab.jawa.ahakeyconfig.cloud.password"
 
-    private init() {
-        let defaults = UserDefaults.standard
+    init(defaults: UserDefaults = .standard, session: URLSession = .shared, optimizer: AhaTypeTextOptimizer? = nil) {
+        self.defaults = defaults
+        self.session = session
+        self.optimizer = optimizer ?? .shared
         rememberPassword = defaults.bool(forKey: rememberKey)
         phone = defaults.string(forKey: phoneKey) ?? ""
         if rememberPassword {
@@ -43,18 +50,28 @@ final class CloudAccountManager: ObservableObject {
     }
 
     func logout() {
-        UserDefaults.standard.removeObject(forKey: tokenKey)
-        AhaTypeTextOptimizer.shared.clearSessionKeepToggle()
+        defaults.removeObject(forKey: tokenKey)
+        optimizer.clearSessionKeepToggle()
         profile = nil
         isLoggedIn = false
         statusMessage = NSLocalizedString("已退出登录。", comment: "")
     }
 
     func prepareForRelogin() {
-        UserDefaults.standard.removeObject(forKey: tokenKey)
+        defaults.removeObject(forKey: tokenKey)
+        optimizer.clearSessionKeepToggle()
+        paymentOrder = nil
+        alertMessage = nil
         profile = nil
         isLoggedIn = false
         statusMessage = NSLocalizedString("请输入账号密码重新登录。", comment: "")
+    }
+
+    func requireLogin(ifTokenMatches token: String? = nil) {
+        if let token, !accessToken.isEmpty, accessToken != token { return }
+        prepareForRelogin()
+        statusMessage = NSLocalizedString("登录已失效，请重新登录。", comment: "")
+        loginRequestID = UUID()
     }
 
     func refreshProfile(showAlertOnFailure: Bool = true) {
@@ -75,6 +92,7 @@ final class CloudAccountManager: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
+                    if !self.isLoggedIn { return }
                     if showAlertOnFailure {
                         self.alertMessage = error.localizedDescription
                         self.statusMessage = "刷新失败。"
@@ -310,7 +328,7 @@ final class CloudAccountManager: ObservableObject {
     }
 
     private func saveLogin(token: String, authData: [String: Any] = [:]) {
-        let defaults = UserDefaults.standard
+        let defaults = self.defaults
         defaults.set(token, forKey: tokenKey)
         defaults.set(rememberPassword, forKey: rememberKey)
         defaults.set(phone.trimmingCharacters(in: .whitespacesAndNewlines), forKey: phoneKey)
@@ -319,7 +337,7 @@ final class CloudAccountManager: ObservableObject {
         } else {
             defaults.removeObject(forKey: passwordKey)
         }
-        AhaTypeTextOptimizer.shared.patchCloudToken(token)
+        optimizer.patchCloudToken(token)
         seedLocalProfile(token: token, authData: authData)
         isLoggedIn = true
     }
@@ -328,8 +346,8 @@ final class CloudAccountManager: ObservableObject {
         let normalized = normalizedProfile(profile)
         self.profile = normalized
         isLoggedIn = true
-        AhaTypeTextOptimizer.shared.patchCloudToken(accessToken)
-        AhaTypeTextOptimizer.shared.setUserProfile(normalized)
+        optimizer.patchCloudToken(accessToken)
+        optimizer.setUserProfile(normalized)
     }
 
     private func seedLocalProfile(token: String, authData: [String: Any]) {
@@ -351,7 +369,7 @@ final class CloudAccountManager: ObservableObject {
         profile["used_weekly"] = firstInt(in: authData, keys: ["used_weekly", "usedWeekly"])
         profile["used_monthly"] = firstInt(in: authData, keys: ["used_monthly", "usedMonthly"])
         self.profile = profile
-        AhaTypeTextOptimizer.shared.setUserProfile(profile)
+        optimizer.setUserProfile(profile)
     }
 
     private func normalizedProfile(_ raw: [String: Any]) -> [String: Any] {
@@ -402,8 +420,13 @@ final class CloudAccountManager: ObservableObject {
         var request = URLRequest(url: url, timeoutInterval: 90)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let requestToken = accessToken
         if authorized {
-            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            guard !requestToken.isEmpty else {
+                requireLogin()
+                throw CloudAccountError(NSLocalizedString("请先登录。", comment: ""), statusCode: 401)
+            }
+            request.setValue("Bearer \(requestToken)", forHTTPHeaderField: "Authorization")
         }
         if let body {
             request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])
@@ -411,14 +434,19 @@ final class CloudAccountManager: ObservableObject {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await URLSession.shared.data(for: request)
+            (data, response) = try await session.data(for: request)
         } catch {
             throw CloudAccountError(networkMessage(for: error))
         }
+        if authorized, requestToken != accessToken { throw URLError(.cancelled) }
         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw CloudAccountError(NSLocalizedString("服务器返回非 JSON。", comment: ""), statusCode: statusCode)
+        let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        if authorized, CloudAuthenticationFailure.matches(status: statusCode,
+            code: object.map { intValue($0["code"]) }, message: object.map { responseMessage($0) } ?? "") {
+            requireLogin(ifTokenMatches: requestToken)
+            throw CloudAccountError(NSLocalizedString("登录已失效，请重新登录。", comment: ""), statusCode: 401)
         }
+        guard let object else { throw CloudAccountError(NSLocalizedString("服务器返回非 JSON。", comment: ""), statusCode: statusCode) }
         if statusCode != 200 {
             throw CloudAccountError(responseMessage(object).isEmpty ? "请求失败（HTTP \(statusCode)）。" : responseMessage(object), statusCode: statusCode)
         }
@@ -435,7 +463,7 @@ final class CloudAccountManager: ObservableObject {
     }
 
     private var accessToken: String {
-        UserDefaults.standard.string(forKey: tokenKey) ?? ""
+        defaults.string(forKey: tokenKey) ?? ""
     }
 
     private var apiBase: String {
