@@ -522,3 +522,11 @@ PR150已合入connect&talk/39d4d70。用户要求汇总重启风险并明确授�
 真机首轮蓝牙超时后旧facts撤回、无部分成功，原因未定位；重连后36标签/9行4列/四个OFF读取成功，截图布局通过。受控读取中取消后自动重连，重新完整19项及36项成功，无需键盘重启。Claude会话结束读回OFF、预览禁用；再次总览保留OFF草稿，最后切通知清回请选择，没有保存或预览。35%/有效1项/Codex1帧保持，键位/Voice/素材未写，固件未刷。
 
 已交还Agent，fresh connected=true、physical/effective=0、autoVerified=true；首页58%/自动批准、语音桥运行中。静态表10秒CPU+0.02秒仅短样本。证据LIGHT_CATALOG.md，公开截图无用户图片。PR151目标connect&talk，最终文档CI通过后合入；本批无待用户动作。D03全模式保存/保持、OFF保存、停止预览及完整无线/旧固件/CLI/CP3矩阵仍待。
+
+## 41. D03 单项保存与会话反馈（2026-10-22）
+
+PR151已合入connect&talk/f1cd1fd。新分支codex/connect-talk-ws3-light-save，PR152目标connect&talk；代码386250e，371测试和Standards/Spec独立复核通过，签名0.2.3 arm64候选已安装。点击固定目标/基线/代次，UI开始及完成校验UUID，离开撤回；逐位置未确认保存不因读取或其他位置成功清除。Manager异步返回后再次检查会话才发快照。预览/停止回执只声明请求接受，未知只读与OFF不可预览不变。
+
+真机完整19项、预览及停止ACK、Claude通知同值保存、四模式通知OFF保存及完整36项读回通过。当前四模式通知暂为OFF，原值均10中心脉冲；亮度35%、有效1/19、Codex Coffee位置8一帧，按键/Voice未改。已请求用户正常重启验证OFF断电保持，尚待回复；收到后先fresh19及36项，再明确恢复四个通知为中心脉冲并读回，最后关闭设置交还日常Agent核对连接/实体档位。不要重复请求刷写或Forget PC，不要把临时OFF留作最终状态。
+
+PR152目前草稿，不自动合并未完成的现场验收。完成恢复后更新docs/validation/connect-talk-hil-2026-10-22/LIGHT_SAVE.md和WBS，精确最终head四项CI全成功再按已授权合入connect&talk。完整4×9保存和存储/无线故障矩阵仍待，F5继续暂缓。
