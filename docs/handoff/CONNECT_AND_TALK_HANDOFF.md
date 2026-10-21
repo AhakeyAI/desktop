@@ -380,3 +380,49 @@ CommandTurnQueue统一串行命令所有权。排队任务取消即移除，但�
 短时30秒11点待机采样：GUI CPU累计+0.32秒，Agent+0.09秒，未见持续高占用；不覆盖长时/灯条/GIF/灵动岛矩阵。电量状态到85%，没有持续0，不代表全电量校准验收。没有改Voice/onboarding、写入显示资源或刷固件；当前仍App/F18，不把此前Consumer可行结论当作本轮Consumer实测。
 
 完整记录：docs/validation/connect-talk-hil-2026-10-19/README.md。剩余：真实在途取消/迟到帧/DATA故障与断电保持、其他三客户端移除重装/运行会话重载、新WS3固件完整快照及D02–D05、长时CPU/电量/灵动岛回归。PR#140目标connect&talk，未以本轮只读与部分生命周期测试宣称最终发布通过。
+
+## 27. 合并#140、D03与新固件刷写后连接排查（2026-10-19）
+
+用户要求CI通过后合入connect&talk再继续。#140最终5b764cb全CI成功，已合并89eecab。新分支codex/connect-talk-ws3-display-controls、草稿PR#141继续D03：同代完整0x88后才窄授权89/8E，10秒临时预览/停止、亮度与单模式状态灯效保存，基线冲突保护、ACK后读回、未知灯效只读、取消后不声称回滚。素材/98仍关闭，不改Consumer/F5决定。契约见docs/ahastudio/ws3-display-controls-contract-2026-10-19.md。
+
+完整回归遇到本机all.paused影响既有Hook测试的7个断言失败，da93952注入临时控制目录并保留生产默认；新增fixture暂停优先测试。D03加10项测试，最终260项全通过。89eecab..1b16fec及后续发现流程变更均已做Standards/Spec独立复核，无阻塞项。
+
+用户明确同意刷memory-fix候选；完成16键等私有备份、旧CP4D恢复HEX与原包保留。换数据线/扩展坞端口后识别CH582，刷入SHA256 ffb9208f79084aa24a832ad2562a14dbbea5df4d114a135cb5b2eb98d4e05539，Verify OK；未主动擦除Data EEPROM或改CFG。用户随后报告重连中、无线失败、USB有连接提示。系统蓝牙附近设备出现AhaKey505C（原515C），还未确认配对/配置连接。刷写成功不等于新固件UAT成功，Voice/原配置是否保留尚未读回。
+
+发现App/Agent扫描只7340，与新固件实际1812/180F广播不符；df6d18b扩扫描及Agent connected lookup，保留设备名和审批验证。0.2.3/arm64源df6d18b已签名安装运行，但连接仍待核实，不能把该补丁称为系统配对根因修复。三条待验证方向为USB/无线状态差异、旧配对/身份变化、固件就绪问题，不以未实现CP1.5直接归因。
+
+最新现场和后续步骤见docs/validation/connect-talk-hil-2026-10-19/WS3_NEW_FIRMWARE.md。当前配置写入暂停；下一步先完成新505C系统配对/蓝牙和完整0x88只读，再做D03临时预览/单项保存/恢复/断电测试。真实取消、D02呈现、D04/D05资源及最终发布仍未完成。
+
+## 28. 505C配对异常与pending连接隔离（2026-10-19）
+
+用户澄清USB OK是屏幕提示，Studio未连接；拔USB正常无线开机后，系统附近设备505C悬停显示断开连接，但尝试连接失败。该组合不等于HID已配对。复查App内存诊断证实df6在12:42及14:34已发现505C，扫描修复通过发现阶段；之前仅凭主界面未连接不能推断仍没发现设备。
+
+只读bluetoothd记录14:55:19–14:58:17同一Studio目标约215次connect及215次encryptionStatusChangedCb status4803/isPairing0，IORegistry无AhaKey HID节点。退出App/Agent后连续120秒新增同类记录均0。原始日志只存本机私有备份；不将4803未经核对就解释成特定协议错误。Apple明确pending connect不会自动超时，故原客户端未设截止的请求可持续触发底层尝试，普通断开回调退避无法约束它。
+
+7a329a8接入App/Agent共享连接attempt guard：15秒deadline显式cancel，一次一请求，取消完成前不重发，迟到connect/旧deadline不得发布状态；新目标超时/早期失败暂停自动重试，由用户恢复，已在本进程建立过BLE连接的目标保留后台重连。该标记不代表HID就绪、不参与审批放行。用户系统配对仍未恢复的根因保持未确定，不宣称已完成HID-first。
+
+复核各发现一个P2并在ed64166修复：App关蓝牙时若正交接Agent须当场释放retained lock；Agent关蓝牙须清旧事实/特征/代次/waiters。新增真实flock+生产powerOff入口回归修前2断言失败、修后通过，合计267测试通过，复核确认无新增阻塞项。新候选尚须15秒取消、错误计数、用户恢复和旧设备重连真机，App当前保持关闭，避免干扰“App/Agent退出时只做一次系统配对”的待反馈对照。
+
+完整证据及下一步见docs/validation/connect-talk-hil-2026-10-19/BLUETOOTH_CONNECTION_DIAGNOSIS.md。必要的后续仅限目标配对清理，不进行整份EEPROM擦除或盲回放键位。D03与资源测试仍等HID和配置链路恢复，草稿PR#141继续目标connect&talk，不自动合并。
+
+### 第28节后续：Forget后恢复及D03首批真机闭环
+
+用户确认App关闭系统仍失败；当前固件Forget组合（第4大键+模式/电源约2秒）清绑定并重配后恢复。IORegistry确认505C的BLE键盘HID节点，ed64166直接配置连接成功。0x88完整亮度/19资源读回通过，原35%、有效自定义资源0/19；临时50%预览由用户确认约10秒恢复，读回保存值35%。明确保存50%、Claude/通知原effect10改effect5并读回；用户正常重启后自动重连，重新查询确认保持。现已恢复35%/effect10并读回，无待恢复设置。
+
+实际0x88在途取消测试通过，快照/能力撤回并禁写，重连后重新读；四Voice/onboarding3/F18保持。交还同源Agent后fresh approval_status确认实体auto及factory binding，手动档对照已请求用户尚待反馈，不能先标通过。最近连接日志短采样无4803；30秒CPU累计GUI+0.26秒/Agent+0.07秒，不替代长时回归。截图与精确边界见docs/validation/connect-talk-hil-2026-10-19/WS3_ACCEPTANCE_CHECKPOINT.md。原始键位和日志仍仅本机私有备份。PR141保持检查点范围，D02/资源与全故障矩阵仍待完成。
+
+第28节手动档对照已完成：用户切手动后新505C fresh physical=1/approvalAutoVerified=false，界面显示手动批准；Cursor Shell ask，Claude PreToolUse无allow及PermissionRequest ask，Codex PermissionRequest无allow、on-request，Kimi配置false。已请求用户切回自动，尚未收到确认；期间不切换连接归属或更改键位，以保持对照。自动Hook往返和全16键比对仍待。
+
+
+## 29. 新固件自动档与全键位收尾（2026-10-20）
+
+用户回自动时设备起初离线，fresh physical=null自动验证false，未运行allow Hook。唤醒后first fresh仍physical1；亮屏重拨后fresh0/factory verified true，Cursor/Claude/Codex实际安装Hook均放行、Codex never/有归属lease。与昨日手动对照组成完整往返；未把缓存或口头档位当硬件授权。Kimi当前会话及所有CLI缓存刷新仍未覆盖。
+
+完整只读16键、待机、Voice引导、拨杆绑定与刷写前私有备份一致；使用生产DeviceFrameDecoder处理分片和二进制边界，原始数据未提交，仅无载荷汇总JSON。日志已关，最后交还同源Agent，fresh0/verified true、Codex allow/never恢复，诊断面板关闭，无新设置写入。详见docs/validation/connect-talk-hil-2026-10-20/README.md。
+
+另发现基线已有GUI连接缓存刷新缺口：设备离线时isAgentBLEConnected可能仍保留旧值，主界面显示已连接/旧档位；审批fresh查询仍安全回退。此项单列后续客户端修复，不宣称最终发布验收完整。休眠/唤醒首次物理读回1暂不定性固件问题。D02/资源/全故障矩阵仍按WBS推进。
+
+
+## 30. 连接心跳候选真机验收（2026-10-21）
+
+源码af7645b/0.2.3候选已安装，270测试及双轴复核通过。5秒只读socket心跳修复基线离线UI残留；停止入口同步撤销旧查询发布权。用户正常关机后主界面自动撤回连接和档位，正常无线开机自动恢复，fresh physical1/manual与UI一致；生产停止入口也立即清除，随后重新启动交还日常后台。没有写键位、Voice或显示设置。短采样无持续高CPU，不替代长时/故障全矩阵。证据见docs/validation/connect-talk-hil-2026-10-21/README.md。PR141目标connect&talk，最终文档CI通过后按用户既有授权合并；D02及D04/D05等后续范围继续按WBS，不宣称发布完成。

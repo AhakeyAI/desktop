@@ -59,6 +59,10 @@ final class AgentManager: ObservableObject {
     private let label = "lab.jawa.ahakeyconfig.agent"
     private let socketPath = "/tmp/ahakey.sock"
     private var ownershipTransitionGeneration: UInt64 = 0
+    private let connectionQuery: @Sendable (String) -> Bool
+    private var connectionHeartbeatTimer: Timer?
+    private var connectionQueryID: UUID?
+    private var connectionPublicationGeneration: UInt64 = 0
 
     private var launchAgentsDirectoryURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
@@ -153,7 +157,11 @@ final class AgentManager: ObservableObject {
             .appendingPathComponent(".cursor/permissions.json").path
     }
 
-    init() {
+    init(startServices: Bool = true,
+         connectionQuery: @escaping @Sendable (String) -> Bool = { AgentManager.querySocketBLEConnected(socketPath: $0) }) {
+        self.connectionQuery = connectionQuery
+        // Tests can exercise the production heartbeat without user files, launchd or sockets.
+        guard startServices else { return }
         // A rejected legacy policy can prevent Codex reaching SessionStart at all.
         CodexConfigLeverSync.migrateLegacyPolicy()
         if let raw = UserDefaults.standard.string(forKey: Self.bluetoothOwnerKey),
@@ -163,6 +171,7 @@ final class AgentManager: ObservableObject {
             bluetoothConnectionOwner = .agentDaemon
             UserDefaults.standard.set(BluetoothConnectionOwner.agentDaemon.rawValue, forKey: Self.bluetoothOwnerKey)
         }
+        startConnectionHeartbeat()
         refresh()
     }
 
@@ -176,14 +185,52 @@ final class AgentManager: ObservableObject {
         codexHooksInstalled = detectCodexHooksInstalled()
         kimiHooksInstalled = detectKimiHooksInstalled()
         hooksInstalled = claudeHooksInstalled || cursorHooksInstalled || codexHooksInstalled || kimiHooksInstalled
-        if isRunning {
-            let socketPath = socketPath
-            DispatchQueue.global(qos: .utility).async { [weak self, socketPath] in
-                let bleConnected = Self.querySocketBLEConnected(socketPath: socketPath)
-                DispatchQueue.main.async { self?.isAgentBLEConnected = bleConnected }
+        refreshBLEConnectionStatus(shouldQuery: isRunning && bluetoothConnectionOwner == .agentDaemon)
+    }
+
+    /// Only the cheap socket heartbeat repeats, not hook/config/launchd discovery.
+    func startConnectionHeartbeat(interval: TimeInterval = 5,
+                                  shouldQuery: (@MainActor () -> Bool)? = nil) {
+        stopConnectionHeartbeat()
+        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] timer in
+            Task { @MainActor [weak self] in
+                guard let self else { timer.invalidate(); return }
+                self.refreshBLEConnectionStatus(shouldQuery: shouldQuery?() ??
+                    (self.isRunning && self.bluetoothConnectionOwner == .agentDaemon))
             }
-        } else {
-            isAgentBLEConnected = false
+        }
+        connectionHeartbeatTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    func stopConnectionHeartbeat() {
+        connectionHeartbeatTimer?.invalidate()
+        connectionHeartbeatTimer = nil
+        connectionPublicationGeneration &+= 1
+    }
+
+    func refreshBLEConnectionStatus(shouldQuery: Bool) {
+        guard shouldQuery else {
+            connectionPublicationGeneration &+= 1
+            if isAgentBLEConnected { isAgentBLEConnected = false }
+            return
+        }
+        // Keep the actual IO slot occupied until its worker returns, including
+        // across stop/ownership changes; only its right to publish is revoked.
+        guard connectionQueryID == nil else { return }
+        let id = UUID(), generation = connectionPublicationGeneration
+        let ownership = ownershipTransitionGeneration
+        connectionQueryID = id
+        let query = connectionQuery, path = socketPath
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let connected = query(path)
+            Task { @MainActor [weak self] in
+                guard let self, self.connectionQueryID == id else { return }
+                self.connectionQueryID = nil
+                guard self.connectionPublicationGeneration == generation,
+                      self.ownershipTransitionGeneration == ownership else { return }
+                if self.isAgentBLEConnected != connected { self.isAgentBLEConnected = connected }
+            }
         }
     }
 
@@ -329,8 +376,14 @@ final class AgentManager: ObservableObject {
         }
     }
 
+    /// Revoke cached UI state before any synchronous launchd/config work.
+    func prepareForAgentUnload() {
+        refreshBLEConnectionStatus(shouldQuery: false)
+    }
+
     /// 从 launchd 卸载 Agent（比 `stop` 更彻底：`KeepAlive` 下 stop 会立刻重启进程，仍占着蓝牙）。
     private func unloadAgentLaunchJobRemovingSocket() {
+        prepareForAgentUnload()
         if !ApprovalAutomationControl.revoke() {
             agentUserAlert = "自动批准策略撤销未完全确认，请核对 Codex/Kimi 配置；已打开的 CLI 会话需重新加载或重开。"
         }

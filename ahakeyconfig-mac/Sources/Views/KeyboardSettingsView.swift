@@ -71,7 +71,7 @@ struct KeyboardSettingsView: View {
     private var busy: Bool { bleManager.isConfigurationOperationInProgress }
     private var capabilityMessage: String {
         switch bleManager.firmwareCapabilityProfile?.identity {
-        case .knownWS2Catalog: return NSLocalizedString("此设备支持分别确认按键、待机、拨杆与语音设置；未开放显示与灯光保存。", comment: "")
+        case .knownWS2Catalog: return NSLocalizedString("此设备支持分别确认按键、待机、拨杆与语音设置；显示与灯光需单独读回确认，素材写入未开放。", comment: "")
         case .legacy: return NSLocalizedString("这是旧版设备，请关闭此面板后使用画布原有保存流程。", comment: "")
         default: return NSLocalizedString("读取当前项目后识别设备能力；未知设备不会开放新设置写入。", comment: "")
         }

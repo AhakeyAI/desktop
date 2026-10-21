@@ -99,4 +99,8 @@ public struct WS3DisplaySnapshot: Equatable {
     public init(generation: UInt64, brightness: UInt8, resources: [WS3ResourceReadback]) {
         self.generation = generation; self.brightness = brightness; self.resources = resources
     }
+    public func verifiesDisplaySettings(in currentGeneration: UInt64) -> Bool {
+        generation == currentGeneration && (1...100).contains(brightness) && resources.count == 19 &&
+            Set(resources.map(\.id)) == Set(UInt8(0)..<19)
+    }
 }

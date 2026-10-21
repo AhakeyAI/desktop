@@ -3,8 +3,9 @@ import Foundation
 /// WS2 mode, standby and side-binding writes require a narrow confirmed-transaction
 /// grant. Other configuration writes stay closed; unknown builds allow probes.
 public enum ConfigurationCommandPolicy {
-    public enum ConfirmedWrite { case none, mode, standby, sideSwitch, ordinaryKey, voiceHandoff }
-    public static func permits(_ data: Data, profile: FirmwareCapabilityProfile?, confirmedWrite: ConfirmedWrite = .none) -> Bool {
+    public enum ConfirmedWrite { case none, mode, standby, sideSwitch, ordinaryKey, voiceHandoff, ws3Display }
+    public static func permits(_ data: Data, profile: FirmwareCapabilityProfile?, confirmedWrite: ConfirmedWrite = .none,
+                               ws3DisplayReadbackVerified: Bool = false) -> Bool {
         let b = [UInt8](data)
         guard b.count >= 5, b[0] == 0xAA, b[1] == 0xBB,
               b[b.count - 2] == 0xCC, b[b.count - 1] == 0xDD else { return false }
@@ -22,6 +23,10 @@ public enum ConfigurationCommandPolicy {
         case 0x83: return b.count == 6 && b[3] < 4
         case 0x90: return b.count == 6 && b[3] <= 8
         case 0x88: return profile?.identity == .knownWS2Catalog && WS3DisplayItem.from(request: data) != nil
+        case 0x89, 0x8E:
+            guard confirmedWrite == .ws3Display, ws3DisplayReadbackVerified,
+                  profile?.identity == .knownWS2Catalog else { return false }
+            return b[2] == 0x89 ? WS3DisplayPreview.validRequest(data) : WS3DisplaySetting.validSaveRequest(data)
         case 0x87: return profile?.mayQueryOrdinaryKeys == true && b.count == 7 && b[3] < 4 && b[4] < 4
         case 0x95:
             guard profile?.identity == .knownWS2Catalog else { return false }

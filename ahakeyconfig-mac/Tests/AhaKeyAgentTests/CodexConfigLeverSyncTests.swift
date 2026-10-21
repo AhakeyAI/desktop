@@ -546,7 +546,8 @@ final class CodexConfigLeverSyncTests: XCTestCase {
             emitPermissionStderr: { _, _, _, _ in },
             appendDiagnostic: { _, _, _, _, _, _, _, _, _, _, _ in },
             writeStdout: { _ in },
-            policySink: { recorder.values.append($0) }
+            policySink: { recorder.values.append($0) },
+            approvalControlDirectory: root.appendingPathComponent("approval-control")
         )
     }
 
@@ -572,6 +573,17 @@ final class CodexConfigLeverSyncTests: XCTestCase {
         withFakeHookDependencies(reply: { _ in 0 }) { recorder in
             CodexHookHandler.handleState(stateValue: 2)   // CodexPostToolUse
             XCTAssertTrue(recorder.values.isEmpty, "非 SessionStart 事件不得触碰 policy seam")
+        }
+    }
+
+    func testFixturePauseStillOverridesVerifiedAutomaticLever() throws {
+        let directory = root.appendingPathComponent("approval-control")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data([1]).write(to: directory.appendingPathComponent("codex.paused"))
+        withFakeHookDependencies(reply: { _ in 0 }) { recorder in
+            CodexHookHandler.handleState(stateValue: 4)
+            CodexHookHandler.handlePermissionRequest()
+            XCTAssertEqual(recorder.values, [false, false])
         }
     }
 

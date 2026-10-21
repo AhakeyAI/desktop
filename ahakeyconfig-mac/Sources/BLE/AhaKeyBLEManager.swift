@@ -93,7 +93,13 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var supportsConfigurableLighting: Bool?
     @Published private(set) var configurationSnapshot = DeviceConfigurationSnapshot()
     @Published private(set) var ws3DisplaySnapshot: WS3DisplaySnapshot?
+    @Published private(set) var ws3SingleLightSnapshot: WS3SingleLightSnapshot?
     @Published private(set) var isReadingWS3Display = false
+    @Published private(set) var isUpdatingWS3Display = false
+    var canEditWS3Display: Bool {
+        isConnected && !commandChannelUnsynchronized && firmwareCapabilityProfile?.identity == .knownWS2Catalog &&
+            ws3DisplaySnapshot?.verifiesDisplaySettings(in: commandSessionGeneration) == true
+    }
     @Published private(set) var isReadingConfigurationSnapshot = false
     @Published private(set) var isChangingWorkMode = false
     @Published private(set) var isReadingStandby = false
@@ -103,7 +109,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var isEditingOrdinaryKey = false
     @Published private(set) var isManagingVoiceHandoff = false
     var isConfigurationOperationInProgress: Bool {
-        isUploadingOLED || isReadingWS3Display || isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey || isManagingVoiceHandoff
+        isUploadingOLED || isReadingWS3Display || isUpdatingWS3Display || isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey || isManagingVoiceHandoff
     }
     @Published private(set) var firmwareCapabilityProfile: FirmwareCapabilityProfile?
     @Published private(set) var bluetoothPermissionGranted = true
@@ -204,6 +210,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     )
     /// 记住上次连接的 UUID，用于快速重连
     private var lastPeripheralUUID: UUID?
+    private var connectionAttempt = BLEConnectionAttemptGuard()
+    private var connectionDeadlineTask: Task<Void, Never>?
     /// 为 true 时，本 App 不扫描、不连接、不响应掉线/轮询重连（物理键盘由 `ahakeyconfig-agent` 占用时由 AgentManager 置位）
     private var suppressAutomaticConnection = false
     /// Do not start a new CoreBluetooth connection before cancellation completes.
@@ -336,6 +344,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     /// 由「设备信息 / 顶栏」等**用户显式**发起连接时调用：取消「交给 Agent」时的抑制并尝试连接。
     func userInitiatedConnect() {
+        guard !awaitingPeripheralDisconnect, connectionAttempt.resumeByUser() else { return }
         ensureCentralManager()
         setSuppressedForAgentOwningKeyboard(false)
         connectAutomatically()
@@ -345,6 +354,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     func setSuppressedForAgentOwningKeyboard(_ suppress: Bool) {
         suppressAutomaticConnection = suppress
         if suppress {
+            connectionDeadlineTask?.cancel()
+            connectionDeadlineTask = nil
+            connectionAttempt.reset()
             // Stop scanning before yielding ownership. Retain the lock until CoreBluetooth
             // confirms cancellation of an active/pending connection.
             central?.stopScan()
@@ -398,6 +410,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             return
         }
         guard !awaitingPeripheralDisconnect else { return }
+        guard connectionAttempt.mayBegin else { return }
         guard central?.state == .poweredOn else {
             pendingConnect = true
             switch central?.state {
@@ -415,9 +428,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             let known = central?.retrievePeripherals(withIdentifiers: [uuid]) ?? []
             if let p = known.first {
                 appendLog("用已知 UUID 直连: \(p.name ?? uuid.uuidString)")
-                self.peripheral = p
-                p.delegate = self
-                central?.connect(p, options: nil)
+                beginPeripheralConnection(p)
                 bleConnectionStatus = "连接中…"
                 linkDiagnostic = .connecting
                 return
@@ -437,15 +448,55 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 appendLog("设备已被系统/语音链路连接但未广播配置服务，主动接管 0x7340: \(existing.name ?? "?")")
                 linkDiagnostic = .systemConnectedNoConfigLink
             }
-            self.peripheral = existing
-            existing.delegate = self
-            central?.connect(existing, options: nil)
+            beginPeripheralConnection(existing)
             bleConnectionStatus = "连接中…"
             return
         }
 
         // 3. 扫描
         startScan()
+    }
+
+    /// Called directly by the native powered-off callback; no radio is created here.
+    func handleBluetoothPoweredOff() {
+        connectionDeadlineTask?.cancel()
+        connectionDeadlineTask = nil
+        connectionAttempt.reset()
+        awaitingPeripheralDisconnect = false
+        isScanning = false
+        peripheral = nil
+        stopRSSIPolling()
+        stopStatusPolling()
+        invalidateConnectionState()
+        // The old peripheral callback is now ignored. Complete a pending handoff
+        // here rather than leaving the suppressed App holding the Agent's lock.
+        if suppressAutomaticConnection { connectionLock.release() }
+    }
+
+    private func beginPeripheralConnection(_ target: CBPeripheral) {
+        guard acceptsConnectionCallbacks, !awaitingPeripheralDisconnect,
+              let ticket = connectionAttempt.begin(target: target.identifier,
+                  retryAutomatically: lastPeripheralUUID == target.identifier) else { return }
+        peripheral = target
+        target.delegate = self
+        central?.connect(target, options: nil)
+        connectionDeadlineTask?.cancel()
+        connectionDeadlineTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(nanoseconds: UInt64(BLEConnectionAttemptGuard.deadlineSeconds * 1_000_000_000)) }
+            catch { return }
+            guard let self, self.peripheral === target, self.connectionAttempt.timeOut(ticket) else { return }
+            self.central?.stopScan()
+            self.isScanning = false
+            self.autoReconnectTimer?.invalidate()
+            self.autoReconnectTimer = nil
+            self.awaitingPeripheralDisconnect = true
+            self.bleConnectionStatus = NSLocalizedString("连接等待超时", comment: "")
+            if self.connectionAttempt.requiresManualRetry {
+                self.linkDiagnostic = .pairingRequired
+                self.appendLog(NSLocalizedString("新设备连接等待超时，已取消待连接请求并暂停自动重试；请先在 macOS 蓝牙中完成配对，再点击连接设备。", comment: ""), isError: true)
+            }
+            self.central?.cancelPeripheralConnection(target)
+        }
     }
 
     /// 用更宽的标准 service 集合在「系统已连接」外设里查找 AhaKey 设备——即使它已停止广播 0x7340。
@@ -485,6 +536,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     func startScan() {
+        guard connectionAttempt.mayBegin, !awaitingPeripheralDisconnect else { return }
         guard central?.state == .poweredOn else {
             pendingConnect = true
             return
@@ -494,7 +546,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         linkDiagnostic = .scanning
         appendLog("开始扫描 AhaKey 设备…")
         central?.scanForPeripherals(
-            withServices: [Self.serviceUUID],
+            // CP4D/WS3 advertises HID + Battery, not necessarily 0x7340.
+            // Service filters are ORed; the discovery callback still checks the name.
+            withServices: [Self.serviceUUID, Self.hidServiceUUID, Self.batteryServiceUUID],
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
         )
 
@@ -528,7 +582,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func writeCommand(_ data: Data, confirmedWrite: ConfigurationCommandPolicy.ConfirmedWrite) {
-        guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite) else {
+        guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite,
+                                               ws3DisplayReadbackVerified: canEditWS3Display) else {
             appendLog("当前固件配置写入尚未验证，已阻止写入", isError: true)
             return
         }
@@ -730,12 +785,14 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let previousProfile = firmwareCapabilityProfile
         firmwareCapabilityProfile = nil
         ws3DisplaySnapshot = nil
+        ws3SingleLightSnapshot = nil
         var accepted = false
         defer {
             if !accepted, generation == commandSessionGeneration {
                 // A failed refresh cannot leave old capabilities/facts writable.
                 firmwareCapabilityProfile = nil
                 ws3DisplaySnapshot = nil
+                ws3SingleLightSnapshot = nil
                 configurationSnapshot.reset(generation: generation)
             }
         }
@@ -836,6 +893,17 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
     }
 
+    private func readWS3DisplayValue(_ item: WS3DisplayItem, generation: UInt64) async throws -> WS3DisplayValue {
+        try ensureConfigurationReadSession(generation)
+        guard let request = item.request else { throw OLEDUploadError.invalidCommandFrame }
+        let response = try await sendCommandAwaitingResponse(request, expectedCommand: 0x88, allowDeviceError: true)
+        try ensureConfigurationReadSession(generation)
+        guard let value = WS3DisplayValue.parse(response.frame, for: item) else { throw OLEDUploadError.invalidReadback }
+        if value == .unsupported { throw OLEDUploadError.unsupportedWS3Readback }
+        if case .rejected(let status) = value { throw OLEDUploadError.deviceRejected(command: 0x88, status: status) }
+        return value
+    }
+
     /// Safe discovery of the CP2 read-only surface. Older CP4D's generic ACK
     /// is treated as unsupported and never authorizes resource writes.
     func readWS3DisplayForEditing() async throws -> WS3DisplaySnapshot {
@@ -844,18 +912,12 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         try ensureConfigurationReadSession(generation)
         isReadingWS3Display = true
         ws3DisplaySnapshot = nil
+        ws3SingleLightSnapshot = nil
         defer { isReadingWS3Display = false }
         let profile = try await readFirmwareCapabilityProfile()
         guard profile.identity == .knownWS2Catalog else { throw OLEDUploadError.unsupportedReadOnlyProfile }
         func read(_ item: WS3DisplayItem) async throws -> WS3DisplayValue {
-            try self.ensureConfigurationReadSession(generation)
-            guard let request = item.request else { throw OLEDUploadError.invalidCommandFrame }
-            let response = try await self.sendCommandAwaitingResponse(request, expectedCommand: 0x88, allowDeviceError: true)
-            try self.ensureConfigurationReadSession(generation)
-            guard let value = WS3DisplayValue.parse(response.frame, for: item) else { throw OLEDUploadError.invalidReadback }
-            if value == .unsupported { throw OLEDUploadError.unsupportedWS3Readback }
-            if case .rejected(let status) = value { throw OLEDUploadError.deviceRejected(command: 0x88, status: status) }
-            return value
+            try await self.readWS3DisplayValue(item, generation: generation)
         }
         guard case .brightness(let brightness) = try await read(.brightness) else { throw OLEDUploadError.invalidReadback }
         var resources: [WS3ResourceReadback] = []
@@ -869,6 +931,68 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let snapshot = WS3DisplaySnapshot(generation: generation, brightness: brightness, resources: resources)
         ws3DisplaySnapshot = snapshot
         return snapshot
+    }
+
+    func readWS3SingleLightForEditing(mode: UInt8, state: UInt8) async throws -> WS3SingleLightSnapshot {
+        guard !isConfigurationOperationInProgress, canEditWS3Display else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        isReadingWS3Display = true
+        ws3SingleLightSnapshot = nil
+        defer { isReadingWS3Display = false }
+        guard case .singleLight(let effect) = try await readWS3DisplayValue(.singleLight(mode: mode, state: state), generation: generation) else {
+            throw OLEDUploadError.invalidReadback
+        }
+        let result = WS3SingleLightSnapshot(generation: generation, mode: mode, state: state, effect: effect)
+        ws3SingleLightSnapshot = result
+        return result
+    }
+
+    func previewWS3Display(_ preview: WS3DisplayPreview) async throws {
+        guard !isConfigurationOperationInProgress, canEditWS3Display else { throw OLEDUploadError.channelNotReady }
+        guard let request = preview.request else { throw ConfirmedWS3DisplaySetting.Failure.invalidValue }
+        let generation = commandSessionGeneration
+        isUpdatingWS3Display = true
+        defer { isUpdatingWS3Display = false }
+        try ensureConfigurationReadSession(generation)
+        _ = try await sendCommandAwaitingResponse(request, expectedCommand: 0x89, confirmedWrite: .ws3Display)
+        try ensureConfigurationReadSession(generation)
+        // ACK proves command acceptance only. Firmware expires preview in 10s;
+        // never start a client refresh loop or claim the rendered scene was observed.
+    }
+
+    func saveWS3DisplaySetting(_ target: WS3DisplaySetting, baseline: UInt8, expectedGeneration: UInt64) async throws {
+        guard !isConfigurationOperationInProgress, canEditWS3Display,
+              expectedGeneration == commandSessionGeneration else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        isUpdatingWS3Display = true
+        defer { isUpdatingWS3Display = false }
+        do {
+            let actual = try await ConfirmedWS3DisplaySetting.run(target: target, baseline: baseline, checkSession: {
+                try self.ensureConfigurationReadSession(generation)
+            }, read: { item in
+                let value = try await self.readWS3DisplayValue(item, generation: generation)
+                switch value {
+                case .brightness(let value), .singleLight(let value): return value
+                default: throw OLEDUploadError.invalidReadback
+                }
+            }, write: { request in
+                _ = try await self.sendCommandAwaitingResponse(request, expectedCommand: 0x8E, confirmedWrite: .ws3Display)
+            })
+            switch target {
+            case .brightness:
+                if let snapshot = ws3DisplaySnapshot {
+                    ws3DisplaySnapshot = WS3DisplaySnapshot(generation: generation, brightness: actual, resources: snapshot.resources)
+                }
+            case .singleLight(let mode, let state, _):
+                ws3SingleLightSnapshot = WS3SingleLightSnapshot(generation: generation, mode: mode, state: state, effect: actual)
+            }
+        } catch {
+            if generation == commandSessionGeneration {
+                ws3DisplaySnapshot = nil
+                ws3SingleLightSnapshot = nil
+            }
+            throw error
+        }
     }
 
     /// Explicit read only: never applies local drafts or persists device settings.
@@ -1267,7 +1391,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     /// 退避式自动重连轮询（阶段 3）：按 `reconnectBackoff` 的间隔逐级拉长（4s → 8s → 15s → 30s 封顶）。
     private func startAutoReconnectPolling() {
-        guard !suppressAutomaticConnection else { return }
+        guard !suppressAutomaticConnection, !connectionAttempt.requiresManualRetry else { return }
         scheduleAutoReconnectAttempt(after: reconnectBackoff.next())
     }
 
@@ -1281,7 +1405,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func performAutoReconnectAttempt() {
-        guard !suppressAutomaticConnection else { return }
+        guard !suppressAutomaticConnection, !connectionAttempt.requiresManualRetry else { return }
         // 条件不满足（扫描中/连接中/蓝牙未开）：不消耗退避步进，按当前间隔再试
         guard central?.state == .poweredOn,
               !isConnected, !isScanning,
@@ -1537,6 +1661,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         hasValidStatusReadback = false
         firmwareCapabilityProfile = nil
         ws3DisplaySnapshot = nil
+        ws3SingleLightSnapshot = nil
         configurationSnapshot.reset(generation: commandSessionGeneration)
         if let pending = pendingCommandResponse {
             pendingCommandResponse = nil
@@ -1613,6 +1738,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         hasValidStatusReadback = false
         firmwareCapabilityProfile = nil
         ws3DisplaySnapshot = nil
+        ws3SingleLightSnapshot = nil
         configurationSnapshot.reset(generation: commandSessionGeneration)
         appendLog("Configuration interrupted; reconnect and read back before continuing.", isError: true)
         if let peripheral {
@@ -1656,7 +1782,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let ticket = try await acquireCommandTurn()
         let generation = ticket.generation
         defer { commandTurns.release(ticket) }
-        guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite) else {
+        guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite,
+                                               ws3DisplayReadbackVerified: canEditWS3Display) else {
             throw OLEDUploadError.unsupportedReadOnlyProfile
         }
         try Task.checkCancellation()
@@ -1906,6 +2033,7 @@ enum LinkDiagnostic: Equatable {
     case ownedByAgent                  // BLE 交由 ahakeyconfig-agent 占用（本 App 不直连，属预期）
     case systemConnectedNoConfigLink   // 设备已被系统 / 语音(HID) 链路连接，但 0x7340 配置链路未建立
     case noDeviceFound                 // 未发现设备（未开机 / 不在范围 / 未配对）
+    case pairingRequired
 
     /// 顶栏 pill 用的极简副标题。
     var shortMessage: String {
@@ -1918,6 +2046,7 @@ enum LinkDiagnostic: Equatable {
         case .ownedByAgent: return "Agent 占用中"
         case .systemConnectedNoConfigLink: return "配置链路未连"
         case .noDeviceFound: return "未发现设备"
+        case .pairingRequired: return NSLocalizedString("等待系统配对", comment: "")
         }
     }
 
@@ -1933,6 +2062,7 @@ enum LinkDiagnostic: Equatable {
         case .ownedByAgent: return "蓝牙当前交由 ahakeyconfig-agent 占用，本 App 不直接连接（这是预期行为）。配置链路状态请参考 Agent；如需本 App 直连，请在设备信息里把「蓝牙连接」切回本 App。"
         case .systemConnectedNoConfigLink: return "设备已通过系统蓝牙（HID / 语音链路）连接，但 AhaKey 配置服务 0x7340 尚未建立。本 App 正在尝试主动接管该链路；若长时间无效，请在「系统设置 > 蓝牙」忽略此设备后重新配对。"
         case .noDeviceFound: return "未发现 AhaKey 设备。请确认设备已开机、处于蓝牙范围内并已与本机配对。"
+        case .pairingRequired: return NSLocalizedString("新设备连接未完成，已暂停自动重试。请先在 macOS 蓝牙设置完成配对，再点击连接设备。", comment: "")
         }
     }
 
@@ -2001,6 +2131,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
                 self.appendLog(NSLocalizedString("蓝牙已开启", comment: ""), category: .lifecycle)
                 self.connectAutomatically()
             case .poweredOff:
+                self.handleBluetoothPoweredOff()
                 self.refreshBluetoothAuthorization()
                 self.appendLog("蓝牙已关闭", isError: true)
                 self.bleConnectionStatus = "蓝牙关闭"
@@ -2027,15 +2158,14 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
         guard Self.matchesDeviceName(name) else { return }
 
         Task { @MainActor in
-            guard self.acceptsConnectionCallbacks else { return }
+            guard self.acceptsConnectionCallbacks, self.connectionAttempt.mayBegin,
+                  !self.awaitingPeripheralDisconnect else { return }
             self.appendLog("发现设备: \(name) RSSI=\(RSSI)")
             // 扫到目标设备广播：退避重置回 4s 并立即连接
             self.reconnectBackoff.reset()
             self.central?.stopScan()
             self.isScanning = false
-            self.peripheral = peripheral
-            peripheral.delegate = self
-            self.central?.connect(peripheral, options: nil)
+            self.beginPeripheralConnection(peripheral)
             self.bleConnectionStatus = "连接中…"
         }
     }
@@ -2043,10 +2173,13 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
     nonisolated func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         Task { @MainActor in
             guard self.acceptsConnectionCallbacks, !self.awaitingPeripheralDisconnect,
-                  self.peripheral === peripheral else {
+                  self.peripheral === peripheral,
+                  self.connectionAttempt.connected(target: peripheral.identifier) else {
                 central.cancelPeripheralConnection(peripheral)
                 return
             }
+            self.connectionDeadlineTask?.cancel()
+            self.connectionDeadlineTask = nil
             self.resetCommandSession()
             self.apply(.connected(name: peripheral.name, uuid: peripheral.identifier.uuidString))
             self.lastPeripheralUUID = peripheral.identifier
@@ -2073,12 +2206,20 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
     nonisolated func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
         Task { @MainActor in
             guard self.peripheral === peripheral else { return }
+            self.connectionDeadlineTask?.cancel()
+            self.connectionDeadlineTask = nil
+            self.connectionAttempt.ended(target: peripheral.identifier)
             self.invalidateConnectionState()
             self.awaitingPeripheralDisconnect = false
             if self.peripheral === peripheral { self.peripheral = nil }
             if self.suppressAutomaticConnection {
                 self.peripheral = nil
                 self.connectionLock.release()
+                return
+            }
+            if self.connectionAttempt.requiresManualRetry {
+                self.bleConnectionStatus = NSLocalizedString("等待系统配对", comment: "")
+                self.linkDiagnostic = .pairingRequired
                 return
             }
             self.bleConnectionStatus = "连接失败"
@@ -2090,6 +2231,9 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
     nonisolated func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         Task { @MainActor in
             guard self.peripheral === peripheral else { return }
+            self.connectionDeadlineTask?.cancel()
+            self.connectionDeadlineTask = nil
+            self.connectionAttempt.ended(target: peripheral.identifier)
             self.awaitingPeripheralDisconnect = false
             let dropped = self.writeQueue.count
             let openBatches = self.writeBatches.count
@@ -2100,7 +2244,8 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
                 )
             }
             self.invalidateConnectionState()
-            self.bleConnectionStatus = NSLocalizedString("已断开", comment: "")
+            self.bleConnectionStatus = self.connectionAttempt.requiresManualRetry ? NSLocalizedString("等待系统配对", comment: "") : NSLocalizedString("已断开", comment: "")
+            if self.connectionAttempt.requiresManualRetry { self.linkDiagnostic = .pairingRequired }
             // 不清 peripheral 和 lastPeripheralUUID——用于直连重试
             self.peripheral = nil
             self.stopRSSIPolling()
