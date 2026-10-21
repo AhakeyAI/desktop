@@ -160,6 +160,31 @@ final class AgentPresentationSessionTests: XCTestCase {
         session.updateConnection(connected: false, generation: 1)
     }
 
+    func testPermissionSnapshotWaitsForSlowApprovalInsteadOfDisconnecting() async throws {
+        let io = Fixture(), drain = AgentLegacyCommandDrain()
+        let session = AgentPresentationSession(exchange: { data in
+            try await drain.waitUntilIdle()
+            io.requests.append(data)
+            return io.response(data)
+        }, sendSingleDefault: { true }, onFault: { io.faults += 1 })
+        session.updateConnection(connected: true, generation: 1)
+        _ = try await session.activate(.multi)
+        let before = io.requests.count
+        session.observe(task("permission"), state: 1)
+        let approval = drain.reserveApproval()
+        // Deliberately hold the real session's 50ms flush behind slow approval.
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(io.requests.count, before)
+        XCTAssertEqual(io.faults, 0)
+        XCTAssertEqual(session.requestedMode, .multi)
+        drain.complete(approval)
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(io.requests.count, before + 1)
+        XCTAssertEqual(WS3TaskSnapshot(request: io.requests.last!)?.slots[0]?.state, .waiting)
+        XCTAssertEqual(io.faults, 0)
+        session.updateConnection(connected: false, generation: 1)
+    }
+
     func testExpiredTasksSendOneCleanupSnapshotNotKeepalive() async throws {
         let io = Fixture(), session = io.session()
         session.updateConnection(connected: true, generation: 1)

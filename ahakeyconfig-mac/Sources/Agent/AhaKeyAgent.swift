@@ -58,6 +58,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var connectionGeneration: UInt64 = 0
     private var presentationSession: AgentPresentationSession!
     private var presentationPoisoned = false
+    private let legacyCommandDrain = AgentLegacyCommandDrain()
+    private var presentationDrainID: UUID?
+    private var presentationDraining: Bool { presentationDrainID != nil }
     private struct PresentationRead {
         let id: UUID
         let generation: UInt64
@@ -77,6 +80,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var pendingApprovalRead: ApprovalRead?
     private var approvalChannelReady = true
     private var approvalRequestID: UUID?
+    private var approvalDrainToken: UUID?
     private var approvalWaiters: [([String: Any]) -> Void] = []
     /// 工具完成 / 用户提交等短暂态的自动回落。
     private var statusPollTimer: DispatchSourceTimer?
@@ -136,7 +140,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             emit("LED 状态 \(state): 未连接")
             return
         }
-        if !presentationSession.allowsLegacySingle {
+        if presentationDraining || approvalRequestID != nil || !presentationSession.allowsLegacySingle {
             lastSentState = state
             Self.writeLiveState(stateValue: state)
             return
@@ -144,7 +148,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         let data = Data(header + [0x90, state] + trailer)
         let wt: CBCharacteristicWriteType =
             commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
-        peripheral.writeValue(data, for: commandChar, type: wt)
+        writeLegacy(data, peripheral: peripheral, characteristic: commandChar, type: wt)
         lastSentState = state
         emit("→ LED 状态 \(state): \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
         Self.writeLiveState(stateValue: state)
@@ -198,12 +202,27 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
     }
 
+    private func writeLegacy(_ data: Data, peripheral: CBPeripheral, characteristic: CBCharacteristic,
+                             type: CBCharacteristicWriteType, onAbandon: @escaping () -> Void = {}, onSend: (() -> Void)? = nil) {
+        let epoch = connectionGeneration
+        legacyCommandDrain.submit(data[2], onAbandon: onAbandon) { [weak self, weak peripheral] token in
+            guard let self, let peripheral, self.connectionGeneration == epoch,
+                  self.peripheral === peripheral, self.connectionLock.holdsLock, !self.presentationPoisoned else { onAbandon(); return }
+            onSend?()
+            peripheral.writeValue(data, for: characteristic, type: type)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+                guard let self, self.connectionGeneration == epoch else { return }
+                self.legacyCommandDrain.expired(token)
+            }
+        }
+    }
+
     private func requestDeviceStatus() {
         guard connectionLock.holdsLock, let commandChar, let peripheral else { return }
         let query = Data(header + [0x00] + trailer)
         let wt: CBCharacteristicWriteType =
             commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
-        peripheral.writeValue(query, for: commandChar, type: wt)
+        writeLegacy(query, peripheral: peripheral, characteristic: commandChar, type: wt)
     }
 
     private func startStatusPolling() {
@@ -211,7 +230,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         let timer = DispatchSource.makeTimerSource(queue: .main)
         timer.schedule(deadline: .now() + 1.0, repeating: 1.5)
         timer.setEventHandler { [weak self] in
-            guard let self, self.statusWaiters.isEmpty, self.approvalWaiters.isEmpty, self.pendingApprovalRead == nil, self.pendingPresentationRead == nil else { return }
+            guard let self, !self.presentationDraining, !self.presentationSession.isChangingMode, self.statusWaiters.isEmpty, self.approvalWaiters.isEmpty, self.pendingApprovalRead == nil, self.pendingPresentationRead == nil else { return }
             self.requestDeviceStatus()
         }
         statusPollTimer = timer
@@ -235,13 +254,14 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         let query = Data(header + [0x00] + trailer)
         let wt: CBCharacteristicWriteType =
             commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
-        peripheral.writeValue(query, for: commandChar, type: wt)
-
-        let requestID = statusWaiters.append(completion)
-        DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
-            guard let self, self.statusWaiters.timeOut(requestID) else { return }
-            self.approvalChannelReady = false
-            self.central.cancelPeripheralConnection(peripheral)
+        writeLegacy(query, peripheral: peripheral, characteristic: commandChar, type: wt, onAbandon: { completion(nil) }) { [weak self] in
+            guard let self else { completion(nil); return }
+            let requestID = self.statusWaiters.append(completion)
+            DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
+                guard let self, self.statusWaiters.timeOut(requestID) else { return }
+                self.approvalChannelReady = false
+                self.central.cancelPeripheralConnection(peripheral)
+            }
         }
     }
 
@@ -263,7 +283,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     private func queryApprovalStatus(completion: @escaping ([String: Any]) -> Void) {
-        guard !presentationSession.isChangingMode, !presentationPoisoned, ApprovalAutomationControl.isEnabled() else {
+        guard !presentationSession.isChangingMode, !presentationDraining, pendingPresentationRead == nil, !presentationPoisoned, ApprovalAutomationControl.isEnabled() else {
             completion(["switchState": 1, "physicalSwitchState": NSNull(), "approvalAutoVerified": false, "approvalPolicyVersion": 1])
             return
         }
@@ -271,6 +291,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         guard approvalRequestID == nil else { return }
         let id = UUID(), generation = connectionGeneration
         approvalRequestID = id
+        approvalDrainToken = legacyCommandDrain.reserveApproval()
         guard approvalChannelReady, connectionLock.holdsLock else {
             finishApproval(id: id, status: nil, profile: nil, binding: nil); return
         }
@@ -311,6 +332,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private func finishApproval(id: UUID, status: AgentDeviceStatus?, profile: FirmwareCapabilityProfile?, binding: SideSwitchReadback?) {
         guard approvalRequestID == id else { return }
         approvalRequestID = nil
+        let drainedApproval = approvalDrainToken
+        approvalDrainToken = nil
+        if let drainedApproval { legacyCommandDrain.complete(drainedApproval) }
         let body = Self.approvalReply(status, profile: profile, binding: binding, fresh: status != nil && approvalChannelReady)
         let waiters = approvalWaiters
         approvalWaiters.removeAll()
@@ -644,7 +668,22 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     @MainActor
     private func exchangePresentation(_ request: Data) async throws -> Data {
-        try await withCheckedThrowingContinuation { continuation in
+        guard !presentationDraining else {
+            throw WS3PresentationError.busy
+        }
+        let epochBeforeDrain = connectionGeneration
+        let drainID = UUID()
+        presentationDrainID = drainID
+        do { try await legacyCommandDrain.waitUntilIdle() }
+        catch {
+            if presentationDrainID == drainID { presentationDrainID = nil }
+            if epochBeforeDrain == connectionGeneration, !(error is CancellationError) { poisonPresentationConnection() }
+            throw error
+        }
+        if presentationDrainID == drainID { presentationDrainID = nil }
+        try Task.checkCancellation()
+        guard epochBeforeDrain == connectionGeneration else { throw WS3PresentationError.connectionChanged }
+        return try await withCheckedThrowingContinuation { continuation in
             guard !presentationPoisoned, pendingPresentationRead == nil, connectionLock.holdsLock,
                   let peripheral, let commandChar else {
                 continuation.resume(throwing: WS3PresentationError.unavailable); return
@@ -671,7 +710,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     private func sendPresentationDefault() -> Bool {
         guard !presentationPoisoned, connectionLock.holdsLock, let peripheral, let commandChar else { return false }
-        peripheral.writeValue(WS3PresentationCommand.single(state: 8).request!, for: commandChar,
+        writeLegacy(WS3PresentationCommand.single(state: 8).request!, peripheral: peripheral, characteristic: commandChar,
             type: commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse)
         Self.writeLiveState(stateValue: 8)
         return true
@@ -700,6 +739,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var lockRetryItem: DispatchWorkItem?
 
     private func invalidateBLEConnection() {
+        presentationDrainID = nil
+        legacyCommandDrain.reset()
         presentationSession.updateConnection(connected: false, generation: connectionGeneration)
         let presentationRead = pendingPresentationRead
         pendingPresentationRead = nil
@@ -846,6 +887,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         connectionGeneration &+= 1
         approvalChannelReady = true
         presentationPoisoned = false
+        legacyCommandDrain.reset()
         presentationSession.updateConnection(connected: false, generation: connectionGeneration)
         statusWaiters = AgentStatusQueries()
         lastUUID = peripheral.identifier
@@ -927,8 +969,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 pendingApprovalRead = nil
                 pending.completion(frame)
             }
-            guard let status = Self.parseDeviceStatus(frame) else { continue }
-            handleDeviceStatus(status)
+            if let status = Self.parseDeviceStatus(frame) { handleDeviceStatus(status) }
+            legacyCommandDrain.received(frame)
         }
     }
 
@@ -974,7 +1016,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     /// 解析 AA BB 00 [battery][signal][fw_main][fw_sub][work][light][switch][reserve] CC DD
     /// 与 Sources/BLE/AhaKeyProtocol.swift:parseDeviceStatus 等价
-    private static func parseDeviceStatus(_ data: Data) -> AgentDeviceStatus? {
+    static func parseDeviceStatus(_ data: Data) -> AgentDeviceStatus? {
         guard data.count >= 12,
               data[0] == 0xAA, data[1] == 0xBB,
               data[data.count - 2] == 0xCC, data[data.count - 1] == 0xDD else {
