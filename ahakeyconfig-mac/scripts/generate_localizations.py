@@ -7,6 +7,14 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "转写内容尚未完整确认，已保留供核对，未自动粘贴。": "The full transcription is not verified. It was kept for review and was not pasted automatically.",
+    "请核对转写内容": "Review transcription",
+    "文字已保留在语音设置中": "The text is kept in voice settings.",
+    "识别尚未确认完整内容。请结合此前内容核对并补全后复制，不会自动粘贴。": "The full transcription is not verified. Compare it with the earlier text and complete it before copying. It will not be pasted automatically.",
+    "此前识别的内容": "Earlier recognized text",
+    "待核对的转写": "Transcription to review",
+    "复制核对后的文字": "Copy reviewed text",
+
     "当前配置已核对一致，无需写入。": "The current configuration matches. No write is needed.",
     "已确认": "Verified",
     "当前改动尚未生效，写入键盘后启用。": "These changes are not active yet. Write to keyboard to apply them.",

@@ -1090,14 +1090,26 @@ struct AhaKeyStudioView: View {
     @ViewBuilder
     private var deferredVoiceTranscripts: some View {
         if !nativeSpeech.deferredTranscripts.isEmpty {
-            Text(NSLocalizedString("上一段转写稍晚完成，已保留，可复制后自行粘贴。", comment: ""))
-                .font(.caption).foregroundStyle(.secondary)
             ForEach(nativeSpeech.deferredTranscripts) { item in
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(item.text).font(.caption).lineLimit(2).textSelection(.enabled)
-                    Button(NSLocalizedString("复制已完成的转写", comment: "")) {
-                        nativeSpeech.copyDeferredTranscript(id: item.id)
+                    if item.requiresReview {
+                        Text(NSLocalizedString("识别尚未确认完整内容。请结合此前内容核对并补全后复制，不会自动粘贴。", comment: ""))
+                            .font(.caption).foregroundStyle(.orange)
+                        if let previous = item.previousText, !previous.isEmpty {
+                            Text(NSLocalizedString("此前识别的内容", comment: "")).font(.caption.weight(.semibold))
+                            Text(previous).font(.caption).textSelection(.enabled)
+                        }
+                        TextEditor(text: Binding(get: { item.text }, set: { nativeSpeech.editDeferredTranscript(id: item.id, text: $0) }))
+                            .font(.caption).frame(minHeight: 80, maxHeight: 140)
+                            .accessibilityLabel(NSLocalizedString("待核对的转写", comment: ""))
+                    } else {
+                        Text(NSLocalizedString("上一段转写稍晚完成，已保留，可复制后自行粘贴。", comment: ""))
+                            .font(.caption).foregroundStyle(.secondary)
+                        Text(item.text).font(.caption).lineLimit(2).textSelection(.enabled)
                     }
+                    Button(NSLocalizedString(item.requiresReview ? "复制核对后的文字" : "复制已完成的转写", comment: "")) {
+                        nativeSpeech.copyDeferredTranscript(id: item.id, confirmedReview: item.requiresReview)
+                    }.disabled(item.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }

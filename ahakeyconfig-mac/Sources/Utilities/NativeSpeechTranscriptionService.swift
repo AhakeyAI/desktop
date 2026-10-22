@@ -466,12 +466,9 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
     }
 
-    /// Untimed partials revise the active utterance. Completed audio ranges
-    /// distinguish a new utterance from a revision of already-recognized audio.
-    private func applyStreamingTranscriptionPartial(_ newRaw: String,
-                                                    audioSpan: SpeechTranscriptAccumulator.AudioSpan?,
-                                                    isFinal: Bool) {
-        currentTranscript = transcriptAccumulator.apply(newRaw, audioSpan: audioSpan, isFinal: isFinal)
+    private func applyStreamingTranscriptionPartial(_ result: SFSpeechRecognitionResult) {
+        currentTranscript = transcriptAccumulator.apply(result.bestTranscription.formattedString,
+            completion: completedTranscription(for: result))
     }
 
     private var pendingFinalizeBypassAhaType = false
@@ -482,7 +479,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             // Metadata can finish an utterance before the recording isFinal.
             // Keep prior audio while revising the currently recognized utterance.
             if !newText.isEmpty {
-                applyStreamingTranscriptionPartial(newText, audioSpan: completedAudioSpan(for: result), isFinal: result.isFinal)
+                applyStreamingTranscriptionPartial(result)
                 transcriptPreview = currentTranscript
             }
             appendDiagnostic("partial result=\(newText) isFinal=\(result.isFinal)")
@@ -507,16 +504,20 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
     }
 
-    private func completedAudioSpan(for result: SFSpeechRecognitionResult) -> SpeechTranscriptAccumulator.AudioSpan? {
+    private func completedTranscription(for result: SFSpeechRecognitionResult) -> SpeechTranscriptAccumulator.Completion? {
         guard result.isFinal || result.speechRecognitionMetadata != nil else { return nil }
-        let segments = result.bestTranscription.segments
-        let timed = segments.compactMap { SpeechTranscriptAccumulator.AudioSpan(start: $0.timestamp, duration: $0.duration) }
-        // Use the enclosing audio interval, including pauses, rather than the
-        // sum of voiced durations when a cumulative result covers older chunks.
-        if timed.count == segments.count, let span = SpeechTranscriptAccumulator.AudioSpan.covering(timed) { return span }
+        let source = result.bestTranscription.segments
+        let segments = source.compactMap { segment -> SpeechTranscriptAccumulator.TimedSegment? in
+            guard let span = SpeechTranscriptAccumulator.AudioSpan(start: segment.timestamp, duration: segment.duration) else { return nil }
+            return .init(audio: span, textRange: segment.substringRange)
+        }
+        if segments.count == source.count,
+           let span = SpeechTranscriptAccumulator.AudioSpan.covering(segments.map(\.audio)) {
+            return .init(audio: span, segments: segments)
+        }
         return result.speechRecognitionMetadata.flatMap {
             SpeechTranscriptAccumulator.AudioSpan(start: $0.speechStartTimestamp, duration: $0.speechDuration)
-        }
+        }.map { .init(audio: $0) }
     }
 
     private func finalizeCurrentTranscriptIfNeeded(reason: String, bypassAhaType: Bool = false) {
@@ -528,9 +529,22 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             return
         }
 
-        let text = currentTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalization = transcriptAccumulator.finalization
         let capturedPolicy = recordingPolicy
         cancelRecognitionPipeline()
+        let text: String
+        switch finalization {
+        case .ready(let value): text = value
+        case .review(let previous, let latest):
+            hasCommittedThisRecording = true
+            deferredTranscripts.append(.init(text: latest, requiresReview: true, previousText: previous))
+            statusMessage = NSLocalizedString("转写内容尚未完整确认，已保留供核对，未自动粘贴。", comment: "")
+            VoiceStatusHUDController.shared.show(.init(kind: .warning, title: NSLocalizedString("请核对转写内容", comment: ""),
+                subtitle: NSLocalizedString("文字已保留在语音设置中", comment: "")), autoHideAfter: 3)
+            appendDiagnostic("finalize retained for review reason=\(reason)")
+            return
+        case .empty: text = ""
+        }
 
         guard !text.isEmpty else {
             statusMessage = NSLocalizedString("未识别到有效语音内容。", comment: "")
@@ -580,8 +594,15 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
     }
 
-    func copyDeferredTranscript(id: UUID) {
-        guard let item = deferredTranscripts.first(where: { $0.id == id }) else { return }
+    func editDeferredTranscript(id: UUID, text: String) {
+        guard let index = deferredTranscripts.firstIndex(where: { $0.id == id && $0.requiresReview }) else { return }
+        deferredTranscripts[index].text = text
+    }
+
+    func copyDeferredTranscript(id: UUID, confirmedReview: Bool = false) {
+        guard let item = deferredTranscripts.first(where: { $0.id == id }),
+              !item.requiresReview || confirmedReview,
+              !item.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         if pasteboard.setString(item.text, forType: .string) {

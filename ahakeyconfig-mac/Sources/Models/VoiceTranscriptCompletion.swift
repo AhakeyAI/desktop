@@ -2,7 +2,15 @@ import Foundation
 
 struct DeferredVoiceTranscript: Identifiable {
     let id = UUID()
-    let text: String
+    var text: String
+    let requiresReview: Bool
+    let previousText: String?
+
+    init(text: String, requiresReview: Bool = false, previousText: String? = nil) {
+        self.text = text
+        self.requiresReview = requiresReview
+        self.previousText = previousText
+    }
 }
 
 @MainActor
