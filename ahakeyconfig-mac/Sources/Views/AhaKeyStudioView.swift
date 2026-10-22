@@ -522,7 +522,8 @@ struct AhaKeyStudioView: View {
                     liveLightMode: liveCanvasLightMode,
                     liveIDEStateValue: liveCanvasIDEStateValue,
                     switchState: liveCanvasSwitchState,
-                    keyboardPictureFrameCount: bleManager.keyboardPictureStates[selectedMode.rawValue]?.frameCount
+                    keyboardPictureFrameCount: bleManager.firmwareCapabilityProfile?.identity == .legacy
+                        ? bleManager.keyboardPictureStates[selectedMode.rawValue]?.frameCount : nil
                 )
                 .aspectRatio(109.0 / 54.0, contentMode: .fit)
                 .frame(maxWidth: .infinity)

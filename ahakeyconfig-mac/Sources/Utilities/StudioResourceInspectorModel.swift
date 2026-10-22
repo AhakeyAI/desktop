@@ -46,13 +46,21 @@ final class StudioResourceInspectorModel: ObservableObject {
     }
 
     func select(mode: AhaKeyModeSlot) {
-        guard !isBusy else { return }
-        entry = UInt8(mode.rawValue * 4)
+        selectEntry(UInt8(mode.rawValue * 4))
+    }
+    func selectEntry(_ target: UInt8) {
+        guard !isBusy, !isPreparing, target < 19 else { return }
+        entry = target
         message = nil; conflict = nil; confirmsUpload = false; confirmsRestore = false
     }
     func cancel(ble: AhaKeyBLEManager) {
         preparation?.cancel(); operation?.cancel()
         if ble.isConfigurationOperationInProgress { ble.cancelConfigurationOperation() }
+    }
+    func discardSelection() {
+        guard !isBusy, !isPreparing else { return }
+        drafts[entry] = nil
+        message = nil; conflict = nil; confirmsUpload = false
     }
 
     func read(ble: AhaKeyBLEManager, session: StudioInspectorSession, verifying: Bool = false) {
