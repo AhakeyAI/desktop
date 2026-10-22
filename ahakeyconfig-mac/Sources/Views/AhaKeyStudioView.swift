@@ -687,6 +687,7 @@ struct AhaKeyStudioView: View {
                 .padding(.vertical, 12)
             }
         }
+        .groupBoxStyle(StudioInspectorGroupStyle())
         .frame(width: 390)
         .frame(maxHeight: .infinity)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
