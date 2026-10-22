@@ -394,11 +394,11 @@ final class VoiceRelayService: ObservableObject {
             if isAutoRepeat { return nil }
             if type == .keyDown {
                 DispatchQueue.main.async {
-                    NativeSpeechTranscriptionService.shared.handleVoiceKeyDown()
+                    NativeSpeechTranscriptionService.shared.handleVoiceKeyDown(trigger: keyCode)
                 }
             } else if type == .keyUp {
                 DispatchQueue.main.async {
-                    NativeSpeechTranscriptionService.shared.handleVoiceKeyUp()
+                    NativeSpeechTranscriptionService.shared.handleVoiceKeyUp(trigger: keyCode)
                 }
             }
             // keyDown/keyUp 都吞掉，避免硬件发出的 F17/F18 漏到前台 App（比如 Claude CLI

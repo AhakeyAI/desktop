@@ -38,6 +38,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     @Published private(set) var isLongPressRecording = false
 
     private var longPressTimerWork: DispatchWorkItem?
+    private var voicePressGate = NativeVoicePressGate()
     private var audioEngine: AVAudioEngine?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
@@ -139,11 +140,12 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     // MARK: - 语音键事件入口（VoiceRelayService 调用）
 
     /// keyDown 时调用：若长按模式启用，开启长按计时器；否则立即开始录音或等 keyUp 切换。
-    func handleVoiceKeyDown() {
+    func handleVoiceKeyDown(trigger: CGKeyCode) {
+        guard let ticket = voicePressGate.begin(code: trigger) else { return }
         if longPressEnabled, !isRecording {
             // 启动长按计时：阈值内松开 → 短按；超时后仍按着 → 进入长按录音
             let work = DispatchWorkItem { [weak self] in
-                guard let self else { return }
+                guard let self, self.voicePressGate.isCurrent(ticket) else { return }
                 self.longPressTimerWork = nil
                 if !self.isRecording {
                     self.isLongPressRecording = true
@@ -164,7 +166,8 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     }
 
     /// keyUp 时调用：若长按模式活跃 → 结束并直接发送；否则短按切换。
-    func handleVoiceKeyUp() {
+    func handleVoiceKeyUp(trigger: CGKeyCode) {
+        guard voicePressGate.end(code: trigger) else { return }
         if isLongPressRecording {
             // 长按录音结束：停止并按长按配置决定是否用 AhaType
             isLongPressRecording = false
@@ -198,6 +201,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     /// Listening stops must cancel a pending short-press timer without turning
     /// its cancellation into the keyUp gesture that starts a new recording.
     func cancelPendingVoiceKeyPress() {
+        voicePressGate.cancel()
         longPressTimerWork?.cancel()
         longPressTimerWork = nil
         if isLongPressRecording {
