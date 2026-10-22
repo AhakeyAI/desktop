@@ -7,6 +7,9 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "默认 Fn/Globe，可修改为其他快捷键，适用于豆包、Typeless 等输入法。": "Defaults to Fn/Globe. You can choose another shortcut for Doubao, Typeless, or another input app.",
+    "原普通键位（只读）": "Underlying binding (read-only)",
+    "旧固件无法确认 Consumer 系统听写，本次未写入；请保留原方案或使用受支持的普通快捷键。": "This older firmware cannot confirm Consumer Dictation. Nothing was written; keep the existing scheme or choose a supported keyboard shortcut.",
     "撤销此键草稿": "Discard this key's draft",
     "AhaType 云端转写": "AhaType cloud transcription",
     "App 原生转写（旧方案）": "App transcription (legacy)",

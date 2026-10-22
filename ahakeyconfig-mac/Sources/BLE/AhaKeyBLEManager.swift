@@ -1377,7 +1377,12 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         do {
             return try await ConfirmedVoiceModeChange.run(baseline: baseline, target: target, checkSession: {
                 try self.ensureConfigurationReadSession(generation)
-            }, checkHostReady: checkHostReady, read: { try await self.readVoiceHandoffSnapshot() }, prepareHost: prepareHost, write: { request in
+            }, checkHostReady: checkHostReady, read: { try await self.readVoiceHandoffSnapshot() }, validateCurrentKey: { actual in
+                guard let mode = AhaKeyModeSlot(rawValue: Int(actual.mode)),
+                      StudioKeyWriteProposal.draft(from: actual, preserving: AhaKeyModeDraft.default(for: mode).key(for: .voice)) != nil else {
+                    throw ConfirmedOrdinaryKeySetting.Failure.invalidValue
+                }
+            }, prepareHost: prepareHost, write: { request in
                 guard let peripheral = self.peripheral, let characteristic = self.commandChar else { throw OLEDUploadError.channelNotReady }
                 let type: CBCharacteristicWriteType = characteristic.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
                 let maximum = peripheral.maximumWriteValueLength(for: type)

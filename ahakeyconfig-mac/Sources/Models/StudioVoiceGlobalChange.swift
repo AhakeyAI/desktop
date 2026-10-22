@@ -16,29 +16,14 @@ extension StudioVoiceConfiguration {
     /// disabled. Other ordinary device bindings are read, never rewritten.
     func confirmingConsumer(_ actual: VoiceHandoffSnapshot) throws -> Self {
         guard actual.isValid, actual.onboardingState == 2 else { throw ConfirmedVoiceHandoff.Failure.ownershipMismatch }
-        var draft = routeDraft
-        for slot in AhaKeyModeSlot.allCases {
-            let old = key(for: slot)
-            var consumer = importing(actual.keys[slot.rawValue], preserving: old) ?? old
-            consumer.voicePreset = .systemDictation
-            var mode = draft.draft(for: slot); mode.updateKey(consumer); draft.updateMode(mode)
-        }
-        return StudioVoiceConfiguration(draft: draft, fallback: .legacy())
+        return observing(actual, consumer: true, excluding: nil)
     }
 
     func afterGlobalExit(key selected: AhaKeyKeyDraft, mode: AhaKeyModeSlot, actual: VoiceHandoffSnapshot) throws -> Self {
         guard actual.isValid, actual.onboardingState == 3 || actual.onboardingState == 4 else {
             throw ConfirmedVoiceHandoff.Failure.ownershipMismatch
         }
-        var draft = routeDraft
-        for slot in AhaKeyModeSlot.allCases where slot != mode {
-            let old = key(for: slot)
-            var imported = importing(actual.keys[slot.rawValue], preserving: old) ?? old
-            if imported.voicePreset == .systemDictation { imported.voicePreset = .custom }
-            var value = draft.draft(for: slot)
-            value.updateKey(imported); draft.updateMode(value)
-        }
-        let updated = StudioVoiceConfiguration(draft: draft, fallback: .legacy())
-        return try updated.committing(key: selected, mode: mode, actual: actual.keys[mode.rawValue])
+        let observed = observing(actual, consumer: false, excluding: mode)
+        return try observed.committing(key: selected, mode: mode, actual: actual.keys[mode.rawValue])
     }
 }

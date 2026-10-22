@@ -22,7 +22,7 @@ final class ConfirmedVoiceModeChangeTests: XCTestCase {
         var reads = [before, staged, final], events: [String] = [], frames: [Data] = []
         let result = try await ConfirmedVoiceModeChange.run(baseline: before, target: target,
             checkSession: {}, checkHostReady: {}, read: { events.append("read"); return reads.removeFirst() },
-            prepareHost: { events.append("host") }, write: {
+            validateCurrentKey: { _ in }, prepareHost: { events.append("host") }, write: {
                 frames.append($0); events.append($0[2] == 0x73 ? "key\($0[4])" : "cmd\($0[2])")
             })
         XCTAssertEqual(result, final)
@@ -36,7 +36,7 @@ final class ConfirmedVoiceModeChangeTests: XCTestCase {
         let before = snapshot(), final = VoiceHandoffSnapshot(onboardingState: 3, keys: before.keys)
         var reads = [before, final], frames: [Data] = [], prepared = false
         _ = try await ConfirmedVoiceModeChange.run(baseline: before, target: before.keys[2],
-            checkSession: {}, checkHostReady: {}, read: { reads.removeFirst() }, prepareHost: { prepared = true }, write: {
+            checkSession: {}, checkHostReady: {}, read: { reads.removeFirst() }, validateCurrentKey: { _ in }, prepareHost: { prepared = true }, write: {
                 XCTAssertTrue(prepared); frames.append($0)
             })
         XCTAssertEqual(frames, [ConfirmedVoiceHandoff.suppressRequest])
@@ -47,7 +47,7 @@ final class ConfirmedVoiceModeChangeTests: XCTestCase {
         let before = snapshot(3), staged = replacing(before, with: target)
         var reads = [before, staged], prepared = false
         _ = try await ConfirmedVoiceModeChange.run(baseline: before, target: target,
-            checkSession: {}, checkHostReady: {}, read: { reads.removeFirst() }, prepareHost: { prepared = true }, write: {
+            checkSession: {}, checkHostReady: {}, read: { reads.removeFirst() }, validateCurrentKey: { _ in }, prepareHost: { prepared = true }, write: {
                 XCTAssertTrue(prepared); XCTAssertNotEqual($0[2], 0x96)
             })
     }
@@ -58,13 +58,13 @@ final class ConfirmedVoiceModeChangeTests: XCTestCase {
         do {
             _ = try await ConfirmedVoiceModeChange.run(baseline: before, target: target,
                 checkSession: {}, checkHostReady: {}, read: { self.snapshot(3) },
-                prepareHost: { XCTFail("conflict") }, write: { _ in XCTFail("conflict") })
+                validateCurrentKey: { _ in }, prepareHost: { XCTFail("conflict") }, write: { _ in XCTFail("conflict") })
             XCTFail("must reject")
         } catch { XCTAssertEqual(error as? ConfirmedVoiceHandoff.Failure, .changedSinceRead) }
         do {
             _ = try await ConfirmedVoiceModeChange.run(baseline: before, target: target,
                 checkSession: {}, checkHostReady: { throw CancellationError() }, read: { XCTFail("not ready"); return before },
-                prepareHost: { XCTFail("not ready") }, write: { _ in XCTFail("not ready") })
+                validateCurrentKey: { _ in }, prepareHost: { XCTFail("not ready") }, write: { _ in XCTFail("not ready") })
             XCTFail("must reject")
         } catch { XCTAssertTrue(error is CancellationError) }
     }
@@ -78,7 +78,7 @@ final class ConfirmedVoiceModeChangeTests: XCTestCase {
         do {
             _ = try await ConfirmedVoiceModeChange.run(baseline: before, target: target,
                 checkSession: {}, checkHostReady: {}, read: { reads.removeFirst() },
-                prepareHost: { XCTFail("stage mismatch") }, write: { XCTAssertNotEqual($0[2], 0x96) })
+                validateCurrentKey: { _ in }, prepareHost: { XCTFail("stage mismatch") }, write: { XCTAssertNotEqual($0[2], 0x96) })
             XCTFail("must reject")
         } catch { XCTAssertEqual(error as? ConfirmedVoiceHandoff.Failure, .bindingsMismatch) }
     }
@@ -89,7 +89,7 @@ final class ConfirmedVoiceModeChangeTests: XCTestCase {
             let before = snapshot()
             do {
                 _ = try await ConfirmedVoiceModeChange.run(baseline: before, target: target,
-                    checkSession: {}, checkHostReady: {}, read: { before }, prepareHost: { XCTFail("failed stage") }, write: {
+                    checkSession: {}, checkHostReady: {}, read: { before }, validateCurrentKey: { _ in }, prepareHost: { XCTFail("failed stage") }, write: {
                         XCTAssertNotEqual($0[2], 0x96)
                         if $0[2] == fail { throw CancellationError() }
                     })
@@ -104,8 +104,22 @@ final class ConfirmedVoiceModeChangeTests: XCTestCase {
         var reads = [before, staged, staged]
         do {
             _ = try await ConfirmedVoiceModeChange.run(baseline: before, target: target,
-                checkSession: {}, checkHostReady: {}, read: { reads.removeFirst() }, prepareHost: {}, write: { _ in })
+                checkSession: {}, checkHostReady: {}, read: { reads.removeFirst() }, validateCurrentKey: { _ in }, prepareHost: {}, write: { _ in })
             XCTFail("must reject")
         } catch { XCTAssertEqual(error as? ConfirmedVoiceHandoff.Failure, .ownershipMismatch) }
     }
+    @MainActor
+    func testReadOnlyValidationCannotBeBypassedByConflictConfirmation() async {
+        let before = snapshot()
+        let readOnly = replacing(before, with: .init(mode: 2, keyIndex: 0, actionType: 0x73,
+            action: Data([0x28, 0xE3]), description: Data("Read only".utf8)))
+        do {
+            _ = try await ConfirmedVoiceModeChange.run(baseline: readOnly, target: target,
+                checkSession: {}, checkHostReady: {}, read: { readOnly }, validateCurrentKey: { _ in
+                    throw ConfirmedOrdinaryKeySetting.Failure.invalidValue
+                }, prepareHost: { XCTFail("read only") }, write: { _ in XCTFail("read only") })
+            XCTFail("must reject")
+        } catch { XCTAssertEqual(error as? ConfirmedOrdinaryKeySetting.Failure, .invalidValue) }
+    }
+
 }

@@ -79,4 +79,26 @@ final class VoiceSchemePickerTests: XCTestCase {
             XCTAssertEqual(try StudioKeyWriteProposal.make(key: consumer.key(for: slot), mode: slot), actual.keys[slot.rawValue])
         }
     }
+    func testOpaqueOtherModeNeverKeepsStaleAppRouteAndPreservesActualReadOnlyBytes() throws {
+        let before = StudioVoiceConfiguration(draft: .legacyAppVoice, fallback: policy)
+        var selected = before.key(for: .mode2); selected.voicePreset = .ahaTypeCloud
+        selected = try before.preparing(selected, mode: .mode2)
+        var keys = try snapshot(before.routeDraft, state: 3).keys
+        let raw = OrdinaryKeyReadback(mode: 0, keyIndex: 0, actionType: 0x73,
+            action: Data([HIDUsage.enter, HIDUsage.leftGUI]), description: Data("External".utf8))
+        keys[0] = raw
+        let actual = VoiceHandoffSnapshot(onboardingState: 3, keys: keys)
+        let after = try before.afterGlobalExit(key: selected, mode: .mode2, actual: actual)
+        XCTAssertEqual(after.key(for: .mode0).voicePreset, .custom)
+        XCTAssertEqual(after.readOnlyBinding(for: .mode0), raw)
+        XCTAssertTrue(VoiceRelayService.buildRoutes(from: after.routeDraft).allSatisfy { $0.mode != .mode0 })
+        XCTAssertTrue(after.isValid)
+        let restored = try JSONDecoder().decode(StudioVoiceConfiguration.self, from: JSONEncoder().encode(after))
+        XCTAssertEqual(restored.readOnlyBinding(for: .mode0), raw)
+        let consumer = try before.confirmingConsumer(.init(onboardingState: 2, keys: keys))
+        XCTAssertEqual(consumer.readOnlyBinding(for: .mode0), raw)
+        XCTAssertNotEqual(consumer.key(for: .mode0).shortcut, before.key(for: .mode0).shortcut)
+        XCTAssertTrue(consumer.isValid)
+    }
+
 }

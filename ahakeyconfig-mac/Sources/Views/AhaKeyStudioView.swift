@@ -1030,6 +1030,9 @@ struct AhaKeyStudioView: View {
         let preset = key.voicePreset ?? .custom
         summaryRow(NSLocalizedString("输入方式", comment: ""), value: preset.title)
         summaryRow(NSLocalizedString("快捷键", comment: ""), value: key.displaySummary)
+        if let raw = voiceConfiguration.readOnlyBinding(for: selectedMode) {
+            summaryRow(NSLocalizedString("原普通键位（只读）", comment: ""), value: StudioKeyWriteProposal.summary(raw))
+        }
         if preset.usesAppTranscription {
             summaryRow(NSLocalizedString("触发方式", comment: ""), value: NSLocalizedString("短按 + 长按", comment: ""))
             let permCount = [nativeSpeech.microphoneGranted, nativeSpeech.speechRecognitionGranted,
@@ -2134,7 +2137,11 @@ struct AhaKeyStudioView: View {
     }
 
     private func applyVoicePreset(_ preset: VoicePreset) {
-        if preset == .custom, (currentSelectedKey.voicePreset ?? .custom).pickerCategory == .custom { return }
+        if preset == .custom {
+            guard (currentSelectedKey.voicePreset ?? .custom).pickerCategory != .custom else { return }
+            customVoiceTriggerBinding.wrappedValue = true
+            return
+        }
         updateSelectedKey { key in
             key.voicePreset = preset
             if preset != .custom && preset != .systemDictation {
@@ -2429,6 +2436,15 @@ struct AhaKeyStudioView: View {
             openKeyboardSettings()
             return
         }
+        guard !studioDraft.modes.contains(where: { $0.key(for: .voice).voicePreset == .systemDictation }) else {
+            syncStatusMessage = NSLocalizedString("旧固件无法确认 Consumer 系统听写，本次未写入；请保留原方案或使用受支持的普通快捷键。", comment: "")
+            return
+        }
+        do {
+            for mode in studioDraft.modes where mode.key(for: .voice).voicePreset == .ahaTypeCloud {
+                try checkInlineVoiceReady(mode.key(for: .voice))
+            }
+        } catch { syncStatusMessage = error.localizedDescription; return }
         applyCursorRejectMacroSelfHealIfNeeded()
         isSyncing = true
         syncStatusMessage = "正在准备写入设备…"
@@ -5711,6 +5727,11 @@ private extension AhaKeyStudioView {
                 guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
                 inlineVoiceState = snapshot.onboardingState
                 let actual = snapshot.keys[Int(target.mode)]
+                guard StudioKeyWriteProposal.draft(from: actual, preserving: submitted) != nil else {
+                    inlineKeyFact = .init(deviceID: device, value: actual)
+                    inlineKeyMessage = NSLocalizedString("此动作无法在当前编辑器中完整表示，保持只读。", comment: "")
+                    inlineKeyTask = nil; return
+                }
                 guard actual == expected else {
                     var conflict = StudioInlineKeyConflict(deviceID: device, actual: actual, desired: desired)
                     conflict.voiceDraft = submitted; inlineKeyConflict = conflict
@@ -5737,13 +5758,13 @@ private extension AhaKeyStudioView {
             var wrote = false
             do {
                 let actual = try await inspectorSession.withConnection(expectedDeviceID: request.deviceID) { context in
-                    try await bleManager.changeVoiceModeConfirmed(baseline: request.baseline, target: request.target,
+                    try VoiceHandoffHost.backup(request.baseline)
+                    return try await bleManager.changeVoiceModeConfirmed(baseline: request.baseline, target: request.target,
                         expectedGeneration: context.generation,
                         checkHostReady: { try checkInlineVoiceReady(request.key) }, prepareHost: {
                             var keys = request.baseline.keys; keys[Int(request.target.mode)] = request.target
                             let prepared = try voiceConfiguration.afterGlobalExit(key: request.key, mode: mode,
                                 actual: .init(onboardingState: 3, keys: keys))
-                            try VoiceHandoffHost.backup(request.baseline)
                             pendingGlobalVoiceChange = true
                             try StudioVoiceConfigurationStore.save(prepared)
                             voiceConfiguration = prepared

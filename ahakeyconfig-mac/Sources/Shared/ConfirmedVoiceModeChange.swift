@@ -7,6 +7,7 @@ public enum ConfirmedVoiceModeChange {
     public static func run(baseline: VoiceHandoffSnapshot, target: OrdinaryKeyReadback,
                            checkSession: () throws -> Void, checkHostReady: () throws -> Void,
                            read: () async throws -> VoiceHandoffSnapshot,
+                           validateCurrentKey: (OrdinaryKeyReadback) throws -> Void,
                            prepareHost: () throws -> Void,
                            write: (Data) async throws -> Void) async throws -> VoiceHandoffSnapshot {
         guard baseline.isValid, target.mode < 4, target.keyIndex == 0,
@@ -27,6 +28,7 @@ public enum ConfirmedVoiceModeChange {
         let current = try await read()
         try Task.checkCancellation(); try checkSession()
         guard current == baseline else { throw ConfirmedVoiceHandoff.Failure.changedSinceRead }
+        try validateCurrentKey(current.keys[Int(target.mode)])
         let consumerActive = current.onboardingState == 2
         if !consumerActive {
             try checkHostReady(); try prepareHost()

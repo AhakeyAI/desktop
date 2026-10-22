@@ -418,7 +418,7 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
         case .codex:
             NSLocalizedString("规划中，保留入口。", comment: "")
         case .custom:
-            NSLocalizedString("适用于豆包、Typeless 等输入法；请与目标软件的快捷键设置一致。Fn/Globe 可在此选择。", comment: "")
+            NSLocalizedString("默认 Fn/Globe，可修改为其他快捷键，适用于豆包、Typeless 等输入法。", comment: "")
         }
     }
 

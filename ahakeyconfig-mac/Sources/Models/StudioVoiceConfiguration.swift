@@ -1,6 +1,20 @@
 import Foundation
 import AhaKeyConfigShared
 
+struct StudioVoiceReadOnlyBinding: Codable, Equatable {
+    let mode: UInt8
+    let actionType: UInt8
+    let action: Data
+    let description: Data
+    init(_ value: OrdinaryKeyReadback) {
+        mode = value.mode; actionType = value.actionType
+        action = value.action; description = value.description
+    }
+    var value: OrdinaryKeyReadback {
+        .init(mode: mode, keyIndex: 0, actionType: actionType, action: action, description: description)
+    }
+}
+
 /// Applied host routes are stored separately from the editable canvas. This is
 /// an installation preference, not a claim that a newly connected device has
 /// the same bindings. Device writes still require a fresh identified lease.
@@ -8,6 +22,7 @@ struct StudioVoiceConfiguration: Codable, Equatable {
     struct Entry: Codable, Equatable {
         let mode: AhaKeyModeSlot
         var key: AhaKeyKeyDraft
+        var readOnlyBinding: StudioVoiceReadOnlyBinding? = nil
     }
     private(set) var version = 1
     private(set) var entries: [Entry]
@@ -26,6 +41,14 @@ struct StudioVoiceConfiguration: Codable, Equatable {
         entries.allSatisfy { entry in
             guard entry.key.role == .voice, let preset = entry.key.voicePreset, preset.availableInV1,
                   let policy = entry.key.voiceProcessingPolicy else { return false }
+            if let readOnly = entry.readOnlyBinding {
+                let raw = readOnly.value
+                guard readOnly.mode == UInt8(entry.mode.rawValue),
+                      preset == .custom || preset == .systemDictation,
+                      raw.isKnownEditableAction, raw.description.count <= 20,
+                      11 + raw.action.count + raw.description.count <= 64,
+                      raw.actionType != 0 || raw.action.isEmpty else { return false }
+            }
             return (200...2_000).contains(policy.longPressThresholdMs)
         }
     }
@@ -61,6 +84,7 @@ struct StudioVoiceConfiguration: Codable, Equatable {
         }
         var next = self
         next.entries[index].key = key
+        next.entries[index].readOnlyBinding = nil
         guard next.isValid else { throw StudioVoiceConfigurationStore.Failure.invalidConfiguration }
         return key
     }
@@ -75,6 +99,36 @@ struct StudioVoiceConfiguration: Codable, Equatable {
         var next = self
         let index = next.entries.firstIndex { $0.mode == mode }!
         next.entries[index].key = prepared
+        next.entries[index].readOnlyBinding = nil
+        return next
+    }
+
+    func readOnlyBinding(for mode: AhaKeyModeSlot) -> OrdinaryKeyReadback? {
+        entries.first { $0.mode == mode }?.readOnlyBinding?.value
+    }
+
+    func observing(_ actual: VoiceHandoffSnapshot, consumer: Bool, excluding selected: AhaKeyModeSlot?) -> Self {
+        var next = self
+        for index in entries.indices where entries[index].mode != selected {
+            let mode = entries[index].mode
+            let raw = actual.keys[mode.rawValue]
+            if var imported = importing(raw, preserving: entries[index].key) {
+                if consumer { imported.voicePreset = .systemDictation }
+                else if imported.voicePreset == .systemDictation { imported.voicePreset = .custom }
+                next.entries[index].key = imported
+                next.entries[index].readOnlyBinding = nil
+            } else {
+                // Store the actual opaque bytes separately. The editable key is
+                // only a no-listener placeholder, never a confirmed old action.
+                var placeholder = entries[index].key
+                placeholder.voicePreset = consumer ? .systemDictation : .custom
+                placeholder.shortcut = ShortcutBinding()
+                placeholder.macro = []
+                placeholder.description = String(data: raw.description, encoding: .ascii) ?? ""
+                next.entries[index].key = placeholder
+                next.entries[index].readOnlyBinding = .init(raw)
+            }
+        }
         return next
     }
 
