@@ -129,3 +129,9 @@ BLE_tcp_bridge_v3/test-winrt.spec
 # Rust toolchain installer 不该入库
 rustup-init.exe
 
+
+# Studio 2 local outputs and restricted optional firmware inputs
+/artifacts/
+/.toolchain/
+/tests/**/TestResults/
+/src/AhaKey.Studio/FirmwarePackages/

@@ -1,0 +1,39 @@
+<UserControl x:Class="AhaKey.Studio.Views.LightingPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <StackPanel>
+  <TextBlock Text="{Binding L[Lighting]}" Style="{StaticResource PageTitle}"/>
+  <TextBlock Text="{Binding Gate}" Style="{StaticResource Secondary}" Margin="0,8,0,24"/>
+  <TextBlock Text="{Binding IntegrationStatus}" Style="{StaticResource Secondary}" Margin="0,0,0,16"/>
+  <StackPanel Visibility="{Binding HasIntegrations,Converter={StaticResource BoolVisibility}}">
+  <TextBlock Text="{Binding L[PhysicalFeedback]}" Style="{StaticResource SectionTitle}"/>
+  <ComboBox ItemsSource="{Binding Integrations}" SelectedItem="{Binding Integration}" HorizontalAlignment="Left" MinWidth="200" Margin="0,12,0,12" AutomationProperties.Name="{Binding L[Integrations]}"/>
+  <TextBlock Text="{Binding FeedbackState}" Style="{StaticResource SectionTitle}" Margin="0,0,0,12"/>
+  <CheckBox Content="{Binding L[PhysicalFeedbackEnable]}" IsChecked="{Binding FeedbackEnabled}" IsEnabled="{Binding CanEnableFeedback}"/>
+  </StackPanel>
+  <Button Content="{Binding L[ConfigureIntegrations]}" Command="{Binding ConfigureIntegrationsCommand}" HorizontalAlignment="Left" Margin="0,8,0,12"/>
+  <Button Content="{Binding L[ProductConnectUsb]}" Command="{Binding ConnectUsbCommand}" HorizontalAlignment="Left" Margin="0,12,0,0" Visibility="{Binding NeedsUsb,Converter={StaticResource BoolVisibility}}"/>
+  <TextBlock Text="{Binding L[PhysicalFeedbackPolicy]}" Style="{StaticResource Secondary}" Margin="0,8,0,0"/>
+  <StackPanel Margin="0,24,0,0">
+
+  <TextBlock Text="{Binding L[RuntimePreview]}" Style="{StaticResource SectionTitle}"/>
+  <WrapPanel Margin="0,12,0,8"><ComboBox ItemsSource="{Binding Effects}" SelectedItem="{Binding SelectedEffect}" DisplayMemberPath="Name" MinWidth="240" IsEnabled="{Binding CanPreview}" AutomationProperties.Name="{Binding L[RuntimeEffect]}" Margin="0,0,12,8"/><Button Content="{Binding L[PhysicalPreview]}" Command="{Binding PreviewCommand}" Margin="0,0,8,8"/><Button Content="{Binding L[LightingStopPreview]}" Command="{Binding StopPreviewCommand}" Margin="0,0,0,8"/></WrapPanel>
+  <TextBlock Text="{Binding L[RuntimePreviewHint]}" Style="{StaticResource Caption}" Margin="0,0,0,24"/>
+  <TextBlock Text="{Binding L[Brightness]}" Style="{StaticResource SectionTitle}"/>
+  <TextBlock Text="{Binding BrightnessValue}" Margin="0,8,0,8"/><Slider Minimum="1" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True" Value="{Binding BrightnessValue}" IsEnabled="{Binding CanConfigureLighting}" MaxWidth="440" HorizontalAlignment="Left" Width="400" AutomationProperties.Name="{Binding L[Brightness]}"/><Button Content="{Binding L[ProductApply]}" Command="{Binding ApplyBrightnessCommand}" HorizontalAlignment="Left" Margin="0,12,0,12"/>
+  <TextBlock Text="{Binding L[LightingPersistentNotice]}" Style="{StaticResource Secondary}" Margin="0,0,0,24"/>
+  <StackPanel Visibility="{Binding HasIntegrations,Converter={StaticResource BoolVisibility}}"><CheckBox Content="{Binding L[ProductAdvancedMapping]}" IsChecked="{Binding AdvancedMapping}" Margin="0,12,0,16"/>
+  <TextBlock Text="{Binding L[LightingRuntimeMapping]}" Style="{StaticResource SectionTitle}"/>
+  <TextBlock Text="{Binding ProfileName}" Style="{StaticResource Secondary}" Margin="0,6,0,16"/>
+  <ItemsControl ItemsSource="{Binding Events}"><ItemsControl.ItemTemplate><DataTemplate>
+   <Grid Margin="0,0,0,8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="240"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <TextBlock Text="{Binding Name}" Style="{StaticResource Body}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+    <ComboBox Grid.Column="1" ItemsSource="{Binding Effects}" SelectedItem="{Binding Selected}" DisplayMemberPath="Name" IsEnabled="{Binding Enabled}" AutomationProperties.Name="{Binding Name}"/>
+    <Button Grid.Column="2" Content="{Binding PreviewLabel}" Command="{Binding PreviewCommand}" Margin="12,0,0,0"/>
+   </Grid>
+  </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+  <Button Content="{Binding L[LightingApplyMapping]}" Command="{Binding ApplyMappingCommand}" HorizontalAlignment="Left" Margin="0,12,0,12"/></StackPanel>
+  <TextBlock Text="{Binding L[LightingPersistentNotice]}" Style="{StaticResource Caption}" Margin="0,8,0,24"/>
+  <TextBlock Text="{Binding FeedbackDiagnostics}" Style="{StaticResource Secondary}" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/>
+  </StackPanel>
+  <TextBlock Text="{Binding Message}" Style="{StaticResource Secondary}" Margin="0,12,0,0" AutomationProperties.LiveSetting="Polite"/>
+ </StackPanel>
+</UserControl>

@@ -1,0 +1,13 @@
+<Window x:Class="AhaKey.Studio.Views.PhysicalKeyTestWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Width="660" Height="460" MinWidth="560" MinHeight="420" WindowStartupLocation="CenterScreen" Background="{DynamicResource Surface}" Title="AhaKey Studio · Key Test">
+ <Border Background="{DynamicResource Surface}" Padding="28" TextElement.Foreground="{DynamicResource TextPrimary}"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <TextBlock Text="{Binding L[PhysicalKeyTest]}" Style="{StaticResource PageTitle}"/>
+  <TextBlock Grid.Row="1" Text="{Binding Instructions}" Style="{StaticResource Secondary}" Margin="0,12,0,20"/>
+  <TextBlock Grid.Row="2" Text="{Binding ExpectedText}" Style="{StaticResource SectionTitle}" Margin="0,0,0,16"/>
+  <Border Grid.Row="3" Background="{DynamicResource SurfaceRaised}" BorderBrush="{DynamicResource Border}" BorderThickness="1" Padding="20"><StackPanel>
+   <TextBlock Text="{Binding L[PhysicalCaptureHint]}" Style="{StaticResource Body}" Margin="0,0,0,12"/>
+   <TextBox x:Name="CaptureBox" IsReadOnly="True" Text="{Binding ObservedText,Mode=OneWay}" FontSize="20" MinHeight="48" AutomationProperties.Name="{Binding L[PhysicalObserved]}" PreviewKeyDown="CaptureKey"/>
+   <TextBlock x:Name="ResultText" Style="{StaticResource Body}" Margin="0,16,0,0" AutomationProperties.LiveSetting="Polite"/>
+  </StackPanel></Border>
+  <Button Grid.Row="4" Content="{Binding L[Close]}" Click="CloseClicked" HorizontalAlignment="Right" Margin="0,20,0,0"/>
+ </Grid></Border>
+</Window>

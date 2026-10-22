@@ -1,0 +1,31 @@
+<UserControl x:Class="AhaKey.Studio.Views.HomePage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="clr-namespace:AhaKey.Studio.Controls">
+ <StackPanel>
+  <TextBlock Text="{Binding L[Home]}" Style="{StaticResource PageTitle}"/>
+  <TextBlock Text="{Binding L[ChooseProfile]}" Style="{StaticResource Secondary}" Margin="0,4,0,16"/>
+  <TextBlock Text="{Binding L[FirstRun]}" Style="{StaticResource Body}" Foreground="{DynamicResource Focus}" Margin="0,0,0,16" Visibility="{Binding Profiles.IsFirstRun, Converter={StaticResource BoolVisibility}}"/>
+  <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="10" Padding="20" Margin="0,0,0,24" Visibility="{Binding ShowConnect, Converter={StaticResource BoolVisibility}}"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel Margin="0,0,20,0"><TextBlock Text="{Binding L[AlphaConnect]}" Style="{StaticResource CardTitle}"/><TextBlock Text="{Binding L[AlphaConnectHint]}" Style="{StaticResource SecondaryText}" Margin="0,8,0,0"/></StackPanel><Button Grid.Column="1" Content="{Binding L[AlphaConnect]}" Command="{Binding OpenDeviceCommand}" VerticalAlignment="Center"/></Grid></Border>
+  <TextBlock Text="{Binding HardwareProfile}" Style="{StaticResource Body}" Margin="0,0,0,8"/>
+  <TextBlock Text="{Binding L[HomeKeyCount]}" Style="{StaticResource Secondary}" Margin="0,0,0,12"/>
+  <ItemsControl ItemsSource="{Binding Profiles.Cards}" Margin="-8,0,-8,0"><ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><controls:ProfileCard Margin="8,0,8,16"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+  <Grid Margin="0,8,0,0" Visibility="{Binding Profiles.HasSelection, Converter={StaticResource BoolVisibility}}">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+   <StackPanel><TextBlock Text="{Binding Profiles.Selected.Name}" Style="{StaticResource SectionTitle}" Margin="0,0,0,12"/>
+    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <TextBlock Text="{Binding L[SummaryKeys]}" Style="{StaticResource Secondary}" Margin="0,0,16,8"/><TextBlock Grid.Column="1" Text="{Binding SummaryKeys}" Style="{StaticResource Body}"/>
+     <TextBlock Grid.Row="1" Text="{Binding L[SummaryDisplay]}" Style="{StaticResource Secondary}" Margin="0,0,16,8"/><TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SummaryDisplay}" Style="{StaticResource Body}"/>
+     <TextBlock Grid.Row="2" Text="{Binding L[SummaryLighting]}" Style="{StaticResource Secondary}" Margin="0,0,16,8"/><TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SummaryLighting}" Style="{StaticResource Body}"/>
+     <TextBlock Grid.Row="3" Text="{Binding L[SummaryIntegration]}" Style="{StaticResource Secondary}" Margin="0,0,16,0"/><TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding SummaryIntegration}" Style="{StaticResource Body}"/>
+    </Grid>
+    <TextBlock Text="{Binding DeviceStatusLabel}" Style="{StaticResource Secondary}" Margin="0,12,0,0"/>
+    <WrapPanel Margin="0,16,0,0"><Button Content="{Binding L[Keymap]}" Command="{Binding OpenProductPageCommand}" CommandParameter="Keymap" Margin="0,0,8,8"/><Button Content="{Binding L[Display]}" Command="{Binding OpenProductPageCommand}" CommandParameter="Display" Margin="0,0,8,8"/><Button Content="{Binding L[Integrations]}" Command="{Binding OpenProductPageCommand}" CommandParameter="Integrations" Margin="0,0,0,8"/></WrapPanel>
+   </StackPanel>
+   <controls:DevicePreview Grid.Column="2" MaxWidth="400" VerticalAlignment="Top"/>
+  </Grid>
+  <Expander Header="{Binding L[ProductProfileBehavior]}" Foreground="{DynamicResource TextPrimary}" Margin="0,20,0,0"><StackPanel Margin="0,12,0,0">
+  <CheckBox Content="{Binding L[ProductActivateProfile]}" IsChecked="{Binding ActivateHardwareProfile}" Margin="0,0,0,8"/>
+  <Button Content="{Binding L[ProductActivateNow]}" Command="{Binding ActivateSelectedCommand}" IsEnabled="{Binding ActivateHardwareProfile}" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+  <TextBlock Text="{Binding ProfileActivationStatus}" Style="{StaticResource Secondary}" Margin="0,0,0,16" AutomationProperties.LiveSetting="Polite"/>
+  </StackPanel></Expander>
+  <Border BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0" Padding="0,16,0,0" Margin="0,20,0,0"><StackPanel><TextBlock Text="{Binding L[RenameCustom]}" Style="{StaticResource Body}" FontWeight="SemiBold" Margin="0,0,0,8"/><Grid MaxWidth="680" HorizontalAlignment="Left"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBox MinWidth="160" Text="{Binding Profiles.CustomName, UpdateSourceTrigger=PropertyChanged}" MaxLength="48" AutomationProperties.Name="{Binding L[RenameCustom]}"/><Button Grid.Column="1" Content="{Binding L[Rename]}" Command="{Binding Profiles.RenameCommand}" Margin="12,0,0,0"/></Grid></StackPanel></Border>
+ </StackPanel>
+</UserControl>

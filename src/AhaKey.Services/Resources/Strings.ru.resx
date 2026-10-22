@@ -1,0 +1,942 @@
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <data name="AppTitle" xml:space="preserve">
+    <value>AhaKey Studio</value>
+  </data>
+  <data name="Home" xml:space="preserve">
+    <value>Профили</value>
+  </data>
+  <data name="Keymap" xml:space="preserve">
+    <value>Назначение клавиш</value>
+  </data>
+  <data name="Display" xml:space="preserve">
+    <value>Экран и анимации</value>
+  </data>
+  <data name="Lighting" xml:space="preserve">
+    <value>Подсветка</value>
+  </data>
+  <data name="Integrations" xml:space="preserve">
+    <value>Интеграции</value>
+  </data>
+  <data name="Device" xml:space="preserve">
+    <value>Устройство и прошивка</value>
+  </data>
+  <data name="Diagnostics" xml:space="preserve">
+    <value>Диагностика</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Настройки</value>
+  </data>
+  <data name="ChooseProfile" xml:space="preserve">
+    <value>Выберите профиль работы</value>
+  </data>
+  <data name="ProfileIntro" xml:space="preserve">
+    <value>Клавиши, экран и подсветка для каждого рабочего процесса.</value>
+  </data>
+  <data name="FirstRun" xml:space="preserve">
+    <value>Выберите профиль для начала работы. Его можно сменить в любой момент.</value>
+  </data>
+  <data name="Claude" xml:space="preserve">
+    <value>Claude</value>
+  </data>
+  <data name="Cursor" xml:space="preserve">
+    <value>Cursor</value>
+  </data>
+  <data name="Codex" xml:space="preserve">
+    <value>Codex</value>
+  </data>
+  <data name="Custom" xml:space="preserve">
+    <value>Свой профиль</value>
+  </data>
+  <data name="ClaudeDescription" xml:space="preserve">
+    <value>Отдельный профиль для Claude.</value>
+  </data>
+  <data name="CursorDescription" xml:space="preserve">
+    <value>Всё для рабочего процесса в Cursor.</value>
+  </data>
+  <data name="CodexDescription" xml:space="preserve">
+    <value>Профиль для работы с Codex.</value>
+  </data>
+  <data name="CustomDescription" xml:space="preserve">
+    <value>Для другого приложения или ваших задач.</value>
+  </data>
+  <data name="Selected" xml:space="preserve">
+    <value>Выбран</value>
+  </data>
+  <data name="Select" xml:space="preserve">
+    <value>Выбрать профиль</value>
+  </data>
+  <data name="CurrentProfile" xml:space="preserve">
+    <value>Текущий профиль</value>
+  </data>
+  <data name="NoProfile" xml:space="preserve">
+    <value>Профиль не выбран</value>
+  </data>
+  <data name="ProfileSummary" xml:space="preserve">
+    <value>Обзор профиля</value>
+  </data>
+  <data name="SummaryHint" xml:space="preserve">
+    <value>Локальный выбор. Смена профиля не записывает данные на физическое устройство.</value>
+  </data>
+  <data name="RenameCustom" xml:space="preserve">
+    <value>Название своего профиля</value>
+  </data>
+  <data name="Rename" xml:space="preserve">
+    <value>Переименовать локально</value>
+  </data>
+  <data name="NameInvalid" xml:space="preserve">
+    <value>Введите название от 1 до 48 символов.</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Язык</value>
+  </data>
+  <data name="Theme" xml:space="preserve">
+    <value>Оформление</value>
+  </data>
+  <data name="System" xml:space="preserve">
+    <value>Системный</value>
+  </data>
+  <data name="English" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="Russian" xml:space="preserve">
+    <value>Русский</value>
+  </data>
+  <data name="Chinese" xml:space="preserve">
+    <value>简体中文</value>
+  </data>
+  <data name="Light" xml:space="preserve">
+    <value>Светлая</value>
+  </data>
+  <data name="Dark" xml:space="preserve">
+    <value>Тёмная</value>
+  </data>
+  <data name="Backend" xml:space="preserve">
+    <value>Источник устройства для разработки</value>
+  </data>
+  <data name="Mock" xml:space="preserve">
+    <value>Mock-устройство · Симуляция</value>
+  </data>
+  <data name="Real" xml:space="preserve">
+    <value>Настоящий AhaKey</value>
+  </data>
+  <data name="UnavailablePhase1" xml:space="preserve">
+    <value>Недоступно на этапе 1</value>
+  </data>
+  <data name="SettingsHint" xml:space="preserve">
+    <value>Изменения применяются сразу и сохраняются только для AhaKey Studio.</value>
+  </data>
+  <data name="Simulation" xml:space="preserve">
+    <value>Симуляция</value>
+  </data>
+  <data name="SimulationNotice" xml:space="preserve">
+    <value>Только симуляция. Физическое устройство не подключается и не изменяется.</value>
+  </data>
+  <data name="Connect" xml:space="preserve">
+    <value>Подключить симулятор</value>
+  </data>
+  <data name="Disconnect" xml:space="preserve">
+    <value>Отключить симулятор</value>
+  </data>
+  <data name="Read" xml:space="preserve">
+    <value>Прочитать состояние симулятора</value>
+  </data>
+  <data name="Write" xml:space="preserve">
+    <value>Записать в AhaKey</value>
+  </data>
+  <data name="Synced" xml:space="preserve">
+    <value>Синхронизировано</value>
+  </data>
+  <data name="UnsavedChanges" xml:space="preserve">
+    <value>Есть изменения</value>
+  </data>
+  <data name="Writing" xml:space="preserve">
+    <value>Запись</value>
+  </data>
+  <data name="WriteAccepted" xml:space="preserve">
+    <value>Запись принята</value>
+  </data>
+  <data name="WriteFailed" xml:space="preserve">
+    <value>Ошибка записи</value>
+  </data>
+  <data name="Indeterminate" xml:space="preserve">
+    <value>Результат неизвестен</value>
+  </data>
+  <data name="Disconnected" xml:space="preserve">
+    <value>Отключено</value>
+  </data>
+  <data name="Connecting" xml:space="preserve">
+    <value>Подключение</value>
+  </data>
+  <data name="Connected" xml:space="preserve">
+    <value>Подключено</value>
+  </data>
+  <data name="ReadingConfiguration" xml:space="preserve">
+    <value>Чтение конфигурации</value>
+  </data>
+  <data name="WritingConfiguration" xml:space="preserve">
+    <value>Запись конфигурации</value>
+  </data>
+  <data name="Error" xml:space="preserve">
+    <value>Требуется переподключение</value>
+  </data>
+  <data name="Busy" xml:space="preserve">
+    <value>Устройство занято</value>
+  </data>
+  <data name="DeviceName" xml:space="preserve">
+    <value>AhaKey AE1E</value>
+  </data>
+  <data name="BatteryUnknown" xml:space="preserve">
+    <value>Заряд неизвестен</value>
+  </data>
+  <data name="FuturePhase" xml:space="preserve">
+    <value>Обзор основы. Редакторы появятся на следующих этапах.</value>
+  </data>
+  <data name="KeymapHint" xml:space="preserve">
+    <value>K1 сохраняет роль F18 / голосового ввода. Обычная запись настраивает K2–K4. Для действий на компьютере нужна проверка возможностей.</value>
+  </data>
+  <data name="KeySummary" xml:space="preserve">
+    <value>4 клавиши · с учётом возможностей</value>
+  </data>
+  <data name="DisplaySummary" xml:space="preserve">
+    <value>160 × 80 · четыре состояния</value>
+  </data>
+  <data name="LightingSummary" xml:space="preserve">
+    <value>9 событий · общая яркость</value>
+  </data>
+  <data name="K1Summary" xml:space="preserve"><value>K1    F18 / голос — редактирование закрыто</value></data>
+  <data name="K234Summary" xml:space="preserve">
+    <value>K2–K4    Конфигурация в симуляторе</value>
+  </data>
+  <data name="DisplayHint" xml:space="preserve">
+    <value>Локальный просмотр анимаций экрана. Загрузка на устройство недоступна, в том числе по USB.</value>
+  </data>
+  <data name="DisplayDimensions" xml:space="preserve">
+    <value>160 × 80 пикселей</value>
+  </data>
+  <data name="Default" xml:space="preserve">
+    <value>По умолчанию</value>
+  </data>
+  <data name="Working" xml:space="preserve">
+    <value>В работе</value>
+  </data>
+  <data name="WaitingError" xml:space="preserve">
+    <value>Ожидание / Ошибка</value>
+  </data>
+  <data name="Completed" xml:space="preserve">
+    <value>Завершено</value>
+  </data>
+  <data name="FrameCount" xml:space="preserve">
+    <value>Кадры</value>
+  </data>
+  <data name="SourceFile" xml:space="preserve">
+    <value>Исходный файл</value>
+  </data>
+  <data name="NoAsset" xml:space="preserve">
+    <value>Файл не выбран</value>
+  </data>
+  <data name="Duration" xml:space="preserve">
+    <value>Длительность анимации</value>
+  </data>
+  <data name="Optimization" xml:space="preserve">
+    <value>Оптимизация</value>
+  </data>
+  <data name="NotRequired" xml:space="preserve">
+    <value>Не требуется</value>
+  </data>
+  <data name="Pending" xml:space="preserve">
+    <value>Ожидает</value>
+  </data>
+  <data name="Optimized" xml:space="preserve">
+    <value>Оптимизировано</value>
+  </data>
+  <data name="GlobalBrightness" xml:space="preserve">
+    <value>Общая яркость</value>
+  </data>
+  <data name="BrightnessHint" xml:space="preserve">
+    <value>Единое значение для всех профилей в локальной конфигурации Studio.</value>
+  </data>
+  <data name="IntegrationsHint" xml:space="preserve">
+    <value>Связь с приложением — локальные данные. Обнаружение приложений, хуки и голос недоступны на этапе 1.</value>
+  </data>
+  <data name="DeviceHint" xml:space="preserve">
+    <value>Bluetooth, USB, прошивка и сброс недоступны на этапе 1.</value>
+  </data>
+  <data name="DiagnosticsHint" xml:space="preserve">
+    <value>Проверьте заданные сбои симулятора. После ошибки переподключитесь для чтения состояния.</value>
+  </data>
+  <data name="FailureScenario" xml:space="preserve">
+    <value>Следующий сбой симулятора</value>
+  </data>
+  <data name="None" xml:space="preserve">
+    <value>Без сбоя</value>
+  </data>
+  <data name="ConnectionFailure" xml:space="preserve">
+    <value>Ошибка подключения</value>
+  </data>
+  <data name="Timeout" xml:space="preserve">
+    <value>Таймаут</value>
+  </data>
+  <data name="WriteFailure" xml:space="preserve">
+    <value>Ошибка записи</value>
+  </data>
+  <data name="InvalidResponse" xml:space="preserve">
+    <value>Некорректный ответ</value>
+  </data>
+  <data name="DeviceBusy" xml:space="preserve">
+    <value>Устройство занято</value>
+  </data>
+  <data name="DisconnectDuringWrite" xml:space="preserve">
+    <value>Разрыв связи при записи</value>
+  </data>
+  <data name="ArmFailure" xml:space="preserve">
+    <value>Задать следующий сбой</value>
+  </data>
+  <data name="FailureArmed" xml:space="preserve">
+    <value>Сценарий задан. Выполните соответствующую операцию симулятора.</value>
+  </data>
+  <data name="Confirmation" xml:space="preserve">
+    <value>Переключатель подтверждения в симуляторе</value>
+  </data>
+  <data name="Manual" xml:space="preserve">
+    <value>Ручной</value>
+  </data>
+  <data name="Auto" xml:space="preserve">
+    <value>Автоматический</value>
+  </data>
+  <data name="SwitchHint" xml:space="preserve">
+    <value>Симуляция не подтверждает разрешение для ассистента.</value>
+  </data>
+  <data name="Telemetry" xml:space="preserve">
+    <value>Заряд в симуляторе</value>
+  </data>
+  <data name="Evidence" xml:space="preserve">
+    <value>Данные синхронизации</value>
+  </data>
+  <data name="ReadEvidence" xml:space="preserve">
+    <value>Последнее прочитанное состояние</value>
+  </data>
+  <data name="WriteEvidence" xml:space="preserve">
+    <value>Последняя принятая запись</value>
+  </data>
+  <data name="NoEvidence" xml:space="preserve">
+    <value>Данных пока нет</value>
+  </data>
+  <data name="MockEvidence" xml:space="preserve">
+    <value>Только данные симуляции</value>
+  </data>
+  <data name="Logs" xml:space="preserve">
+    <value>Журнал сеанса</value>
+  </data>
+  <data name="ClearLogsHint" xml:space="preserve">
+    <value>Технические идентификаторы событий ниже не переводятся.</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Закрыть</value>
+  </data>
+  <data name="About" xml:space="preserve">
+    <value>О приложении AhaKey Studio</value>
+  </data>
+  <data name="SettingsLoadError" xml:space="preserve">
+    <value>Не удалось прочитать настройки. Исходный файл сохранён; перезапись в этом сеансе отключена.</value>
+  </data>
+  <data name="SettingsSaveError" xml:space="preserve">
+    <value>Не удалось сохранить настройки. Проверьте доступ к папке настроек AhaKey Studio.</value>
+  </data>
+  <data name="ErrorConnectionFailure" xml:space="preserve">
+    <value>Не удалось подключить симулятор. Повторите подключение.</value>
+  </data>
+  <data name="ErrorTimeout" xml:space="preserve">
+    <value>Таймаут симулятора. Результат неизвестен; переподключитесь и прочитайте состояние.</value>
+  </data>
+  <data name="ErrorWriteFailure" xml:space="preserve">
+    <value>Симулятор отклонил запись. Черновик сохранён.</value>
+  </data>
+  <data name="ErrorInvalidResponse" xml:space="preserve">
+    <value>Симулятор вернул некорректный ответ. Переподключитесь.</value>
+  </data>
+  <data name="ErrorDeviceBusy" xml:space="preserve">
+    <value>Симулятор занят. Дождитесь завершения операции.</value>
+  </data>
+  <data name="ErrorDisconnectDuringWrite" xml:space="preserve">
+    <value>Симулятор отключился при записи. Результат неизвестен.</value>
+  </data>
+  <data name="ErrorCancelled" xml:space="preserve">
+    <value>Операция отменена. Результат начатой записи может быть неизвестен.</value>
+  </data>
+  <data name="ErrorNotReady" xml:space="preserve">
+    <value>Подключите симулятор перед чтением или записью.</value>
+  </data>
+  <data name="LightingHint">
+    <value>Настройки подсветки относятся к профилю, а яркость — ко всему устройству.</value>
+  </data>
+  <data name="RealUnavailableHint">
+    <value>Реальное устройство недоступно на этапе 1.</value>
+  </data>
+  <data name="Active">
+    <value>Активен</value>
+  </data>
+  <data name="CardSummary">
+    <value>4 клавиши · 4 состояния экрана</value>
+  </data>
+  <data name="SummaryKeys">
+    <value>Клавиши</value>
+  </data>
+  <data name="SummaryDisplay">
+    <value>Экран</value>
+  </data>
+  <data name="SummaryLighting">
+    <value>Подсветка</value>
+  </data>
+  <data name="SummaryIntegration">
+    <value>Интеграция</value>
+  </data>
+  <data name="KeySlots">
+    <value>4 клавиши</value>
+  </data>
+  <data name="DisplayStates">
+    <value>4 состояния</value>
+  </data>
+  <data name="LightingEvents">
+    <value>9 событий</value>
+  </data>
+  <data name="NoIntegration">
+    <value>Не назначена</value>
+  </data>
+  <data name="Configuration">
+    <value>Конфигурация</value>
+  </data>
+  <data name="Battery">
+    <value>Заряд</value>
+  </data>
+  <data name="DevicePreviewTitle">
+    <value>Обзор устройства</value>
+  </data>
+  <data name="PreviewOnly">
+    <value>Визуальный обзор · элементы пока не интерактивны</value>
+  </data>
+  <data name="CurrentHardware">
+    <value>Актуальное устройство AhaKey</value>
+  </data>
+  <data name="Key1">
+    <value>K1</value>
+  </data>
+  <data name="Key2">
+    <value>K2</value>
+  </data>
+  <data name="Key3">
+    <value>K3</value>
+  </data>
+  <data name="Key4">
+    <value>K4</value>
+  </data>
+  <data name="RgbRegion">
+    <value>RGB-подсветка</value>
+  </data>
+  <data name="DisplayRegion">
+    <value>Цветной IPS-экран 0,96 дюйма</value>
+  </data>
+  <data name="SwitchRegion">
+    <value>Переключатель подтверждения</value>
+  </data>
+  <data name="DisplayResolution">
+    <value>160 × 80</value>
+  </data>
+  <data name="NoSource">
+    <value>Нет файла</value>
+  </data>
+  <data name="DisplayPreviewOnly">
+    <value>Только обзор · физическая загрузка недоступна</value>
+  </data>
+  <data name="KeymapEditorHint" xml:space="preserve"><value>Выберите клавишу на AhaKey и настройте сочетание.</value></data>
+  <data name="SelectPhysicalKey" xml:space="preserve"><value>Выбор физической клавиши</value></data>
+  <data name="SelectKeyHint" xml:space="preserve"><value>Выберите K1–K4 · навигация: Tab и стрелки.</value></data>
+  <data name="SimulatorConfiguration" xml:space="preserve"><value>Конфигурация симулятора · не считана с физической клавиатуры.</value></data>
+  <data name="VoiceRole" xml:space="preserve"><value>Голос / F18</value></data>
+  <data name="KeyboardShortcut" xml:space="preserve"><value>Сочетание клавиш</value></data>
+  <data name="K1Restriction" xml:space="preserve"><value>Голосовая F18 под управлением прошивки. Действие на ПК настраивается в Настройках; обычное переназначение недоступно.</value></data>
+  <data name="LocalName" xml:space="preserve"><value>Локальное имя</value></data>
+  <data name="LocalNameHint" xml:space="preserve"><value>Только Studio · Unicode · сохраняется локально</value></data>
+  <data name="DeviceLabel" xml:space="preserve"><value>Подпись на устройстве</value></data>
+  <data name="Ascii20" xml:space="preserve"><value>ASCII · максимум 20 символов</value></data>
+  <data name="DeviceLabelInvalid" xml:space="preserve"><value>Допустимы до 20 печатных ASCII-символов. Текст не обрезается и не заменяется.</value></data>
+  <data name="RecordShortcut" xml:space="preserve"><value>Записать сочетание</value></data>
+  <data name="Clear" xml:space="preserve"><value>Очистить</value></data>
+  <data name="ClearMockHint" xml:space="preserve"><value>Очистка только в симуляторе: отключение действия в прошивке не подтверждено.</value></data>
+  <data name="PressShortcut" xml:space="preserve"><value>Нажмите нужное сочетание…</value></data>
+  <data name="CancelCapture" xml:space="preserve"><value>Отменить запись</value></data>
+  <data name="CaptureHint" xml:space="preserve"><value>Запись работает в активном окне. Escape можно записать; для отмены есть кнопка. Системные сочетания может перехватить Windows. Очистка действует только в симуляторе.</value></data>
+  <data name="TestAction" xml:space="preserve"><value>Проверить действие</value></data>
+  <data name="ResetDraft" xml:space="preserve"><value>Сбросить правки клавиши</value></data>
+  <data name="Advanced" xml:space="preserve"><value>Дополнительно</value></data>
+  <data name="HardwareProfileId" xml:space="preserve"><value>ID аппаратного профиля</value></data>
+  <data name="PhysicalKeyIndex" xml:space="preserve"><value>Клавиша / индекс</value></data>
+  <data name="ActionType" xml:space="preserve"><value>Тип действия</value></data>
+  <data name="EncodedPreview" xml:space="preserve"><value>Предпросмотр байтов</value></data>
+  <data name="K1Evidence" xml:space="preserve"><value>Windows-код поддерживает индекс 0. Тест F19/F18 получил ACK, но наблюдался только F18. Это не доказывает аппаратную неизменяемость K1.</value></data>
+  <data name="EncodingEvidence" xml:space="preserve"><value>Кодирование по исходникам обычной записи Windows; не захват с устройства. Только чтение.</value></data>
+  <data name="UnsupportedActions" xml:space="preserve"><value>Редакторы макросов и интеграций недоступны. Отключение действия — только в симуляторе. экран, RGB и переключатель вне этого этапа.</value></data>
+  <data name="WouldSend" xml:space="preserve"><value>Было бы отправлено:</value></data>
+  <data name="NoShortcut" xml:space="preserve"><value>Нет сочетания · только симулятор</value></data>
+  <data name="FutureAction" xml:space="preserve"><value>Действие недоступно в этом редакторе</value></data>
+  <data name="InvalidShortcut" xml:space="preserve"><value>Клавиша не поддерживается. Выберите другое сочетание или отмените запись.</value></data>
+  <data name="WrittenSimulator" xml:space="preserve"><value>Конфигурация записана в симулятор и проверена.</value></data>
+  <data name="WrittenOlderDraft" xml:space="preserve"><value>Предыдущий черновик записан в симулятор. Новые правки ещё не сохранены.</value></data>
+  <data name="InvalidLabelElsewhere" xml:space="preserve"><value>В одном из профилей неверная подпись. Исправьте её перед записью.</value></data>
+  <data name="BleReadOnlyMode" xml:space="preserve"><value>Устройство · только чтение</value></data>
+  <data name="BleLocalDraft" xml:space="preserve"><value>Локальная конфигурация Studio</value></data>
+  <data name="BleDraftOnly" xml:space="preserve"><value>Записывайте клавиши в разделе «Клавиши», изображение — в разделе «Экран». Локальные настройки сохраняются в Studio.</value></data>
+  <data name="BleReadOnly" xml:space="preserve"><value>Статус подключения не означает чтение настроек клавиш.</value></data>
+  <data name="BleStartupPolicy" xml:space="preserve"><value>Studio подключается только к выбранному AhaKey: не более двух попыток. «Отключить» останавливает подключение; «Забыть» удаляет выбранное устройство.</value></data>
+  <data name="BleDeviceHint" xml:space="preserve"><value>Подключите AhaKey и просмотрите его состояние.</value></data>
+  <data name="BleChoose" xml:space="preserve"><value>Выбранное Bluetooth-устройство</value></data>
+  <data name="BleFind" xml:space="preserve"><value>Найти устройства</value></data>
+  <data name="BleConnect" xml:space="preserve"><value>Подключить</value></data>
+  <data name="BleDisconnect" xml:space="preserve"><value>Отключить / отменить</value></data>
+  <data name="BleReconnect" xml:space="preserve"><value>Переподключить</value></data>
+  <data name="BleRefresh" xml:space="preserve"><value>Обновить статус</value></data>
+  <data name="BleConnection" xml:space="preserve"><value>Подключение</value></data>
+  <data name="BleFirmware" xml:space="preserve"><value>Сообщаемая версия прошивки</value></data>
+  <data name="BleProtocol" xml:space="preserve"><value>Протокол</value></data>
+  <data name="BleModel" xml:space="preserve"><value>Модель устройства</value></data>
+  <data name="BleHardware" xml:space="preserve"><value>Ревизия платы</value></data>
+  <data name="BleContract" xml:space="preserve"><value>Контракт протокола</value></data>
+  <data name="BleSupported" xml:space="preserve"><value>Распознан · только чтение</value></data>
+  <data name="BleUnsupported" xml:space="preserve"><value>Контракт не подтверждён</value></data>
+  <data name="BlePhysicalProfile" xml:space="preserve"><value>Профиль устройства: байт 00</value></data>
+  <data name="BleDiagnostics" xml:space="preserve"><value>Диагностика подключения</value></data>
+  <data name="BleDiagnosticsHint" xml:space="preserve"><value>Данные подключения выбранного транспорта. При копировании идентификаторы устройства скрываются.</value></data>
+  <data name="BleCopy" xml:space="preserve"><value>Копировать диагностику</value></data>
+  <data name="BleCopied" xml:space="preserve"><value>Скопировано · ID скрыты</value></data>
+  <data name="BleUnknown" xml:space="preserve"><value>Неизвестно</value></data>
+  <data name="BleUnavailable" xml:space="preserve"><value>Недоступно</value></data>
+  <data name="BleLive" xml:space="preserve"><value>Текущая сессия · последний ответ</value></data>
+  <data name="BleStale" xml:space="preserve"><value>Устаревшие данные</value></data>
+  <data name="BleYes" xml:space="preserve"><value>Да</value></data>
+  <data name="BleNo" xml:space="preserve"><value>Нет</value></data>
+  <data name="BleNone" xml:space="preserve"><value>Не зафиксировано</value></data>
+  <data name="BleAdapter" xml:space="preserve"><value>Адаптер Windows</value></data>
+  <data name="BleAdapterState" xml:space="preserve"><value>Состояние адаптера</value></data>
+  <data name="BleAdapterOn" xml:space="preserve"><value>Включён</value></data>
+  <data name="BleAdapterOff" xml:space="preserve"><value>Выключен</value></data>
+  <data name="BleAdapterDisabled" xml:space="preserve"><value>Отключён</value></data>
+  <data name="BleAdapterUnknown" xml:space="preserve"><value>Неизвестно</value></data>
+  <data name="BleAdapterUnavailable" xml:space="preserve"><value>Адаптер Bluetooth недоступен. Включите Bluetooth и повторите поиск.</value></data>
+  <data name="BleDeviceId" xml:space="preserve"><value>ID устройства Windows</value></data>
+  <data name="BleAddress" xml:space="preserve"><value>Адрес Bluetooth</value></data>
+  <data name="BleNative" xml:space="preserve"><value>Соединение Windows</value></data>
+  <data name="BleSubscribed" xml:space="preserve"><value>Уведомления подключены</value></data>
+  <data name="BleSession" xml:space="preserve"><value>ID сессии</value></data>
+  <data name="BleWindowsRssi" xml:space="preserve"><value>Windows RSSI</value></data>
+  <data name="BleFirmwareSignal" xml:space="preserve"><value>Сигнал прошивки (единицы не подтверждены)</value></data>
+  <data name="BleBrightness" xml:space="preserve"><value>Яркость из ответа</value></data>
+  <data name="BleReadiness" xml:space="preserve"><value>Флаги готовности</value></data>
+  <data name="BleBits" xml:space="preserve"><value>Биты возможностей</value></data>
+  <data name="BleLastQuery" xml:space="preserve"><value>Последний запрос</value></data>
+  <data name="BleTx" xml:space="preserve"><value>Последний кадр TX</value></data>
+  <data name="BleGattResult" xml:space="preserve"><value>Результат записи GATT</value></data>
+  <data name="BleRx" xml:space="preserve"><value>Последний кадр RX</value></data>
+  <data name="BleTiming" xml:space="preserve"><value>Время запроса</value></data>
+  <data name="BleReconnectAttempt" xml:space="preserve"><value>Попытка подключения (макс. 2)</value></data>
+  <data name="BleLastError" xml:space="preserve"><value>Последняя ошибка подключения</value></data>
+  <data name="BleTransport" xml:space="preserve"><value>Данные транспорта</value></data>
+  <data name="BleCatalog" xml:space="preserve"><value>Обнаруженные UUID GATT</value></data>
+  <data name="UsbCatalog" xml:space="preserve"><value>Обнаруженные HID-интерфейсы</value></data>
+  <data name="BleHistory" xml:space="preserve"><value>Журнал сессий · последние 64 события</value></data>
+  <data name="BleStageDisconnected" xml:space="preserve"><value>Отключено</value></data>
+  <data name="BleStageDiscovering" xml:space="preserve"><value>Поиск устройств…</value></data>
+  <data name="BleStageAcquiringLink" xml:space="preserve"><value>Подключение…</value></data>
+  <data name="BleStageDiscoveringGatt" xml:space="preserve"><value>Чтение GATT…</value></data>
+  <data name="BleStageSubscribing" xml:space="preserve"><value>Подписка на уведомления…</value></data>
+  <data name="BleStageReadingStatus" xml:space="preserve"><value>Чтение состояния устройства…</value></data>
+  <data name="BleStageReadingCapabilities" xml:space="preserve"><value>Чтение возможностей…</value></data>
+  <data name="BleStageReady" xml:space="preserve"><value>Подключено · ответы проверены</value></data>
+  <data name="BleStageReconnecting" xml:space="preserve"><value>Переподключение…</value></data>
+  <data name="BleStageDisconnecting" xml:space="preserve"><value>Отключение…</value></data>
+  <data name="BleStageError" xml:space="preserve"><value>Ошибка подключения</value></data>
+  <data name="BleGattFailure" xml:space="preserve"><value>Ошибка Windows GATT. Проверьте диагностику и повторите подключение.</value></data>
+  <data name="BleUnsupportedGatt" xml:space="preserve"><value>Нужный сервис или характеристика GATT отсутствует. Выберите совместимое устройство.</value></data>
+  <data name="BleLinkLost" xml:space="preserve"><value>Связь Bluetooth потеряна. Включите устройство и переподключитесь.</value></data>
+  <data name="BleQueryTimeout" xml:space="preserve"><value>Нет ответа на запрос. Сессия закрыта; подключитесь повторно.</value></data>
+  <data name="BleSelectDevice" xml:space="preserve"><value>Найдите и выберите устройство перед подключением.</value></data>
+  <data name="BleNotReady" xml:space="preserve"><value>BLE не готов. Подключитесь в разделе «Устройство и прошивка».</value></data>
+  <data name="BleNativeFailure" xml:space="preserve"><value>Ошибка Windows Bluetooth. Проверьте диагностику и повторите подключение.</value></data>
+  <data name="BleAcquireFailure" xml:space="preserve"><value>Windows не открыл устройство. Проверьте Bluetooth и повторите подключение.</value></data>
+  <data name="BleInvalidResponse" xml:space="preserve"><value>Формат ответа не поддерживается. Сессия закрыта.</value></data>
+  <data name="BleCopyFailed" xml:space="preserve"><value>Буфер обмена занят. Повторите копирование.</value></data>
+<data name="BleIdentityHidden" xml:space="preserve"><value>Скрыто для публикации</value></data>
+<data name="BleCaptureHint" xml:space="preserve"><value>Запись работает в активном окне. Escape можно записать; для отмены есть кнопка. Системные сочетания может перехватить Windows.</value></data>
+<data name="BleUnsetDraft" xml:space="preserve"><value>В локальном черновике нет сочетания</value></data>
+  <data name="BleLegacyIncomplete" xml:space="preserve"><value>Старый / неполный</value></data>
+  <data name="BleCapabilities" xml:space="preserve"><value>Возможности</value></data>
+  <data name="BleNotReported" xml:space="preserve"><value>Не сообщены</value></data>
+  <data name="AlphaConnected" xml:space="preserve"><value>Подключено по Bluetooth</value></data>
+  <data name="AlphaUnavailable" xml:space="preserve"><value>Устройство недоступно</value></data>
+  <data name="AlphaBluetoothUnavailable" xml:space="preserve"><value>Bluetooth недоступен</value></data>
+  <data name="AlphaWriteUnavailable" xml:space="preserve"><value>Запись всего профиля недоступна</value></data>
+  <data name="AlphaDeveloper" xml:space="preserve"><value>Режим разработчика</value></data>
+  <data name="AlphaConnect" xml:space="preserve"><value>Подключить AhaKey</value></data>
+  <data name="AlphaConnectHint" xml:space="preserve"><value>Работайте с локальными профилями, пока Studio подключается к клавиатуре.</value></data>
+  <data name="AlphaPickerHint" xml:space="preserve"><value>Выберите AhaKey и нажмите «Подключить». В списке может быть сохранённое устройство, которое сейчас выключено.</value></data>
+  <data name="AlphaForget" xml:space="preserve"><value>Забыть устройство</value></data>
+  <data name="AlphaConfiguration" xml:space="preserve"><value>Конфигурация</value></data>
+  <data name="AlphaNoReadback" xml:space="preserve"><value>Чтение конфигурации недоступно</value></data>
+  <data name="AlphaFirmwareUpdate" xml:space="preserve"><value>Обновление прошивки</value></data>
+  <data name="AlphaNoUpdate" xml:space="preserve"><value>Нет проверенного совместимого обновления</value></data>
+  <data name="AlphaNoUpdateHint" xml:space="preserve"><value>Проверенного совместимого обновления прошивки нет.</value></data>
+  <data name="AlphaLastTelemetry" xml:space="preserve"><value>Последняя телеметрия</value></data>
+  <data name="AlphaCompatibility" xml:space="preserve"><value>Состояние совместимости</value></data>
+  <data name="AlphaGattReady" xml:space="preserve"><value>GATT готов</value></data>
+  <data name="DraftLoadError" xml:space="preserve"><value>Не удалось загрузить локальный черновик. Исходный файл сохранён.</value></data>
+  <data name="DraftSaveError" xml:space="preserve"><value>Не удалось сохранить черновик. Проверьте доступ к папке настроек Studio.</value></data>
+<data name="AlphaDeviceName" xml:space="preserve"><value>Устройство</value></data>
+<data name="AlphaTransport" xml:space="preserve"><value>Транспорт</value></data>
+<data name="AlphaPhysicalMode" xml:space="preserve"><value>Режим устройства</value></data>
+<data name="AlphaConfirmation" xml:space="preserve"><value>Переключатель подтверждения</value></data>
+<data name="AlphaReconnectHint" xml:space="preserve"><value>Устройство недоступно. Убедитесь, что оно включено и находится рядом, затем подключитесь повторно.</value></data>
+<data name="AlphaLastStatus" xml:space="preserve"><value>Последний запрос статуса</value></data>
+  <data name="UsbDeviceName" xml:space="preserve"><value>Устройство AhaKey USB</value></data>
+  <data name="UsbExplicitHint" xml:space="preserve"><value>USB подключается только по кнопке «Подключить». При смене транспорта предыдущее соединение закрывается.</value></data>
+  <data name="UsbIdentified" xml:space="preserve"><value>USB-интерфейс определён. Можно подключаться.</value></data>
+  <data name="UsbNotFound" xml:space="preserve"><value>USB-интерфейс AhaKey не найден. Проверьте кабель и повторите поиск.</value></data>
+  <data name="UsbAmbiguous" xml:space="preserve"><value>USB-интерфейс неоднозначен. Отключите другие AhaKey USB и повторите поиск. Подробности — в диагностике.</value></data>
+  <data name="UsbUnidentified" xml:space="preserve"><value>USB-устройство найдено, но интерфейс не удалось достоверно определить. Откройте диагностику.</value></data>
+  <data name="UsbConnected" xml:space="preserve"><value>Подключено по USB</value></data>
+  <data name="UsbReader" xml:space="preserve"><value>Чтение USB</value></data>
+  <data name="UsbReaderRunning" xml:space="preserve"><value>Работает</value></data>
+  <data name="UsbReaderStopped" xml:space="preserve"><value>Остановлено; дескрипторы освобождены</value></data>
+  <data name="UsbCollection" xml:space="preserve"><value>HID-коллекция / usage</value></data>
+  <data name="UsbLengths" xml:space="preserve"><value>Размеры нативных отчётов (байт)</value></data>
+  <data name="UsbReportPolicy" xml:space="preserve"><value>Правило Report ID</value></data>
+  <data name="UsbReportPolicyValue" xml:space="preserve"><value>ID 00 + 64 байта данных; 65 байт для Windows. Без запасного формата.</value></data>
+  <data name="UsbOutput" xml:space="preserve"><value>Последний выходной HID-отчёт</value></data>
+  <data name="UsbInput" xml:space="preserve"><value>Последний входной HID-отчёт</value></data>
+  <data name="UsbFrame" xml:space="preserve"><value>Выделенный кадр устройства</value></data>
+  <data name="UsbWriteResult" xml:space="preserve"><value>Результат передачи / число байтов</value></data>
+  <data name="UsbOpenFailed" xml:space="preserve"><value>Не удалось открыть USB. Проверьте кабель или закройте другое ПО устройства и подключитесь снова.</value></data>
+  <data name="UsbNotReady" xml:space="preserve"><value>USB не готов. Сначала подключите устройство.</value></data>
+  <data name="UsbEnumerationFailed" xml:space="preserve"><value>Не удалось выполнить поиск USB. Повторите поиск или откройте диагностику.</value></data>
+  <data name="UsbReadFailed" xml:space="preserve"><value>Не удалось прочитать ответ USB. Подключитесь заново вручную.</value></data>
+  <data name="UsbWriteFailed" xml:space="preserve"><value>USB-запрос передан не полностью. Сессия закрыта; подключитесь вручную.</value></data>
+  <data name="UsbLinkLost" xml:space="preserve"><value>USB-соединение потеряно. Проверьте кабель и подключитесь снова.</value></data>
+  <data name="UsbTimeout" xml:space="preserve"><value>Время ожидания USB-ответа истекло. Сессия закрыта; автоматического повтора нет.</value></data>
+  <data name="UsbReadOnly" xml:space="preserve"><value>В этой сборке по USB доступны только запросы состояния.</value></data>
+  <data name="IntegrationIntro" xml:space="preserve"><value>Подключите события помощников к Studio. Отклик подсветкой включается отдельно на странице «Подсветка» и по умолчанию выключен.</value></data>
+  <data name="IntegrationInstalled" xml:space="preserve"><value>Установлено</value></data>
+  <data name="IntegrationConfigured" xml:space="preserve"><value>Настроено</value></data>
+  <data name="IntegrationEnabled" xml:space="preserve"><value>Включено</value></data>
+  <data name="IntegrationTrusted" xml:space="preserve"><value>Доверие</value></data>
+  <data name="IntegrationCompatible" xml:space="preserve"><value>Совместимо</value></data>
+  <data name="EvidenceYes" xml:space="preserve"><value>Да</value></data>
+  <data name="EvidenceNo" xml:space="preserve"><value>Нет</value></data>
+  <data name="EvidenceUnknown" xml:space="preserve"><value>Неизвестно</value></data>
+  <data name="EvidenceNotRequired" xml:space="preserve"><value>Не требуется</value></data>
+  <data name="IntegrationUnknownVersion" xml:space="preserve"><value>Версия не определена</value></data>
+  <data name="IntegrationActivity" xml:space="preserve"><value>Состояние</value></data>
+  <data name="IntegrationLastActivity" xml:space="preserve"><value>Последняя активность</value></data>
+  <data name="IntegrationNoActivity" xml:space="preserve"><value>Событий пока нет</value></data>
+  <data name="IntegrationServiceRunning" xml:space="preserve"><value>Служба событий работает</value></data>
+  <data name="IntegrationServiceStopped" xml:space="preserve"><value>Служба событий остановлена</value></data>
+  <data name="IntegrationRefresh" xml:space="preserve"><value>Обновить статусы</value></data>
+  <data name="IntegrationStartService" xml:space="preserve"><value>Запустить службу</value></data>
+  <data name="IntegrationStopService" xml:space="preserve"><value>Остановить службу</value></data>
+  <data name="IntegrationPortCollision" xml:space="preserve"><value>Не удалось запустить службу: порт 8765 занят. Закройте другую службу событий и повторите запуск.</value></data>
+  <data name="IntegrationNoError" xml:space="preserve"><value>Ошибок нет</value></data>
+  <data name="IntegrationUnsafeConfig" xml:space="preserve"><value>Существующую конфигурацию нельзя безопасно изменить. Проверьте её формат.</value></data>
+  <data name="IntegrationKimiBlocked" xml:space="preserve"><value>Kimi недоступен: Windows-исходники не подтверждают безопасный формат настройки.</value></data>
+  <data name="IntegrationInspectFailed" xml:space="preserve"><value>Не удалось проверить статус. Повторите обновление.</value></data>
+  <data name="IntegrationApplyFailed" xml:space="preserve"><value>Изменения не завершены. Если редактирование началось, резервная копия сохранена. Обновите статус и проверьте изменения заново.</value></data>
+  <data name="IntegrationChangesSaved" xml:space="preserve"><value>Записи AhaKey обновлены. Резервная копия:</value></data>
+  <data name="IntegrationBack" xml:space="preserve"><value>Закрыть сведения</value></data>
+  <data name="IntegrationConfigFiles" xml:space="preserve"><value>Файлы конфигурации</value></data>
+  <data name="IntegrationLastEvent" xml:space="preserve"><value>Последнее событие</value></data>
+  <data name="IntegrationTrustHint" xml:space="preserve"><value>Установка добавляет hooks AhaKey, а не сам помощник. Существующие hooks сохраняются. Доверие и включение hooks Codex задаются в самом Codex; затем обновите статус здесь.</value></data>
+  <data name="IntegrationInstall" xml:space="preserve"><value>Установить интеграцию</value></data>
+  <data name="IntegrationConfigure" xml:space="preserve"><value>Настроить</value></data>
+  <data name="IntegrationRepair" xml:space="preserve"><value>Восстановить</value></data>
+  <data name="IntegrationRemove" xml:space="preserve"><value>Удалить записи AhaKey</value></data>
+  <data name="IntegrationReviewChanges" xml:space="preserve"><value>Проверка изменений</value></data>
+  <data name="IntegrationPlanHint" xml:space="preserve"><value>Изменятся только указанные скрипты и hooks AhaKey. Остальные настройки сохранятся. Перед атомарной заменой создаются резервные копии. Настройки доверия автоматически не меняются.</value></data>
+  <data name="IntegrationApply" xml:space="preserve"><value>Применить изменения</value></data>
+  <data name="IntegrationOwnedScript" xml:space="preserve"><value>Создать или восстановить клиент событий AhaKey.</value></data>
+  <data name="IntegrationAddEntries" xml:space="preserve"><value>Добавить или восстановить записи событий AhaKey.</value></data>
+  <data name="IntegrationRemoveEntries" xml:space="preserve"><value>Удалить только точные команды событий Studio 2.</value></data>
+  <data name="IntegrationDiagnostics" xml:space="preserve"><value>Диагностика событий</value></data>
+  <data name="IntegrationMetadataOnly" xml:space="preserve"><value>Последние 100 событий: только метаданные. Запросы, аргументы инструментов и ответы помощников не сохраняются.</value></data>
+  <data name="IntegrationHardwareAuto" xml:space="preserve"><value>Разрешить аппаратное AUTO в этом сеансе</value></data>
+  <data name="IntegrationHardwareAutoHint" xml:space="preserve"><value>По умолчанию выключено. Автоматическое разрешение требует нового ответа подключённого устройства с переключателем AUTO. Недоступные или устаревшие данные не дают разрешения.</value></data>
+  <data name="IntegrationPermission" xml:space="preserve"><value>Запрос разрешения</value></data>
+  <data name="IntegrationAllow" xml:space="preserve"><value>Разрешить</value></data>
+  <data name="IntegrationDeny" xml:space="preserve"><value>Отклонить</value></data>
+  <data name="IntegrationApprovalHint" xml:space="preserve"><value>Разрешайте событие только если узнаёте его в указанном приложении. Через 15 секунд окно закроется без разрешения. Текст запроса и аргументы инструмента здесь недоступны.</value></data>
+  <data name="ActivityIdle" xml:space="preserve"><value>Ожидание</value></data>
+  <data name="ActivitySessionActive" xml:space="preserve"><value>Сеанс активен</value></data>
+  <data name="ActivityWorking" xml:space="preserve"><value>Работает</value></data>
+  <data name="ActivityWaitingForPermission" xml:space="preserve"><value>Ожидает разрешения</value></data>
+  <data name="ActivityToolExecuting" xml:space="preserve"><value>Выполнение инструмента</value></data>
+  <data name="ActivityCompleted" xml:space="preserve"><value>Завершено</value></data>
+  <data name="ActivityStopped" xml:space="preserve"><value>Остановлено</value></data>
+  <data name="ActivityError" xml:space="preserve"><value>Требует внимания</value></data>
+  <data name="EventResultreceived" xml:space="preserve"><value>Получено</value></data>
+  <data name="EventResultpending" xml:space="preserve"><value>Ожидает решения</value></data>
+  <data name="EventResultallowed" xml:space="preserve"><value>Разрешено</value></data>
+  <data name="EventResultdenied" xml:space="preserve"><value>Отклонено пользователем</value></data>
+  <data name="EventResultunavailable" xml:space="preserve"><value>Разрешение недоступно</value></data>
+  <data name="EventResulttimeout" xml:space="preserve"><value>Время истекло</value></data>
+  <data name="EventResultbusy" xml:space="preserve"><value>Уже есть активный запрос</value></data>
+  <data name="EventResultcancelled" xml:space="preserve"><value>Отменено</value></data>
+<data name="Cancel" xml:space="preserve"><value>Отмена</value></data>
+<data name="IntegrationDetails" xml:space="preserve"><value>Подробнее</value></data>
+<data name="IntegrationNoChanges" xml:space="preserve"><value>Изменения не требуются. Собственная конфигурация уже соответствует действию.</value></data>
+<data name="IntegrationEntryCount" xml:space="preserve"><value>Собственных записей</value></data>
+<data name="PhysicalKeyTest" xml:space="preserve"><value>Проверка физической клавиши</value></data>
+<data name="PhysicalPressDevice" xml:space="preserve"><value>Нажмите запрограммированную клавишу на AhaKey</value></data>
+<data name="PhysicalReadbackUnavailable" xml:space="preserve"><value>Studio хранит подтверждения записи. Прочитать сохранённые настройки с клавиатуры нельзя.</value></data>
+<data name="PhysicalExpected" xml:space="preserve"><value>Ожидается</value></data>
+<data name="PhysicalObserved" xml:space="preserve"><value>Получено</value></data>
+<data name="PhysicalCaptureHint" xml:space="preserve"><value>Оставьте фокус в этом поле. Нажмите клавишу AhaKey, не клавиатуры ПК.</value></data>
+<data name="PhysicalWaitingKey" xml:space="preserve"><value>Ожидание нажатия физической клавиши…</value></data>
+<data name="PhysicalBehaviorVerified" xml:space="preserve"><value>Проверено нажатием клавиши</value></data>
+<data name="PhysicalMismatch" xml:space="preserve"><value>Получено другое сочетание. Проверьте активный профиль устройства.</value></data>
+  <data name="PhysicalLocalOnly" xml:space="preserve"><value>Локальные изменения</value></data>
+  <data name="PhysicalKeyAvailable" xml:space="preserve"><value>K2–K4 можно записать на этот AhaKey.</value></data>
+  <data name="PhysicalKeyGate" xml:space="preserve"><value>Для записи клавиш подключите настроенный AhaKey по USB. Запись через другие подключения пока не проверена.</value></data>
+  <data name="PhysicalNoChanges" xml:space="preserve"><value>Записано на устройство · изменений нет</value></data>
+  <data name="PhysicalPendingWrite" xml:space="preserve"><value>Отправка</value></data>
+  <data name="PhysicalWriteAccepted" xml:space="preserve"><value>Отправлено на устройство</value></data>
+  <data name="PhysicalPreviousUnknown" xml:space="preserve"><value>Прежнее физическое значение неизвестно; резервной копии нет.</value></data>
+  <data name="PhysicalGlobalSaveWarning" xml:space="preserve"><value>04 сохраняет настройки прошивки целиком. Передаются только выбранное сочетание и подпись. Продолжить?</value></data>
+  <data name="PhysicalWritePreview" xml:space="preserve"><value>Предпросмотр записи…</value></data>
+  <data name="PhysicalIndeterminate" xml:space="preserve"><value>Результат неизвестен. Запись не будет повторена автоматически.</value></data>
+  <data name="PhysicalNotReported" xml:space="preserve"><value>Не сообщается</value></data>
+  <data name="PhysicalPreview" xml:space="preserve"><value>Проверить…</value></data>
+  <data name="EffectOff" xml:space="preserve"><value>Выключено · 00</value></data>
+  <data name="EffectSingleMove" xml:space="preserve"><value>Движущийся свет · 01</value></data>
+  <data name="EffectSourceOnly" xml:space="preserve"><value>Кандидат из исходников</value></data>
+  <data name="LightingAcceptancePending" xml:space="preserve"><value>Для подсветки подключите настроенный AhaKey по USB. Текущее подключение пока не проверено.</value></data>
+  <data name="LightingRuntimeAccepted" xml:space="preserve"><value>Обратная связь подсветкой доступна на подключённом AhaKey.</value></data>
+  <data name="BrightnessSafetyGate" xml:space="preserve"><value>Изменение яркости недоступно на этой прошивке.</value></data>
+  <data name="LightingRuntimeMapping" xml:space="preserve"><value>События и эффекты</value></data>
+  <data name="LightingLocalMap" xml:space="preserve"><value>Карта хранится локально в Studio. Команды карты 84 и сохранения 04 не отправляются.</value></data>
+  <data name="LightingPreviewWarning" xml:space="preserve"><value>Проверка на 2 секунды, затем выключение. Прежний эффект неизвестен. Сохранение не отправляется.</value></data>
+  <data name="PhysicalFeedback" xml:space="preserve"><value>Световой отклик ассистента</value></data>
+  <data name="PhysicalFeedbackEnable" xml:space="preserve"><value>Обратная связь подсветкой</value></data>
+  <data name="PhysicalFeedbackPolicy" xml:space="preserve"><value>Работа, запрос внимания или ошибка включают проверенный эффект. Завершение выключает подсветку, только если других активных задач нет.</value></data>
+  <data name="PhysicalFeedbackStopped" xml:space="preserve"><value>Подсветка приостановлена после ошибки связи. Подключитесь заново или выключите и включите обратную связь. Настройка сохранена.</value></data>
+  <data name="DisplayPlannerIntro" xml:space="preserve"><value>Подготовьте изображение или GIF для IPS-дисплея 0,96″. Выберите профиль и состояние, затем загрузите подготовленные кадры.</value></data>
+  <data name="DisplayImport" xml:space="preserve"><value>Импорт изображения / GIF…</value></data>
+  <data name="DisplayExportPlan" xml:space="preserve"><value>Экспорт плана…</value></data>
+  <data name="DisplayImportHint" xml:space="preserve"><value>Выберите профиль и импортируйте изображение или GIF для просмотра плана.</value></data>
+  <data name="DisplayImportError" xml:space="preserve"><value>Не удалось подготовить файл. Допустимо изображение/GIF до 20 МиБ, 4096 пикселей по стороне и 500 кадров.</value></data>
+  <data name="DisplayFrames" xml:space="preserve"><value>кадров</value></data>
+  <data name="DisplaySlots" xml:space="preserve"><value>Предлагаемые слоты</value></data>
+  <data name="DisplaySectors" xml:space="preserve"><value>секторы</value></data>
+  <data name="DisplayNoPlan" xml:space="preserve"><value>План ещё не создан. На устройство ничего не отправляется.</value></data>
+  <data name="DisplayNoRollback" xml:space="preserve"><value>Программный план: свободное место по этим адресам не проверено. Отката нет. Для записи нужны выбранный заменяемый ресурс и одобренный точный диапазон.</value></data>
+  <data name="DisplayPhysicalNoGo" xml:space="preserve"><value>Загрузка на устройство: NO-GO</value></data>
+  <data name="DisplayAllocationWarning" xml:space="preserve"><value>Другие профили, состояния и GIF доступны только для планирования. Их расчётное размещение физически не проверено.</value></data>
+  <data name="DisplayPlanDetails" xml:space="preserve"><value>Программный план · схема текущего Java-клиента</value></data>
+  <data name="DisplayPreview" xml:space="preserve"><value>Предпросмотр холста 160 × 80</value></data>
+  <data name="Notification" xml:space="preserve"><value>Уведомление</value></data>
+  <data name="PermissionRequest" xml:space="preserve"><value>Запрос разрешения</value></data>
+  <data name="PostToolUse" xml:space="preserve"><value>После инструмента</value></data>
+  <data name="PreToolUse" xml:space="preserve"><value>Перед инструментом</value></data>
+  <data name="SessionStart" xml:space="preserve"><value>Начало сессии</value></data>
+  <data name="Stop" xml:space="preserve"><value>Остановка</value></data>
+  <data name="TaskCompleted" xml:space="preserve"><value>Задача завершена</value></data>
+  <data name="UserPromptSubmit" xml:space="preserve"><value>Сообщение пользователя</value></data>
+  <data name="SessionEnd" xml:space="preserve"><value>Конец сессии</value></data>
+<data name="Brightness" xml:space="preserve"><value>Яркость</value></data>
+  <data name="ChooseManually" xml:space="preserve"><value>Выбрать вручную</value></data>
+  <data name="PrimaryKey" xml:space="preserve"><value>Основная клавиша</value></data>
+  <data name="AdvancedModifiers" xml:space="preserve"><value>Дополнительно: левая / правая</value></data>
+  <data name="LeftModifiersHint" xml:space="preserve"><value>Ctrl, Shift, Alt и Win выше — левые модификаторы. Правые можно добавить ниже.</value></data>
+  <data name="IntegrationMaintenance" xml:space="preserve"><value>Ещё действия</value></data>
+  <data name="IntegrationOpenLocation" xml:space="preserve"><value>Открыть папку конфигурации</value></data>
+  <data name="RuntimePreview" xml:space="preserve"><value>Предпросмотр на устройстве</value></data>
+  <data name="RuntimeEffect" xml:space="preserve"><value>Эффект</value></data>
+  <data name="RuntimePreviewHint" xml:space="preserve"><value>Предпросмотр длится 2 секунды, затем отправляется «Выключено» (00). Привязка в устройство не сохраняется.</value></data>
+  <data name="TargetProfile" xml:space="preserve"><value>Целевой профиль · выбор в верхней панели</value></data>
+  <data name="TargetState" xml:space="preserve"><value>Целевое состояние</value></data>
+  <data name="DisplayFitMode" xml:space="preserve"><value>Режим вписывания / обрезки</value></data>
+  <data name="DisplayFit" xml:space="preserve"><value>Вписать · поля цвета фона</value></data>
+  <data name="DisplayCrop" xml:space="preserve"><value>Обрезать · заполнить экран</value></data>
+  <data name="DisplayConvert" xml:space="preserve"><value>Обновить конвертацию</value></data>
+  <data name="DisplayConvertedHint" xml:space="preserve"><value>160 × 80 · результат RGB565 · показан в масштабе 2×</value></data>
+<data name="DisplayPhysicalNotVerified" xml:space="preserve"><value>Загрузка на устройство ещё не проверена</value></data>
+<data name="FeedbackReceived" xml:space="preserve"><value>Получено событий</value></data>
+<data name="FeedbackDuplicates" xml:space="preserve"><value>Подавлено повторов</value></data>
+<data name="FeedbackOperations" xml:space="preserve"><value>Операций подсветки</value></data>
+  <data name="DisplayUpload" xml:space="preserve"><value>Загрузить в AhaKey</value></data>
+  <data name="DisplayStaticScope" xml:space="preserve"><value>Codex · По умолчанию · одно статичное изображение · USB</value></data>
+  <data name="DisplayWriteAcceptedInspect" xml:space="preserve"><value>Изображение загружено. Проверьте экран AhaKey.</value></data>
+  <data name="DisplayOverwriteTitle" xml:space="preserve"><value>Заменить изображение Codex по умолчанию?</value></data>
+  <data name="DisplayOverwriteWarning" xml:space="preserve"><value>Изображение Codex по умолчанию будет заменено. Восстановить исходные пиксели нельзя. Другие состояния с этим изображением тоже изменятся. Сохранение закрепит и ожидающие настройки устройства.</value></data>
+  <data name="DisplayConfirmOverwrite" xml:space="preserve"><value>Заменить изображение</value></data>
+  <data name="DisplayEraseRange" xml:space="preserve"><value>Диапазон стирания</value></data>
+  <data name="DisplayNoRetries" xml:space="preserve"><value>Без автоматических повторов. Привязка проверяется до стирания и после сохранения.</value></data>
+  <data name="DisplayWriting" xml:space="preserve"><value>Загрузка кадров на экран…</value></data>
+  <data name="DisplayPhysicalPlanDetails" xml:space="preserve"><value>План перезаписи изображения устройства</value></data>
+  <data name="DisplayTargetSlot" xml:space="preserve"><value>Целевой слот</value></data>
+  <data name="FeedbackAcked" xml:space="preserve"><value>ACK принят</value></data>
+  <data name="AcceptedVisibleEffect" xml:space="preserve"><value>Видимый эффект · 01</value></data>
+  <data name="ProductApply" xml:space="preserve"><value>Применить на AhaKey</value></data>
+  <data name="ProductTestKey" xml:space="preserve"><value>Проверить клавишу</value></data>
+  <data name="ProductAvailable" xml:space="preserve"><value>Доступно сейчас</value></data>
+  <data name="ProductRequiresUsb" xml:space="preserve"><value>Подключите AhaKey по USB для загрузки изображения.</value></data>
+  <data name="ProductConnectAccepted" xml:space="preserve"><value>Подключите настроенный AhaKey. Запись для этого устройства или подключения пока не проверена.</value></data>
+  <data name="ProductActivateCodex" xml:space="preserve"><value>Перед загрузкой включите профиль Codex на клавиатуре.</value></data>
+  <data name="ProductDisplayUnsupported" xml:space="preserve"><value>Можно загрузить одно статичное изображение Codex по умолчанию. Другие профили, состояния и GIF пока недоступны.</value></data>
+  <data name="ProductProfileBusy" xml:space="preserve"><value>Профиль переключается. После завершения выберите нужный профиль ещё раз.</value></data>
+  <data name="ProductProfileUnavailable" xml:space="preserve"><value>Для переключения профиля устройства подключите настроенный AhaKey по USB. Выбор в Studio сохранён.</value></data>
+  <data name="ProductProfileFailed" xml:space="preserve"><value>Профиль устройства не подтверждён. Проверьте подключение и выберите профиль снова.</value></data>
+  <data name="ProductProfileAvailable" xml:space="preserve"><value>Доступно. При выборе профиля клавиатура переключается без изменения назначений клавиш.</value></data>
+  <data name="ProductActivateProfile" xml:space="preserve"><value>Переключать профиль клавиатуры при выборе в Studio</value></data>
+  <data name="ProductPhysicalProfile" xml:space="preserve"><value>Активный профиль клавиатуры</value></data>
+  <data name="ProductUnknown" xml:space="preserve"><value>Нет подключения / нет данных</value></data>
+  <data name="ProductSwitching" xml:space="preserve"><value>Переключение профиля клавиатуры…</value></data>
+  <data name="ProductImagePrepared" xml:space="preserve"><value>Изображение подготовлено локально</value></data>
+  <data name="ProductNotConfigured" xml:space="preserve"><value>Не настроено</value></data>
+  <data name="ProductCheckIntegration" xml:space="preserve"><value>Проверьте настройку в разделе «Интеграции»</value></data>
+  <data name="ProductOn" xml:space="preserve"><value>Включено</value></data>
+  <data name="ProductOff" xml:space="preserve"><value>Выключено</value></data>
+  <data name="ProductReady" xml:space="preserve"><value>Готово</value></data>
+  <data name="ProductSetupNeeded" xml:space="preserve"><value>Требуется настройка</value></data>
+  <data name="ProductTrustNeeded" xml:space="preserve"><value>Разрешите эти hooks в Codex</value></data>
+  <data name="ProductCheckDetails" xml:space="preserve"><value>Проверьте настройку в «Подробностях»</value></data>
+  <data name="ProductServiceAutoStart" xml:space="preserve"><value>Запускать службу интеграций вместе с AhaKey Studio</value></data>
+  <data name="ProductAdvancedMapping" xml:space="preserve"><value>Использовать свою таблицу событий вместо простой обратной связи Codex</value></data>
+  <data name="ProductApprovals" xml:space="preserve"><value>Подтверждение действий инструментов</value></data>
+  <data name="ProductKeyConfirmation" xml:space="preserve"><value>Заменить сочетание и подпись этой клавиши? Прежнее значение нельзя сохранить для отката. Сохранение также закрепит ожидающие настройки устройства.</value></data>
+  <data name="ProductReceiptFailed" xml:space="preserve"><value>Записано, но локальное подтверждение не сохранено. Проверьте доступ к папке Studio перед закрытием.</value></data>
+<data name="ProductActivateNow" xml:space="preserve"><value>Включить выбранный профиль</value></data>
+<data name="ProductEditing" xml:space="preserve"><value>Редактируется</value></data>
+<data name="ProductProfileBehavior" xml:space="preserve"><value>Переключение профиля клавиатуры</value></data>
+<data name="ProductWriteStatusUnavailable" xml:space="preserve"><value>Настроено локально · статус записи для этого подключения неизвестен</value></data>
+<data name="ProductProfileRecovery" xml:space="preserve"><value>Откройте «Профили», чтобы повторить или отключить переключение профиля клавиатуры.</value></data>
+<data name="ProductUsbNotAccepted" xml:space="preserve"><value>Запись для этого USB-устройства или версии прошивки не подтверждена. Локальные настройки сохранены.</value></data>
+<data name="ProductConnectUsbKeys" xml:space="preserve"><value>Подключите AhaKey по USB для записи клавиш, затем нажмите «Применить» ещё раз. Правки сохранены.</value></data>
+<data name="ProductConnectUsbLighting" xml:space="preserve"><value>Подключите USB для светового отклика устройства.</value></data>
+<data name="ProductBleRestoreFailed" xml:space="preserve"><value>Bluetooth не восстановлен. Откройте «Устройство» и подключитесь снова; результат записи показан отдельно.</value></data>
+<data name="ProductUsbConnectFailed" xml:space="preserve"><value>Не удалось подключить USB. Проверьте кабель и нажмите «Применить» или «Подключить USB» снова. Запись автоматически не повторяется.</value></data>
+<data name="ProductConnectUsb" xml:space="preserve"><value>Подключить USB</value></data>
+<data name="ProductWrittenUsb" xml:space="preserve"><value>Отправлено на устройство по USB</value></data>
+<data name="ProductDeviceBusy" xml:space="preserve"><value>Дождитесь завершения текущей операции и повторите.</value></data>
+  <data name="FirmwareFamily" xml:space="preserve"><value>Семейство прошивки</value></data>
+  <data name="FirmwareExactBuild" xml:space="preserve"><value>Точная сборка прошивки</value></data>
+  <data name="FamilyUnknown" xml:space="preserve"><value>Неизвестно</value></data>
+  <data name="FamilyLegacyWindows" xml:space="preserve"><value>Legacy</value></data>
+  <data name="FamilyWindowsContract32" xml:space="preserve"><value>Семейство Windows 3.2</value></data>
+  <data name="FamilyRuntimeTaskPictureV3" xml:space="preserve"><value>Другое семейство прошивки</value></data>
+  <data name="FeatureUnknownDialect" xml:space="preserve"><value>Семейство прошивки ещё не определено.</value></data>
+  <data name="FeatureManagedVoice" xml:space="preserve"><value>K1 — голосовая клавиша F18 под управлением прошивки.</value></data>
+  <data name="FeatureTargetUnverified" xml:space="preserve"><value>Физическая запись для этой цели ещё не проверена.</value></data>
+  <data name="FeatureEffectUnverified" xml:space="preserve"><value>Этот эффект подсветки ещё не проверен визуально.</value></data>
+  <data name="FeatureBrightnessUnverified" xml:space="preserve"><value>Запись яркости требует отдельной проверки устройства.</value></data>
+  <data name="FeatureReadbackUnverified" xml:space="preserve"><value>Частичное чтение ресурсов на этом устройстве не проверено.</value></data>
+  <data name="FeatureFullReadbackUnavailable" xml:space="preserve"><value>Полное чтение конфигурации недоступно.</value></data>
+  <data name="LocalProject" xml:space="preserve"><value>Локальный проект Studio</value></data>
+  <data name="ProjectNotBackup" xml:space="preserve"><value>Ваши настройки и материалы. Это не резервная копия устройства.</value></data>
+  <data name="ProjectExport" xml:space="preserve"><value>Экспорт проекта</value></data>
+  <data name="ProjectImport" xml:space="preserve"><value>Импорт проекта</value></data>
+  <data name="ProjectImportConfirm" xml:space="preserve"><value>Заменить локальный проект содержимым файла? Текущий проект будет сохранён в копии. Записи на устройство не будет; разрешения физического отклика сохранятся.</value></data>
+  <data name="ProjectExported" xml:space="preserve"><value>Проект экспортирован.</value></data>
+  <data name="ProjectImported" xml:space="preserve"><value>Проект импортирован локально. На устройство ничего не отправлено.</value></data>
+  <data name="ProjectOperationFailed" xml:space="preserve"><value>Не удалось обработать проект. Проверьте файл и повторите.</value></data>
+  <data name="ProjectLoadFailed" xml:space="preserve"><value>Существующий проект не удалось прочитать. Файл сохранён без изменений.</value></data>
+  <data name="ProjectSaveFailed" xml:space="preserve"><value>Не удалось сохранить проект. Проверьте доступ к папке.</value></data>
+  <data name="VoiceRouting" xml:space="preserve"><value>Голосовая клавиша · F18</value></data>
+  <data name="VoiceRoutingHint" xml:space="preserve"><value>F18 запускает выбранное действие на ПК. В клавиатуре нет микрофона. Режим удержания не включён. F18 с обычной клавиатуры ПК тоже запускает действие.</value></data>
+  <data name="VoiceEnable" xml:space="preserve"><value>Включить действие на ПК по F18</value></data>
+  <data name="VoiceActionNone" xml:space="preserve"><value>Без действия</value></data>
+  <data name="VoiceActionWindowsVoiceTyping" xml:space="preserve"><value>Голосовой ввод Windows</value></data>
+  <data name="VoiceActionActivateApplication" xml:space="preserve"><value>Открыть выбранное приложение</value></data>
+  <data name="VoiceActionLocalShortcut" xml:space="preserve"><value>Выполнить сочетание на ПК</value></data>
+  <data name="VoiceChooseApplication" xml:space="preserve"><value>Выбрать приложение</value></data>
+  <data name="VoiceNoApplication" xml:space="preserve"><value>Приложение не выбрано</value></data>
+  <data name="VoiceShortcut" xml:space="preserve"><value>Сочетание на ПК, например Ctrl+Enter</value></data>
+  <data name="VoiceHotkeyUnavailable" xml:space="preserve"><value>F18 уже занята другим приложением. Отключите там привязку и повторите.</value></data>
+  <data name="VoiceActionFailed" xml:space="preserve"><value>Не удалось выполнить действие. Проверьте приложение или сочетание.</value></data>
+  <data name="ChangedKeys" xml:space="preserve"><value>Локальные изменения</value></data>
+  <data name="UndoLocal" xml:space="preserve"><value>Отменить локальное изменение</value></data>
+  <data name="CopyProfileKeys" xml:space="preserve"><value>Копирование локальных настроек клавиш</value></data>
+  <data name="CopyFromProfile" xml:space="preserve"><value>Скопировать из профиля</value></data>
+  <data name="CopyKeyToProfile" xml:space="preserve"><value>Клавишу в профиль</value></data>
+  <data name="ShortcutPresets" xml:space="preserve"><value>Готовые сочетания</value></data>
+  <data name="UsePreset" xml:space="preserve"><value>Выбрать</value></data>
+  <data name="DisplayLibrary" xml:space="preserve"><value>Локальная библиотека экрана</value></data>
+  <data name="DisplayProjectName" xml:space="preserve"><value>Название проекта экрана</value></data>
+  <data name="DisplaySaveProject" xml:space="preserve"><value>Сохранить в библиотеку</value></data>
+  <data name="DisplayRemoveProject" xml:space="preserve"><value>Удалить локальный проект</value></data>
+  <data name="DisplayBackground" xml:space="preserve"><value>Фон · #RRGGBB</value></data>
+  <data name="DisplayInterval" xml:space="preserve"><value>Единый интервал · мс</value></data>
+  <data name="DisplayFrame" xml:space="preserve"><value>Кадр предпросмотра</value></data>
+  <data name="DisplayFrameEarlier" xml:space="preserve"><value>Кадр раньше</value></data>
+  <data name="DisplayFrameLater" xml:space="preserve"><value>Кадр позже</value></data>
+  <data name="DisplayUniformTimingNotice" xml:space="preserve"><value>Переменные задержки GIF преобразуются в единый интервал кадров.</value></data>
+  <data name="DisplayUniformTiming" xml:space="preserve"><value>Выходные кадры используют единый интервал.</value></data>
+  <data name="DisplayBytes" xml:space="preserve"><value>байт пикселей</value></data>
+  <data name="DisplayConfirmedBlocks" xml:space="preserve"><value>блоков подтверждено</value></data>
+  <data name="DisplayBindingConfirmed" xml:space="preserve"><value>Привязка подтверждена</value></data>
+  <data name="DisplaySaveConfirmed" xml:space="preserve"><value>Сохранение подтверждено</value></data>
+  <data name="OperationRunning" xml:space="preserve"><value>Отправка</value></data>
+  <data name="OperationCompleted" xml:space="preserve"><value>Передача завершена; проверьте экран</value></data>
+  <data name="OperationFailed" xml:space="preserve"><value>Отправка не выполнена</value></data>
+  <data name="OperationOutcomeUncertain" xml:space="preserve"><value>Результат неизвестен — автоповтора нет</value></data>
+  <data name="OperationInterrupted" xml:space="preserve"><value>Прервано</value></data>
+  <data name="HomeKeyCount" xml:space="preserve"><value>3 настраиваемые клавиши + голосовая F18</value></data>
+  <data name="PhysicalSendFailed" xml:space="preserve"><value>Не удалось отправить: запись на устройство не началась. Локальные изменения сохранены.</value></data>
+  <data name="ProjectMigrationPartial" xml:space="preserve"><value>Не все прежние изображения удалось добавить в библиотеку. Исходные файлы сохранены.</value></data>
+  <data name="OperationJournalUnreadable" xml:space="preserve"><value>Часть журнала операций не удалось прочитать. Исходные файлы сохранены.</value></data>
+  <data name="DisplayAnimationEditor" xml:space="preserve"><value>Кадры и время анимации</value></data>
+  <data name="NoLocalKeyChanges" xml:space="preserve"><value>Нет локальных изменений клавиш</value></data>
+  <data name="ConfigureIntegrations" xml:space="preserve"><value>Настроить интеграции</value></data>
+  <data name="IntegrationSetupHint" xml:space="preserve"><value>Настройте интеграцию, чтобы включить отклик устройства.</value></data>
+  <data name="BrightnessApply" xml:space="preserve"><value>Применить яркость</value></data>
+  <data name="LightingApplyMapping" xml:space="preserve"><value>Применить таблицу событий</value></data>
+  <data name="LightingPersistentNotice" xml:space="preserve"><value>Применение сохраняет общие настройки устройства.</value></data>
+  <data name="LightingStopPreview" xml:space="preserve"><value>Остановить / Выкл.</value></data>
+  <data name="DisplayPreparing" xml:space="preserve"><value>Подготовка превью…</value></data>
+  <data name="DisplayOverwriteNotice" xml:space="preserve"><value>Заменит содержимое выбранной области. Прежние пиксели нельзя сохранить или восстановить. В конце сохраняется общая конфигурация устройства.</value></data>
+  <data name="Open" xml:space="preserve"><value>Открыть</value></data>
+  <data name="Duplicate" xml:space="preserve"><value>Дублировать</value></data>
+  <data name="VoiceSetup" xml:space="preserve"><value>Настроить голосовое действие</value></data>
+  <data name="ReadFromDevice" xml:space="preserve"><value>Прочитать с устройства</value></data>
+  <data name="PartialKeyRead" xml:space="preserve"><value>Только текущее сочетание; подписи и остальная конфигурация учитываются отдельно.</value></data>
+  <data name="KeyNotRead" xml:space="preserve"><value>Значение с устройства в этом сеансе ещё не прочитано.</value></data>
+  <data name="KeyResourceOther" xml:space="preserve"><value>Не является одиночным поддерживаемым сочетанием</value></data>
+  <data name="KeyReadFailed" xml:space="preserve"><value>Не удалось прочитать клавишу. Локальные изменения сохранены.</value></data>
+  <data name="FeatureSpecificControls" xml:space="preserve"><value>Доступные действия зависят от прошивки и подключения.</value></data>
+  <data name="FirmwareProtocol" xml:space="preserve"><value>Протокол</value></data>
+  <data name="FirmwareTransportPrepared" xml:space="preserve"><value>Механизм обновления подготовлен. Прошивка недоступна до проверки загрузчика и компонентов WCH.</value></data>
+  <data name="FirmwareVerifyPackage" xml:space="preserve"><value>Проверить пакет</value></data>
+  <data name="FirmwareChooseFile" xml:space="preserve"><value>Выбрать файл прошивки</value></data>
+  <data name="FirmwareReinstall" xml:space="preserve"><value>Переустановить</value></data>
+  <data name="FirmwarePackageVerified" xml:space="preserve"><value>Целостность и происхождение пакета проверены</value></data>
+  <data name="FirmwarePackageInvalid" xml:space="preserve"><value>Пакет не прошёл проверку. Устройство не изменено.</value></data>
+  <data name="FirmwareHexValidUntrusted" xml:space="preserve"><value>Структура HEX верна; совместимость и происхождение не проверены. Прошивка недоступна.</value></data>
+  <data name="EffectRainbowMove" xml:space="preserve"><value>Движущаяся радуга</value></data>
+  <data name="EffectRainbowWave" xml:space="preserve"><value>Радужная волна</value></data>
+  <data name="EffectRainbowWaveSlow" xml:space="preserve"><value>Медленная радужная волна</value></data>
+  <data name="EffectBreathing" xml:space="preserve"><value>Дыхание</value></data>
+  <data name="EffectMiddleLight" xml:space="preserve"><value>Свет из центра</value></data>
+  <data name="EffectTypingRipple" xml:space="preserve"><value>Волна нажатия</value></data>
+  <data name="EffectComet" xml:space="preserve"><value>Комета</value></data>
+  <data name="EffectScanBar" xml:space="preserve"><value>Сканирующая полоса</value></data>
+  <data name="EffectPulseCenter" xml:space="preserve"><value>Импульс из центра</value></data>
+  <data name="EffectWarningBlink" xml:space="preserve"><value>Предупреждающее мигание</value></data>
+  <data name="EffectSuccessSweep" xml:space="preserve"><value>Волна завершения</value></data>
+  <data name="EffectBlueThinking" xml:space="preserve"><value>Синее размышление</value></data>
+  <data name="EffectLowBattery" xml:space="preserve"><value>Низкий заряд</value></data>
+  <data name="EffectChargingFlow" xml:space="preserve"><value>Поток зарядки</value></data>
+  <data name="EffectApprovalWait" xml:space="preserve"><value>Ожидание подтверждения</value></data>
+<data name="Firmware" xml:space="preserve"><value>Прошивка</value></data>
+  <data name="KeyReadObservation" xml:space="preserve"><value>Прочитано с устройства</value></data>
+  <data name="DisplayTimingSummary" xml:space="preserve"><value>{0} кадров в источнике · {1} мс → {2} мс/кадр · итоговая длительность {3} мс</value></data>
+  <data name="FirmwarePackageNotIncluded" xml:space="preserve"><value>Образ прошивки не включён в эту сборку</value></data>
+</root>

@@ -1,0 +1,22 @@
+<UserControl x:Class="AhaKey.Studio.Views.SettingsPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <StackPanel MaxWidth="800" HorizontalAlignment="Stretch"><TextBlock Text="{Binding L[Settings]}" Style="{StaticResource PageTitle}"/><TextBlock Text="{Binding L[SettingsHint]}" Style="{StaticResource SecondaryText}" Margin="0,8,0,32"/>
+  <Border Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="10" Padding="24"><StackPanel>
+   <TextBlock Text="{Binding L[Language]}" FontWeight="SemiBold" Margin="0,0,0,8"/><ComboBox ItemsSource="{Binding Settings.Languages}" SelectedItem="{Binding Settings.Language}" DisplayMemberPath="Label" AutomationProperties.Name="{Binding L[Language]}" Margin="0,0,0,24"/>
+   <TextBlock Text="{Binding L[Theme]}" FontWeight="SemiBold" Margin="0,0,0,8"/><ComboBox ItemsSource="{Binding Settings.Themes}" SelectedItem="{Binding Settings.Theme}" DisplayMemberPath="Label" AutomationProperties.Name="{Binding L[Theme]}" Margin="0,0,0,24"/>
+   <Expander Header="{Binding L[Advanced]}"><StackPanel Margin="0,16,0,0"><CheckBox Content="{Binding L[AlphaDeveloper]}" IsChecked="{Binding Settings.DeveloperMode}" IsEnabled="{Binding CanConfigure}"/><StackPanel Visibility="{Binding Settings.DeveloperMode, Converter={StaticResource BoolVisibility}}" Margin="0,16,0,0"><TextBlock Text="{Binding L[Backend]}" FontWeight="SemiBold" Margin="0,0,0,8"/><ComboBox ItemsSource="{Binding Settings.Backends}" SelectedItem="{Binding Settings.Backend}" DisplayMemberPath="Label" AutomationProperties.Name="{Binding L[Backend]}" IsEnabled="{Binding CanConfigure}"/><TextBlock Text="{Binding L[SimulationNotice]}" Style="{StaticResource SecondaryText}" Margin="0,12,0,0"/></StackPanel></StackPanel></Expander>
+  </StackPanel></Border>
+  <TextBlock Text="{Binding L[BleStartupPolicy]}" Style="{StaticResource SecondaryText}" Margin="0,24,0,24"/>
+  <TextBlock Text="{Binding L[LocalProject]}" Style="{StaticResource SectionTitle}" Margin="0,0,0,8"/>
+  <TextBlock Text="{Binding L[ProjectNotBackup]}" Style="{StaticResource Secondary}" Margin="0,0,0,12"/>
+  <WrapPanel><Button Content="{Binding L[ProjectExport]}" Command="{Binding Project.ExportCommand}" Margin="0,0,12,12"/><Button Content="{Binding L[ProjectImport]}" Command="{Binding Project.ImportCommand}" Margin="0,0,0,12"/></WrapPanel>
+  <TextBlock Text="{Binding Project.Notice}" Style="{StaticResource Secondary}" AutomationProperties.LiveSetting="Polite"/>
+  <TextBlock Text="{Binding L[VoiceRouting]}" Style="{StaticResource SectionTitle}" Margin="0,24,0,12"/>
+  <TextBlock Text="{Binding L[VoiceRoutingHint]}" Style="{StaticResource Secondary}" Margin="0,0,0,12"/>
+  <CheckBox Content="{Binding L[VoiceEnable]}" IsChecked="{Binding Project.VoiceEnabled}" Margin="0,0,0,12"/>
+  <ComboBox ItemsSource="{Binding Project.VoiceActions}" SelectedItem="{Binding Project.VoiceAction}" DisplayMemberPath="Label" AutomationProperties.Name="{Binding L[VoiceRouting]}"/>
+  <WrapPanel Visibility="{Binding Project.VoiceNeedsApplication,Converter={StaticResource BoolVisibility}}" Margin="0,12,0,0"><Button Content="{Binding L[VoiceChooseApplication]}" Command="{Binding Project.ChooseVoiceApplicationCommand}" Margin="0,0,12,8"/><TextBlock Text="{Binding Project.VoiceApplication}" Style="{StaticResource Secondary}" MaxWidth="450" TextWrapping="Wrap"/></WrapPanel>
+  <StackPanel Visibility="{Binding Project.VoiceNeedsShortcut,Converter={StaticResource BoolVisibility}}"><TextBlock Text="{Binding L[VoiceShortcut]}" Margin="0,12,0,8"/><TextBox Text="{Binding Project.VoiceShortcut,UpdateSourceTrigger=LostFocus}" AutomationProperties.Name="{Binding L[VoiceShortcut]}"/><TextBlock Text="{Binding Project.VoiceValidation}" Style="{StaticResource Secondary}" AutomationProperties.LiveSetting="Polite"/></StackPanel>
+  <TextBlock Text="{Binding Project.VoiceStatus}" Style="{StaticResource Secondary}" Margin="0,12,0,24" AutomationProperties.LiveSetting="Polite"/>
+  <Button Content="{Binding L[About]}" Click="ShowAbout" HorizontalAlignment="Left"/>
+ </StackPanel>
+</UserControl>

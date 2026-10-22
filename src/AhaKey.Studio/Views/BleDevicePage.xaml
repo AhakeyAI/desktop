@@ -1,0 +1,33 @@
+<UserControl x:Class="AhaKey.Studio.Views.BleDevicePage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <StackPanel>
+  <TextBlock Text="{Binding L[Device]}" Style="{StaticResource PageTitle}"/>
+  <TextBlock Text="{Binding L[BleDeviceHint]}" Style="{StaticResource SecondaryText}" Margin="0,8,0,24"/>
+  <TextBlock Text="{Binding L[AlphaTransport]}" Style="{StaticResource SectionTitle}"/>
+  <WrapPanel Margin="0,12,0,8"><Button Content="Bluetooth" Command="{Binding ChooseBluetoothCommand}" IsEnabled="{Binding CanChooseTransport}" Margin="0,0,12,8"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding IsBluetooth}" Value="True"><Setter Property="Background" Value="{DynamicResource Selection}"/><Setter Property="BorderBrush" Value="{DynamicResource Accent}"/></DataTrigger></Style.Triggers></Style></Button.Style></Button><Button Content="USB" Command="{Binding ChooseUsbCommand}" IsEnabled="{Binding CanChooseTransport}" Margin="0,0,0,8"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}"><Style.Triggers><DataTrigger Binding="{Binding IsUsb}" Value="True"><Setter Property="Background" Value="{DynamicResource Selection}"/><Setter Property="BorderBrush" Value="{DynamicResource Accent}"/></DataTrigger></Style.Triggers></Style></Button.Style></Button></WrapPanel>
+  <TextBlock Text="{Binding TransportHint}" Style="{StaticResource SecondaryText}" Margin="0,0,0,16"/>
+  <StackPanel Visibility="{Binding ShowUsbPicker, Converter={StaticResource BoolVisibility}}" Margin="0,0,0,12">
+   <TextBlock Text="{Binding L[UsbDeviceName]}" Style="{StaticResource SectionTitle}"/>
+   <TextBlock Text="{Binding CandidateMessage}" Style="{StaticResource SecondaryText}" Margin="0,8,0,12"/>
+   <Button Content="{Binding L[BleFind]}" Command="{Binding FindCommand}" IsEnabled="{Binding CanFind}" HorizontalAlignment="Left"/>
+  </StackPanel>
+  <StackPanel Visibility="{Binding ShowBluetoothPicker, Converter={StaticResource BoolVisibility}}" Margin="0,0,0,12">
+   <DockPanel Margin="0,0,0,12"><Button DockPanel.Dock="Right" Content="{Binding L[BleFind]}" Command="{Binding FindCommand}" IsEnabled="{Binding CanFind}"/><TextBlock Text="{Binding L[AlphaConnect]}" Style="{StaticResource SectionTitle}" VerticalAlignment="Center"/></DockPanel>
+   <ListBox ItemsSource="{Binding Devices}" SelectedItem="{Binding Selected}" IsEnabled="{Binding CanFind}" AutomationProperties.Name="{Binding L[BleChoose]}"><ListBox.ItemContainerStyle><Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}"><Setter Property="AutomationProperties.Name" Value="{Binding Name}"/></Style></ListBox.ItemContainerStyle><ListBox.ItemTemplate><DataTemplate><StackPanel Margin="8"><TextBlock Text="{Binding Name}" FontWeight="SemiBold"/><TextBlock Text="Bluetooth" Style="{StaticResource Caption}" Margin="0,4,0,0"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox>
+   <TextBlock Text="{Binding L[AlphaPickerHint]}" Style="{StaticResource SecondaryText}" Margin="0,12,0,0"/>
+  </StackPanel>
+  <WrapPanel Margin="0,20,0,0"><Button Content="{Binding L[BleConnect]}" Command="{Binding ConnectCommand}" IsEnabled="{Binding CanConnect}" Margin="0,0,12,12"/><Button Content="{Binding L[BleDisconnect]}" Command="{Binding DisconnectCommand}" IsEnabled="{Binding CanDisconnect}" Margin="0,0,12,12"/><Button Content="{Binding L[BleReconnect]}" Command="{Binding ReconnectCommand}" IsEnabled="{Binding CanConnect}" Margin="0,0,12,12"/><Button Visibility="{Binding IsBluetooth, Converter={StaticResource BoolVisibility}}" Content="{Binding L[AlphaForget]}" Command="{Binding ForgetCommand}" IsEnabled="{Binding CanForget}" Margin="0,0,12,12"/><Button Content="{Binding L[BleRefresh]}" Command="{Binding ReadCommand}" IsEnabled="{Binding CanRead}" Margin="0,0,0,12"/></WrapPanel>
+  <TextBlock Text="{Binding Error}" Foreground="{DynamicResource Danger}" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,12"/>
+  <TextBlock Visibility="{Binding HasSelection, Converter={StaticResource BoolVisibility}}" Text="{Binding Freshness}" Foreground="{DynamicResource Focus}" Margin="0,0,0,20" AutomationProperties.LiveSetting="Polite"/>
+  <ItemsControl ItemsSource="{Binding ProductSummary}" Visibility="{Binding HasSelection, Converter={StaticResource BoolVisibility}}"><ItemsControl.ItemTemplate><DataTemplate><Grid Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition Width="192"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock Text="{Binding Label}" Style="{StaticResource SecondaryText}" Margin="0,0,16,0"/><TextBlock Grid.Column="1" Text="{Binding Value}" Style="{StaticResource Body}"/></Grid></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+  <Border BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0" Padding="0,20,0,0" Margin="0,20,0,0"><StackPanel DataContext="{Binding DataContext.Firmware, RelativeSource={RelativeSource AncestorType=Window}}">
+   <TextBlock Text="{Binding L[Firmware]}" Style="{StaticResource SectionTitle}"/>
+   <TextBlock Text="{Binding Current}" Style="{StaticResource Body}" Margin="0,12,0,8"/>
+   <TextBlock Text="{Binding Package}" Style="{StaticResource Secondary}"/>
+   <TextBlock Text="{Binding Availability}" Style="{StaticResource Secondary}" Margin="0,8,0,12"/>
+   <Expander Header="{Binding L[Advanced]}" Foreground="{DynamicResource TextPrimary}"><StackPanel>
+    <WrapPanel Margin="0,12,0,0"><Button Content="{Binding L[FirmwareVerifyPackage]}" Command="{Binding VerifyCommand}" Margin="0,0,8,8"/><Button Content="{Binding L[FirmwareChooseFile]}" Command="{Binding ChooseCommand}" Margin="0,0,8,8"/><Button Content="{Binding L[FirmwareReinstall]}" IsEnabled="False" ToolTip="{Binding Availability}" Margin="0,0,0,8"/></WrapPanel>
+    <TextBlock Text="{Binding Result}" Style="{StaticResource Secondary}" AutomationProperties.LiveSetting="Polite"/>
+   </StackPanel></Expander>
+  </StackPanel></Border>
+ </StackPanel>
+</UserControl>

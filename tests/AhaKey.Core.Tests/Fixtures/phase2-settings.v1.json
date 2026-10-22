@@ -1,0 +1,11 @@
+{
+  "SchemaVersion": 1,
+  "Language": "English",
+  "Theme": "Light",
+  "Backend": "Mock",
+  "SelectedProfile": "Codex",
+  "CustomProfileName": "VS Code",
+  "KeyLocalNames": {
+    "2:1": "\u041F\u0440\u0438\u043D\u044F\u0442\u044C \u043E\u0442\u0432\u0435\u0442 \u63A5\u53D7"
+  }
+}
