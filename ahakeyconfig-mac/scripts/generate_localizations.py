@@ -634,6 +634,8 @@ TRANSLATIONS = {
     "最近写入：%@": "Last written: %@",
     "最近同步 %@": "Last synced %@",
     "最长 15 字节": "Up to 15 bytes",
+    "设备名称不能为空，已保留原名称": "Device name cannot be empty; the current name was kept",
+    "设备名称最长 %d 字节（当前 %d 字节），已保留原名称": "Device name can be at most %d bytes (currently %d bytes); the current name was kept",
     "月": "Month",
     "有效期 %@": "Valid until %@",
     "有效期：%@": "Valid until: %@",

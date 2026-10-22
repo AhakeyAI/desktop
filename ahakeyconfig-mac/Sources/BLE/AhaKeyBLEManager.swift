@@ -730,8 +730,14 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         appendLog("→ 工作模式 \(mode)")
     }
 
-    /// 修改设备蓝牙名称
-    func changeDeviceName(_ name: String) {
+    /// 修改设备蓝牙名称；名称不合法时不发送任何命令，设备保留原名。
+    @discardableResult
+    func changeDeviceName(_ rawName: String) -> Result<String, AhaKeyCommand.DeviceNameValidationError> {
+        let validation = AhaKeyCommand.validateDeviceName(rawName)
+        guard case .success(let name) = validation else {
+            appendLog("设备名不合法，未发送: \(rawName)", isError: true)
+            return validation
+        }
         let cmd = AhaKeyCommand.changeName(name)
         appendLog("修改设备名: \(name)")
         writeCommand(cmd)
@@ -740,6 +746,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             try? await Task.sleep(nanoseconds: UInt64(100) * 1_000_000)
             self.saveConfig()
         }
+        return validation
     }
 
     func clearLog() {

@@ -10,6 +10,21 @@ final class AhaKeyBLEManagerTests: XCTestCase {
         XCTAssertTrue(AhaKeyBLEManager.isBluetoothAuthorizationGranted(.allowedAlways))
     }
 
+    func testDeviceNameValidationRejectsEmptyAndOverlongNames() {
+        XCTAssertEqual(AhaKeyCommand.validateDeviceName(""), .failure(.empty))
+        XCTAssertEqual(AhaKeyCommand.validateDeviceName(" \n\t "), .failure(.empty))
+        XCTAssertEqual(AhaKeyCommand.validateDeviceName("  AhaKey 507C "), .success("AhaKey 507C"))
+        XCTAssertEqual(AhaKeyCommand.validateDeviceName(String(repeating: "a", count: 15)), .success(String(repeating: "a", count: 15)))
+        XCTAssertEqual(AhaKeyCommand.validateDeviceName(String(repeating: "a", count: 16)), .failure(.tooLong(byteCount: 16)))
+        // 中文按 UTF-8 计 3 字节：5 个字 = 15 字节可用，6 个字 = 18 字节拒绝（不再截断半个字符）。
+        XCTAssertEqual(AhaKeyCommand.validateDeviceName("我的小键盘"), .success("我的小键盘"))
+        XCTAssertEqual(AhaKeyCommand.validateDeviceName("我的小键盘呀"), .failure(.tooLong(byteCount: 18)))
+        XCTAssertEqual(
+            AhaKeyCommand.changeName("AhaKey"),
+            Data([0xAA, 0xBB, 0x01] + Array("AhaKey".utf8) + [0xCC, 0xDD])
+        )
+    }
+
     func testLegacyStatusDoesNotAdvertiseConfigurableLighting() throws {
         let legacy = Data([
             0xAA, 0xBB, 0x00,
