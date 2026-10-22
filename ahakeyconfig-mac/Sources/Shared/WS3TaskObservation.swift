@@ -5,7 +5,7 @@ public enum WS3TaskClient: String, Codable, Sendable { case claude, cursor, code
 
 /// Only a real session identifier travels with a hook. Never substitute cwd,
 /// command text, truncated diagnostic IDs or one shared identifier per IDE.
-public struct WS3TaskMetadata: Equatable {
+public struct WS3TaskMetadata: Equatable, Sendable {
     public let client: WS3TaskClient
     private let session: String
     public let event: String
@@ -23,7 +23,7 @@ public struct WS3TaskMetadata: Equatable {
         self.init(client: client, session: session, event: event)
     }
 
-    fileprivate var reference: String {
+    public var reference: String {
         SHA256.hash(data: Data((client.rawValue + "\u{0}" + session).utf8))
             .map { String(format: "%02x", $0) }.joined()
     }
@@ -106,8 +106,18 @@ public struct WS3TaskRegistry {
 
     @discardableResult
     public mutating func observe(_ metadata: WS3TaskMetadata, state: UInt8, at now: TimeInterval) -> Bool {
+        observe(reference: metadata.reference, client: metadata.client, event: metadata.event, state: state, at: now)
+    }
+
+    @discardableResult
+    public mutating func observe(_ observation: WS3LiveTaskEvent, at now: TimeInterval) -> Bool {
+        guard observation.isValid(at: now) else { return false }
+        return observe(reference: observation.reference, client: observation.client, event: observation.event,
+            state: observation.state, at: now)
+    }
+
+    private mutating func observe(reference key: String, client: WS3TaskClient, event: String, state: UInt8, at now: TimeInterval) -> Bool {
         expire(at: now)
-        let key = metadata.reference
         let existing = entries.firstIndex { $0?.reference == key }
         if state == 8 {
             guard let existing else { return false }
@@ -115,7 +125,7 @@ public struct WS3TaskRegistry {
         }
         let taskState: WS3TaskState
         switch state {
-        case 0: taskState = metadata.event == "PreCompact" ? .running : .waiting
+        case 0: taskState = event == "PreCompact" ? .running : .waiting
         case 1: taskState = .waiting
         case 2, 3, 7: taskState = .running
         case 5, 6: taskState = .done
@@ -128,7 +138,7 @@ public struct WS3TaskRegistry {
         guard let slot = existing ?? entries.firstIndex(where: { $0 == nil }) ?? oldestDone else {
             unrepresentedEvents = min(unrepresentedEvents + 1, 1_000_000); return false
         }
-        entries[slot] = Entry(reference: key, client: metadata.client, state: taskState, updatedAt: now)
+        entries[slot] = Entry(reference: key, client: client, state: taskState, updatedAt: now)
         return true
     }
 

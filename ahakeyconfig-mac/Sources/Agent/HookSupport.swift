@@ -37,6 +37,8 @@ enum HookSupport {
     }
 
     static func sendJsonRequest(_ dict: [String: Any], timeout: Double) -> [String: Any]? {
+        // Independent of Agent availability; never affects approval output.
+        _ = WS3LiveTaskJournal.publish(request: dict)
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { return nil }
         defer { close(fd) }
