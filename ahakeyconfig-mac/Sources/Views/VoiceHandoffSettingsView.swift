@@ -9,6 +9,8 @@ struct VoiceHandoffSettingsView: View {
     @State private var showsConfirmation = false
     @State private var message: String?
 
+    @State private var writeOutcome: KeyboardWriteOutcome?
+
     var body: some View {
         Section {
             Text(String(format: NSLocalizedString("键盘当前语音：%@", comment: ""), String(describing: currentState)))
@@ -24,7 +26,7 @@ struct VoiceHandoffSettingsView: View {
                 Text(NSLocalizedString("保留键盘当前方案", comment: "")).tag(Optional<DesktopSpeechChoice>.none)
                 ForEach(DesktopSpeechChoice.allCases) { Text($0.title).tag(Optional($0)) }
             }.disabled(busy)
-            Button(NSLocalizedString("接管四个模式的 Voice 键…", comment: "")) { showsConfirmation = true }
+            Button(NSLocalizedString("写入键盘", comment: "")) { showsConfirmation = true }
                 .disabled(busy || !bleManager.isConnected || !sameSession || baseline == nil || choice == nil)
             if choice == .ahaType {
                 Text(NSLocalizedString("识别后的文字会发送给 AhaType 整理，需要已登录账号；云端可用性在实际转写时验证。", comment: ""))
@@ -34,8 +36,9 @@ struct VoiceHandoffSettingsView: View {
             Text(NSLocalizedString("保持当前方案不会写入键盘。App 接管需要 App 运行以及麦克风、语音识别、输入监控和辅助功能权限。切换会覆盖四个模式的 Voice 绑定并关闭固件系统听写；当前固件不支持在客户端一键切回 Consumer。其他按键不变。", comment: ""))
                 .font(.caption).foregroundStyle(.secondary)
         } header: { Text(NSLocalizedString("语音方案 · 显式接管", comment: "")) }
+        .keyboardWriteResult($writeOutcome)
         .confirmationDialog(NSLocalizedString("确认切换全部四个模式的 Voice？", comment: ""), isPresented: $showsConfirmation) {
-            Button(String(format: NSLocalizedString("确认切换至 %@", comment: ""), String(describing: choice?.title ?? "App"))) { apply() }
+            Button(NSLocalizedString("写入键盘", comment: "")) { apply() }
             Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
         } message: {
             Text(String(format: NSLocalizedString("将先准备 App 语音与四个 Voice 绑定并读回，再关闭固件系统听写。当前固件不支持客户端一键恢复 Consumer。原 Voice 绑定会本地备份；失败可能已有部分变更。%@", comment: ""), String(describing: choice == .ahaType ? NSLocalizedString("识别文字将发送给 AhaType 整理。", comment: "") : "")))
@@ -81,6 +84,7 @@ struct VoiceHandoffSettingsView: View {
                 self.baseline = actual
                 NotificationCenter.default.post(name: .ahaKeyVoiceDesktopConfirmed, object: nil)
                 message = NSLocalizedString("键盘接管和四个触发绑定已读回确认。请在文本框短按开始、再次短按停止，验证实际语音输入；读回不能证明系统已转写。", comment: "")
+                writeOutcome = .init(succeeded: true, message: message ?? "")
             } catch {
                 message = String(format: NSLocalizedString("切换未确认：%@；App 路由或键盘可能已有部分变更，请重新读取核对。", comment: ""), String(describing: KeyboardSettingsFeedback.message(for: error)))
             }

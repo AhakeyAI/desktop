@@ -326,7 +326,7 @@ struct DeviceInfoView: View {
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 160)
                                 .onSubmit { submitNameChange() }
-                            Button("保存") { submitNameChange() }
+                            Button("写入键盘") { submitNameChange() }
                                 .buttonStyle(.borderedProminent)
                                 .controlSize(.small)
                             Button("取消") { isEditingName = false }

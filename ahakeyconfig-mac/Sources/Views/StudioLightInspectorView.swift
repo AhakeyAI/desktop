@@ -12,7 +12,7 @@ struct StudioLightInspectorView: View {
     private var target: StudioLightDrafts.Target { model.target(for: mode) }
     private var busy: Bool { model.isBusy || session.isBusy }
     private var editable: Bool { model.values.facts[target].map { target.accepts($0.value) } ?? false }
-    private let columns = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
+    private let columns = [GridItem(.flexible(), spacing: 8, alignment: .top), GridItem(.flexible(), spacing: 8, alignment: .top)]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -24,6 +24,12 @@ struct StudioLightInspectorView: View {
                             .frame(maxWidth: .infinity).padding(.vertical, 7)
                             .background(model.selectedState == item.rawValue ? Color.accentColor.opacity(0.16) : Color.primary.opacity(0.05))
                             .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .overlay(alignment: .topTrailing) {
+                                let key = StudioLightDrafts.Target.effect(mode: UInt8(mode.rawValue), state: item.rawValue)
+                                if model.values.dirtyTargets.contains(key) || model.values.unconfirmed.contains(key) {
+                                    Circle().fill(Color.orange).frame(width: 5, height: 5).padding(5)
+                                }
+                            }
                     }.buttonStyle(.plain).disabled(busy)
                         .accessibilityAddTraits(model.selectedState == item.rawValue ? .isSelected : [])
                 }
@@ -32,7 +38,6 @@ struct StudioLightInspectorView: View {
             HStack(spacing: 8) {
                 Text(readbackTitle).font(.caption).foregroundStyle(.secondary)
                 Spacer(minLength: 0)
-                if model.values.dirtyTargets.contains(target) { Text("未保存").font(.caption).foregroundStyle(.orange) }
             }
             if model.values.unconfirmed.contains(target) {
                 Label("保存结果待确认，请重新读取后保存。", systemImage: "exclamationmark.circle")
@@ -52,12 +57,14 @@ struct StudioLightInspectorView: View {
             brightnessControls
             moreControls
         }
-        .alert("键盘当前值已变化", isPresented: Binding(get: { model.conflict != nil }, set: { if !$0 { model.conflict = nil } }), presenting: model.conflict) { conflict in
-            Button("确认修改") { model.run(target: conflict.target, ble: bleManager, session: session, save: true, overwrite: conflict) }
-            Button("采用键盘当前值") { model.values.adopt(conflict.target) }
-            Button("取消", role: .cancel) { }
+        .alert("键盘当前值已变化", isPresented: Binding(get: { model.batchConflict != nil }, set: { if !$0 { model.batchConflict = nil } }), presenting: model.batchConflict) { conflict in
+            Button("确认修改") { model.writeChanges(mode: mode, ble: bleManager, session: session, confirmedPlan: conflict.plan) }
+            Button("采用键盘当前值") { model.adoptBatchConflict(conflict) }
+            Button("取消", role: .cancel) { model.batchConflict = nil }
         } message: { conflict in
-            Text(String(format: NSLocalizedString("%@\n键盘当前：%@\n你的选择：%@", comment: ""), StudioLightInspectorModel.scopeTitle(conflict.target), label(conflict.actual.value, target: conflict.target), label(conflict.desired, target: conflict.target)))
+            Text(conflict.plan.items.filter { conflict.changed.contains($0.target) }.map { item in
+                String(format: NSLocalizedString("%@\n键盘当前：%@\n你的选择：%@", comment: ""), StudioLightInspectorModel.scopeTitle(item.target), label(item.baseline.value, target: item.target), label(item.desired, target: item.target))
+            }.joined(separator: "\n\n"))
         }
         .confirmationDialog("放弃所有未保存的灯光修改？", isPresented: $showsDiscardDrafts) {
             Button("放弃灯光修改", role: .destructive) {
@@ -86,16 +93,19 @@ struct StudioLightInspectorView: View {
 
     private func effectCard(_ effect: LightEffectStyle) -> some View {
         let selected = model.values.drafts[target] == effect.firmwareIndex
-        return ZStack(alignment: .topTrailing) {
+        return ZStack(alignment: .bottomTrailing) {
             Button { model.values.edit(target, value: effect.firmwareIndex) } label: {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(effect.title).font(.caption.weight(.semibold)).padding(.trailing, 24)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Image(systemName: effect.symbolName).frame(width: 13).foregroundStyle(.secondary)
+                        Text(effect.title).fontWeight(.semibold)
+                    }.font(.caption)
                     Text(effect.detail).font(.caption2).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
+                        .padding(.trailing, effect == .off ? 0 : 20)
                 }
-                .frame(maxWidth: .infinity, minHeight: 62, alignment: .topLeading)
-                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .padding(.horizontal, 9).padding(.vertical, 8)
                 .background(selected ? Color.accentColor.opacity(0.12) : Color(nsColor: .controlBackgroundColor).opacity(0.7))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(selected ? Color.accentColor : Color.primary.opacity(0.10), lineWidth: 1))
@@ -108,11 +118,12 @@ struct StudioLightInspectorView: View {
                     model.previewEffect(effect, mode: mode, ble: bleManager, session: session)
                 } label: {
                     Image(systemName: "play.circle").font(.system(size: 17))
-                        .foregroundStyle(Color.accentColor).frame(width: 25, height: 25)
+                        .foregroundStyle(.white).frame(width: 24, height: 24)
+                        .background(Circle().fill(Color.black.opacity(0.55)).padding(3))
                 }
-                .buttonStyle(.plain).padding(5)
+                .buttonStyle(.plain).padding(.trailing, 5).padding(.bottom, 4)
                 .disabled(busy || !editable || model.values.drafts[.brightness] == nil)
-                .help(String(format: NSLocalizedString("在键盘上预览 %@", comment: ""), effect.title))
+                .help(NSLocalizedString("预览到键盘", comment: ""))
                 .accessibilityLabel(String(format: NSLocalizedString("在键盘上预览 %@", comment: ""), effect.title))
             }
         }
@@ -127,12 +138,10 @@ struct StudioLightInspectorView: View {
             HStack(spacing: 8) {
                 Text("亮度").font(.subheadline.weight(.semibold))
                 Text("全部模式").font(.caption).foregroundStyle(.secondary)
-                if model.values.dirtyTargets.contains(item) { Text("未保存").font(.caption).foregroundStyle(.orange) }
+                if model.values.dirtyTargets.contains(item) { Circle().fill(Color.orange).frame(width: 5, height: 5).accessibilityLabel("未保存") }
                 Spacer()
                 Text(value.map { "\($0)%" } ?? "—").font(.caption.monospacedDigit())
-                Button("保存亮度") { model.run(target: item, ble: bleManager, session: session, save: true) }
-                    .controlSize(.small)
-                    .disabled(busy || !canEdit || (!model.values.dirtyTargets.contains(item) && !model.values.unconfirmed.contains(item)))
+
             }
             Slider(value: Binding(get: { Double(value ?? 35) }, set: { model.values.edit(item, value: UInt8($0.rounded())) }), in: 1...100, step: 1)
                 .disabled(busy || !canEdit).accessibilityLabel(NSLocalizedString("灯光亮度", comment: ""))
@@ -202,23 +211,19 @@ struct StudioLightInspectorActions: View {
 
     private var target: StudioLightDrafts.Target { model.target(for: mode) }
     private var busy: Bool { model.isBusy || session.isBusy }
-    private var effect: LightEffectStyle? { model.values.drafts[target].flatMap { LightEffectStyle(firmwareIndex: $0) } }
-    private var known: Bool { model.values.facts[target].map { target.accepts($0.value) } ?? false }
 
     var body: some View {
         Group {
             if busy {
                 Button("取消") { model.cancel() }
             } else {
-                Button("预览到键盘") {
-                    if let effect { model.previewEffect(effect, mode: mode, ble: bleManager, session: session) }
-                }.disabled(!known || effect == nil || effect == .off || model.values.drafts[.brightness] == nil)
                 Button("停止") { model.run(target: target, ble: bleManager, session: session, preview: .stop) }
                     .help(NSLocalizedString("停止灯效预览", comment: ""))
             }
-            Button("保存灯效") { model.run(target: target, ble: bleManager, session: session, save: true) }
+            Button("写入键盘") { model.writeChanges(mode: mode, ble: bleManager, session: session) }
                 .buttonStyle(.borderedProminent)
-                .disabled(busy || !known || (!model.values.dirtyTargets.contains(target) && !model.values.unconfirmed.contains(target)))
+                .help(model.pendingSummary(for: mode))
+                .disabled(busy || model.writePlan(for: mode)?.items.isEmpty != false)
         }.controlSize(.small)
     }
 }

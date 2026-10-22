@@ -19,6 +19,8 @@ final class StudioLightInspectorModel: ObservableObject {
         }
     }
     @Published private(set) var catalog: WS3LightCatalogSnapshot?
+    let writeCompleted = PassthroughSubject<(message: String, wrote: Bool), Never>()
+    @Published var batchConflict: StudioInlineLightBatch.Conflict?
     @Published var selectedState: UInt8 = 0
     @Published private(set) var showsError = false
     @Published var message: String?
@@ -48,6 +50,7 @@ final class StudioLightInspectorModel: ObservableObject {
 
     func clearFeedback() {
         conflict = nil
+        batchConflict = nil
         message = nil
         showsError = false
     }
@@ -109,6 +112,80 @@ final class StudioLightInspectorModel: ObservableObject {
         }
     }
 
+    func writePlan(for mode: AhaKeyModeSlot) -> StudioLightWritePlan? {
+        try? StudioLightWritePlan.make(mode: UInt8(mode.rawValue), values: values)
+    }
+
+    func writeChanges(mode: AhaKeyModeSlot, ble: AhaKeyBLEManager, session: StudioInspectorSession,
+                      confirmedPlan: StudioLightWritePlan? = nil) {
+        guard !isBusy, !session.isBusy,
+              let plan = confirmedPlan ?? writePlan(for: mode), !plan.items.isEmpty else { return }
+        let scope = (AhaKeyModeSlot(rawValue: Int(plan.mode))?.title ?? "") + " · " + NSLocalizedString("灯条", comment: "")
+        batchConflict = nil
+        var attemptedWrite = false
+        perform(scope: scope, session: session, failureContext: {
+            attemptedWrite ? NSLocalizedString("部分修改可能已生效，草稿与待确认标记已保留；请重新核对后写入。", comment: "") : nil
+        }) { [self] in
+            let result = try await StudioInlineLightBatch.run(plan: plan, session: session, read: { plan, context in
+                let display = try await ble.readWS3DisplayForEditing()
+                let brightness = StudioLightDrafts.Fact(deviceID: context.deviceID, value: display.brightness)
+                var selected: [StudioLightDrafts.Target: StudioLightDrafts.Fact] = [:]
+                for item in plan.items {
+                    let value: UInt8
+                    if item.target == .brightness { value = display.brightness }
+                    else { value = try await ble.readWS3SettingForEditing(item.target.setting(item.desired)) }
+                    selected[item.target] = .init(deviceID: context.deviceID, value: value)
+                }
+                return .init(values: selected, brightness: brightness)
+            }, save: { setting, baseline, generation in
+                try await ble.saveWS3DisplaySetting(setting, baseline: baseline, expectedGeneration: generation)
+            }, verify: { item, context in
+                let value = try await ble.readWS3SettingForEditing(item.target.setting(item.desired))
+                return .init(deviceID: context.deviceID, value: value)
+            }, writeStarted: { target in attemptedWrite = true; catalog = nil; values.markUnconfirmed(target) })
+            switch result {
+            case .readOnly(let reading):
+                observeBatch(reading)
+                showsError = true
+                message = NSLocalizedString("键盘当前值无法安全编辑，保持只读。", comment: "")
+            case .conflict(let conflict):
+                observeBatch(conflict.reading)
+                batchConflict = conflict
+            case .completed(let reading, let writes):
+                var updated = values
+                updated.observe(.brightness, fact: reading.brightness)
+                for item in plan.items { updated.confirm(item.target, fact: reading.values[item.target]!) }
+                values = updated
+                message = NSLocalizedString(writes > 0 ? "已写入当前模式的灯条修改。" : "当前配置已核对一致，无需写入。", comment: "")
+                let text = writes > 0
+                    ? NSLocalizedString("本模式的灯效修改已写入；其他模式的灯效草稿保留。", comment: "") +
+                        (plan.items.contains(where: { $0.target == .brightness }) ? "\n" + NSLocalizedString("全局亮度修改已对全部模式生效。", comment: "") : "")
+                    : NSLocalizedString("当前配置已核对一致，无需写入。", comment: "")
+                writeCompleted.send((Self.receipt(scope: scope, text: text), writes > 0))
+            }
+        }
+    }
+
+    func adoptBatchConflict(_ conflict: StudioInlineLightBatch.Conflict) {
+        for target in conflict.changed { values.adopt(target) }
+        batchConflict = nil
+    }
+
+    func pendingSummary(for mode: AhaKeyModeSlot) -> String {
+        guard let plan = writePlan(for: mode) else { return "" }
+        return plan.items.map { item in
+            let value = item.target == .brightness ? "\(item.desired)%" : (LightEffectStyle(firmwareIndex: item.desired)?.title ?? "")
+            return Self.scopeTitle(item.target) + " · " + value
+        }.joined(separator: "\n")
+    }
+
+    private func observeBatch(_ reading: StudioInlineLightBatch.Reading) {
+        var updated = values
+        updated.observe(.brightness, fact: reading.brightness, preservingDraft: reading.values[.brightness] != nil)
+        for (target, fact) in reading.values { updated.observe(target, fact: fact, preservingDraft: true) }
+        values = updated
+    }
+
     func readCatalog(ble: AhaKeyBLEManager, session: StudioInspectorSession) {
         let deviceID = values.facts[.brightness]?.deviceID
         perform(scope: NSLocalizedString("四模式灯效总览", comment: ""), session: session) { [self] in
@@ -137,7 +214,7 @@ final class StudioLightInspectorModel: ObservableObject {
         message = NSLocalizedString("本地灯光草稿已清除，请重新读取；未重置键盘，也不会撤销已发送的修改。", comment: "")
     }
 
-    private func perform(scope: String, session: StudioInspectorSession, body: @escaping @MainActor () async throws -> Void) {
+    private func perform(scope: String, session: StudioInspectorSession, failureContext: (() -> String?)? = nil, body: @escaping @MainActor () async throws -> Void) {
         guard !isBusy, !session.isBusy else { return }
         isBusy = true
         showsError = false
@@ -148,7 +225,11 @@ final class StudioLightInspectorModel: ObservableObject {
             do {
                 try await body()
                 if let currentMessage = message { message = Self.receipt(scope: scope, text: currentMessage) }
-            } catch { showsError = true; message = Self.receipt(scope: scope, text: KeyboardSettingsFeedback.message(for: error)) }
+            } catch {
+                showsError = true
+                let detail = [failureContext?(), KeyboardSettingsFeedback.message(for: error)].compactMap { $0 }.joined(separator: "\n")
+                message = Self.receipt(scope: scope, text: detail)
+            }
         }
     }
 

@@ -9,6 +9,8 @@ struct SideSwitchSettingsView: View {
     @State private var message: String?
     private let labels = [NSLocalizedString("出厂自动", comment: ""), NSLocalizedString("出厂手动", comment: ""), NSLocalizedString("禁用", comment: ""), NSLocalizedString("自定义", comment: "")]
 
+    @State private var writeOutcome: KeyboardWriteOutcome?
+
     var body: some View {
         Section {
             ForEach(0..<2, id: \.self) { index in
@@ -42,7 +44,7 @@ struct SideSwitchSettingsView: View {
                         } catch { message = KeyboardSettingsFeedback.message(for: error) }
                     }
                 }
-                Button(bleManager.isSettingSideSwitch ? NSLocalizedString("应用中…", comment: "") : NSLocalizedString("应用两档绑定", comment: "")) {
+                Button(bleManager.isSettingSideSwitch ? NSLocalizedString("应用中…", comment: "") : NSLocalizedString("写入键盘", comment: "")) {
                     guard let baseline, let draft, let generation else { return }
                     message = nil
                     Task { @MainActor in
@@ -51,6 +53,7 @@ struct SideSwitchSettingsView: View {
                             self.baseline = actual
                             self.draft = SideSwitchBindingDraft(readback: actual)
                             message = NSLocalizedString("两档绑定已读回一致；断电后的保存结果仍需重启验证。", comment: "")
+                writeOutcome = .init(succeeded: true, message: message ?? "")
                         } catch { message = String(format: NSLocalizedString("绑定未确认：%@；待应用设置已保留。", comment: ""), String(describing: KeyboardSettingsFeedback.message(for: error))) }
                     }
                 }
@@ -65,6 +68,7 @@ struct SideSwitchSettingsView: View {
             Text(NSLocalizedString("只自定义一边时，未明确设置的另一边默认禁用。可点“保留当前绑定”明确保留另一边。自定义动作只在实体拨动时执行；只有位置 1 的出厂自动绑定允许自动批准。", comment: ""))
                 .font(.caption).foregroundStyle(.secondary)
         } header: { Text(NSLocalizedString("实体拨杆绑定", comment: "")) }
+        .keyboardWriteResult($writeOutcome)
     }
 
     private var busy: Bool { bleManager.isConfigurationOperationInProgress }

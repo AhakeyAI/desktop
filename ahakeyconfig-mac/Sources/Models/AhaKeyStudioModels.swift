@@ -525,6 +525,28 @@ enum LightEffectStyle: String, CaseIterable, Codable, Identifiable {
 
     var id: String { rawValue }
 
+    var symbolName: String {
+        switch self {
+        case .off: "power"
+        case .middleLight: "circle.fill"
+        case .singleMove: "arrow.left.and.right"
+        case .breathing: "wind"
+        case .rainbowMove: "paintpalette"
+        case .rainbowWave: "waveform"
+        case .rainbowWaveSlow: "tortoise"
+        case .typingRipple: "keyboard"
+        case .comet: "sparkle"
+        case .scanBar: "viewfinder"
+        case .pulseCenter: "dot.radiowaves.left.and.right"
+        case .warningBlink: "exclamationmark.triangle"
+        case .successSweep: "checkmark.circle"
+        case .blueThinking: "brain"
+        case .lowBattery: "battery.25"
+        case .chargingFlow: "bolt.fill"
+        case .approvalWait: "hourglass"
+        }
+    }
+
     var isAnimated: Bool {
         switch self {
         case .off, .middleLight:

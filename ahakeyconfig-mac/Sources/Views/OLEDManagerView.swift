@@ -70,7 +70,7 @@ struct OLEDManagerView: View {
 
             if bleManager.isConnected {
                 Section {
-                    Button("上传到设备") {
+                    Button("写入键盘") {
                         // TODO: 通过 BLE 0x7343 分包上传图片/GIF 数据
                         // OLED 分辨率和图片格式待逆向确认
                     }

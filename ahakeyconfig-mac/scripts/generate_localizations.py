@@ -7,6 +7,21 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "当前配置已核对一致，无需写入。": "The current configuration matches. No write is needed.",
+    "已确认": "Verified",
+    "当前改动尚未生效，写入键盘后启用。": "These changes are not active yet. Write to keyboard to apply them.",
+    "写入成功": "Written to keyboard",
+    "完成编辑": "Finish editing",
+    "当前配置已核对并生效。": "The current configuration is verified and active.",
+    "当前按键已写入键盘。": "This key has been written to the keyboard.",
+    "当前语音设置已确认生效。": "The current voice settings are verified and active.",
+    "当前系统听写设置已确认。": "The current system Dictation settings are verified.",
+    "已写入当前模式的灯条修改。": "This mode’s lighting changes have been written.",
+    "本模式的灯效修改已写入；其他模式的灯效草稿保留。": "This mode’s lighting changes have been written. Other modes’ lighting drafts are retained.",
+    "全局亮度修改已对全部模式生效。": "Global brightness changes now apply to all modes.",
+    "部分修改可能已生效，草稿与待确认标记已保留；请重新核对后写入。": "Some changes may have applied. Drafts and unconfirmed markers are retained; verify again before writing.",
+    "灯光修改请在画布选中灯条，点击“修改”后使用底部“写入键盘”。": "To edit lighting, select the light bar on the canvas, click Edit, then use Write to keyboard at the bottom.",
+
     "默认 Fn/Globe，可修改为其他快捷键，适用于豆包、Typeless 等输入法。": "Defaults to Fn/Globe. You can choose another shortcut for Doubao, Typeless, or another input app.",
     "原普通键位（只读）": "Underlying binding (read-only)",
     "旧固件无法确认 Consumer 系统听写，本次未写入；请保留原方案或使用受支持的普通快捷键。": "This older firmware cannot confirm Consumer Dictation. Nothing was written; keep the existing scheme or choose a supported keyboard shortcut.",
