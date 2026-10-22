@@ -544,3 +544,13 @@ PR152目前草稿，不自动合并未完成的现场验收。完成恢复后更
 确认决定：只保存当前组件；编辑草稿时Agent保持连接，仅读取/保存/明确预览时临时交接并重读授权；保存前冲突展示最新设备值与草稿，明确选择；上传完成或明确取消才离开；拨杆实体档位只展示，高级绑定默认收起，无软件切档。
 
 Voice要求已升级：四模式独立，支持Consumer/App原生/AhaType/普通自定义快捷键混用，禁止沿用四模式统一F18接管。Consumer全局状态及现有App路由限制需核验，Fn/Globe不当普通组合键直发能力承诺。可先做客户端其他工作，但最终不能隐藏Consumer混用后声称全完成。WBS为I01、I02a/b/c、I03–I07，固件核验提前；不重复询问已确认产品取舍。后续PR目标connect&talk。
+
+## 43. 总WBS v2与I01/I02a首批（2026-10-22）
+
+用户要求WS4/5一起做、统一优先级并开工。总表mac-adaptation-master-wbs-2026-10-22.md及CSV替代历史“WS4/5另发”范围，旧计划顶部已加新表指针。最新Harness076382b的WS4/5 PRD/EXECUTION仍Stage B输入、architecture未接受；已按其真实范围拆G40/G50–54，独立长按KLP01、整机恢复R50单列，未擅分配opcode或发布自拟稳定目录。
+
+分支codex/connect-talk-inspector-session含方案0a2a0fb。实现I01短连接租约和I02a普通Key2/3/4现有右侧读取/保存/冲突选择：读写临时接管、后台编辑草稿、固定设备/模式/键号和generation；新任务先取消排队旧任务且开始前核对票据，旧租约不能释放新owner。无损导入/未知只读，冲突前fresh值再验，宏差异显示动作，单键确认只调和该键；同值是无写入而非新保存。
+
+代码75a3445，388测试和双轴窄复核通过；签名0.2.3 arm64已安装。原Key1/灯条/素材/模式/待机/高级绑定尚未迁入，因此旧设置页入口暂保留至对应能力接线完成，不能提早删除。新的普通键保存不跳页。
+
+真机从Key4选中后点击“修改”时CUA原生pipe断管；reset仍失败，已请求用户重开Codex，不重复安装Studio或重启键盘。界面验收未通过，源包保留；未执行按键/资源/Voice写入。fresh后台RPC connected=true、physical/effective=0、autoVerified=true。详见INSPECTOR_KEY.md，恢复界面后继续读取/临时描述写入及还原、返回后台再最终CI合connect&talk；期间PR保持Draft。
