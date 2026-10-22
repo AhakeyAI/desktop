@@ -560,3 +560,11 @@ Voice要求已升级：四模式独立，支持Consumer/App原生/AhaType/普通
 用户已重开Codex。CUA getApp精确路径仍pipe closed；reset后getState可列应用，但getApp无法原生读取，不能以此称App异常或UI通过。已请求用户手动选Codex Key4→修改，只读确认右侧键盘读回/Mode3 Key4/Backspace且不跳页，等待该回复；不要再要求重复重开。fresh后台connected=true、physical/effective=0、autoVerified=true，候选源仍75a3445。PR153原head3c5f450四项CI成功，UI未完成仍Draft。
 
 等待期间V10已核实接受源70ca334的psk_multi_button.c分发：全局Mac Consumer为真时Key1事件发0x00CF后直接return，绕过各mode普通绑定；0x96只能全局suppress，普通解析只73/74。因此完整Consumer/其他方案逐模式混用需要固件增量，不是仅改客户端门控；详见consumer-per-mode-feasibility-2026-10-22.md和总WBS V10。无固件生产修改或外部通知/issue新增。
+
+### 第43节UI精简候选5af6605
+
+用户确认右侧读取正常，要求信息简化并放按键描述下方。5af6605已将独立读回GroupBox改为描述下单行已读取动作+刷新，移除重复mode/key及机制说明。错误/未知/保存未确认条件显示；刷新在首次读取失败时不受字段禁用影响。宏动作详细信息及冲突完整摘要保留。
+
+swift build和StudioInlineKeyTests7项通过，两轴窄复核均无问题；上一业务版完整388已通过，本次仅UI布局与摘要复用。签名0.2.3 arm64/5af6605已构建在local-builds/connect-talk-inspector-compact-20261022，deep/strict和Info.plist来源已核对，尚未替换当前/Applications的75a3445。
+
+CUA仍不可原生操作，已请用户用CmdQ退出AhaKey Studio（不是Codex）以便替换。收到退出确认后，先备份当前App，再ditto精简候选到/Applications、签名/来源核对；请用户打开确认布局及后续单键保存/还原。无需重启键盘、无需再重开Codex；此前没有真实按键写入。PR153仍Draft，不能仅凭读取正常就合入。
