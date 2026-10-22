@@ -42,8 +42,9 @@ src/main/java/com/example/ahakey/
 
 - 应用配置：`src/main/resources/model_config.properties` — 语音模型路径、流式模式开关等
 - 日志配置：`src/main/resources/logback.xml` — Logback 日志配置
-- 模型文件：部署包的 `app/models/` — Sherpa-ONNX 语音识别模型（开发源码树不提交
-  大型模型二进制；发布脚本从经过授权的 baseline 资产 staging）
+- 本地语音是可选功能：安装包不带模型和 Sherpa DLL。用户在“更多 → 设备信息 · 设置”中开启后，
+  从 `https://ahakey.com/local-voice/manifest.json` 下载到 `%LOCALAPPDATA%\AhaKeyStudio\local-voice`
+  （见 `localvoice` 包、`New-LocalVoicePack.ps1` 和 `../docs/windows-stabilization-plan.md` 第 42 节）
 
 ## 构建
 

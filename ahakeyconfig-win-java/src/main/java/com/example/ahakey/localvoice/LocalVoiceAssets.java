@@ -121,11 +121,27 @@ public final class LocalVoiceAssets {
     void commit(LocalVoiceManifest manifest, Path verifiedStaging) throws IOException {
         Path target = packsDir().resolve(manifest.packId());
         Files.createDirectories(packsDir());
-        if (Files.exists(target)) deleteTree(target);
-        try {
-            Files.move(verifiedStaging, target, StandardCopyOption.ATOMIC_MOVE);
-        } catch (AtomicMoveNotSupportedException e) {
-            Files.move(verifiedStaging, target);
+        if (Files.exists(target)) {
+            // A pack deleted earlier in this session can leave DLLs that are
+            // still loaded (Windows cannot delete them). Merge file by file:
+            // identical files stay, everything else is replaced.
+            for (LocalVoiceManifest.FileEntry entry : manifest.files()) {
+                Path staged = verifiedStaging.resolve(entry.path()).normalize();
+                Path dest = target.resolve(entry.path()).normalize();
+                Files.createDirectories(dest.getParent());
+                if (Files.isRegularFile(dest) && LocalVoiceInstaller.matches(dest, entry)) {
+                    Files.deleteIfExists(staged);
+                } else {
+                    Files.move(staged, dest, StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+            deleteTreeBestEffort(verifiedStaging);
+        } else {
+            try {
+                Files.move(verifiedStaging, target, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(verifiedStaging, target);
+            }
         }
         Installed installed = new Installed();
         installed.packId = manifest.packId();

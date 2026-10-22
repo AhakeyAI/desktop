@@ -1457,3 +1457,46 @@ Combined validation on the merged tree:
 
 The primary checkout and running applications were preserved. No installation,
 firmware flashing, or physical-device testing was performed for this merge.
+
+## 42. Unified client: optional local voice, lite layout (2026-10-23)
+
+本节 supersedes 第 26 节中“安装包内置模型与 Sherpa DLL”和第 22/25 节中“短按不能使用
+本地语音”的描述；这些章节保留为历史记录。`main` 上的轻量版 `ahakeyconfig-win-java`、完整版
+`ahakeyconfig-win-model-java` 与 `eternal-dev` 合并为一个客户端，以 eternal-dev 代码为基础，
+页面布局以轻量版为准。
+
+**默认形态 = 轻量版。** 新安装不带模型、不带 Sherpa DLL、不显示 AhaType。顶部栏恢复轻量版的
+单行布局；AhaType 和语音控件固定在“BLE驱动”之后，仅在本地语音可用时显示。“更多”菜单与设备信息
+窗口保留轻量版原有项目和顺序，新增项放在其后；灯条页先亮度、AI 状态灯效，任务灯效模式放最后。
+
+**本地语音（可选）。** 在“更多 → 设备信息 · 设置”的“本地语音（可选）”卡片中开启：客户端读取
+`https://ahakey.com/local-voice/manifest.json`（schema 1；`AHAKEY_LOCAL_VOICE_MANIFEST_URL`
+或 `-Dahakey.localVoice.manifestUrl` 可指向测试服务器，仅允许 HTTPS 或本机 HTTP），只接受
+`models/encoder.int8.onnx`、`decoder.int8.onnx`、`tokens.txt`、可选 `silero_vad.onnx` 以及
+`native/win-x64/onnxruntime.dll`、`sherpa-onnx-jni.dll`、可选 `onnxruntime_providers_shared.dll`。
+每个文件校验大小和 SHA-256，先下载到 `%LOCALAPPDATA%\AhaKeyStudio\local-voice\staging`（可断点续传、
+可取消），全部通过后才移入 `packs\<packId>` 并最后写 `installed.json`。可用 =
+`~/.ahakey/local-voice.json` 中 `enabled=true` 且安装记录完整；变为可用时后台加载
+VoiceInputManager，不需要重启。关闭可选择保留或删除模型；进程仍占用的 DLL 在下次启动时清理，同一
+进程内重新安装时按文件合并（内容一致的保留）。`LibraryLoader` 加载后把 `sherpa_onnx.native.path`
+指向实际目录；安装包不再传该参数。`model.enabled=false` 仅作开发用强制关闭开关。发布方用
+`New-LocalVoicePack.ps1` 生成文件和 manifest 并上传到 ahakey.com。
+
+**K1 语音键。** 短按、长按分别选择动作：自定义快捷键（默认 Win+H）、AhaKey 本地语音、禁用。
+短按本地语音为切换模式（按一下开始、再按一下结束，超过 60 秒自动停止，避免忘记关闭后持续注入
+文字）；长按为按住说话；切换录音中任意一次按键都会结束录音。每种触发方式可单独选择识别结果是否经
+AhaType 云端整理（还需顶部开启 AhaType 并登录）。识别结果可输出繁体（OpenCC，来自完整版）。
+草稿新增 `voiceSchema=2`、`voiceShortAhaType`、`voiceLongAhaType`；无 `voiceSchema` 的旧草稿中
+短按 `AHAKEY_VOICE` 仍迁移为 Win+H。默认长按改为 Win+H；首次开启本地语音且两个触发均为默认值时，
+长按自动改为本地按住说话。K1 面板与轻量版一致，含“模拟按一次 Key1 / 模拟长按 3 秒”，走与物理
+F18 相同的路由。
+
+**保存前预览（来自完整版）。** 写入键盘前列出 4 模式 × K2–K4 共 12 个绑定供确认（K1 只保存在
+电脑上，不写入键盘）；取消则改动保留在本地。完整版的保存后回读校验未移植：它用 `0x97/0x98` 读按键，
+而官方固件中 `0x97` 是语音键配置，可能误改设备设置；需要固件先提供按键读取命令。
+
+验证：`mvn clean test` 382 tests、0 failures、1 skipped（无 pwsh 7）；`mvn clean package`
+`RELEASE_ARTIFACT_CONTENTS=OK`。Windows 实机（无键盘）验证：默认形态与轻量版逐页截图对比；
+本地 HTTP 服务器提供真实 Paraformer 模型包，开启 → 下载 → 校验 → 加载 Sherpa 成功；关闭保留/再开启
+不重新下载；关闭删除/同进程再开启成功；启动语音输入、模拟长按/短按录音；官方 `test_wavs` 识别与
+繁体转换正确。键盘真机、真实麦克风注入、AhaType 账号、保存预览写入设备仍待真机验证。

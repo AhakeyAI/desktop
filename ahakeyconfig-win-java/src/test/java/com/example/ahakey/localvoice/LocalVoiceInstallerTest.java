@@ -136,6 +136,33 @@ class LocalVoiceInstallerTest {
     }
 
     @Test
+    void reinstallAfterDeleteSucceedsWhenAnUndeletableDllWasLeftBehind() throws Exception {
+        try (FakePackServer server = new FakePackServer()) {
+            LocalVoiceAssets assets = new LocalVoiceAssets(temp.resolve("lv"));
+            LocalVoiceInstaller installer = installer(assets);
+            LocalVoiceManifest manifest = installer.fetchManifest(server.manifestUrl());
+            LocalVoiceAssets.InstalledPack pack = installer.install(manifest, null, null);
+            // A DLL still loaded by the process cannot be deleted on Windows;
+            // a read-only file behaves the same for this test.
+            Path dll = pack.nativeDirectory().resolve("sherpa-onnx-jni.dll");
+            dll.toFile().setReadOnly();
+            try {
+                assets.uninstall();
+                assertTrue(assets.installed().isEmpty());
+                assertTrue(Files.exists(dll), "the locked DLL is left behind");
+
+                installer.install(manifest, null, null);
+
+                assertTrue(assets.isInstalled(manifest));
+                assertArrayEquals(server.files.get("models/encoder.int8.onnx"),
+                    Files.readAllBytes(pack.modelDirectory().resolve("encoder.int8.onnx")));
+            } finally {
+                dll.toFile().setWritable(true);
+            }
+        }
+    }
+
+    @Test
     void aDamagedInstalledFileMakesThePackUnavailable() throws Exception {
         try (FakePackServer server = new FakePackServer()) {
             LocalVoiceAssets assets = new LocalVoiceAssets(temp.resolve("lv"));

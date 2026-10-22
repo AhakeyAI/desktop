@@ -233,6 +233,9 @@ public final class LocalVoiceFeature {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(localize("下载被中断"));
+        } catch (java.nio.file.FileSystemException e) {
+            logger.warn("Local voice install failed", e);
+            fail(localize("安装失败：本地语音文件正被占用，请重启 AhaKey Studio 后再开启。"));
         } catch (IOException | RuntimeException e) {
             logger.warn("Local voice download failed", e);
             fail(localize("下载失败：") + e.getMessage());

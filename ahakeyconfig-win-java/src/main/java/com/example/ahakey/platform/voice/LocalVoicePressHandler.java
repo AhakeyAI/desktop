@@ -9,11 +9,15 @@ package com.example.ahakey.platform.voice;
  * </ul>
  *
  * Any press while a toggle recording is running stops it; the release of a
- * long press that only stopped a recording does nothing.
+ * long press that only stopped a recording does nothing. A toggle recording
+ * also stops by itself after {@link #TOGGLE_MAX_SECONDS}.
  */
 public final class LocalVoicePressHandler {
 
     public enum Command { START, STOP, NONE }
+
+    /** A toggle recording stops by itself after this long, so a forgotten one cannot keep typing. */
+    public static final int TOGGLE_MAX_SECONDS = 60;
 
     /** {@code trigger} says which press started the recording (for per-trigger settings). */
     public record Decision(Command command, VoiceButtonEvent.Type trigger) {

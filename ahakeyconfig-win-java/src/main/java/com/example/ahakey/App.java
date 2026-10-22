@@ -74,6 +74,15 @@ public class App extends Application {
      */
     private volatile VoiceInputManager voiceInputManager;
     private final LocalVoicePressHandler localVoicePresses = new LocalVoicePressHandler();
+    /** Ends a forgotten toggle recording so it cannot keep typing indefinitely. */
+    private final java.util.concurrent.ScheduledExecutorService toggleTimeout =
+        java.util.concurrent.Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "local-voice-toggle-timeout");
+            thread.setDaemon(true);
+            return thread;
+        });
+    private final java.util.concurrent.atomic.AtomicLong toggleSession =
+        new java.util.concurrent.atomic.AtomicLong();
     private TopBar topBar;
     private boolean shuttingDown;
     
@@ -426,8 +435,22 @@ public class App extends Application {
                         localVoicePresses.onEvent(event.type(), manager.isRecording());
                     if (decision.command() == LocalVoicePressHandler.Command.START) {
                         boolean shortPress = decision.trigger() == VoiceButtonEvent.Type.SHORT_PRESS;
+                        long session = toggleSession.incrementAndGet();
                         manager.startRecording(
                             controller.getStudioState().isVoiceAhaTypeEnabled(shortPress));
+                        if (shortPress) {
+                            toggleTimeout.schedule(() -> Platform.runLater(() -> {
+                                VoiceInputManager current = voiceInputManager;
+                                if (toggleSession.get() == session && current != null
+                                    && current.isRecording()) {
+                                    logger.info("短按录音超过 {} 秒，自动停止",
+                                        LocalVoicePressHandler.TOGGLE_MAX_SECONDS);
+                                    current.stopRecording();
+                                    localVoicePresses.reset();
+                                }
+                            }), LocalVoicePressHandler.TOGGLE_MAX_SECONDS,
+                                java.util.concurrent.TimeUnit.SECONDS);
+                        }
                     } else if (decision.command() == LocalVoicePressHandler.Command.STOP
                         && manager.isRecording()) {
                         manager.stopRecording();
