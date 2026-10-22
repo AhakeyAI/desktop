@@ -61,7 +61,8 @@ struct FirmwareFlasherView: View {
     }
 
     private var firmwareSection: some View {
-        GroupBox {
+        StudioInspectorSection {
+            Label("固件文件", systemImage: "doc.badge.gearshape").font(.headline)
             VStack(alignment: .leading, spacing: 12) {
                 if let firmware = flasher.selectedFirmware {
                     HStack(alignment: .top) {
@@ -105,13 +106,12 @@ struct FirmwareFlasherView: View {
                 .buttonStyle(.bordered)
             }
             .padding(4)
-        } label: {
-            Label("固件文件", systemImage: "doc.badge.gearshape")
         }
     }
 
     private var preparationSection: some View {
-        GroupBox {
+        StudioInspectorSection {
+            Label("进入 USB ISP", systemImage: "cable.connector").font(.headline)
             VStack(alignment: .leading, spacing: 10) {
                 instructionRow(1, "拔掉键盘 USB，并关闭键盘电源。")
                 instructionRow(2, "将 CN1 的 BOOT（PB22）与 GND 短接。")
@@ -132,13 +132,12 @@ struct FirmwareFlasherView: View {
                     .padding(.top, 6)
             }
             .padding(4)
-        } label: {
-            Label("进入 USB ISP", systemImage: "cable.connector")
         }
     }
 
     private var statusSection: some View {
-        GroupBox {
+        StudioInspectorSection {
+            Label("烧录状态", systemImage: "waveform.path.ecg").font(.headline)
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
                     phaseIcon
@@ -200,8 +199,6 @@ struct FirmwareFlasherView: View {
                 }
             }
             .padding(4)
-        } label: {
-            Label("烧录状态", systemImage: "waveform.path.ecg")
         }
     }
 
