@@ -30,6 +30,8 @@ enum HookClient {
         "sessionStart": .sharedState(4),
         "sessionEnd": .sharedState(8),
         "postToolUse": .sharedState(2),
+        "beforeSubmitPrompt": .sharedState(7),
+        "beforeReadFile": .sharedState(3),
         "stop": .sharedState(5),
         "preToolUse": .cursorToolPermission,
         "beforeShellExecution": .cursorToolPermission,
@@ -51,6 +53,15 @@ enum HookClient {
         "KimiStop": .sharedState(5),
     ]
 
+    /// Shared-state routes use the same builder in production and focused tests.
+    /// No tool content or command text is forwarded to the task registry.
+    static func stateRequest(event: String, stdin: Data) -> [String: Any]? {
+        guard case .sharedState(let value) = eventMap[event] else { return nil }
+        let request: [String: Any] = ["cmd": "state", "value": Int(value)]
+        guard let client = WS3TaskMetadata.client(for: event) else { return request }
+        return WS3TaskMetadata.enrich(request, client: client, event: event, stdin: stdin)
+    }
+
     static func run(event: String) -> Int32 {
         signal(SIGPIPE, SIG_IGN)
         
@@ -63,13 +74,9 @@ enum HookClient {
         }
 
         switch route {
-        case .sharedState(let value):
-            if let client = WS3TaskMetadata.client(for: event) {
-                let request = WS3TaskMetadata.enrich(["cmd": "state", "value": Int(value)], client: client,
-                    event: event, stdin: HookSupport.readAllStdinSilently())
+        case .sharedState:
+            if let request = stateRequest(event: event, stdin: HookSupport.readAllStdinSilently()) {
                 _ = HookSupport.sendJsonRequest(request, timeout: HookSupport.stateRequestTimeout)
-            } else {
-                HookSupport.handleFireAndForgetState(stateValue: value)
             }
         case .claudePreToolUse:
             ClaudeHookHandler.handlePreToolUse()

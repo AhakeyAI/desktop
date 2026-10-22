@@ -1,0 +1,72 @@
+{
+  "date": "2026-10-23",
+  "baseCommit": "2ad8ab5f31cef51f1cf0bb119d0494c410978d9f",
+  "sourceSHA256": {
+    "ahakeyconfig-mac/Sources/Agent/HookClient.swift": "dc0fb8c10bd517f323332100c4d2c695642077d6752bf212791f55139e1b6ad4",
+    "ahakeyconfig-mac/Sources/Shared/WS3TaskObservation.swift": "e5d802208bbe9c8d0dcc2fccc2e559c97ec0eb0bca90647c7bf1e7701479c7b5",
+    "ahakeyconfig-mac/Tests/AhaKeyAgentTests/CursorStateRoutingTests.swift": "bd0c66960af78780c8d16aaad054be07e242cd73d279a094987d631828e18471",
+    "ahakeyconfig-mac/scripts/verify-cursor-hooks.py": "9b0297a622ba6aec80fcb394904d7fe4248f3bf385366d4b885481118360b6f2",
+    "ahakeyconfig-mac/scripts/hook_lifecycle_fixture.py": "a207c6f3464610879d25d82291a55cc35b830d729b0ed7df1dc8428cb79c03d1",
+    "ahakeyconfig-mac/scripts/test_hook_lifecycle_fixture.py": "b675ca27ba9c008f6a601f76107d6a30324a40fb8259b26e9170593d24239457",
+    ".github/workflows/ci.yml": "cb535fd580d4db6d2445948ebb36bc71bb9fade55ffb1db0d93d0a408550cf7d"
+  },
+  "routingRedProof": {
+    "command": "swift test --filter CursorStateRoutingTests",
+    "result": "1 test failed: production stateRequest for installed event was nil"
+  },
+  "focusedSwift": {
+    "tests": 15,
+    "failures": 0,
+    "filter": "CursorStateRoutingTests|CursorHookHandlerTests|WS3TaskObservationTests|CodexTaskMetadataTests|KimiHookHandlerTests"
+  },
+  "processCleanup": {
+    "red": "Exited parent hid TERM-ignoring child; process group remained",
+    "green": "1 real subprocess regression passed, process group confirmed absent; CI added"
+  },
+  "cursor": {
+    "cli": "2026.10.19-6bbf2c4",
+    "lifecycle": {
+      "initial": {
+        "configuredHooks": 10,
+        "executed": [
+          "sessionEnd",
+          "sessionStart",
+          "user"
+        ],
+        "expectedStreamFailure": true
+      },
+      "reinstall": {
+        "configuredHooks": 10,
+        "executed": [
+          "sessionEnd",
+          "sessionStart",
+          "user"
+        ],
+        "expectedStreamFailure": true
+      },
+      "remove": {
+        "configuredHooks": 1,
+        "executed": [
+          "user"
+        ],
+        "expectedStreamFailure": true
+      }
+    },
+    "scope": "startup/exit only; loopback metadata and unsupported Agent stream; no real model/provider",
+    "promptAndToolCallbacks": "not verified"
+  },
+  "reviews": {
+    "standards": "P2 process cleanup fixed and re-review passed",
+    "spec": "P2 process cleanup fixed and re-review passed"
+  },
+  "priorCI": {
+    "commit": "2ad8ab5f31cef51f1cf0bb119d0494c410978d9f",
+    "run": 39837256886,
+    "conclusion": "success"
+  },
+  "limits": [
+    "Startup/exit only; native prompt/tool callback acceptance and hot reload pending",
+    "No real CLI config, credentials, physical keyboard or installed candidate changed",
+    "Native Kimi immediate live permission control remains incomplete"
+  ]
+}

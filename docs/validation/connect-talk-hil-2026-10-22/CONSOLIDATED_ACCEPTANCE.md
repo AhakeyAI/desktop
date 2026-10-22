@@ -98,3 +98,10 @@
 Cursor 2026.10.19-6bbf2c4补验仍为部分：其CURSOR_CONFIG_DIR只重定位CLI配置，钩子loader仍固定os.homedir下.cursor/.claude。隔离探针仅在该测试Node进程替换homedir并设置临时config/data/store，使用本机虚构账号/元数据端点；真实sessionStart/sessionEnd已经执行，但完整会话需Agent流协议，当前假端点返回协议错误，尚未执行用户beforeSubmitPrompt阻止Hook。不能将这次退出1或SessionEnd有记录标为完整生命周期通过。探针与其临时语言服务均已确认退出，未修改真实CLI设置/账号/实体配置。
 
 Kimi进一步核验的[官方SDK实现](https://github.com/MoonshotAI/kimi-code/blob/b5e28fd6beac752a2cdcc0ff2f5fdf40e6494fbb/packages/node-sdk/src/sdk-rpc-client-v2.ts)中setPermission能作用于本进程agentFacade；[官方TUI入口](https://github.com/MoonshotAI/kimi-code/blob/b5e28fd6beac752a2cdcc0ff2f5fdf40e6494fbb/apps/kimi-code/src/cli/run-shell.ts)直接创建自己的harness，SDK传输在该路径是内存连接。这说明SDK存在权限方法，并不证明另一个外部Studio进程可连接已运行TUI。实时接管仍待开发，不回退到无效的写默认字段或REST成功判定。
+
+
+### Cursor启动/退出补验与遗漏状态路由修复
+
+新收据cursor-state-routing-2026-10-23.json覆盖本批。生产安装的beforeSubmitPrompt/beforeReadFile此前未映射到HookClient及WS3TaskMetadata，回归先红后绿，现为仅状态running事件。15项相关Swift通过，拒绝将敏感内容、假会话或权限决定混入状态请求。
+
+实际Cursor CLI三阶段为10/10/1；sessionStart/sessionEnd与保留用户Hook执行，移除后只有用户Hook。此阶段使用无服务端Agent流的离线夹具，预期退出1/Protocol error是明确边界，不能按整条工具生命周期验收完成。测试进程的os.homedir隔离和回环伪造元数据不修改真实CLI。新增真实子进程回归修复父已退出时漏清子进程的问题，CI将执行该检查。双轴复核中的P2已关闭；修复后原三阶段复跑通过，确认无临时进程残留。

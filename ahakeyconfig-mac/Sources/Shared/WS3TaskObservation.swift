@@ -44,7 +44,7 @@ public struct WS3TaskMetadata: Equatable, Sendable {
     public static func client(for event: String) -> WS3TaskClient? {
         switch event {
         case "Notification", "PostToolUse", "SessionStart", "Stop", "TaskCompleted", "UserPromptSubmit", "SessionEnd", "PreCompact": return .claude
-        case "sessionStart", "sessionEnd", "postToolUse", "stop": return .cursor
+        case "sessionStart", "sessionEnd", "postToolUse", "stop", "beforeSubmitPrompt", "beforeReadFile": return .cursor
         case "KimiNotification", "KimiSessionStart", "KimiSessionEnd", "KimiPostToolUse", "KimiUserPromptSubmit", "KimiStop": return .kimi
         default: return nil
         }
