@@ -105,3 +105,12 @@ Kimi进一步核验的[官方SDK实现](https://github.com/MoonshotAI/kimi-code/
 新收据cursor-state-routing-2026-10-23.json覆盖本批。生产安装的beforeSubmitPrompt/beforeReadFile此前未映射到HookClient及WS3TaskMetadata，回归先红后绿，现为仅状态running事件。15项相关Swift通过，拒绝将敏感内容、假会话或权限决定混入状态请求。
 
 实际Cursor CLI三阶段为10/10/1；sessionStart/sessionEnd与保留用户Hook执行，移除后只有用户Hook。此阶段使用无服务端Agent流的离线夹具，预期退出1/Protocol error是明确边界，不能按整条工具生命周期验收完成。测试进程的os.homedir隔离和回环伪造元数据不修改真实CLI。新增真实子进程回归修复父已退出时漏清子进程的问题，CI将执行该检查。双轴复核中的P2已关闭；修复后原三阶段复跑通过，确认无临时进程残留。
+
+
+### Claude同会话Hook重载与CI夹具修复
+
+新增可重复命令 `python3 scripts/verify-claude-hooks.py --live-reload`。实际Claude 2.1.299同一常驻stream-json进程完成旧命令→含空格/单引号的新路径→移除；每轮用户阻断Hook都实际执行、所有阶段进程保持同一个、模型请求0。文件更新使用生产编辑器及原子写入，写后留出稳定期。早期探针中用户阻断太快可能取消并行的托管Hook，已让阻断等待短暂时间再完成；不将早期漏记事件诊断为客户端缺陷。受保护的最终版本已通过，见claude-live-reload-2026-10-23.json。范围仅是Hook配置，未据此宣称权限策略/实体拨杆即时重载。
+
+[官方设置文档](https://code.claude.com/docs/en/settings#when-edits-take-effect)说明设置文件变更会重载；[官方受管设置文档](https://code.claude.com/docs/en/managed-settings)说明managed来源不因settingSources缩小而关闭。审查因此补了两种模式共同的系统策略隔离前置检查：系统managed文件/目录/断链、偏好域存在或无法确认均拒绝启动CLI，不打印策略值。两轴复核P2已关闭。
+
+b223860的CI在新增子进程回归处失败：远端macOS对已结束的孤儿进程组的killpg(...,0)返回EPERM。夹具现在核对精确PGID的非Z成员，无活进程才视为结束；有活成员仍失败。新增可确定复现该返回值的测试，连同原真实子进程和策略隔离共5项通过。此处是夹具兼容修复；CI重跑前不声称b223860全绿。

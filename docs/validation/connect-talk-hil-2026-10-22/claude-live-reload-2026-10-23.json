@@ -1,0 +1,64 @@
+{
+  "date": "2026-10-23",
+  "baseCommit": "b2238606620216095467808b6b198d470062a568",
+  "sourceSHA256": {
+    "ahakeyconfig-mac/scripts/verify-claude-hooks.py": "28c957a4b7a6a19ae23e24b998db3f3821f2435b89f25d4d7735950334c70f09",
+    "ahakeyconfig-mac/scripts/hook_lifecycle_fixture.py": "2589561ce2650d01c7e10f86d2c7a3b74679455b0704745324efa7ffeaa5f88a",
+    "ahakeyconfig-mac/scripts/test_hook_lifecycle_fixture.py": "3ee4dca3660fde67e5ff5d0dfd1642e6f822054d02702705a0f49a79b2cdda34"
+  },
+  "claude": {
+    "cli": "2.1.299 (Claude Code)",
+    "liveReload": {
+      "initial": {
+        "executed": [
+          "SessionStart",
+          "UserPromptSubmit",
+          "user"
+        ],
+        "sameProcess": true
+      },
+      "replace": {
+        "executed": [
+          "next:UserPromptSubmit",
+          "user"
+        ],
+        "sameProcess": true
+      },
+      "remove": {
+        "executed": [
+          "user"
+        ],
+        "sameProcess": true
+      }
+    },
+    "modelRequests": 0,
+    "scope": "same-process hook replacement/removal; no live lever control claimed"
+  },
+  "fixtureTests": {
+    "count": 5,
+    "failures": 0,
+    "coverage": [
+      "Exited parent with TERM-ignoring child",
+      "Darwin EPERM for gone/orphan group; precise live-member inspection",
+      "Managed system files/dropins/broken links rejected",
+      "Present/unverifiable macOS policy preferences rejected",
+      "Absent policies accepted"
+    ]
+  },
+  "CIRegression": {
+    "run": 39838212068,
+    "commit": "b2238606620216095467808b6b198d470062a568",
+    "failure": "Fixture killpg(group,0) EPERM on macOS orphan group",
+    "fix": "Inspect exact PGID non-zombie members on EPERM; live members still fail cleanup",
+    "rerun": "pending new commit"
+  },
+  "review": {
+    "standards": "P2 managed-policy isolation closed, no remaining findings",
+    "spec": "passed after managed-policy guard re-review"
+  },
+  "limits": [
+    "Claude hook replacement/removal only, not live lever or approval policy reload",
+    "Cursor prompt/tool callback flow and whole multi-CLI matrix remain incomplete",
+    "No installed app or physical device changed"
+  ]
+}
