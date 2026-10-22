@@ -195,6 +195,17 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
     }
 
+    /// Listening stops must cancel a pending short-press timer without turning
+    /// its cancellation into the keyUp gesture that starts a new recording.
+    func cancelPendingVoiceKeyPress() {
+        longPressTimerWork?.cancel()
+        longPressTimerWork = nil
+        if isLongPressRecording {
+            isLongPressRecording = false
+            stopRecording(bypassAhaType: !longPressAhaTypeEnabled)
+        }
+    }
+
     func toggleRecordingFromVoiceKey() {
         if isRecording {
             stopRecording(bypassAhaType: !shortPressAhaTypeEnabled)

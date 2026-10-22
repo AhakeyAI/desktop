@@ -399,7 +399,7 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
         case .codex:
             NSLocalizedString("规划中，保留入口。", comment: "")
         case .custom:
-            NSLocalizedString("直接自己指定底层快捷键。", comment: "")
+            NSLocalizedString("直接发送所选快捷键；使用 Fn/Globe 请选对应预设。", comment: "")
         }
     }
 
