@@ -1,0 +1,11 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+ <sys:Double x:Key="Type.Body.Size">14</sys:Double>
+ <Style x:Key="Body" TargetType="TextBlock"><Setter Property="FontSize" Value="{StaticResource Type.Body.Size}"/><Setter Property="TextWrapping" Value="Wrap"/></Style>
+ <Style x:Key="PageTitle" TargetType="TextBlock" BasedOn="{StaticResource Body}"><Setter Property="FontSize" Value="28"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+ <Style x:Key="SectionTitle" TargetType="TextBlock" BasedOn="{StaticResource Body}"><Setter Property="FontSize" Value="18"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+ <Style x:Key="CardTitle" TargetType="TextBlock" BasedOn="{StaticResource Body}"><Setter Property="FontSize" Value="17"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+ <Style x:Key="Secondary" TargetType="TextBlock" BasedOn="{StaticResource Body}"><Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/><Setter Property="LineHeight" Value="20"/></Style>
+ <Style x:Key="SecondaryText" TargetType="TextBlock" BasedOn="{StaticResource Secondary}"/>
+ <Style x:Key="Caption" TargetType="TextBlock" BasedOn="{StaticResource Secondary}"><Setter Property="FontSize" Value="12"/><Setter Property="LineHeight" Value="17"/></Style>
+ <Style x:Key="BrandTitle" TargetType="TextBlock" BasedOn="{StaticResource Body}"><Setter Property="FontSize" Value="16"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
+</ResourceDictionary>

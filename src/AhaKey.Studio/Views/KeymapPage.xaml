@@ -1,0 +1,63 @@
+<UserControl x:Class="AhaKey.Studio.Views.KeymapPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="clr-namespace:AhaKey.Studio.Controls">
+ <StackPanel>
+  <TextBlock Text="{Binding L[Keymap]}" Style="{StaticResource PageTitle}"/>
+  <TextBlock Text="{Binding L[KeymapEditorHint]}" Style="{StaticResource Secondary}" Margin="0,8,0,24"/>
+  <TextBlock Text="{Binding L[ChooseProfile]}"><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource SectionTitle}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding HasProfile}" Value="False"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+  <TextBlock Text="{Binding L[InvalidLabelElsewhere]}" Style="{StaticResource Caption}" Foreground="{DynamicResource Danger}" Margin="0,0,0,12" Visibility="{Binding HasInvalidLabels, Converter={StaticResource BoolVisibility}}"/>
+  <Grid Visibility="{Binding HasProfile, Converter={StaticResource BoolVisibility}}">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="24"/><ColumnDefinition Width="380"/></Grid.ColumnDefinitions>
+   <StackPanel>
+    <Grid Margin="0,0,0,16"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="{Binding ProfileName}" Style="{StaticResource SectionTitle}"/><TextBlock Grid.Column="1" Text="{Binding ProfileState}" Style="{StaticResource Caption}" Margin="12,4,0,0"/></Grid>
+    <controls:DevicePreview x:Name="Hardware" Interactive="True" KeyRegions="{Binding Keys}" SelectedRegion="{Binding SelectedKey}"/>
+    <TextBlock Text="{Binding L[SelectKeyHint]}" Style="{StaticResource Secondary}" Margin="0,16,0,8"/>
+    <TextBlock Text="{Binding Provenance}" Style="{StaticResource Caption}"/>
+    <TextBlock Text="{Binding ChangedKeys}" Style="{StaticResource Secondary}" Margin="0,12,0,8"/>
+    <Button Content="{Binding L[UndoLocal]}" Command="{Binding UndoCommand}" HorizontalAlignment="Left"/>
+    <Expander Header="{Binding L[CopyProfileKeys]}" Margin="0,16,0,0"><StackPanel Margin="0,8,0,0">
+     <ComboBox ItemsSource="{Binding CopyProfiles}" DisplayMemberPath="Name" SelectedItem="{Binding CopyProfile}" AutomationProperties.Name="{Binding L[TargetProfile]}"/>
+     <WrapPanel Margin="0,8,0,0"><Button Content="{Binding L[CopyFromProfile]}" Command="{Binding CopyFromProfileCommand}" Margin="0,0,8,8"/><Button Content="{Binding L[CopyKeyToProfile]}" Command="{Binding CopyKeyToProfileCommand}" Margin="0,0,0,8"/></WrapPanel>
+    </StackPanel></Expander>
+    <Button Visibility="{Binding IsMock, Converter={StaticResource BoolVisibility}}" Content="{Binding L[Connect]}" Command="{Binding DataContext.ConnectCommand, RelativeSource={RelativeSource AncestorType=Window}}" IsEnabled="{Binding DataContext.CanConnect, RelativeSource={RelativeSource AncestorType=Window}}" HorizontalAlignment="Left" Margin="0,24,0,0"/>
+   </StackPanel>
+   <Border Grid.Column="2" x:Name="Inspector" Background="{DynamicResource Surface}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="10" Padding="20" VerticalAlignment="Top">
+    <StackPanel>
+     <TextBlock Text="{Binding KeyTitle}" Style="{StaticResource SectionTitle}"/>
+     <TextBlock Text="{Binding Feedback}" Style="{StaticResource Secondary}" Margin="0,12,0,0" Visibility="{Binding HasFeedback, Converter={StaticResource BoolVisibility}}" AutomationProperties.LiveSetting="Polite"/>
+     <TextBlock Text="{Binding L[K1Restriction]}" Style="{StaticResource Secondary}" Margin="0,12,0,0" Visibility="{Binding IsK1, Converter={StaticResource BoolVisibility}}"/>
+     <Button Content="{Binding VoiceActionLabel}" Command="{Binding VoiceCommand}" Visibility="{Binding IsK1, Converter={StaticResource BoolVisibility}}" HorizontalAlignment="Left" Margin="0,12,0,0"/>
+     <TextBlock Text="{Binding L[LocalName]}" Margin="0,20,0,8"/>
+     <TextBox x:Name="LocalNameInput" Text="{Binding LocalName, UpdateSourceTrigger=PropertyChanged}" MaxLength="80" AutomationProperties.Name="{Binding L[LocalName]}"/>
+     <TextBlock Text="{Binding L[LocalNameHint]}" Style="{StaticResource Caption}" Margin="0,6,0,0"/>
+     <StackPanel Visibility="{Binding Editable, Converter={StaticResource BoolVisibility}}">
+      <TextBlock Text="{Binding L[DeviceLabel]}" Margin="0,16,0,8"/>
+      <TextBox x:Name="DeviceLabelInput" Text="{Binding DeviceLabel, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="{Binding L[DeviceLabel]}"/>
+      <TextBlock Text="{Binding L[Ascii20]}" Style="{StaticResource Caption}" Margin="0,6,0,0"/>
+      <TextBlock Text="{Binding L[DeviceLabelInvalid]}" Foreground="{DynamicResource Danger}" Style="{StaticResource Caption}" Margin="0,6,0,0" Visibility="{Binding LabelInvalid, Converter={StaticResource BoolVisibility}}" AutomationProperties.LiveSetting="Polite"/>
+     </StackPanel>
+     <TextBlock Text="{Binding L[KeyboardShortcut]}" Margin="0,20,0,8"/>
+     <ItemsControl ItemsSource="{Binding Chips}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><Border Background="{DynamicResource SurfaceRaised}" BorderBrush="{DynamicResource Border}" BorderThickness="1" CornerRadius="6" Padding="10,6" Margin="0,0,6,6"><TextBlock Text="{Binding}"/></Border></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+     <TextBlock Text="{Binding ActionText}" Style="{StaticResource Secondary}" Visibility="{Binding NoShortcut, Converter={StaticResource BoolVisibility}}"/>
+     <StackPanel Visibility="{Binding Editable, Converter={StaticResource BoolVisibility}}">
+      <WrapPanel Margin="0,8,0,0" Visibility="{Binding NotRecording, Converter={StaticResource BoolVisibility}}"><Button Content="{Binding L[RecordShortcut]}" Command="{Binding RecordCommand}" Margin="0,0,8,8"/><Button Visibility="{Binding IsMock, Converter={StaticResource BoolVisibility}}" Content="{Binding L[Clear]}" Command="{Binding ClearCommand}" ToolTip="{Binding L[ClearMockHint]}" Margin="0,0,0,8"/></WrapPanel>
+      <Border Background="{DynamicResource Selection}" CornerRadius="8" Padding="12" Margin="0,8,0,8" Visibility="{Binding IsRecording, Converter={StaticResource BoolVisibility}}"><StackPanel><TextBlock Text="{Binding L[PressShortcut]}" Foreground="{DynamicResource Focus}"/><TextBlock Text="{Binding CaptureModifiers}" Style="{StaticResource Caption}"/><Button Content="{Binding L[CancelCapture]}" Command="{Binding CancelCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"/></StackPanel></Border>
+      <TextBlock Text="{Binding CaptureHint}" Style="{StaticResource Caption}" Margin="0,0,0,8"/>
+      <Expander x:Name="ManualBuilder" Header="{Binding L[ChooseManually]}" Foreground="{DynamicResource TextPrimary}" Margin="0,8,0,12">
+       <StackPanel Margin="0,12,0,0">      <TextBlock Text="{Binding L[ShortcutPresets]}" Style="{StaticResource Caption}" Margin="0,8,0,8"/>
+      <WrapPanel><ComboBox ItemsSource="{Binding Presets}" SelectedItem="{Binding SelectedPreset}" MinWidth="130" AutomationProperties.Name="{Binding L[ShortcutPresets]}" Margin="0,0,8,8"/><Button Content="{Binding L[UsePreset]}" Command="{Binding ApplyPresetCommand}" Margin="0,0,0,8"/></WrapPanel>
+
+        <ItemsControl ItemsSource="{Binding LeftModifiers}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}" Margin="0,0,12,8"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+        <TextBlock Text="{Binding L[PrimaryKey]}" Margin="0,4,0,8"/>
+        <ComboBox x:Name="ManualPrimaryKey" ItemsSource="{Binding ManualKeys}" SelectedItem="{Binding ManualKey}" IsTextSearchEnabled="True" MaxDropDownHeight="280" AutomationProperties.Name="{Binding L[PrimaryKey]}"/>
+        <Expander Header="{Binding L[AdvancedModifiers]}" Foreground="{DynamicResource TextPrimary}" Margin="0,12,0,0"><StackPanel Margin="0,8,0,0"><TextBlock Text="{Binding L[LeftModifiersHint]}" Style="{StaticResource Caption}" Margin="0,0,0,8"/><ItemsControl ItemsSource="{Binding RightModifiers}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate><CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}" Margin="0,0,12,8"/></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel></Expander>
+       </StackPanel>
+      </Expander>
+     </StackPanel>
+     <WrapPanel Margin="0,8,0,0"><Button Content="{Binding L[TestAction]}" Visibility="{Binding IsMock,Converter={StaticResource BoolVisibility}}" Command="{Binding TestCommand}" Margin="0,0,8,8"/><Button Content="{Binding L[ResetDraft]}" Command="{Binding ResetCommand}" Visibility="{Binding Editable, Converter={StaticResource BoolVisibility}}" Margin="0,0,0,8"/></WrapPanel>
+     <StackPanel Visibility="{Binding IsReal, Converter={StaticResource BoolVisibility}}" Margin="0,16,0,16"><Button Style="{StaticResource PrimaryButton}" Content="{Binding L[ProductApply]}" Command="{Binding PhysicalWriteCommand}" HorizontalAlignment="Left"/><Button Content="{Binding L[ProductTestKey]}" Command="{Binding TestPhysicalCommand}" HorizontalAlignment="Left" Margin="0,12,0,0"/><TextBlock Text="{Binding PhysicalState}" Style="{StaticResource Secondary}" Margin="0,8,0,0" AutomationProperties.LiveSetting="Polite"/><Button Content="{Binding L[ReadFromDevice]}" Command="{Binding ReadPhysicalCommand}" HorizontalAlignment="Left" Margin="0,12,0,0"/><TextBlock Text="{Binding ReadbackText}" Style="{StaticResource Caption}" Margin="0,6,0,0"/></StackPanel>
+     <TextBlock Text="{Binding EditorMode}" Style="{StaticResource Caption}" Foreground="{DynamicResource Warning}"/>
+     <Expander x:Name="AdvancedPanel" Header="{Binding L[Advanced]}" IsExpanded="{Binding Advanced}" Foreground="{DynamicResource TextPrimary}" Margin="0,20,0,0"><StackPanel Margin="0,12,0,0"><TextBox Text="{Binding DiagnosticText, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" Style="{StaticResource TechnicalText}" AutomationProperties.Name="{Binding L[Advanced]}"/><TextBlock Text="{Binding L[UnsupportedActions]}" Style="{StaticResource Caption}" Margin="0,8,0,0"/></StackPanel></Expander>
+    </StackPanel>
+   </Border>
+  </Grid>
+ </StackPanel>
+</UserControl>
