@@ -45,3 +45,22 @@ swift run -c release ahakey-release-check MANIFEST.json ARTIFACT_ROOT TRUST-KEYS
 局部测试使用临时生成的测试签名密钥、合成安装包/证据和小HEX，仅测试绑定逻辑，所有文件测试后删除；不提交私钥或伪造用户验收物。本轮7项组合测试加既有目录/HEX测试共26项通过，包含真实启动CLI的成功/拒绝路径、错误证据作用域、坏签名/revision、越界路径/符号链接、改动文件、超预算/恢复身份、签过名但HEX格式错误、2.5MB流式文件。完整回归与正式发布验收仍按开发完成后集中执行。
 
 两轴代码审查通过。HEX校验器迁移已逐字比较（仅访问修饰符改变），旧App调用用typealias保留；26项测试含旧HEX/目录回归，未改变用户烧录页行为。正式发布流水线接入及真实发布材料仍待后续，不因维护者工具完成关闭G54。
+
+
+## CI 候选与晋级接入（2026-10-23）
+
+`.github/workflows/release.yml` 的 v* tag 任务继续签名、公证、打包，但现在仅上传 `AhaKey-signed-candidate-TAG` 不可变候选 artifact（30天保留），contents 权限为 read，不再在打包后直接公开发布。该 DMG 是交给验收的原件，后续不能重新打包或补签名再复用原验收。
+
+新增 `promote-verified-release.yml` 手动任务，输入已有 release_tag、包含完整验收组合的 artifact_run_id 和 artifact_id。组合 artifact 根目录需有 `composition.json` 及其全部引用文件（同一已验收 DMG、正式 HEX、恢复 HEX、签名目录和真实报告）。维护者在受控归档任务以 upload-artifact@v4 保存最终组合；不是把候选 build job 的 DMG 单文件 artifact 直接当完整验收包。实际报告/镜像未提供时本流程不可通过，客户端不生成虚假报告填空。
+
+流水线先核对来源 run 成功完成、非 PR 事件、同仓 head repository、artifact 未过期且属于该 run、run/artifact/tag 的 commit 一致。下载使用确切 artifact ID，而不是可能重名的 latest 文件名。用所选工作流源码中的校验工具执行，不运行 artifact 内脚本。参考 [download-artifact 官方输入](https://github.com/actions/download-artifact/tree/v4#inputs)。
+
+GitHub 的 `ws5-release` environment 需由维护者配置真实保护规则和三项独立变量：`WS5_CATALOG_TRUST_KEYS_JSON`（keyID→base64 Ed25519 32字节公钥）、`WS5_MINIMUM_CATALOG_REVISION`（正整数、不从包中取）、`WS5_DEVELOPER_TEAM_ID`（正式 Developer ID team）。本轮未修改 GitHub 环境或提供正式值；缺失即失败。环境名称本身不是审批完成证据。
+
+先运行 Swift 完整组合绑定 CLI，再将相同摘要的 DMG 复制到固定输出名，流式复核 SHA；验证 DMG 的 Developer ID/team、stapled notarization ticket 和 Gatekeeper open assessment。只读、不自动打开地挂载，验证 App 与内嵌 Agent 深度/严格签名及 hardened runtime、同 team，并核对签名 App 的 bundle ID、源码 commit、数字版本。成功或失败均释放挂载，失败不产出 installer 输出。
+
+App 的 CFBundleShortVersionString、manifest client.version 和目录兼容规则统一为 X.Y.Z；alpha/beta/rc 后缀保留在完整 Git tag 与 GitHub prerelease 分类中，仍以 tag commit 精确绑定源码。不能把 beta 后缀塞进只支持数字比较的版本模型。
+
+所有检查通过后只创建 GitHub **draft**，附件是本次已校验的同一 DMG 与组合摘要；没有重建、重签名或自动公开发布。维护者仍需阅读实际报告、已知限制和环境审批记录后作最终发布决定。已有同名发布不自动覆盖。暂未调用真实工作流、创建 tag/draft 或发布资产。
+
+9 项局部维护者测试通过并接入 macOS CI：6 项 mock 平台命令的同字节、错误摘要/来源/team、签名失败及挂载清理检查；3 项执行实际 YAML 内 bash/JavaScript 的 stable/beta/rc 一致性、错 artifact SHA/危险 tag 拒绝、候选不发布/晋级仅 draft 检查。YAML 语法通过；两轴审查发现的预发布版本矛盾修复后复核通过。此证据不替代真实 Developer ID、公证、云端 API、验收包及最终用户验收。

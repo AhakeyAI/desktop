@@ -49,6 +49,9 @@ jobs:
       - name: Toolchain
         run: swift --version
 
+      - name: Test release installer promotion guard
+        run: python3 -m unittest discover -s scripts -p 'test_*release*.py' -v
+
       - name: Compile-check all targets (debug)
         run: swift build
 

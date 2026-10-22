@@ -1,0 +1,137 @@
+name: Prepare verified WS5 release draft
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing version tag for the tested client
+        required: true
+        type: string
+      artifact_run_id:
+        description: Successful same-repository run containing the acceptance bundle
+        required: true
+        type: string
+      artifact_id:
+        description: Immutable v4 artifact ID (composition.json plus all referenced files)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ws5-promotion-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  verify-and-draft:
+    runs-on: macos-15
+    environment: ws5-release
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      # The verifier comes from the explicitly selected workflow revision,
+      # never from the artifact or its claimed source commit.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Bind artifact provenance to the existing tag
+        id: provenance
+        uses: actions/github-script@v7
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          SOURCE_RUN_ID: ${{ inputs.artifact_run_id }}
+          SOURCE_ARTIFACT_ID: ${{ inputs.artifact_id }}
+        with:
+          script: |
+            const tag = process.env.RELEASE_TAG;
+            const version = /^v([0-9]+\.[0-9]+\.[0-9]+)(?:-(?:alpha|beta|rc)[0-9.]*)?$/.exec(tag);
+            if (!version) throw new Error('Invalid release tag');
+            for (const key of ['SOURCE_RUN_ID', 'SOURCE_ARTIFACT_ID']) {
+              if (!/^[1-9][0-9]{0,14}$/.test(process.env[key])) throw new Error('Invalid immutable artifact/run ID');
+            }
+            const repo = context.repo;
+            const runID = Number(process.env.SOURCE_RUN_ID), artifactID = Number(process.env.SOURCE_ARTIFACT_ID);
+            const {data: run} = await github.rest.actions.getWorkflowRun({...repo, run_id: runID});
+            const {data: artifact} = await github.rest.actions.getArtifact({...repo, artifact_id: artifactID});
+            const {data: commit} = await github.rest.repos.getCommit({...repo, ref: tag});
+            if (run.status !== 'completed' || run.conclusion !== 'success' || run.event === 'pull_request' ||
+                run.head_repository?.full_name !== `${repo.owner}/${repo.repo}` || run.head_sha !== commit.sha ||
+                artifact.expired || artifact.workflow_run?.id !== runID || artifact.workflow_run?.head_sha !== commit.sha) {
+              throw new Error('Artifact, successful source run and tag must bind the same repository/commit');
+            }
+            core.setOutput('commit', commit.sha);
+            core.setOutput('version', version[1]);
+
+      - name: Download exact acceptance bundle
+        uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ inputs.artifact_id }}
+          run-id: ${{ inputs.artifact_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/ws5-bundle
+          merge-multiple: true
+
+      - name: Load independent release trust policy
+        env:
+          TRUST_KEYS_JSON: ${{ vars.WS5_CATALOG_TRUST_KEYS_JSON }}
+          MINIMUM_REVISION: ${{ vars.WS5_MINIMUM_CATALOG_REVISION }}
+          DEVELOPER_TEAM: ${{ vars.WS5_DEVELOPER_TEAM_ID }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, pathlib, re
+          keys = json.loads(os.environ['TRUST_KEYS_JSON'])
+          if not isinstance(keys, dict) or not keys or any(not isinstance(k, str) or not k or not isinstance(v, str) or len(base64.b64decode(v, validate=True)) != 32 for k, v in keys.items()):
+              raise SystemExit('Pinned Ed25519 public keys are required')
+          if not re.fullmatch(r'[1-9][0-9]{0,9}', os.environ['MINIMUM_REVISION']):
+              raise SystemExit('Pinned minimum catalog revision is required')
+          if not re.fullmatch(r'[A-Z0-9]{10}', os.environ['DEVELOPER_TEAM']):
+              raise SystemExit('Pinned Developer ID team is required')
+          pathlib.Path(os.environ['RUNNER_TEMP'], 'ws5-trust.json').write_text(json.dumps(keys))
+          PY
+
+      - name: Verify all composition bindings without rebuilding installer
+        working-directory: ahakeyconfig-mac
+        env:
+          MINIMUM_REVISION: ${{ vars.WS5_MINIMUM_CATALOG_REVISION }}
+        run: |
+          set -euo pipefail
+          swift run -c release ahakey-release-check \
+            "$RUNNER_TEMP/ws5-bundle/composition.json" "$RUNNER_TEMP/ws5-bundle" \
+            "$RUNNER_TEMP/ws5-trust.json" "$MINIMUM_REVISION" > "$RUNNER_TEMP/ws5-composition-report.json"
+
+      - name: Inspect exact signed and notarized installer
+        id: installer
+        env:
+          EXPECTED_COMMIT: ${{ steps.provenance.outputs.commit }}
+          EXPECTED_VERSION: ${{ steps.provenance.outputs.version }}
+          DEVELOPER_TEAM: ${{ vars.WS5_DEVELOPER_TEAM_ID }}
+        run: |
+          python3 ahakeyconfig-mac/scripts/verify_release_installer.py \
+            "$RUNNER_TEMP/ws5-bundle" "$RUNNER_TEMP/ws5-composition-report.json" \
+            "$EXPECTED_COMMIT" "$EXPECTED_VERSION" "$DEVELOPER_TEAM" >> "$GITHUB_OUTPUT"
+
+      - name: Store composition check report
+        uses: actions/upload-artifact@v4
+        with:
+          name: WS5-composition-report-${{ inputs.release_tag }}
+          path: ${{ runner.temp }}/ws5-composition-report.json
+          if-no-files-found: error
+
+      # A draft permits final human review of the actual reports and known
+      # limitations. A successful binding verifier is never publish approval.
+      - name: Create reviewable release draft with the tested installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          VERIFIED_INSTALLER: ${{ steps.installer.outputs.installer }}
+          PRERELEASE: ${{ contains(inputs.release_tag, '-') }}
+        run: |
+          set -euo pipefail
+          args=(release create "$RELEASE_TAG" --verify-tag --draft --generate-notes --title "AhaKey Studio $RELEASE_TAG")
+          if [[ "$PRERELEASE" == true ]]; then args+=(--prerelease); fi
+          gh "${args[@]}" "$VERIFIED_INSTALLER" "$RUNNER_TEMP/ws5-composition-report.json"
