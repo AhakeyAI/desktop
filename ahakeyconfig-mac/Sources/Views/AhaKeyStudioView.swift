@@ -687,7 +687,6 @@ struct AhaKeyStudioView: View {
                 .padding(.vertical, 12)
             }
         }
-        .groupBoxStyle(StudioInspectorGroupStyle())
         .frame(width: 390)
         .frame(maxHeight: .infinity)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
@@ -1041,7 +1040,7 @@ struct AhaKeyStudioView: View {
     private var keyInspector: some View {
         let key = currentSelectedKey
         return VStack(alignment: .leading, spacing: 16) {
-            GroupBox(NSLocalizedString("按键描述", comment: "")) {
+            StudioInspectorSection(NSLocalizedString("按键描述", comment: "")) {
                 VStack(alignment: .leading, spacing: 8) {
                     TextField(NSLocalizedString("例如 Record / Accept / Reject / Backspace", comment: ""), text: selectedKeyDescriptionBinding)
                         .textFieldStyle(.roundedBorder)
@@ -1069,7 +1068,7 @@ struct AhaKeyStudioView: View {
             .disabled(inlineKeyControlsDisabled)
 
             if key.role == .voice {
-                GroupBox(NSLocalizedString("语音输入方式", comment: "")) {
+                StudioInspectorSection(NSLocalizedString("语音输入方式", comment: "")) {
                     VStack(alignment: .leading, spacing: 12) {
                         VoicePresetPicker(
                             selectedPreset: key.voicePreset ?? .custom,
@@ -1087,7 +1086,7 @@ struct AhaKeyStudioView: View {
                     .padding(.top, 4)
                 }
             } else {
-                GroupBox(NSLocalizedString("按键职责", comment: "")) {
+                StudioInspectorSection(NSLocalizedString("按键职责", comment: "")) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(key.role.manualText)
                             .font(.callout)
@@ -1100,7 +1099,7 @@ struct AhaKeyStudioView: View {
             }
 
             // ── 触发方式（短按 / 长按 Tab）──────────────────────────────
-            GroupBox(NSLocalizedString("触发方式", comment: "")) {
+            StudioInspectorSection(NSLocalizedString("触发方式", comment: "")) {
                 VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 12) {
                         Picker("", selection: $selectedTriggerTab) {
@@ -1467,7 +1466,7 @@ struct AhaKeyStudioView: View {
                 Text(NSLocalizedString("新固件请在显示素材设置中选择位置并上传；画布草稿不会自动覆盖键盘素材。", comment: ""))
                     .font(.caption).foregroundStyle(.secondary)
             }
-            GroupBox("当前模式的 LCD 动图") {
+            StudioInspectorSection("当前模式的 LCD 动图") {
                 VStack(alignment: .leading, spacing: 14) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 12)
@@ -1534,7 +1533,7 @@ struct AhaKeyStudioView: View {
                 .padding(.top, 4)
             }
 
-            GroupBox(NSLocalizedString("显示逻辑", comment: "")) {
+            StudioInspectorSection(NSLocalizedString("显示逻辑", comment: "")) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("切换到当前模式时，LCD 会先显示该模式的按键描述，约 1 秒后回到该模式动图。")
                     Text(NSLocalizedString("后续会继续增加文字状态、token 用量、模型环境等信息显示能力。", comment: ""))
@@ -1548,7 +1547,7 @@ struct AhaKeyStudioView: View {
     private var lightBarInspector: some View {
         VStack(alignment: .leading, spacing: 16) {
             if bleManager.supportsConfigurableLighting == false {
-                GroupBox {
+                StudioInspectorSection {
                     VStack(alignment: .leading, spacing: 6) {
                         Label("当前键盘固件不支持可写灯效", systemImage: "exclamationmark.triangle.fill")
                             .font(.callout.weight(.semibold))
@@ -1565,7 +1564,7 @@ struct AhaKeyStudioView: View {
                     .foregroundStyle(.green)
             }
 
-            GroupBox(NSLocalizedString("状态灯效映射", comment: "")) {
+            StudioInspectorSection(NSLocalizedString("状态灯效映射", comment: "")) {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(IDEState.workflowOrder) { state in
                         HStack {
@@ -1585,7 +1584,7 @@ struct AhaKeyStudioView: View {
                 .padding(.top, 4)
             }
 
-            GroupBox(NSLocalizedString("亮度", comment: "")) {
+            StudioInspectorSection(NSLocalizedString("亮度", comment: "")) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Slider(value: brightnessBinding, in: 1...100, step: 1)
@@ -1597,7 +1596,7 @@ struct AhaKeyStudioView: View {
                 .padding(.top, 4)
             }
 
-            GroupBox(NSLocalizedString("状态预览", comment: "")) {
+            StudioInspectorSection(NSLocalizedString("状态预览", comment: "")) {
                 VStack(alignment: .leading, spacing: 12) {
                     Text(lightBarPreview.shortLabel)
                         .font(.system(.title3, design: .rounded).weight(.semibold))
@@ -1645,7 +1644,7 @@ struct AhaKeyStudioView: View {
 
     private var switchInspector: some View {
         VStack(alignment: .leading, spacing: 16) {
-            GroupBox(NSLocalizedString("实时档位", comment: "")) {
+            StudioInspectorSection(NSLocalizedString("实时档位", comment: "")) {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text(currentSwitchTitle)
@@ -1665,7 +1664,7 @@ struct AhaKeyStudioView: View {
             switchEffectivenessBox
 
             if liveKeyboardSwitchState == 0 {
-                GroupBox {
+                StudioInspectorSection {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("自动批准依赖 Agent 与 Hook，且须蓝牙由 Agent 占用", systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
@@ -1677,7 +1676,7 @@ struct AhaKeyStudioView: View {
                 }
             }
 
-            GroupBox(NSLocalizedString("如何理解这个部件", comment: "")) {
+            StudioInspectorSection(NSLocalizedString("如何理解这个部件", comment: "")) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("拨杆对 Claude / Cursor / Codex / Kimi **同时生效**，与键盘当前所在 Mode 无关。Agent 后台同时监听所有 IDE 的 Hook，拨杆拨动后四个 IDE 的批准行为立即切换。")
                     Divider()
@@ -1695,7 +1694,7 @@ struct AhaKeyStudioView: View {
     private var switchEffectivenessBox: some View {
         let agentReady = agentManager.isInstalled && agentManager.isRunning && agentManager.hooksInstalled
         let hasAnyMissing = !agentManager.isInstalled || !agentManager.isRunning || !agentManager.hooksInstalled
-        GroupBox(agentReady ? "已生效" : "未生效") {
+        StudioInspectorSection(agentReady ? "已生效" : "未生效") {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     Image(systemName: agentReady ? "checkmark.seal.fill" : "exclamationmark.circle.fill")
