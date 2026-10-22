@@ -2106,6 +2106,7 @@ struct AhaKeyStudioView: View {
             do {
                 try OLEDFrameEncoder.validateGIFSourceFileSize(at: url)
                 try OLEDFrameEncoder.validateFrameCount(at: url)
+                try OLEDFrameEncoder.validateDecodableFrames(at: url)
             } catch {
                 let msg = (error as? LocalizedError)?.errorDescription ?? NSLocalizedString("图片文件不符合上传限制。", comment: "")
                 syncStatusMessage = msg
