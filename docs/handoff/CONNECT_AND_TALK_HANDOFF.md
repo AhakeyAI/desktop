@@ -603,5 +603,5 @@ dbea629新布局现已安装，签名/来源已核对，不要重复要求用户
 
 - 源码ec9654f：可选逐模式voiceProcessingPolicy与路由快照、单段录音处理锁定、旧识别/超时代次隔离。云端迟到结果保留在Key1供明确复制；配额只合并最新同账号偏好。
 - 完整413测试通过，两轴复核的2P2已闭环。ec9654f签名候选已安装，Key1说明界面检查、返回和Agent恢复通过；没有写键盘或改Voice。
-- docs/validation/connect-talk-hil-2026-10-22/VOICE_RECORDING_POLICY.md记录本批范围、截图和验证。真实短长按已询问用户，结果待补。
+- docs/validation/connect-talk-hil-2026-10-22/VOICE_RECORDING_POLICY.md记录本批范围、截图和验证。用户已确认真实短按、长按均正常填入，无Siri、乱码或Dock异常；其他边界矩阵仍保留。
 - I02b-2b未实施：独立确认态存储/草稿隔离/Key1单模式保存UI；逐模式字段存在不等于用户链路完成。当前旧UI开关仍为全局偏好。
