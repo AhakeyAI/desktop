@@ -123,7 +123,7 @@ struct KeyMappingView: View {
             if bleManager.isConnected {
                 Section {
                     HStack {
-                        Button("应用全部键位到设备") {
+                        Button("写入键盘") {
                             writeAllKeys()
                         }
                         .buttonStyle(.borderedProminent)

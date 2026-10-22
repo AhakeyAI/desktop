@@ -1110,6 +1110,22 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
     }
 
+    /// A narrow fresh read used to verify a completed component write batch.
+    func readWS3SettingForEditing(_ setting: WS3DisplaySetting) async throws -> UInt8 {
+        if case .singleLight(let mode, let state, _) = setting {
+            return try await readWS3SingleLightForEditing(mode: mode, state: state).effect
+        }
+        guard !isConfigurationOperationInProgress, canEditWS3Display else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        let operation = beginWS3DisplayOperation(.reading)
+        defer { finishWS3DisplayOperation(operation) }
+        guard case .brightness(let value) = try await readWS3DisplayValue(.brightness, generation: generation) else {
+            throw OLEDUploadError.invalidReadback
+        }
+        try ensureConfigurationReadSession(generation)
+        return value
+    }
+
     func previewWS3Display(_ preview: WS3DisplayPreview) async throws {
         guard !isConfigurationOperationInProgress, canEditWS3Display else { throw OLEDUploadError.channelNotReady }
         guard let request = preview.request else { throw ConfirmedWS3DisplaySetting.Failure.invalidValue }

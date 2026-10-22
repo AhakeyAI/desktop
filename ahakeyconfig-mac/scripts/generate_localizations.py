@@ -7,6 +7,21 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "当前配置已核对一致，无需写入。": "The current configuration matches. No write is needed.",
+    "已确认": "Verified",
+    "当前改动尚未生效，写入键盘后启用。": "These changes are not active yet. Write to keyboard to apply them.",
+    "写入成功": "Written to keyboard",
+    "完成编辑": "Finish editing",
+    "当前配置已核对并生效。": "The current configuration is verified and active.",
+    "当前按键已写入键盘。": "This key has been written to the keyboard.",
+    "当前语音设置已确认生效。": "The current voice settings are verified and active.",
+    "当前系统听写设置已确认。": "The current system Dictation settings are verified.",
+    "已写入当前模式的灯条修改。": "This mode’s lighting changes have been written.",
+    "本模式的灯效修改已写入；其他模式的灯效草稿保留。": "This mode’s lighting changes have been written. Other modes’ lighting drafts are retained.",
+    "全局亮度修改已对全部模式生效。": "Global brightness changes now apply to all modes.",
+    "部分修改可能已生效，草稿与待确认标记已保留；请重新核对后写入。": "Some changes may have applied. Drafts and unconfirmed markers are retained; verify again before writing.",
+    "灯光修改请在画布选中灯条，点击“修改”后使用底部“写入键盘”。": "To edit lighting, select the light bar on the canvas, click Edit, then use Write to keyboard at the bottom.",
+
     "默认 Fn/Globe，可修改为其他快捷键，适用于豆包、Typeless 等输入法。": "Defaults to Fn/Globe. You can choose another shortcut for Doubao, Typeless, or another input app.",
     "原普通键位（只读）": "Underlying binding (read-only)",
     "旧固件无法确认 Consumer 系统听写，本次未写入；请保留原方案或使用受支持的普通快捷键。": "This older firmware cannot confirm Consumer Dictation. Nothing was written; keep the existing scheme or choose a supported keyboard shortcut.",
@@ -1678,6 +1693,83 @@ TRANSLATIONS.update({'键盘当前：默认显示（无自定义素材）。': '
  '键盘当前：素材上传中，暂不能恢复默认。': 'Current keyboard slot: upload in progress; restoring is unavailable.',
  '键盘当前：自定义素材不可用，按固件规则回退显示。': 'The custom resource is unavailable; firmware fallback display is '
                              'used.'})
+
+# Component lighting inspector
+TRANSLATIONS.update({'状态灯效': 'Status lighting',
+ '灯效': 'Effect',
+ '只保存当前模式的所选状态，不切换实体模式。': 'Save only the selected state in this mode. The keyboard mode does not change.',
+ '全局亮度': 'Global brightness',
+ '亮度对全部模式生效，单独保存，不会带存其他草稿。': 'Brightness affects all modes. Save it separately without saving other drafts.',
+ '四模式灯效总览（只读）': 'All-mode lighting overview (read-only)',
+ '四模式灯效总览': 'All-mode lighting overview',
+ '读取全部 36 项灯效': 'Read all 36 lighting settings',
+ '上次完整读回；不代表当前连接已确认。': 'Last complete reading; it does not verify the current connection.',
+ '状态': 'State',
+ '读取不会播放、保存或覆盖未保存的草稿。': 'Reading does not play effects, save settings, or replace unsaved drafts.',
+ '%@ · %@：保存尚未确认，请重新读取并保存核对。': '%1$@ · %2$@: save unconfirmed. Read and save again to verify.',
+ '正在核对键盘…': 'Verifying keyboard…',
+ '清除本地灯光草稿…': 'Clear local lighting drafts…',
+ '仅读取、保存或预览时临时连接；结束后交还后台。读回一致不代表已验证断电保持。': 'The app connects only to read, save, or preview, then returns control to '
+                                           'the background agent. Matching readback does not verify power-cycle '
+                                           'persistence.',
+ '采用键盘当前值': 'Use current keyboard value',
+ '%@\n键盘当前：%@\n你的草稿：%@\n确认后仍会重新读取并核对。': '%1$@\n'
+                                        'Keyboard: %2$@\n'
+                                        'Your draft: %3$@\n'
+                                        'The value will be read and checked again after confirmation.',
+ '清除本地灯光草稿和读回记录？': 'Clear local lighting drafts and readings?',
+ '清除本地灯光草稿': 'Clear local lighting drafts',
+ '清除全部模式的本地灯光草稿和读回记录，以便重新读取或更换键盘；不会修改键位、语音或键盘保存值。': 'Clear local lighting drafts and readings for all modes to read '
+                                                    'again or change keyboards. Bindings, voice settings, and saved '
+                                                    'keyboard values stay unchanged.',
+ '上次读回：%@': 'Last read: %@',
+ '读取': 'Read',
+ '未知灯效（只读）': 'Unknown effect (read-only)',
+ '采用键盘读回值': 'Use last-read keyboard value',
+ '预览（10 秒）': 'Preview (10 seconds)',
+ '保存亮度': 'Save brightness',
+ '保存灯效': 'Save effect',
+ '本项保存尚未确认，已发出的修改可能生效；请重新读取并核对保存。': 'This save is unconfirmed and may have applied. Read and save again to verify.',
+ '临时预览': 'Temporary preview',
+ '已读取，未写入键盘。': 'Read completed; nothing was written.',
+ '键盘当前值无法安全编辑，保持只读。': 'The current keyboard value cannot be edited safely and remains read-only.',
+ '已保存并读回一致；未修改其他灯效或按键。': 'Saved and read back successfully. Other lighting settings and keys were not changed.',
+ '与键盘当前值一致，本次未写入。': 'Matches the current keyboard value; nothing was written.',
+ '停止预览请求已接受，未保存设置。': 'Stop-preview request accepted. No settings were saved.',
+ '临时预览请求已接受，约 10 秒后恢复；未保存设置。': 'Preview request accepted; it expires in about 10 seconds. No settings were saved.',
+ '已读取四模式全部灯效，未保存或播放。': 'All lighting settings in four modes were read. Nothing was saved or played.',
+ '本地灯光草稿已清除，请重新读取；未重置键盘，也不会撤销已发送的修改。': 'Local lighting drafts cleared. Read again. The keyboard was not reset, and '
+                                       'changes already sent were not undone.',
+ '%@：%@': '%@: %@',
+ '显示本地草稿或上次读回值；修改后需分别保存所选灯效和全局亮度。': 'Shows local drafts or last-read values. Save the selected effect and global '
+                                    'brightness separately.',
+ '未读取': 'Not read'})
+
+# Flat lighting choices and concise feedback
+TRANSLATIONS.update({'在键盘上预览 %@': 'Preview %@ on the keyboard', '读取键盘设置': 'Read keyboard settings', '未保存': 'Unsaved',
+ '保存结果待确认，请重新读取后保存。': 'Save unconfirmed. Read again, then save.',
+ '操作未完成，请重试。': 'Could not finish. Please try again.',
+ '选择灯效': 'Choose an effect',
+ '%@\n键盘当前：%@\n你的选择：%@': '%1$@\nKeyboard: %2$@\nYour selection: %3$@',
+ '放弃所有未保存的灯光修改？': 'Discard all unsaved lighting changes?',
+ '放弃灯光修改': 'Discard lighting changes',
+ '清除全部模式的本地灯光修改；已经写入键盘的更改不会撤销。': 'Discard local lighting changes in all modes. Changes already written to the keyboard '
+                                 'will not be undone.',
+ '预览 %@': 'Preview %@',
+ '全部模式': 'All modes',
+ '灯光亮度': 'Light brightness',
+ '亮度保存结果待确认，请重新读取后保存。': 'Brightness save unconfirmed. Read again, then save.',
+ '查看全部模式灯效': 'View lighting in all modes',
+ '%@ · %@：待确认': '%1$@ · %2$@: unconfirmed',
+ '放弃未保存的灯光修改…': 'Discard unsaved lighting changes…',
+ '预览': 'Preview',
+ '停止灯效预览': 'Stop lighting preview',
+ '已读取。': 'Read completed.',
+ '已保存。': 'Saved.',
+ '已是当前设置。': 'Already matches the keyboard.',
+ '预览已停止。': 'Preview stopped.',
+ '已发送预览，约 10 秒后结束。': 'Preview sent. It ends in about 10 seconds.',
+ '已读取全部灯效。': 'All lighting settings read.'})
 
 def escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")

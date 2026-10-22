@@ -31,6 +31,8 @@ struct WS3ResourceUploadView: View {
     private var uploadInProgress: Bool { snapshot?.resources.contains { $0.writeState == .writing } == true }
     private var selected: WS3ResourceReadback? { snapshot?.resources.first { $0.id == entry } }
 
+    @State private var writeOutcome: KeyboardWriteOutcome?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(NSLocalizedString("显示素材上传", comment: "")).font(.headline)
@@ -52,7 +54,7 @@ struct WS3ResourceUploadView: View {
                     if let payload { Text("\(filename) · \(payload.frameCount) \(NSLocalizedString("帧", comment: ""))").font(.caption).lineLimit(2) }
                 }
             }
-            Button(NSLocalizedString("上传并核对素材", comment: "")) { confirmsUpload = true }
+            Button(NSLocalizedString("写入键盘", comment: "")) { confirmsUpload = true }
                 .buttonStyle(.borderedProminent).disabled(!ready || payload?.entryID != entry || uploadInProgress)
             if uploadInProgress {
                 Text(WS3ResourceUploadError.uploadInProgress.localizedDescription)
@@ -91,7 +93,7 @@ struct WS3ResourceUploadView: View {
             }
         }
         .confirmationDialog(NSLocalizedString("上传到这个素材位置？", comment: ""), isPresented: $confirmsUpload, titleVisibility: .visible) {
-            Button(NSLocalizedString("上传并覆盖此位置", comment: ""), role: .destructive) { upload() }
+            Button(NSLocalizedString("写入键盘", comment: ""), role: .destructive) { upload() }
             Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
         } message: {
             Text("\(title(entry)) · \(filename)\n" + NSLocalizedString("开始上传后可能覆盖原素材；失败或取消不保证回滚。其他素材和键位不变。", comment: ""))
@@ -111,6 +113,7 @@ struct WS3ResourceUploadView: View {
             message = nil; confirmsRestore = false; restoreBaseline = nil
         }
         .onDisappear { preparation?.cancel(); operation?.cancel() }
+        .keyboardWriteResult($writeOutcome)
     }
 
     private func title(_ id: UInt8) -> String {
@@ -204,6 +207,7 @@ struct WS3ResourceUploadView: View {
                 _ = try await bleManager.uploadWS3Resource(payload, baseline: snapshot)
                 guard uploadFeedback.confirm(attempt, currentGeneration: bleManager.configurationSnapshot.generation) else { return }
                 message = NSLocalizedString("素材上传完成，帧数、长度和 CRC 元数据已核对一致；请在键盘确认画面并验证重启保持。", comment: "")
+                writeOutcome = .init(succeeded: true, message: message ?? "")
             } catch {
                 guard uploadFeedback.fail(attempt, currentGeneration: bleManager.configurationSnapshot.generation) else { return }
                 message = error.localizedDescription

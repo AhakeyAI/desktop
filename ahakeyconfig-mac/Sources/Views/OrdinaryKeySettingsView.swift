@@ -25,6 +25,8 @@ struct OrdinaryKeySettingsView: View {
         self.proposalError = proposalError
     }
 
+    @State private var writeOutcome: KeyboardWriteOutcome?
+
     var body: some View {
         Section {
             HStack {
@@ -62,7 +64,7 @@ struct OrdinaryKeySettingsView: View {
             if let proposalError { Text(proposalError).font(.caption).foregroundStyle(.orange) }
             HStack {
                 Button(busy ? NSLocalizedString("处理中…", comment: "") : NSLocalizedString("读取当前按键", comment: "")) { readKey() }
-                Button(NSLocalizedString("应用此键改动", comment: "")) { applyKey() }
+                Button(NSLocalizedString("写入键盘", comment: "")) { applyKey() }
                     .disabled(!canApply)
             }
             .disabled(busy || !bleManager.isConnected)
@@ -70,6 +72,7 @@ struct OrdinaryKeySettingsView: View {
             Text(NSLocalizedString("只编辑所选键，不切换模式或导入旧草稿。Voice 预设未移交时不能改其动作。超长或未知动作保持只读；失败可能已改变键盘临时值，不表示已回滚。保存后的断电保持性仍需验证。", comment: ""))
                 .font(.caption).foregroundStyle(.secondary)
         } header: { Text(NSLocalizedString("普通键 · 差量保存", comment: "")) }
+        .keyboardWriteResult($writeOutcome)
     }
 
     private var busy: Bool { bleManager.isConfigurationOperationInProgress }
@@ -139,6 +142,7 @@ struct OrdinaryKeySettingsView: View {
                 load(actual)
                 NotificationCenter.default.post(name: .ahaKeyOrdinaryKeyConfirmed, object: actual)
                 message = NSLocalizedString("此键改动已保存并读回一致；断电保持性尚未验证。", comment: "")
+                writeOutcome = .init(succeeded: true, message: message ?? "")
             } catch { message = String(format: NSLocalizedString("设置未确认：%@；待应用改动已保留。", comment: ""), String(describing: KeyboardSettingsFeedback.message(for: error))) }
         }
     }

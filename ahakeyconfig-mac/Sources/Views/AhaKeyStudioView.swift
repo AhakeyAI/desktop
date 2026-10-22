@@ -49,6 +49,7 @@ struct AhaKeyStudioView: View {
     @AppStorage(AppLanguageInitializer.selectedLanguageKey) private var selectedLanguage = AppLanguageInitializer.systemSelection
     @AppStorage(VibeBarVisibilityPreference.enabledKey) private var vibeBarEnabled = true
     @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
+    @StateObject private var lightInspectorModel = StudioLightInspectorModel()
     @StateObject private var inspectorSession: StudioInspectorSession
     @State private var inlineKeyTarget: StudioInlineKeyTarget?
     @State private var inlineKeyFact: StudioInlineKeyFact?
@@ -66,8 +67,7 @@ struct AhaKeyStudioView: View {
     @State private var editingModeSlot: AhaKeyModeSlot?
     @State private var editingModeName: String = ""
     @FocusState private var modeNameFieldFocused: Bool
-    @State private var showsWriteResultAlert = false
-    @State private var writeResultAlertMessage = ""
+    @State private var writeOutcome: KeyboardWriteOutcome?
 
     init(bleManager: AhaKeyBLEManager) {
         self.bleManager = bleManager
@@ -161,8 +161,16 @@ struct AhaKeyStudioView: View {
             reconcileInlineReadback(actual)
             syncStatusMessage = "Mode \(actual.mode + 1) · Key \(actual.keyIndex + 1) 已保存并读回确认。"
         }
+        .onReceive(lightInspectorModel.writeCompleted) { result in
+            writeOutcome = .init(succeeded: true, message: result.message, wrote: result.wrote)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ahaKeyHardwareEditingFinished)) { _ in
+            keyboardSettingsRequest = nil
+            completeEditingAfterSuccessfulWrite()
+        }
         .onChange(of: agentManager.bluetoothConnectionOwner) { owner in
-            if owner == .agentDaemon, inlineKeyTarget == nil {
+            if owner == .agentDaemon, inlineKeyTarget == nil,
+               !(isEditingInspector && usesInlineLightEditor) {
                 isEditingInspector = false
                 syncStatusMessage = "已返回日常连接，未应用的画布草稿仍保留。"
             }
@@ -482,13 +490,31 @@ struct AhaKeyStudioView: View {
         }
     }
 
+    private var usesInlineLightEditor: Bool {
+        selectedPart == .lightBar && bleManager.firmwareCapabilityProfile?.identity != .legacy
+    }
+
+    private var canvasModeDraft: AhaKeyModeDraft {
+        var draft = currentModeDraft
+        guard bleManager.firmwareCapabilityProfile?.identity != .legacy else { return draft }
+        for index in draft.lightBar.stateMappings.indices {
+            let state = draft.lightBar.stateMappings[index].state
+            let target = StudioLightDrafts.Target.effect(mode: UInt8(selectedMode.rawValue), state: state.rawValue)
+            if let value = lightInspectorModel.values.drafts[target], let effect = LightEffectStyle(firmwareIndex: value) {
+                draft.lightBar.stateMappings[index].effect = effect
+            }
+        }
+        if let brightness = lightInspectorModel.values.drafts[.brightness] { draft.lightBar.brightness = Int(brightness) }
+        return draft
+    }
+
     private var canvasPane: some View {
         VStack(alignment: .leading, spacing: 18) {
             modeEditorHeader
 
             VStack(alignment: .leading, spacing: 8) {
                 AhaKeyKeyboardCanvasView(
-                    modeDraft: currentModeDraft,
+                    modeDraft: canvasModeDraft,
                     selectedPart: selectedPart,
                     lightBarPreview: lightBarPreview,
                     switchTitle: currentSwitchTitle,
@@ -619,8 +645,18 @@ struct AhaKeyStudioView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     if isEditingInspector {
-                        Label(selectedPart.title, systemImage: selectedPart.systemImage)
-                            .font(.system(size: 18, weight: .semibold))
+                        HStack {
+                            Label(selectedPart.title, systemImage: selectedPart.systemImage)
+                                .font(.system(size: 18, weight: .semibold))
+                            Spacer()
+                            if usesInlineLightEditor {
+                                Button {
+                                    lightInspectorModel.run(target: lightInspectorModel.target(for: selectedMode), ble: bleManager, session: inspectorSession)
+                                } label: { Image(systemName: "arrow.clockwise") }
+                                .buttonStyle(.borderless).disabled(lightInspectorModel.isBusy || inspectorSession.isBusy)
+                                .help(NSLocalizedString("读取键盘设置", comment: ""))
+                            }
+                        }
 
                         Group {
                             switch selectedPart {
@@ -692,7 +728,7 @@ struct AhaKeyStudioView: View {
                         }
                     }
 
-                    if selectedPart == .lightBar {
+                    if selectedPart == .lightBar && bleManager.firmwareCapabilityProfile?.identity == .legacy {
                         Button {
                             previewLightEffect(for: lightBarPreview)
                         } label: {
@@ -704,15 +740,20 @@ struct AhaKeyStudioView: View {
                         .disabled(isSyncing || !bleManager.isConnected || !bleManager.commandCharReady || bleManager.firmwareCapabilityProfile?.identity != .legacy)
                     }
 
-                    Button {
-                        writeToKeyboard()
-                    } label: {
-                        Label(NSLocalizedString(isSyncing || inspectorSession.isBusy ? "处理中…" : (inlineKeyTarget != nil ? "保存此键" : (bleManager.firmwareCapabilityProfile?.identity == .legacy ? "写入键盘" : "核对并保存")), comment: ""), systemImage: isSyncing ? "arrow.trianglehead.2.clockwise" : "square.and.arrow.down")
-                            .font(.callout.weight(.semibold))
+                    if usesInlineLightEditor {
+                        StudioLightInspectorActions(model: lightInspectorModel, session: inspectorSession,
+                                                    bleManager: bleManager, mode: selectedMode)
+                    } else {
+                        Button {
+                            writeToKeyboard()
+                        } label: {
+                            Label(NSLocalizedString(isSyncing || inspectorSession.isBusy ? "处理中…" : "写入键盘", comment: ""), systemImage: isSyncing ? "arrow.trianglehead.2.clockwise" : "square.and.arrow.down")
+                                .font(.callout.weight(.semibold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.regular)
+                        .disabled(isSyncing || inspectorSession.isBusy || (inlineKeyTarget != nil ? !inlineKeyCanSave : !bleManager.isConnected))
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.regular)
-                    .disabled(isSyncing || inspectorSession.isBusy || (inlineKeyTarget != nil ? !inlineKeyCanSave : !bleManager.isConnected))
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 12)
@@ -748,7 +789,7 @@ struct AhaKeyStudioView: View {
             ? "退出系统听写将全局生效" : "核对语音设置", comment: ""), isPresented: Binding(
             get: { voiceGlobalChange != nil }, set: { if !$0 { voiceGlobalChange = nil } })) {
             if let request = voiceGlobalChange {
-                Button(NSLocalizedString(request.exitsGlobalPreset ? "确认全局退出，仅修改当前键位" : "确认核对并保存当前键位", comment: "")) {
+                Button(NSLocalizedString("写入键盘", comment: "")) {
                     voiceGlobalChange = nil; applyGlobalVoiceChange(request)
                 }
             }
@@ -756,17 +797,7 @@ struct AhaKeyStudioView: View {
         } message: {
             if let request = voiceGlobalChange { Text(globalVoiceWarning(request)) }
         }
-        .alert(NSLocalizedString("写入结果", comment: ""), isPresented: $showsWriteResultAlert) {
-            Button(NSLocalizedString("继续编辑", comment: ""), role: .cancel) {}
-            Button(NSLocalizedString("完成编辑", comment: "")) {
-                if writeResultAlertMessage.contains("成功") {
-                    completeEditingAfterSuccessfulWrite()
-                }
-            }
-            .keyboardShortcut(.defaultAction)
-        } message: {
-            Text(writeResultAlertMessage)
-        }
+        .keyboardWriteResult($writeOutcome, onFinish: { completeEditingAfterSuccessfulWrite() })
     }
 
     private var inspectorHeader: some View {
@@ -1050,7 +1081,7 @@ struct AhaKeyStudioView: View {
         Text(NSLocalizedString(pendingGlobalVoiceChange
             ? "上次语音切换未确认，部分设置可能已生效；请暂缓使用语音键，重新读取并保存核对。"
             : (currentSelectedKey == voiceConfiguration.key(for: selectedMode)
-                ? "此模式的语音方案已启用。" : "当前改动为草稿，保存此键后才启用。"), comment: ""))
+                ? "此模式的语音方案已启用。" : "当前改动尚未生效，写入键盘后启用。"), comment: ""))
             .font(.caption).foregroundStyle(.secondary).padding(.vertical, 6)
         deferredVoiceTranscripts
     }
@@ -1089,6 +1120,20 @@ struct AhaKeyStudioView: View {
 
     @ViewBuilder
     private var lightBarSummary: some View {
+        if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+            ForEach(IDEState.allCases) { state in
+                let item = StudioLightDrafts.Target.effect(mode: UInt8(selectedMode.rawValue), state: state.rawValue)
+                let value = lightInspectorModel.values.drafts[item]
+                summaryRow(state.shortLabel, value: value.map { LightEffectStyle(firmwareIndex: $0)?.title ?? NSLocalizedString("未知灯效（只读）", comment: "") } ?? NSLocalizedString("未读取", comment: ""))
+            }
+            summaryRow("全局亮度", value: lightInspectorModel.values.drafts[.brightness].map { "\($0)%" } ?? NSLocalizedString("未读取", comment: ""))
+        } else {
+            legacyLightBarSummary
+        }
+    }
+
+    @ViewBuilder
+    private var legacyLightBarSummary: some View {
         let lb = currentModeDraft.lightBar
         ForEach(IDEState.allCases) { state in
             summaryRow(state.shortLabel, value: lb.effect(for: state).title)
@@ -1657,6 +1702,19 @@ struct AhaKeyStudioView: View {
     }
 
     private var lightBarInspector: some View {
+        Group {
+            if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+                StudioLightInspectorView(model: lightInspectorModel, session: inspectorSession,
+                                         bleManager: bleManager, mode: selectedMode, selectPreviewState: { value in
+                                             if let state = IDEState(rawValue: value) { lightBarPreview = state }
+                                         })
+            } else {
+                legacyLightBarInspector
+            }
+        }
+    }
+
+    private var legacyLightBarInspector: some View {
         VStack(alignment: .leading, spacing: 16) {
             if bleManager.supportsConfigurableLighting == false {
                 StudioInspectorSection {
@@ -1877,11 +1935,11 @@ struct AhaKeyStudioView: View {
                 .font(.callout)
             Divider()
                 .frame(height: 14)
-            Text(String(format: NSLocalizedString("未同步改动 %d", comment: ""), dirtyCount))
+            Text(String(format: NSLocalizedString("未同步改动 %d", comment: ""), dirtyCount + (bleManager.firmwareCapabilityProfile?.identity == .legacy ? 0 : lightInspectorModel.values.dirtyTargets.count)))
                 .font(.callout)
             Divider()
                 .frame(height: 14)
-            Text(syncStatusMessage)
+            Text(usesInlineLightEditor ? (lightInspectorModel.message ?? syncStatusMessage) : syncStatusMessage)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -1971,10 +2029,13 @@ struct AhaKeyStudioView: View {
     private var liveKeyboardSwitchState: Int? { bleManager.switchStateForDisplay }
     private var liveKeyboardWorkMode: Int? { bleManager.workModeForDisplay }
     private var liveCanvasLightMode: Int? {
+        // Inspect the selected draft on canvas; this does not send a preview.
+        guard !(isEditingInspector && usesInlineLightEditor) else { return nil }
         guard let workMode = liveKeyboardWorkMode, selectedMode.rawValue == workMode else { return nil }
         return liveKeyboardLightMode
     }
     private var liveCanvasIDEStateValue: Int? {
+        guard !(isEditingInspector && usesInlineLightEditor) else { return nil }
         guard let workMode = liveKeyboardWorkMode, selectedMode.rawValue == workMode else { return nil }
         return bleManager.liveIDEStateValue
     }
@@ -2260,6 +2321,9 @@ struct AhaKeyStudioView: View {
         case .oledDisplay:
             return current.oled != baseline.oled
         case .lightBar:
+            if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+                return lightInspectorModel.values.isDirty(mode: UInt8(selectedMode.rawValue))
+            }
             return current.lightBar != baseline.lightBar
         case .toggleSwitch:
             return false
@@ -2307,6 +2371,10 @@ struct AhaKeyStudioView: View {
     }
 
     private func enterEditingConfiguration() {
+        if usesInlineLightEditor {
+            clearInlineKeyEditing()
+            return
+        }
         if let role = selectedPart.keyRole,
            bleManager.firmwareCapabilityProfile?.identity != .legacy {
             let target = StudioInlineKeyTarget(mode: UInt8(selectedMode.rawValue), index: UInt8(role.rawValue))
@@ -2361,6 +2429,7 @@ struct AhaKeyStudioView: View {
     }
 
     private func completeEditingAfterSuccessfulWrite() {
+        clearInlineKeyEditing()
         commitModeNameEdit()
         withAnimation(.easeInOut(duration: 0.18)) {
             isEditingInspector = false
@@ -2425,8 +2494,7 @@ struct AhaKeyStudioView: View {
             let message = showResultAlert ? "设备未连接，请先连接键盘后重试。" : "设备未连接或命令通道未就绪，当前只保存本地草稿。"
             syncStatusMessage = message
             if showResultAlert {
-                writeResultAlertMessage = message
-                showsWriteResultAlert = true
+                writeOutcome = .init(succeeded: false, message: message)
             }
             return
         }
@@ -2477,8 +2545,7 @@ struct AhaKeyStudioView: View {
                 self.isSyncing = false
                 self.syncStatusMessage = "已全部写入设备并保存（所有命令已确认）。"
                 if showResultAlert {
-                    self.writeResultAlertMessage = "配置已成功写入键盘，并收到固件确认。"
-                    self.showsWriteResultAlert = true
+                    self.writeOutcome = .init(succeeded: true, message: NSLocalizedString("配置已成功写入键盘，并收到固件确认。", comment: ""))
                 }
                 if returnAgent {
                     self.returnToKeyboardControl()
@@ -2488,8 +2555,7 @@ struct AhaKeyStudioView: View {
                 self.isSyncing = false
                 self.syncStatusMessage = message
                 if showResultAlert {
-                    self.writeResultAlertMessage = message
-                    self.showsWriteResultAlert = true
+                    self.writeOutcome = .init(succeeded: false, message: message)
                 }
             }
         }
@@ -5577,6 +5643,9 @@ private extension AhaKeyStudioView {
                     inlineKeyMessage = NSLocalizedString(target.index == 0
                         ? "当前模式语音方案已启用，键位本次未写入；此前未确认的保存记录仍保留。"
                         : "草稿与读回值一致，本次未写入；此前未确认的保存记录仍保留。", comment: "")
+                    if !inlineKeyUnconfirmed.contains(inlineKeyReceiptID(fact)) {
+                        writeOutcome = .init(succeeded: true, message: NSLocalizedString("当前配置已核对并生效。", comment: ""), wrote: false)
+                    }
                 case .saved(let fact):
                     if target.index == 0 { try commitInlineVoice(submittedKey, mode: mode, actual: fact.value) }
                     inlineKeyFact = fact
@@ -5586,6 +5655,7 @@ private extension AhaKeyStudioView {
                     }
                     inlineKeyMessage = NSLocalizedString("此键改动已保存并读回一致；断电保持性尚未验证。", comment: "")
                     syncStatusMessage = target.title + " · " + NSLocalizedString("已保存并读回一致", comment: "")
+                    writeOutcome = .init(succeeded: true, message: target.title + " · " + NSLocalizedString("当前按键已写入键盘。", comment: ""))
                 }
                 inlineKeyTask = nil
             } catch {
@@ -5791,6 +5861,7 @@ private extension AhaKeyStudioView {
                 }
                 inlineKeyUnconfirmed.remove("\(request.deviceID):\(target.mode):0")
                 inlineKeyMessage = NSLocalizedString("已核对：全局退出 Consumer，仅当前模式键位改变；其他模式保留原普通键位。", comment: "")
+                writeOutcome = .init(succeeded: true, message: NSLocalizedString("当前语音设置已确认生效。", comment: ""), wrote: wrote)
             } catch {
                 if wrote { inlineKeyUnconfirmed.insert("\(request.deviceID):\(target.mode):0") }
                 if inlineKeyOperationID == ticket { reportVoiceFailure(error) }
@@ -5823,6 +5894,7 @@ private extension AhaKeyStudioView {
                 inlineVoiceState = 2
                 inlineKeyFact = .init(deviceID: fact.deviceID, value: actual.keys[Int(target.mode)])
                 inlineKeyMessage = NSLocalizedString("已确认键盘当前的系统听写，本次未写入键位或描述。", comment: "")
+                writeOutcome = .init(succeeded: true, message: NSLocalizedString("当前系统听写设置已确认。", comment: ""), wrote: false)
             } catch { if inlineKeyOperationID == ticket { reportVoiceFailure(error) } }
             if inlineKeyOperationID == ticket { inlineKeyTask = nil }
         }

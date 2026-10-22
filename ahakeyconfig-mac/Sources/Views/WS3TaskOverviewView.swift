@@ -30,7 +30,7 @@ struct WS3TaskOverviewView: View {
                     Text(NSLocalizedString("单任务", comment: "")).tag(Optional(WS3PresentationMode.single))
                     Text(NSLocalizedString("多任务", comment: "")).tag(Optional(WS3PresentationMode.multi))
                 }
-                Button(reading ? NSLocalizedString("处理中…", comment: "") : NSLocalizedString("应用显示方式", comment: "")) {
+                Button(reading ? NSLocalizedString("处理中…", comment: "") : NSLocalizedString("写入键盘", comment: "")) {
                     guard let modeDraft else { return }
                     reading = true; failed = false; modeMessage = nil
                     Task { @MainActor in

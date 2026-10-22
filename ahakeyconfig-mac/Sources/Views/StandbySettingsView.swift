@@ -6,6 +6,8 @@ struct StandbySettingsView: View {
     @State private var standbyDraft: UInt16?
     @State private var standbyMessage: String?
 
+    @State private var writeOutcome: KeyboardWriteOutcome?
+
     var body: some View {
         Section {
             CompatLabeledContent(NSLocalizedString("键盘当前待机时间", comment: "")) {
@@ -27,13 +29,14 @@ struct StandbySettingsView: View {
                         } catch { standbyMessage = KeyboardSettingsFeedback.message(for: error) }
                     }
                 }
-                Button(bleManager.isSettingStandby ? NSLocalizedString("应用中…", comment: "") : NSLocalizedString("应用待机设置", comment: "")) {
+                Button(bleManager.isSettingStandby ? NSLocalizedString("应用中…", comment: "") : NSLocalizedString("写入键盘", comment: "")) {
                     guard let target = standbyDraft else { return }
                     standbyMessage = nil
                     Task { @MainActor in
                         do {
                             let actual = try await bleManager.setStandbyConfirmed(target)
                             standbyMessage = actual == 0 ? NSLocalizedString("键盘已确认不自动待机。", comment: "") : String(format: NSLocalizedString("键盘已确认待机时间为 %@ 分钟。", comment: ""), String(describing: actual))
+                            writeOutcome = .init(succeeded: true, message: standbyMessage ?? "")
                         } catch { standbyMessage = String(format: NSLocalizedString("设置未确认：%@；待应用选项已保留。", comment: ""), String(describing: KeyboardSettingsFeedback.message(for: error))) }
                     }
                 }
@@ -44,6 +47,7 @@ struct StandbySettingsView: View {
             Text(NSLocalizedString("只修改待机时间，不覆盖键位、语音和显示配置。", comment: ""))
                 .font(.caption).foregroundStyle(.secondary)
         } header: { Text(NSLocalizedString("键盘待机设置", comment: "")) }
+        .keyboardWriteResult($writeOutcome)
     }
 
 }
