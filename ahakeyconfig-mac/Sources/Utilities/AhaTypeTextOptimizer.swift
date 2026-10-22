@@ -73,14 +73,16 @@ final class AhaTypeTextOptimizer: ObservableObject {
         refreshFromDisk()
     }
 
-    func processIfEnabled(_ text: String) async -> String {
+    func processIfEnabled(_ text: String, enabledForRecording: Bool? = nil) async -> String {
         let source = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !source.isEmpty else { return text }
 
         var config = loadConfig()
         sanitize(&config)
         isEnabled = boolValue(config["typeless_enabled"])
-        guard isEnabled else {
+        // A recording can carry an explicit start-time decision. Authentication
+        // and token validity below are still checked against current credentials.
+        guard enabledForRecording ?? isEnabled else {
             statusMessage = NSLocalizedString("AhaType 未启用，直接写入原始转写。", comment: "")
             return text
         }

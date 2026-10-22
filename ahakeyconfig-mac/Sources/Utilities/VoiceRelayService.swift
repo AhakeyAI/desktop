@@ -394,7 +394,7 @@ final class VoiceRelayService: ObservableObject {
             if isAutoRepeat { return nil }
             if type == .keyDown {
                 DispatchQueue.main.async {
-                    NativeSpeechTranscriptionService.shared.handleVoiceKeyDown(trigger: keyCode)
+                    NativeSpeechTranscriptionService.shared.handleVoiceKeyDown(trigger: keyCode, policy: route.processingPolicy)
                 }
             } else if type == .keyUp {
                 DispatchQueue.main.async {
@@ -670,7 +670,8 @@ final class VoiceRelayService: ObservableObject {
                     binding: binding,
                     action: action,
                     mode: mode,
-                    compatibilityLabel: nil
+                    compatibilityLabel: nil,
+                    processingPolicy: voiceKey.voiceProcessingPolicy
                 )
             )
 
@@ -680,7 +681,8 @@ final class VoiceRelayService: ObservableObject {
                         binding: fnF19,
                         action: action,
                         mode: mode,
-                        compatibilityLabel: NSLocalizedString("Fn F19 兼容", comment: "")
+                        compatibilityLabel: NSLocalizedString("Fn F19 兼容", comment: ""),
+                        processingPolicy: voiceKey.voiceProcessingPolicy
                     )
                 )
             }
@@ -691,7 +693,8 @@ final class VoiceRelayService: ObservableObject {
                         binding: factoryF18,
                         action: action,
                         mode: .mode0,
-                        compatibilityLabel: NSLocalizedString("旧版 F18 兼容", comment: "")
+                        compatibilityLabel: NSLocalizedString("旧版 F18 兼容", comment: ""),
+                        processingPolicy: voiceKey.voiceProcessingPolicy
                     )
                 )
             }

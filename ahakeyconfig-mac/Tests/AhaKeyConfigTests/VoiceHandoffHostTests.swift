@@ -8,6 +8,7 @@ final class VoiceHandoffHostTests: XCTestCase {
         var mode = original.draft(for: .mode0)
         var voice = mode.key(for: .voice)
         voice.voicePreset = .typeless
+        voice.voiceProcessingPolicy = .init(shortPressAhaType: true, longPressAhaType: true, longPressThresholdMs: 900)
         voice.shortcut = ShortcutBinding(modifiers: [.command], keyCode: HIDUsage.enter)
         voice.macro = [MacroStep(action: .downKey, param: HIDUsage.enter)]
         voice.description = "Keep voice label"
@@ -17,6 +18,7 @@ final class VoiceHandoffHostTests: XCTestCase {
             let before = original.draft(for: slot), after = prepared.draft(for: slot)
             let voice = after.key(for: .voice)
             XCTAssertEqual(voice.voicePreset, .macOSNative)
+            XCTAssertNil(voice.voiceProcessingPolicy)
             XCTAssertEqual(voice.shortcut, ShortcutBinding(keyCode: HIDUsage.f18))
             XCTAssertTrue(voice.macro.isEmpty)
             XCTAssertEqual(voice.description, before.key(for: .voice).description)

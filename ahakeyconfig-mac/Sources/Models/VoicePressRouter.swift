@@ -32,6 +32,7 @@ struct VoiceRoute: Hashable {
     let action: VoiceRouteAction
     let mode: AhaKeyModeSlot
     let compatibilityLabel: String?
+    var processingPolicy: VoiceProcessingPolicy? = nil
 }
 
 /// Called only on the relay's serial route queue. A keyUp belongs to the route

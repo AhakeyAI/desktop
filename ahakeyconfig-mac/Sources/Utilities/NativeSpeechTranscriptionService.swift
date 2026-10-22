@@ -39,6 +39,14 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
     private var longPressTimerWork: DispatchWorkItem?
     private var voicePressGate = NativeVoicePressGate()
+    private var pressedPolicy: VoiceProcessingPolicy?
+    private var recordingPolicy: VoiceRecordingPolicySnapshot?
+    private var recordingGeneration = UUID()
+
+    var legacyProcessingPolicy: VoiceProcessingPolicy {
+        .init(shortPressAhaType: shortPressAhaTypeEnabled, longPressAhaType: longPressAhaTypeEnabled,
+              longPressThresholdMs: longPressThresholdMs)
+    }
     private var audioEngine: AVAudioEngine?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
@@ -140,8 +148,10 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     // MARK: - 语音键事件入口（VoiceRelayService 调用）
 
     /// keyDown 时调用：若长按模式启用，开启长按计时器；否则立即开始录音或等 keyUp 切换。
-    func handleVoiceKeyDown(trigger: CGKeyCode) {
+    func handleVoiceKeyDown(trigger: CGKeyCode, policy: VoiceProcessingPolicy? = nil) {
         guard let ticket = voicePressGate.begin(code: trigger) else { return }
+        let policy = policy ?? legacyProcessingPolicy
+        pressedPolicy = policy
         if longPressEnabled, !isRecording {
             // 启动长按计时：阈值内松开 → 短按；超时后仍按着 → 进入长按录音
             let work = DispatchWorkItem { [weak self] in
@@ -149,18 +159,19 @@ final class NativeSpeechTranscriptionService: ObservableObject {
                 self.longPressTimerWork = nil
                 if !self.isRecording {
                     self.isLongPressRecording = true
-                    self.startRecording()
+                    self.startRecording(policy: policy, gesture: .longPress)
                     self.appendDiagnostic("long press threshold reached → start long press recording")
                 }
             }
             longPressTimerWork = work
             DispatchQueue.main.asyncAfter(
-                deadline: .now() + Double(longPressThresholdMs) / 1000,
+                deadline: .now() + policy.thresholdSeconds,
                 execute: work
             )
         } else if !longPressEnabled {
             // 无长按：keyDown 直接切换（兼容旧行为）
-            toggleRecordingFromVoiceKey()
+            if isRecording { stopRecording() }
+            else { startRecording(policy: policy, gesture: .shortPress) }
         }
         // 若 longPressEnabled 且已在录音中，keyDown 不做任何事，等 keyUp 判断
     }
@@ -168,12 +179,14 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     /// keyUp 时调用：若长按模式活跃 → 结束并直接发送；否则短按切换。
     func handleVoiceKeyUp(trigger: CGKeyCode) {
         guard voicePressGate.end(code: trigger) else { return }
+        let policy = pressedPolicy ?? legacyProcessingPolicy
+        pressedPolicy = nil
         if isLongPressRecording {
             // 长按录音结束：停止并按长按配置决定是否用 AhaType
             isLongPressRecording = false
             longPressTimerWork?.cancel()
             longPressTimerWork = nil
-            appendDiagnostic("long press key up → stop + \(longPressAhaTypeEnabled ? "ahatype" : "direct")")
+            appendDiagnostic("long press key up → stop + \((recordingPolicy?.usesAhaType ?? longPressAhaTypeEnabled) ? "ahatype" : "direct")")
             stopRecording(bypassAhaType: !longPressAhaTypeEnabled)
             return
         }
@@ -186,7 +199,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             if isRecording {
                 stopRecording(bypassAhaType: !shortPressAhaTypeEnabled)
             } else {
-                startRecording()
+                startRecording(policy: policy, gesture: .shortPress)
             }
         } else if longPressEnabled, isRecording {
             // 长按模式开启时，短按第一次已进入切换式录音；第二次短按没有 timer，
@@ -202,6 +215,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     /// its cancellation into the keyUp gesture that starts a new recording.
     func cancelPendingVoiceKeyPress() {
         voicePressGate.cancel()
+        pressedPolicy = nil
         longPressTimerWork?.cancel()
         longPressTimerWork = nil
         if isLongPressRecording {
@@ -346,6 +360,9 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
     func stopRecording(bypassAhaType: Bool) {
         guard isRecording else { return }
+        // Public callers may stop audio, but cannot replace its captured policy.
+        let bypassAhaType = recordingPolicy.map { !$0.usesAhaType } ?? bypassAhaType
+        let generation = recordingGeneration
         isRecording = false
         statusMessage = NSLocalizedString("正在结束录音并整理文字…", comment: "")
         VoiceStatusHUDController.shared.show(.recognizing)
@@ -355,7 +372,8 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         finalizeWorkItem?.cancel()
         let workItem = DispatchWorkItem { [weak self] in
             Task { @MainActor in
-                self?.finalizeCurrentTranscriptIfNeeded(reason: "timeout_finalize", bypassAhaType: bypassAhaType)
+                guard let self, self.recordingGeneration == generation else { return }
+                self.finalizeCurrentTranscriptIfNeeded(reason: "timeout_finalize", bypassAhaType: bypassAhaType)
             }
         }
         finalizeWorkItem = workItem
@@ -366,7 +384,8 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         recognitionRequest?.endAudio()
     }
 
-    private func startRecording() {
+    private func startRecording(policy: VoiceProcessingPolicy? = nil,
+                                gesture: VoiceRecordingPolicySnapshot.Gesture = .shortPress) {
         guard microphoneGranted, speechRecognitionGranted, siriEnabled, dictationEnabled else {
             let micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
             let speechStatus = SFSpeechRecognizer.authorizationStatus()
@@ -392,6 +411,12 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
 
         cancelRecognitionPipeline()
+        let generation = UUID()
+        recordingGeneration = generation
+        let snapshot = VoiceRecordingPolicySnapshot(policy: policy ?? legacyProcessingPolicy,
+            gesture: gesture, ahaTypeEnabledAtStart: AhaTypeTextOptimizer.shared.isEnabled)
+        recordingPolicy = snapshot
+        pendingFinalizeBypassAhaType = !snapshot.usesAhaType
         currentTranscript = ""
         transcriptPreview = ""
         lastCommittedText = ""
@@ -408,8 +433,8 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         let format = inputNode.outputFormat(forBus: 0)
 
         inputNode.removeTap(onBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
-            self?.recognitionRequest?.append(buffer)
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+            request.append(buffer)
         }
 
         do {
@@ -432,6 +457,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
             guard let self else { return }
             Task { @MainActor in
+                guard self.recordingGeneration == generation else { return }
                 self.handleRecognition(result: result, error: error)
             }
         }
@@ -560,6 +586,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
 
         let text = currentTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
+        let capturedPolicy = recordingPolicy
         cancelRecognitionPipeline()
 
         guard !text.isEmpty else {
@@ -570,7 +597,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
 
         hasCommittedThisRecording = true
-        let willUseAhaType = !bypassAhaType && AhaTypeTextOptimizer.shared.isEnabled
+        let willUseAhaType = capturedPolicy?.usesAhaType ?? (!bypassAhaType && AhaTypeTextOptimizer.shared.isEnabled)
         statusMessage = willUseAhaType ? NSLocalizedString("AhaType 整理中…", comment: "") : NSLocalizedString("准备粘贴…", comment: "")
         VoiceStatusHUDController.shared.show(willUseAhaType ? .ahaType : .pasting)
         appendDiagnostic("finalize begin reason=\(reason) bypass=\(bypassAhaType) rawText=\(text)")
@@ -578,7 +605,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         Task { @MainActor in
             let output: String
             if willUseAhaType {
-                output = await AhaTypeTextOptimizer.shared.processIfEnabled(text)
+                output = await AhaTypeTextOptimizer.shared.processIfEnabled(text, enabledForRecording: true)
             } else {
                 output = text
             }
@@ -596,6 +623,10 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     }
 
     private func cancelRecognitionPipeline() {
+        recordingGeneration = UUID()
+        finalizeWorkItem?.cancel()
+        finalizeWorkItem = nil
+        recordingPolicy = nil
         audioEngine?.stop()
         audioEngine?.inputNode.removeTap(onBus: 0)
         audioEngine = nil
