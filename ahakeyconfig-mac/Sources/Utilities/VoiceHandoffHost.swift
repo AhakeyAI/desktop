@@ -62,6 +62,7 @@ enum VoiceHandoffHost {
             var modeDraft = draft.draft(for: mode)
             var voice = modeDraft.key(for: .voice)
             voice.voicePreset = .macOSNative
+            voice.voiceProcessingPolicy = nil
             voice.shortcut = ShortcutBinding(keyCode: HIDUsage.f18)
             voice.macro = []
             modeDraft.updateKey(voice)

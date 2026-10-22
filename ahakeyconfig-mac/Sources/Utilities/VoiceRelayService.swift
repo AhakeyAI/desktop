@@ -8,46 +8,12 @@ import os.log
 
 private let voiceRelayLog = Logger(subsystem: "lab.jawa.ahakeyconfig", category: "VoiceRelay")
 
-private struct VoiceTriggerBinding: Hashable {
-    let keyCode: CGKeyCode
-    let modifiers: Set<ShortcutModifier>
-
+extension VoiceTriggerBinding {
     var displayLabel: String {
         let modifierLabel = ShortcutModifier.displayOrder
-            .filter { modifiers.contains($0) }
-            .map(\.symbol)
-            .joined()
+            .filter { modifiers.contains($0) }.map(\.symbol).joined()
         return modifierLabel + macKeyName(for: keyCode)
     }
-}
-
-private enum VoiceRouteAction: Hashable {
-    case macOSDictation
-    case functionRelay(appName: String)
-    case doubaoPassThrough
-
-    var title: String {
-        switch self {
-        case .macOSDictation:
-            NSLocalizedString("macOS 原生语音", comment: "")
-        case let .functionRelay(appName):
-            appName
-        case .doubaoPassThrough:
-            NSLocalizedString("豆包输入法", comment: "")
-        }
-    }
-
-    var isFunctionRelay: Bool {
-        if case .functionRelay = self { return true }
-        return false
-    }
-}
-
-private struct VoiceRoute: Hashable {
-    let binding: VoiceTriggerBinding
-    let action: VoiceRouteAction
-    let mode: AhaKeyModeSlot
-    let compatibilityLabel: String?
 }
 
 final class VoiceRelayService: ObservableObject {
@@ -64,8 +30,9 @@ final class VoiceRelayService: ObservableObject {
 
     private let routeQueue = DispatchQueue(label: "lab.jawa.ahakeyconfig.voiceRelay.routes")
     private var routes: [VoiceRoute] = []
-    /// 与键盘物理档位一致，用于多个 Mode 共用同一触发键（如 F18 / F19）时选对路由。
-    private var keyboardWorkMode: AhaKeyModeSlot = .mode0
+    private var pressRouter = VoicePressRouter()
+    /// Last reported keyboard work mode; initialization keeps the existing mode-0 compatibility until the first report.
+    private var keyboardWorkMode: AhaKeyModeSlot? = .mode0
 
     /// 我们用 CGEventTap（不是 NSEvent.addGlobalMonitor），因为只有 CGEventTap 能真正
     /// "吞掉"键盘事件，防止硬件语音键漏到前台 App（比如 Claude Code CLI / iTerm 等终端
@@ -99,11 +66,9 @@ final class VoiceRelayService: ObservableObject {
             queue: .main
         ) { [weak self] note in
             guard let self, let raw = note.userInfo?["workMode"] as? Int else { return }
-            guard let slot = AhaKeyModeSlot(rawValue: raw) else { return }
-            self.routeQueue.async {
-                self.keyboardWorkMode = slot
-            }
-            self.appendDiagnostic("keyboard work mode (hardware) → \(slot.rawValue) (\(slot.name))")
+            let slot = AhaKeyModeSlot(rawValue: raw)
+            self.routeQueue.async { self.keyboardWorkMode = slot }
+            self.appendDiagnostic("keyboard work mode (hardware) → \(slot.map { String($0.rawValue) } ?? "unknown")")
         }
     }
 
@@ -230,7 +195,7 @@ final class VoiceRelayService: ObservableObject {
         guard let route else {
             appendDiagnostic("inspector simulate: no route for mode=\(mode.rawValue)")
             Task { @MainActor in
-                lastInspectorSimulateHint = NSLocalizedString("当前模式没有语音路由：Fn 请选 Fn/Globe，或把「自定义快捷键」设为 F19。", comment: "")
+                lastInspectorSimulateHint = NSLocalizedString("当前模式没有 App 语音路由。Fn 请选 Fn/Globe；自定义快捷键由键盘直接发送。", comment: "")
             }
             return
         }
@@ -361,10 +326,16 @@ final class VoiceRelayService: ObservableObject {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
             self.runLoopSource = nil
         }
-        releaseFunctionRelayHoldIfNeeded()
+        resetPressedRoutes()
         isListening = false
         appendDiagnostic("cg event tap stopped")
         refreshStatusMessage()
+    }
+
+    private func resetPressedRoutes() {
+        releaseFunctionRelayHoldIfNeeded()
+        routeQueue.sync { pressRouter.reset() }
+        DispatchQueue.main.async { NativeSpeechTranscriptionService.shared.cancelPendingVoiceKeyPress() }
     }
 
     /// CGEventTap 回调。返回 `nil` 表示吞掉事件（不让它抵达前台 App）；返回 passUnretained
@@ -372,6 +343,7 @@ final class VoiceRelayService: ObservableObject {
     private func handleTappedEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         // 1. 系统可能因为我们耗时过长临时禁用了 tap，这里补救重启一下。
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            resetPressedRoutes()
             if let tap = eventTap {
                 CGEvent.tapEnable(tap: tap, enable: true)
                 appendDiagnostic("cg event tap re-enabled after \(type == .tapDisabledByTimeout ? "timeout" : "user input")")
@@ -402,24 +374,31 @@ final class VoiceRelayService: ObservableObject {
             return nil
         }
 
-        // 5. 匹配语音路由。没匹配就一律放行。
-        guard let route = matchingRoute(forKeyCode: keyCode, flags: flags) else {
-            return Unmanaged.passUnretained(event)
-        }
-
+        // 5. Resolve once at keyDown; matching keyUp follows that captured route.
         let isAutoRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+        let decision = routeQueue.sync {
+            type == .keyDown
+                ? pressRouter.keyDown(code: keyCode, modifiers: flags, isRepeat: isAutoRepeat, mode: keyboardWorkMode, routes: routes)
+                : pressRouter.keyUp(code: keyCode)
+        }
+        let route: VoiceRoute
+        switch decision {
+        case .passThrough: return Unmanaged.passUnretained(event)
+        case .suppressRepeat: return nil
+        case .route(let selected): route = selected
+        }
         appendDiagnostic("matched keyCode=\(keyCode) type=\(type.rawValue) autorepeat=\(isAutoRepeat) route=\(route.action.title) mode=\(route.mode.rawValue)")
 
         switch route.action {
         case .macOSDictation:
             if isAutoRepeat { return nil }
             if type == .keyDown {
-                Task { @MainActor in
-                    NativeSpeechTranscriptionService.shared.handleVoiceKeyDown()
+                DispatchQueue.main.async {
+                    NativeSpeechTranscriptionService.shared.handleVoiceKeyDown(trigger: keyCode, policy: route.processingPolicy)
                 }
             } else if type == .keyUp {
-                Task { @MainActor in
-                    NativeSpeechTranscriptionService.shared.handleVoiceKeyUp()
+                DispatchQueue.main.async {
+                    NativeSpeechTranscriptionService.shared.handleVoiceKeyUp(trigger: keyCode)
                 }
             }
             // keyDown/keyUp 都吞掉，避免硬件发出的 F17/F18 漏到前台 App（比如 Claude CLI
@@ -537,17 +516,6 @@ final class VoiceRelayService: ObservableObject {
         if needsFnUp {
             postFunctionKey(isKeyDown: false)
             appendDiagnostic("function relay force release")
-        }
-    }
-
-    private func matchingRoute(forKeyCode keyCode: CGKeyCode, flags: Set<ShortcutModifier>) -> VoiceRoute? {
-        routeQueue.sync {
-            let candidates = routes.filter { $0.binding.keyCode == keyCode && $0.binding.modifiers == flags }
-            if candidates.isEmpty { return nil }
-            if let hit = candidates.first(where: { $0.mode == keyboardWorkMode }) {
-                return hit
-            }
-            return candidates.first
         }
     }
 
@@ -684,7 +652,7 @@ final class VoiceRelayService: ObservableObject {
         statusMessage = NSLocalizedString("后台监听已启动。Fn/Globe 语音走 F19；macOS 原生与旧版 F18 会继续兼容。", comment: "")
     }
 
-    private static func buildRoutes(from draft: AhaKeyStudioDraft) -> [VoiceRoute] {
+    static func buildRoutes(from draft: AhaKeyStudioDraft) -> [VoiceRoute] {
         var orderedRoutes: [VoiceRoute] = []
         let factoryF18 = VoiceTriggerBinding(keyCode: 79, modifiers: [])
         let fnF19 = VoiceTriggerBinding(keyCode: 80, modifiers: [])
@@ -702,7 +670,8 @@ final class VoiceRelayService: ObservableObject {
                     binding: binding,
                     action: action,
                     mode: mode,
-                    compatibilityLabel: nil
+                    compatibilityLabel: nil,
+                    processingPolicy: voiceKey.voiceProcessingPolicy
                 )
             )
 
@@ -712,7 +681,8 @@ final class VoiceRelayService: ObservableObject {
                         binding: fnF19,
                         action: action,
                         mode: mode,
-                        compatibilityLabel: NSLocalizedString("Fn F19 兼容", comment: "")
+                        compatibilityLabel: NSLocalizedString("Fn F19 兼容", comment: ""),
+                        processingPolicy: voiceKey.voiceProcessingPolicy
                     )
                 )
             }
@@ -723,7 +693,8 @@ final class VoiceRelayService: ObservableObject {
                         binding: factoryF18,
                         action: action,
                         mode: .mode0,
-                        compatibilityLabel: NSLocalizedString("旧版 F18 兼容", comment: "")
+                        compatibilityLabel: NSLocalizedString("旧版 F18 兼容", comment: ""),
+                        processingPolicy: voiceKey.voiceProcessingPolicy
                     )
                 )
             }
@@ -749,9 +720,9 @@ final class VoiceRelayService: ObservableObject {
         case .doubao:
             .functionRelay(appName: "Fn/Globe")
         case .custom:
-            shortcut.keyCode == HIDUsage.f19 && shortcut.modifiers.isEmpty
-                ? .functionRelay(appName: "Fn / Globe")
-                : nil
+            // A custom shortcut is physical passthrough, including F18/F19.
+            // Fn translation remains available only through an explicit preset.
+            nil
         case .codex:
             nil
         }

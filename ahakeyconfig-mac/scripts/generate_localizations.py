@@ -7,6 +7,11 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "上一段转写稍晚完成，已保留，可复制后自行粘贴。": "The previous transcription finished later and was kept. Copy it to paste manually.",
+    "复制已完成的转写": "Copy completed transcription",
+    "录音开始时确定是否使用 AhaType；本段录音不随之后的模式或开关变化。": "Whether to use AhaType is set when recording starts. Later mode or toggle changes do not affect this recording.",
+    "直接发送所选快捷键；使用 Fn/Globe 请选对应预设。": "Send the selected shortcut directly. For Fn/Globe, choose its preset.",
+    "当前模式没有 App 语音路由。Fn 请选 Fn/Globe；自定义快捷键由键盘直接发送。": "No App voice route is configured for this mode. Choose Fn/Globe for Fn; custom shortcuts are sent directly by the keyboard.",
     "已读取：%@": "Read back: %@",
     "尚未读取": "Not read yet",
     "正在处理当前组件，请完成或取消后再操作。": "Finish or cancel the current operation before continuing.",

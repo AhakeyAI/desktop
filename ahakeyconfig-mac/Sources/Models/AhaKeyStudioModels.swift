@@ -399,7 +399,7 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
         case .codex:
             NSLocalizedString("规划中，保留入口。", comment: "")
         case .custom:
-            NSLocalizedString("直接自己指定底层快捷键。", comment: "")
+            NSLocalizedString("直接发送所选快捷键；使用 Fn/Globe 请选对应预设。", comment: "")
         }
     }
 
@@ -798,19 +798,22 @@ struct AhaKeyKeyDraft: Codable, Equatable, Identifiable {
     var macro: [MacroStep]
     var description: String
     var voicePreset: VoicePreset?
+    var voiceProcessingPolicy: VoiceProcessingPolicy?
 
     init(
         role: AhaKeyKeyRole,
         shortcut: ShortcutBinding,
         macro: [MacroStep] = [],
         description: String,
-        voicePreset: VoicePreset? = nil
+        voicePreset: VoicePreset? = nil,
+        voiceProcessingPolicy: VoiceProcessingPolicy? = nil
     ) {
         self.role = role
         self.shortcut = shortcut
         self.macro = macro
         self.description = description
         self.voicePreset = voicePreset
+        self.voiceProcessingPolicy = voiceProcessingPolicy
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -819,6 +822,7 @@ struct AhaKeyKeyDraft: Codable, Equatable, Identifiable {
         case macro
         case description
         case voicePreset
+        case voiceProcessingPolicy
     }
 
     init(from decoder: Decoder) throws {
@@ -828,6 +832,7 @@ struct AhaKeyKeyDraft: Codable, Equatable, Identifiable {
         self.macro = try c.decodeIfPresent([MacroStep].self, forKey: .macro) ?? []
         self.description = try c.decode(String.self, forKey: .description)
         self.voicePreset = try c.decodeIfPresent(VoicePreset.self, forKey: .voicePreset)
+        self.voiceProcessingPolicy = try c.decodeIfPresent(VoiceProcessingPolicy.self, forKey: .voiceProcessingPolicy)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -839,6 +844,7 @@ struct AhaKeyKeyDraft: Codable, Equatable, Identifiable {
         }
         try c.encode(description, forKey: .description)
         try c.encodeIfPresent(voicePreset, forKey: .voicePreset)
+        try c.encodeIfPresent(voiceProcessingPolicy, forKey: .voiceProcessingPolicy)
     }
 
     var id: Int { role.rawValue }

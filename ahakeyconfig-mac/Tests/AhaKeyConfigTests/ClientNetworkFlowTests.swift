@@ -128,6 +128,55 @@ final class ClientNetworkFlowTests: XCTestCase {
         XCTAssertEqual(redirects, 1)
     }
 
+    func testQuotaResponseMergesIntoLatestPreferences() async throws {
+        let (optimizer, folder) = try optimizer { _ in XCTFail("valid token") }
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("config.json")
+        ClientStubProtocol.handle = { _ in
+            var latest = (try! JSONSerialization.jsonObject(with: Data(contentsOf: file))) as! [String: Any]
+            latest["typeless_enabled"] = false
+            latest["future_preference"] = "keep-new-value"
+            try! JSONSerialization.data(withJSONObject: latest).write(to: file)
+            return (200, #"{"code":0,"data":{"text":"processed","quota":{"used_daily":3}}}"#)
+        }
+        let result = await optimizer.processIfEnabled("speech", enabledForRecording: true)
+        XCTAssertEqual(result, "processed")
+        let latest = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as! [String: Any]
+        XCTAssertEqual(latest["typeless_enabled"] as? Bool, false)
+        XCTAssertEqual(latest["future_preference"] as? String, "keep-new-value")
+        XCTAssertEqual(latest["used_daily"] as? Int, 3)
+        XCTAssertFalse(optimizer.isEnabled)
+    }
+
+    func testRecordingDecisionIsNotReplacedByLaterGlobalToggle() async throws {
+        let (optimizer, folder) = try optimizer { _ in XCTFail("valid token") }
+        defer { try? FileManager.default.removeItem(at: folder) }
+        var requests = 0
+        ClientStubProtocol.handle = { _ in
+            requests += 1
+            return (200, #"{"code":0,"data":{"text":"processed"}}"#)
+        }
+        optimizer.setEnabled(false)
+        let capturedEnabled = await optimizer.processIfEnabled("speech", enabledForRecording: true)
+        XCTAssertEqual(capturedEnabled, "processed")
+        XCTAssertEqual(requests, 1)
+        optimizer.setEnabled(true)
+        let capturedDisabled = await optimizer.processIfEnabled("speech", enabledForRecording: false)
+        XCTAssertEqual(capturedDisabled, "speech")
+        XCTAssertEqual(requests, 1)
+    }
+
+    func testCapturedRecordingDecisionStillRequiresCurrentAuthentication() async throws {
+        var redirects = 0
+        let (optimizer, folder) = try optimizer(token: "") { _ in redirects += 1 }
+        defer { try? FileManager.default.removeItem(at: folder) }
+        optimizer.setEnabled(false)
+        ClientStubProtocol.handle = { _ in XCTFail("missing credentials must not send speech"); return (500, "") }
+        let text = await optimizer.processIfEnabled("speech", enabledForRecording: true)
+        XCTAssertEqual(text, "speech")
+        XCTAssertEqual(redirects, 1)
+    }
+
     func testExpiredTokenDoesNotSendSpeechAndLateFailureCannotClearNewToken() async throws {
         var redirects = 0
         let (optimizer, folder) = try optimizer { _ in redirects += 1 }
