@@ -6,7 +6,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -235,19 +234,14 @@ class ReleaseFirmwareValidationTest {
     }
 
     private static Path findPwsh() throws Exception {
-        // where.exe prints a localized "not found" message and exits 1 when
-        // pwsh is missing, so only trust stdout from a successful lookup.
         Process process = new ProcessBuilder("where.exe", "pwsh")
-            .redirectError(ProcessBuilder.Redirect.DISCARD).start();
+            .redirectErrorStream(true).start();
         String output = new String(process.getInputStream().readAllBytes(),
             StandardCharsets.UTF_8).trim();
-        if (process.waitFor() != 0 || output.isBlank()) return null;
-        try {
-            Path candidate = Path.of(output.lines().findFirst().orElse("").trim());
-            return Files.isRegularFile(candidate) ? candidate : null;
-        } catch (InvalidPathException e) {
-            return null;
-        }
+        process.waitFor();
+        if (output.isBlank()) return null;
+        Path candidate = Path.of(output.lines().findFirst().orElse("").trim());
+        return Files.isRegularFile(candidate) ? candidate : null;
     }
 
     private record Result(boolean success, String output) {}
