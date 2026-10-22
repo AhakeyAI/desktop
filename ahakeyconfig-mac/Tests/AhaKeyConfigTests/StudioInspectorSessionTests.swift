@@ -136,4 +136,16 @@ final class StudioInspectorSessionTests: XCTestCase {
         resume?.resume(); let result = try await task.value; XCTAssertEqual(result, 1)
         XCTAssertEqual(device.releases, 1)
     }
+    func testCancelledQueuedTaskNeverAcquiresConnection() async {
+        let device = Device(); let session = StudioInspectorSession(access: device.access())
+        // The task inherits MainActor and cannot begin before this synchronous
+        // turn cancels it (the Inspector replacing a queued operation).
+        let task = Task { try await session.withConnection { _ in XCTFail("Stale queued operation"); return 1 } }
+        task.cancel()
+        do { _ = try await task.value; XCTFail("Expected cancellation") }
+        catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertEqual(device.begins, 0); XCTAssertEqual(device.releases, 0)
+        XCTAssertFalse(session.isBusy)
+    }
+
 }

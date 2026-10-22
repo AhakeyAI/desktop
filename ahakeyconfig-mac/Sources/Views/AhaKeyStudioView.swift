@@ -5318,6 +5318,7 @@ private extension AhaKeyStudioView {
 
     func readInlineKey(_ target: StudioInlineKeyTarget) {
         guard !inspectorSession.isBusy else { return }
+        inlineKeyTask?.cancel()
         let ticket = UUID()
         inlineKeyOperationID = ticket
         inlineKeyMessage = nil
@@ -5325,6 +5326,7 @@ private extension AhaKeyStudioView {
         let original = currentSelectedKey
         let expectedDevice = inlineKeyFact?.deviceID
         inlineKeyTask = Task { @MainActor in
+            guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
             do {
                 let fact = try await inspectorSession.withConnection(expectedDeviceID: expectedDevice) { context in
                     let actual = try await bleManager.readOrdinaryKeyForEditing(mode: target.mode, index: target.index)
@@ -5355,10 +5357,12 @@ private extension AhaKeyStudioView {
         let deviceID = overwrite?.deviceID ?? baselineFact.deviceID
         guard desired.mode == target.mode, desired.keyIndex == target.index,
               expected.mode == target.mode, expected.keyIndex == target.index else { return }
+        inlineKeyTask?.cancel()
         let ticket = UUID()
         inlineKeyOperationID = ticket
         inlineKeyMessage = nil
         inlineKeyTask = Task { @MainActor in
+            guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
             var attemptedWrite = false
             do {
                 let result = try await StudioInlineKeySave.run(session: inspectorSession,
@@ -5374,6 +5378,9 @@ private extension AhaKeyStudioView {
                 switch result {
                 case .conflict(let conflict):
                     inlineKeyConflict = conflict
+                case .readOnly(let fact):
+                    inlineKeyFact = fact
+                    inlineKeyMessage = NSLocalizedString("此动作无法在当前编辑器中完整表示，保持只读。", comment: "")
                 case .unchanged(let fact):
                     inlineKeyFact = fact
                     inlineKeyMessage = NSLocalizedString("草稿与读回值一致，本次未写入；此前未确认的保存记录仍保留。", comment: "")

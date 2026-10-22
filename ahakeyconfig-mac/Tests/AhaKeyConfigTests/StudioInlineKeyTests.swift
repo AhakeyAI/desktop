@@ -75,4 +75,24 @@ final class StudioInlineKeyTests: XCTestCase {
         XCTAssertEqual(fact.deviceID, "A"); XCTAssertEqual(fact.value, desired)
         XCTAssertEqual(events, ["read", "write-started", "confirmed-transaction", "release"])
     }
+    @MainActor
+    func testNoncanonicalFreshValueCannotBeOverwrittenThroughConflictConfirmation() async throws {
+        let before = key([HIDUsage.enter]), foreign = key([HIDUsage.enter, HIDUsage.leftGUI]), desired = key([HIDUsage.escape])
+        for baseline in [before, foreign] {
+            let result = try await StudioInlineKeySave.run(session: session {}, baseline: .init(deviceID: "A", value: baseline), desired: desired,
+                read: { _, _ in foreign }, save: { _, _, _ in XCTFail("Read-only value cannot be overwritten"); return desired },
+                writeStarted: { XCTFail("Must not stage a write") })
+            guard case .readOnly(let fact) = result else { return XCTFail("Expected read only") }
+            XCTAssertEqual(fact.value, foreign)
+        }
+    }
+
+    func testSameLengthMacrosShowDifferentActionsInConflictSummary() {
+        let first = key([MacroAction.downKey.rawValue, HIDUsage.enter, MacroAction.upKey.rawValue, HIDUsage.enter], type: 0x74)
+        let second = key([MacroAction.downKey.rawValue, HIDUsage.escape, MacroAction.upKey.rawValue, HIDUsage.escape], type: 0x74)
+        XCTAssertNotEqual(StudioKeyWriteProposal.summary(first), StudioKeyWriteProposal.summary(second))
+        XCTAssertTrue(StudioKeyWriteProposal.summary(first).contains(HIDUsage.name(for: HIDUsage.enter)))
+        XCTAssertTrue(StudioKeyWriteProposal.summary(second).contains(HIDUsage.name(for: HIDUsage.escape)))
+    }
+
 }

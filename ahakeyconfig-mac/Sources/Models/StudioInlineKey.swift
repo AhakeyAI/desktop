@@ -56,7 +56,15 @@ extension StudioKeyWriteProposal {
         case 0x73:
             action = value.action.isEmpty ? NSLocalizedString("无按键动作", comment: "") : value.action.map { HIDUsage.name(for: $0) }.joined(separator: " + ")
         case 0x74:
-            action = String(format: NSLocalizedString("宏（%@ 步）", comment: ""), String(value.action.count / 2))
+            let bytes = Array(value.action)
+            if bytes.count.isMultiple(of: 2) {
+                action = stride(from: 0, to: bytes.count, by: 2).map { index in
+                    guard let kind = MacroAction(rawValue: bytes[index]) else {
+                        return String(format: "%02X %02X", bytes[index], bytes[index + 1])
+                    }
+                    return MacroStep(action: kind, param: bytes[index + 1]).displayLabel
+                }.joined(separator: " → ")
+            } else { action = bytes.map { String(format: "%02X", $0) }.joined(separator: " ") }
         default: action = NSLocalizedString("未识别动作，保留原数据", comment: "")
         }
         return action + " · " + (String(data: value.description, encoding: .ascii) ?? value.description.map { String(format: "%02X", $0) }.joined())
@@ -68,6 +76,7 @@ enum StudioInlineKeySave {
     enum Result {
         case saved(StudioInlineKeyFact)
         case unchanged(StudioInlineKeyFact)
+        case readOnly(StudioInlineKeyFact)
         case conflict(StudioInlineKeyConflict)
     }
 
@@ -84,6 +93,11 @@ enum StudioInlineKeySave {
             let actual = try await read(desired.mode, desired.keyIndex)
             guard actual.mode == desired.mode, actual.keyIndex == desired.keyIndex else {
                 throw ConfirmedOrdinaryKeySetting.Failure.mismatch
+            }
+            guard let mode = AhaKeyModeSlot(rawValue: Int(actual.mode)),
+                  let role = AhaKeyKeyRole(rawValue: Int(actual.keyIndex)),
+                  StudioKeyWriteProposal.draft(from: actual, preserving: AhaKeyModeDraft.default(for: mode).key(for: role)) != nil else {
+                return .readOnly(.init(deviceID: context.deviceID, value: actual))
             }
             guard actual == baseline.value else {
                 return .conflict(.init(deviceID: context.deviceID, actual: actual, desired: desired))
