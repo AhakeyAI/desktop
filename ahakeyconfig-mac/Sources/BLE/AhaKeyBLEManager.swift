@@ -125,7 +125,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var isReadingWS3Display = false
     @Published private(set) var isUpdatingWS3Display = false
     var canEditWS3Display: Bool {
-        isConnected && !commandChannelUnsynchronized && firmwareCapabilityProfile?.identity == .knownWS2Catalog &&
+        isConnected && !commandChannelUnsynchronized && firmwareCapabilityProfile?.mayQueryWS3Display == true &&
             ws3DisplaySnapshot?.verifiesDisplaySettings(in: commandSessionGeneration) == true
     }
     @Published private(set) var isReadingConfigurationSnapshot = false
@@ -621,7 +621,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
         // A display transaction owns the channel; unrelated raw status/display
         // writes must not race into firmware's single ready command slot.
-        if (isUploadingOLED || isUpdatingWS3Display), firmwareCapabilityProfile?.identity == .knownWS2Catalog {
+        if (isUploadingOLED || isUpdatingWS3Display), firmwareCapabilityProfile?.mayQueryWS3Display == true {
             let ownsWrite = isUploadingOLED ? confirmedWrite == .ws3Resource :
                 (confirmedWrite == .ws3Display || confirmedWrite == .ws3ResourceRestore)
             if !ownsWrite, ![UInt8(0x00), 0x88].contains(data.count > 2 ? data[2] : 0xFF) {
@@ -862,9 +862,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             allowDeviceError: true
         )
         try ensureConfigurationReadSession(generation)
-        let profile = FirmwareCapabilityProfile.probeResponse(
-            response.frame, hasValidStatusReadback: hasValidStatusReadback
-        )
+        let authority = await FirmwareRuntimeCatalog.shared.snapshot()
+        try ensureConfigurationReadSession(generation)
+        let profile = authority.profile(response.frame, hasValidStatus: hasValidStatusReadback)
         guard profile.identity != .unknown(nil) else { throw OLEDUploadError.invalidReadback }
         if profile != previousProfile { configurationSnapshot.reset(generation: generation) }
         firmwareCapabilityProfile = profile
@@ -970,7 +970,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         ws3LightCatalogSnapshot = nil
         defer { finishWS3DisplayOperation(displayOperation) }
         let profile = try await readFirmwareCapabilityProfile()
-        guard profile.identity == .knownWS2Catalog else { throw OLEDUploadError.unsupportedReadOnlyProfile }
+        guard profile.mayQueryWS3Display else { throw OLEDUploadError.unsupportedReadOnlyProfile }
         func read(_ item: WS3DisplayItem) async throws -> WS3DisplayValue {
             try await self.readWS3DisplayValue(item, generation: generation)
         }
@@ -1011,6 +1011,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     func restoreWS3ResourceDefault(entry: UInt8, baseline: WS3DisplaySnapshot) async throws -> WS3ResourceReadback {
         guard !isConfigurationOperationInProgress, canEditWS3Display,
+              firmwareCapabilityProfile?.mayQueryWS3Resources == true,
               baseline.generation == commandSessionGeneration else { throw WS3ResourceMaintenanceError.unverifiedConnection }
         let generation = commandSessionGeneration
         let displayOperation = beginWS3DisplayOperation(.updating)
@@ -1038,6 +1039,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     func uploadWS3Resource(_ payload: WS3ResourcePayload, baseline: WS3DisplaySnapshot) async throws -> WS3ResourceReadback {
         guard !isConfigurationOperationInProgress, canEditWS3Display,
+              firmwareCapabilityProfile?.mayQueryWS3Resources == true,
               baseline.generation == commandSessionGeneration,
               let peripheral, let commandChar else { throw WS3ResourceUploadError.unverifiedConnection }
         let generation = commandSessionGeneration
@@ -1199,7 +1201,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         defer { isReadingConfigurationSnapshot = false }
         configurationSnapshot.reset(generation: generation)
         let profile = try await readFirmwareCapabilityProfile()
-        guard profile.identity == .knownWS2Catalog else { throw OLEDUploadError.unsupportedReadOnlyProfile }
+        guard profile.isVerifiedProtocol else { throw OLEDUploadError.unsupportedReadOnlyProfile }
         var fields: [DeviceConfigurationSnapshot.Field] = [.standby, .voice, .sideSwitch]
         for mode: UInt8 in 0..<4 {
             for index: UInt8 in 0..<4 { fields.append(.key(mode: mode, index: index)) }
@@ -1349,7 +1351,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         isManagingVoiceHandoff = true
         defer { isManagingVoiceHandoff = false }
         let profile = try await readFirmwareCapabilityProfile()
-        guard profile.identity == .knownWS2Catalog else { throw OLEDUploadError.unsupportedReadOnlyProfile }
+        guard profile.mayQueryVoiceOnboarding && profile.mayQueryOrdinaryKeys else { throw OLEDUploadError.unsupportedReadOnlyProfile }
         try ensureConfigurationReadSession(generation)
         return try await readVoiceHandoffSnapshot()
     }
@@ -1372,7 +1374,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         isManagingVoiceHandoff = true
         defer { isManagingVoiceHandoff = false }
         let profile = try await readFirmwareCapabilityProfile()
-        guard profile.identity == .knownWS2Catalog else { throw OLEDUploadError.unsupportedReadOnlyProfile }
+        guard profile.mayQueryVoiceOnboarding && profile.mayQueryOrdinaryKeys else { throw OLEDUploadError.unsupportedReadOnlyProfile }
         do {
             return try await ConfirmedVoiceHandoff.run(baseline: baseline, checkSession: {
                 try self.ensureConfigurationReadSession(generation)
@@ -1401,7 +1403,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         isManagingVoiceHandoff = true
         defer { isManagingVoiceHandoff = false }
         let profile = try await readFirmwareCapabilityProfile()
-        guard profile.identity == .knownWS2Catalog else { throw OLEDUploadError.unsupportedReadOnlyProfile }
+        guard profile.mayQueryVoiceOnboarding && profile.mayQueryOrdinaryKeys else { throw OLEDUploadError.unsupportedReadOnlyProfile }
         do {
             return try await ConfirmedVoiceModeChange.run(baseline: baseline, target: target, checkSession: {
                 try self.ensureConfigurationReadSession(generation)
@@ -1527,7 +1529,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         isChangingWorkMode = true
         defer { isChangingWorkMode = false }
         let profile = try await readFirmwareCapabilityProfile()
-        guard profile.identity == .knownWS2Catalog || profile.identity == .legacy else {
+        guard profile.mayQueryOrdinaryKeys || profile.identity == .legacy else {
             throw OLEDUploadError.unsupportedReadOnlyProfile
         }
         return try await ConfirmedModeChange.run(target: target, checkSession: {

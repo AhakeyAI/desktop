@@ -9,9 +9,10 @@ final class FirmwareReleaseCatalogTests: XCTestCase {
     private let context = FirmwareDesktopContext(version: FirmwareDesktopVersion("0.2.3")!)
     private func entry(_ revision: Int = 1, minimum: String = "0.2.0", channel: FirmwareReleaseCatalog.Channel = .stable,
         visibility: FirmwareReleaseCatalog.Visibility = .user, recommended: Bool = false, recovery: Bool = false,
-        path: String = "Firmware/test.hex", hash: String = String(repeating: "a", count: 64)) -> FirmwareReleaseCatalog.Entry {
+        path: String = "Firmware/test.hex", hash: String = String(repeating: "a", count: 64),
+        capabilities: Set<FirmwareReleaseCatalog.Capability> = [.ordinaryKeys]) -> FirmwareReleaseCatalog.Entry {
         .init(key: "x1-c582-hw1-p1-1.0.0-r00\(revision)", displayName: "Test \(revision)", hardware: "x1-c582-hw1",
-            protocolProfile: "p1", capabilities: [.ordinaryKeys], minimumDesktop: minimum, desktopVariants: ["legacy-macos"],
+            protocolProfile: "p1", capabilities: capabilities, minimumDesktop: minimum, desktopVariants: ["legacy-macos"],
             visibility: visibility, channel: channel, releaseOrder: revision, recommended: recommended, recoverySafe: recovery,
             artifact: .init(filename: "test.hex", sha256: hash, byteCount: 20, bundledPath: path))
     }
@@ -25,6 +26,117 @@ final class FirmwareReleaseCatalogTests: XCTestCase {
     }
     private func verified(_ entries: [FirmwareReleaseCatalog.Entry]) throws -> VerifiedFirmwareCatalog {
         try FirmwareCatalogEnvelope.decodeAndVerify(envelope(entries), publicKeys: keys)
+    }
+    private func probe(_ key: String) -> Data { Data([0xAA, 0xBB, 0x9F, 0] + Array(key.utf8) + [0xCC, 0xDD]) }
+
+    func testSignedCompatibleKeyHasOnlyItsDeclaredImplementedCapabilities() throws {
+        let record = entry(2), catalog = try verified([record])
+        let profile = FirmwareCapabilityProfile.probeResponse(probe(record.key), hasValidStatusReadback: true, catalog: catalog, context: context)
+        XCTAssertEqual(profile.catalogKey, record.key)
+        XCTAssertTrue(profile.mayQueryOrdinaryKeys)
+        XCTAssertFalse(profile.mayQueryStandby); XCTAssertFalse(profile.mayQueryVoiceOnboarding)
+        XCTAssertFalse(profile.mayQueryWS3Display); XCTAssertFalse(profile.mayUseWS3Presentation)
+        XCTAssertFalse(profile.canWriteWithoutReadback)
+        XCTAssertFalse(ApprovalBindingPolicy.mayAutoApprove(physicalState: 0, fresh: true, profile: profile, binding: nil))
+        XCTAssertTrue(ConfigurationCommandPolicy.permits(Data([0xAA, 0xBB, 0x87, 0, 0, 0xCC, 0xDD]), profile: profile))
+        XCTAssertFalse(ConfigurationCommandPolicy.permits(Data([0xAA, 0xBB, 0x95, 0xCC, 0xDD]), profile: profile))
+        XCTAssertFalse(ConfigurationCommandPolicy.permits(Data([0xAA, 0xBB, 0x98, 1, 0xCC, 0xDD]), profile: profile,
+            confirmedWrite: .ws3Presentation, ws3DisplayReadbackVerified: true))
+        XCTAssertFalse(FirmwareCapabilityProfile.probeResponse(probe(record.key), hasValidStatusReadback: false, catalog: catalog, context: context).isVerifiedProtocol)
+        XCTAssertFalse(FirmwareCapabilityProfile.catalogResponse(probe(record.key)).isVerifiedProtocol)
+    }
+    func testSignedRestrictionOfBuiltinKeyDoesNotRetainBuiltinGrants() throws {
+        let limited = try verified([entry()])
+        let profile = FirmwareCapabilityProfile.catalogResponse(probe(FirmwareCapabilityProfile.ws2CatalogKey), catalog: limited, context: context)
+        XCTAssertTrue(profile.mayQueryOrdinaryKeys); XCTAssertFalse(profile.mayQuerySideSwitchBindings)
+        XCTAssertFalse(profile.mayQueryWS3Resources)
+        for record in [entry(2, minimum: "9.0.0"), entry(2, visibility: .factory)] {
+            let blocked = FirmwareCapabilityProfile.catalogResponse(probe(record.key), catalog: try verified([record]), context: context)
+            XCTAssertFalse(blocked.isVerifiedProtocol)
+        }
+        XCTAssertFalse(FirmwareCapabilityProfile.catalogResponse(probe(FirmwareCapabilityProfile.ws2CatalogKey), catalog: try verified([entry(2)]), context: context).isVerifiedProtocol)
+    }
+    func testIndependentOwnerSeesNewSignedCacheWithoutRestartAndRejectsRollback() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = directory.appendingPathComponent("cache.json"), baseline = try envelope([entry()], revision: 2)
+        let app = FirmwareCatalogStore(publicKeys: keys, embeddedEnvelope: baseline, cacheURL: cache)
+        let agent = FirmwareCatalogStore(publicKeys: keys, embeddedEnvelope: baseline, cacheURL: cache)
+        let newer = try envelope([entry(2)], revision: 3)
+        _ = try await app.acceptRefresh(newer)
+        await agent.reloadPersistedIfChanged()
+        var snapshot = await agent.snapshot()
+        XCTAssertEqual(snapshot.catalog?.value.revision, 3)
+        XCTAssertEqual(snapshot.catalog?.value.entries.first?.key, entry(2).key)
+        try baseline.write(to: cache, options: .atomic)
+        await agent.reloadPersistedIfChanged()
+        snapshot = await agent.snapshot(); XCTAssertEqual(snapshot.catalog?.value.revision, 3)
+        try Data("bad signature".utf8).write(to: cache, options: .atomic)
+        await agent.reloadPersistedIfChanged()
+        snapshot = await agent.snapshot(); XCTAssertEqual(snapshot.catalog?.value.revision, 3)
+    }
+    func testEmbeddedAgentAndAppResolveTheSameTrustAndVersion() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let app = directory.appendingPathComponent("Test.app")
+        let resources = app.appendingPathComponent("Contents/Resources/FirmwareFlasher")
+        try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let info: [String: Any] = ["CFBundleIdentifier": "lab.jawa.ahakeyconfig", "CFBundlePackageType": "APPL",
+            "CFBundleShortVersionString": "0.2.3", "CFBundleExecutable": "AhaKeyConfig"]
+        try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0).write(to: app.appendingPathComponent("Contents/Info.plist"))
+        try JSONEncoder().encode(keys).write(to: resources.appendingPathComponent("FirmwareCatalogTrust.json"))
+        let record = entry(2)
+        try envelope([record]).write(to: resources.appendingPathComponent("FirmwareCatalog.json"))
+        let bundle = try XCTUnwrap(Bundle(url: app))
+        let agentBundle = FirmwareRuntimeCatalog.applicationBundle(main: Bundle(for: Self.self),
+            executable: app.appendingPathComponent("Contents/MacOS/ahakeyconfig-agent"))
+        XCTAssertEqual(agentBundle.bundleURL, bundle.bundleURL)
+        let runtime = FirmwareRuntimeCatalog(bundle: agentBundle, cacheURL: nil)
+        let snapshot = await runtime.snapshot()
+        XCTAssertEqual(snapshot.context.version, context.version)
+        let profile = snapshot.profile(probe(record.key), hasValidStatus: true)
+        XCTAssertEqual(profile.catalogKey, record.key)
+        XCTAssertTrue(profile.mayQueryOrdinaryKeys)
+        XCTAssertFalse(profile.mayQueryStandby)
+    }
+    @MainActor
+    func testSharedPresentationOwnerStopsWritesWhenCurrentCatalogRevokesCapability() async throws {
+        let key = FirmwareCapabilityProfile.ws2CatalogKey
+        var current = FirmwareRuntimeCatalog.Snapshot(catalog: .builtin, context: context)
+        var requests: [Data] = []
+        var faults = 0
+        let session = WS3PresentationSession(exchange: { request in
+            requests.append(request)
+            let b = [UInt8](request)
+            if b[2] == 0x9F { return self.probe(key) }
+            if b[2] == 0x88 {
+                if b[3] == 0 { return Data([0xAA, 0xBB, 0x88, 0, 0, 35, 0xCC, 0xDD]) }
+                if b[3] == 2 { return Data([0xAA, 0xBB, 0x88, 0, 2, b[4], 0, 0, 0xCC, 0xDD]) }
+                return Data([0xAA, 0xBB, 0x88, 0, 3, b[4]] + Array(repeating: 0, count: 10) + [0xCC, 0xDD])
+            }
+            return Data([0xAA, 0xBB, b[2], 0, 0xCC, 0xDD])
+        }, sendSingleDefault: { true }, onFault: { faults += 1 }, catalogSnapshot: { current })
+        session.updateConnection(connected: true, generation: 1)
+        _ = try await session.activate(.multi)
+        let before = requests.count
+        // A new, validly signed record keeps ordinary keys but revokes WS3.
+        current = .init(catalog: try verified([entry()]), context: context)
+        session.observe(WS3TaskMetadata(client: .codex, session: "revoked", event: "CodexPreToolUse")!, state: 2)
+        for _ in 0..<50 where faults == 0 { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(faults, 1)
+        XCTAssertEqual(requests.count, before)
+        XCTAssertNil(session.requestedMode)
+        XCTAssertFalse(session.overview().connected)
+        current = .init(catalog: .builtin, context: context)
+        session.updateConnection(connected: true, generation: 2)
+        _ = try await session.activate(.multi)
+        let beforeRepeat = requests.count
+        current = .init(catalog: try verified([entry()]), context: context)
+        do { _ = try await session.activate(.multi); XCTFail("Idempotent mode must recheck authority") }
+        catch { XCTAssertEqual(error as? WS3PresentationError, .unsupported) }
+        XCTAssertEqual(requests.count, beforeRepeat)
+        XCTAssertEqual(faults, 2)
     }
     func testAuthenticityAndRollbackAreRequired() throws {
         let bytes = try envelope([entry()])

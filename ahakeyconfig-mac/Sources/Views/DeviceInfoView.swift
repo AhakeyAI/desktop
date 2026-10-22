@@ -545,6 +545,8 @@ struct DeviceInfoView: View {
         switch profile.identity {
         case .knownWS2Catalog:
             return "WS2 CP4D · 只读探测"
+        case .verifiedCatalog(let key, _):
+            return key
         case .legacy:
             return "旧版协议"
         case .unknown(let key):

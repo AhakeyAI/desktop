@@ -21,18 +21,51 @@ final class AgentPresentationSessionTests: XCTestCase {
             }
             return Data([0xAA, 0xBB, b[2], 0, 0xCC, 0xDD])
         }
-        func session() -> AgentPresentationSession {
+        func session(catalogSnapshot: @escaping @MainActor () async -> FirmwareRuntimeCatalog.Snapshot = {
+            await FirmwareRuntimeCatalog.shared.snapshot()
+        }) -> AgentPresentationSession {
             AgentPresentationSession(exchange: { data in
                 self.requests.append(data)
                 if let result = try await self.intercept?(data) { return result }
                 return self.response(data)
             }, sendSingleDefault: { self.defaults += 1; return true }, onFault: {
                 self.faults += 1; self.didFault?()
-            }, now: { self.clock })
+            }, now: { self.clock }, catalogSnapshot: catalogSnapshot)
         }
     }
     private func task(_ id: String) -> WS3TaskMetadata { WS3TaskMetadata(client: .codex, session: id, event: "CodexPreToolUse")! }
     private let ack = Data([0xAA, 0xBB, 0x99, 0, 0xCC, 0xDD])
+
+    func testLateRepeatedModeAuthorityFailureCannotClearNewConnection() async throws {
+        let io = Fixture(), snapshot = await FirmwareRuntimeCatalog.shared.snapshot()
+        var pause = false
+        var held: CheckedContinuation<FirmwareRuntimeCatalog.Snapshot, Never>?
+        let session = io.session(catalogSnapshot: {
+            if pause {
+                pause = false
+                return await withCheckedContinuation { held = $0 }
+            }
+            return snapshot
+        })
+        session.updateConnection(connected: true, generation: 1)
+        _ = try await session.activate(.multi)
+        pause = true
+        let old = Task { @MainActor in try await session.activate(.multi) }
+        for _ in 0..<50 where held == nil { try await Task.sleep(for: .milliseconds(10)) }
+        let continuation = try XCTUnwrap(held)
+        session.updateConnection(connected: false, generation: 1)
+        session.updateConnection(connected: true, generation: 2)
+        _ = try await session.activate(.multi)
+        let context = session.foregroundContext
+        continuation.resume(returning: snapshot)
+        do { _ = try await old.value; XCTFail("Old request must fail") }
+        catch { XCTAssertEqual(error as? WS3PresentationError, .connectionChanged) }
+        XCTAssertEqual(session.foregroundContext, context)
+        XCTAssertEqual(session.requestedMode, .multi)
+        XCTAssertTrue(session.overview().connected)
+        XCTAssertEqual(io.faults, 0)
+        await session.quiesce()
+    }
 
     func testForegroundContextIsBoundToConnectionAndPresentationLifetime() async throws {
         let io = Fixture(), session = io.session()

@@ -7,6 +7,8 @@ public final class WS3PresentationSession {
     private let sendSingleDefault: () -> Bool
     private let onFault: () -> Void
     private let now: () -> TimeInterval
+    private let catalogSnapshot: @MainActor () async -> FirmwareRuntimeCatalog.Snapshot
+    private var provenCatalogKey: String?
     public var onOverviewChanged: ((WS3TaskOverview) -> Void)?
     private var tasks = WS3TaskRegistry()
     private var generation: UInt64 = 0
@@ -22,9 +24,11 @@ public final class WS3PresentationSession {
 
     public init(exchange: @escaping @MainActor (Data) async throws -> Data,
          sendSingleDefault: @escaping () -> Bool, onFault: @escaping () -> Void,
-         now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
+         now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+         catalogSnapshot: @escaping @MainActor () async -> FirmwareRuntimeCatalog.Snapshot = { await FirmwareRuntimeCatalog.shared.snapshot() }) {
         self.exchange = exchange; self.sendSingleDefault = sendSingleDefault
         self.onFault = onFault; self.now = now
+        self.catalogSnapshot = catalogSnapshot
     }
 
     public var isChangingMode: Bool { activationID != nil }
@@ -54,6 +58,7 @@ public final class WS3PresentationSession {
         flushID = nil; flushTask?.cancel(); flushTask = nil
         expiry?.cancel(); expiry = nil
         requestedMode = nil; dirty = false; tasks.clear()
+        provenCatalogKey = nil
     }
 
     public func overview() -> WS3TaskOverview {
@@ -90,7 +95,16 @@ public final class WS3PresentationSession {
     public func activate(_ target: WS3PresentationMode) async throws -> WS3TaskOverview {
         guard connected else { throw WS3PresentationError.unavailable }
         guard !isChangingMode else { throw WS3PresentationError.busy }
-        if requestedMode == target { return overview() } // No clearing on an idempotent repeat.
+        if requestedMode == target {
+            let epoch = generation, revision = presentationRevision
+            do { try await checkCatalogAuthority(); return overview() }
+            catch {
+                if generation == epoch, presentationRevision == revision {
+                    clearRuntime(); connected = false; onFault()
+                }
+                throw error
+            }
+        }
         let id = UUID(), epoch = generation
         presentationRevision &+= 1
         activationID = id
@@ -111,9 +125,13 @@ public final class WS3PresentationSession {
             try check(id: id, epoch: epoch)
             expiry?.cancel(); expiry = nil; dirty = false
             tasks.clear(); requestedMode = nil
+            let authority = await catalogSnapshot()
+            try check(id: id, epoch: epoch)
             try await ConfirmedWS3Presentation.activate(target, generation: epoch, checkSession: {
                 try self.check(id: id, epoch: epoch)
-            }, exchange: exchange)
+            }, authority: authority, catalogVerified: { self.provenCatalogKey = $0 }, exchange: {
+                try await self.authorizedExchange($0)
+            })
             try check(id: id, epoch: epoch)
             // SINGLE state ACKs can belong to old fire-and-forget hooks, so this
             // default-state write is intentionally not treated as readback.
@@ -134,6 +152,23 @@ public final class WS3PresentationSession {
         guard connected, generation == epoch, activationID == id else { throw WS3PresentationError.connectionChanged }
     }
 
+    @MainActor
+    private func checkCatalogAuthority() async throws {
+        guard let key = provenCatalogKey, connected else { throw WS3PresentationError.unavailable }
+        let epoch = generation, revision = presentationRevision
+        let authority = await catalogSnapshot()
+        try Task.checkCancellation()
+        guard connected, generation == epoch, presentationRevision == revision,
+              provenCatalogKey == key else { throw WS3PresentationError.connectionChanged }
+        guard authority.permitsPresentation(key: key) else { throw WS3PresentationError.unsupported }
+    }
+
+    @MainActor
+    private func authorizedExchange(_ request: Data) async throws -> Data {
+        if request.count > 2, [UInt8(0x98), 0x99].contains(request[2]) { try await checkCatalogAuthority() }
+        return try await exchange(request)
+    }
+
     private func requestFlush() {
         dirty = true
         guard flushTask == nil, connected, requestedMode == .multi, !isChangingMode else { return }
@@ -150,7 +185,7 @@ public final class WS3PresentationSession {
                     self.dirty = false
                     let command = WS3PresentationCommand.multi(self.tasks.snapshot(at: self.now()))
                     self.scheduleExpiry()
-                    let reply = try await self.exchange(command.request!)
+                    let reply = try await self.authorizedExchange(command.request!)
                     guard self.generation == epoch, self.flushID == id else { return }
                     guard WS3PresentationAcknowledgement.parse(reply, for: command) == .received else {
                         throw WS3PresentationError.rejected
@@ -220,7 +255,7 @@ public final class WS3PresentationSession {
             commands += [.multi(WS3TaskSnapshot(slots: [nil, nil, nil, nil])!), .setMode(.single)]
             for command in commands {
                 try check(id: id, epoch: epoch)
-                let reply = try await exchange(command.request!)
+                let reply = try await authorizedExchange(command.request!)
                 try check(id: id, epoch: epoch)
                 guard WS3PresentationAcknowledgement.parse(reply, for: command) == .received else {
                     throw WS3PresentationError.rejected

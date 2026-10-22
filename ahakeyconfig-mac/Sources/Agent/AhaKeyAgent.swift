@@ -303,34 +303,41 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         guard approvalChannelReady, connectionLock.holdsLock else {
             finishApproval(id: id, status: nil, profile: nil, binding: nil); return
         }
-        querySwitchState(timeout: 1) { first in
+        Task { @MainActor in
+            let authority = await FirmwareRuntimeCatalog.shared.snapshot()
             guard self.approvalRequestID == id else { return }
-            guard first != nil, generation == self.connectionGeneration else {
+            guard generation == self.connectionGeneration, self.approvalChannelReady, self.connectionLock.holdsLock else {
                 self.finishApproval(id: id, status: nil, profile: nil, binding: nil); return
             }
-            if first?.switchState != 0 {
-                self.finishApproval(id: id, status: first, profile: nil, binding: nil); return
-            }
-            self.readApprovalCommand(0x9F) { frame in
+            querySwitchState(timeout: 1) { first in
                 guard self.approvalRequestID == id else { return }
-                guard let frame, generation == self.connectionGeneration else {
+                guard first != nil, generation == self.connectionGeneration else {
                     self.finishApproval(id: id, status: nil, profile: nil, binding: nil); return
                 }
-                let profile = FirmwareCapabilityProfile.probeResponse(frame, hasValidStatusReadback: first != nil)
-                if profile.identity == .knownWS2Catalog {
-                    self.readApprovalCommand(0x97) { bindingFrame in
-                        guard self.approvalRequestID == id else { return }
-                        guard generation == self.connectionGeneration, let bindingFrame,
-                              let binding = WS2SettingsReadback.sideSwitch(bindingFrame) else {
-                            self.finishApproval(id: id, status: nil, profile: nil, binding: nil); return
-                        }
-                        self.querySwitchState(timeout: 1) { current in
-                            self.finishApproval(id: id, status: generation == self.connectionGeneration ? current : nil, profile: profile, binding: binding)
-                        }
+                if first?.switchState != 0 {
+                    self.finishApproval(id: id, status: first, profile: nil, binding: nil); return
+                }
+                self.readApprovalCommand(0x9F) { frame in
+                    guard self.approvalRequestID == id else { return }
+                    guard let frame, generation == self.connectionGeneration else {
+                        self.finishApproval(id: id, status: nil, profile: nil, binding: nil); return
                     }
-                } else {
-                    self.querySwitchState(timeout: 1) { current in
-                        self.finishApproval(id: id, status: generation == self.connectionGeneration ? current : nil, profile: profile, binding: nil)
+                    let profile = authority.profile(frame, hasValidStatus: first != nil)
+                    if profile.mayQuerySideSwitchBindings {
+                        self.readApprovalCommand(0x97) { bindingFrame in
+                            guard self.approvalRequestID == id else { return }
+                            guard generation == self.connectionGeneration, let bindingFrame,
+                                  let binding = WS2SettingsReadback.sideSwitch(bindingFrame) else {
+                                self.finishApproval(id: id, status: nil, profile: nil, binding: nil); return
+                            }
+                            self.querySwitchState(timeout: 1) { current in
+                                self.finishApproval(id: id, status: generation == self.connectionGeneration ? current : nil, profile: profile, binding: binding)
+                            }
+                        }
+                    } else {
+                        self.querySwitchState(timeout: 1) { current in
+                            self.finishApproval(id: id, status: generation == self.connectionGeneration ? current : nil, profile: profile, binding: nil)
+                        }
                     }
                 }
             }

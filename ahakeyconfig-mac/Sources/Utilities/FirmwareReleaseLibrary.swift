@@ -25,13 +25,10 @@ final class FirmwareReleaseLibrary: ObservableObject {
         let keys = trustURL.flatMap { try? Data(contentsOf: $0) }
             .flatMap { try? JSONDecoder().decode([String: Data].self, from: $0) } ?? [:]
         hasTrustKeys = !keys.isEmpty
-        let embedded = bundle.url(forResource: "FirmwareCatalog", withExtension: "json", subdirectory: "FirmwareFlasher")
-            .flatMap { try? Data(contentsOf: $0) }
-        let cacheURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
-            .appendingPathComponent("AhaKeyStudio/FirmwareCatalog/verified-envelope.json")
-        store = FirmwareCatalogStore(publicKeys: keys, embeddedEnvelope: embedded, cacheURL: cacheURL)
-        context = .init(version: FirmwareDesktopVersion(bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")
-            ?? FirmwareDesktopVersion("0.0.0")!)
+        let runtime = bundle.bundleURL == FirmwareRuntimeCatalog.applicationBundle().bundleURL
+            ? FirmwareRuntimeCatalog.shared : FirmwareRuntimeCatalog(bundle: bundle)
+        store = runtime.store
+        context = runtime.context
         refreshURL = (bundle.object(forInfoDictionaryKey: "AhaKeyFirmwareCatalogURL") as? String).flatMap(URL.init(string:))
     }
     deinit { if let preparedURL { try? FileManager.default.removeItem(at: preparedURL) } }
@@ -57,6 +54,7 @@ final class FirmwareReleaseLibrary: ObservableObject {
                 let profile = try await ble.readFirmwareCapabilityProfile(forceStatusReadback: true)
                 switch profile.identity {
                 case .knownWS2Catalog: return .key(FirmwareCapabilityProfile.ws2CatalogKey)
+                case .verifiedCatalog(let key, _): return .key(key)
                 case .legacy: return .legacy
                 case .unknown(let key): return key.map(FirmwareCatalogIdentity.key) ?? .readFailed
                 }

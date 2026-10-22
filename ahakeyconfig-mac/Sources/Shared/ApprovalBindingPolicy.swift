@@ -8,8 +8,8 @@ public enum ApprovalBindingPolicy {
         guard fresh, physicalState == 0 else { return false }
         switch profile?.identity {
         case .legacy: return true
-        case .knownWS2Catalog:
-            guard let binding, binding.physicalState == 0, binding.positions.count == 2 else { return false }
+        case .knownWS2Catalog, .verifiedCatalog:
+            guard profile?.mayQuerySideSwitchBindings == true, let binding, binding.physicalState == 0, binding.positions.count == 2 else { return false }
             return binding.positions[0].bindType == 0 && binding.positions[0].action.isEmpty
         default: return false
         }

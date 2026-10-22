@@ -20,6 +20,8 @@ public enum WS3PresentationError: String, Error, LocalizedError {
 public enum ConfirmedWS3Presentation {
     public static func activate(_ mode: WS3PresentationMode, generation: UInt64,
                                 checkSession: () throws -> Void,
+                                authority suppliedAuthority: FirmwareRuntimeCatalog.Snapshot? = nil,
+                                catalogVerified: (String) -> Void = { _ in },
                                 exchange: (Data) async throws -> Data) async throws {
         func checked(_ request: Data) async throws -> Data {
             try Task.checkCancellation(); try checkSession()
@@ -27,10 +29,15 @@ public enum ConfirmedWS3Presentation {
             try Task.checkCancellation(); try checkSession()
             return reply
         }
+        let authority: FirmwareRuntimeCatalog.Snapshot
+        if let suppliedAuthority { authority = suppliedAuthority }
+        else { authority = await FirmwareRuntimeCatalog.shared.snapshot() }
         let catalog = try await checked(Data([0xAA, 0xBB, 0x9F, 0xCC, 0xDD]))
-        guard FirmwareCapabilityProfile.catalogResponse(catalog).identity == .knownWS2Catalog else {
+        let profile = authority.profile(catalog, hasValidStatus: true)
+        guard profile.mayUseWS3Presentation, let key = profile.catalogKey else {
             throw WS3PresentationError.unsupported
         }
+        catalogVerified(key)
         func read(_ item: WS3DisplayItem) async throws -> WS3DisplayValue {
             let reply = try await checked(item.request!)
             guard let value = WS3DisplayValue.parse(reply, for: item) else { throw WS3PresentationError.invalidReply }

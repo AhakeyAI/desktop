@@ -61,7 +61,7 @@ final class StudioPresentationController: ObservableObject {
         guard !isBusy, let ble, AgentManager.shared.bluetoothConnectionOwner == .ahaKeyStudio,
               ble.isConnected else { throw WS3PresentationError.unavailable }
         updateConnection()
-        if runtime.requestedMode == mode { return runtime.overview() }
+        if runtime.requestedMode == mode { return try await runtime.activate(mode) }
         isBusy = true
         defer { isBusy = false }
         source.stop(); singleReset?.cancel()

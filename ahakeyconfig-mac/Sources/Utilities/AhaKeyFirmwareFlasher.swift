@@ -292,6 +292,7 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
                 try session.validate(context)
                 switch profile.identity {
                 case .knownWS2Catalog: return FirmwareCapabilityProfile.ws2CatalogKey as String?
+                case .verifiedCatalog(let key, _): return key
                 case .unknown(let key): return key
                 case .legacy: return nil
                 }
