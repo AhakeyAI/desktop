@@ -54,4 +54,19 @@ final class VoiceHandoffHostTests: XCTestCase {
         XCTAssertNotEqual(confirmed.draft(for: .mode0).key(for: .approve), prepared.draft(for: .mode0).key(for: .approve))
     }
 
+    @MainActor
+    func testExplicitFourModeHandoffKeepsPendingLabelsWhileConfirmingResolvedPolicies() {
+        let original = AhaKeyStudioDraft.default
+        var pending = original
+        var mode = pending.draft(for: .mode2)
+        var voice = mode.key(for: .voice)
+        voice.description = "Unwritten label"
+        mode.updateKey(voice); pending.updateMode(mode)
+        let policy = VoiceProcessingPolicy(shortPressAhaType: false, longPressAhaType: false, longPressThresholdMs: 500)
+        let applied = StudioVoiceConfiguration(draft: VoiceHandoffHost.preparedDraft(from: pending), fallback: policy)
+        let baseline = VoiceHandoffHost.confirmedBaseline(from: original, configuration: applied)
+        XCTAssertEqual(baseline.draft(for: .mode2).key(for: .voice).description, original.draft(for: .mode2).key(for: .voice).description)
+        XCTAssertEqual(baseline.draft(for: .mode2).key(for: .voice).voiceProcessingPolicy, policy)
+    }
+
 }

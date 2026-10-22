@@ -17,6 +17,7 @@ struct StudioInlineKeyConflict: Identifiable {
     let deviceID: String
     let actual: OrdinaryKeyReadback
     let desired: OrdinaryKeyReadback
+    var voiceDraft: AhaKeyKeyDraft? = nil
 }
 
 /// Only import values the existing editor can round-trip without losing bytes.
@@ -90,7 +91,8 @@ enum StudioInlineKeySave {
                     desired: OrdinaryKeyReadback,
                     read: (UInt8, UInt8) async throws -> OrdinaryKeyReadback,
                     save: (OrdinaryKeyReadback, OrdinaryKeyReadback, UInt64) async throws -> OrdinaryKeyReadback,
-                    writeStarted: () -> Void) async throws -> Result {
+                    writeStarted: () -> Void,
+                    validate: () async throws -> Void = {}) async throws -> Result {
         guard desired.mode == baseline.value.mode, desired.keyIndex == baseline.value.keyIndex,
               OrdinaryKeyConfiguration.valid(desired) else { throw ConfirmedOrdinaryKeySetting.Failure.invalidValue }
         return try await session.withConnection(expectedDeviceID: baseline.deviceID) { context in
@@ -106,6 +108,8 @@ enum StudioInlineKeySave {
             guard actual == baseline.value else {
                 return .conflict(.init(deviceID: context.deviceID, actual: actual, desired: desired))
             }
+            try await validate()
+            try Task.checkCancellation()
             if actual == desired { return .unchanged(.init(deviceID: context.deviceID, value: actual)) }
             writeStarted()
             let confirmed = try await save(actual, desired, context.generation)
