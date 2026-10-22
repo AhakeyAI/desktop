@@ -135,6 +135,14 @@ public final class StudioStore {
             if (savedDraft.voiceLongCustomShortcutHid != null) {
                 defaults.voiceLongCustomShortcutHid = savedDraft.voiceLongCustomShortcutHid;
             }
+            // Absent in older drafts; null tells StudioState to apply legacy migration.
+            defaults.voiceSchema = savedDraft.voiceSchema;
+            if (savedDraft.voiceShortAhaType != null) {
+                defaults.voiceShortAhaType = savedDraft.voiceShortAhaType;
+            }
+            if (savedDraft.voiceLongAhaType != null) {
+                defaults.voiceLongAhaType = savedDraft.voiceLongAhaType;
+            }
 
             return defaults;
         } catch (IOException e) {

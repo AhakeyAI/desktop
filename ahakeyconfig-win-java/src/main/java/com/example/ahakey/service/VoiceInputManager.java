@@ -21,6 +21,10 @@ public class VoiceInputManager {
     private volatile boolean isActivated = false;  // 服务是否已激活
     private volatile boolean isRecording = false;  // 是否正在录音
     private volatile boolean keyDownTriggered = false;  // 按键按下防抖标志
+    /** Whether the current recording may be sent through AhaType (per voice-key trigger). */
+    private volatile boolean recordingAllowsAhaType = true;
+    /** Simplified unless the production constructor wires the user's setting. */
+    private volatile java.util.function.Supplier<Boolean> traditionalChinese = () -> false;
     private volatile boolean closed;
     private final AhaTypeService ahaTypeService;
     private final ExecutorService ahaTypeWorker;
@@ -61,6 +65,9 @@ public class VoiceInputManager {
 
     public VoiceInputManager() {
         this(null, null, AhaTypeService.getInstance());
+        this.traditionalChinese = () ->
+            com.example.ahakey.localvoice.LocalVoiceFeature.getInstance().getChineseScript()
+                == com.example.ahakey.localvoice.LocalVoiceSettings.ChineseScript.TRADITIONAL;
     }
     
     public interface Consumer<T> {
@@ -200,9 +207,17 @@ public class VoiceInputManager {
     }
     
     /**
-     * 开始录音（由按键触发）
+     * 开始录音（由按键触发），识别结果按 AhaType 开关处理。
      */
     public void startRecording() {
+        startRecording(true);
+    }
+
+    /**
+     * 开始录音。
+     * @param allowAhaType 该触发方式（短按 / 长按）是否允许经 AhaType 云端整理
+     */
+    public void startRecording(boolean allowAhaType) {
         if (!isActivated || speechService == null) {
             logger.warn("语音输入服务未激活，无法开始录音");
             return;
@@ -218,6 +233,7 @@ public class VoiceInputManager {
         }
         
         this.isRecording = true;
+        this.recordingAllowsAhaType = allowAhaType;
         this.keyDownTriggered = true;  // 设置按键按下标志
         this.accumulatedResult = new StringBuilder();  // 重置累积结果
         
@@ -302,8 +318,9 @@ public class VoiceInputManager {
         
         if (!finalResult.isEmpty()) {
             Consumer<String> callbackForSegment = resultCallback;
+            boolean allowAhaType = recordingAllowsAhaType;
             try {
-                ahaTypeWorker.execute(() -> processAndDeliver(finalResult, callbackForSegment));
+                ahaTypeWorker.execute(() -> processAndDeliver(finalResult, callbackForSegment, allowAhaType));
             } catch (RejectedExecutionException exception) {
                 logger.debug("AhaType worker is already closed");
             }
@@ -325,8 +342,11 @@ public class VoiceInputManager {
         return ahaTypeService.processIfEnabled(text);
     }
 
-    private void processAndDeliver(String originalText, Consumer<String> callback) {
-        String processedText = processWithAhaType(originalText);
+    private void processAndDeliver(String originalText, Consumer<String> callback, boolean allowAhaType) {
+        String processedText = allowAhaType ? processWithAhaType(originalText) : originalText;
+        if (Boolean.TRUE.equals(traditionalChinese.get())) {
+            processedText = com.example.ahakey.util.ChineseTextConverter.toTraditional(processedText);
+        }
         synchronized (deliveryLock) {
             if (closed) {
                 return;
@@ -344,6 +364,11 @@ public class VoiceInputManager {
         }
     }
     
+    /** Test seam for the simplified/traditional output choice. */
+    void setTraditionalChineseSupplier(java.util.function.Supplier<Boolean> supplier) {
+        this.traditionalChinese = supplier == null ? () -> false : supplier;
+    }
+
     /**
      * 将文本注入到当前光标位置
      */

@@ -42,6 +42,9 @@ public final class LibraryLoader {
         Set<Path> candidates = new LinkedHashSet<>();
         addConfigured(candidates, System.getProperty(NATIVE_PATH_PROPERTY));
         addConfigured(candidates, System.getenv(NATIVE_PATH_ENV));
+        // DLLs downloaded together with the models from settings.
+        com.example.ahakey.localvoice.LocalVoiceFeature.getInstance().nativeDirectory()
+            .ifPresent(candidates::add);
         Path codeLocation;
         try {
             codeLocation = Path.of(LibraryLoader.class.getProtectionDomain().getCodeSource()

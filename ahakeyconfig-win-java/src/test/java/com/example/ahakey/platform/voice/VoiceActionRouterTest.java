@@ -36,11 +36,16 @@ class VoiceActionRouterTest {
     }
 
     @Test
-    void ahaKeyVoiceCannotBeConfiguredAsSilentShortPress() {
+    void shortPressCanUseLocalVoiceToggleAndLegacySystemVoiceBecomesShortcut() {
         VoiceActionRouter router = new VoiceActionRouter();
         router.setActions(VoiceAction.AHAKEY_VOICE, VoiceAction.AHAKEY_VOICE);
+        assertEquals(VoiceAction.AHAKEY_VOICE,
+            router.actionFor(VoiceButtonEvent.Type.SHORT_PRESS));
+        router.setActions(VoiceAction.SYSTEM_VOICE, VoiceAction.SYSTEM_VOICE);
         assertEquals(VoiceAction.CUSTOM_SHORTCUT,
             router.actionFor(VoiceButtonEvent.Type.SHORT_PRESS));
+        assertEquals(VoiceAction.CUSTOM_SHORTCUT,
+            router.actionFor(VoiceButtonEvent.Type.LONG_PRESS_START));
     }
 
     @Test

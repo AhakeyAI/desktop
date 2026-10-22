@@ -44,6 +44,7 @@ class StudioStateDirtySnapshotTest {
     @Test
     void incompleteInactiveShortcutDoesNotBlockSavingOtherActions() {
         StudioState state = new StudioState();
+        state.setVoiceLongAction(VoiceAction.NONE);
         state.setVoiceLongCustomShortcutHid(0);
         assertFalse(state.hasIncompleteVoiceShortcut());
         state.setVoiceActions(VoiceAction.NONE, VoiceAction.CUSTOM_SHORTCUT, 350);
@@ -123,12 +124,42 @@ class StudioStateDirtySnapshotTest {
     }
 
     @Test
-    void newDefaultsUseOneShotSystemShortAndPushToTalkLong() {
+    void newDefaultsUseWinHForBothTriggersBecauseLocalVoiceIsOptional() {
         StudioState state = new StudioState();
         assertEquals(VoiceAction.CUSTOM_SHORTCUT, state.getVoiceShortAction());
-        assertEquals(VoiceAction.AHAKEY_VOICE, state.getVoiceLongAction());
+        assertEquals(VoiceAction.CUSTOM_SHORTCUT, state.getVoiceLongAction());
         assertEquals(350, state.getVoiceThresholdMs());
         assertEquals(0x800 | 0x0B, state.getVoiceShortCustomShortcutHid());
+        assertEquals(0x800 | 0x0B, state.getVoiceLongCustomShortcutHid());
+        assertTrue(state.hasDefaultVoiceActions());
+        assertTrue(state.isVoiceAhaTypeEnabled(true));
+        assertTrue(state.isVoiceAhaTypeEnabled(false));
+    }
+
+    @Test
+    void perTriggerAhaTypeChoiceRoundTripsAndMarksKey1Dirty() {
+        StudioState state = new StudioState();
+        state.setVoiceAhaTypeEnabled(true, false);
+        assertTrue(state.isDirty(StudioPart.KEY1));
+        assertFalse(state.hasDeviceConfigurationChanges());
+
+        StudioState loaded = new StudioState();
+        loaded.loadFromPersisted(state.toPersisted());
+        assertFalse(loaded.isVoiceAhaTypeEnabled(true));
+        assertTrue(loaded.isVoiceAhaTypeEnabled(false));
+    }
+
+    @Test
+    void currentDraftKeepsShortPressLocalVoiceToggle() {
+        StudioState state = new StudioState();
+        state.setVoiceShortAction(VoiceAction.AHAKEY_VOICE);
+        StudioState.PersistedDraft draft = state.toPersisted();
+        assertEquals(StudioState.PersistedDraft.VOICE_SCHEMA, draft.voiceSchema);
+
+        StudioState loaded = new StudioState();
+        loaded.loadFromPersisted(draft);
+        assertEquals(VoiceAction.AHAKEY_VOICE, loaded.getVoiceShortAction());
+        assertFalse(loaded.hasDefaultVoiceActions());
     }
 
     @Test
@@ -203,6 +234,7 @@ class StudioStateDirtySnapshotTest {
     @Test
     void unsupportedLegacyShortAhaKeyActionMigratesToWinHCustomShortcut() {
         StudioState.PersistedDraft draft = StudioState.PersistedDraft.defaults();
+        draft.voiceSchema = null; // drafts from before short-press local voice existed
         draft.voiceShortAction = VoiceAction.AHAKEY_VOICE.name();
         draft.voiceShortCustomShortcutHid = HIDUsage.F17;
 

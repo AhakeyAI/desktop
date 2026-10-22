@@ -45,8 +45,12 @@ public class StudioState {
     private final IntegerProperty voiceThresholdMs = new SimpleIntegerProperty(350);
     private final ObjectProperty<VoiceAction> voiceShortAction =
         new SimpleObjectProperty<>(VoiceAction.CUSTOM_SHORTCUT);
+    /** Local voice is optional, so the default long press is the Win+H shortcut too. */
     private final ObjectProperty<VoiceAction> voiceLongAction =
-        new SimpleObjectProperty<>(VoiceAction.AHAKEY_VOICE);
+        new SimpleObjectProperty<>(VoiceAction.CUSTOM_SHORTCUT);
+    /** Whether text recorded by each trigger is sent through AhaType. */
+    private final BooleanProperty voiceShortAhaType = new SimpleBooleanProperty(true);
+    private final BooleanProperty voiceLongAhaType = new SimpleBooleanProperty(true);
     /** Desktop-local shortcuts; never synchronized to firmware. */
     private final IntegerProperty voiceShortCustomShortcutHid =
         new SimpleIntegerProperty(VoiceActionRouter.defaultWindowsVoiceShortcut());
@@ -327,6 +331,31 @@ public class StudioState {
         markDirty(StudioPart.KEY1);
     }
 
+    public BooleanProperty voiceAhaTypeProperty(boolean shortPress) {
+        return shortPress ? voiceShortAhaType : voiceLongAhaType;
+    }
+
+    /** Per-trigger choice; AhaType itself must also be on and signed in. */
+    public boolean isVoiceAhaTypeEnabled(boolean shortPress) {
+        return voiceAhaTypeProperty(shortPress).get();
+    }
+
+    public void setVoiceAhaTypeEnabled(boolean shortPress, boolean value) {
+        BooleanProperty property = voiceAhaTypeProperty(shortPress);
+        if (property.get() == value) return;
+        property.set(value);
+        markDirty(StudioPart.KEY1);
+    }
+
+    /** True when both triggers still have the out-of-the-box Win+H settings. */
+    public boolean hasDefaultVoiceActions() {
+        int winH = VoiceActionRouter.defaultWindowsVoiceShortcut();
+        return getVoiceShortAction() == VoiceAction.CUSTOM_SHORTCUT
+            && getVoiceLongAction() == VoiceAction.CUSTOM_SHORTCUT
+            && getVoiceShortCustomShortcutHid() == winH
+            && getVoiceLongCustomShortcutHid() == winH;
+    }
+
     public IntegerProperty voiceShortCustomShortcutHidProperty() {
         return voiceShortCustomShortcutHid;
     }
@@ -366,7 +395,9 @@ public class StudioState {
         voiceKeyLong.setDescription("WeChat Voice");
         voiceThresholdMs.set(350);
         voiceShortAction.set(VoiceAction.CUSTOM_SHORTCUT);
-        voiceLongAction.set(VoiceAction.AHAKEY_VOICE);
+        voiceLongAction.set(VoiceAction.CUSTOM_SHORTCUT);
+        voiceShortAhaType.set(true);
+        voiceLongAhaType.set(true);
         voiceShortCustomShortcutHid.set(VoiceActionRouter.defaultWindowsVoiceShortcut());
         voiceLongCustomShortcutHid.set(VoiceActionRouter.defaultWindowsVoiceShortcut());
         markDirty(StudioPart.KEY1);
@@ -590,16 +621,21 @@ public class StudioState {
         voiceThresholdMs.set(draft.voiceThresholdMs == null
             ? 350 : Math.max(50, Math.min(5000, draft.voiceThresholdMs)));
         VoiceAction savedShort = parseVoiceAction(draft.voiceShortAction, VoiceAction.CUSTOM_SHORTCUT);
-        VoiceAction savedLong = parseVoiceAction(draft.voiceLongAction, VoiceAction.AHAKEY_VOICE);
-        voiceShortAction.set(VoiceActionRouter.migrateShortAction(savedShort));
-        voiceLongAction.set(VoiceActionRouter.migrateLongAction(savedLong));
+        VoiceAction savedLong = parseVoiceAction(draft.voiceLongAction, VoiceAction.CUSTOM_SHORTCUT);
         int defaultShortcut = VoiceActionRouter.defaultWindowsVoiceShortcut();
-        // Older drafts encoded the Windows voice action as SYSTEM_VOICE (or
-        // the unsupported short AHAKEY_VOICE action).  Migrate those legacy
-        // meanings to the explicit, local Win+H shortcut rather than
-        // retaining an unrelated or silently unavailable target.
+        // Older drafts encoded the Windows voice action as SYSTEM_VOICE. Drafts
+        // written before short-press local voice existed (no voiceSchema) could
+        // also hold an unsupported short AHAKEY_VOICE. Both become the explicit
+        // Win+H shortcut rather than an unrelated or silently new behavior.
+        boolean preToggleDraft = draft.voiceSchema == null
+            || draft.voiceSchema < PersistedDraft.VOICE_SCHEMA;
         boolean legacyShortAction = savedShort == VoiceAction.SYSTEM_VOICE
-            || savedShort == VoiceAction.AHAKEY_VOICE;
+            || (preToggleDraft && savedShort == VoiceAction.AHAKEY_VOICE);
+        voiceShortAction.set(legacyShortAction ? VoiceAction.CUSTOM_SHORTCUT
+            : VoiceActionRouter.migrateShortAction(savedShort));
+        voiceLongAction.set(VoiceActionRouter.migrateLongAction(savedLong));
+        voiceShortAhaType.set(draft.voiceShortAhaType == null || draft.voiceShortAhaType);
+        voiceLongAhaType.set(draft.voiceLongAhaType == null || draft.voiceLongAhaType);
         boolean legacyLongAction = savedLong == VoiceAction.SYSTEM_VOICE;
         voiceShortCustomShortcutHid.set(legacyShortAction
             ? defaultShortcut
@@ -674,6 +710,9 @@ public class StudioState {
         d.voiceLongAction = voiceLongAction.get().name();
         d.voiceShortCustomShortcutHid = voiceShortCustomShortcutHid.get();
         d.voiceLongCustomShortcutHid = voiceLongCustomShortcutHid.get();
+        d.voiceShortAhaType = voiceShortAhaType.get();
+        d.voiceLongAhaType = voiceLongAhaType.get();
+        d.voiceSchema = PersistedDraft.VOICE_SCHEMA;
         d.revision = revision.get();
         d.lightBarPreviewId = lightBarPreview.get().getId();
         d.lightBrightness = lightBrightness.get();
@@ -722,8 +761,13 @@ public class StudioState {
         public Integer voiceKeyShortHid = 0x4000;
         public Integer voiceKeyLongHid = 0x0A00;
         public Integer voiceThresholdMs = 350;
+        /** 2 = short press may hold AHAKEY_VOICE (toggle mode). */
+        public static final int VOICE_SCHEMA = 2;
+        public Integer voiceSchema;
         public String voiceShortAction = VoiceAction.CUSTOM_SHORTCUT.name();
-        public String voiceLongAction = VoiceAction.AHAKEY_VOICE.name();
+        public String voiceLongAction = VoiceAction.CUSTOM_SHORTCUT.name();
+        public Boolean voiceShortAhaType = true;
+        public Boolean voiceLongAhaType = true;
         public Integer voiceShortCustomShortcutHid = VoiceActionRouter.defaultWindowsVoiceShortcut();
         public Integer voiceLongCustomShortcutHid = VoiceActionRouter.defaultWindowsVoiceShortcut();
         public ModeDraft[] modes = new ModeDraft[ModeSlot.values().length];

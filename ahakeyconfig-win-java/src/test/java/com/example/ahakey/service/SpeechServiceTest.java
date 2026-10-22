@@ -15,7 +15,10 @@ class SpeechServiceTest {
     @Test
     void bundledConfigurationUsesHistoricalSherpaContract() {
         ModelConfig config = ModelConfig.getInstance();
-        assertTrue(config.isEnabled());
+        // Local voice is optional: available only after the user turns it on
+        // and the downloaded pack is complete.
+        assertEquals(com.example.ahakey.localvoice.LocalVoiceFeature.getInstance().isAvailable(),
+            config.isEnabled());
         assertEquals("models", config.getModelPath());
         assertEquals("STREAMING_PARAFORMER", config.getModelType());
         assertEquals("tokens.txt", config.getTokensPath());

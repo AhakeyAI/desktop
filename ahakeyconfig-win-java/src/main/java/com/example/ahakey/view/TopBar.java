@@ -11,6 +11,7 @@ import com.example.ahakey.service.AgentManager;
 import com.example.ahakey.service.HookInstaller;
 import com.example.ahakey.service.BleBridgeProcessOwner;
 import com.example.ahakey.service.BleDriverLocator;
+import com.example.ahakey.localvoice.LocalVoiceFeature;
 import com.example.ahakey.service.VoiceInputManager;
 import com.example.ahakey.util.Icons;
 import com.example.ahakey.util.LanguageManager;
@@ -136,6 +137,10 @@ public class TopBar extends VBox {
      * 设置语音输入管理器
      */
     public void setVoiceInputManager(VoiceInputManager voiceInputManager) {
+        if (voiceInputManager == null && voiceRunning) {
+            // Local voice was turned off in settings while the service ran.
+            stopVoiceService();
+        }
         this.voiceInputManager = voiceInputManager;
         updateVoiceButtonState();
     }
@@ -274,9 +279,6 @@ public class TopBar extends VBox {
             )
         );
 
-        // 检查本地模型是否启用
-        boolean modelEnabled = com.example.ahakey.config.ModelConfig.getInstance().isEnabled();
-
         VBox configStatus = createStatusBox(
             Bindings.createBooleanBinding(agentManager::isEditingConfiguration, agentManager.bluetoothOwnerProperty()),
             Bindings.createStringBinding(
@@ -333,34 +335,20 @@ public class TopBar extends VBox {
         MenuItem cloudAccount = new MenuItem(languageManager.getString("menu.cloud-account"));
         cloudAccount.setOnAction(event -> showCloudAccountDialog());
 
-        // 条件添加 AhaType 相关菜单项
-        if (modelEnabled) {
-            moreMenu.getItems().addAll(
-                restoreDefaults,
-                reconnect,
-                clearOled,
-                screenAnimations,
-                divider1,
-                deviceInfo,
-                versionInfo,
-                languageMenuItem,
-                exitApp,
-                cloudAccount
-            );
-        } else {
-            moreMenu.getItems().addAll(
-                restoreDefaults,
-                reconnect,
-                clearOled,
-                screenAnimations,
-                divider1,
-                deviceInfo,
-                versionInfo,
-                languageMenuItem,
-                exitApp,
-                cloudAccount
-            );
-        }
+        // 云端账号只服务于 AhaType，而 AhaType 依赖本地语音：未开启本地语音时隐藏。
+        cloudAccount.visibleProperty().bind(LocalVoiceFeature.getInstance().availableProperty());
+        moreMenu.getItems().addAll(
+            restoreDefaults,
+            reconnect,
+            clearOled,
+            screenAnimations,
+            divider1,
+            deviceInfo,
+            versionInfo,
+            languageMenuItem,
+            exitApp,
+            cloudAccount
+        );
 
         MenuBar menuBar = new MenuBar(moreMenu);
         menuBar.setMinWidth(Region.USE_PREF_SIZE);
@@ -384,6 +372,12 @@ public class TopBar extends VBox {
 
         HBox ahaTypeControls = new HBox(8, ahaTypeToggle, ahaTypeStatus);
         ahaTypeControls.setAlignment(Pos.CENTER_LEFT);
+        // 默认的轻量形态不显示语音和 AhaType；在设置中开启本地语音后才出现。
+        var localVoiceAvailable = LocalVoiceFeature.getInstance().availableProperty();
+        for (Region optional : new Region[] {ahaTypeControls, voiceControlBox}) {
+            optional.visibleProperty().bind(localVoiceAvailable);
+            optional.managedProperty().bind(localVoiceAvailable);
+        }
         FlowPane statusRow = new FlowPane(16, 8, infoPills, ahaTypeControls, voiceControlBox, configStatus);
         statusRow.setPadding(new Insets(0, 16, 8, 16));
         statusRow.setMinWidth(0);
@@ -802,6 +796,7 @@ public class TopBar extends VBox {
             controller.getBleManager(),
             deviceStatus
         ).create(dialog);
+        VBox localVoiceCard = new LocalVoicePane(LocalVoiceFeature.getInstance()).create(dialog);
         VBox maintenanceCards = new DeviceMaintenancePane(controller).create(dialog);
         VBox pairingGuideCard = BluetoothPairingGuide.createCard();
         VBox supportCard = new SupportPane().create();
@@ -859,6 +854,7 @@ public class TopBar extends VBox {
         content.getChildren().addAll(
             deviceCard,
             standbyCard,
+            localVoiceCard,
             maintenanceCards,
             pairingGuideCard,
             supportCard,

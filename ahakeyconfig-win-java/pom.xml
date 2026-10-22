@@ -49,6 +49,13 @@
             <version>3.5.3</version>
         </dependency>
 
+        <!-- 本地语音识别结果的简繁转换（纯 Java，离线） -->
+        <dependency>
+            <groupId>com.github.houbb</groupId>
+            <artifactId>opencc4j</artifactId>
+            <version>1.14.0</version>
+        </dependency>
+
         <!-- Windows: Win+H 语音 + 低级别键盘钩子 -->
         <dependency>
             <groupId>net.java.dev.jna</groupId>

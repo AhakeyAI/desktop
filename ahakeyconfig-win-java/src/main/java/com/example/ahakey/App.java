@@ -8,6 +8,9 @@ import com.example.ahakey.service.BleBridgeProcessOwner;
 import com.example.ahakey.platform.windows.WindowsVoiceRelayService;
 import com.example.ahakey.platform.windows.WindowsVoiceTyping;
 import com.example.ahakey.platform.voice.VoiceButtonEvent;
+import com.example.ahakey.localvoice.LocalVoiceFeature;
+import com.example.ahakey.platform.voice.LocalVoicePressHandler;
+import com.example.ahakey.platform.voice.VoiceAction;
 import com.example.ahakey.service.VoiceInputManager;
 import com.example.ahakey.util.LanguageManager;
 import com.example.ahakey.view.CanvasPane;
@@ -69,7 +72,9 @@ public class App extends Application {
     /**
      * 语音输入管理器，负责管理语音识别和键盘注入功能
      */
-    private VoiceInputManager voiceInputManager;
+    private volatile VoiceInputManager voiceInputManager;
+    private final LocalVoicePressHandler localVoicePresses = new LocalVoicePressHandler();
+    private TopBar topBar;
     private boolean shuttingDown;
     
     /**
@@ -106,14 +111,15 @@ public class App extends Application {
 
         controller = new StudioController();
         
-        // 2. 条件初始化语音输入管理器（根据 model.enabled 配置）
+        // 2. 本地语音是可选功能：仅当用户在设置中开启且模型已下载时才加载
         if (com.example.ahakey.config.ModelConfig.getInstance().isEnabled()) {
             initVoiceInputManager();
         } else {
-            logger.info("本地模型已禁用 (model.enabled=false)，跳过语音输入初始化");
+            logger.info("本地语音未开启，跳过语音输入初始化");
         }
         controller.getStudioState().setLocalSpeechAvailable(
             () -> voiceInputManager != null && voiceInputManager.isEnabled());
+        LocalVoiceFeature.getInstance().addListener(this::onLocalVoiceAvailabilityChanged);
         
         // 3. 初始化系统托盘
         initSystemTray();
@@ -135,7 +141,7 @@ public class App extends Application {
         // 4. 创建各个 UI 组件
         
         // TopBar（顶部导航栏）：包含连接状态、模式选择、AhaType开关等
-        TopBar topBar = new TopBar(
+        topBar = new TopBar(
             controller, 
             controller.getDeviceStatus(), 
             controller.getStudioState(), 
@@ -406,22 +412,25 @@ public class App extends Application {
             if (WindowsVoiceTyping.isWindows()) {
                 WindowsVoiceRelayService relay = WindowsVoiceRelayService.getInstance();
                 relay.setOnVoiceAction(event -> {
-                    if (voiceInputManager == null || !voiceInputManager.isActivated()) {
+                    VoiceInputManager manager = voiceInputManager;
+                    if (manager == null || !manager.isActivated()) {
                         // Keep the relay's availability bit truthful.  An
                         // unavailable local action is reported and performs
                         // no unrelated shortcut fallback.
                         relay.setAhaKeyVoiceAvailable(false);
                         return;
                     }
-                    // Sherpa Paraformer integration is a press-to-start /
-                    // release-to-stop stream (model C).  The desktop state
-                    // machine starts it at LONG_PRESS_START and stops it at
-                    // LONG_PRESS_END; no synthetic Fn key is emitted.
-                    if (event.type() == VoiceButtonEvent.Type.LONG_PRESS_START) {
-                        voiceInputManager.startRecording();
-                    } else if (event.type() == VoiceButtonEvent.Type.LONG_PRESS_END
-                        && voiceInputManager.isRecording()) {
-                        voiceInputManager.stopRecording();
+                    // Short press toggles recording; long press records while
+                    // held. No synthetic Fn key is emitted.
+                    LocalVoicePressHandler.Decision decision =
+                        localVoicePresses.onEvent(event.type(), manager.isRecording());
+                    if (decision.command() == LocalVoicePressHandler.Command.START) {
+                        boolean shortPress = decision.trigger() == VoiceButtonEvent.Type.SHORT_PRESS;
+                        manager.startRecording(
+                            controller.getStudioState().isVoiceAhaTypeEnabled(shortPress));
+                    } else if (decision.command() == LocalVoicePressHandler.Command.STOP
+                        && manager.isRecording()) {
+                        manager.stopRecording();
                     }
                 });
                 // 配置模拟录音回调（用于模拟按钮直接触发录音）
@@ -454,6 +463,37 @@ public class App extends Application {
         }
     }
     
+    /**
+     * 设置中开启或关闭本地语音后，在不重启的情况下加载或卸载语音服务。
+     * 模型加载耗时较长，放到后台线程执行。
+     */
+    private void onLocalVoiceAvailabilityChanged(boolean available) {
+        localVoicePresses.reset();
+        if (available) {
+            // First-time setup: with untouched Win+H defaults, make long press
+            // the local push-to-talk so the feature works right after enabling.
+            var state = controller.getStudioState();
+            if (state.hasDefaultVoiceActions()) {
+                state.setVoiceLongAction(VoiceAction.AHAKEY_VOICE);
+            }
+            Thread loader = new Thread(() -> {
+                initVoiceInputManager();
+                VoiceInputManager loaded = voiceInputManager;
+                Platform.runLater(() -> {
+                    if (topBar != null) topBar.setVoiceInputManager(loaded);
+                    controller.getStudioState().refreshAhaTypeState();
+                });
+            }, "local-voice-loader");
+            loader.setDaemon(true);
+            loader.start();
+        } else {
+            if (topBar != null) topBar.setVoiceInputManager(null);
+            shutdownVoiceInputManager();
+            voiceInputManager = null;
+            controller.getStudioState().refreshAhaTypeState();
+        }
+    }
+
     /**
      * 关闭语音输入管理器
      */

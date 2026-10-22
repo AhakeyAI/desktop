@@ -134,6 +134,9 @@ public class SpeechService {
         Path configured = Path.of(configuredPath == null ? "models" : configuredPath);
         LinkedHashSet<Path> candidates = new LinkedHashSet<>();
         if (configured.isAbsolute()) candidates.add(configured);
+        // Pack downloaded from settings; installers no longer bundle models.
+        com.example.ahakey.localvoice.LocalVoiceFeature.getInstance().modelDirectory()
+            .ifPresent(candidates::add);
         Path codeLocation;
         try {
             codeLocation = Path.of(SpeechService.class.getProtectionDomain().getCodeSource()

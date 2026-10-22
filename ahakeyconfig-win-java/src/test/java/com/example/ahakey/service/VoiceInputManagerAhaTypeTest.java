@@ -95,6 +95,54 @@ class VoiceInputManagerAhaTypeTest {
         }
     }
 
+    @Test
+    void triggerWithAhaTypeOffInjectsOriginalTextWithoutACloudRequest() throws Exception {
+        AtomicInteger requests = new AtomicInteger();
+        HttpServer server = server(exchange -> {
+            requests.incrementAndGet();
+            respond(exchange, 200, "{\"code\":0,\"data\":{\"text\":\"整理文本\"}}");
+        });
+        try {
+            CountDownLatch injected = new CountDownLatch(1);
+            AtomicReference<String> injectedText = new AtomicReference<>();
+            FakeSpeechService speech = new FakeSpeechService();
+            VoiceInputManager manager = new VoiceInputManager(speech, null, configuredService(server),
+                value -> { injectedText.set(value); injected.countDown(); });
+            manager.setTraditionalChineseSupplier(() -> false);
+            manager.startVoiceInput();
+            manager.startRecording(false);
+            speech.emitFinal("原始文本");
+
+            assertTrue(injected.await(3, TimeUnit.SECONDS));
+            assertEquals("原始文本", injectedText.get());
+            assertEquals(0, requests.get());
+            manager.shutdown();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void traditionalChineseOutputConvertsTheFinalText() throws Exception {
+        CountDownLatch injected = new CountDownLatch(1);
+        AtomicReference<String> injectedText = new AtomicReference<>();
+        FakeSpeechService speech = new FakeSpeechService();
+        AhaTypeService disabled = new AhaTypeService(
+            new AhaTypeConfig(tempDir.resolve("typeless-off.json")), HttpClient.newHttpClient(),
+            URI.create("http://127.0.0.1:9/prod-api"),
+            Clock.fixed(Instant.parse("2026-01-01T00:00:00Z"), ZoneOffset.UTC));
+        VoiceInputManager manager = new VoiceInputManager(speech, null, disabled,
+            value -> { injectedText.set(value); injected.countDown(); });
+        manager.setTraditionalChineseSupplier(() -> true);
+        manager.startVoiceInput();
+        manager.startRecording(true);
+        speech.emitFinal("简体中文语音");
+
+        assertTrue(injected.await(3, TimeUnit.SECONDS));
+        assertEquals("簡體中文語音", injectedText.get());
+        manager.shutdown();
+    }
+
     private AhaTypeService configuredService(HttpServer server) throws Exception {
         AhaTypeConfig config = new AhaTypeConfig(tempDir.resolve("typeless-" + System.nanoTime() + ".json"));
         Map<String, Object> values = AhaTypeConfig.defaults();

@@ -100,10 +100,8 @@ public final class WindowsVoiceRelayService {
             }
         });
         actionRouter.setExecutor(VoiceAction.AHAKEY_VOICE, event -> {
-            if (event.type() != VoiceButtonEvent.Type.LONG_PRESS_START
-                && event.type() != VoiceButtonEvent.Type.LONG_PRESS_END) {
-                return;
-            }
+            // Short press toggles local recording; long press is push-to-talk.
+            // LocalVoicePressHandler (in App) turns these events into start/stop.
             Consumer<VoiceButtonEvent> callback = onVoiceAction;
             if (ahaKeyVoiceAvailable && callback != null) {
                 callback.accept(event);
@@ -124,7 +122,8 @@ public final class WindowsVoiceRelayService {
             }
             // An unavailable local model must be visible and fail closed. It
             // must not silently become the unrelated short Win+H action.
-            if (event.type() == VoiceButtonEvent.Type.LONG_PRESS_START) {
+            if (event.type() == VoiceButtonEvent.Type.LONG_PRESS_START
+                || event.type() == VoiceButtonEvent.Type.SHORT_PRESS) {
                 statusMessage.set(text("voice.local.unavailable"));
             }
         });

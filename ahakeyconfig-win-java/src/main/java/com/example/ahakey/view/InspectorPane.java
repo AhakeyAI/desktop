@@ -16,7 +16,7 @@ import com.example.ahakey.model.StudioPart;
 import com.example.ahakey.model.StudioState;
 import com.example.ahakey.platform.voice.VoiceAction;
 import com.example.ahakey.platform.voice.VoiceActionRouter;
-import com.example.ahakey.config.ModelConfig;
+import com.example.ahakey.localvoice.LocalVoiceFeature;
 import com.example.ahakey.util.LanguageManager;
 import javafx.scene.control.Spinner;
 import javafx.stage.Window;
@@ -84,6 +84,8 @@ public class InspectorPane extends ScrollPane {
         studioState.selectedModeProperty().addListener((obs, oldValue, newValue) -> rebuild());
         studioState.lightBarPreviewProperty().addListener((obs, oldValue, newValue) -> rebuild());
         agentManager.bluetoothOwnerProperty().addListener((obs, oldValue, newValue) -> rebuild());
+        LocalVoiceFeature.getInstance().availableProperty()
+            .addListener((obs, oldValue, newValue) -> rebuild());
         controller.getTaskActivityService().addDisplayModeListener(result -> {
             try {
                 Platform.runLater(taskModeRefresh);
@@ -146,53 +148,67 @@ public class InspectorPane extends ScrollPane {
             hint.setWrapText(true);
             hint.getStyleClass().add("warning-note");
 
-            ComboBox<VoiceAction> shortAction = voiceActionCombo(
-                VoiceActionRouter.shortActionChoices(),
-                studioState.getVoiceShortAction() == VoiceAction.NONE
-                    ? VoiceAction.NONE : VoiceAction.CUSTOM_SHORTCUT);
-            VBox shortShortcutBox = createVoiceShortcutEditor(true);
-            shortShortcutBox.setManaged(studioState.getVoiceShortAction() == VoiceAction.CUSTOM_SHORTCUT);
-            shortShortcutBox.setVisible(studioState.getVoiceShortAction() == VoiceAction.CUSTOM_SHORTCUT);
-            VBox shortEditorBlock = new VBox(6, new Label(localize("短按快捷键")), shortShortcutBox);
-            shortEditorBlock.setManaged(studioState.getVoiceShortAction() == VoiceAction.CUSTOM_SHORTCUT);
-            shortEditorBlock.setVisible(studioState.getVoiceShortAction() == VoiceAction.CUSTOM_SHORTCUT);
-            shortAction.valueProperty().addListener((obs, oldValue, value) -> {
-                if (value != null) {
-                    studioState.setVoiceShortAction(value);
-                    rebuild();
-                }
-            });
-            boolean localModelConfigured = ModelConfig.getInstance().isEnabled();
-            ComboBox<VoiceAction> longAction = voiceActionCombo(
-                VoiceActionRouter.longActionChoices(),
-                switch (studioState.getVoiceLongAction()) {
-                    case NONE -> VoiceAction.NONE;
-                    case CUSTOM_SHORTCUT -> VoiceAction.CUSTOM_SHORTCUT;
-                    default -> VoiceAction.AHAKEY_VOICE;
-                });
-            VBox longShortcutBox = createVoiceShortcutEditor(false);
-            longShortcutBox.setManaged(studioState.getVoiceLongAction() == VoiceAction.CUSTOM_SHORTCUT);
-            longShortcutBox.setVisible(studioState.getVoiceLongAction() == VoiceAction.CUSTOM_SHORTCUT);
-            VBox longEditorBlock = new VBox(6, new Label(localize("长按快捷键")), longShortcutBox);
-            longEditorBlock.setManaged(studioState.getVoiceLongAction() == VoiceAction.CUSTOM_SHORTCUT);
-            longEditorBlock.setVisible(studioState.getVoiceLongAction() == VoiceAction.CUSTOM_SHORTCUT);
-            longAction.valueProperty().addListener((obs, oldValue, value) -> {
-                if (value != null) {
-                    studioState.setVoiceLongAction(value);
-                    rebuild();
-                }
-            });
-            VBox longActionBox = new VBox(8, longAction, longEditorBlock);
-            if (!localModelConfigured) {
-                Label unavailable = new Label(localize("AhaKey 本地语音（当前不可用）"));
-                unavailable.getStyleClass().add("warning-note");
-                longActionBox.getChildren().add(0, unavailable);
+            boolean localVoice = LocalVoiceFeature.getInstance().isAvailable();
+            box.getChildren().add(hint);
+            box.getChildren().addAll(voiceTriggerBlock(true, localVoice));
+            box.getChildren().addAll(voiceTriggerBlock(false, localVoice));
+            if (!localVoice) {
+                Label offHint = new Label(localize(
+                    "本地语音未开启。可在「更多 → 设备信息 · 设置」中开启，开启后短按 / 长按都可以使用本地语音和 AhaType。"));
+                offHint.setWrapText(true);
+                offHint.getStyleClass().add("hint-text");
+                box.getChildren().add(offHint);
             }
-            box.getChildren().addAll(hint,
-                new Label(localize("短按动作（一次触发）")), shortAction, shortEditorBlock,
-                new Label(localize("长按动作（按住说话）")), longActionBox);
             return box;
         });
+    }
+
+    /**
+     * One trigger (short or long press): action, its shortcut editor, and
+     * whether local voice text from this trigger goes through AhaType.
+     */
+    private List<javafx.scene.Node> voiceTriggerBlock(boolean shortPress, boolean localVoice) {
+        VoiceAction current = shortPress
+            ? studioState.getVoiceShortAction() : studioState.getVoiceLongAction();
+        List<VoiceAction> choices = new java.util.ArrayList<>(
+            VoiceActionRouter.actionChoices(shortPress, localVoice));
+        // Keep a saved local voice action visible (as unavailable) rather than
+        // silently changing what the key does while the feature is off.
+        if (!choices.contains(current)) choices.add(current);
+        ComboBox<VoiceAction> action = voiceActionCombo(choices, current, shortPress);
+        action.valueProperty().addListener((obs, oldValue, value) -> {
+            if (value == null) return;
+            if (shortPress) studioState.setVoiceShortAction(value);
+            else studioState.setVoiceLongAction(value);
+            rebuild();
+        });
+
+        VBox block = new VBox(8, new Label(shortPress
+            ? localize("短按动作（一次触发）") : localize("长按动作（按住）")), action);
+
+        if (current == VoiceAction.CUSTOM_SHORTCUT) {
+            VBox shortcut = createVoiceShortcutEditor(shortPress);
+            block.getChildren().add(new VBox(6,
+                new Label(shortPress ? localize("短按快捷键") : localize("长按快捷键")), shortcut));
+        } else if (current == VoiceAction.AHAKEY_VOICE) {
+            if (!localVoice) {
+                Label unavailable = new Label(localize("AhaKey 本地语音（当前不可用）"));
+                unavailable.getStyleClass().add("warning-note");
+                block.getChildren().add(unavailable);
+            } else {
+                javafx.scene.control.CheckBox ahaType = new javafx.scene.control.CheckBox(
+                    localize("识别结果经 AhaType 云端整理"));
+                ahaType.setSelected(studioState.isVoiceAhaTypeEnabled(shortPress));
+                ahaType.selectedProperty().addListener((obs, oldValue, value) ->
+                    studioState.setVoiceAhaTypeEnabled(shortPress, value));
+                Label ahaTypeHint = new Label(localize(
+                    "需要同时在顶部开启 AhaType 并登录；未开启时直接输入识别原文。"));
+                ahaTypeHint.setWrapText(true);
+                ahaTypeHint.getStyleClass().add("hint-text");
+                block.getChildren().addAll(ahaType, ahaTypeHint);
+            }
+        }
+        return List.of(block);
     }
 
     /** Edits one Desktop-local shortcut without touching firmware bindings. */
@@ -220,15 +236,15 @@ public class InspectorPane extends ScrollPane {
     }
 
     private ComboBox<VoiceAction> voiceActionCombo(
-        List<VoiceAction> actions, VoiceAction selected
+        List<VoiceAction> actions, VoiceAction selected, boolean shortPress
     ) {
         ComboBox<VoiceAction> combo = new ComboBox<>();
         combo.getItems().addAll(actions);
         combo.setValue(selected);
         java.util.function.Function<ListCell<VoiceAction>, ListCell<VoiceAction>> configure = cell -> {
             cell.itemProperty().addListener((obs, oldValue, value) ->
-                cell.setText(value == null ? "" : voiceActionLabel(value)));
-            cell.setText(cell.getItem() == null ? "" : voiceActionLabel(cell.getItem()));
+                cell.setText(value == null ? "" : voiceActionLabel(value, shortPress)));
+            cell.setText(cell.getItem() == null ? "" : voiceActionLabel(cell.getItem(), shortPress));
             return cell;
         };
         combo.setCellFactory(list -> configure.apply(new ListCell<>()));
@@ -236,10 +252,12 @@ public class InspectorPane extends ScrollPane {
         return combo;
     }
 
-    private String voiceActionLabel(VoiceAction action) {
+    private String voiceActionLabel(VoiceAction action, boolean shortPress) {
         return switch (action) {
             case SYSTEM_VOICE -> localize("系统语音（Win+H）");
-            case AHAKEY_VOICE -> localize("AhaKey 本地语音（按住说话）");
+            case AHAKEY_VOICE -> shortPress
+                ? localize("AhaKey 本地语音（按一下开始，再按一下结束）")
+                : localize("AhaKey 本地语音（按住说话）");
             case NONE -> localize("禁用");
             case CUSTOM_SHORTCUT -> localize("自定义快捷键");
         };

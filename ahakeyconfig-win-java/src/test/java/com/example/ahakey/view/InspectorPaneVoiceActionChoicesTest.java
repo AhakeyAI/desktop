@@ -15,7 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class InspectorPaneVoiceActionChoicesTest {
     @Test
     void configuredShortcutChoicesExposeOnlyImplementedActions() {
-        assertEquals(java.util.List.of(VoiceAction.CUSTOM_SHORTCUT, VoiceAction.NONE),
+        assertEquals(java.util.List.of(
+            VoiceAction.CUSTOM_SHORTCUT, VoiceAction.AHAKEY_VOICE, VoiceAction.NONE),
             VoiceActionRouter.shortActionChoices());
         assertEquals(java.util.List.of(
             VoiceAction.AHAKEY_VOICE, VoiceAction.CUSTOM_SHORTCUT, VoiceAction.NONE),
@@ -25,9 +26,15 @@ class InspectorPaneVoiceActionChoicesTest {
     }
 
     @Test
-    void localAhaKeyVoiceIsNotAFalseShortActionOption() {
-        assertFalse(VoiceActionRouter.shortActionChoices().contains(VoiceAction.AHAKEY_VOICE));
-        assertTrue(VoiceActionRouter.longActionChoices().contains(VoiceAction.AHAKEY_VOICE));
+    void localVoiceChoicesAppearOnlyWhileTheOptionalFeatureIsAvailable() {
+        for (boolean shortPress : new boolean[] {true, false}) {
+            assertFalse(VoiceActionRouter.actionChoices(shortPress, false)
+                .contains(VoiceAction.AHAKEY_VOICE));
+            assertTrue(VoiceActionRouter.actionChoices(shortPress, true)
+                .contains(VoiceAction.AHAKEY_VOICE));
+            assertTrue(VoiceActionRouter.actionChoices(shortPress, false)
+                .contains(VoiceAction.CUSTOM_SHORTCUT));
+        }
     }
 
     @Test
@@ -44,8 +51,12 @@ class InspectorPaneVoiceActionChoicesTest {
         String source = Files.readString(Path.of(
             "src/main/java/com/example/ahakey/view/InspectorPane.java"));
         assertTrue(source.replace("\r\n", "\n").contains("createShortcutEditor(\n            shortcutModel"));
-        assertTrue(source.contains("new Label(localize(\"短按动作（一次触发）\"))"));
-        assertTrue(source.contains("new Label(localize(\"长按动作（按住说话）\"))"));
+        int shortLabel = source.indexOf("localize(\"短按动作（一次触发）\")");
+        int longLabel = source.indexOf("localize(\"长按动作（按住）\")");
+        assertTrue(shortLabel > 0 && longLabel > shortLabel);
+        assertTrue(source.contains("voiceTriggerBlock(true, localVoice)"));
+        assertTrue(source.indexOf("voiceTriggerBlock(true, localVoice)")
+            < source.indexOf("voiceTriggerBlock(false, localVoice)"));
         assertTrue(source.contains("reservePhysicalF18"));
         assertFalse(source.contains("TextField shortcut ="),
             "K1 must not have a second text-field-only shortcut editor");

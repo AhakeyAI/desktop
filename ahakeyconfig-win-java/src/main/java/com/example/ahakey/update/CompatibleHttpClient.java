@@ -13,17 +13,24 @@ import java.util.Objects;
  * release/configuration requests to TLS 1.2 keeps certificate validation
  * enabled while allowing the stable manifest and its assets to be fetched.</p>
  */
-final class CompatibleHttpClient {
+public final class CompatibleHttpClient {
     private CompatibleHttpClient() {
     }
 
-    static HttpClient create(Duration connectTimeout) {
+    public static HttpClient create(Duration connectTimeout) {
+        return create(connectTimeout, false);
+    }
+
+    /** Same TLS settings; {@code followRedirects} lets downloads move from ahakey.com to the CDN. */
+    public static HttpClient create(Duration connectTimeout, boolean followRedirects) {
         Objects.requireNonNull(connectTimeout, "connectTimeout");
         SSLParameters sslParameters = new SSLParameters();
         sslParameters.setProtocols(new String[]{"TLSv1.2"});
         return HttpClient.newBuilder()
             .connectTimeout(connectTimeout)
             .sslParameters(sslParameters)
+            .followRedirects(followRedirects
+                ? HttpClient.Redirect.NORMAL : HttpClient.Redirect.NEVER)
             .build();
     }
 }

@@ -95,11 +95,12 @@ public class ModelConfig {
     }
     
     /**
-     * 获取模型启用状态
-     * @return true 表示启用本地模型和语音输入功能，false 表示禁用
+     * 本地语音是否可用：用户在设置中开启，且模型已下载并校验完成。
+     * {@code model.enabled=false} 仍可作为开发用的强制关闭开关。
      */
     public boolean isEnabled() {
-        return getBooleanProperty(MODEL_ENABLED, DEFAULT_MODEL_ENABLED);
+        return getBooleanProperty(MODEL_ENABLED, DEFAULT_MODEL_ENABLED)
+            && com.example.ahakey.localvoice.LocalVoiceFeature.getInstance().isAvailable();
     }
     
     /**

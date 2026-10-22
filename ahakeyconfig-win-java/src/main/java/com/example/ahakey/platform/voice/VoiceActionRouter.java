@@ -22,14 +22,27 @@ public final class VoiceActionRouter {
         setActions(VoiceAction.CUSTOM_SHORTCUT, VoiceAction.AHAKEY_VOICE);
     }
 
-    /** Implemented one-shot actions exposed by the desktop voice UI. */
+    /**
+     * Short press actions. {@code AHAKEY_VOICE} on a short press is the toggle
+     * mode: one press starts local recording, the next press stops it.
+     */
     public static List<VoiceAction> shortActionChoices() {
-        return List.of(VoiceAction.CUSTOM_SHORTCUT, VoiceAction.NONE);
+        return List.of(VoiceAction.CUSTOM_SHORTCUT, VoiceAction.AHAKEY_VOICE, VoiceAction.NONE);
     }
 
-    /** Implemented push-to-talk actions exposed by the desktop voice UI. */
+    /** Long press actions. {@code AHAKEY_VOICE} records while the key is held. */
     public static List<VoiceAction> longActionChoices() {
         return List.of(VoiceAction.AHAKEY_VOICE, VoiceAction.CUSTOM_SHORTCUT, VoiceAction.NONE);
+    }
+
+    /**
+     * Choices offered in the K1 editor. Local voice is optional, so its action
+     * is only listed while the feature is turned on and downloaded.
+     */
+    public static List<VoiceAction> actionChoices(boolean shortPress, boolean localVoiceAvailable) {
+        List<VoiceAction> all = shortPress ? shortActionChoices() : longActionChoices();
+        if (localVoiceAvailable) return all;
+        return all.stream().filter(action -> action != VoiceAction.AHAKEY_VOICE).toList();
     }
 
     /** Default desktop shortcut for the short action (Win+H). */
@@ -110,11 +123,15 @@ public final class VoiceActionRouter {
         return HIDUsage.getCode(HIDUsage.getName(base)) == base;
     }
 
-    /** Compatibility migration for actions persisted by earlier Voice builds. */
+    /**
+     * Compatibility migration for actions persisted by earlier Voice builds:
+     * the former system-voice action becomes the explicit Win+H shortcut.
+     * (Drafts written before short-press local voice existed are migrated by
+     * {@code StudioState.loadFromPersisted}, which knows the draft version.)
+     */
     public static VoiceAction migrateShortAction(VoiceAction action) {
-        return action == null || action == VoiceAction.NONE
-            ? (action == null ? VoiceAction.NONE : action)
-            : VoiceAction.CUSTOM_SHORTCUT;
+        if (action == null) return VoiceAction.NONE;
+        return action == VoiceAction.SYSTEM_VOICE ? VoiceAction.CUSTOM_SHORTCUT : action;
     }
 
     /** Compatibility migration for the former system-voice long action. */
@@ -124,9 +141,6 @@ public final class VoiceActionRouter {
     }
 
     public synchronized void setActions(VoiceAction shortAction, VoiceAction longAction) {
-        // AhaKey local voice is a push-to-talk stream and therefore has no
-        // meaningful one-shot SHORT_PRESS operation.  Do not allow a
-        // persisted/legacy value to turn a short press into a silent no-op.
         VoiceAction effectiveShort = migrateShortAction(shortAction);
         VoiceAction effectiveLong = migrateLongAction(longAction);
         actions.put(VoiceButtonEvent.Type.SHORT_PRESS,
