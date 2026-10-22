@@ -8,7 +8,6 @@ struct StudioResourceInspectorView: View {
     @ObservedObject var session: StudioInspectorSession
     let mode: AhaKeyModeSlot
     @State private var choosingFile = false
-    @State private var showsTools = false
 
     private var busy: Bool { model.isBusy || model.isPreparing || session.isBusy }
     private var multitask: Bool { model.entry >= 16 }
@@ -36,6 +35,11 @@ struct StudioResourceInspectorView: View {
                 Button { model.read(ble: ble, session: session) } label: { Image(systemName: "arrow.clockwise") }
                     .buttonStyle(.borderless).help(NSLocalizedString("读取显示信息（只读）", comment: ""))
                     .disabled(busy)
+                Button(role: .destructive) { model.confirmsRestore = true } label: { Image(systemName: "arrow.uturn.backward") }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel(NSLocalizedString("恢复此位置的默认显示…", comment: ""))
+                    .help(NSLocalizedString("恢复此位置的默认显示…", comment: ""))
+                    .disabled(busy || model.selected.map { WS3ResourceRestoreCommand.reportsDefault($0) || $0.writeState == .writing } != false)
             }
 
             artworkPicker
@@ -44,6 +48,14 @@ struct StudioResourceInspectorView: View {
                 HStack(spacing: 8) {
                     Text(draft.filename).lineLimit(1).truncationMode(.middle).help(draft.filename)
                     Spacer(minLength: 0)
+                    Button { model.read(ble: ble, session: session, verifying: true) } label: { Image(systemName: "checkmark.seal") }
+                        .buttonStyle(.borderless).disabled(busy)
+                        .accessibilityLabel(NSLocalizedString("核对素材", comment: ""))
+                        .help(NSLocalizedString("只读核对所选文件，不会上传。", comment: ""))
+                    Button { model.discardSelection() } label: { Image(systemName: "xmark.circle") }
+                        .buttonStyle(.borderless).disabled(busy)
+                        .accessibilityLabel(NSLocalizedString("取消素材选择", comment: ""))
+                        .help(NSLocalizedString("仅清除本地选择，不改变键盘。", comment: ""))
                     Button(NSLocalizedString("更换", comment: "")) { choosingFile = true }.buttonStyle(.link).disabled(busy)
                 }.font(.caption)
             }
@@ -53,21 +65,6 @@ struct StudioResourceInspectorView: View {
 
             operationFeedback
 
-            Divider()
-            DisclosureGroup(NSLocalizedString("更多操作", comment: ""), isExpanded: $showsTools) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Button { model.read(ble: ble, session: session, verifying: true) } label: {
-                        Label(NSLocalizedString("核对素材", comment: ""), systemImage: "checkmark.seal")
-                    }
-                    .disabled(busy || model.draft == nil)
-                    .help(NSLocalizedString("只读核对所选文件，不会上传。", comment: ""))
-                    Button(NSLocalizedString("取消素材选择", comment: "")) { model.discardSelection() }
-                        .disabled(busy || model.draft == nil)
-                        .help(NSLocalizedString("仅清除本地选择，不改变键盘。", comment: ""))
-                    Button(NSLocalizedString("恢复此位置的默认显示…", comment: ""), role: .destructive) { model.confirmsRestore = true }
-                        .disabled(busy || model.selected.map { WS3ResourceRestoreCommand.reportsDefault($0) || $0.writeState == .writing } != false)
-                }.padding(.top, 12)
-            }.font(.caption)
             Text(String(format: NSLocalizedString("只写入“%@”画面，其他状态不变。", comment: ""), stateTitle(model.entry)))
                 .font(.caption).foregroundStyle(.secondary)
         }
