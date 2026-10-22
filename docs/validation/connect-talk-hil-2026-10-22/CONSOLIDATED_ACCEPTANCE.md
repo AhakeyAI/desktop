@@ -76,3 +76,16 @@
 官方来源：[配置合同](https://moonshotai.github.io/kimi-code/en/configuration/config-files.html)、[Hooks合同](https://moonshotai.github.io/kimi-code/en/customization/hooks)、[权限交互](https://moonshotai.github.io/kimi-code/en/guides/interaction.html)。新目录为.kimi-code/config.toml，显式重定位变量KIMI_CODE_HOME；默认权限字段为default_permission_mode（manual/yolo/auto），与旧default_yolo布尔不同。当前preTool Hook不得因为写盘成功就声称活跃会话已切档，原生2.3也不能应用旧Python源码补丁。
 
 下一步需以版本/安装类型区分旧、新Kimi，统一App/Agent检测、Hook安装移除、诊断和策略所有权；使用隔离配置验证实际Hook和运行时权限行为，再明确动态切档能否通过官方接口实现。保留旧版兼容及用户未托管策略，不把新版仅不报错当成接管成功。ce615c9签名候选尚未安装，仍为开发验收候选，不能宣称最终用户版已齐。
+
+
+### H02-KIMI2 阶段修复与严格剩余范围
+
+实现提交 ca6a1c4。App/Agent使用同一版本位置选择，支持.kimi-code及显式KIMI_CODE_HOME；生成Hook时固定布局/根目录，旧Python不被新默认PATH误导，新版不执行Python补丁。Hook改由字面POSIX命令调用绝对agent，省去登录shell；词法识别只清除真实托管argv和语句，保留其后provider、用户Hook、带marker文本的多行prompt。重装幂等，未托管坏配置不阻止撤销自己的策略，坏租约仍报错。
+
+原生版只同步任务状态，PreToolUse不查审批、不写权限、不输出放行，也不写旧调试链路；界面明确范围。公开policy入口对原生版返回unsupportedRuntime，避免创建无法即时撤回的自动会话。新权限字段解析/所有权模型仅供受控事务与fixture，不能据此声称原生实时接管完成。旧Python接管保持原流程。登记受控配置路径，停止/卸载可清理不同CLI home中的自有策略，保留用户改成Never Ask的值；重复状态不重写登记文件。
+
+50项跨Kimi/Codex/Cursor策略局部回归通过，两轴代码审查及窄复核通过。`python3 ahakeyconfig-mac/scripts/verify-kimi-native-hooks.py` 实际运行本机原生2.3.0，临时home下安装8条/重装8条/移除后1条用户Hook；自己的SessionStart/UserPromptSubmit真实执行，保留用户阻断Hook并验证CLI明确报告该阻断，模型请求计数始终0。另断言生产路径和原生CLI home解析符号链接后相同、公有同步不改权限。/var与/private/var是同一实际目录，测试按实际文件比较。没有更改真实Kimi配置、账号或二进制，也没有替换当前Studio。
+
+交互对照使用隔离TUI和本机假模型（仅写临时marker）：manual基线请求批准；Hook返回allow仍请求批准；只改默认字段仍请求批准；空闲时服务profile更新可在下一次用户输入后重新载入；工具调用前从Hook调用profile切manual虽code=0，该TUI当前工具仍执行。由此保留“当前运行会话随拨杆即时切档”未完成，不能将HTTP成功或无交互自动执行当成接管证明。原生CLI、临时服务及假模型已退出，含临时认证值的文件已清理。
+
+后续继续调查原生运行时扩展点。官方公开仓库MoonshotAI/kimi-code包含v2.3.0源码及权限/反向RPC组件，尚未据此证明可以加载AhaKey的可靠接管扩展；不得把“暂未找到接口”直接当成无需开发。原生完整支持仍在总WBS，四组固件合同依赖也未变。

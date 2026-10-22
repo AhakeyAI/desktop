@@ -58,7 +58,7 @@
   ],
   "newRegressionFinding": {
     "id": "H02-KIMI2",
-    "status": "reproduced; not fixed",
+    "status": "path/config/state-hook lifecycle repaired; native live dial control still unfinished",
     "cli": "Kimi Code 2.3.0 native arm64",
     "isolation": "temporary KIMI_CODE_HOME; no real configuration or credentials used",
     "observed": [
@@ -68,5 +68,56 @@
       "default_permission_mode accepted without warning"
     ],
     "candidateReleaseGate": "not final; Kimi2 compatibility requires development before acceptance"
+  },
+  "kimiCompatibilityImplementation": {
+    "sourceCommit": "ca6a1c491025c0ca59734a72ea6a78004b25b9dc",
+    "focusedRegression": {
+      "tests": 50,
+      "failures": 0
+    },
+    "nativeLifecycle": {
+      "cli": "2.3.0",
+      "lifecycle": {
+        "initial": {
+          "configuredHooks": 8,
+          "executed": [
+            "KimiSessionStart",
+            "KimiUserPromptSubmit",
+            "user"
+          ],
+          "cliExit": 1
+        },
+        "reinstall": {
+          "configuredHooks": 8,
+          "executed": [
+            "KimiSessionStart",
+            "KimiUserPromptSubmit",
+            "user"
+          ],
+          "cliExit": 1
+        },
+        "remove": {
+          "configuredHooks": 1,
+          "executed": [
+            "user"
+          ],
+          "cliExit": 1
+        }
+      },
+      "modelRequests": 0,
+      "scope": "temporary home; lifecycle only; no live dial control claimed"
+    },
+    "interactiveEvidence": {
+      "cli": "Kimi Code 2.3.0",
+      "scope": "isolated interactive TUI with loopback model fixture; no user config edits",
+      "manualBaseline": "asks; marker absent",
+      "manualWithAllowHook": "asks; marker absent",
+      "changedDefaultWithoutRestart": "still asks",
+      "idleServerProfileYolo": "API code 0; next user prompt reloads and executes marker",
+      "inTurnServerProfileManual": "API code 0; current terminal tool still executes while TUI remains yolo",
+      "nativeRuntimeDial": "not implemented; existing interfaces did not prove revocable current-tool control",
+      "liveHelpers": "all three isolated CLI/server/model processes terminated"
+    },
+    "status": "configuration/state-hook compatibility implemented; native live dial control remains unfinished"
   }
 }
