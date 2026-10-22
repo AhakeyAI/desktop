@@ -1212,13 +1212,15 @@ struct AhaKeyStudioView: View {
                                     } else {
                                         ShortcutBindingEditor(shortcut: selectedKeyShortcutBinding)
                                     }
-                                    Text(voicePresetDetail)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    if (key.voicePreset ?? .custom) != .custom {
-                                        Text(NSLocalizedString("语音键预设会固定使用单键绑定；如需录制宏，请先把预设改为自定义快捷键。", comment: ""))
+                                    if inlineKeyTarget == nil {
+                                        Text(voicePresetDetail)
                                             .font(.caption)
-                                            .foregroundStyle(.orange)
+                                            .foregroundStyle(.secondary)
+                                        if (key.voicePreset ?? .custom) != .custom {
+                                            Text(NSLocalizedString("语音键预设会固定使用单键绑定；如需录制宏，请先把预设改为自定义快捷键。", comment: ""))
+                                                .font(.caption)
+                                                .foregroundStyle(.orange)
+                                        }
                                     }
                                 }
                             } else {
