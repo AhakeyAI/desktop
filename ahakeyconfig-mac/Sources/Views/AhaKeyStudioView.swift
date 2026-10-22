@@ -16,6 +16,9 @@ struct AhaKeyStudioView: View {
     @StateObject private var agentManager = AgentManager.shared
     @ObservedObject private var updateManager = AppUpdateManager.shared
 
+    @State private var voiceConfiguration: StudioVoiceConfiguration
+    @State private var voiceConfigurationError: String?
+    @State private var inlineVoiceState: UInt8?
     @State private var studioDraft: AhaKeyStudioDraft
     @State private var lastSyncedDraft: AhaKeyStudioDraft
     @State private var selectedMode: AhaKeyModeSlot
@@ -72,8 +75,26 @@ struct AhaKeyStudioView: View {
         // 的 @Published 属性（workMode/电量/连接状态等）频繁重建 view，init 会跟着多次执行。
         // 任何在 init 里调用 updateRoutes 都会重置 functionRelay 的 holdingRoute（按住状态），
         // 导致微信等"按住说话"过几秒就自动结束。正确入口在下面的 .onAppear。
-        _studioDraft = State(initialValue: initialDraft)
-        _lastSyncedDraft = State(initialValue: initialDraft)
+        let fallback = VoiceProcessingPolicy.legacy()
+        let applied: StudioVoiceConfiguration
+        var configurationError: String?
+        do { applied = try StudioVoiceConfigurationStore.loadOrMigrate(draft: initialDraft, fallback: fallback) }
+        catch {
+            applied = .disabled(draft: initialDraft, fallback: fallback)
+            configurationError = error.localizedDescription
+        }
+        var editable = initialDraft
+        for slot in AhaKeyModeSlot.allCases {
+            var mode = editable.draft(for: slot)
+            var voice = mode.key(for: .voice)
+            if voice.voicePreset?.availableInV1 != true { voice.voicePreset = .custom }
+            voice.voiceProcessingPolicy = voice.voiceProcessingPolicy ?? applied.key(for: slot).voiceProcessingPolicy
+            mode.updateKey(voice); editable.updateMode(mode)
+        }
+        _voiceConfiguration = State(initialValue: applied)
+        _voiceConfigurationError = State(initialValue: configurationError)
+        _studioDraft = State(initialValue: editable)
+        _lastSyncedDraft = State(initialValue: applied.overlay(on: initialDraft))
         let initialMode = AhaKeyModeSlot(rawValue: bleManager.workMode) ?? .mode0
         _selectedMode = State(initialValue: initialMode)
         _selectedPart = State(initialValue: .key1)
@@ -102,7 +123,9 @@ struct AhaKeyStudioView: View {
             nativeSpeech.start()
             bleManager.refreshBluetoothAuthorization()
             applyCursorRejectMacroSelfHealIfNeeded()
-            voiceRelay.updateRoutes(from: studioDraft)
+            voiceRelay.updateRoutes(from: voiceConfiguration.routeDraft)
+            AhaKeyStudioStore.save(studioDraft)
+            if let voiceConfigurationError { syncStatusMessage = voiceConfigurationError }
             SwitchStateNotifier.shared.bind(to: bleManager)
             if let actualMode = bleManager.workModeForDisplay {
                 NotificationCenter.default.post(name: .ahaKeyKeyboardWorkModeChanged, object: nil, userInfo: ["workMode": actualMode])
@@ -120,16 +143,19 @@ struct AhaKeyStudioView: View {
         .onReceive(NotificationCenter.default.publisher(for: .ahaKeyVoiceDesktopPrepared)) { _ in
             if let prepared = AhaKeyStudioStore.load() {
                 studioDraft = prepared
-                voiceRelay.updateRoutes(from: prepared)
+                if let applied = try? StudioVoiceConfigurationStore.loadOrMigrate(draft: prepared, fallback: .legacy()) {
+                    voiceConfiguration = applied
+                    voiceConfigurationError = nil
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .ahaKeyVoiceDesktopConfirmed)) { _ in
-            lastSyncedDraft = VoiceHandoffHost.confirmedBaseline(from: lastSyncedDraft)
+            lastSyncedDraft = VoiceHandoffHost.confirmedBaseline(from: lastSyncedDraft, configuration: voiceConfiguration)
             syncStatusMessage = "四模式 Voice 接管已读回确认；其他草稿继续独立保存。"
         }
         .onReceive(NotificationCenter.default.publisher(for: .ahaKeyOrdinaryKeyConfirmed)) { note in
             guard let actual = note.object as? OrdinaryKeyReadback else { return }
-            lastSyncedDraft = StudioKeyWriteProposal.reconcile(baseline: lastSyncedDraft, current: studioDraft, actual: actual)
+            reconcileInlineReadback(actual)
             syncStatusMessage = "Mode \(actual.mode + 1) · Key \(actual.keyIndex + 1) 已保存并读回确认。"
         }
         .onChange(of: agentManager.bluetoothConnectionOwner) { owner in
@@ -140,7 +166,9 @@ struct AhaKeyStudioView: View {
         }
         .onChange(of: studioDraft) { newValue in
             AhaKeyStudioStore.save(newValue)
-            voiceRelay.updateRoutes(from: newValue)
+        }
+        .onChange(of: voiceConfiguration) { applied in
+            voiceRelay.updateRoutes(from: applied.routeDraft)
         }
         // 键盘物理档位变化（BLE 查询/通知上报）→ 自动切到对应 Mode 标签，
         // 这样 LCD 预览、快捷键草稿、发出去的 updateState 三者一致。
@@ -998,6 +1026,12 @@ struct AhaKeyStudioView: View {
         summaryRow(NSLocalizedString("语音桥", comment: ""), value: voiceRelay.isListening ? NSLocalizedString("运行中", comment: "") : NSLocalizedString("等待权限", comment: ""),
                    dot: voiceRelay.isListening ? .green : .orange)
         summaryRow(NSLocalizedString("按键描述", comment: ""), value: key.description.isEmpty ? "—" : key.description)
+        if let voiceConfigurationError {
+            Text(voiceConfigurationError).font(.caption).foregroundStyle(.orange)
+        }
+        Text(NSLocalizedString(currentSelectedKey == voiceConfiguration.key(for: selectedMode)
+            ? "此模式的语音方案已启用。" : "当前改动为草稿，保存此键后才启用。", comment: ""))
+            .font(.caption).foregroundStyle(.secondary).padding(.vertical, 6)
         deferredVoiceTranscripts
     }
 
@@ -1085,6 +1119,7 @@ struct AhaKeyStudioView: View {
             .disabled(inlineKeyControlsDisabled)
 
             if key.role == .voice {
+                if let voiceConfigurationError { Text(voiceConfigurationError).font(.caption).foregroundStyle(.orange) }
                 deferredVoiceTranscripts
                 StudioInspectorSection(NSLocalizedString("语音输入方式", comment: "")) {
                     VStack(alignment: .leading, spacing: 12) {
@@ -1093,16 +1128,17 @@ struct AhaKeyStudioView: View {
                             onSelect: applyVoicePreset
                         )
                         if (key.voicePreset ?? .custom).isMacOSNativeFamily {
-                            Text(NSLocalizedString("只要 AhaKey Studio 在后台运行，Mode 1 出厂语音键发出的 F18 就会被直接接管到苹果原生转写。现在不再依赖系统听写快捷键。", comment: ""))
+                            Text(NSLocalizedString("保存后，当前模式的语音键由 App 在后台转写并回填。", comment: ""))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        Text(NSLocalizedString("语音键的输入方式独立于当前 Mode，在任意 Mode 下都可使用相同的语音输入设置。", comment: ""))
+                        Text(NSLocalizedString("仅保存当前模式的语音键；其他模式保持原方案。", comment: ""))
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                     }
                     .padding(.top, 4)
                 }
+                .disabled(inlineKeyControlsDisabled)
             } else {
                 StudioInspectorSection(NSLocalizedString("按键职责", comment: "")) {
                     VStack(alignment: .leading, spacing: 8) {
@@ -1129,7 +1165,7 @@ struct AhaKeyStudioView: View {
 
                         Divider()
 
-                        if key.role == .voice {
+                        if key.role == .voice, (key.voicePreset ?? .custom).isMacOSNativeFamily {
                             // ── 语音键触发方式 ──────────────────────────────
                             if selectedTriggerTab == 0 {
                                 VStack(alignment: .leading, spacing: 10) {
@@ -1138,7 +1174,7 @@ struct AhaKeyStudioView: View {
                                     Text(NSLocalizedString("录音开始时确定是否使用 AhaType；本段录音不随之后的模式或开关变化。", comment: ""))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                    Toggle(isOn: $nativeSpeech.shortPressAhaTypeEnabled) {
+                                    Toggle(isOn: voicePolicyBinding(\.shortPressAhaType)) {
                                         HStack(spacing: 6) {
                                             Text(NSLocalizedString("使用 AhaType 整理", comment: ""))
                                                 .font(.callout)
@@ -1176,13 +1212,15 @@ struct AhaKeyStudioView: View {
                                     } else {
                                         ShortcutBindingEditor(shortcut: selectedKeyShortcutBinding)
                                     }
-                                    Text(voicePresetDetail)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    if (key.voicePreset ?? .custom) != .custom {
-                                        Text(NSLocalizedString("语音键预设会固定使用单键绑定；如需录制宏，请先把预设改为自定义快捷键。", comment: ""))
+                                    if inlineKeyTarget == nil {
+                                        Text(voicePresetDetail)
                                             .font(.caption)
-                                            .foregroundStyle(.orange)
+                                            .foregroundStyle(.secondary)
+                                        if (key.voicePreset ?? .custom) != .custom {
+                                            Text(NSLocalizedString("语音键预设会固定使用单键绑定；如需录制宏，请先把预设改为自定义快捷键。", comment: ""))
+                                                .font(.caption)
+                                                .foregroundStyle(.orange)
+                                        }
                                     }
                                 }
                             } else {
@@ -1193,7 +1231,7 @@ struct AhaKeyStudioView: View {
                                     Text(NSLocalizedString("按住键盘录音键不松手开始录音，松手后直接将 ASR 结果写入，响应更快。", comment: ""))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                    Toggle(isOn: $nativeSpeech.longPressAhaTypeEnabled) {
+                                    Toggle(isOn: voicePolicyBinding(\.longPressAhaType)) {
                                         HStack(spacing: 6) {
                                             Text(NSLocalizedString("使用 AhaType 整理", comment: ""))
                                                 .font(.callout)
@@ -1211,13 +1249,13 @@ struct AhaKeyStudioView: View {
                                             .font(.callout)
                                         Slider(
                                             value: Binding(
-                                                get: { Double(nativeSpeech.longPressThresholdMs) },
-                                                set: { nativeSpeech.longPressThresholdMs = Int($0) }
+                                                get: { Double(selectedVoicePolicy.longPressThresholdMs) },
+                                                set: { voicePolicyBinding(\.longPressThresholdMs).wrappedValue = Int($0) }
                                             ),
-                                            in: 200...1000,
+                                            in: 200...2000,
                                             step: 50
                                         )
-                                        Text("\(nativeSpeech.longPressThresholdMs) ms")
+                                        Text("\(selectedVoicePolicy.longPressThresholdMs) ms")
                                             .font(.caption.monospacedDigit())
                                             .foregroundStyle(.secondary)
                                             .frame(width: 58, alignment: .trailing)
@@ -1249,6 +1287,7 @@ struct AhaKeyStudioView: View {
                                         ShortcutBindingEditor(shortcut: selectedKeyShortcutBinding)
                                     }
                                 }
+                                .disabled(key.role == .voice && (key.voicePreset ?? .custom) != .custom)
                             } else {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Label(NSLocalizedString("需要固件 v2+ 支持", comment: ""), systemImage: "exclamationmark.triangle")
@@ -2047,6 +2086,7 @@ struct AhaKeyStudioView: View {
             key.voicePreset = preset
             if preset != .custom {
                 key.shortcut = preset.defaultBinding
+                key.macro = []
             }
             if key.description.isEmpty {
                 key.description = key.role.defaultDescription
@@ -2202,7 +2242,7 @@ struct AhaKeyStudioView: View {
     }
 
     private func enterEditingConfiguration() {
-        if let role = selectedPart.keyRole, role != .voice,
+        if let role = selectedPart.keyRole,
            bleManager.firmwareCapabilityProfile?.identity != .legacy {
             let target = StudioInlineKeyTarget(mode: UInt8(selectedMode.rawValue), index: UInt8(role.rawValue))
             inlineKeyTarget = target
@@ -2355,6 +2395,9 @@ struct AhaKeyStudioView: View {
                 try await self.bleManager.writeCommandsConfirmingResponses(commands)
                 // 最后的 0x04 已收到固件 ACK，略等再交还蓝牙。
                 try? await Task.sleep(nanoseconds: UInt64(150) * 1_000_000)
+                let applied = StudioVoiceConfiguration(draft: self.studioDraft, fallback: .legacy())
+                try StudioVoiceConfigurationStore.save(applied)
+                self.voiceConfiguration = applied
                 self.lastSyncedDraft = self.studioDraft
                 self.lastSyncDate = Date()
                 self.isSyncing = false
@@ -5291,6 +5334,7 @@ private extension AhaKeyStudioView {
     var inlineKeyIsEditable: Bool {
         guard let fact = inlineKeyFact, let target = inlineKeyTarget,
               fact.value.mode == target.mode, fact.value.keyIndex == target.index else { return false }
+        if target.index == 0, inlineVoiceState != 3 && inlineVoiceState != 4 { return false }
         return StudioKeyWriteProposal.draft(from: fact.value, preserving: currentSelectedKey) != nil
     }
 
@@ -5324,7 +5368,9 @@ private extension AhaKeyStudioView {
                 .font(.caption).foregroundStyle(.secondary)
                 if let fact = inlineKeyFact {
                     if !inlineKeyIsEditable {
-                        Text(NSLocalizedString("此动作无法在当前编辑器中完整表示，保持只读。", comment: ""))
+                        Text(NSLocalizedString(target.index == 0 && inlineVoiceState != 3 && inlineVoiceState != 4
+                            ? "当前固件仍由系统听写预设接管；逐模式混用需固件支持，本次不改写或接管其他模式。"
+                            : "此动作无法在当前编辑器中完整表示，保持只读。", comment: ""))
                             .font(.caption).foregroundStyle(.orange)
                     }
                     if inlineKeyUnconfirmed.contains(inlineKeyReceiptID(fact)) {
@@ -5347,6 +5393,7 @@ private extension AhaKeyStudioView {
         inlineKeyTask = nil
         inlineKeyTarget = nil
         inlineKeyFact = nil
+        inlineVoiceState = nil
         inlineKeyConflict = nil
         inlineKeyMessage = nil
     }
@@ -5372,15 +5419,17 @@ private extension AhaKeyStudioView {
         inlineKeyTask = Task { @MainActor in
             guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
             do {
-                let fact = try await inspectorSession.withConnection(expectedDeviceID: expectedDevice) { context in
+                let (fact, voiceState) = try await inspectorSession.withConnection(expectedDeviceID: expectedDevice) { context in
                     let actual = try await bleManager.readOrdinaryKeyForEditing(mode: target.mode, index: target.index)
-                    return StudioInlineKeyFact(deviceID: context.deviceID, value: actual)
+                    let state: UInt8? = target.index == 0 ? try await bleManager.readVoiceOnboardingState() : nil
+                    return (StudioInlineKeyFact(deviceID: context.deviceID, value: actual), state)
                 }
                 guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
                 inlineKeyFact = fact
-                if !retainDraft, let imported = StudioKeyWriteProposal.draft(from: fact.value, preserving: original) {
+                inlineVoiceState = voiceState
+                if !retainDraft, let imported = importedInlineKey(fact.value, preserving: original) {
                     setInlineDraft(imported, target: target)
-                    lastSyncedDraft = StudioKeyWriteProposal.reconcile(baseline: lastSyncedDraft, current: studioDraft, actual: fact.value)
+                    reconcileInlineReadback(fact.value)
                 }
                 inlineKeyTask = nil
             } catch {
@@ -5394,8 +5443,14 @@ private extension AhaKeyStudioView {
     func saveInlineKey(overwrite: StudioInlineKeyConflict? = nil) {
         guard !inspectorSession.isBusy, let target = inlineKeyTarget,
               let baselineFact = inlineKeyFact, let mode = AhaKeyModeSlot(rawValue: Int(target.mode)) else { return }
+        let submittedKey: AhaKeyKeyDraft
         let desired: OrdinaryKeyReadback
-        do { desired = try overwrite?.desired ?? StudioKeyWriteProposal.make(key: currentSelectedKey, mode: mode) }
+        do {
+            let draft = overwrite?.voiceDraft ?? currentSelectedKey
+            submittedKey = target.index == 0 ? try voiceConfiguration.preparing(draft, mode: mode) : draft
+            desired = try overwrite?.desired ?? StudioKeyWriteProposal.make(key: submittedKey, mode: mode)
+            if target.index == 0, overwrite == nil { setInlineDraft(submittedKey, target: target) }
+        }
         catch { inlineKeyMessage = error.localizedDescription; return }
         let expected = overwrite?.actual ?? baselineFact.value
         let deviceID = overwrite?.deviceID ?? baselineFact.deviceID
@@ -5414,24 +5469,39 @@ private extension AhaKeyStudioView {
                     read: { mode, index in try await bleManager.readOrdinaryKeyForEditing(mode: mode, index: index) },
                     save: { actual, target, generation in
                         try await bleManager.setOrdinaryKeyConfirmed(baseline: actual, target: target, expectedGeneration: generation)
-                    }, writeStarted: { attemptedWrite = true })
+                    }, writeStarted: { attemptedWrite = true }, validate: {
+                        if target.index == 0 {
+                            inlineVoiceState = try await bleManager.readVoiceOnboardingState()
+                            guard inlineVoiceState == 3 || inlineVoiceState == 4 else {
+                                throw ConfirmedOrdinaryKeySetting.Failure.voicePresetOwnsKey
+                            }
+                            try checkInlineVoiceReady(submittedKey)
+                        }
+                    })
                 guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else {
                     if attemptedWrite { inlineKeyUnconfirmed.insert("\(deviceID):\(target.mode):\(target.index)") }
                     return
                 }
                 switch result {
-                case .conflict(let conflict):
+                case .conflict(var conflict):
+                    if target.index == 0 { conflict.voiceDraft = submittedKey }
                     inlineKeyConflict = conflict
                 case .readOnly(let fact):
                     inlineKeyFact = fact
                     inlineKeyMessage = NSLocalizedString("此动作无法在当前编辑器中完整表示，保持只读。", comment: "")
                 case .unchanged(let fact):
+                    if target.index == 0 { try commitInlineVoice(submittedKey, mode: mode, actual: fact.value) }
                     inlineKeyFact = fact
-                    inlineKeyMessage = NSLocalizedString("草稿与读回值一致，本次未写入；此前未确认的保存记录仍保留。", comment: "")
+                    inlineKeyMessage = NSLocalizedString(target.index == 0
+                        ? "当前模式语音方案已启用，键位本次未写入；此前未确认的保存记录仍保留。"
+                        : "草稿与读回值一致，本次未写入；此前未确认的保存记录仍保留。", comment: "")
                 case .saved(let fact):
+                    if target.index == 0 { try commitInlineVoice(submittedKey, mode: mode, actual: fact.value) }
                     inlineKeyFact = fact
                     inlineKeyUnconfirmed.remove(inlineKeyReceiptID(fact))
-                    lastSyncedDraft = StudioKeyWriteProposal.reconcile(baseline: lastSyncedDraft, current: studioDraft, actual: fact.value)
+                    if target.index != 0 {
+                        lastSyncedDraft = StudioKeyWriteProposal.reconcile(baseline: lastSyncedDraft, current: studioDraft, actual: fact.value)
+                    }
                     inlineKeyMessage = NSLocalizedString("此键改动已保存并读回一致；断电保持性尚未验证。", comment: "")
                     syncStatusMessage = target.title + " · " + NSLocalizedString("已保存并读回一致", comment: "")
                 }
@@ -5443,6 +5513,9 @@ private extension AhaKeyStudioView {
                 }
                 guard inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
                 inlineKeyMessage = KeyboardSettingsFeedback.message(for: error)
+                if let failure = error as? VoiceHandoffHost.Failure, case .cloudNotConfigured = failure {
+                    cloudAccount.requireLogin(); showsCloudAccount = true
+                }
                 inlineKeyTask = nil
             }
         }
@@ -5451,13 +5524,64 @@ private extension AhaKeyStudioView {
     func adoptInlineKeyConflict(_ conflict: StudioInlineKeyConflict) {
         guard let target = inlineKeyTarget, target.mode == conflict.actual.mode,
               target.index == conflict.actual.keyIndex,
-              let imported = StudioKeyWriteProposal.draft(from: conflict.actual, preserving: currentSelectedKey) else {
+              let imported = importedInlineKey(conflict.actual, preserving: currentSelectedKey) else {
             inlineKeyMessage = NSLocalizedString("此动作无法在当前编辑器中完整表示，保持只读。", comment: "")
             return
         }
         inlineKeyFact = .init(deviceID: conflict.deviceID, value: conflict.actual)
         setInlineDraft(imported, target: target)
-        lastSyncedDraft = StudioKeyWriteProposal.reconcile(baseline: lastSyncedDraft, current: studioDraft, actual: conflict.actual)
+        reconcileInlineReadback(conflict.actual)
         inlineKeyMessage = NSLocalizedString("已采用这次读回值，未写入键盘。", comment: "")
+    }
+}
+
+// MARK: - Confirmed host voice configuration
+private extension AhaKeyStudioView {
+    var selectedVoicePolicy: VoiceProcessingPolicy {
+        currentSelectedKey.voiceProcessingPolicy ?? voiceConfiguration.key(for: selectedMode).voiceProcessingPolicy ?? .legacy()
+    }
+
+    func voicePolicyBinding<Value>(_ path: WritableKeyPath<VoiceProcessingPolicy, Value>) -> Binding<Value> {
+        Binding(get: { selectedVoicePolicy[keyPath: path] }, set: { value in
+            var policy = selectedVoicePolicy
+            policy[keyPath: path] = value
+            updateSelectedKey { $0.voiceProcessingPolicy = policy }
+        })
+    }
+
+    func importedInlineKey(_ actual: OrdinaryKeyReadback, preserving original: AhaKeyKeyDraft) -> AhaKeyKeyDraft? {
+        voiceConfiguration.importing(actual, preserving: original)
+    }
+
+    func reconcileInlineReadback(_ actual: OrdinaryKeyReadback) {
+        lastSyncedDraft = StudioVoiceConfiguration.reconcileHardware(baseline: lastSyncedDraft, current: studioDraft, actual: actual)
+    }
+
+    func checkInlineVoiceReady(_ key: AhaKeyKeyDraft) throws {
+        guard !nativeSpeech.isRecording else { throw ConfirmedVoiceHandoff.Failure.hostNotReady }
+        guard key.voicePreset != .custom else { return }
+        guard voiceRelay.inputMonitoringGranted, voiceRelay.accessibilityGranted, voiceRelay.isListening else {
+            throw ConfirmedVoiceHandoff.Failure.hostNotReady
+        }
+        if (key.voicePreset ?? .custom).isMacOSNativeFamily {
+            guard nativeSpeech.microphoneGranted, nativeSpeech.speechRecognitionGranted,
+                  nativeSpeech.siriEnabled, nativeSpeech.dictationEnabled else {
+                throw ConfirmedVoiceHandoff.Failure.hostNotReady
+            }
+            let policy = key.voiceProcessingPolicy ?? .legacy()
+            if ahaType.isEnabled && (policy.shortPressAhaType || policy.longPressAhaType), !ahaType.hasConfiguredCloudToken {
+                throw VoiceHandoffHost.Failure.cloudNotConfigured
+            }
+        }
+    }
+
+    func commitInlineVoice(_ key: AhaKeyKeyDraft, mode: AhaKeyModeSlot, actual: OrdinaryKeyReadback) throws {
+        let applied = try voiceConfiguration.committing(key: key, mode: mode, actual: actual)
+        try StudioVoiceConfigurationStore.save(applied)
+        voiceConfiguration = applied
+        voiceConfigurationError = nil
+        var baseline = lastSyncedDraft.draft(for: mode)
+        baseline.updateKey(applied.key(for: mode))
+        lastSyncedDraft.updateMode(baseline)
     }
 }

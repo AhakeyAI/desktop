@@ -95,4 +95,32 @@ final class StudioInlineKeyTests: XCTestCase {
         XCTAssertTrue(StudioKeyWriteProposal.summary(second).contains(HIDUsage.name(for: HIDUsage.escape)))
     }
 
+    @MainActor
+    func testVoiceValidationRunsEvenForUnchangedHardwareAndReleasesOnFailure() async throws {
+        let value = key([HIDUsage.f18], index: 0)
+        var writes = 0, releases = 0, validations = 0
+        do {
+            _ = try await StudioInlineKeySave.run(session: session { releases += 1 },
+                baseline: .init(deviceID: "A", value: value), desired: value,
+                read: { _, _ in value }, save: { _, _, _ in writes += 1; return value },
+                writeStarted: { XCTFail("host-only commit must not write") }, validate: {
+                    validations += 1
+                    throw ConfirmedOrdinaryKeySetting.Failure.voicePresetOwnsKey
+                })
+            XCTFail("Consumer ownership must reject host activation")
+        } catch {
+            XCTAssertEqual(error as? ConfirmedOrdinaryKeySetting.Failure, .voicePresetOwnsKey)
+        }
+        XCTAssertEqual(validations, 1); XCTAssertEqual(writes, 0); XCTAssertEqual(releases, 1)
+    }
+
+    @MainActor
+    func testConflictingVoiceHardwareDoesNotValidateOrActivateHostDraft() async throws {
+        let old = key([HIDUsage.f18], index: 0), changed = key([HIDUsage.f19], index: 0)
+        let result = try await StudioInlineKeySave.run(session: session {}, baseline: .init(deviceID: "A", value: old), desired: old,
+            read: { _, _ in changed }, save: { _, _, _ in XCTFail("No write"); return old },
+            writeStarted: { XCTFail("No write") }, validate: { XCTFail("Conflict must not publish host settings") })
+        guard case .conflict = result else { return XCTFail("Expected conflict") }
+    }
+
 }

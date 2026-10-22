@@ -44,12 +44,17 @@ enum VoiceHandoffHost {
         try backup.write(to: url, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
 
-        let draft = preparedDraft(from: AhaKeyStudioStore.load() ?? .default)
+        let original = preparedDraft(from: AhaKeyStudioStore.load() ?? .default)
+        let speech = NativeSpeechTranscriptionService.shared
+        let policy = VoiceProcessingPolicy(shortPressAhaType: choice == .ahaType,
+            longPressAhaType: choice == .ahaType, longPressThresholdMs: min(2_000, max(200, speech.longPressThresholdMs)))
+        let applied = StudioVoiceConfiguration(draft: original, fallback: policy)
+        try StudioVoiceConfigurationStore.save(applied)
+        let draft = applied.overlay(on: original)
         let relay = VoiceRelayService.shared
         relay.updateRoutes(from: draft)
         guard relay.hasPreparedNativeF18Routes else { throw ConfirmedVoiceHandoff.Failure.hostNotReady }
         AhaTypeTextOptimizer.shared.setEnabled(choice == .ahaType)
-        let speech = NativeSpeechTranscriptionService.shared
         speech.shortPressAhaTypeEnabled = choice == .ahaType
         speech.longPressAhaTypeEnabled = choice == .ahaType
         AhaKeyStudioStore.save(draft)
@@ -73,8 +78,17 @@ enum VoiceHandoffHost {
 
     /// Confirm only fields actually applied by the handoff. In particular, a
     /// pending description or any non-Voice edit must remain pending.
-    static func confirmedBaseline(from original: AhaKeyStudioDraft) -> AhaKeyStudioDraft {
-        preparedDraft(from: original)
+    static func confirmedBaseline(from original: AhaKeyStudioDraft, configuration: StudioVoiceConfiguration? = nil) -> AhaKeyStudioDraft {
+        var baseline = preparedDraft(from: original)
+        if let configuration {
+            for slot in AhaKeyModeSlot.allCases {
+                var mode = baseline.draft(for: slot)
+                var voice = mode.key(for: .voice)
+                voice.voiceProcessingPolicy = configuration.key(for: slot).voiceProcessingPolicy
+                mode.updateKey(voice); baseline.updateMode(mode)
+            }
+        }
+        return baseline
     }
 
 }

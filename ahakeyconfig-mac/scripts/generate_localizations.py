@@ -7,6 +7,14 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "语音配置无法校验，未启用本次改动；请重新读取并保存当前模式。": "Voice settings could not be validated. These edits were not activated; read and save this mode again.",
+    "已启用的语音配置无法读取，App 语音接管已暂停；请重新读取并保存当前模式。": "Applied voice settings could not be read. App voice routing is paused; read and save the current mode again.",
+    "保存后，当前模式的语音键由 App 在后台转写并回填。": "After saving, the App transcribes and inserts speech for this mode's voice key in the background.",
+    "仅保存当前模式的语音键；其他模式保持原方案。": "Save only this mode's voice key. Other modes keep their settings.",
+    "当前固件仍由系统听写预设接管；逐模式混用需固件支持，本次不改写或接管其他模式。": "This firmware still uses the system dictation preset. Mixing schemes by mode requires firmware support; other modes will not be changed or taken over.",
+    "当前模式语音方案已启用，键位本次未写入；此前未确认的保存记录仍保留。": "This mode's voice scheme is active; no key binding was written. Earlier unconfirmed saves remain recorded.",
+    "此模式的语音方案已启用。": "This mode's voice scheme is active.",
+    "当前改动为草稿，保存此键后才启用。": "These edits are a draft. Save this key to activate them.",
     "上一段转写稍晚完成，已保留，可复制后自行粘贴。": "The previous transcription finished later and was kept. Copy it to paste manually.",
     "复制已完成的转写": "Copy completed transcription",
     "录音开始时确定是否使用 AhaType；本段录音不随之后的模式或开关变化。": "Whether to use AhaType is set when recording starts. Later mode or toggle changes do not affect this recording.",

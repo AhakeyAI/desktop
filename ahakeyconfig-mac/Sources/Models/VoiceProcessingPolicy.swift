@@ -6,6 +6,13 @@ struct VoiceProcessingPolicy: Codable, Equatable, Hashable {
     var longPressAhaType: Bool
     var longPressThresholdMs: Int
 
+    static func legacy(defaults: UserDefaults = .standard) -> Self {
+        .init(shortPressAhaType: defaults.object(forKey: "nativeSpeech.shortPressAhaType") as? Bool ?? true,
+              longPressAhaType: defaults.object(forKey: "nativeSpeech.longPressAhaType") as? Bool ?? false,
+              longPressThresholdMs: min(2_000, max(200,
+                defaults.object(forKey: "nativeSpeech.longPressThresholdMs") as? Int ?? 500)))
+    }
+
     var thresholdSeconds: Double {
         Double(min(2_000, max(200, longPressThresholdMs))) / 1_000
     }
