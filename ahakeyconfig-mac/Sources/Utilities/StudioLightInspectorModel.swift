@@ -1,0 +1,129 @@
+import Foundation
+import Combine
+import AhaKeyConfigShared
+
+@MainActor
+final class StudioLightInspectorModel: ObservableObject {
+    struct Conflict: Identifiable {
+        let id = UUID()
+        let target: StudioLightDrafts.Target
+        let actual: StudioLightDrafts.Fact
+        let desired: UInt8
+    }
+
+    static let storageKey = "ahakey.studio.light.inspector.v1"
+    private let defaults: UserDefaults
+    @Published var values: StudioLightDrafts {
+        didSet {
+            if let data = try? JSONEncoder().encode(values) { defaults.set(data, forKey: Self.storageKey) }
+        }
+    }
+    @Published private(set) var catalog: WS3LightCatalogSnapshot?
+    @Published var message: String?
+    @Published var conflict: Conflict?
+    @Published private(set) var isBusy = false
+    private var operation: Task<Void, Never>?
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        values = defaults.data(forKey: Self.storageKey).flatMap { try? JSONDecoder().decode(StudioLightDrafts.self, from: $0) } ?? .init()
+    }
+
+    func cancel() { operation?.cancel() }
+
+    func run(target: StudioLightDrafts.Target, ble: AhaKeyBLEManager, session: StudioInspectorSession,
+             save: Bool = false, overwrite: Conflict? = nil, preview: WS3DisplayPreview? = nil) {
+        guard !isBusy, !session.isBusy else { return }
+        let baseline = values.facts[target]
+        let desired = overwrite?.desired ?? values.drafts[target]
+        let action: StudioInlineLightOperation.Action
+        if save {
+            guard let baseline, target.accepts(baseline.value), let desired, target.accepts(desired) else { return }
+            action = .save(baseline: overwrite?.actual ?? baseline, desired: desired)
+        } else if let preview { action = .preview(preview) }
+        else { action = .read }
+        let deviceID = baseline?.deviceID ?? values.facts[.brightness]?.deviceID
+        perform(session: session) { [self] in
+            let result = try await StudioInlineLightOperation.run(target: target, action: action,
+                session: session, expectedDeviceID: deviceID, read: { selected, context in
+                    // Re-establish the existing CP2 readback gate for every lease.
+                    let display = try await ble.readWS3DisplayForEditing()
+                    let actual: UInt8
+                    switch selected {
+                    case .brightness: actual = display.brightness
+                    case .effect(let mode, let state):
+                        actual = try await ble.readWS3SingleLightForEditing(mode: mode, state: state).effect
+                    }
+                    return .init(selected: .init(deviceID: context.deviceID, value: actual), brightness: display.brightness)
+                }, save: { setting, actual, generation in
+                    try await ble.saveWS3DisplaySetting(setting, baseline: actual, expectedGeneration: generation)
+                }, preview: { request in
+                    try await ble.previewWS3Display(request)
+                }, writeStarted: { catalog = nil; values.markUnconfirmed(target) })
+            // Publish only after the lease's final device/generation check.
+            switch result {
+            case .read(let reading):
+                observe(reading, target: target)
+                message = NSLocalizedString("已读取，未写入键盘。", comment: "")
+            case .readOnly(let reading):
+                observe(reading, target: target)
+                message = NSLocalizedString("键盘当前值无法安全编辑，保持只读。", comment: "")
+            case .conflict(let reading, let desired):
+                observe(reading, target: target)
+                conflict = Conflict(target: target, actual: reading.selected, desired: desired)
+            case .saved(let reading, let wrote):
+                observe(reading, target: target)
+                values.confirm(target, fact: reading.selected)
+                message = NSLocalizedString(wrote ? "已保存并读回一致；未修改其他灯效或按键。" : "与键盘当前值一致，本次未写入。", comment: "")
+            case .previewed(let reading):
+                observe(reading, target: target)
+                message = NSLocalizedString(preview == .stop ? "停止预览请求已接受，未保存设置。" : "临时预览请求已接受，约 10 秒后恢复；未保存设置。", comment: "")
+            }
+        }
+    }
+
+    func readCatalog(ble: AhaKeyBLEManager, session: StudioInspectorSession) {
+        let deviceID = values.facts[.brightness]?.deviceID
+        perform(session: session) { [self] in
+            let result = try await session.withConnection(expectedDeviceID: deviceID) { context in
+                let display = try await ble.readWS3DisplayForEditing()
+                let catalog = try await ble.readWS3LightCatalogForEditing()
+                return (deviceID: context.deviceID, brightness: display.brightness, catalog: catalog)
+            }
+            var updated = values
+            updated.observe(.brightness, fact: .init(deviceID: result.deviceID, value: result.brightness))
+            for light in result.catalog.lights {
+                updated.observe(.effect(mode: light.mode, state: light.state), fact: .init(deviceID: result.deviceID, value: light.effect))
+            }
+            values = updated
+            catalog = result.catalog
+            message = NSLocalizedString("已读取四模式全部灯效，未保存或播放。", comment: "")
+        }
+    }
+
+    func discardDrafts() {
+        guard !isBusy else { return }
+        values = .init()
+        catalog = nil
+        conflict = nil
+        message = NSLocalizedString("本地灯光草稿已清除，请重新读取；未重置键盘，也不会撤销已发送的修改。", comment: "")
+    }
+
+    private func perform(session: StudioInspectorSession, body: @escaping @MainActor () async throws -> Void) {
+        guard !isBusy, !session.isBusy else { return }
+        isBusy = true
+        message = nil
+        conflict = nil
+        operation = Task { @MainActor in
+            defer { isBusy = false; operation = nil }
+            do { try await body() }
+            catch { message = KeyboardSettingsFeedback.message(for: error) }
+        }
+    }
+
+    private func observe(_ reading: StudioInlineLightOperation.Reading, target: StudioLightDrafts.Target) {
+        values.observe(.brightness, fact: .init(deviceID: reading.selected.deviceID, value: reading.brightness))
+        values.observe(target, fact: reading.selected)
+    }
+}
+

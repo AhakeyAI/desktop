@@ -49,6 +49,7 @@ struct AhaKeyStudioView: View {
     @AppStorage(AppLanguageInitializer.selectedLanguageKey) private var selectedLanguage = AppLanguageInitializer.systemSelection
     @AppStorage(VibeBarVisibilityPreference.enabledKey) private var vibeBarEnabled = true
     @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
+    @StateObject private var lightInspectorModel = StudioLightInspectorModel()
     @StateObject private var inspectorSession: StudioInspectorSession
     @State private var inlineKeyTarget: StudioInlineKeyTarget?
     @State private var inlineKeyFact: StudioInlineKeyFact?
@@ -482,13 +483,27 @@ struct AhaKeyStudioView: View {
         }
     }
 
+    private var canvasModeDraft: AhaKeyModeDraft {
+        var draft = currentModeDraft
+        guard bleManager.firmwareCapabilityProfile?.identity != .legacy else { return draft }
+        for index in draft.lightBar.stateMappings.indices {
+            let state = draft.lightBar.stateMappings[index].state
+            let target = StudioLightDrafts.Target.effect(mode: UInt8(selectedMode.rawValue), state: state.rawValue)
+            if let value = lightInspectorModel.values.drafts[target], let effect = LightEffectStyle(firmwareIndex: value) {
+                draft.lightBar.stateMappings[index].effect = effect
+            }
+        }
+        if let brightness = lightInspectorModel.values.drafts[.brightness] { draft.lightBar.brightness = Int(brightness) }
+        return draft
+    }
+
     private var canvasPane: some View {
         VStack(alignment: .leading, spacing: 18) {
             modeEditorHeader
 
             VStack(alignment: .leading, spacing: 8) {
                 AhaKeyKeyboardCanvasView(
-                    modeDraft: currentModeDraft,
+                    modeDraft: canvasModeDraft,
                     selectedPart: selectedPart,
                     lightBarPreview: lightBarPreview,
                     switchTitle: currentSwitchTitle,
@@ -692,7 +707,7 @@ struct AhaKeyStudioView: View {
                         }
                     }
 
-                    if selectedPart == .lightBar {
+                    if selectedPart == .lightBar && bleManager.firmwareCapabilityProfile?.identity == .legacy {
                         Button {
                             previewLightEffect(for: lightBarPreview)
                         } label: {
@@ -704,15 +719,17 @@ struct AhaKeyStudioView: View {
                         .disabled(isSyncing || !bleManager.isConnected || !bleManager.commandCharReady || bleManager.firmwareCapabilityProfile?.identity != .legacy)
                     }
 
-                    Button {
-                        writeToKeyboard()
-                    } label: {
-                        Label(NSLocalizedString(isSyncing || inspectorSession.isBusy ? "处理中…" : (inlineKeyTarget != nil ? "保存此键" : (bleManager.firmwareCapabilityProfile?.identity == .legacy ? "写入键盘" : "核对并保存")), comment: ""), systemImage: isSyncing ? "arrow.trianglehead.2.clockwise" : "square.and.arrow.down")
-                            .font(.callout.weight(.semibold))
+                    if selectedPart != .lightBar || bleManager.firmwareCapabilityProfile?.identity == .legacy {
+                        Button {
+                            writeToKeyboard()
+                        } label: {
+                            Label(NSLocalizedString(isSyncing || inspectorSession.isBusy ? "处理中…" : (inlineKeyTarget != nil ? "保存此键" : (bleManager.firmwareCapabilityProfile?.identity == .legacy ? "写入键盘" : "核对并保存")), comment: ""), systemImage: isSyncing ? "arrow.trianglehead.2.clockwise" : "square.and.arrow.down")
+                                .font(.callout.weight(.semibold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.regular)
+                        .disabled(isSyncing || inspectorSession.isBusy || (inlineKeyTarget != nil ? !inlineKeyCanSave : !bleManager.isConnected))
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.regular)
-                    .disabled(isSyncing || inspectorSession.isBusy || (inlineKeyTarget != nil ? !inlineKeyCanSave : !bleManager.isConnected))
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 12)
@@ -1089,6 +1106,22 @@ struct AhaKeyStudioView: View {
 
     @ViewBuilder
     private var lightBarSummary: some View {
+        if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+            ForEach(IDEState.allCases) { state in
+                let item = StudioLightDrafts.Target.effect(mode: UInt8(selectedMode.rawValue), state: state.rawValue)
+                let value = lightInspectorModel.values.drafts[item]
+                summaryRow(state.shortLabel, value: value.map { LightEffectStyle(firmwareIndex: $0)?.title ?? "未知灯效（只读）" } ?? "未读取")
+            }
+            summaryRow("全局亮度", value: lightInspectorModel.values.drafts[.brightness].map { "\($0)%" } ?? "未读取")
+            Text("显示本地草稿或上次读回值；修改后需分别保存所选灯效和全局亮度。")
+                .font(.caption).foregroundStyle(.secondary)
+        } else {
+            legacyLightBarSummary
+        }
+    }
+
+    @ViewBuilder
+    private var legacyLightBarSummary: some View {
         let lb = currentModeDraft.lightBar
         ForEach(IDEState.allCases) { state in
             summaryRow(state.shortLabel, value: lb.effect(for: state).title)
@@ -1657,6 +1690,19 @@ struct AhaKeyStudioView: View {
     }
 
     private var lightBarInspector: some View {
+        Group {
+            if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+                StudioLightInspectorView(model: lightInspectorModel, session: inspectorSession,
+                                         bleManager: bleManager, mode: selectedMode, selectPreviewState: { value in
+                                             if let state = IDEState(rawValue: value) { lightBarPreview = state }
+                                         })
+            } else {
+                legacyLightBarInspector
+            }
+        }
+    }
+
+    private var legacyLightBarInspector: some View {
         VStack(alignment: .leading, spacing: 16) {
             if bleManager.supportsConfigurableLighting == false {
                 StudioInspectorSection {
@@ -1877,7 +1923,7 @@ struct AhaKeyStudioView: View {
                 .font(.callout)
             Divider()
                 .frame(height: 14)
-            Text(String(format: NSLocalizedString("未同步改动 %d", comment: ""), dirtyCount))
+            Text(String(format: NSLocalizedString("未同步改动 %d", comment: ""), dirtyCount + (bleManager.firmwareCapabilityProfile?.identity == .legacy ? 0 : lightInspectorModel.values.dirtyTargets.count)))
                 .font(.callout)
             Divider()
                 .frame(height: 14)
@@ -2260,6 +2306,9 @@ struct AhaKeyStudioView: View {
         case .oledDisplay:
             return current.oled != baseline.oled
         case .lightBar:
+            if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+                return lightInspectorModel.values.isDirty(mode: UInt8(selectedMode.rawValue))
+            }
             return current.lightBar != baseline.lightBar
         case .toggleSwitch:
             return false
@@ -2307,6 +2356,10 @@ struct AhaKeyStudioView: View {
     }
 
     private func enterEditingConfiguration() {
+        if selectedPart == .lightBar, bleManager.firmwareCapabilityProfile?.identity != .legacy {
+            clearInlineKeyEditing()
+            return
+        }
         if let role = selectedPart.keyRole,
            bleManager.firmwareCapabilityProfile?.identity != .legacy {
             let target = StudioInlineKeyTarget(mode: UInt8(selectedMode.rawValue), index: UInt8(role.rawValue))
