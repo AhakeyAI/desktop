@@ -15,8 +15,13 @@ extension Notification.Name {
 @MainActor
 enum VoiceHandoffHost {
     enum Failure: Error, LocalizedError {
-        case cloudNotConfigured
-        var errorDescription: String? { NSLocalizedString("请先登录 AhaType；有效账号及额度在实际转写时验证。", comment: "") }
+        case cloudNotConfigured, cloudDisabled
+        var errorDescription: String? {
+            switch self {
+            case .cloudNotConfigured: return NSLocalizedString("请先登录 AhaType；有效账号及额度在实际转写时验证。", comment: "")
+            case .cloudDisabled: return NSLocalizedString("请先开启 AhaType 总开关，再保存当前模式的云端整理方案。", comment: "")
+            }
+        }
     }
     static func checkReady(_ choice: DesktopSpeechChoice) throws {
         let relay = VoiceRelayService.shared
@@ -30,20 +35,7 @@ enum VoiceHandoffHost {
 
     static func prepare(_ choice: DesktopSpeechChoice, baseline: VoiceHandoffSnapshot) throws {
         try checkReady(choice)
-        // Keep the prior Voice bindings locally before any device write.
-        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("AhaKeyConfig/voice-handoff-backups", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
-                                              attributes: [.posixPermissions: 0o700])
-        let values: [[String: Any]] = baseline.keys.map {
-            ["mode": Int($0.mode), "keyIndex": Int($0.keyIndex), "actionType": Int($0.actionType),
-             "action": Array($0.action).map(Int.init), "description": Array($0.description).map(Int.init)]
-        }
-        let backup = try JSONSerialization.data(withJSONObject: ["onboardingState": Int(baseline.onboardingState), "keys": values], options: [.prettyPrinted, .sortedKeys])
-        let url = directory.appendingPathComponent(UUID().uuidString + ".json")
-        try backup.write(to: url, options: .atomic)
-        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-
+        try backup(baseline)
         let original = preparedDraft(from: AhaKeyStudioStore.load() ?? .default)
         let speech = NativeSpeechTranscriptionService.shared
         let policy = VoiceProcessingPolicy(shortPressAhaType: choice == .ahaType,
@@ -59,6 +51,22 @@ enum VoiceHandoffHost {
         speech.longPressAhaTypeEnabled = choice == .ahaType
         AhaKeyStudioStore.save(draft)
         NotificationCenter.default.post(name: .ahaKeyVoiceDesktopPrepared, object: nil)
+    }
+
+    static func backup(_ baseline: VoiceHandoffSnapshot) throws {
+        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("AhaKeyConfig/voice-handoff-backups", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
+                                              attributes: [.posixPermissions: 0o700])
+        let values: [[String: Any]] = baseline.keys.map {
+            ["mode": Int($0.mode), "keyIndex": Int($0.keyIndex), "actionType": Int($0.actionType),
+             "action": Array($0.action).map(Int.init), "description": Array($0.description).map(Int.init)]
+        }
+        let backup = try JSONSerialization.data(withJSONObject: ["onboardingState": Int(baseline.onboardingState), "keys": values], options: [.prettyPrinted, .sortedKeys])
+        let url = directory.appendingPathComponent(UUID().uuidString + ".json")
+        try backup.write(to: url, options: .atomic)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+
     }
 
     static func preparedDraft(from original: AhaKeyStudioDraft) -> AhaKeyStudioDraft {

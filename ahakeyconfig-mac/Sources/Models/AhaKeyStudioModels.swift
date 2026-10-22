@@ -347,6 +347,8 @@ struct ShortcutBinding: Codable, Equatable {
 }
 
 enum VoicePreset: String, CaseIterable, Codable, Identifiable {
+    case systemDictation
+    case ahaTypeCloud
     case macOSNative
     case typeless
     case wechat
@@ -364,15 +366,28 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
         self == .macOSNative || self == .claudeCode || self == .kimiCode
     }
 
-    /// Picker 中实际展示的选项（微信/豆包并入 Fn/Globe；旧 case 保留用于迁移）
+    /// System Consumer, App/AhaType and custom shortcuts. Legacy raw values
+    /// keep their old meaning; Fn/Globe is now nested under custom shortcuts.
     static var visibleCases: [VoicePreset] {
-        [.macOSNative, .typeless, .custom]
+        [.systemDictation, .ahaTypeCloud, .custom]
+    }
+
+    var usesAppTranscription: Bool { isMacOSNativeFamily || self == .ahaTypeCloud }
+    var pickerCategory: VoicePreset {
+        switch self {
+        case .typeless, .wechat, .doubao: return .custom
+        default: return self
+        }
     }
 
     var title: String {
         switch self {
-        case .macOSNative, .claudeCode, .kimiCode:
+        case .systemDictation:
             NSLocalizedString("macOS 原生转写", comment: "")
+        case .ahaTypeCloud:
+            NSLocalizedString("AhaType 云端转写", comment: "")
+        case .macOSNative, .claudeCode, .kimiCode:
+            NSLocalizedString("App 原生转写（旧方案）", comment: "")
         case .typeless:
             "Fn/Globe"
         case .wechat:
@@ -388,6 +403,10 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
 
     var detail: String {
         switch self {
+        case .systemDictation:
+            NSLocalizedString("出厂默认：键盘发送 Consumer 事件，由 macOS 系统听写处理。需在系统中启用听写。", comment: "")
+        case .ahaTypeCloud:
+            NSLocalizedString("Mac 识别语音，AhaType 云端整理文字后回填。需要登录、开启 AhaType，并保持客户端运行。", comment: "")
         case .macOSNative, .claudeCode, .kimiCode:
             NSLocalizedString("调用苹果原生语音转写，识别完成后以 ⌘V 写回当前光标位置。适合 Claude Code、Kimi Code、Codex 等 CLI 终端及任意输入框。按一次开始，再按一次结束。", comment: "")
         case .typeless:
@@ -399,7 +418,7 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
         case .codex:
             NSLocalizedString("规划中，保留入口。", comment: "")
         case .custom:
-            NSLocalizedString("直接发送所选快捷键；使用 Fn/Globe 请选对应预设。", comment: "")
+            NSLocalizedString("默认 Fn/Globe，可修改为其他快捷键，适用于豆包、Typeless 等输入法。", comment: "")
         }
     }
 
@@ -414,6 +433,8 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
 
     var defaultBinding: ShortcutBinding {
         switch self {
+        case .systemDictation, .ahaTypeCloud:
+            ShortcutBinding(keyCode: HIDUsage.f18)
         case .macOSNative:
             ShortcutBinding(keyCode: HIDUsage.f18)
         case .typeless:
@@ -980,7 +1001,7 @@ struct AhaKeyModeDraft: Codable, Equatable, Identifiable {
     ]
 
     static func `default`(for mode: AhaKeyModeSlot) -> AhaKeyModeDraft {
-        let voicePreset: VoicePreset = .macOSNative
+        let voicePreset: VoicePreset = .systemDictation
         let approveShortcut: ShortcutBinding
         let rejectShortcut: ShortcutBinding
         var rejectMacro: [MacroStep] = []

@@ -19,7 +19,7 @@ final class StudioVoiceConfigurationTests: XCTestCase {
 
     func testMigrationFreezesLegacySettingsAndLaterDraftCannotRearmRoutes() throws {
         let preferences = defaults()
-        let original = AhaKeyStudioDraft.default
+        let original = AhaKeyStudioDraft.legacyAppVoice
         let applied = try StudioVoiceConfigurationStore.loadOrMigrate(draft: original, fallback: policy, defaults: preferences)
         var pending = original
         var mode = pending.draft(for: .mode2)
@@ -37,7 +37,7 @@ final class StudioVoiceConfigurationTests: XCTestCase {
 
     func testCommitPersistsOnlyOneModeAndLeavesOtherDraftsUntouched() throws {
         let preferences = defaults()
-        let original = AhaKeyStudioDraft.default
+        let original = AhaKeyStudioDraft.legacyAppVoice
         let applied = StudioVoiceConfiguration(draft: original, fallback: policy)
         var voice = applied.key(for: .mode2)
         voice.voicePreset = .custom
@@ -63,7 +63,7 @@ final class StudioVoiceConfigurationTests: XCTestCase {
     }
 
     func testPolicyOnlyCommitChangesNoOtherModeOrHardwareProposal() throws {
-        let before = StudioVoiceConfiguration(draft: .default, fallback: policy)
+        let before = StudioVoiceConfiguration(draft: .legacyAppVoice, fallback: policy)
         var voice = before.key(for: .mode2)
         let actual = try StudioKeyWriteProposal.make(key: voice, mode: .mode2)
         voice.voiceProcessingPolicy?.shortPressAhaType = false
@@ -74,7 +74,7 @@ final class StudioVoiceConfigurationTests: XCTestCase {
     }
 
     func testMismatchedReadbackCannotPublishDesiredHostRoute() throws {
-        let before = StudioVoiceConfiguration(draft: .default, fallback: policy)
+        let before = StudioVoiceConfiguration(draft: .legacyAppVoice, fallback: policy)
         var voice = before.key(for: .mode2)
         voice.shortcut = ShortcutBinding(modifiers: [.command], keyCode: HIDUsage.enter)
         let old = try StudioKeyWriteProposal.make(key: before.key(for: .mode2), mode: .mode2)
@@ -88,30 +88,30 @@ final class StudioVoiceConfigurationTests: XCTestCase {
         for payload in [Data("not json".utf8), Data("{}".utf8)] {
             let preferences = defaults()
             preferences.set(payload, forKey: StudioVoiceConfigurationStore.storageKey)
-            XCTAssertThrowsError(try StudioVoiceConfigurationStore.loadOrMigrate(draft: .default, fallback: policy, defaults: preferences))
+            XCTAssertThrowsError(try StudioVoiceConfigurationStore.loadOrMigrate(draft: .legacyAppVoice, fallback: policy, defaults: preferences))
             XCTAssertEqual(preferences.data(forKey: StudioVoiceConfigurationStore.storageKey), payload)
         }
-        let disabled = StudioVoiceConfiguration.disabled(draft: .default, fallback: policy)
+        let disabled = StudioVoiceConfiguration.disabled(draft: .legacyAppVoice, fallback: policy)
         XCTAssertTrue(disabled.isValid)
         XCTAssertTrue(VoiceRelayService.buildRoutes(from: disabled.routeDraft).isEmpty)
     }
 
     func testUnknownSchemaAndDuplicateModesAreRejected() throws {
-        let original = StudioVoiceConfiguration(draft: .default, fallback: policy)
+        let original = StudioVoiceConfiguration(draft: .legacyAppVoice, fallback: policy)
         var payload = try JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as! [String: Any]
         let preferences = defaults()
         payload["version"] = 99
         preferences.set(try JSONSerialization.data(withJSONObject: payload), forKey: StudioVoiceConfigurationStore.storageKey)
-        XCTAssertThrowsError(try StudioVoiceConfigurationStore.loadOrMigrate(draft: .default, fallback: policy, defaults: preferences))
+        XCTAssertThrowsError(try StudioVoiceConfigurationStore.loadOrMigrate(draft: .legacyAppVoice, fallback: policy, defaults: preferences))
         payload["version"] = 1
         var entries = payload["entries"] as! [[String: Any]]
         entries[1] = entries[0]
         payload["entries"] = entries
         preferences.set(try JSONSerialization.data(withJSONObject: payload), forKey: StudioVoiceConfigurationStore.storageKey)
-        XCTAssertThrowsError(try StudioVoiceConfigurationStore.loadOrMigrate(draft: .default, fallback: policy, defaults: preferences))
+        XCTAssertThrowsError(try StudioVoiceConfigurationStore.loadOrMigrate(draft: .legacyAppVoice, fallback: policy, defaults: preferences))
     }
     func testHardwareImportCannotAdoptPendingHostSettingsOrArmForeignShortcut() throws {
-        let applied = StudioVoiceConfiguration(draft: .default, fallback: policy)
+        let applied = StudioVoiceConfiguration(draft: .legacyAppVoice, fallback: policy)
         let saved = applied.key(for: .mode2)
         let actual = try StudioKeyWriteProposal.make(key: saved, mode: .mode2)
         var pending = saved
@@ -130,7 +130,7 @@ final class StudioVoiceConfigurationTests: XCTestCase {
     }
 
     func testHardwareReconciliationDoesNotConfirmPendingHostChoice() throws {
-        let applied = StudioVoiceConfiguration(draft: .default, fallback: policy)
+        let applied = StudioVoiceConfiguration(draft: .legacyAppVoice, fallback: policy)
         let baseline = applied.routeDraft
         var current = baseline
         var mode = current.draft(for: .mode2)
@@ -150,7 +150,7 @@ final class StudioVoiceConfigurationTests: XCTestCase {
 
     func testLegacyModesWithoutUsablePresetDoNotPauseOtherModes() throws {
         for missing: VoicePreset? in [nil, .codex] {
-            var old = AhaKeyStudioDraft.default
+            var old = AhaKeyStudioDraft.legacyAppVoice
             var mode = old.draft(for: .mode1)
             var voice = mode.key(for: .voice)
             voice.voicePreset = missing
@@ -168,7 +168,7 @@ final class StudioVoiceConfigurationTests: XCTestCase {
     }
 
     func testRestoredDefaultsResolveDisplayedPolicyBeforeHardwareCommit() throws {
-        let applied = StudioVoiceConfiguration(draft: .default, fallback: policy)
+        let applied = StudioVoiceConfiguration(draft: .legacyAppVoice, fallback: policy)
         let restored = AhaKeyModeDraft.default(for: .mode2).key(for: .voice)
         XCTAssertNil(restored.voiceProcessingPolicy)
         let prepared = try applied.preparing(restored, mode: .mode2)
