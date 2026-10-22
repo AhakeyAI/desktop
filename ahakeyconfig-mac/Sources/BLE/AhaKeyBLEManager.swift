@@ -1056,13 +1056,18 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func sendCommandAwaitingResponse(_ data: Data, expectedCommand: UInt8, timeoutSeconds: Double = 5.0) async throws -> CommandResponse {
-        defer { protocolResponseWaiters[expectedCommand] = nil }
         return try await withThrowingTaskGroup(of: CommandResponse.self) { group in
             group.addTask { [weak self] in
                 try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CommandResponse, Error>) in
                     Task { @MainActor in
-                        self?.protocolResponseWaiters[expectedCommand] = continuation
-                        self?.writeCommand(data)
+                        guard let self, self.commandChar != nil, self.peripheral != nil else {
+                            continuation.resume(throwing: OLEDUploadError.disconnected)
+                            return
+                        }
+                        // 同一命令号只有一个槽位：被覆盖的旧等待者必须先结束，否则它所在的 task group 永远等不到返回。
+                        self.protocolResponseWaiters.updateValue(continuation, forKey: expectedCommand)?
+                            .resume(throwing: OLEDUploadError.superseded(command: expectedCommand))
+                        self.writeCommand(data)
                     }
                 }
             }
@@ -1088,6 +1093,19 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
     }
 
+    /// 断连时立即结束所有在等设备回应的写入，而不是让它们挂到超时（或在 0x82 数据块上永远挂起）。
+    func failPendingDeviceOperations() {
+        let waiters = protocolResponseWaiters
+        protocolResponseWaiters.removeAll()
+        let dataWrite = dataWriteResultContinuation
+        dataWriteResultContinuation = nil
+        let count = waiters.count + (dataWrite == nil ? 0 : 1)
+        guard count > 0 else { return }
+        appendLog("BLE 已断开，中止 \(count) 个等待设备回应的写入。", isError: true)
+        waiters.values.forEach { $0.resume(throwing: OLEDUploadError.disconnected) }
+        dataWrite?.resume(throwing: OLEDUploadError.disconnected)
+    }
+
     private func writeDataChunk(
         _ data: Data,
         to peripheral: CBPeripheral,
@@ -1095,17 +1113,21 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         type: CBCharacteristicWriteType,
         timeoutSeconds: Double = 5.0
     ) async throws {
-        defer { dataWriteResultContinuation = nil }
         try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask { [weak self] in
                 try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                     Task { @MainActor in
-                        self?.dataWriteResultContinuation = continuation
+                        guard let self, self.dataChar != nil, self.peripheral != nil else {
+                            continuation.resume(throwing: OLEDUploadError.disconnected)
+                            return
+                        }
+                        self.dataWriteResultContinuation?.resume(throwing: OLEDUploadError.superseded(command: AhaKeyCommand.cmdWriteResult))
+                        self.dataWriteResultContinuation = continuation
                         let negotiatedLength = max(1, peripheral.maximumWriteValueLength(for: type))
                         // 固件侧按 oledPacketSize (≈180B) 组帧，必须以它为子包上限，
                         // 否则会触发 CoreBluetooth "value's length is invalid" 或固件直接丢帧。
                         let maxPacketLength = min(negotiatedLength, AhaKeyCommand.oledPacketSize)
-                        self?.appendLog("→ DATA \(data.count)B, 分片 \(maxPacketLength)B (协商上限 \(negotiatedLength)B)", category: .verbose)
+                        self.appendLog("→ DATA \(data.count)B, 分片 \(maxPacketLength)B (协商上限 \(negotiatedLength)B)", category: .verbose)
                         Task {
                             for offset in stride(from: 0, to: data.count, by: maxPacketLength) {
                                 let end = min(offset + maxPacketLength, data.count)
@@ -1117,8 +1139,15 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                     }
                 }
             }
-            group.addTask {
+            group.addTask { [weak self] in
                 try await Task.sleep(nanoseconds: UInt64(Double(timeoutSeconds) * 1_000_000_000))
+                // 与 sendCommandAwaitingResponse 相同：不 resume 挂起的 continuation，task group 会永远等它，
+                // 上传/写入永不返回（Issue #131：写入中断连后界面一直停在「写入中」）。
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    self.dataWriteResultContinuation?.resume(throwing: OLEDUploadError.timeout(command: AhaKeyCommand.cmdWriteResult))
+                    self.dataWriteResultContinuation = nil
+                }
                 throw OLEDUploadError.timeout(command: AhaKeyCommand.cmdWriteResult)
             }
 
@@ -1304,6 +1333,8 @@ enum OLEDUploadError: LocalizedError {
     case invalidPictureStatePayload
     case invalidDeviceStatusPayload
     case invalidCommandFrame
+    case disconnected
+    case superseded(command: UInt8)
     case unsupportedLightingFirmware(main: Int, sub: Int, reportedBrightness: Int)
 
     var errorDescription: String? {
@@ -1326,6 +1357,10 @@ enum OLEDUploadError: LocalizedError {
             return "设备返回的状态信息无法解析。"
         case .invalidCommandFrame:
             return "待写入的命令帧格式不正确。"
+        case .disconnected:
+            return "设备连接已断开，本次写入未完成。"
+        case .superseded(let command):
+            return String(format: "另一项写入占用了设备通道，命令 0x%02X 已中止。", command)
         case .unsupportedLightingFirmware(let main, let sub, let reportedBrightness):
             return "当前键盘是旧灯效协议固件（设备回报 v\(main).\(sub)，亮度字段 \(reportedBrightness)），不会执行 0x84/0x85/0x91。请先刷入 2026-06-22 后的新固件，本次未上报写入成功。"
         }
@@ -1434,6 +1469,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
                     isError: true
                 )
             }
+            self.failPendingDeviceOperations()
             self.apply(.disconnected)
             self.bleConnectionStatus = NSLocalizedString("已断开", comment: "")
             self.dataChar = nil

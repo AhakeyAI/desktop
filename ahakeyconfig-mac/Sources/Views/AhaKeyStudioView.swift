@@ -2266,7 +2266,7 @@ struct AhaKeyStudioView: View {
                     self.returnToKeyboardControl()
                 }
             } catch {
-                let message = "写入键盘失败：\(error.localizedDescription)"
+                let message = Self.deviceWriteFailureMessage(for: error)
                 self.isSyncing = false
                 self.syncStatusMessage = message
                 if showResultAlert {
@@ -2275,6 +2275,14 @@ struct AhaKeyStudioView: View {
                 }
             }
         }
+    }
+
+    /// 断连属于「部分写入」：之前已 ACK 的命令可能已生效，但最后的 0x04 保存未确认，需要重连后整体重写。
+    static func deviceWriteFailureMessage(for error: Error) -> String {
+        if case OLEDUploadError.disconnected = error {
+            return "写入中断：键盘在写入过程中断开，配置可能只写入了一部分，且未确认保存。请重新连接后再次点击「写入键盘」完整重写。"
+        }
+        return "写入键盘失败：\(error.localizedDescription)"
     }
 
     private func uploadChangedOLEDsToDevice() async throws -> Int {
@@ -2297,13 +2305,21 @@ struct AhaKeyStudioView: View {
             }
             syncStatusMessage = "正在上传 \(mode.title) 的 LCD 动图…"
 
-            let startIndex = try await resolveOLEDUploadStartIndex(for: mode, frameCount: frames.count)
-            try await bleManager.uploadOLEDFrames(
-                frames,
-                fps: draft.oled.framesPerSecond,
-                mode: UInt8(mode.rawValue),
-                startIndex: UInt16(startIndex)
-            )
+            let startIndex: Int
+            do {
+                startIndex = try await resolveOLEDUploadStartIndex(for: mode, frameCount: frames.count)
+                try await bleManager.uploadOLEDFrames(
+                    frames,
+                    fps: draft.oled.framesPerSecond,
+                    mode: UInt8(mode.rawValue),
+                    startIndex: UInt16(startIndex)
+                )
+            } catch {
+                updateMode(mode) { modeDraft in
+                    modeDraft.oled.statusLine = "动图上传未完成：\(error.localizedDescription)"
+                }
+                throw error
+            }
 
             updateMode(mode) { modeDraft in
                 modeDraft.oled.statusLine = "已上传 \(frames.count) 帧到设备，槽位起点 \(startIndex)；切换模式时会先显示描述，再回到当前模式动图。"
@@ -2336,7 +2352,7 @@ struct AhaKeyStudioView: View {
                 self.syncStatusMessage = "已重新写入 \(self.selectedMode.title)（固件已确认）。"
             } catch {
                 self.isSyncing = false
-                self.syncStatusMessage = "写入键盘失败：\(error.localizedDescription)"
+                self.syncStatusMessage = Self.deviceWriteFailureMessage(for: error)
             }
         }
     }
