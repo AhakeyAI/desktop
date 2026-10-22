@@ -1,5 +1,7 @@
 package com.example.ahakey.service;
 
+import static com.example.ahakey.util.LanguageManager.text;
+
 import com.example.ahakey.model.ModeSlot;
 import com.example.ahakey.model.StudioPart;
 import com.example.ahakey.model.StudioState;
@@ -11,18 +13,39 @@ import java.util.function.Consumer;
 
 /** 对齐 Swift `commandsForModes` + `writeCommandsSequentially`。 */
 public final class DeviceSyncService {
+    public static final class SyncHandle {
+        private final Thread worker;
+        private SyncHandle(Thread worker) { this.worker = worker; }
+        public void cancel() { worker.interrupt(); }
+        public boolean isRunning() { return worker.isAlive(); }
+    }
     public record LabeledCommand(byte[] data, String label) {
+    }
+    private record ExpectedVoiceConfig(byte[] shortCodes, byte[] longCodes) {
     }
 
     private DeviceSyncService() {
     }
 
     public static List<LabeledCommand> commandsForModes(StudioState state, ModeSlot... modes) {
+        // Voice timing/actions are owned by Desktop.  Keep the explicit
+        // includeVoiceKey overload for legacy firmware migration only.
+        return commandsForModes(state, false, modes);
+    }
+
+    /**
+     * Builds a granular save plan.  Older firmware can still receive normal
+     * key/light settings even when the optional dual voice-key command is not
+     * advertised.
+     */
+    public static List<LabeledCommand> commandsForModes(
+        StudioState state, boolean includeVoiceKey, ModeSlot... modes
+    ) {
         List<LabeledCommand> out = new ArrayList<>();
         for (ModeSlot mode : modes) {
             int modeIndex = mode.getIndex();
             for (StudioPart part : List.of(
-                StudioPart.KEY1, StudioPart.KEY2, StudioPart.KEY3, StudioPart.KEY4
+                StudioPart.KEY2, StudioPart.KEY3, StudioPart.KEY4
             )) {
                 var key = state.getKeyConfig(mode, part);
                 int keyIndex = StudioState.keyIndexFor(part);
@@ -50,7 +73,7 @@ public final class DeviceSyncService {
                     
                     out.add(new LabeledCommand(
                         AhaKeyProtocol.setKeyMacro(modeIndex, keyIndex, macroData),
-                        mode.getTitle() + " " + part.getTitle() + " 宏"
+                        mode.getTitle() + " " + part.getTitle() + text("sync.macro")
                     ));
                 } else {
                     // 处理快捷键：包含修饰键和基础键
@@ -84,57 +107,122 @@ public final class DeviceSyncService {
                     
                     out.add(new LabeledCommand(
                         AhaKeyProtocol.setKeyMapping(modeIndex, keyIndex, hid),
-                        mode.getTitle() + " " + part.getTitle() + " 键码"
+                        mode.getTitle() + " " + part.getTitle() + text("sync.keycode")
                     ));
                 }
                 
                 out.add(new LabeledCommand(
                     AhaKeyProtocol.setKeyDescription(modeIndex, keyIndex, key.getDescription()),
-                    mode.getTitle() + " " + part.getTitle() + " 描述"
+                    mode.getTitle() + " " + part.getTitle() + text("sync.description")
                 ));
             }
 
             out.add(new LabeledCommand(
                 AhaKeyProtocol.setAiLightConfig(modeIndex, state.getAiLightEffectBytes(mode)),
-                mode.getTitle() + " AI 状态灯效"
+                mode.getTitle() + text("sync.ai-light")
             ));
         }
 
-        out.add(new LabeledCommand(AhaKeyProtocol.setLightBrightness(state.getLightBrightness()), "灯光亮度"));
-        out.add(new LabeledCommand(AhaKeyProtocol.saveConfig(), "保存全部配置到设备"));
+        out.add(new LabeledCommand(AhaKeyProtocol.setLightBrightness(state.getLightBrightness()), text("sync.brightness")));
+        if (includeVoiceKey) {
+            out.add(new LabeledCommand(
+                AhaKeyProtocol.setVoiceKeyConfig(
+                    state.getVoiceKeyShort().getHidCode(),
+                    state.getVoiceKeyLong().getHidCode()
+                ),
+                text("sync.voice-shortcuts")
+            ));
+        }
+        out.add(new LabeledCommand(AhaKeyProtocol.saveConfig(), text("sync.save-all")));
         return out;
     }
 
-    public static void writeSequentially(
+    public static SyncHandle writeSequentially(
         BleManager ble,
         List<LabeledCommand> commands,
         Runnable onComplete,
         Runnable onError,
         Consumer<String> onProgress
     ) {
-        new Thread(() -> {
+        return writeSequentially(ble, commands, () -> null, onComplete, onError, onProgress);
+    }
+
+    public static SyncHandle writeSequentially(
+        BleManager ble,
+        List<LabeledCommand> commands,
+        BleManager.DeviceTransaction<Void> beforeWrite,
+        Runnable onComplete,
+        Runnable onError,
+        Consumer<String> onProgress
+    ) {
+        ExpectedVoiceConfig expectedVoice = findExpectedVoiceConfig(commands);
+        Thread worker = new Thread(() -> {
             try {
-                int i = 0;
-                for (LabeledCommand cmd : commands) {
-                    i++;
-                    if (onProgress != null) {
-                        onProgress.accept("保存中 (" + i + "/" + commands.size() + ") " + cmd.label());
+                ble.executeDeviceTransaction(() -> {
+                    // Capability probes can time out. Keep them off the FX thread
+                    // and within the same transaction as the following writes.
+                    beforeWrite.execute();
+                    int i = 0;
+                    for (LabeledCommand cmd : commands) {
+                        i++;
+                        if (onProgress != null) {
+                            onProgress.accept(text("sync.progress") + i + "/" + commands.size() + ") " + cmd.label());
+                        }
+                        byte[] frame = cmd.data();
+                        if (frame.length < 5) {
+                            throw new java.io.IOException(text("sync.invalid-command") + cmd.label());
+                        }
+                        // Nested command transactions are reentrant. The outer
+                        // lifecycle transaction prevents status recovery from
+                        // closing the transport midway through a complete save.
+                        ble.sendCommandExpecting(frame, frame[2]);
+                        Thread.sleep(20);
                     }
-                    ble.sendCommand(cmd.data());
-                    Thread.sleep(50);
-                }
-                Thread.sleep(250);
+                    Thread.sleep(250);
+                    if (expectedVoice != null) {
+                        var verified = ble.readVoiceKeyConfig();
+                        if (verified == null
+                            || !java.util.Arrays.equals(verified.shortCodes(), expectedVoice.shortCodes())
+                            || !java.util.Arrays.equals(verified.longCodes(), expectedVoice.longCodes())
+                            || verified.longPressMs() != AhaKeyProtocol.VOICE_KEY_LONG_PRESS_MS) {
+                            throw new java.io.IOException(text("sync.voice-readback-error"));
+                        }
+                    }
+                    return null;
+                });
                 if (onComplete != null) {
                     onComplete.run();
                 }
             } catch (Exception e) {
                 if (onProgress != null) {
-                    onProgress.accept("保存失败：" + e.getMessage());
+                    onProgress.accept(text("sync.failed") + e.getMessage());
                 }
                 if (onError != null) {
                     onError.run();
                 }
             }
-        }, "aha-device-sync").start();
+        }, "aha-device-sync");
+        worker.setDaemon(true);
+        worker.start();
+        return new SyncHandle(worker);
+    }
+
+    private static ExpectedVoiceConfig findExpectedVoiceConfig(List<LabeledCommand> commands) {
+        for (LabeledCommand command : commands) {
+            byte[] frame = command.data();
+            if (frame.length < 7 || frame[2] != AhaKeyProtocol.CMD_VOICE_KEY_CONFIG) {
+                continue;
+            }
+            int offset = 3;
+            int shortCount = frame[offset++] & 0xFF;
+            if (offset + shortCount >= frame.length - 2) return null;
+            byte[] shortCodes = java.util.Arrays.copyOfRange(frame, offset, offset + shortCount);
+            offset += shortCount;
+            int longCount = frame[offset++] & 0xFF;
+            if (offset + longCount != frame.length - 2) return null;
+            byte[] longCodes = java.util.Arrays.copyOfRange(frame, offset, offset + longCount);
+            return new ExpectedVoiceConfig(shortCodes, longCodes);
+        }
+        return null;
     }
 }

@@ -1,5 +1,7 @@
 package com.example.ahakey.view;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 import javafx.application.Platform;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
@@ -119,12 +121,12 @@ public class FloatingVoiceNotification {
      */
     private StatusConfig getStatusConfig(String status, String message) {
         return switch (status) {
-            case "recording" -> new StatusConfig("语音输入中", Color.rgb(231, 76, 60), true);   // 红色
-            case "recognizing" -> new StatusConfig("识别中", Color.rgb(245, 166, 35), true);     // 橙色
-            case "processing" -> new StatusConfig("处理中", Color.rgb(245, 166, 35), true);     // 橙色
-            case "ready" -> new StatusConfig("语音就绪", Color.rgb(46, 204, 113), false);       // 绿色
-            case "starting" -> new StatusConfig("启动中", Color.rgb(245, 166, 35), true);       // 橙色
-            default -> new StatusConfig(message != null ? message : "空闲", Color.rgb(167, 175, 186), false); // 灰色
+            case "recording" -> new StatusConfig(localize("语音输入中"), Color.rgb(231, 76, 60), true);   // 红色
+            case "recognizing" -> new StatusConfig(localize("识别中"), Color.rgb(245, 166, 35), true);     // 橙色
+            case "processing" -> new StatusConfig(localize("处理中"), Color.rgb(245, 166, 35), true);     // 橙色
+            case "ready" -> new StatusConfig(localize("语音就绪"), Color.rgb(46, 204, 113), false);       // 绿色
+            case "starting" -> new StatusConfig(localize("启动中"), Color.rgb(245, 166, 35), true);       // 橙色
+            default -> new StatusConfig(message != null ? message : localize("空闲"), Color.rgb(167, 175, 186), false); // 灰色
         };
     }
     

@@ -1,0 +1,155 @@
+package com.example.ahakey.firmware;
+
+import org.junit.jupiter.api.Test;
+
+import java.time.Duration;
+import java.util.Map;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class WchIspResultParserTest {
+    private static final UUID ID = UUID.randomUUID();
+
+    @Test
+    void uidRequiresARealDeviceUidLine() {
+        var result = WchIspResultParser.parseUid(raw(0, false,
+            "Device UID:23-DF-93-5A-04-DC-BA-15", ""));
+        assertTrue(result.success());
+        assertEquals("23-DF-93-5A-04-DC-BA-15", result.deviceUid());
+    }
+
+    @Test
+    void exitZeroWithoutUidFailsClosed() {
+        var result = WchIspResultParser.parseUid(raw(0, false, "Finished", ""));
+        assertFalse(result.success());
+        assertEquals(FirmwareUpdateError.UID_QUERY_FAILED, result.error());
+    }
+
+    @Test
+    void exit100IsDistinctFromPnpPresence() {
+        var result = WchIspResultParser.parseUid(raw(100, false, "", ""));
+        assertEquals(FirmwareUpdateError.UID_EXIT_100, result.error());
+    }
+
+    @Test
+    void flashRequiresFinishedCodeZeroAndSucceed() {
+        var success = WchIspResultParser.parseFlash(raw(0, false,
+            "{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}", ""));
+        assertTrue(success.success());
+
+        var progressOnly = WchIspResultParser.parseFlash(raw(0, false,
+            "{\"Status\":\"Programming\",\"Progress\":100%}", ""));
+        assertFalse(progressOnly.success());
+        assertEquals(FirmwareUpdateError.FLASH_FAILED, progressOnly.error());
+    }
+
+    @Test
+    void plainTextFinishedCodeZeroSucceedIsAccepted() {
+        var result = WchIspResultParser.parseFlash(raw(0, false,
+            "Finished\nCode 0\nMessage Succeed", ""));
+
+        assertTrue(result.success());
+        assertEquals(0, result.vendorCode());
+    }
+
+    @Test
+    void explicitFinishedCodeZeroSucceedOverridesNonZeroProcessExit() {
+        var result = WchIspResultParser.parseFlash(raw(100, false,
+            "{\"Device\":\"CH582\",\"Status\":\"Finished\","
+                + "\"Code\":0,\"Message\":\"Succeed\"}", "", false,
+            "PROCESS_EXIT"));
+
+        assertTrue(result.success());
+        assertNull(result.error());
+        assertEquals(0, result.vendorCode());
+        assertTrue(result.detail().contains("明确终态"));
+    }
+
+    @Test
+    void cleanNormalExitWithoutCompleteTerminalResultFailsClosed() {
+        var result = WchIspResultParser.parseFlash(raw(0, false,
+            "", "", false, "PROCESS_EXIT"));
+
+        assertFalse(result.success());
+        assertEquals(FirmwareUpdateError.FLASH_FAILED, result.error());
+    }
+
+    @Test
+    void zeroExitWithUnknownLifecycleEvidenceFailsClosed() {
+        var result = WchIspResultParser.parseFlash(raw(0, false,
+            "", "", false, "UNKNOWN"));
+
+        assertFalse(result.success());
+        assertEquals(FirmwareUpdateError.FLASH_FAILED, result.error());
+    }
+
+    @Test
+    void explicitFailureCannotBeOverriddenByZeroExit() {
+        var result = WchIspResultParser.parseFlash(raw(0, false,
+            "Error: device rejected request", "", false, "PROCESS_EXIT"));
+
+        assertFalse(result.success());
+        assertEquals(FirmwareUpdateError.FLASH_FAILED, result.error());
+    }
+
+    @Test
+    void timeoutAndCancellationAreStructured() {
+        var timeout = WchIspResultParser.parseFlash(raw(124, true, "", ""));
+        assertEquals(FirmwareUpdateError.FLASH_TERMINAL_RESULT_TIMEOUT, timeout.error());
+        var cancelled = WchIspResultParser.parseUid(raw(1, false, "", "", true));
+        assertEquals(FirmwareUpdateError.CANCELLED, cancelled.error());
+        var uacCancelled = WchIspResultParser.parseFlash(raw(1223, false, "", "", true,
+            "UAC_CANCELLED"));
+        assertEquals(FirmwareUpdateError.UAC_CANCELLED, uacCancelled.error());
+    }
+
+    @Test
+    void emptyStreamsCanSucceedOrFailFromConsoleBuffer() {
+        var success = new WchIspRunner.WchIspProcessResult(ID, true, 42, 0, false,
+            false, "", "",
+            "{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}",
+            Duration.ZERO, true, Map.of(), "COMPLETED");
+        var failure = new WchIspRunner.WchIspProcessResult(ID, true, 42, 7, false,
+            false, "", "", "{\"Status\":\"Fail\",\"Code\":7}",
+            Duration.ZERO, true, Map.of(), "PROCESS_EXIT");
+
+        assertTrue(WchIspResultParser.parseFlash(success).success());
+        assertFalse(WchIspResultParser.parseFlash(failure).success());
+        assertEquals(7, WchIspResultParser.parseFlash(failure).vendorCode());
+    }
+
+    @Test
+    void timeoutOutputUidCannotOverrideLifecycleFailure() {
+        var timeout = WchIspResultParser.parseUid(raw(0, true,
+            "Device UID:23-DF-93-5A-04-DC-BA-15", ""));
+        assertFalse(timeout.success());
+        assertEquals(FirmwareUpdateError.PROCESS_TIMEOUT, timeout.error());
+    }
+
+    @Test
+    void incompleteElevatedOwnershipIsStructured() {
+        var cancelled = WchIspResultParser.parseFlash(raw(1, false, "", "", true,
+            "UAC_CANCELLED/PROCESS_OWNERSHIP_INCOMPLETE"));
+        assertEquals(FirmwareUpdateError.PROCESS_OWNERSHIP_INCOMPLETE, cancelled.error());
+    }
+
+    private static WchIspRunner.WchIspProcessResult raw(int exit, boolean timedOut,
+                                                          String stdout, String stderr) {
+        return raw(exit, timedOut, stdout, stderr, false);
+    }
+
+    private static WchIspRunner.WchIspProcessResult raw(int exit, boolean timedOut,
+                                                          String stdout, String stderr,
+                                                          boolean cancelled) {
+        return raw(exit, timedOut, stdout, stderr, cancelled, "");
+    }
+
+    private static WchIspRunner.WchIspProcessResult raw(int exit, boolean timedOut,
+                                                          String stdout, String stderr,
+                                                          boolean cancelled,
+                                                          String terminationReason) {
+        return new WchIspRunner.WchIspProcessResult(ID, true, 42, exit, timedOut,
+            cancelled, stdout, stderr, stdout, Duration.ZERO, false, Map.of(), terminationReason);
+    }
+}
