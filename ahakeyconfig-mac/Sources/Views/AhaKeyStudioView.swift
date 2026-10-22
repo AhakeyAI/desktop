@@ -181,11 +181,12 @@ struct AhaKeyStudioView: View {
         .onChange(of: voiceConfiguration) { applied in
             voiceRelay.updateRoutes(from: applied.routeDraft)
         }
-        // 键盘物理档位变化（BLE 查询/通知上报）→ 自动切到对应 Mode 标签，
-        // 这样 LCD 预览、快捷键草稿、发出去的 updateState 三者一致。
+        // Live mode updates keep voice/status routing current, but must not
+        // replace the user's component editing context after a BLE handoff.
         .onChange(of: bleManager.workModeForDisplay) { newValue in
             guard let newValue, let slot = AhaKeyModeSlot(rawValue: newValue) else { return }
-            if slot != selectedMode, inlineKeyTarget == nil { selectedMode = slot }
+            selectedMode = StudioModeSelection.followingDevice(current: selectedMode, reportedMode: slot.rawValue,
+                isEditing: isEditingInspector, hasFixedKeyTarget: inlineKeyTarget != nil)
             // Reconnection can make an already-read Agent cache live without
             // changing its stored value; update the router on that transition.
             if !bleManager.isConnected {
