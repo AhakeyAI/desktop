@@ -1,0 +1,996 @@
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <data name="AppTitle" xml:space="preserve">
+    <value>AhaKey Studio</value>
+  </data>
+  <data name="Home" xml:space="preserve">
+    <value>Profiles</value>
+  </data>
+  <data name="Keymap" xml:space="preserve">
+    <value>Keymap</value>
+  </data>
+  <data name="Display" xml:space="preserve">
+    <value>Display &amp; Animations</value>
+  </data>
+  <data name="Lighting" xml:space="preserve">
+    <value>Lighting</value>
+  </data>
+  <data name="Integrations" xml:space="preserve">
+    <value>Integrations</value>
+  </data>
+  <data name="Device" xml:space="preserve">
+    <value>Device &amp; Firmware</value>
+  </data>
+  <data name="Diagnostics" xml:space="preserve">
+    <value>Diagnostics</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="ChooseProfile" xml:space="preserve">
+    <value>Choose a workflow</value>
+  </data>
+  <data name="ProfileIntro" xml:space="preserve">
+    <value>Keys, display and lighting, organized by workflow.</value>
+  </data>
+  <data name="FirstRun" xml:space="preserve">
+    <value>Select a profile to get started. You can switch at any time.</value>
+  </data>
+  <data name="Claude" xml:space="preserve">
+    <value>Claude</value>
+  </data>
+  <data name="Cursor" xml:space="preserve">
+    <value>Cursor</value>
+  </data>
+  <data name="Codex" xml:space="preserve">
+    <value>Codex</value>
+  </data>
+  <data name="Custom" xml:space="preserve">
+    <value>Custom</value>
+  </data>
+  <data name="ClaudeDescription" xml:space="preserve">
+    <value>A dedicated workspace for Claude.</value>
+  </data>
+  <data name="CursorDescription" xml:space="preserve">
+    <value>Keep your Cursor workflow close at hand.</value>
+  </data>
+  <data name="CodexDescription" xml:space="preserve">
+    <value>Your coding workflow, ready to shape.</value>
+  </data>
+  <data name="CustomDescription" xml:space="preserve">
+    <value>Make room for another app or workflow.</value>
+  </data>
+  <data name="Selected" xml:space="preserve">
+    <value>Selected</value>
+  </data>
+  <data name="Select" xml:space="preserve">
+    <value>Select profile</value>
+  </data>
+  <data name="CurrentProfile" xml:space="preserve">
+    <value>Current profile</value>
+  </data>
+  <data name="NoProfile" xml:space="preserve">
+    <value>No profile selected</value>
+  </data>
+  <data name="ProfileSummary" xml:space="preserve">
+    <value>Profile summary</value>
+  </data>
+  <data name="SummaryHint" xml:space="preserve">
+    <value>Local selection. Switching profiles does not write to a physical device.</value>
+  </data>
+  <data name="RenameCustom" xml:space="preserve">
+    <value>Custom profile name</value>
+  </data>
+  <data name="Rename" xml:space="preserve">
+    <value>Rename locally</value>
+  </data>
+  <data name="NameInvalid" xml:space="preserve">
+    <value>Enter a name between 1 and 48 characters.</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="Theme" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="System" xml:space="preserve">
+    <value>System</value>
+  </data>
+  <data name="English" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="Russian" xml:space="preserve">
+    <value>Русский</value>
+  </data>
+  <data name="Chinese" xml:space="preserve">
+    <value>简体中文</value>
+  </data>
+  <data name="Light" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="Dark" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="Backend" xml:space="preserve">
+    <value>Developer device backend</value>
+  </data>
+  <data name="Mock" xml:space="preserve">
+    <value>Mock device · Simulation</value>
+  </data>
+  <data name="Real" xml:space="preserve">
+    <value>Real AhaKey</value>
+  </data>
+  <data name="UnavailablePhase1" xml:space="preserve">
+    <value>Unavailable in Phase 1</value>
+  </data>
+  <data name="SettingsHint" xml:space="preserve">
+    <value>Changes apply immediately and are stored only for AhaKey Studio.</value>
+  </data>
+  <data name="Simulation" xml:space="preserve">
+    <value>Simulation</value>
+  </data>
+  <data name="SimulationNotice" xml:space="preserve">
+    <value>Simulation only. No physical device is connected or modified.</value>
+  </data>
+  <data name="Connect" xml:space="preserve">
+    <value>Connect mock</value>
+  </data>
+  <data name="Disconnect" xml:space="preserve">
+    <value>Disconnect mock</value>
+  </data>
+  <data name="Read" xml:space="preserve">
+    <value>Read simulated state</value>
+  </data>
+  <data name="Write" xml:space="preserve">
+    <value>Write to AhaKey</value>
+  </data>
+  <data name="Synced" xml:space="preserve">
+    <value>Synced</value>
+  </data>
+  <data name="UnsavedChanges" xml:space="preserve">
+    <value>Unsaved changes</value>
+  </data>
+  <data name="Writing" xml:space="preserve">
+    <value>Writing</value>
+  </data>
+  <data name="WriteAccepted" xml:space="preserve">
+    <value>Write accepted</value>
+  </data>
+  <data name="WriteFailed" xml:space="preserve">
+    <value>Write failed</value>
+  </data>
+  <data name="Indeterminate" xml:space="preserve">
+    <value>Indeterminate</value>
+  </data>
+  <data name="Disconnected" xml:space="preserve">
+    <value>Disconnected</value>
+  </data>
+  <data name="Connecting" xml:space="preserve">
+    <value>Connecting</value>
+  </data>
+  <data name="Connected" xml:space="preserve">
+    <value>Connected</value>
+  </data>
+  <data name="ReadingConfiguration" xml:space="preserve">
+    <value>Reading configuration</value>
+  </data>
+  <data name="WritingConfiguration" xml:space="preserve">
+    <value>Writing configuration</value>
+  </data>
+  <data name="Error" xml:space="preserve">
+    <value>Connection needs recovery</value>
+  </data>
+  <data name="Busy" xml:space="preserve">
+    <value>Device busy</value>
+  </data>
+  <data name="DeviceName" xml:space="preserve">
+    <value>AhaKey AE1E</value>
+  </data>
+  <data name="BatteryUnknown" xml:space="preserve">
+    <value>Battery unavailable</value>
+  </data>
+  <data name="FuturePhase" xml:space="preserve">
+    <value>Foundation preview. Editing tools arrive in a later phase.</value>
+  </data>
+  <data name="KeymapHint" xml:space="preserve">
+    <value>K1 retains its F18 / voice role. Normal legacy writes configure K2–K4. Host actions require later capability evidence.</value>
+  </data>
+  <data name="KeySummary" xml:space="preserve">
+    <value>4 keys · capability-aware actions</value>
+  </data>
+  <data name="DisplaySummary" xml:space="preserve">
+    <value>160 × 80 · four states</value>
+  </data>
+  <data name="LightingSummary" xml:space="preserve">
+    <value>9 event mappings · global brightness</value>
+  </data>
+  <data name="K1Summary" xml:space="preserve"><value>K1    F18 / voice — editing locked</value></data>
+  <data name="K234Summary" xml:space="preserve">
+    <value>K2–K4    Mock configuration available</value>
+  </data>
+  <data name="DisplayHint" xml:space="preserve">
+    <value>Preview display animations locally. Physical upload is unavailable, including over USB.</value>
+  </data>
+  <data name="DisplayDimensions" xml:space="preserve">
+    <value>160 × 80 pixels</value>
+  </data>
+  <data name="Default" xml:space="preserve">
+    <value>Default</value>
+  </data>
+  <data name="Working" xml:space="preserve">
+    <value>Working</value>
+  </data>
+  <data name="WaitingError" xml:space="preserve">
+    <value>Waiting / Error</value>
+  </data>
+  <data name="Completed" xml:space="preserve">
+    <value>Completed</value>
+  </data>
+  <data name="FrameCount" xml:space="preserve">
+    <value>Frames</value>
+  </data>
+  <data name="SourceFile" xml:space="preserve">
+    <value>Source file</value>
+  </data>
+  <data name="NoAsset" xml:space="preserve">
+    <value>No asset selected</value>
+  </data>
+  <data name="Duration" xml:space="preserve">
+    <value>Animation duration</value>
+  </data>
+  <data name="Optimization" xml:space="preserve">
+    <value>Optimization</value>
+  </data>
+  <data name="NotRequired" xml:space="preserve">
+    <value>Not required</value>
+  </data>
+  <data name="Pending" xml:space="preserve">
+    <value>Pending</value>
+  </data>
+  <data name="Optimized" xml:space="preserve">
+    <value>Optimized</value>
+  </data>
+  <data name="GlobalBrightness" xml:space="preserve">
+    <value>Global brightness</value>
+  </data>
+  <data name="BrightnessHint" xml:space="preserve">
+    <value>One value shared by all profiles in the local Studio configuration.</value>
+  </data>
+  <data name="IntegrationsHint" xml:space="preserve">
+    <value>Profile associations are local metadata. Assistant detection, hooks and voice are unavailable in Phase 1.</value>
+  </data>
+  <data name="DeviceHint" xml:space="preserve">
+    <value>Real Bluetooth, USB, firmware and reset operations are unavailable in Phase 1.</value>
+  </data>
+  <data name="DiagnosticsHint" xml:space="preserve">
+    <value>Exercise deterministic failures against the mock. Reconnect after a failed operation to read its state again.</value>
+  </data>
+  <data name="FailureScenario" xml:space="preserve">
+    <value>Next mock failure</value>
+  </data>
+  <data name="None" xml:space="preserve">
+    <value>No failure</value>
+  </data>
+  <data name="ConnectionFailure" xml:space="preserve">
+    <value>Connection failure</value>
+  </data>
+  <data name="Timeout" xml:space="preserve">
+    <value>Timeout</value>
+  </data>
+  <data name="WriteFailure" xml:space="preserve">
+    <value>Write failure</value>
+  </data>
+  <data name="InvalidResponse" xml:space="preserve">
+    <value>Invalid response</value>
+  </data>
+  <data name="DeviceBusy" xml:space="preserve">
+    <value>Device busy</value>
+  </data>
+  <data name="DisconnectDuringWrite" xml:space="preserve">
+    <value>Disconnect during write</value>
+  </data>
+  <data name="ArmFailure" xml:space="preserve">
+    <value>Arm next failure</value>
+  </data>
+  <data name="FailureArmed" xml:space="preserve">
+    <value>Scenario armed. Run a matching mock operation.</value>
+  </data>
+  <data name="Confirmation" xml:space="preserve">
+    <value>Simulated confirmation switch</value>
+  </data>
+  <data name="Manual" xml:space="preserve">
+    <value>Manual</value>
+  </data>
+  <data name="Auto" xml:space="preserve">
+    <value>Auto</value>
+  </data>
+  <data name="SwitchHint" xml:space="preserve">
+    <value>Simulation is never evidence for assistant approval.</value>
+  </data>
+  <data name="Telemetry" xml:space="preserve">
+    <value>Simulated battery</value>
+  </data>
+  <data name="Evidence" xml:space="preserve">
+    <value>Synchronization evidence</value>
+  </data>
+  <data name="ReadEvidence" xml:space="preserve">
+    <value>Last device-read snapshot</value>
+  </data>
+  <data name="WriteEvidence" xml:space="preserve">
+    <value>Last accepted write snapshot</value>
+  </data>
+  <data name="NoEvidence" xml:space="preserve">
+    <value>No evidence yet</value>
+  </data>
+  <data name="MockEvidence" xml:space="preserve">
+    <value>Simulated evidence only</value>
+  </data>
+  <data name="Logs" xml:space="preserve">
+    <value>Session log</value>
+  </data>
+  <data name="ClearLogsHint" xml:space="preserve">
+    <value>Technical event IDs below are not localized.</value>
+  </data>
+  <data name="Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="About" xml:space="preserve">
+    <value>About AhaKey Studio</value>
+  </data>
+  <data name="SettingsLoadError" xml:space="preserve">
+    <value>Settings could not be read. The original file is preserved; this session cannot overwrite it.</value>
+  </data>
+  <data name="SettingsSaveError" xml:space="preserve">
+    <value>Settings could not be saved. Check write access to the AhaKey Studio settings folder.</value>
+  </data>
+  <data name="ErrorConnectionFailure" xml:space="preserve">
+    <value>Mock connection failed. Try connecting again.</value>
+  </data>
+  <data name="ErrorTimeout" xml:space="preserve">
+    <value>Mock timeout. Result is uncertain; reconnect and read before retrying.</value>
+  </data>
+  <data name="ErrorWriteFailure" xml:space="preserve">
+    <value>Mock rejected the write. Your draft is retained.</value>
+  </data>
+  <data name="ErrorInvalidResponse" xml:space="preserve">
+    <value>Mock returned an invalid response. Reconnect to recover.</value>
+  </data>
+  <data name="ErrorDeviceBusy" xml:space="preserve">
+    <value>Mock is busy. Wait for the current operation.</value>
+  </data>
+  <data name="ErrorDisconnectDuringWrite" xml:space="preserve">
+    <value>Mock disconnected during writing. The result is uncertain.</value>
+  </data>
+  <data name="ErrorCancelled" xml:space="preserve">
+    <value>Operation cancelled. A started write may have an uncertain result.</value>
+  </data>
+  <data name="ErrorNotReady" xml:space="preserve">
+    <value>Connect the mock before reading or writing.</value>
+  </data>
+  <data name="LightingHint">
+    <value>Lighting mappings belong to a profile; brightness belongs to the device.</value>
+  </data>
+  <data name="RealUnavailableHint">
+    <value>Real device is unavailable in Phase 1.</value>
+  </data>
+  <data name="Active">
+    <value>Active</value>
+  </data>
+  <data name="CardSummary">
+    <value>4 keys · 4 display states</value>
+  </data>
+  <data name="SummaryKeys">
+    <value>Keys</value>
+  </data>
+  <data name="SummaryDisplay">
+    <value>Display</value>
+  </data>
+  <data name="SummaryLighting">
+    <value>Lighting</value>
+  </data>
+  <data name="SummaryIntegration">
+    <value>Integration</value>
+  </data>
+  <data name="KeySlots">
+    <value>4 key slots</value>
+  </data>
+  <data name="DisplayStates">
+    <value>4 states</value>
+  </data>
+  <data name="LightingEvents">
+    <value>9 events</value>
+  </data>
+  <data name="NoIntegration">
+    <value>Not assigned</value>
+  </data>
+  <data name="Configuration">
+    <value>Configuration</value>
+  </data>
+  <data name="Battery">
+    <value>Battery</value>
+  </data>
+  <data name="DevicePreviewTitle">
+    <value>Device overview</value>
+  </data>
+  <data name="PreviewOnly">
+    <value>Visual reference · controls are not interactive yet</value>
+  </data>
+  <data name="CurrentHardware">
+    <value>Current AhaKey hardware</value>
+  </data>
+  <data name="Key1">
+    <value>K1</value>
+  </data>
+  <data name="Key2">
+    <value>K2</value>
+  </data>
+  <data name="Key3">
+    <value>K3</value>
+  </data>
+  <data name="Key4">
+    <value>K4</value>
+  </data>
+  <data name="RgbRegion">
+    <value>RGB strip</value>
+  </data>
+  <data name="DisplayRegion">
+    <value>0.96-inch color IPS display</value>
+  </data>
+  <data name="SwitchRegion">
+    <value>Confirmation switch</value>
+  </data>
+  <data name="DisplayResolution">
+    <value>160 × 80</value>
+  </data>
+  <data name="NoSource">
+    <value>No source</value>
+  </data>
+  <data name="DisplayPreviewOnly">
+    <value>Preview only · physical upload unavailable</value>
+  </data>
+  <data name="KeymapEditorHint" xml:space="preserve"><value>Select a key on your AhaKey, then edit its shortcut.</value></data>
+  <data name="SelectPhysicalKey" xml:space="preserve"><value>Select a physical key</value></data>
+  <data name="SelectKeyHint" xml:space="preserve"><value>Select K1–K4 · use Tab and arrow keys to navigate.</value></data>
+  <data name="SimulatorConfiguration" xml:space="preserve"><value>Simulator configuration · never read from a physical keyboard.</value></data>
+  <data name="VoiceRole" xml:space="preserve"><value>Voice / F18</value></data>
+  <data name="KeyboardShortcut" xml:space="preserve"><value>Keyboard shortcut</value></data>
+  <data name="K1Restriction" xml:space="preserve"><value>Firmware-managed Voice / F18. Configure its PC action in Settings; ordinary remapping is unavailable.</value></data>
+  <data name="LocalName" xml:space="preserve"><value>Local name</value></data>
+  <data name="LocalNameHint" xml:space="preserve"><value>Studio only · Unicode · saved locally</value></data>
+  <data name="DeviceLabel" xml:space="preserve"><value>Device label</value></data>
+  <data name="Ascii20" xml:space="preserve"><value>ASCII · max 20 characters</value></data>
+  <data name="DeviceLabelInvalid" xml:space="preserve"><value>Use up to 20 printable ASCII characters. Nothing is truncated or replaced.</value></data>
+  <data name="RecordShortcut" xml:space="preserve"><value>Record shortcut</value></data>
+  <data name="Clear" xml:space="preserve"><value>Clear</value></data>
+  <data name="ClearMockHint" xml:space="preserve"><value>Clear in simulator only; disabled-action firmware semantics are unconfirmed.</value></data>
+  <data name="PressShortcut" xml:space="preserve"><value>Press the desired shortcut…</value></data>
+  <data name="CancelCapture" xml:space="preserve"><value>Cancel recording</value></data>
+  <data name="CaptureHint" xml:space="preserve"><value>Capture works in this focused window. Escape is a key; use Cancel recording to stop. Windows may intercept reserved combinations. Clear affects the simulator only.</value></data>
+  <data name="TestAction" xml:space="preserve"><value>Test action</value></data>
+  <data name="ResetDraft" xml:space="preserve"><value>Reset key draft</value></data>
+  <data name="Advanced" xml:space="preserve"><value>Advanced</value></data>
+  <data name="HardwareProfileId" xml:space="preserve"><value>Hardware profile ID</value></data>
+  <data name="PhysicalKeyIndex" xml:space="preserve"><value>Physical key / index</value></data>
+  <data name="ActionType" xml:space="preserve"><value>Action type</value></data>
+  <data name="EncodedPreview" xml:space="preserve"><value>Encoded preview</value></data>
+  <data name="K1Evidence" xml:space="preserve"><value>Windows source encodes key 0. The approved F19/F18 trial received ACKs, but only F18 was observed; this does not prove K1 is permanently fixed.</value></data>
+  <data name="EncodingEvidence" xml:space="preserve"><value>Source-derived Windows normal-save encoding; not a physical capture. Read-only.</value></data>
+  <data name="UnsupportedActions" xml:space="preserve"><value>Macros and integrations have no editor here. Disabled action is simulator-only. display, RGB, and the switch are outside this phase.</value></data>
+  <data name="WouldSend" xml:space="preserve"><value>Would send:</value></data>
+  <data name="NoShortcut" xml:space="preserve"><value>No shortcut · simulator only</value></data>
+  <data name="FutureAction" xml:space="preserve"><value>Action unavailable in this editor</value></data>
+  <data name="InvalidShortcut" xml:space="preserve"><value>Unsupported key. Try another shortcut or cancel.</value></data>
+  <data name="WrittenSimulator" xml:space="preserve"><value>Configuration written to simulator and verified.</value></data>
+  <data name="WrittenOlderDraft" xml:space="preserve"><value>Earlier draft written to simulator. Newer edits are still unsaved.</value></data>
+  <data name="InvalidLabelElsewhere" xml:space="preserve"><value>A device label is invalid. Correct it in the edited profile before writing.</value></data>
+  <data name="BleReadOnlyMode" xml:space="preserve"><value>Real device · read only</value></data>
+  <data name="BleLocalDraft" xml:space="preserve"><value>Local Studio configuration</value></data>
+  <data name="BleDraftOnly" xml:space="preserve"><value>Use Keymap to apply keys and Display to upload an image. Your local settings stay in Studio.</value></data>
+  <data name="BleReadOnly" xml:space="preserve"><value>Connection status is separate from saved key settings.</value></data>
+  <data name="BleStartupPolicy" xml:space="preserve"><value>Studio reconnects only to your selected AhaKey, with at most two attempts. Disconnect stops reconnecting; Forget removes the saved device.</value></data>
+  <data name="BleDeviceHint" xml:space="preserve"><value>Connect AhaKey and view its current status.</value></data>
+  <data name="BleChoose" xml:space="preserve"><value>Selected Bluetooth device</value></data>
+  <data name="BleFind" xml:space="preserve"><value>Find devices</value></data>
+  <data name="BleConnect" xml:space="preserve"><value>Connect</value></data>
+  <data name="BleDisconnect" xml:space="preserve"><value>Disconnect / cancel</value></data>
+  <data name="BleReconnect" xml:space="preserve"><value>Reconnect</value></data>
+  <data name="BleRefresh" xml:space="preserve"><value>Refresh status</value></data>
+  <data name="BleConnection" xml:space="preserve"><value>Connection</value></data>
+  <data name="BleFirmware" xml:space="preserve"><value>Reported firmware</value></data>
+  <data name="BleProtocol" xml:space="preserve"><value>Protocol</value></data>
+  <data name="BleModel" xml:space="preserve"><value>Hardware model</value></data>
+  <data name="BleHardware" xml:space="preserve"><value>Hardware revision</value></data>
+  <data name="BleContract" xml:space="preserve"><value>Protocol contract</value></data>
+  <data name="BleSupported" xml:space="preserve"><value>Recognized · read only</value></data>
+  <data name="BleUnsupported" xml:space="preserve"><value>Unverified contract</value></data>
+  <data name="BlePhysicalProfile" xml:space="preserve"><value>Hardware profile byte (00)</value></data>
+  <data name="BleDiagnostics" xml:space="preserve"><value>Connection diagnostics</value></data>
+  <data name="BleDiagnosticsHint" xml:space="preserve"><value>Read-only connection evidence for the selected transport. Copied diagnostics redact device identifiers.</value></data>
+  <data name="BleCopy" xml:space="preserve"><value>Copy diagnostics</value></data>
+  <data name="BleCopied" xml:space="preserve"><value>Copied · identities hidden</value></data>
+  <data name="BleUnknown" xml:space="preserve"><value>Unknown</value></data>
+  <data name="BleUnavailable" xml:space="preserve"><value>Unavailable</value></data>
+  <data name="BleLive" xml:space="preserve"><value>Current session · last sample</value></data>
+  <data name="BleStale" xml:space="preserve"><value>Stale telemetry</value></data>
+  <data name="BleYes" xml:space="preserve"><value>Yes</value></data>
+  <data name="BleNo" xml:space="preserve"><value>No</value></data>
+  <data name="BleNone" xml:space="preserve"><value>None recorded</value></data>
+  <data name="BleAdapter" xml:space="preserve"><value>Windows adapter</value></data>
+  <data name="BleAdapterState" xml:space="preserve"><value>Adapter state</value></data>
+  <data name="BleAdapterOn" xml:space="preserve"><value>On</value></data>
+  <data name="BleAdapterOff" xml:space="preserve"><value>Off</value></data>
+  <data name="BleAdapterDisabled" xml:space="preserve"><value>Disabled</value></data>
+  <data name="BleAdapterUnknown" xml:space="preserve"><value>Unknown</value></data>
+  <data name="BleAdapterUnavailable" xml:space="preserve"><value>Bluetooth adapter unavailable. Enable Bluetooth, then find devices again.</value></data>
+  <data name="BleDeviceId" xml:space="preserve"><value>Windows device ID</value></data>
+  <data name="BleAddress" xml:space="preserve"><value>Bluetooth address</value></data>
+  <data name="BleNative" xml:space="preserve"><value>Native link</value></data>
+  <data name="BleSubscribed" xml:space="preserve"><value>Notifications subscribed</value></data>
+  <data name="BleSession" xml:space="preserve"><value>Session ID</value></data>
+  <data name="BleWindowsRssi" xml:space="preserve"><value>Windows RSSI</value></data>
+  <data name="BleFirmwareSignal" xml:space="preserve"><value>Firmware signal (units unverified)</value></data>
+  <data name="BleBrightness" xml:space="preserve"><value>Reported brightness</value></data>
+  <data name="BleReadiness" xml:space="preserve"><value>Readiness flags</value></data>
+  <data name="BleBits" xml:space="preserve"><value>Capability bits</value></data>
+  <data name="BleLastQuery" xml:space="preserve"><value>Last query</value></data>
+  <data name="BleTx" xml:space="preserve"><value>Last TX logical frame</value></data>
+  <data name="BleGattResult" xml:space="preserve"><value>GATT write result</value></data>
+  <data name="BleRx" xml:space="preserve"><value>Last RX frame</value></data>
+  <data name="BleTiming" xml:space="preserve"><value>Query timing</value></data>
+  <data name="BleReconnectAttempt" xml:space="preserve"><value>Reconnect attempt (max 2)</value></data>
+  <data name="BleLastError" xml:space="preserve"><value>Last connection error</value></data>
+  <data name="BleTransport" xml:space="preserve"><value>Transport details</value></data>
+  <data name="BleCatalog" xml:space="preserve"><value>Discovered GATT UUIDs</value></data>
+  <data name="UsbCatalog" xml:space="preserve"><value>Discovered HID interfaces</value></data>
+  <data name="BleHistory" xml:space="preserve"><value>Session history · last 64 events</value></data>
+  <data name="BleStageDisconnected" xml:space="preserve"><value>Disconnected</value></data>
+  <data name="BleStageDiscovering" xml:space="preserve"><value>Finding devices…</value></data>
+  <data name="BleStageAcquiringLink" xml:space="preserve"><value>Connecting…</value></data>
+  <data name="BleStageDiscoveringGatt" xml:space="preserve"><value>Discovering GATT…</value></data>
+  <data name="BleStageSubscribing" xml:space="preserve"><value>Subscribing notifications…</value></data>
+  <data name="BleStageReadingStatus" xml:space="preserve"><value>Reading physical status…</value></data>
+  <data name="BleStageReadingCapabilities" xml:space="preserve"><value>Reading capabilities…</value></data>
+  <data name="BleStageReady" xml:space="preserve"><value>Connected · queries verified</value></data>
+  <data name="BleStageReconnecting" xml:space="preserve"><value>Reconnecting…</value></data>
+  <data name="BleStageDisconnecting" xml:space="preserve"><value>Disconnecting…</value></data>
+  <data name="BleStageError" xml:space="preserve"><value>Connection error</value></data>
+  <data name="BleGattFailure" xml:space="preserve"><value>Windows GATT operation failed. See diagnostics, then reconnect.</value></data>
+  <data name="BleUnsupportedGatt" xml:space="preserve"><value>Required GATT service or characteristic is missing. Choose a compatible device.</value></data>
+  <data name="BleLinkLost" xml:space="preserve"><value>Bluetooth link lost. Power on the device and reconnect.</value></data>
+  <data name="BleQueryTimeout" xml:space="preserve"><value>No query response. The session was closed; reconnect to retry.</value></data>
+  <data name="BleSelectDevice" xml:space="preserve"><value>Find devices and select one before connecting.</value></data>
+  <data name="BleNotReady" xml:space="preserve"><value>BLE is not ready. Connect from Device &amp; Firmware.</value></data>
+  <data name="BleNativeFailure" xml:space="preserve"><value>Windows Bluetooth operation failed. See diagnostics and reconnect.</value></data>
+  <data name="BleAcquireFailure" xml:space="preserve"><value>Windows could not open the device. Check Bluetooth and reconnect.</value></data>
+  <data name="BleInvalidResponse" xml:space="preserve"><value>Device response format is unsupported. The session was closed.</value></data>
+  <data name="BleCopyFailed" xml:space="preserve"><value>Clipboard is busy. Try copying again.</value></data>
+<data name="BleIdentityHidden" xml:space="preserve"><value>Hidden for sharing</value></data>
+<data name="BleCaptureHint" xml:space="preserve"><value>Capture works in this focused window. Escape is a key; use Cancel recording to stop. Windows may intercept reserved combinations.</value></data>
+<data name="BleUnsetDraft" xml:space="preserve"><value>No shortcut in this local draft</value></data>
+  <data name="BleLegacyIncomplete" xml:space="preserve"><value>Legacy / incomplete</value></data>
+  <data name="BleCapabilities" xml:space="preserve"><value>Capabilities</value></data>
+  <data name="BleNotReported" xml:space="preserve"><value>Not reported</value></data>
+  <data name="AlphaConnected" xml:space="preserve"><value>Connected via Bluetooth</value></data>
+  <data name="AlphaUnavailable" xml:space="preserve"><value>Device unavailable</value></data>
+  <data name="AlphaBluetoothUnavailable" xml:space="preserve"><value>Bluetooth unavailable</value></data>
+  <data name="AlphaWriteUnavailable" xml:space="preserve"><value>Full-profile write unavailable</value></data>
+  <data name="AlphaDeveloper" xml:space="preserve"><value>Developer mode</value></data>
+  <data name="AlphaConnect" xml:space="preserve"><value>Connect AhaKey</value></data>
+  <data name="AlphaConnectHint" xml:space="preserve"><value>Keep working on local profiles while Studio connects to your keyboard.</value></data>
+  <data name="AlphaPickerHint" xml:space="preserve"><value>Select your AhaKey, then Connect. Discovery can include a saved device that is currently offline.</value></data>
+  <data name="AlphaForget" xml:space="preserve"><value>Forget device</value></data>
+  <data name="AlphaConfiguration" xml:space="preserve"><value>Configuration</value></data>
+  <data name="AlphaNoReadback" xml:space="preserve"><value>Readback unavailable</value></data>
+  <data name="AlphaFirmwareUpdate" xml:space="preserve"><value>Firmware update</value></data>
+  <data name="AlphaNoUpdate" xml:space="preserve"><value>No verified compatible update</value></data>
+  <data name="AlphaNoUpdateHint" xml:space="preserve"><value>No verified compatible firmware update is available.</value></data>
+  <data name="AlphaLastTelemetry" xml:space="preserve"><value>Last telemetry</value></data>
+  <data name="AlphaCompatibility" xml:space="preserve"><value>Compatibility state</value></data>
+  <data name="AlphaGattReady" xml:space="preserve"><value>GATT ready</value></data>
+  <data name="DraftLoadError" xml:space="preserve"><value>The saved local draft could not be loaded. The original file is preserved.</value></data>
+  <data name="DraftSaveError" xml:space="preserve"><value>The local draft could not be saved. Check access to your Studio settings folder.</value></data>
+<data name="AlphaDeviceName" xml:space="preserve"><value>Device</value></data>
+<data name="AlphaTransport" xml:space="preserve"><value>Transport</value></data>
+<data name="AlphaPhysicalMode" xml:space="preserve"><value>Physical mode</value></data>
+<data name="AlphaConfirmation" xml:space="preserve"><value>Confirmation switch</value></data>
+<data name="AlphaReconnectHint" xml:space="preserve"><value>Device unavailable. Check it is on and nearby, then reconnect.</value></data>
+<data name="AlphaLastStatus" xml:space="preserve"><value>Last status query</value></data>
+  <data name="UsbDeviceName" xml:space="preserve"><value>AhaKey USB device</value></data>
+  <data name="UsbExplicitHint" xml:space="preserve"><value>USB connects only when you choose Connect. Switching transport releases the previous connection.</value></data>
+  <data name="UsbIdentified" xml:space="preserve"><value>USB interface identified. Ready to connect.</value></data>
+  <data name="UsbNotFound" xml:space="preserve"><value>No AhaKey USB interface found. Check the cable and search again.</value></data>
+  <data name="UsbAmbiguous" xml:space="preserve"><value>USB interface ambiguous. Disconnect other AhaKey USB devices and search again. See Diagnostics.</value></data>
+  <data name="UsbUnidentified" xml:space="preserve"><value>USB device found; interface could not be identified safely. See Diagnostics.</value></data>
+  <data name="UsbConnected" xml:space="preserve"><value>Connected via USB</value></data>
+  <data name="UsbReader" xml:space="preserve"><value>USB reader</value></data>
+  <data name="UsbReaderRunning" xml:space="preserve"><value>Running</value></data>
+  <data name="UsbReaderStopped" xml:space="preserve"><value>Stopped; handles released</value></data>
+  <data name="UsbCollection" xml:space="preserve"><value>HID collection / usage</value></data>
+  <data name="UsbLengths" xml:space="preserve"><value>Native report sizes (bytes)</value></data>
+  <data name="UsbReportPolicy" xml:space="preserve"><value>Report ID policy</value></data>
+  <data name="UsbReportPolicyValue" xml:space="preserve"><value>ID 00 + 64-byte payload; 65 native bytes. No fallback.</value></data>
+  <data name="UsbOutput" xml:space="preserve"><value>Last native output report</value></data>
+  <data name="UsbInput" xml:space="preserve"><value>Last native input report</value></data>
+  <data name="UsbFrame" xml:space="preserve"><value>Decoded device frame</value></data>
+  <data name="UsbWriteResult" xml:space="preserve"><value>Native write result / byte count</value></data>
+  <data name="UsbOpenFailed" xml:space="preserve"><value>Unable to open USB. Check the cable or close other device software, then reconnect.</value></data>
+  <data name="UsbNotReady" xml:space="preserve"><value>USB is not ready. Connect the device first.</value></data>
+  <data name="UsbEnumerationFailed" xml:space="preserve"><value>USB discovery failed. Search again or view Diagnostics.</value></data>
+  <data name="UsbReadFailed" xml:space="preserve"><value>Unable to read USB response. Reconnect manually.</value></data>
+  <data name="UsbWriteFailed" xml:space="preserve"><value>USB query was not fully transmitted. Session closed; reconnect manually.</value></data>
+  <data name="UsbLinkLost" xml:space="preserve"><value>USB connection lost. Check the cable and reconnect.</value></data>
+  <data name="UsbTimeout" xml:space="preserve"><value>USB response timed out. Session closed; no automatic retry.</value></data>
+  <data name="UsbReadOnly" xml:space="preserve"><value>USB supports status queries only in this build.</value></data>
+  <data name="IntegrationIntro" xml:space="preserve"><value>Connect assistant events to Studio. Physical lighting feedback is a separate, default-off option on the Lighting page.</value></data>
+  <data name="IntegrationInstalled" xml:space="preserve"><value>Installed</value></data>
+  <data name="IntegrationConfigured" xml:space="preserve"><value>Configured</value></data>
+  <data name="IntegrationEnabled" xml:space="preserve"><value>Enabled</value></data>
+  <data name="IntegrationTrusted" xml:space="preserve"><value>Trusted</value></data>
+  <data name="IntegrationCompatible" xml:space="preserve"><value>Compatible</value></data>
+  <data name="EvidenceYes" xml:space="preserve"><value>Yes</value></data>
+  <data name="EvidenceNo" xml:space="preserve"><value>No</value></data>
+  <data name="EvidenceUnknown" xml:space="preserve"><value>Unknown</value></data>
+  <data name="EvidenceNotRequired" xml:space="preserve"><value>Not required</value></data>
+  <data name="IntegrationUnknownVersion" xml:space="preserve"><value>Version not detected</value></data>
+  <data name="IntegrationActivity" xml:space="preserve"><value>Activity</value></data>
+  <data name="IntegrationLastActivity" xml:space="preserve"><value>Last activity</value></data>
+  <data name="IntegrationNoActivity" xml:space="preserve"><value>No events yet</value></data>
+  <data name="IntegrationServiceRunning" xml:space="preserve"><value>Hook service running</value></data>
+  <data name="IntegrationServiceStopped" xml:space="preserve"><value>Hook service stopped</value></data>
+  <data name="IntegrationRefresh" xml:space="preserve"><value>Refresh status</value></data>
+  <data name="IntegrationStartService" xml:space="preserve"><value>Start service</value></data>
+  <data name="IntegrationStopService" xml:space="preserve"><value>Stop service</value></data>
+  <data name="IntegrationPortCollision" xml:space="preserve"><value>Cannot start: localhost port 8765 is already in use. Close the other hook service and try again.</value></data>
+  <data name="IntegrationNoError" xml:space="preserve"><value>No errors</value></data>
+  <data name="IntegrationUnsafeConfig" xml:space="preserve"><value>Existing configuration could not be safely modified. Check its format before retrying.</value></data>
+  <data name="IntegrationKimiBlocked" xml:space="preserve"><value>Kimi is unavailable: retained Windows sources do not establish a safe configuration contract.</value></data>
+  <data name="IntegrationInspectFailed" xml:space="preserve"><value>Status could not be verified. Refresh to try again.</value></data>
+  <data name="IntegrationApplyFailed" xml:space="preserve"><value>Changes were not completed. A backup was retained if editing began. Refresh and review the configuration again.</value></data>
+  <data name="IntegrationChangesSaved" xml:space="preserve"><value>AhaKey entries updated. Backup:</value></data>
+  <data name="IntegrationBack" xml:space="preserve"><value>Close details</value></data>
+  <data name="IntegrationConfigFiles" xml:space="preserve"><value>Configuration files</value></data>
+  <data name="IntegrationLastEvent" xml:space="preserve"><value>Last event</value></data>
+  <data name="IntegrationTrustHint" xml:space="preserve"><value>Install adds AhaKey hooks, not the assistant application. Existing hooks remain intact. Codex manages hook trust and enablement in its own settings; refresh after approving there.</value></data>
+  <data name="IntegrationInstall" xml:space="preserve"><value>Install integration</value></data>
+  <data name="IntegrationConfigure" xml:space="preserve"><value>Configure</value></data>
+  <data name="IntegrationRepair" xml:space="preserve"><value>Repair</value></data>
+  <data name="IntegrationRemove" xml:space="preserve"><value>Remove AhaKey entries</value></data>
+  <data name="IntegrationReviewChanges" xml:space="preserve"><value>Review changes</value></data>
+  <data name="IntegrationPlanHint" xml:space="preserve"><value>Only the listed AhaKey scripts and hook entries will change. Unrelated settings are preserved. Original files are backed up before atomic replacement. No trust setting is changed automatically.</value></data>
+  <data name="IntegrationApply" xml:space="preserve"><value>Apply reviewed changes</value></data>
+  <data name="IntegrationOwnedScript" xml:space="preserve"><value>Create or repair the owned event client.</value></data>
+  <data name="IntegrationAddEntries" xml:space="preserve"><value>Add or repair AhaKey event entries.</value></data>
+  <data name="IntegrationRemoveEntries" xml:space="preserve"><value>Remove only exact Studio 2 event commands.</value></data>
+  <data name="IntegrationDiagnostics" xml:space="preserve"><value>Event diagnostics</value></data>
+  <data name="IntegrationMetadataOnly" xml:space="preserve"><value>Last 100 events, metadata only. Prompts, tool arguments and assistant content are not stored.</value></data>
+  <data name="IntegrationHardwareAuto" xml:space="preserve"><value>Allow hardware AUTO for this session</value></data>
+  <data name="IntegrationHardwareAutoHint" xml:space="preserve"><value>Off by default. Automatic approval requires a new status reply from the connected device with its switch in AUTO. Unavailable or stale evidence never grants approval.</value></data>
+  <data name="IntegrationPermission" xml:space="preserve"><value>Permission request</value></data>
+  <data name="IntegrationAllow" xml:space="preserve"><value>Allow</value></data>
+  <data name="IntegrationDeny" xml:space="preserve"><value>Deny</value></data>
+  <data name="IntegrationApprovalHint" xml:space="preserve"><value>Approve this event only if you recognize it in the named application. This dialog closes safely after 15 seconds. No prompt or tool arguments are available here.</value></data>
+  <data name="ActivityIdle" xml:space="preserve"><value>Idle</value></data>
+  <data name="ActivitySessionActive" xml:space="preserve"><value>Session active</value></data>
+  <data name="ActivityWorking" xml:space="preserve"><value>Working</value></data>
+  <data name="ActivityWaitingForPermission" xml:space="preserve"><value>Waiting for permission</value></data>
+  <data name="ActivityToolExecuting" xml:space="preserve"><value>Tool executing</value></data>
+  <data name="ActivityCompleted" xml:space="preserve"><value>Completed</value></data>
+  <data name="ActivityStopped" xml:space="preserve"><value>Stopped</value></data>
+  <data name="ActivityError" xml:space="preserve"><value>Needs attention</value></data>
+  <data name="EventResultreceived" xml:space="preserve"><value>Received</value></data>
+  <data name="EventResultpending" xml:space="preserve"><value>Awaiting decision</value></data>
+  <data name="EventResultallowed" xml:space="preserve"><value>Allowed</value></data>
+  <data name="EventResultdenied" xml:space="preserve"><value>Denied by user</value></data>
+  <data name="EventResultunavailable" xml:space="preserve"><value>Approval unavailable</value></data>
+  <data name="EventResulttimeout" xml:space="preserve"><value>Timed out</value></data>
+  <data name="EventResultbusy" xml:space="preserve"><value>Another approval is active</value></data>
+  <data name="EventResultcancelled" xml:space="preserve"><value>Cancelled</value></data>
+<data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
+<data name="IntegrationDetails" xml:space="preserve"><value>Details</value></data>
+<data name="IntegrationNoChanges" xml:space="preserve"><value>No changes required. The owned configuration already matches this action.</value></data>
+<data name="IntegrationEntryCount" xml:space="preserve"><value>Owned entries</value></data>
+<data name="PhysicalKeyTest" xml:space="preserve"><value>Physical Key Test</value></data>
+<data name="PhysicalPressDevice" xml:space="preserve"><value>Press the programmed key on AhaKey</value></data>
+<data name="PhysicalReadbackUnavailable" xml:space="preserve"><value>Studio remembers successful writes. The keyboard cannot return its saved configuration.</value></data>
+<data name="PhysicalExpected" xml:space="preserve"><value>Expected</value></data>
+<data name="PhysicalObserved" xml:space="preserve"><value>Observed</value></data>
+<data name="PhysicalCaptureHint" xml:space="preserve"><value>Keep this field focused; press the AhaKey key, not the PC keyboard.</value></data>
+<data name="PhysicalWaitingKey" xml:space="preserve"><value>Waiting for a physical key press…</value></data>
+<data name="PhysicalBehaviorVerified" xml:space="preserve"><value>Verified by key press</value></data>
+<data name="PhysicalMismatch" xml:space="preserve"><value>Different shortcut observed; check the active device profile.</value></data>
+  <data name="PhysicalLocalOnly" xml:space="preserve"><value>Local changes</value></data>
+  <data name="PhysicalKeyAvailable" xml:space="preserve"><value>K2–K4 can be applied to this AhaKey.</value></data>
+  <data name="PhysicalKeyGate" xml:space="preserve"><value>Connect the configured AhaKey by USB to apply keys. Other connections have not yet been verified for writing.</value></data>
+  <data name="PhysicalNoChanges" xml:space="preserve"><value>Written to device · no changes</value></data>
+  <data name="PhysicalPendingWrite" xml:space="preserve"><value>Sending</value></data>
+  <data name="PhysicalWriteAccepted" xml:space="preserve"><value>Sent to device</value></data>
+  <data name="PhysicalPreviousUnknown" xml:space="preserve"><value>Previous physical value: unknown; no backup available.</value></data>
+  <data name="PhysicalGlobalSaveWarning" xml:space="preserve"><value>04 saves firmware configuration globally. Only the selected shortcut and label are sent. Continue?</value></data>
+  <data name="PhysicalWritePreview" xml:space="preserve"><value>Review key write…</value></data>
+  <data name="PhysicalIndeterminate" xml:space="preserve"><value>Outcome uncertain. The write will not be retried automatically.</value></data>
+  <data name="PhysicalNotReported" xml:space="preserve"><value>Not reported</value></data>
+  <data name="PhysicalPreview" xml:space="preserve"><value>Preview…</value></data>
+  <data name="EffectOff" xml:space="preserve"><value>Off · 00</value></data>
+  <data name="EffectSingleMove" xml:space="preserve"><value>Single moving light · 01</value></data>
+  <data name="EffectSourceOnly" xml:space="preserve"><value>Source candidate</value></data>
+  <data name="LightingAcceptancePending" xml:space="preserve"><value>Connect the configured AhaKey by USB for lighting feedback. This connection has not yet been verified.</value></data>
+  <data name="LightingRuntimeAccepted" xml:space="preserve"><value>Lighting feedback is available on this connected AhaKey.</value></data>
+  <data name="BrightnessSafetyGate" xml:space="preserve"><value>Changing brightness is not available for this firmware.</value></data>
+  <data name="LightingRuntimeMapping" xml:space="preserve"><value>Runtime event mapping</value></data>
+  <data name="LightingLocalMap" xml:space="preserve"><value>Mappings are stored locally in Studio. Device map 84 and save 04 are not sent.</value></data>
+  <data name="LightingPreviewWarning" xml:space="preserve"><value>Preview for 2 seconds, then neutral Off. Previous effect is unknown. No save is sent.</value></data>
+  <data name="PhysicalFeedback" xml:space="preserve"><value>Assistant lighting feedback</value></data>
+  <data name="PhysicalFeedbackEnable" xml:space="preserve"><value>Physical lighting feedback</value></data>
+  <data name="PhysicalFeedbackPolicy" xml:space="preserve"><value>Working, attention or error keeps the accepted light effect on; completion turns it off only when no other task is active.</value></data>
+  <data name="PhysicalFeedbackStopped" xml:space="preserve"><value>Lighting paused after a connection error. Reconnect or turn feedback off and on to resume. Your preference is saved.</value></data>
+  <data name="DisplayPlannerIntro" xml:space="preserve"><value>Prepare images and GIFs for the 0.96-inch IPS display. Select a profile and state, then upload the converted frames.</value></data>
+  <data name="DisplayImport" xml:space="preserve"><value>Import image / GIF…</value></data>
+  <data name="DisplayExportPlan" xml:space="preserve"><value>Export plan…</value></data>
+  <data name="DisplayImportHint" xml:space="preserve"><value>Choose a profile and import an image or GIF to inspect the software plan.</value></data>
+  <data name="DisplayImportError" xml:space="preserve"><value>Could not prepare this file. Use a valid image/GIF under 20 MiB, 4096 px per edge and 500 frames.</value></data>
+  <data name="DisplayFrames" xml:space="preserve"><value>frames</value></data>
+  <data name="DisplaySlots" xml:space="preserve"><value>Proposed slots</value></data>
+  <data name="DisplaySectors" xml:space="preserve"><value>sectors</value></data>
+  <data name="DisplayNoPlan" xml:space="preserve"><value>No plan yet. Nothing will be sent to the device.</value></data>
+  <data name="DisplayNoRollback" xml:space="preserve"><value>Software proposal; these slots are not verified free space. No rollback. Physical replacement requires a chosen asset and exact approved range.</value></data>
+  <data name="DisplayPhysicalNoGo" xml:space="preserve"><value>Physical upload: NO-GO</value></data>
+  <data name="DisplayAllocationWarning" xml:space="preserve"><value>Other profiles, states and GIFs are software plans only. Their generic allocation is not physically verified.</value></data>
+  <data name="DisplayPlanDetails" xml:space="preserve"><value>Software write plan · current Java layout proposal</value></data>
+  <data name="DisplayPreview" xml:space="preserve"><value>160 × 80 canvas preview</value></data>
+  <data name="Notification" xml:space="preserve"><value>Notification</value></data>
+  <data name="PermissionRequest" xml:space="preserve"><value>Permission request</value></data>
+  <data name="PostToolUse" xml:space="preserve"><value>After tool use</value></data>
+  <data name="PreToolUse" xml:space="preserve"><value>Before tool use</value></data>
+  <data name="SessionStart" xml:space="preserve"><value>Session start</value></data>
+  <data name="Stop" xml:space="preserve"><value>Stop</value></data>
+  <data name="TaskCompleted" xml:space="preserve"><value>Task completed</value></data>
+  <data name="UserPromptSubmit" xml:space="preserve"><value>User prompt</value></data>
+  <data name="SessionEnd" xml:space="preserve"><value>Session end</value></data>
+<data name="Brightness" xml:space="preserve"><value>Brightness</value></data>
+  <data name="ChooseManually" xml:space="preserve"><value>Choose manually</value></data>
+  <data name="PrimaryKey" xml:space="preserve"><value>Primary key</value></data>
+  <data name="AdvancedModifiers" xml:space="preserve"><value>Advanced: left / right</value></data>
+  <data name="LeftModifiersHint" xml:space="preserve"><value>Ctrl, Shift, Alt and Win above use the left variant. Add right variants below.</value></data>
+  <data name="IntegrationMaintenance" xml:space="preserve"><value>More actions</value></data>
+  <data name="IntegrationOpenLocation" xml:space="preserve"><value>Open configuration location</value></data>
+  <data name="RuntimePreview" xml:space="preserve"><value>Runtime preview</value></data>
+  <data name="RuntimeEffect" xml:space="preserve"><value>Effect</value></data>
+  <data name="RuntimePreviewHint" xml:space="preserve"><value>Preview lasts 2 seconds, then sends Off (00). It does not save a device mapping.</value></data>
+  <data name="TargetProfile" xml:space="preserve"><value>Target profile · choose in the top bar</value></data>
+  <data name="TargetState" xml:space="preserve"><value>Target state</value></data>
+  <data name="DisplayFitMode" xml:space="preserve"><value>Fit / crop mode</value></data>
+  <data name="DisplayFit" xml:space="preserve"><value>Fit · background margins</value></data>
+  <data name="DisplayCrop" xml:space="preserve"><value>Crop · fill display</value></data>
+  <data name="DisplayConvert" xml:space="preserve"><value>Convert preview</value></data>
+  <data name="DisplayConvertedHint" xml:space="preserve"><value>160 × 80 · RGB565 converted preview · shown at 2×</value></data>
+<data name="DisplayPhysicalNotVerified" xml:space="preserve"><value>Physical upload not yet verified</value></data>
+<data name="FeedbackReceived" xml:space="preserve"><value>Received events</value></data>
+<data name="FeedbackDuplicates" xml:space="preserve"><value>Suppressed duplicates</value></data>
+<data name="FeedbackOperations" xml:space="preserve"><value>Physical feedback operations</value></data>
+  <data name="DisplayUpload" xml:space="preserve"><value>Upload to AhaKey</value></data>
+  <data name="DisplayStaticScope" xml:space="preserve"><value>Codex · Default · one static image · USB</value></data>
+  <data name="DisplayWriteAcceptedInspect" xml:space="preserve"><value>Image uploaded. Check the image on your AhaKey.</value></data>
+  <data name="DisplayOverwriteTitle" xml:space="preserve"><value>Replace Codex Default image?</value></data>
+  <data name="DisplayOverwriteWarning" xml:space="preserve"><value>The Codex Default image will be replaced. The original pixels cannot be restored. Other states using this image will also change. Saving also persists pending device settings.</value></data>
+  <data name="DisplayConfirmOverwrite" xml:space="preserve"><value>Replace image</value></data>
+  <data name="DisplayEraseRange" xml:space="preserve"><value>Erase range</value></data>
+  <data name="DisplayNoRetries" xml:space="preserve"><value>No automatic retries. Binding is checked before erasing and after saving.</value></data>
+  <data name="DisplayWriting" xml:space="preserve"><value>Uploading display frames…</value></data>
+  <data name="DisplayPhysicalPlanDetails" xml:space="preserve"><value>Physical static overwrite plan</value></data>
+  <data name="DisplayTargetSlot" xml:space="preserve"><value>Target slot</value></data>
+  <data name="FeedbackAcked" xml:space="preserve"><value>ACK accepted</value></data>
+  <data name="AcceptedVisibleEffect" xml:space="preserve"><value>Visible effect · 01</value></data>
+  <data name="ProductApply" xml:space="preserve"><value>Apply to AhaKey</value></data>
+  <data name="ProductTestKey" xml:space="preserve"><value>Test this key</value></data>
+  <data name="ProductAvailable" xml:space="preserve"><value>Available now</value></data>
+  <data name="ProductRequiresUsb" xml:space="preserve"><value>Connect AhaKey by USB to upload the Display image.</value></data>
+  <data name="ProductConnectAccepted" xml:space="preserve"><value>Connect your configured AhaKey. This device or connection has not yet been verified for writing.</value></data>
+  <data name="ProductActivateCodex" xml:space="preserve"><value>Activate Codex on the keyboard before uploading.</value></data>
+  <data name="ProductDisplayUnsupported" xml:space="preserve"><value>Upload supports one static Codex Default image. Other profiles, states and GIF uploads are not yet available.</value></data>
+  <data name="ProductProfileBusy" xml:space="preserve"><value>Profile switch in progress. Select the desired profile again when it finishes.</value></data>
+  <data name="ProductProfileUnavailable" xml:space="preserve"><value>Device profile switching requires the configured AhaKey over USB. Your Studio selection is still saved.</value></data>
+  <data name="ProductProfileFailed" xml:space="preserve"><value>Device profile was not confirmed. Check the connection and select the profile again.</value></data>
+  <data name="ProductProfileAvailable" xml:space="preserve"><value>Available. Selecting a profile can switch the keyboard without changing its keys.</value></data>
+  <data name="ProductActivateProfile" xml:space="preserve"><value>Switch the keyboard profile when I select a profile in Studio</value></data>
+  <data name="ProductPhysicalProfile" xml:space="preserve"><value>Active keyboard profile</value></data>
+  <data name="ProductUnknown" xml:space="preserve"><value>Not connected / not reported</value></data>
+  <data name="ProductSwitching" xml:space="preserve"><value>Switching keyboard profile…</value></data>
+  <data name="ProductImagePrepared" xml:space="preserve"><value>Image prepared locally</value></data>
+  <data name="ProductNotConfigured" xml:space="preserve"><value>Not configured</value></data>
+  <data name="ProductCheckIntegration" xml:space="preserve"><value>Open Integrations to check setup</value></data>
+  <data name="ProductOn" xml:space="preserve"><value>On</value></data>
+  <data name="ProductOff" xml:space="preserve"><value>Off</value></data>
+  <data name="ProductReady" xml:space="preserve"><value>Ready</value></data>
+  <data name="ProductSetupNeeded" xml:space="preserve"><value>Setup needed</value></data>
+  <data name="ProductTrustNeeded" xml:space="preserve"><value>Allow these hooks in Codex</value></data>
+  <data name="ProductCheckDetails" xml:space="preserve"><value>Check setup in Details</value></data>
+  <data name="ProductServiceAutoStart" xml:space="preserve"><value>Start integration service with AhaKey Studio</value></data>
+  <data name="ProductAdvancedMapping" xml:space="preserve"><value>Use custom event mapping instead of simple Codex feedback</value></data>
+  <data name="ProductApprovals" xml:space="preserve"><value>Tool approval settings</value></data>
+  <data name="ProductKeyConfirmation" xml:space="preserve"><value>Replace this key’s shortcut and device label? The previous value cannot be backed up. Saving also persists any pending device settings.</value></data>
+  <data name="ProductReceiptFailed" xml:space="preserve"><value>Written, but the local receipt could not be saved. Check folder access before closing Studio.</value></data>
+<data name="ProductActivateNow" xml:space="preserve"><value>Activate selected profile</value></data>
+<data name="ProductEditing" xml:space="preserve"><value>Editing</value></data>
+<data name="ProductProfileBehavior" xml:space="preserve"><value>Keyboard profile behavior</value></data>
+<data name="ProductWriteStatusUnavailable" xml:space="preserve"><value>Configured locally · write status unavailable on this connection</value></data>
+<data name="ProductProfileRecovery" xml:space="preserve"><value>Open Profiles to retry or turn off keyboard profile activation.</value></data>
+<data name="ProductUsbNotAccepted" xml:space="preserve"><value>This USB device or firmware has no verified write route. Your local settings are retained.</value></data>
+<data name="ProductConnectUsbKeys" xml:space="preserve"><value>Connect AhaKey by USB to apply key settings, then click Apply again. Your edits are saved.</value></data>
+<data name="ProductConnectUsbLighting" xml:space="preserve"><value>Connect USB to use physical lighting feedback.</value></data>
+<data name="ProductBleRestoreFailed" xml:space="preserve"><value>Bluetooth did not reconnect. Open Device and reconnect; your write result is shown separately.</value></data>
+<data name="ProductUsbConnectFailed" xml:space="preserve"><value>USB connection failed. Check the cable and click Apply or Connect USB again. No write is retried automatically.</value></data>
+<data name="ProductConnectUsb" xml:space="preserve"><value>Connect USB</value></data>
+<data name="ProductWrittenUsb" xml:space="preserve"><value>Sent to device via USB</value></data>
+<data name="ProductDeviceBusy" xml:space="preserve"><value>Wait for the current operation to finish, then try again.</value></data>
+  <data name="FirmwareFamily" xml:space="preserve"><value>Firmware family</value></data>
+  <data name="FirmwareExactBuild" xml:space="preserve"><value>Exact firmware build</value></data>
+  <data name="FamilyUnknown" xml:space="preserve"><value>Unknown</value></data>
+  <data name="FamilyLegacyWindows" xml:space="preserve"><value>Legacy</value></data>
+  <data name="FamilyWindowsContract32" xml:space="preserve"><value>Windows 3.2 family</value></data>
+  <data name="FamilyRuntimeTaskPictureV3" xml:space="preserve"><value>Other firmware family</value></data>
+  <data name="FeatureUnknownDialect" xml:space="preserve"><value>The firmware family has not been identified.</value></data>
+  <data name="FeatureManagedVoice" xml:space="preserve"><value>K1 is the firmware-managed Voice / F18 key.</value></data>
+  <data name="FeatureTargetUnverified" xml:space="preserve"><value>Physical upload or write for this target has not been verified yet.</value></data>
+  <data name="FeatureEffectUnverified" xml:space="preserve"><value>This lighting effect has not been visually verified.</value></data>
+  <data name="FeatureBrightnessUnverified" xml:space="preserve"><value>Brightness can be edited only after a separate device validation.</value></data>
+  <data name="FeatureReadbackUnverified" xml:space="preserve"><value>Partial resource readback is not physically verified on this device.</value></data>
+  <data name="FeatureFullReadbackUnavailable" xml:space="preserve"><value>Full configuration readback is unavailable.</value></data>
+  <data name="LocalProject" xml:space="preserve"><value>Local Studio project</value></data>
+  <data name="ProjectNotBackup" xml:space="preserve"><value>Your desired configuration and assets. This is not a device backup.</value></data>
+  <data name="ProjectExport" xml:space="preserve"><value>Export project</value></data>
+  <data name="ProjectImport" xml:space="preserve"><value>Import project</value></data>
+  <data name="ProjectImportConfirm" xml:space="preserve"><value>Replace local project edits with this file? A copy of the current project will be saved. No device write will occur; physical permissions remain unchanged.</value></data>
+  <data name="ProjectExported" xml:space="preserve"><value>Project exported.</value></data>
+  <data name="ProjectImported" xml:space="preserve"><value>Project imported locally. Nothing was sent to the device.</value></data>
+  <data name="ProjectOperationFailed" xml:space="preserve"><value>The project could not be processed. Check the file and try again.</value></data>
+  <data name="ProjectLoadFailed" xml:space="preserve"><value>The existing project could not be read and was preserved.</value></data>
+  <data name="ProjectSaveFailed" xml:space="preserve"><value>Local project could not be saved. Check storage permissions.</value></data>
+  <data name="VoiceRouting" xml:space="preserve"><value>Voice key · F18</value></data>
+  <data name="VoiceRoutingHint" xml:space="preserve"><value>F18 triggers a chosen action on this PC. The keyboard has no microphone. Hold-to-talk is not enabled. F18 from a PC keyboard also triggers this action.</value></data>
+  <data name="VoiceEnable" xml:space="preserve"><value>Enable host action for F18</value></data>
+  <data name="VoiceActionNone" xml:space="preserve"><value>No action</value></data>
+  <data name="VoiceActionWindowsVoiceTyping" xml:space="preserve"><value>Windows voice typing</value></data>
+  <data name="VoiceActionActivateApplication" xml:space="preserve"><value>Activate chosen application</value></data>
+  <data name="VoiceActionLocalShortcut" xml:space="preserve"><value>Send local shortcut</value></data>
+  <data name="VoiceChooseApplication" xml:space="preserve"><value>Choose application</value></data>
+  <data name="VoiceNoApplication" xml:space="preserve"><value>No application selected</value></data>
+  <data name="VoiceShortcut" xml:space="preserve"><value>Local shortcut, for example Ctrl+Enter</value></data>
+  <data name="VoiceHotkeyUnavailable" xml:space="preserve"><value>F18 is already registered by another application. Disable its binding and retry.</value></data>
+  <data name="VoiceActionFailed" xml:space="preserve"><value>The selected action failed. Check the application or shortcut.</value></data>
+  <data name="ChangedKeys" xml:space="preserve"><value>Local changes in</value></data>
+  <data name="UndoLocal" xml:space="preserve"><value>Undo local edit</value></data>
+  <data name="CopyProfileKeys" xml:space="preserve"><value>Copy local key settings</value></data>
+  <data name="CopyFromProfile" xml:space="preserve"><value>Copy from profile</value></data>
+  <data name="CopyKeyToProfile" xml:space="preserve"><value>Copy key to profile</value></data>
+  <data name="ShortcutPresets" xml:space="preserve"><value>Shortcut presets</value></data>
+  <data name="UsePreset" xml:space="preserve"><value>Use preset</value></data>
+  <data name="DisplayLibrary" xml:space="preserve"><value>Local display library</value></data>
+  <data name="DisplayProjectName" xml:space="preserve"><value>Display project name</value></data>
+  <data name="DisplaySaveProject" xml:space="preserve"><value>Save in library</value></data>
+  <data name="DisplayRemoveProject" xml:space="preserve"><value>Remove local project</value></data>
+  <data name="DisplayBackground" xml:space="preserve"><value>Background · #RRGGBB</value></data>
+  <data name="DisplayInterval" xml:space="preserve"><value>Uniform interval · ms</value></data>
+  <data name="DisplayFrame" xml:space="preserve"><value>Preview frame</value></data>
+  <data name="DisplayFrameEarlier" xml:space="preserve"><value>Move frame earlier</value></data>
+  <data name="DisplayFrameLater" xml:space="preserve"><value>Move frame later</value></data>
+  <data name="DisplayUniformTimingNotice" xml:space="preserve"><value>Variable GIF delays are converted to one uniform output interval.</value></data>
+  <data name="DisplayUniformTiming" xml:space="preserve"><value>Output frames use one uniform interval.</value></data>
+  <data name="DisplayBytes" xml:space="preserve"><value>pixel bytes</value></data>
+  <data name="DisplayConfirmedBlocks" xml:space="preserve"><value>blocks acknowledged</value></data>
+  <data name="DisplayBindingConfirmed" xml:space="preserve"><value>Binding confirmed</value></data>
+  <data name="DisplaySaveConfirmed" xml:space="preserve"><value>Save confirmed</value></data>
+  <data name="OperationRunning" xml:space="preserve"><value>Sending</value></data>
+  <data name="OperationCompleted" xml:space="preserve"><value>Transaction completed; inspect the screen</value></data>
+  <data name="OperationFailed" xml:space="preserve"><value>Send failed</value></data>
+  <data name="OperationOutcomeUncertain" xml:space="preserve"><value>Outcome uncertain — no automatic retry</value></data>
+  <data name="OperationInterrupted" xml:space="preserve"><value>Interrupted</value></data>
+  <data name="HomeKeyCount" xml:space="preserve"><value>3 configurable keys + Voice / F18</value></data>
+  <data name="PhysicalSendFailed" xml:space="preserve"><value>Send failed; no device write was started. Local changes are retained.</value></data>
+  <data name="ProjectMigrationPartial" xml:space="preserve"><value>Some earlier display sources could not be imported. Existing files were preserved.</value></data>
+  <data name="OperationJournalUnreadable" xml:space="preserve"><value>Some operation records could not be read. Original files were preserved.</value></data>
+  <data name="DisplayAnimationEditor" xml:space="preserve"><value>Frames and animation timing</value></data>
+  <data name="NoLocalKeyChanges" xml:space="preserve"><value>No local key changes</value></data>
+  <data name="ConfigureIntegrations" xml:space="preserve"><value>Configure integrations</value></data>
+  <data name="IntegrationSetupHint" xml:space="preserve"><value>Set up an integration to enable device feedback.</value></data>
+  <data name="BrightnessApply" xml:space="preserve"><value>Apply brightness</value></data>
+  <data name="LightingApplyMapping" xml:space="preserve"><value>Apply event mapping</value></data>
+  <data name="LightingPersistentNotice" xml:space="preserve"><value>Apply saves shared device settings.</value></data>
+  <data name="LightingStopPreview" xml:space="preserve"><value>Stop preview / Off</value></data>
+  <data name="DisplayPreparing" xml:space="preserve"><value>Preparing preview…</value></data>
+  <data name="DisplayOverwriteNotice" xml:space="preserve"><value>Replaces this allocated target. Previous pixels cannot be backed up or restored. The final save persists shared configuration.</value></data>
+  <data name="Open" xml:space="preserve"><value>Open</value></data>
+  <data name="Duplicate" xml:space="preserve"><value>Duplicate</value></data>
+  <data name="VoiceSetup" xml:space="preserve"><value>Set up voice action</value></data>
+  <data name="ReadFromDevice" xml:space="preserve"><value>Read from device</value></data>
+  <data name="PartialKeyRead" xml:space="preserve"><value>Live shortcut only; labels and other configuration remain separate.</value></data>
+  <data name="KeyNotRead" xml:space="preserve"><value>Device value has not been read in this session.</value></data>
+  <data name="KeyResourceOther" xml:space="preserve"><value>Not a single supported shortcut</value></data>
+  <data name="KeyReadFailed" xml:space="preserve"><value>Could not read this key. Local edits are retained.</value></data>
+  <data name="FeatureSpecificControls" xml:space="preserve"><value>Controls depend on the connected firmware and transport.</value></data>
+  <data name="FirmwareProtocol" xml:space="preserve"><value>Protocol</value></data>
+  <data name="FirmwareTransportPrepared" xml:space="preserve"><value>Update engine prepared. Flashing is unavailable pending bootloader and vendor-runtime validation.</value></data>
+  <data name="FirmwareVerifyPackage" xml:space="preserve"><value>Verify package</value></data>
+  <data name="FirmwareChooseFile" xml:space="preserve"><value>Choose firmware file</value></data>
+  <data name="FirmwareReinstall" xml:space="preserve"><value>Reinstall</value></data>
+  <data name="FirmwarePackageVerified" xml:space="preserve"><value>Package integrity and provenance verified</value></data>
+  <data name="FirmwarePackageInvalid" xml:space="preserve"><value>Package validation failed. No device changes.</value></data>
+  <data name="FirmwareHexValidUntrusted" xml:space="preserve"><value>HEX structure valid; hardware compatibility and provenance not verified. Flashing unavailable.</value></data>
+  <data name="EffectRainbowMove" xml:space="preserve"><value>Rainbow move</value></data>
+  <data name="EffectRainbowWave" xml:space="preserve"><value>Rainbow wave</value></data>
+  <data name="EffectRainbowWaveSlow" xml:space="preserve"><value>Slow rainbow wave</value></data>
+  <data name="EffectBreathing" xml:space="preserve"><value>Breathing</value></data>
+  <data name="EffectMiddleLight" xml:space="preserve"><value>Middle light</value></data>
+  <data name="EffectTypingRipple" xml:space="preserve"><value>Typing ripple</value></data>
+  <data name="EffectComet" xml:space="preserve"><value>Comet</value></data>
+  <data name="EffectScanBar" xml:space="preserve"><value>Scan bar</value></data>
+  <data name="EffectPulseCenter" xml:space="preserve"><value>Center pulse</value></data>
+  <data name="EffectWarningBlink" xml:space="preserve"><value>Warning blink</value></data>
+  <data name="EffectSuccessSweep" xml:space="preserve"><value>Success sweep</value></data>
+  <data name="EffectBlueThinking" xml:space="preserve"><value>Blue thinking</value></data>
+  <data name="EffectLowBattery" xml:space="preserve"><value>Low battery</value></data>
+  <data name="EffectChargingFlow" xml:space="preserve"><value>Charging flow</value></data>
+  <data name="EffectApprovalWait" xml:space="preserve"><value>Waiting for approval</value></data>
+<data name="Firmware" xml:space="preserve"><value>Firmware</value></data>
+  <data name="KeyReadObservation" xml:space="preserve"><value>Read from device at</value></data>
+  <data name="DisplayTimingSummary" xml:space="preserve"><value>{0} source frames · {1} ms → {2} ms/frame · output duration {3} ms</value></data>
+<data name="StartupWithWindows" xml:space="preserve"><value>Start AhaKey Studio with Windows</value></data>
+<data name="StartupTrayHint" xml:space="preserve"><value>Starts in the system tray. Your main window stays closed.</value></data>
+<data name="TrayDisconnectNotifications" xml:space="preserve"><value>Notify me when the device disconnects unexpectedly</value></data>
+<data name="TrayOpen" xml:space="preserve"><value>Open AhaKey Studio</value></data>
+<data name="TrayExit" xml:space="preserve"><value>Exit</value></data>
+<data name="TrayPause" xml:space="preserve"><value>Pause integrations</value></data>
+<data name="TrayResume" xml:space="preserve"><value>Resume integrations</value></data>
+<data name="TrayFirstClose" xml:space="preserve"><value>AhaKey Studio will keep running in the system tray so integrations, Bluetooth and device feedback continue to work.</value></data>
+<data name="TrayGotIt" xml:space="preserve"><value>Got it</value></data>
+<data name="TrayExitInstead" xml:space="preserve"><value>Exit instead</value></data>
+<data name="TrayDontShow" xml:space="preserve"><value>Don’t show again</value></data>
+<data name="TrayBusy" xml:space="preserve"><value>Device operation is in progress. Wait for it to finish before exiting.</value></data>
+<data name="TrayWait" xml:space="preserve"><value>Wait</value></data>
+<data name="TrayDevice" xml:space="preserve"><value>Device</value></data>
+<data name="TrayFeedback" xml:space="preserve"><value>Physical feedback</value></data>
+<data name="TrayDisconnected" xml:space="preserve"><value>Device disconnected unexpectedly</value></data>
+<data name="FirmwareCheckingComponents" xml:space="preserve"><value>Check the firmware package and USB update components.</value></data>
+<data name="FirmwareComponentMissing" xml:space="preserve"><value>Firmware update component is missing or differs from the verified version. Install the official WCH package. Normal BLE and USB use remains available.</value></data>
+<data name="FirmwareDriverMissing" xml:space="preserve"><value>Firmware updates require the AhaKey USB update driver.</value></data>
+<data name="FirmwareComponentsReady" xml:space="preserve"><value>Verified WCH update component and driver registration found. ISP device detection is checked before programming.</value></data>
+<data name="FirmwarePreflight" xml:space="preserve"><value>Check update readiness</value></data>
+<data name="FirmwareSetup" xml:space="preserve"><value>Install update component</value></data>
+<data name="FirmwareCancel" xml:space="preserve"><value>Cancel before programming</value></data>
+<data name="FirmwareUpdate" xml:space="preserve"><value>Update firmware</value></data>
+<data name="FirmwareRecovery" xml:space="preserve"><value>Recovery instructions</value></data>
+<data name="FirmwareRunning" xml:space="preserve"><value>Programming and verifying. Keep USB power connected.</value></data>
+<data name="FirmwareWorkerStillRunning" xml:space="preserve"><value>The programmer is still running. Studio will wait; do not disconnect power or terminate the process.</value></data>
+<data name="FirmwareSetupFailed" xml:space="preserve"><value>Update component setup did not complete. Normal device use is still available.</value></data>
+<data name="FirmwareCompleted" xml:space="preserve"><value>Firmware and device identity verified.</value></data>
+<data name="FirmwareStopped" xml:space="preserve"><value>Update stopped before confirmed completion. Review the update journal.</value></data>
+<data name="FirmwareRecoveryRequired" xml:space="preserve"><value>Recovery required. Programming or application verification was not confirmed. Do not reset Display assets.</value></data>
+<data name="FirmwareFlashConfirmation" xml:space="preserve"><value>Reinstall the verified 1.4.8 package? MCU code flash will be replaced. DataFlash and external Display flash are not erased by this plan. Configuration migration is not a backup. Keep USB power connected. Put this unit into ISP mode using its confirmed hardware procedure when Studio waits for the bootloader. Reconnect normally after programming if required.</value></data>
+<data name="FirmwareRecoveryInstructions" xml:space="preserve"><value>Keep MCU firmware recovery separate from Display assets. Use the confirmed boot procedure for your board, connect only one ISP device, choose the verified 1.4.8 package and explicitly retry. No automatic factory reset is performed. If application firmware does not return, retain the update journal and do not claim success.</value></data>
+<data name="FirmwareStateIdle" xml:space="preserve"><value>No update running</value></data>
+<data name="FirmwareStatePreflight" xml:space="preserve"><value>Checking update</value></data>
+<data name="FirmwareStateWaitingForDevice" xml:space="preserve"><value>Waiting for USB device</value></data>
+<data name="FirmwareStateEnteringBootloader" xml:space="preserve"><value>Waiting for ISP bootloader</value></data>
+<data name="FirmwareStateBootloaderDetected" xml:space="preserve"><value>ISP detected</value></data>
+<data name="FirmwareStateErasing" xml:space="preserve"><value>Erasing</value></data>
+<data name="FirmwareStateProgramming" xml:space="preserve"><value>Programming</value></data>
+<data name="FirmwareStateVerifying" xml:space="preserve"><value>Verifying</value></data>
+<data name="FirmwareStateRebooting" xml:space="preserve"><value>Returning to application</value></data>
+<data name="FirmwareStateWaitingForApplication" xml:space="preserve"><value>Waiting for application firmware</value></data>
+<data name="FirmwareStateValidatingFirmware" xml:space="preserve"><value>Checking 00 / 9F identity</value></data>
+<data name="FirmwareStateCompleted" xml:space="preserve"><value>Completed</value></data>
+<data name="FirmwareStateFailed" xml:space="preserve"><value>Stopped</value></data>
+<data name="FirmwareStateRecoveryRequired" xml:space="preserve"><value>Recovery required</value></data>
+<data name="InstallerCloseStudio" xml:space="preserve"><value>Exit AhaKey Studio from its tray menu, then run uninstall again. An active device write will not be interrupted.</value></data>
+<data name="InstallerRemoveData" xml:space="preserve"><value>Also permanently remove your local AhaKey projects, assets, settings and journals? Choose No to keep them (recommended).</value></data>
+<data name="FirmwareBootInstructions" xml:space="preserve"><value>When Studio is waiting for ISP: disconnect USB and switch AD1E off. Hold Record, connect USB power while holding it, then release after a few seconds. Connect only this device. Never disconnect during programming.</value></data>
+<data name="FirmwareReconnectInstructions" xml:space="preserve"><value>Programming has finished. If AD1E has not returned automatically, reconnect USB without holding Record. Studio will verify its firmware and capabilities.</value></data>
+<data name="FirmwareRetry" xml:space="preserve"><value>Retry programming</value></data>
+<data name="FirmwareInstalled" xml:space="preserve"><value>Installed</value></data>
+<data name="FirmwareAvailable" xml:space="preserve"><value>Available package</value></data>
+<data name="FirmwarePackageNotBundled" xml:space="preserve"><value>Firmware is not included in this distribution. Reinstall is unavailable.</value></data>
+</root>

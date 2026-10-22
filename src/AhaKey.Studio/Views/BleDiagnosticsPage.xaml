@@ -1,0 +1,20 @@
+<UserControl x:Class="AhaKey.Studio.Views.BleDiagnosticsPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <StackPanel>
+  <TextBlock Text="{Binding L[BleDiagnostics]}" Style="{StaticResource PageTitle}"/>
+  <TextBlock Text="{Binding SupportInformation}" Style="{StaticResource SecondaryText}" Margin="0,12,0,0"/>
+  <TextBlock Text="{Binding L[BleDiagnosticsHint]}" Style="{StaticResource SecondaryText}" Margin="0,8,0,16"/>
+  <WrapPanel><Button Content="{Binding CopyLabel}" Command="{Binding CopyCommand}" Margin="0,0,12,12"/><Button Content="{Binding L[BleRefresh]}" Command="{Binding ReadCommand}" IsEnabled="{Binding CanRead}" Margin="0,0,12,12"/><Button Content="{Binding L[BleDisconnect]}" Command="{Binding DisconnectCommand}" IsEnabled="{Binding CanDisconnect}" Margin="0,0,0,12"/></WrapPanel>
+  <TextBlock Text="{Binding Stage}" Style="{StaticResource SectionTitle}"/><TextBlock Text="{Binding Freshness}" Foreground="{DynamicResource Focus}" Margin="0,8,0,16"/>
+  <TextBlock Text="{Binding Error}" Foreground="{DynamicResource Danger}" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,12"/>
+  <ItemsControl ItemsSource="{Binding DiagnosticSummary}"><ItemsControl.ItemTemplate><DataTemplate><Grid Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition Width="192"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock Text="{Binding Label}" Style="{StaticResource SecondaryText}" Margin="0,0,16,0"/><TextBlock Grid.Column="1" Text="{Binding Value}" Style="{StaticResource Body}"/></Grid></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+  <TextBlock Text="{Binding L[BleTransport]}" Style="{StaticResource SectionTitle}" Margin="0,24,0,16"/>
+  <ItemsControl ItemsSource="{Binding Details}"><ItemsControl.ItemTemplate><DataTemplate><Grid Margin="0,0,0,10"><Grid.ColumnDefinitions><ColumnDefinition Width="192"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock Text="{Binding Label}" Style="{StaticResource SecondaryText}" Margin="0,0,16,0"/><TextBlock Grid.Column="1" Text="{Binding Value}" Style="{StaticResource Body}"/></Grid></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+  <Expander Header="{Binding L[Advanced]}" Margin="0,24,0,0"><StackPanel>
+  <ItemsControl ItemsSource="{Binding AdvancedDetails}"><ItemsControl.ItemTemplate><DataTemplate><StackPanel Margin="0,8,0,8"><TextBlock Text="{Binding Label}" Style="{StaticResource Caption}"/><TextBlock Text="{Binding Value}" Style="{StaticResource Body}"/></StackPanel></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+  <TextBlock Text="{Binding CatalogLabel}" Style="{StaticResource SectionTitle}" Margin="0,24,0,12"/>
+  <TextBox Text="{Binding Catalog,Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" Style="{StaticResource TechnicalText}" AutomationProperties.Name="{Binding CatalogLabel}"/>
+  <TextBlock Text="{Binding L[BleHistory]}" Style="{StaticResource SectionTitle}" Margin="0,24,0,12"/>
+  <TextBox Text="{Binding History,Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="320" VerticalScrollBarVisibility="Auto" Style="{StaticResource TechnicalText}" AutomationProperties.Name="{Binding L[BleHistory]}"/>
+ </StackPanel></Expander>
+ </StackPanel>
+</UserControl>

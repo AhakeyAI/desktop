@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+ <Product Id="*" Name="AhaKey Studio" Language="1033" Version="$(var.MsiVersion)" Manufacturer="AhaKey" UpgradeCode="8152B52E-85D1-4A22-90B5-44218436E377">
+  <Package InstallerVersion="500" Compressed="yes" InstallScope="perUser" Platform="x64"/>
+  <MajorUpgrade DowngradeErrorMessage="A newer AhaKey Studio is already installed." Schedule="afterInstallInitialize" AllowSameVersionUpgrades="yes"/>
+  <Property Id="WCH_DRIVER_PRESENT"><RegistrySearch Id="WchDriverSearch" Root="HKLM" Key="SYSTEM\CurrentControlSet\Services\CH375_A64" Name="ImagePath" Type="raw" Win64="yes"/></Property>
+  <Condition Message="Install AhaKey Studio for the current user; per-machine installation is not supported.">NOT ALLUSERS</Condition>
+  <MediaTemplate EmbedCab="yes" CompressionLevel="high"/>
+  <Property Id="ARPDISPLAYVERSION" Value="$(var.ProductVersion)"/>
+  <Property Id="ARPPRODUCTICON" Value="ProductIcon"/>
+  <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER"/>
+  <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable"/>
+  <Property Id="ARPNOMODIFY" Value="1"/>
+  <Icon Id="ProductIcon" SourceFile="$(var.IconPath)"/>
+  <Directory Id="TARGETDIR" Name="SourceDir">
+   <Directory Id="LocalAppDataFolder"><Directory Id="ProgramsFolder" Name="Programs"><Directory Id="INSTALLFOLDER" Name="AhaKey Studio"/></Directory></Directory>
+   <Directory Id="ProgramMenuFolder"><Directory Id="StudioMenu" Name="AhaKey Studio"/></Directory>
+   <Directory Id="DesktopFolder"/>
+  </Directory>
+  <DirectoryRef Id="StudioMenu">
+   <Component Id="StartMenu" Guid="*" Win64="yes">
+    <Shortcut Id="StudioShortcut" Name="AhaKey Studio" Target="[INSTALLFOLDER]AhaKey Studio.exe" WorkingDirectory="INSTALLFOLDER" Icon="ProductIcon"/>
+    <RemoveFolder Id="RemoveStudioMenu" On="uninstall"/><RemoveFolder Id="RemoveProgramsIfEmpty" Directory="ProgramsFolder" On="uninstall"/>
+    <RegistryValue Root="HKCU" Key="Software\AhaKey\StudioInstaller" Name="StartMenu" Type="integer" Value="1" KeyPath="yes"/>
+   </Component>
+  </DirectoryRef>
+  <DirectoryRef Id="DesktopFolder">
+   <Component Id="DesktopShortcut" Guid="*" Win64="yes">
+    <Shortcut Id="StudioDesktop" Name="AhaKey Studio" Target="[INSTALLFOLDER]AhaKey Studio.exe" WorkingDirectory="INSTALLFOLDER" Icon="ProductIcon"/>
+    <RegistryValue Root="HKCU" Key="Software\AhaKey\StudioInstaller" Name="Desktop" Type="integer" Value="1" KeyPath="yes"/>
+   </Component>
+  </DirectoryRef>
+  <Feature Id="Application" Title="AhaKey Studio" Level="1" Absent="disallow" Display="expand">
+   <ComponentGroupRef Id="RuntimeFiles"/><ComponentRef Id="StartMenu"/>
+   <Feature Id="DesktopFeature" Title="Desktop shortcut" Description="Optional desktop shortcut" Level="2"><ComponentRef Id="DesktopShortcut"/></Feature>
+  </Feature>
+  <UIRef Id="WixUI_FeatureTree"/>
+  <WixVariable Id="WixUILicenseRtf" Value="$(var.LicensePath)"/>
+  <!-- No force-close. The app refuses cleanup while its owner instance is running. -->
+  <CustomAction Id="PrepareUninstall" FileKey="StudioExecutable" ExeCommand="--installer-cleanup [UILevel]" Execute="immediate" Return="check" Impersonate="yes"/>
+  <InstallExecuteSequence><Custom Action="PrepareUninstall" Before="RemoveFiles">Installed AND REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom></InstallExecuteSequence>
+ </Product>
+</Wix>
