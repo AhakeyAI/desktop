@@ -17,7 +17,7 @@ struct StudioResourceInspectorView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             Picker(NSLocalizedString("画面类型", comment: ""), selection: Binding(get: { multitask }, set: { value in
                 model.selectEntry(value ? 16 : UInt8(mode.rawValue * 4))
             })) {
@@ -143,7 +143,7 @@ struct StudioResourceInspectorView: View {
                     }
                 }
             }
-            .frame(height: 140).frame(maxWidth: .infinity)
+            .frame(height: 110).frame(maxWidth: .infinity)
             .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.18), style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
         }
         .buttonStyle(.plain).disabled(busy || model.selected == nil)
