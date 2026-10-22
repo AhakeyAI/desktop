@@ -1,5 +1,11 @@
 # Changelog
 
+## 未发布
+
+### macOS — Codex Hooks
+
+- 修复重复安装 Codex Hooks 会删除 AhaKey 标记块内其他配置的问题（#125）：Codex 会把新表写在结尾标记之前，重装与移除现在只清理 AhaKey 自己的标记和 hook 组，保留 `tui`、`projects` 信任级别、MCP 及其他 `hooks.state` 信任记录。
+
 ## v0.2.3 — 2026-10-15
 
 ### macOS — AhaType 与 Claude Code
