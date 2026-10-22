@@ -105,9 +105,9 @@ if [[ -d "$APP_ROOT/Resources/FirmwareFlasher" ]]; then
 fi
 
 REPO_ROOT="$(git -C "$APP_ROOT" rev-parse --show-toplevel 2>/dev/null || echo "$APP_ROOT")"
-BUILD_NUMBER="$(git -C "$REPO_ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"
+BUILD_NUMBER="${APP_BUILD:-$(git -C "$REPO_ROOT" rev-list --count HEAD 2>/dev/null || echo 1)}"
 GIT_COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
-# Release workflows inject APP_VERSION; preserve main's version metadata.
+# Release workflows inject APP_VERSION; APP_BUILD also preserves the CI entry's override.
 APP_VERSION_STRING="${APP_VERSION:-0.1.0}"
 
 cat > "$INFO_PLIST" <<PLIST

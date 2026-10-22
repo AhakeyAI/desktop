@@ -55,6 +55,9 @@ jobs:
       - name: Test isolated CLI fixture cleanup
         run: python3 -m unittest discover -s scripts -p 'test_hook_lifecycle_fixture.py' -v
 
+      - name: Test CI application composition checks
+        run: python3 -m unittest discover -s scripts -p 'test_verify_ci_app_bundle.py' -v
+
       - name: Compile-check all targets (debug)
         run: swift build
 
@@ -65,6 +68,9 @@ jobs:
         run: |
           chmod +x scripts/package_app.sh
           scripts/package_app.sh
+
+      - name: Verify complete App and Agent bundle
+        run: python3 scripts/verify_ci_app_bundle.py "dist/AhaKey Studio.app" --source-commit "$GITHUB_SHA"
 
       - name: Zip app bundle
         working-directory: ahakeyconfig-mac/dist

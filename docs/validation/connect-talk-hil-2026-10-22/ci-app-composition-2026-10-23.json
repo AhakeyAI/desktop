@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-23",
+  "baseCommit": "8e13aac49459a0e67c1ed5a58cd5cb1c4e6ea293",
+  "sourceSHA256": {
+    ".github/workflows/ci.yml": "112f8685e30af2db1d10f67e5f4c03e998d85f62be43b81d13792eafae9af262",
+    "ahakeyconfig-mac/scripts/package_app.sh": "16be401a067c3009c6aa363a0f7648e1d1f246b97a8d6a85409f7a2b8e2589ca",
+    "ahakeyconfig-mac/scripts/build.sh": "90642a62d6e0d75a792ab92d32f5511bb9d652ce4a94efbef09e50da02724936",
+    "ahakeyconfig-mac/scripts/verify_ci_app_bundle.py": "6bd2ef96db86c62fd4f5d9284712e11426861e504f912f0d4681210ad14ce0d2",
+    "ahakeyconfig-mac/scripts/test_verify_ci_app_bundle.py": "785affdb63111d27f41c1ef3df3fcfee77e13a18d2924ec812326b1eede8dc71"
+  },
+  "oldArtifact": {
+    "run": 39839656358,
+    "commit": "a2cbe4c5b49963d867afadc1ecd40fb256900c6a",
+    "observed": {
+      "artifact": "AhaKey-Studio-macOS.zip",
+      "mainExecutable": true,
+      "agentExecutable": false,
+      "sourceCommit": null,
+      "minimumMacOS": "12.0",
+      "version": "0.0.0",
+      "nativeAppleEventsUsage": false
+    }
+  },
+  "localCompletePackage": {
+    "sourceCommit": "8e13aac49459a0e67c1ed5a58cd5cb1c4e6ea293",
+    "version": "0.2.3",
+    "build": "362",
+    "minimumMacOS": "13.0",
+    "mainAndAgent": true,
+    "languages": [
+      "en",
+      "zh-Hans"
+    ]
+  },
+  "localBuildScope": "Prototype from base commit plus the listed uncommitted packaging patch; not installed, published, or a final signed candidate",
+  "signature": "Actual ad-hoc App/Agent assembly passed deep strict codesign verification",
+  "compositionTests": {
+    "count": 5,
+    "failures": 0
+  },
+  "syntaxChecks": [
+    "bash -n scripts/package_app.sh",
+    "zsh -n scripts/build.sh"
+  ],
+  "reviews": {
+    "spec": "passed",
+    "standards": "passed"
+  },
+  "limits": [
+    "No Developer ID/public notarization acceptance claimed by CI checker",
+    "Final committed CI artifact and separately signed candidate still to verify"
+  ],
+  "mainSHA256": "3e75232769e7d8ca4a3a712b845c4d78113c9195fdc4502e532cbd33d633fb3c",
+  "agentSHA256": "52699827b2ed62ef0c3dca9965867f9e398c9a68e22595d28c3dfcde455e71b0"
+}
