@@ -475,6 +475,14 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     private func handleRecognition(result: SFSpeechRecognitionResult?, error: Error?) {
         if let result {
             let newText = result.bestTranscription.formattedString
+            // Temporary, text-free timing probe for the captured pause loss.
+            let segmentTiming = result.bestTranscription.segments.map { segment in
+                String(format: "%.3f+%.3f:%ld", segment.timestamp, segment.duration, segment.substringRange.length)
+            }.joined(separator: "|")
+            let metadataTiming = result.speechRecognitionMetadata.map { metadata in
+                String(format: "%.3f+%.3f", metadata.speechStartTimestamp, metadata.speechDuration)
+            } ?? "none"
+            appendDiagnostic("[DEBUG-voice-pause-20261022] generation=\(recordingGeneration.uuidString.prefix(8)) final=\(result.isFinal) chars=\(newText.count) segments=\(segmentTiming) metadata=\(metadataTiming)")
             // This callback belongs to one generation-checked recognition task.
             // Its revised hypothesis can change the beginning as well as the end.
             if !newText.isEmpty {
