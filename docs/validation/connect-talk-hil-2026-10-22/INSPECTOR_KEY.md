@@ -47,3 +47,13 @@
 ### 主键下方统一说明
 
 用户人工确认5af6605精简版正常展示，进一步要求移到主键下方，按读回→保存前核对说明→LCD描述说明排序。本次仅布局，待新候选构建/替换后再确认；尚未执行单键真实写入/还原，不因布局通过宣称事务HIL完成。
+
+### dbea629安装与原生服务崩溃定位
+
+用户确认退出后，已备份5af包到studio-before-inspector-primary-20261022，替换/Applications为签名0.2.3/dbea62996d976745e5f02eacab0be0208a7f32c6，deep/strict及来源核对通过。
+
+用户要求由Agent修复控制服务，不再不断代点。重新绑定普通首页成功、选Key4成功；点击右侧修改并读取后再次pipe closed。原生完整AX（disableDiffing=true）和截图入口均失败。最新5份SkyComputerUseService .ips均EXC_BREAKPOINT/SIGTRAP，栈顶_assertionFailure/Array.remove，前几帧imageOffset相同。控制辅助App签名验证通过；尚未定位具体控件或服务源码缺陷，不能称已永久修复。普通界面暂时恢复不代表编辑界面恢复。
+
+原生控制服务崩溃后拒绝对未成功读取的App继续发操作，CmdQ也被拒绝；因此已请求一次明确授权，允许AppleScript仅用于退出/重开Studio及该窗口排查/验收。CUA规则要求其他UI技术由用户明确指定，获得答复前不执行替代UI操作。没有改系统权限、覆盖原生服务二进制、杀其他会话或发送外部报告。
+
+私有证据local-backups/cua-service-diagnosis-20261022含5份原始ips及摘要。fresh Agent仍connected=true、physical/effective=0、autoVerified=true。真实单键保存/还原仍未执行，PR保持草稿。

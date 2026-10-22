@@ -576,3 +576,5 @@ CUA仍不可原生操作，已请用户用CmdQ退出AhaKey Studio（不是Codex�
 用户确认5af6605展示正常，进一步指定回读和说明统一在主键下方，先回读再说明。dbea629已按此移动，描述区不重复两段说明；控件和可重试读回区分开禁用，宏/长按亦能显示。swift build、两轴窄复核及签名构建通过；布局调整不新增模拟测试。新包local-builds/connect-talk-inspector-primary-20261022，源码标识dbea62996d976745e5f02eacab0be0208a7f32c6，尚未替换当前5af6605。
 
 已请求用户退出Studio以替换这份新布局包；不是重复安装同一包。退出确认后备份5af包再替换、核对签名/来源，请用户打开确认主键下新顺序，再继续单键保存及还原HIL。原生工具仍不可用，不要求重开Codex/重启键盘。PR153仍Draft。
+
+dbea629新布局现已安装，签名/来源已核对，不要重复要求用户退出安装。用户要求Agent自行修复界面服务。已找到稳定触发：普通首页可读/点击，进入按键编辑后SkyComputerUseService崩溃；完整AX/截图同样失败，5份ips的Array.remove断言堆栈偏移相同，服务签名完好。不是简单重开Codex就解决，也不能先称永久修复。CUA甚至拒绝未成功读取App的CmdQ，已请求一次AppleScript替代技术授权（限定Studio恢复与验收），待用户答复，授权前不执行。现App编辑态可能仍开着，后台connected/autoVerified=true；无按键/Voice/素材写入。私有证据见cua-service-diagnosis-20261022，公开验收INSPECTOR_KEY.md。
