@@ -13,6 +13,7 @@ final class StudioInspectorSession: ObservableObject {
         let deviceID: () -> String
         let release: (UInt64) -> Void
         let pause: () async throws -> Void
+        var prepare: () async throws -> Void = {}
     }
 
     enum Failure: Error, LocalizedError, Equatable {
@@ -59,6 +60,8 @@ final class StudioInspectorSession: ObservableObject {
             if access.isCurrent(lease) { access.release(lease) }
             activeLease = nil
         }
+        try await access.prepare()
+        guard access.isCurrent(lease) else { throw Failure.ownershipChanged }
         let deadline = ContinuousClock.now.advanced(by: timeout)
         while true {
             try Task.checkCancellation()

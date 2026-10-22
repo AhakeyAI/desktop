@@ -7,6 +7,7 @@ public final class WS3PresentationSession {
     private let sendSingleDefault: () -> Bool
     private let onFault: () -> Void
     private let now: () -> TimeInterval
+    public var onOverviewChanged: ((WS3TaskOverview) -> Void)?
     private var tasks = WS3TaskRegistry()
     private var generation: UInt64 = 0
     private var connected = false
@@ -33,6 +34,12 @@ public final class WS3PresentationSession {
             clearRuntime()
         }
         self.connected = connected; self.generation = generation
+        notifyOverview()
+    }
+
+    private func notifyOverview() {
+        guard let onOverviewChanged else { return }
+        onOverviewChanged(overview())
     }
 
     private func clearRuntime() {
@@ -52,11 +59,13 @@ public final class WS3PresentationSession {
         if tasks.observe(metadata, state: state, at: now()), requestedMode == .multi {
             requestFlush()
         }
+        notifyOverview()
     }
 
     public func observe(_ event: WS3LiveTaskEvent) {
         guard connected, !isChangingMode else { return }
         if tasks.observe(event, at: now()), requestedMode == .multi { requestFlush() }
+        notifyOverview()
     }
 
     @MainActor
@@ -93,6 +102,7 @@ public final class WS3PresentationSession {
             requestedMode = target
             activationDeadline = nil
             activationID = nil
+            notifyOverview()
             return overview()
         } catch {
             if activationID == id, generation == epoch { requestedMode = nil; tasks.clear() }
@@ -150,11 +160,13 @@ public final class WS3PresentationSession {
     public func expireTasks() {
         guard connected, requestedMode == .multi, !isChangingMode else { return }
         _ = tasks.snapshot(at: now())
+        notifyOverview()
         requestFlush()
     }
 
     public func keyboardWorkModeChanged() {
         tasks.clear(); expiry?.cancel(); expiry = nil
+        notifyOverview()
         if connected, requestedMode == .multi, !isChangingMode { requestFlush() }
     }
 
@@ -195,6 +207,7 @@ public final class WS3PresentationSession {
                 }
             }
             clearRuntime(); connected = false
+            notifyOverview()
         } catch {
             if generation == epoch, activationID == id { clearRuntime(); connected = false; onFault() }
         }

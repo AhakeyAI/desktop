@@ -7,7 +7,7 @@ final class FirmwareCommandNamespaceTests: XCTestCase {
         let profiles: [FirmwareCapabilityProfile?] = [nil, .legacyAfterStatusReadback(),
             .catalogResponse(Data([0xAA, 0xBB, 0x9F, 0]) + Data(FirmwareCapabilityProfile.ws2CatalogKey.utf8) + Data([0xCC, 0xDD]))]
         let grants: [ConfigurationCommandPolicy.ConfirmedWrite] = [.none, .mode, .standby, .sideSwitch, .ordinaryKey,
-            .voiceHandoff, .ws3Display, .ws3Resource, .ws3ResourceRestore]
+            .voiceHandoff, .ws3Display, .ws3Resource, .ws3ResourceRestore, .ws3Presentation]
         for raw in 0...255 {
             let command = UInt8(raw)
             let expected: FirmwareCommandNamespace = raw <= 0x9F ? .official : (raw <= 0xEF ? .userSDK : .systemFactory)
@@ -21,6 +21,15 @@ final class FirmwareCommandNamespaceTests: XCTestCase {
                 }
             }
         }
+    }
+    func testPresentationWritesNeedCurrentDisplayProofAndExactShape() {
+        let profile = FirmwareCapabilityProfile.catalogResponse(Data([0xAA, 0xBB, 0x9F, 0]) + Data(FirmwareCapabilityProfile.ws2CatalogKey.utf8) + Data([0xCC, 0xDD]))
+        let mode = WS3PresentationCommand.setMode(.multi).request!
+        XCTAssertFalse(ConfigurationCommandPolicy.permits(mode, profile: profile))
+        XCTAssertFalse(ConfigurationCommandPolicy.permits(mode, profile: profile, confirmedWrite: .ws3Presentation))
+        XCTAssertTrue(ConfigurationCommandPolicy.permits(mode, profile: profile, confirmedWrite: .ws3Presentation, ws3DisplayReadbackVerified: true))
+        XCTAssertFalse(ConfigurationCommandPolicy.permits(Data([0xAA, 0xBB, 0x98, 9, 0xCC, 0xDD]), profile: profile, confirmedWrite: .ws3Presentation, ws3DisplayReadbackVerified: true))
+        XCTAssertFalse(ConfigurationCommandPolicy.permits(Data([0xAA, 0xBB, 0x99, 0xCC, 0xDD]), profile: profile, confirmedWrite: .ws3Presentation, ws3DisplayReadbackVerified: true))
     }
     func testLegacyOfficialCompatibilityAndUnknownReadOnlyProbesRemain() {
         XCTAssertTrue(ConfigurationCommandPolicy.permits(Data([0xAA, 0xBB, 0x04, 0xCC, 0xDD]), profile: .legacyAfterStatusReadback()))

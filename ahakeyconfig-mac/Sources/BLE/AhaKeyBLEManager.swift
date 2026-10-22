@@ -136,8 +136,12 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var isSettingSideSwitch = false
     @Published private(set) var isEditingOrdinaryKey = false
     @Published private(set) var isManagingVoiceHandoff = false
+    @Published private(set) var isChangingPresentation = false
+    private var presentationBlocksLegacySingle = false
+    private(set) var presentationRuntimeActive = false
+    lazy var studioPresentation = StudioPresentationController(ble: self)
     var isConfigurationOperationInProgress: Bool {
-        isUploadingOLED || isReadingWS3Display || isUpdatingWS3Display || isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey || isManagingVoiceHandoff
+        isChangingPresentation || isUploadingOLED || isReadingWS3Display || isUpdatingWS3Display || isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey || isManagingVoiceHandoff
     }
     @Published private(set) var firmwareCapabilityProfile: FirmwareCapabilityProfile?
     @Published private(set) var bluetoothPermissionGranted = true
@@ -610,6 +614,11 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func writeCommand(_ data: Data, confirmedWrite: ConfigurationCommandPolicy.ConfirmedWrite) {
+        if data.count > 2 {
+            if data[2] == 0x90, presentationBlocksLegacySingle, confirmedWrite != .ws3Presentation { return }
+            if isChangingPresentation, confirmedWrite != .ws3Presentation,
+               ![UInt8(0x00), 0x88, 0x9F].contains(data[2]) { return }
+        }
         // A display transaction owns the channel; unrelated raw status/display
         // writes must not race into firmware's single ready command slot.
         if (isUploadingOLED || isUpdatingWS3Display), firmwareCapabilityProfile?.identity == .knownWS2Catalog {
@@ -1537,6 +1546,42 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         })
     }
 
+    func beginPresentationOperation() throws -> UInt64 {
+        guard !isConfigurationOperationInProgress, canEditWS3Display else { throw WS3PresentationError.busy }
+        isChangingPresentation = true
+        return commandSessionGeneration
+    }
+    func finishPresentationOperation(generation: UInt64) {
+        if generation == commandSessionGeneration { isChangingPresentation = false }
+    }
+    func setPresentationRuntimeActive(_ active: Bool) { presentationRuntimeActive = active }
+    func blockLegacySinglePresentation(_ blocked: Bool) { presentationBlocksLegacySingle = blocked }
+    func exchangePresentation(_ request: Data, generation: UInt64) async throws -> Data {
+        try ensureConfigurationReadSession(generation)
+        guard AgentManager.shared.bluetoothConnectionOwner == .ahaKeyStudio,
+              canEditWS3Display, request.count >= 5, [UInt8(0x9F), 0x88, 0x98, 0x99].contains(request[2]) else {
+            throw WS3PresentationError.unavailable
+        }
+        let reply = try await sendCommandAwaitingResponse(request, expectedCommand: request[2], confirmedWrite: .ws3Presentation)
+        try ensureConfigurationReadSession(generation)
+        guard AgentManager.shared.bluetoothConnectionOwner == .ahaKeyStudio else { throw WS3PresentationError.connectionChanged }
+        return reply.frame
+    }
+    func sendPresentationDefault(generation: UInt64) -> Bool {
+        sendPresentationState(4, generation: generation)
+    }
+    @discardableResult
+    func sendPresentationState(_ state: UInt8, generation: UInt64) -> Bool {
+        guard generation == commandSessionGeneration, canEditWS3Display,
+              state <= 8, AgentManager.shared.bluetoothConnectionOwner == .ahaKeyStudio else { return false }
+        writeCommand(WS3PresentationCommand.single(state: state).request!, confirmedWrite: .ws3Presentation)
+        return true
+    }
+    func poisonPresentationConnection(generation: UInt64) {
+        guard generation == commandSessionGeneration else { return }
+        invalidateCommandResponseChannel()
+    }
+
     /// 修改设备蓝牙名称
     func changeDeviceName(_ name: String) {
         let cmd = AhaKeyCommand.changeName(name)
@@ -1878,6 +1923,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     private func resetCommandSession() {
         commandSessionGeneration &+= 1
+        isChangingPresentation = false
+        presentationRuntimeActive = false
+        presentationBlocksLegacySingle = false
         activeWS3DisplayOperation = nil
         isReadingWS3Display = false
         isUpdatingWS3Display = false

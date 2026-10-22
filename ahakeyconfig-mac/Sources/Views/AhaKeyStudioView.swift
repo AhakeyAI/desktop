@@ -1070,7 +1070,7 @@ struct AhaKeyStudioView: View {
             if bleManager.firmwareCapabilityProfile?.identity == .legacy { oledSummary }
             else {
                 StudioScreenSummaryView(model: resourceInspectorModel, mode: selectedMode)
-                WS3TaskOverviewView()
+                WS3TaskOverviewView(bleManager: bleManager)
             }
         case .lightBar:      lightBarSummary
         case .toggleSwitch:  switchSummary

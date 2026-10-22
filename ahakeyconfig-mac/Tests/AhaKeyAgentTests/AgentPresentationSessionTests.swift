@@ -34,6 +34,19 @@ final class AgentPresentationSessionTests: XCTestCase {
     private func task(_ id: String) -> WS3TaskMetadata { WS3TaskMetadata(client: .codex, session: id, event: "CodexPreToolUse")! }
     private let ack = Data([0xAA, 0xBB, 0x99, 0, 0xCC, 0xDD])
 
+    func testAsynchronousExpiryPublishesAnEmptyOverviewWithoutAnotherHookOrRead() async throws {
+        let io = Fixture(), session = io.session()
+        var published: [Int] = []
+        session.onOverviewChanged = { published.append($0.tasks.count) }
+        session.updateConnection(connected: true, generation: 1)
+        _ = try await session.activate(.multi)
+        session.observe(task("expires"), state: 7)
+        XCTAssertEqual(published.last, 1)
+        io.clock = 301
+        session.expireTasks()
+        XCTAssertEqual(published.last, 0)
+    }
+
     func testSocketModeDoesNotCoerceBooleanStringOrOutOfRangeValues() {
         XCTAssertEqual(AhaKeyAgent.parsePresentationMode(0), .single)
         XCTAssertEqual(AhaKeyAgent.parsePresentationMode(1), .multi)

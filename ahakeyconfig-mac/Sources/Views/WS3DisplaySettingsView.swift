@@ -17,7 +17,7 @@ struct WS3DisplaySettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Text(NSLocalizedString("显示与灯光", comment: "")).font(.headline)
-                WS3TaskOverviewView()
+                WS3TaskOverviewView(bleManager: bleManager)
                 Divider()
                 Button(bleManager.isReadingWS3Display ? NSLocalizedString("读取中…", comment: "") : NSLocalizedString("读取显示信息（只读）", comment: "")) {
                     perform(operation: { try await bleManager.readWS3DisplayForEditing() }) { _ in }

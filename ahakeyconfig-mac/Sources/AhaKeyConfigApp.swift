@@ -23,6 +23,10 @@ struct AhaKeyConfigApp: App {
             ContentView(bleManager: bleManager)
                 .frame(minWidth: 1180, minHeight: 680)
                 .onAppear {
+                    appDelegate.preparePresentationTermination = { [weak manager = bleManager] in
+                        guard let manager, manager.presentationRuntimeActive || manager.isChangingPresentation else { return }
+                        await manager.studioPresentation.quiesce()
+                    }
                     updateManager.checkAutomaticallyIfNeeded()
                     vibeBarBridge.attach(bleManager: bleManager) { [weak appDelegate] in
                         appDelegate?.reopenMainWindow()
@@ -66,9 +70,19 @@ struct AhaKeyConfigApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+    var preparePresentationTermination: (@MainActor () async -> Void)?
+    private var waitingForPresentationTermination = false
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard FirmwareFlashActivity.shared.preventsApplicationTermination else {
-            return .terminateNow
+            guard let preparePresentationTermination else { return .terminateNow }
+            guard !waitingForPresentationTermination else { return .terminateLater }
+            waitingForPresentationTermination = true
+            Task { @MainActor in
+                await preparePresentationTermination()
+                sender.reply(toApplicationShouldTerminate: true)
+            }
+            return .terminateLater
         }
 
         let alert = NSAlert()

@@ -5,6 +5,17 @@ import AhaKeyConfigShared
 /// not presented as visual readback, and no choice is saved/replayed.
 struct WS3TaskOverviewView: View {
     @ObservedObject private var agentManager = AgentManager.shared
+    @ObservedObject var bleManager: AhaKeyBLEManager
+    @ObservedObject private var studio: StudioPresentationController
+
+    init(bleManager: AhaKeyBLEManager) {
+        self.bleManager = bleManager
+        _studio = ObservedObject(wrappedValue: bleManager.studioPresentation)
+    }
+    private var usesStudio: Bool { agentManager.bluetoothConnectionOwner == .ahaKeyStudio }
+    private var sourceAvailable: Bool {
+        usesStudio ? (bleManager.isConnected && !bleManager.isConfigurationOperationInProgress) : agentManager.isRunning
+    }
     @State private var overview: WS3TaskOverview?
     @State private var reading = false
     @State private var failed = false
@@ -20,10 +31,13 @@ struct WS3TaskOverviewView: View {
                 reading = true; failed = false; overview = nil; modeMessage = nil
                 Task { @MainActor in
                     defer { reading = false }
-                    overview = await agentManager.readTaskOverview()
-                    failed = overview == nil
+                    let revision = agentManager.bluetoothOwnershipRevision
+                    let result = usesStudio ? studio.readOverview() : await agentManager.readTaskOverview()
+                    guard revision == agentManager.bluetoothOwnershipRevision else { return }
+                    overview = result
+                    failed = result == nil
                 }
-            }.disabled(reading || agentManager.bluetoothConnectionOwner != .agentDaemon || !agentManager.isRunning)
+            }.disabled(reading || !sourceAvailable)
             HStack {
                 Picker(NSLocalizedString("显示方式", comment: ""), selection: $modeDraft) {
                     Text(NSLocalizedString("请选择", comment: "")).tag(Optional<WS3PresentationMode>.none)
@@ -36,7 +50,10 @@ struct WS3TaskOverviewView: View {
                     Task { @MainActor in
                         defer { reading = false }
                         do {
-                            overview = try await agentManager.applyPresentationMode(modeDraft)
+                            let revision = agentManager.bluetoothOwnershipRevision
+                            let result = usesStudio ? try await studio.activate(modeDraft) : try await agentManager.applyPresentationMode(modeDraft)
+                            guard revision == agentManager.bluetoothOwnershipRevision else { return }
+                            overview = result
                             modeMessage = NSLocalizedString("显示方式请求已接受；任务从新事件开始同步，实际画面请在键盘上确认。", comment: "")
                         } catch {
                             overview = nil
@@ -46,7 +63,7 @@ struct WS3TaskOverviewView: View {
                 }
                 .disabled(reading || overview?.connected != true || overview?.presentationBusy != false ||
                           modeDraft == nil || modeDraft == overview?.requestedMode)
-            }.disabled(reading || agentManager.bluetoothConnectionOwner != .agentDaemon || !agentManager.isRunning)
+            }.disabled(reading || !sourceAvailable)
             if let mode = overview?.requestedMode {
                 Text(String(format: NSLocalizedString("本次连接已请求：%@", comment: ""), modeLabel(mode)))
             } else if overview == nil {
@@ -84,18 +101,20 @@ struct WS3TaskOverviewView: View {
                     Text(NSLocalizedString("本次连接有新任务事件因位置占满而未纳入；列表可能不完整。", comment: ""))
                         .foregroundStyle(.orange)
                 }
-                Text(NSLocalizedString("以上为读取时的快照；任务变化后请重新读取。", comment: ""))
+                Text(NSLocalizedString(usesStudio ? "当前连接的新任务事件会自动同步。" : "以上为读取时的快照；任务变化后请重新读取。", comment: ""))
                     .font(.caption).foregroundStyle(.secondary)
             }
             if failed {
                 Text(NSLocalizedString("未获得任务信息，请确认后台已更新并运行后重试。", comment: ""))
                     .font(.caption).foregroundStyle(.orange)
             }
-            if agentManager.bluetoothConnectionOwner != .agentDaemon {
-                Text(NSLocalizedString("请先返回日常连接，再读取后台任务。", comment: ""))
+            if usesStudio && studio.eventsMayBeIncomplete {
+                Text(NSLocalizedString("部分实时事件未纳入，已清理旧任务；请以实际任务为准。", comment: ""))
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
+        .onChange(of: studio.overview) { value in if usesStudio { overview = value } }
+        .onChange(of: bleManager.isConnected) { _ in if usesStudio { overview = nil; failed = false; modeMessage = nil } }
         .onChange(of: agentManager.isAgentBLEConnected) { _ in overview = nil; failed = false; modeMessage = nil }
         .onChange(of: agentManager.bluetoothConnectionOwner) { _ in overview = nil; failed = false; modeMessage = nil }
         .onChange(of: agentManager.isRunning) { _ in overview = nil; failed = false; modeMessage = nil }

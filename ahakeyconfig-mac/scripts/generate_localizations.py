@@ -7,6 +7,8 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "当前连接的新任务事件会自动同步。": "New task events are synchronized automatically for this connection.",
+    "部分实时事件未纳入，已清理旧任务；请以实际任务为准。": "Some live events were missed and previous tasks were cleared. Check the actual task status.",
     "可用版本": "Available versions",
     "重新读取键盘": "Read keyboard again",
     "刷新列表": "Refresh list",

@@ -3,6 +3,15 @@ import XCTest
 @testable import AhaKeyConfigShared
 
 final class WS3LiveTaskJournalTests: XCTestCase {
+    func testDelayedDeliveryCannotRenewTemporarySingleState() throws {
+        let metadata = try XCTUnwrap(WS3TaskMetadata(client: .codex, session: "reset", event: "CodexStop"))
+        let event = WS3LiveTaskEvent(metadata: metadata, state: 5, uptime: 100, resetValue: 4, resetDelayMilliseconds: 1200)
+        XCTAssertEqual(event.singleDisplay(at: 100.5)?.state, 5)
+        XCTAssertEqual(try XCTUnwrap(event.singleDisplay(at: 100.5)).remaining, 0.7, accuracy: 0.001)
+        XCTAssertEqual(event.singleDisplay(at: 102)?.state, 4)
+        XCTAssertEqual(event.singleDisplay(at: 102)?.remaining, 0)
+        XCTAssertNil(event.singleDisplay(at: 106))
+    }
     private func directory() -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         addTeardownBlock { try? FileManager.default.removeItem(at: url) }

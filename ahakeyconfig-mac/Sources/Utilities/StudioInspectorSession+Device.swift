@@ -30,6 +30,8 @@ extension StudioInspectorSession {
         }, pause: {
             // Bounded readiness observation only; no RPC, file scan or refresh.
             try await Task.sleep(for: .milliseconds(100))
+        }, prepare: {
+            await bleManager.studioPresentation.quiesce()
         }))
     }
 }

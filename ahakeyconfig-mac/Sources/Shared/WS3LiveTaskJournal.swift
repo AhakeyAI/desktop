@@ -8,14 +8,26 @@ public struct WS3LiveTaskEvent: Codable, Equatable, Sendable {
     public let event: String
     public let state: UInt8
     public let uptime: TimeInterval
-    public init(metadata: WS3TaskMetadata, state: UInt8, uptime: TimeInterval) {
+    public let resetValue: UInt8?
+    public let resetDelayMilliseconds: Int?
+    public init(metadata: WS3TaskMetadata, state: UInt8, uptime: TimeInterval, resetValue: UInt8? = nil, resetDelayMilliseconds: Int? = nil) {
         reference = metadata.reference; client = metadata.client; event = metadata.event
         self.state = state; self.uptime = uptime
+        self.resetValue = resetValue; self.resetDelayMilliseconds = resetDelayMilliseconds
     }
     public func isValid(at now: TimeInterval) -> Bool {
         reference.utf8.count == 64 && reference.allSatisfy { $0.isASCII && $0.isHexDigit } &&
             !event.isEmpty && event.utf8.count <= 64 && event != "SubagentStop" && state <= 8 &&
-            uptime.isFinite && now.isFinite && uptime <= now && now - uptime <= 5
+            uptime.isFinite && now.isFinite && uptime <= now && now - uptime <= 5 &&
+            (resetValue == nil || resetValue! <= 8) && (resetDelayMilliseconds == nil || (0...60_000).contains(resetDelayMilliseconds!)) &&
+            ((resetValue == nil) == (resetDelayMilliseconds == nil))
+    }
+    public func singleDisplay(at now: TimeInterval) -> (state: UInt8, reset: UInt8, remaining: TimeInterval)? {
+        guard isValid(at: now) else { return nil }
+        let reset = resetValue ?? 4
+        let deadline = uptime + Double(resetDelayMilliseconds ?? 30_000) / 1000
+        let remaining = max(0, deadline - now)
+        return (remaining > 0 ? state : reset, reset, remaining)
     }
 }
 
@@ -65,7 +77,11 @@ public enum WS3LiveTaskJournal {
         guard let command = request["cmd"] as? String, ["state", "state_with_reset", "permission"].contains(command),
               let task = request["task"] as? [String: String], let metadata = WS3TaskMetadata(dictionary: task),
               let state = request["value"] as? Int, (0...8).contains(state) else { return false }
-        let event = WS3LiveTaskEvent(metadata: metadata, state: UInt8(state), uptime: now)
+        let reset = command == "state_with_reset" ? (request["resetValue"] as? Int ?? 4) : nil
+        let delay = command == "state_with_reset" ? (request["delayMs"] as? Int ?? 1200) : nil
+        guard reset.map({ (0...8).contains($0) }) ?? true else { return false }
+        let event = WS3LiveTaskEvent(metadata: metadata, state: UInt8(state), uptime: now,
+            resetValue: reset.map(UInt8.init), resetDelayMilliseconds: delay)
         guard event.isValid(at: now) else { return false }
         return (try? locked(directory: directory) {
             guard let lease: Lease = decode(directory.appendingPathComponent("reader.json"), maximum: 1024),

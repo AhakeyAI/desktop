@@ -24,6 +24,23 @@ final class StudioInspectorSessionTests: XCTestCase {
         }
     }
 
+    func testPreparationFinishesBeforeIOAndCannotReleaseANewerOwner() async throws {
+        let device = Device()
+        var prepared = false
+        var access = device.access()
+        access.prepare = { prepared = true }
+        let session = StudioInspectorSession(access: access)
+        _ = try await session.withConnection { _ in XCTAssertTrue(prepared); return 1 }
+        XCTAssertEqual(device.releases, 1)
+        access.prepare = { device.revision += 1 }
+        let changed = StudioInspectorSession(access: access)
+        do {
+            _ = try await changed.withConnection { _ in XCTFail("Changed owner during preparation"); return 1 }
+            XCTFail("Expected ownership change")
+        } catch { XCTAssertEqual(error as? StudioInspectorSession.Failure, .ownershipChanged) }
+        XCTAssertEqual(device.releases, 1)
+    }
+
     func testReadOnlyOperationAcquiresAndReturnsLeaseOnce() async throws {
         let device = Device(), targetMode = 3, targetKey = 2
         let session = StudioInspectorSession(access: device.access())
