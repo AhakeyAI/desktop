@@ -1,5 +1,11 @@
 # Connect and Talk 跨设备任务交接
 
+## 2026-10-22 最新接续：已统一分支
+
+本轮适配全部开发成果现统一在 `connect&talk`。21个历史工作分支已合入并清理，设计原型另存归档标签；PR156/160已按用户最新要求完成开发集成。后续不再按每个WBS项建立远程分支，先更新统一分支再继续。完整[分支清单/恢复位置/工作约定](../ahastudio/connect-talk-branch-consolidation-2026-10-22.md)。
+
+优先读取[总WBS v2](../ahastudio/mac-adaptation-master-wbs-2026-10-22.md)和[Inspector终版方案](../ahastudio/inspector-integration-plan-2026-10-22.md)。470项测试通过；用户已确认可配合集中特征验收，须先补已有功能验收再继续新功能。开发合入不代表剩余真机、固件依赖和发布门槛通过。以下旧段落为历史检查点，发生冲突时以上述最新表与分支约定为准。
+
 ## 2026-10-11 本机预检和 OLED 隐式写入修复
 
 - `4211c5b` 在目标 Mac 上通过 136 项自动测试、arm64 Release App/Agent 构建、签名检查与 GUI 离线启动。键盘暂未准备好，真机验收未执行。

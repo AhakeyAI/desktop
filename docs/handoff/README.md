@@ -1,8 +1,12 @@
 # Connect and Talk 交接入口
 
-更新：2026-10-21。仓库 `AhakeyAI/desktop`，接续分支 `connect&talk`。旧mac客户端0.2.3的WS1/WS2/CP2已分批开发和验收，不依赖Runtime。当前进度以适配状态表、WBS CSV及完整交接末段为准。
+更新：2026-10-22。仓库 `AhakeyAI/desktop`，接续分支 `connect&talk`。旧mac客户端0.2.3的WS1/WS2/CP2已分批开发和验收，不依赖Runtime。当前进度以适配状态表、WBS CSV及完整交接末段为准。
 
 先阅读 [当前适配状态](../ahastudio/ws3-adaptation-status-2026-10-21.md) 和 [完整交接](./CONNECT_AND_TALK_HANDOFF.md) 末段。Consumer Voice已认可，F5备选暂缓。
+
+## 当前接续规则
+
+本轮开发已统一到 `connect&talk`，旧的21个工作分支与1个原型分支已合入或归档后清理。后续直接在统一分支推进，不再按WBS逐项建立远程分支。先读[最新总WBS](../ahastudio/mac-adaptation-master-wbs-2026-10-22.md)及[分支整合与恢复记录](../ahastudio/connect-talk-branch-consolidation-2026-10-22.md)，再读历史材料。
 
 ## 文件索引
 
