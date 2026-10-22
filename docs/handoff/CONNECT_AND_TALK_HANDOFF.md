@@ -568,3 +568,5 @@ Voice要求已升级：四模式独立，支持Consumer/App原生/AhaType/普通
 swift build和StudioInlineKeyTests7项通过，两轴窄复核均无问题；上一业务版完整388已通过，本次仅UI布局与摘要复用。签名0.2.3 arm64/5af6605已构建在local-builds/connect-talk-inspector-compact-20261022，deep/strict和Info.plist来源已核对，尚未替换当前/Applications的75a3445。
 
 CUA仍不可原生操作，已请用户用CmdQ退出AhaKey Studio（不是Codex）以便替换。收到退出确认后，先备份当前App，再ditto精简候选到/Applications、签名/来源核对；请用户打开确认布局及后续单键保存/还原。无需重启键盘、无需再重开Codex；此前没有真实按键写入。PR153仍Draft，不能仅凭读取正常就合入。
+
+补充：用户已退出Studio，5af6605精简版现已替换到/Applications，签名/源码核对通过，旧包备份studio-before-inspector-compact-20261022。已请用户打开并确认新布局，先不写键盘。不要再次要求退出安装同一包；后续继续保存/还原验收。
