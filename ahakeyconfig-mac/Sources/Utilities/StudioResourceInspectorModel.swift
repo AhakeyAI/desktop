@@ -8,6 +8,14 @@ final class StudioResourceInspectorModel: ObservableObject {
         let payload: WS3ResourcePayload
         let thumbnail: NSImage?
         let filename: String
+        let sourceFrameCount: Int
+        let wasResized: Bool
+        var adaptationSummary: String? {
+            if sourceFrameCount > Int(payload.frameCount) {
+                return String(format: NSLocalizedString("已自动抽帧：%d→%d 帧，时长可能缩短", comment: ""), sourceFrameCount, Int(payload.frameCount))
+            }
+            return wasResized ? NSLocalizedString("已自动适配键盘屏幕", comment: "") : nil
+        }
     }
     struct Conflict: Identifiable {
         let id = UUID()
@@ -91,15 +99,15 @@ final class StudioResourceInspectorModel: ObservableObject {
             let worker = Task.detached(priority: .userInitiated) {
                 let access = url.startAccessingSecurityScopedResource()
                 defer { if access { url.stopAccessingSecurityScopedResource() } }
-                let frames = try OLEDFrameEncoder.frames(fromGIFAt: url,
+                let prepared = try OLEDFrameEncoder.adaptedFrames(at: url,
                     maximumFrames: Int(WS3ResourceReadback.maximumFrames(target)))
-                return Draft(payload: try .init(entryID: target, frames: frames),
-                    thumbnail: NSImage(contentsOf: url), filename: url.lastPathComponent)
+                return (try WS3ResourcePayload(entryID: target, frames: prepared.frames), prepared)
             }
             do {
                 let value = try await withTaskCancellationHandler(operation: { try await worker.value }, onCancel: { worker.cancel() })
                 try Task.checkCancellation()
-                drafts[target] = value
+                drafts[target] = Draft(payload: value.0, thumbnail: NSImage(data: value.1.previewPNG),
+                    filename: url.lastPathComponent, sourceFrameCount: value.1.sourceFrameCount, wasResized: value.1.wasResized)
             } catch { if !(error is CancellationError) { message = error.localizedDescription } }
         }
     }

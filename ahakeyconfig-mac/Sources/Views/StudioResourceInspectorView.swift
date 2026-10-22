@@ -58,6 +58,9 @@ struct StudioResourceInspectorView: View {
                         .help(NSLocalizedString("仅清除本地选择，不改变键盘。", comment: ""))
                     Button(NSLocalizedString("更换", comment: "")) { choosingFile = true }.buttonStyle(.link).disabled(busy)
                 }.font(.caption)
+                if let summary = draft.adaptationSummary {
+                    Label(summary, systemImage: "wand.and.stars").font(.caption).foregroundStyle(.secondary)
+                }
             }
             Text(String(format: NSLocalizedString("最多 %d 帧 · 10 FPS", comment: ""),
                 Int(WS3ResourceReadback.maximumFrames(model.entry))))

@@ -7,6 +7,11 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "无法读取图片或 GIF。": "Unable to read this image or GIF.",
+    "素材位置容量无效，请重新读取键盘。": "Invalid artwork slot capacity. Read the keyboard again.",
+    "已自动抽帧：%d→%d 帧，时长可能缩短": "Automatically adapted: %d → %d frames; playback may be shorter.",
+    "已自动适配键盘屏幕": "Automatically adapted to the keyboard screen",
+    "图片会自动适配屏幕；长动图自动抽帧到最多 70 帧。": "Images automatically fit the screen; long animations are sampled to at most 70 frames.",
     "画面类型": "Artwork type",
     "已设置 · %d 帧": "Set · %d frames",
     "已选中": "Selected",

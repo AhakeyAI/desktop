@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import ImageIO
+import UniformTypeIdentifiers
 
 enum OLEDFrameEncodingError: LocalizedError {
     case cannotCreateImageSource
@@ -8,11 +9,14 @@ enum OLEDFrameEncodingError: LocalizedError {
     case cannotCreateContext
     case sourceFileTooLarge(fileSize: Int, maxBytes: Int)
     case tooManyFrames(count: Int, max: Int)
+    case invalidTargetCapacity
 
     var errorDescription: String? {
         switch self {
         case .cannotCreateImageSource:
-            return "无法读取 GIF 文件。"
+            return NSLocalizedString("无法读取图片或 GIF。", comment: "")
+        case .invalidTargetCapacity:
+            return NSLocalizedString("素材位置容量无效，请重新读取键盘。", comment: "")
         case .noFrames:
             return NSLocalizedString("没有可编码的图片帧。", comment: "")
         case .cannotCreateContext:
@@ -31,6 +35,72 @@ enum OLEDFrameEncodingError: LocalizedError {
 }
 
 enum OLEDFrameEncoder {
+    struct PreparedFrames: Sendable {
+        let frames: [Data]
+        let previewPNG: Data
+        let sourceFrameCount: Int
+        let wasResized: Bool
+    }
+
+    static func adaptedFrames(at url: URL, maximumFrames: Int = AhaKeyCommand.oledMaxFramesPerMode) throws -> PreparedFrames {
+        try Task.checkCancellation()
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary) else {
+            throw OLEDFrameEncodingError.cannotCreateImageSource
+        }
+        let count = CGImageSourceGetCount(source)
+        let indices = try frameSelection(sourceCount: count, maximumFrames: maximumFrames)
+        let options = [kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: max(AhaKeyCommand.oledWidth, AhaKeyCommand.oledHeight),
+            kCGImageSourceShouldCache: false, kCGImageSourceShouldCacheImmediately: true] as CFDictionary
+        var encoded: [Data] = [], previewPNG: Data?
+        encoded.reserveCapacity(indices.count)
+        for index in indices {
+            try Task.checkCancellation()
+            try autoreleasepool {
+                guard let image = CGImageSourceCreateThumbnailAtIndex(source, index, options) else {
+                    throw OLEDFrameEncodingError.cannotCreateImageSource
+                }
+                encoded.append(try encodeFrame(image))
+                if previewPNG == nil {
+                    let data = NSMutableData()
+                    guard let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else {
+                        throw OLEDFrameEncodingError.cannotCreateContext
+                    }
+                    CGImageDestinationAddImage(destination, image, nil)
+                    guard CGImageDestinationFinalize(destination) else { throw OLEDFrameEncodingError.cannotCreateContext }
+                    previewPNG = data as Data
+                }
+            }
+        }
+        try Task.checkCancellation()
+        guard let previewPNG else { throw OLEDFrameEncodingError.noFrames }
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] ?? [:]
+        let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue ?? 0
+        let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue ?? 0
+        let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? 1
+        let resized = width > AhaKeyCommand.oledWidth || height > AhaKeyCommand.oledHeight || orientation != 1 ||
+            (sourceFileByteCount(at: url) ?? 0) > AhaKeyCommand.oledMaxSourceFileBytes
+        return PreparedFrames(frames: encoded, previewPNG: previewPNG, sourceFrameCount: count, wasResized: resized)
+    }
+
+    /// Keep the whole animation represented, including its first and last frame.
+    static func frameSelection(sourceCount: Int, maximumFrames: Int) throws -> [Int] {
+        guard sourceCount > 0 else { throw OLEDFrameEncodingError.noFrames }
+        guard (1...AhaKeyCommand.oledMaxFramesPerMode).contains(maximumFrames) else { throw OLEDFrameEncodingError.invalidTargetCapacity }
+        if sourceCount <= maximumFrames { return Array(0..<sourceCount) }
+        if maximumFrames == 1 { return [0] }
+        let steps = maximumFrames - 1, span = sourceCount - 1
+        let quotient = span / steps, remainder = span % steps
+        return (0..<maximumFrames).map { $0 * quotient + ($0 * remainder) / steps }
+    }
+
+    static func adaptedFrameCount(at url: URL, maximumFrames: Int = AhaKeyCommand.oledMaxFramesPerMode) throws -> Int {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary) else {
+            throw OLEDFrameEncodingError.cannotCreateImageSource
+        }
+        return try frameSelection(sourceCount: CGImageSourceGetCount(source), maximumFrames: maximumFrames).count
+    }
     static func frameCount(at url: URL) -> Int {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return 0 }
         return CGImageSourceGetCount(source)

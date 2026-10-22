@@ -1716,7 +1716,7 @@ struct AhaKeyStudioView: View {
                         Text("播放速度 \(currentModeDraft.oled.framesPerSecond) FPS")
                     }
 
-                    Text("硬性限制：源文件 ≤ 2 MB，FPS 1–30，单模式最多 70 帧；Mode 1/2/3/4 固定写入 slot 10/80/150/220。")
+                    Text(NSLocalizedString("图片会自动适配屏幕；长动图自动抽帧到最多 70 帧。", comment: ""))
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -2374,8 +2374,7 @@ struct AhaKeyStudioView: View {
         panel.allowsMultipleSelection = false
         if panel.runModal() == .OK, let url = panel.url {
             do {
-                try OLEDFrameEncoder.validateGIFSourceFileSize(at: url)
-                try OLEDFrameEncoder.validateFrameCount(at: url)
+                _ = try OLEDFrameEncoder.adaptedFrameCount(at: url)
             } catch {
                 let msg = (error as? LocalizedError)?.errorDescription ?? NSLocalizedString("图片文件不符合上传限制。", comment: "")
                 syncStatusMessage = msg
@@ -2384,7 +2383,7 @@ struct AhaKeyStudioView: View {
                 }
                 return
             }
-            let frameCount = OLEDFrameEncoder.frameCount(at: url)
+            let frameCount = min(OLEDFrameEncoder.frameCount(at: url), AhaKeyCommand.oledMaxFramesPerMode)
             updateCurrentMode { mode in
                 mode.oled.localAssetPath = url.path
                 mode.oled.statusLine = "已选 \(max(frameCount, 1)) 帧图片预览；写入时将上传到 \(selectedMode.title) 固定分区。"
@@ -2594,6 +2593,9 @@ struct AhaKeyStudioView: View {
     // OLED uploads require an explicit save action; connection/readback must not write resources.
     private func uploadChangedOLEDsToDevice() async throws -> Int {
         var uploadCount = 0
+        let generation = bleManager.configurationSnapshot.generation
+        let deviceID = bleManager.bleDeviceUUID
+        let ownershipRevision = agentManager.bluetoothOwnershipRevision
 
         for mode in AhaKeyModeSlot.allCases {
             let draft = studioDraft.draft(for: mode)
@@ -2604,8 +2606,13 @@ struct AhaKeyStudioView: View {
             guard draft.oled != baseline || deviceFrameCount == 0 else { continue }
 
             let assetURL = URL(fileURLWithPath: assetPath)
-            try OLEDFrameEncoder.validateGIFSourceFileSize(at: assetURL)
-            let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL)
+            let preparation = Task.detached(priority: .userInitiated) { try OLEDFrameEncoder.adaptedFrames(at: assetURL) }
+            let prepared = try await withTaskCancellationHandler(operation: { try await preparation.value }, onCancel: { preparation.cancel() })
+            try Task.checkCancellation()
+            guard bleManager.isConnected, bleManager.configurationSnapshot.generation == generation,
+                  bleManager.bleDeviceUUID == deviceID,
+                  agentManager.bluetoothOwnershipRevision == ownershipRevision else { throw StudioInspectorSession.Failure.sessionChanged }
+            let frames = prepared.frames
 
             updateMode(mode) { modeDraft in
                 modeDraft.oled.statusLine = "正在上传动图到 \(mode.title)…"

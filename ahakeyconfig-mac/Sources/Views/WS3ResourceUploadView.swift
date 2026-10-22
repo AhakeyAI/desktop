@@ -129,16 +129,16 @@ struct WS3ResourceUploadView: View {
             let worker = Task.detached(priority: .userInitiated) {
                 let access = url.startAccessingSecurityScopedResource()
                 defer { if access { url.stopAccessingSecurityScopedResource() } }
-                let frames = try OLEDFrameEncoder.frames(fromGIFAt: url, maximumFrames: Int(WS3ResourceReadback.maximumFrames(target)))
-                let encoded = try WS3ResourcePayload(entryID: target, frames: frames)
-                return (encoded, NSImage(contentsOf: url))
+                let prepared = try OLEDFrameEncoder.adaptedFrames(at: url, maximumFrames: Int(WS3ResourceReadback.maximumFrames(target)))
+                let encoded = try WS3ResourcePayload(entryID: target, frames: prepared.frames)
+                return (encoded, prepared.previewPNG)
             }
             defer { isPreparing = false }
             do {
                 let result = try await withTaskCancellationHandler(operation: { try await worker.value }, onCancel: { worker.cancel() })
                 try Task.checkCancellation()
                 guard entry == target else { return }
-                payload = result.0; thumbnail = result.1; filename = url.lastPathComponent
+                payload = result.0; thumbnail = NSImage(data: result.1); filename = url.lastPathComponent
             } catch { if !(error is CancellationError) { message = error.localizedDescription } }
         }
     }
