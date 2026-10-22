@@ -89,5 +89,23 @@
     "No current-session hot reload or crash revocation proof",
     "Cursor real CLI lifecycle pending",
     "Native Kimi live permission control remains incomplete"
-  ]
+  ],
+  "implementationCommit": "cf718cfde56d4983bb954617a403412186009ced",
+  "review": {
+    "standards": "passed; no actionable findings",
+    "spec": "passed; no actionable findings"
+  },
+  "cursorProbe": {
+    "cli": "2026.10.19-6bbf2c4",
+    "status": "partial; not lifecycle acceptance",
+    "executed": [
+      "sessionStart",
+      "sessionEnd"
+    ],
+    "exit": 1,
+    "modelProvider": "local fixture only; stream protocol not implemented",
+    "isolation": "Temporary workspace/config/data/store, synthetic API credentials, test-process Node os.homedir shim; hook loader does not honor CURSOR_CONFIG_DIR",
+    "remaining": "Actual beforeSubmitPrompt block, reinstall/remove execution and live permission behavior still unproven",
+    "cleanup": "Probe ended; own temporary language-server child confirmed absent after process exit"
+  }
 }

@@ -124,3 +124,6 @@ H02/Q01继续执行，不等待实体操作。补验发现原JSON Hook卸载按�
 真实Claude Code 2.1.299在独立CLAUDE_CONFIG_DIR中完成12/12/1 Hook安装、重装、卸载；SessionStart/UserPromptSubmit/SessionEnd与用户阻止Hook实际执行，模型请求为0。Kimi 2.3.0的8/8/1生命周期同步复验；两者均不使用真实账号、真实配置或键盘。22项相关Swift回归通过。机器收据见 `../validation/connect-talk-hil-2026-10-22/hook-lifecycle-2026-10-23.json`。这些结果不代表当前会话配置重载、异常退出收权及全部Cursor真实CLI矩阵完成。
 
 Kimi即时接管继续保留未完成：对已安装2.3.0对应的公开源码b5e28fd6beac752a2cdcc0ff2f5fdf40e6494fbb核验，PreToolUse实际只返回block reason，permission mode是进程内agent state，插件配置无权限服务注入字段；与已有真实TUI的allow无效、当轮REST切手动无效一致。官方源码允许进一步研究适配，但不因此替换用户原生可执行文件、安装未验证的CLI分叉或将仅状态同步标为完整接管。后续继续查SDK/会话控制接入；本批未操作实体设备、未安装候选。
+
+
+cf718cf已推送并经需求/规范两轴复核通过。Cursor原生探针现在已触发sessionStart/sessionEnd，但服务端流协议未在离线夹具实现，beforeSubmitPrompt及完整安装/重装/移除仍不能判通过；独立配置变量不覆盖其Hook的homedir读取，测试已在自身进程隔离。探针已退出，详见集中验收台账。本轮无新增实体操作。

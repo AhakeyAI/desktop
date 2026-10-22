@@ -89,3 +89,12 @@
 交互对照使用隔离TUI和本机假模型（仅写临时marker）：manual基线请求批准；Hook返回allow仍请求批准；只改默认字段仍请求批准；空闲时服务profile更新可在下一次用户输入后重新载入；工具调用前从Hook调用profile切manual虽code=0，该TUI当前工具仍执行。由此保留“当前运行会话随拨杆即时切档”未完成，不能将HTTP成功或无交互自动执行当成接管证明。原生CLI、临时服务及假模型已退出，含临时认证值的文件已清理。
 
 后续继续调查原生运行时扩展点。官方公开仓库MoonshotAI/kimi-code包含v2.3.0源码及权限/反向RPC组件，尚未据此证明可以加载AhaKey的可靠接管扩展；不得把“暂未找到接口”直接当成无需开发。原生完整支持仍在总WBS，四组固件合同依赖也未变。
+
+
+### 2026-10-23 JSON Hook生命周期与配置保留
+
+实现cf718cf已推送connect&talk。Claude/Cursor旧子串卸载误删先复现两处失败；生产共用编辑器改按字面argv归属、保留用户Hook及其他配置、损坏结构拒写。22项相关Swift回归通过，规范与需求两轴复核无问题。Claude 2.1.299真实生命周期12/12/1全部通过，用户阻止Hook仍执行且模型请求0；Kimi 2.3.0真实8/8/1同步通过。收据见hook-lifecycle-2026-10-23.json。
+
+Cursor 2026.10.19-6bbf2c4补验仍为部分：其CURSOR_CONFIG_DIR只重定位CLI配置，钩子loader仍固定os.homedir下.cursor/.claude。隔离探针仅在该测试Node进程替换homedir并设置临时config/data/store，使用本机虚构账号/元数据端点；真实sessionStart/sessionEnd已经执行，但完整会话需Agent流协议，当前假端点返回协议错误，尚未执行用户beforeSubmitPrompt阻止Hook。不能将这次退出1或SessionEnd有记录标为完整生命周期通过。探针与其临时语言服务均已确认退出，未修改真实CLI设置/账号/实体配置。
+
+Kimi进一步核验的[官方SDK实现](https://github.com/MoonshotAI/kimi-code/blob/b5e28fd6beac752a2cdcc0ff2f5fdf40e6494fbb/packages/node-sdk/src/sdk-rpc-client-v2.ts)中setPermission能作用于本进程agentFacade；[官方TUI入口](https://github.com/MoonshotAI/kimi-code/blob/b5e28fd6beac752a2cdcc0ff2f5fdf40e6494fbb/apps/kimi-code/src/cli/run-shell.ts)直接创建自己的harness，SDK传输在该路径是内存连接。这说明SDK存在权限方法，并不证明另一个外部Studio进程可连接已运行TUI。实时接管仍待开发，不回退到无效的写默认字段或REST成功判定。
