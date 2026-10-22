@@ -37,6 +37,12 @@ enum HookSupport {
     }
 
     static func sendJsonRequest(_ dict: [String: Any], timeout: Double) -> [String: Any]? {
+        var dict = dict
+        if var task = dict["task"] as? [String: String], WS3TaskMetadata(dictionary: task) != nil,
+           let terminal = WS3TerminalTaskIdentity.captureCurrentProcess() {
+            task.merge(terminal.dictionary, uniquingKeysWith: { _, native in native })
+            dict["task"] = task
+        }
         // Independent of Agent availability; never affects approval output.
         _ = WS3LiveTaskJournal.publish(request: dict)
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)

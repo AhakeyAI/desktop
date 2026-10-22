@@ -68,6 +68,14 @@ public final class WS3PresentationSession {
         notifyOverview()
     }
 
+    /// Caller supplies an independently verified native foreground source.
+    /// It changes presentation priority only, never task freshness or approval.
+    public func setForegroundTerminal(_ terminal: WS3TerminalTaskIdentity?) {
+        guard connected, !isChangingMode, tasks.setForegroundTerminal(terminal) else { return }
+        notifyOverview()
+        if requestedMode == .multi { requestFlush() }
+    }
+
     @MainActor
     public func activate(_ target: WS3PresentationMode) async throws -> WS3TaskOverview {
         guard connected else { throw WS3PresentationError.unavailable }

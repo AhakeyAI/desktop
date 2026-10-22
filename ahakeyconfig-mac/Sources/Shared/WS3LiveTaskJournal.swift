@@ -7,11 +7,12 @@ public struct WS3LiveTaskEvent: Codable, Equatable, Sendable {
     public let client: WS3TaskClient
     public let event: String
     public let state: UInt8
+    public let terminal: WS3TerminalTaskIdentity?
     public let uptime: TimeInterval
     public let resetValue: UInt8?
     public let resetDelayMilliseconds: Int?
     public init(metadata: WS3TaskMetadata, state: UInt8, uptime: TimeInterval, resetValue: UInt8? = nil, resetDelayMilliseconds: Int? = nil) {
-        reference = metadata.reference; client = metadata.client; event = metadata.event
+        reference = metadata.reference; client = metadata.client; event = metadata.event; terminal = metadata.terminal
         self.state = state; self.uptime = uptime
         self.resetValue = resetValue; self.resetDelayMilliseconds = resetDelayMilliseconds
     }
