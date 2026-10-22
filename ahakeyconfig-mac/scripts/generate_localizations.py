@@ -7,6 +7,8 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "已读取：%@": "Read back: %@",
+    "尚未读取": "Not read yet",
     "正在处理当前组件，请完成或取消后再操作。": "Finish or cancel the current operation before continuing.",
     "未能取得键盘配置连接；未开始本次操作，已尝试交还后台。": "Could not acquire the keyboard configuration connection. The operation did not start; returning it to the background was requested.",
     "连接归属已改变，本次操作未确认。": "Connection ownership changed. This operation is unconfirmed.",

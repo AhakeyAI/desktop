@@ -594,8 +594,7 @@ struct AhaKeyStudioView: View {
                         Group {
                             switch selectedPart {
                             case .key1, .key2, .key3, .key4:
-                                if inlineKeyTarget != nil { inlineKeyStatus }
-                                keyInspector.disabled(inlineKeyTarget != nil && (inspectorSession.isBusy || !inlineKeyIsEditable))
+                                keyInspector
                             case .oledDisplay: oledInspector
                             case .lightBar: lightBarInspector
                             case .toggleSwitch: switchInspector
@@ -1064,6 +1063,9 @@ struct AhaKeyStudioView: View {
                 }
                 .padding(.top, 4)
             }
+            .disabled(inlineKeyControlsDisabled)
+
+            if inlineKeyTarget != nil { inlineKeyStatus }
 
             if key.role == .voice {
                 GroupBox(NSLocalizedString("语音输入方式", comment: "")) {
@@ -1243,6 +1245,7 @@ struct AhaKeyStudioView: View {
                 .padding(.top, 4)
             }
             .onChange(of: selectedPart) { _ in selectedTriggerTab = 0 }
+            .disabled(inlineKeyControlsDisabled)
 
         }
     }
@@ -5263,33 +5266,46 @@ private extension AhaKeyStudioView {
         return StudioKeyWriteProposal.draft(from: fact.value, preserving: currentSelectedKey) != nil
     }
 
+    var inlineKeyControlsDisabled: Bool {
+        inlineKeyTarget != nil && (inspectorSession.isBusy || !inlineKeyIsEditable)
+    }
+
     @ViewBuilder
     var inlineKeyStatus: some View {
         if let target = inlineKeyTarget {
-            GroupBox(NSLocalizedString("键盘读回", comment: "")) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(target.title).font(.caption.weight(.semibold))
-                    if let fact = inlineKeyFact {
-                        Text(StudioKeyWriteProposal.summary(fact.value)).font(.caption).textSelection(.enabled)
-                        Text(NSLocalizedString("这是上次读取的设备值；保存前会重新核对。", comment: ""))
-                            .font(.caption).foregroundStyle(.secondary)
-                        if !inlineKeyIsEditable {
-                            Text(NSLocalizedString("此动作无法在当前编辑器中完整表示，保持只读。", comment: ""))
-                                .font(.caption).foregroundStyle(.orange)
-                        }
-                        if inlineKeyUnconfirmed.contains(inlineKeyReceiptID(fact)) {
-                            Text(NSLocalizedString("上次保存未确认，已发出的修改可能生效；请重新读取并核对。", comment: ""))
-                                .font(.caption).foregroundStyle(.orange)
-                        }
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    if inspectorSession.isBusy {
+                        ProgressView().controlSize(.small)
+                        Text(NSLocalizedString("处理中…", comment: ""))
+                    } else if let fact = inlineKeyFact {
+                        Text(String(format: NSLocalizedString("已读取：%@", comment: ""), StudioKeyWriteProposal.actionSummary(fact.value)))
+                            .textSelection(.enabled)
+                    } else {
+                        Text(NSLocalizedString("尚未读取", comment: ""))
                     }
-                    Button(inspectorSession.isBusy ? NSLocalizedString("处理中…", comment: "") : NSLocalizedString("重新读取此键", comment: "")) {
-                        readInlineKey(target)
-                    }.disabled(inspectorSession.isBusy)
-                    if let inlineKeyMessage { Text(inlineKeyMessage).font(.caption).textSelection(.enabled) }
-                    Text(NSLocalizedString("编辑草稿时后台保持连接；读写期间自动批准可能短暂不可用。", comment: ""))
-                        .font(.caption).foregroundStyle(.secondary)
-                }.frame(maxWidth: .infinity, alignment: .leading)
-            }
+                    Spacer(minLength: 0)
+                    Button { readInlineKey(target) } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.borderless)
+                    .help(NSLocalizedString("重新读取此键", comment: ""))
+                    .accessibilityLabel(NSLocalizedString("重新读取此键", comment: ""))
+                    .disabled(inspectorSession.isBusy)
+                }
+                .font(.caption).foregroundStyle(.secondary)
+                if let fact = inlineKeyFact {
+                    if !inlineKeyIsEditable {
+                        Text(NSLocalizedString("此动作无法在当前编辑器中完整表示，保持只读。", comment: ""))
+                            .font(.caption).foregroundStyle(.orange)
+                    }
+                    if inlineKeyUnconfirmed.contains(inlineKeyReceiptID(fact)) {
+                        Text(NSLocalizedString("上次保存未确认，已发出的修改可能生效；请重新读取并核对。", comment: ""))
+                            .font(.caption).foregroundStyle(.orange)
+                    }
+                }
+                if let inlineKeyMessage { Text(inlineKeyMessage).font(.caption).textSelection(.enabled) }
+            }.frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

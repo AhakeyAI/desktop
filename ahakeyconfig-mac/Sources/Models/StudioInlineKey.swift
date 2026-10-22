@@ -49,7 +49,7 @@ extension StudioKeyWriteProposal {
         return result
     }
 
-    static func summary(_ value: OrdinaryKeyReadback) -> String {
+    static func actionSummary(_ value: OrdinaryKeyReadback) -> String {
         let action: String
         switch value.actionType {
         case 0: action = NSLocalizedString("无按键动作", comment: "")
@@ -67,7 +67,11 @@ extension StudioKeyWriteProposal {
             } else { action = bytes.map { String(format: "%02X", $0) }.joined(separator: " ") }
         default: action = NSLocalizedString("未识别动作，保留原数据", comment: "")
         }
-        return action + " · " + (String(data: value.description, encoding: .ascii) ?? value.description.map { String(format: "%02X", $0) }.joined())
+        return action
+    }
+
+    static func summary(_ value: OrdinaryKeyReadback) -> String {
+        actionSummary(value) + " · " + (String(data: value.description, encoding: .ascii) ?? value.description.map { String(format: "%02X", $0) }.joined())
     }
 }
 
