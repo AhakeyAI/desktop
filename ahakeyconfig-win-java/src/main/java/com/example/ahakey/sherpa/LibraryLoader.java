@@ -29,6 +29,10 @@ public final class LibraryLoader {
             Path providers = directory.resolve("onnxruntime_providers_shared.dll");
             if (Files.isRegularFile(providers)) loadRequired(providers);
             loadRequired(directory.resolve("sherpa-onnx-jni.dll"));
+            // The Sherpa Java API does its own native lookup through this
+            // property when a recognizer is created; point it at the
+            // directory actually used (usually the downloaded pack).
+            System.setProperty(NATIVE_PATH_PROPERTY, directory.toString());
             loadedDirectory = directory;
             loaded = true;
             logger.info("Sherpa native libraries loaded from {}", directory);

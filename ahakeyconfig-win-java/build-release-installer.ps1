@@ -72,10 +72,6 @@ if ($AppVersion -ne $pomVersion) {
 }
 
 $baselineAppDir = Join-Path $BaselineInstallDir "app"
-# The historical JAR is used only as an authorized source for bundled Sherpa
-# native DLLs. It is never copied, placed on the Java class path, or used to
-# overlay/validate production classes.
-$baselineResourceJar = Join-Path $baselineAppDir "ahakey-studio-1.0.0.jar"
 $baselineRuntime = Join-Path $BaselineInstallDir "runtime"
 $currentJar = Join-Path $projectDir "target\ahakey-studio-$AppVersion.jar"
 $currentLibDir = Join-Path $projectDir "target\lib"
@@ -109,9 +105,6 @@ foreach ($required in @($currentJar, $currentLibDir)) {
         throw "Current clean-build output is missing: $required. Run mvn clean package first."
     }
 }
-if (-not (Test-Path -LiteralPath $baselineResourceJar -PathType Leaf)) {
-    throw "Authorized non-Java release resource source is missing: $baselineResourceJar"
-}
 & (Join-Path $projectDir "Test-ReleaseArtifactContents.ps1") -JarPath $currentJar
 
 # Destructive cleanup is restricted to this exact project-owned build folder.
@@ -137,7 +130,7 @@ if (Test-Path -LiteralPath $jpackageTemp) {
     Remove-Item -LiteralPath $resolvedJpackageTemp -Recurse -Force
 }
 New-Item -ItemType Directory -Force -Path `
-    $inputDir, (Join-Path $inputDir "lib"), (Join-Path $inputDir "models") |
+    $inputDir, (Join-Path $inputDir "lib") |
     Out-Null
 
 $releaseJar = Join-Path $inputDir "ahakey-studio-$AppVersion.jar"
@@ -150,53 +143,10 @@ if ($currentJarHash -cne $releaseJarHash) {
 Write-Output "FULL_MAVEN_JAR_STAGED=OK"
 Get-ChildItem -LiteralPath $currentLibDir |
     Copy-Item -Destination (Join-Path $inputDir "lib") -Recurse
-Get-ChildItem -LiteralPath (Join-Path $baselineAppDir "models") |
-    Copy-Item -Destination (Join-Path $inputDir "models") -Recurse
-
-# The historical Sherpa JAR carries the Windows native runtime as embedded
-# resources.  The current application JAR is intentionally kept small, so
-# extract those exact, version-pinned resources into the sidecar layout that
-# LibraryLoader resolves from an installed app's app/lib directory.
-$sherpaNativeStage = Join-Path $inputDir "lib\sherpa-onnx\native\win-x64"
-New-Item -ItemType Directory -Force -Path $sherpaNativeStage | Out-Null
-Add-Type -AssemblyName System.IO.Compression
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-$baselineArchive = [IO.Compression.ZipFile]::OpenRead($baselineResourceJar)
-try {
-    foreach ($nativeName in @(
-        "onnxruntime.dll",
-        "onnxruntime_providers_shared.dll",
-        "sherpa-onnx-jni.dll"
-    )) {
-        $entryName = "sherpa-onnx/native/win-x64/$nativeName"
-        $entry = $baselineArchive.GetEntry($entryName)
-        if ($null -eq $entry) {
-            throw "Sherpa native resource is missing from authorized non-Java source: $entryName"
-        }
-        $destination = Join-Path $sherpaNativeStage $nativeName
-        $entryStream = $entry.Open()
-        $outputStream = [IO.File]::Create($destination)
-        try { $entryStream.CopyTo($outputStream) }
-        finally {
-            $outputStream.Dispose()
-            $entryStream.Dispose()
-        }
-    }
-} finally {
-    $baselineArchive.Dispose()
-}
-foreach ($nativeName in @(
-    "onnxruntime.dll",
-    "onnxruntime_providers_shared.dll",
-    "sherpa-onnx-jni.dll"
-)) {
-    $nativePath = Join-Path $sherpaNativeStage $nativeName
-    if (-not (Test-Path -LiteralPath $nativePath -PathType Leaf) -or
-        (Get-Item -LiteralPath $nativePath).Length -eq 0) {
-        throw "Sherpa native sidecar was not staged: $nativePath"
-    }
-}
-Write-Output "SHERPA_NATIVE_PACKAGED=PASS"
+# Local voice is optional: speech models and Sherpa native DLLs are
+# downloaded from settings (ahakey.com/local-voice/manifest.json) and are
+# never part of the installer. Publish them with New-LocalVoicePack.ps1.
+Write-Output "LOCAL_VOICE_NOT_BUNDLED=PASS"
 
 $bleDriver = @(
     (Join-Path $projectDir "BLE_tcp_driver.exe"),
@@ -321,20 +271,6 @@ if ($IncludeLicensedWchIsp) {
         -RootPath $wchDir -WchIspBundleDir $WchIspBundleDir
 }
 
-$requiredModels = @(
-    "encoder.int8.onnx",
-    "decoder.int8.onnx",
-    "silero_vad.onnx",
-    "tokens.txt"
-)
-foreach ($name in $requiredModels) {
-    if (-not (Test-Path -LiteralPath (Join-Path $inputDir "models\$name"))) {
-        throw "Release voice model is missing: $name"
-    }
-}
-if (Test-Path -LiteralPath (Join-Path $inputDir "models\model_q8.onnx")) {
-    throw "Unsafe model_q8.onnx was introduced into the release input."
-}
 & (Join-Path $projectDir "Test-ReleaseArtifactContents.ps1") `
     -JarPath $releaseJar -ReleaseInputDir $inputDir
 
@@ -407,10 +343,6 @@ $jpackageArgs = @(
     "--java-options", "--add-opens=javafx.controls/com.sun.javafx.scene.control=ALL-UNNAMED",
     "--java-options", "--add-opens=javafx.fxml/com.sun.javafx.fxml=ALL-UNNAMED",
     "--java-options", "-Dprism.allowhidpi=true",
-    # The Sherpa API performs its own native lookup when OnlineRecognizer is
-    # constructed.  Keep that lookup on the same app-relative sidecar tree
-    # staged above instead of relying on the launcher process' java.library.path.
-    "--java-options", '-Dsherpa_onnx.native.path=$APPDIR\lib\sherpa-onnx\native\win-x64',
     "--java-options", "-Dapp.version=$AppVersion"
 )
 if (-not [string]::IsNullOrWhiteSpace($UpdateManifestUrl)) {

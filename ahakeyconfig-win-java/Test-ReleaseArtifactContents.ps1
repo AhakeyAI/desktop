@@ -74,6 +74,10 @@ $requiredEntries = @(
     "com/example/ahakey/view/CloudAccountDialog.class",
     "com/example/ahakey/service/VoiceInputManager.class",
     "com/example/ahakey/sherpa/LibraryLoader.class",
+    "com/example/ahakey/localvoice/LocalVoiceFeature.class",
+    "com/example/ahakey/localvoice/LocalVoiceInstaller.class",
+    "com/example/ahakey/localvoice/LocalVoiceManifest.class",
+    "com/example/ahakey/view/LocalVoicePane.class",
     "firmware-capabilities.properties",
     "model_config.properties",
     "messages_ru.properties",
@@ -93,7 +97,9 @@ try {
     $modelConfigReader = New-Object System.IO.StreamReader($modelConfigEntry.Open())
     try { $modelConfigText = $modelConfigReader.ReadToEnd() }
     finally { $modelConfigReader.Dispose() }
-    if ($modelConfigText -notmatch '(?m)^model\.enabled=true\s*$' -or
+    # model.enabled is only a developer kill switch now: local voice stays
+    # off until the user turns it on, and the JAR must not force it off.
+    if ($modelConfigText -match '(?m)^model\.enabled=false\s*$' -or
         $modelConfigText -notmatch '(?m)^model\.type=STREAMING_PARAFORMER\s*$' -or
         $modelConfigText -notmatch '(?m)^model\.path=models\s*$') {
         throw "Release JAR model_config.properties does not declare the Sherpa deployment contract."
@@ -111,28 +117,14 @@ if (-not [string]::IsNullOrWhiteSpace($ReleaseInputDir)) {
     if (-not (Test-Path -LiteralPath $resolvedInput -PathType Container)) {
         throw "Release input directory does not exist: $resolvedInput"
     }
-    foreach ($modelName in @(
-        "encoder.int8.onnx",
-        "decoder.int8.onnx",
-        "silero_vad.onnx",
-        "tokens.txt"
+    # The installer is the light client: models and Sherpa DLLs are
+    # downloaded on demand from settings and must not be bundled.
+    foreach ($bundled in @(
+        (Join-Path $resolvedInput "models"),
+        (Join-Path $resolvedInput "lib\sherpa-onnx")
     )) {
-        $modelPath = Join-Path $resolvedInput "models\$modelName"
-        if (-not (Test-Path -LiteralPath $modelPath -PathType Leaf) -or
-            (Get-Item -LiteralPath $modelPath).Length -eq 0) {
-            throw "Release input is missing Sherpa model resource: $modelPath"
-        }
-    }
-    $nativeDir = Join-Path $resolvedInput "lib\sherpa-onnx\native\win-x64"
-    foreach ($nativeName in @(
-        "onnxruntime.dll",
-        "onnxruntime_providers_shared.dll",
-        "sherpa-onnx-jni.dll"
-    )) {
-        $nativePath = Join-Path $nativeDir $nativeName
-        if (-not (Test-Path -LiteralPath $nativePath -PathType Leaf) -or
-            (Get-Item -LiteralPath $nativePath).Length -eq 0) {
-            throw "Release input is missing Sherpa native resource: $nativePath"
+        if (Test-Path -LiteralPath $bundled) {
+            throw "Release input must not bundle local voice files: $bundled"
         }
     }
     $apiJar = Join-Path $resolvedInput "lib\sherpa-onnx-java-api-1.13.3.jar"
@@ -146,6 +138,6 @@ if (-not [string]::IsNullOrWhiteSpace($ReleaseInputDir)) {
         (Get-Item -LiteralPath $chipDatabase).Length -eq 0) {
         throw "Release input is missing WCHISP chip database: $chipDatabase"
     }
-    Write-Output "SHERPA_RELEASE_INPUT=OK"
+    Write-Output "LOCAL_VOICE_NOT_BUNDLED=OK"
     Write-Output "WCHISP_CHIP_DATABASE_RELEASE_INPUT=OK"
 }
