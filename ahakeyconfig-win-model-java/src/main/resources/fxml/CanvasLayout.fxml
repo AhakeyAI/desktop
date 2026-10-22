@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.shape.Rectangle?>
+
+<HBox spacing="24" styleClass="keyboard-stage" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.example.ahakey.view.CanvasController">
+    <VBox spacing="20" HBox.hgrow="ALWAYS">
+        <StackPane fx:id="lightBarCard" styleClass="light-bar-card">
+            <VBox spacing="6" alignment="CENTER">
+                <Label styleClass="hotspot-label" text="灯条"/>
+                <HBox fx:id="lightBarTrack" spacing="10" styleClass="light-bar-track" alignment="CENTER">
+                    <Region fx:id="lightSeg1" styleClass="light-segment"/>
+                    <Region fx:id="lightSeg2" styleClass="light-segment"/>
+                    <Region fx:id="lightSeg3" styleClass="light-segment"/>
+                    <Region fx:id="lightSeg4" styleClass="light-segment"/>
+                </HBox>
+            </VBox>
+        </StackPane>
+
+        <StackPane styleClass="keys-container" alignment="CENTER">
+            <HBox fx:id="keysRow" spacing="10" alignment="CENTER">
+                <StackPane fx:id="key1Card" styleClass="device-hotspot" minWidth="72" minHeight="72" maxWidth="110" maxHeight="110">
+                    <VBox spacing="8" alignment="CENTER">
+                        <Label styleClass="key-glyph" text="K1"/>
+                        <Label fx:id="key1Caption" styleClass="key-caption"/>
+                    </VBox>
+                </StackPane>
+                <StackPane fx:id="key2Card" styleClass="device-hotspot" minWidth="72" minHeight="72" maxWidth="110" maxHeight="110">
+                    <VBox spacing="8" alignment="CENTER">
+                        <Label styleClass="key-glyph" text="K2"/>
+                        <Label fx:id="key2Caption" styleClass="key-caption"/>
+                    </VBox>
+                </StackPane>
+                <StackPane fx:id="key3Card" styleClass="device-hotspot" minWidth="72" minHeight="72" maxWidth="110" maxHeight="110">
+                    <VBox spacing="8" alignment="CENTER">
+                        <Label styleClass="key-glyph" text="K3"/>
+                        <Label fx:id="key3Caption" styleClass="key-caption"/>
+                    </VBox>
+                </StackPane>
+                <StackPane fx:id="key4Card" styleClass="device-hotspot" minWidth="72" minHeight="72" maxWidth="110" maxHeight="110">
+                    <VBox spacing="8" alignment="CENTER">
+                        <Label styleClass="key-glyph" text="K4"/>
+                        <Label fx:id="key4Caption" styleClass="key-caption"/>
+                    </VBox>
+                </StackPane>
+            </HBox>
+        </StackPane>
+    </VBox>
+
+    <VBox spacing="16" alignment="TOP_RIGHT">
+        <StackPane fx:id="oledCard">
+            <StackPane fx:id="oledScreen" styleClass="oled-screen-small">
+                <ImageView fx:id="oledPreviewImage" fitWidth="140" fitHeight="80" preserveRatio="true"/>
+                <VBox spacing="4" alignment="CENTER">
+                    <Label fx:id="oledTitle" styleClass="oled-title"/>
+                    <Label fx:id="oledCaption" styleClass="oled-caption"/>
+                </VBox>
+            </StackPane>
+        </StackPane>
+
+        <StackPane fx:id="toggleCard">
+            <VBox spacing="6" alignment="CENTER">
+                <StackPane styleClass="toggle-assembly-small">
+                    <Rectangle width="18" height="56" styleClass="toggle-rail" arcWidth="18" arcHeight="18"/>
+                    <Rectangle fx:id="toggleThumb" width="34" height="24" styleClass="toggle-thumb" arcWidth="14" arcHeight="14"/>
+                </StackPane>
+                <Label fx:id="toggleLabel" styleClass="hotspot-label"/>
+            </VBox>
+        </StackPane>
+
+        <StackPane fx:id="modeBadge" styleClass="mode-badge">
+            <Label fx:id="modeIcon" styleClass="mode-icon"/>
+        </StackPane>
+    </VBox>
+</HBox>
