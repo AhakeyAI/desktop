@@ -7,6 +7,11 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "亮度保存尚未确认；已发出的更改可能生效。请重新读取，再明确保存核对。": "Brightness saving is unconfirmed; changes already sent may have taken effect. Read again, then explicitly save and verify.",
+    "%@ · %@：灯效保存尚未确认；请重新读取，再明确保存核对。": "%@ · %@: lighting saving is unconfirmed. Read again, then explicitly save and verify.",
+    "临时预览请求已接受，未保存。固件预览时长约 10 秒，实际显示请在键盘上确认。": "Temporary preview accepted, without saving. Firmware previews last about 10 seconds; check the actual display on the keyboard.",
+    "亮度已保存并读回一致；断电保持性仍需验证。": "Brightness saved and readback matches; power-cycle persistence still needs verification.",
+    "%@ · %@：灯效已保存并读回一致；断电保持性仍需验证。": "%@ · %@: lighting saved and readback matches; power-cycle persistence still needs verification.",
     "灯效总览回复不完整，未确认完整结果，请重新读取。": "The lighting overview reply is incomplete. Read it again to confirm all settings.",
     "当前固件不支持完整灯效读回。": "This firmware does not support complete lighting readback.",
     "键盘拒绝了灯效总览读取，请重新读取。": "The keyboard rejected the lighting overview request. Read it again.",
