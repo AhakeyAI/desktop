@@ -394,6 +394,15 @@ public class StudioController {
         }
     }
 
+    /** Asks the user to confirm the bindings about to be written; replaceable in tests. */
+    private java.util.function.Predicate<StudioState> savePreview = state ->
+        !Platform.isFxApplicationThread()
+            || com.example.ahakey.view.SavePreviewDialog.confirm(state, null);
+
+    void setSavePreviewForTest(java.util.function.Predicate<StudioState> preview) {
+        this.savePreview = preview == null ? state -> true : preview;
+    }
+
     public void finishEditingConfiguration() {
         if (studioState.syncingProperty().get()) return;
         if (studioState.hasIncompleteVoiceShortcut()) {
@@ -413,6 +422,12 @@ public class StudioController {
             returnToKeyboardControl();
             studioState.syncStatusProperty().set(LanguageManager.text("sync.local-saved"));
         } else if (deviceStatus.isConnected() || simulateBle) {
+            // Let the user review the 16 key bindings before writing (simulation
+            // has no device, so it skips the preview).
+            if (!simulateBle && !savePreview.test(studioState)) {
+                studioState.syncStatusProperty().set(localize("已取消保存，修改仍保留在本地。"));
+                return;
+            }
             syncAllModes(true);
         } else {
             studioState.syncStatusProperty().set(
