@@ -27,6 +27,7 @@ struct AhaKeyConfigApp: App {
                         guard let manager, manager.presentationRuntimeActive || manager.isChangingPresentation else { return }
                         await manager.studioPresentation.quiesce()
                     }
+                    TaskForegroundBridge.shared.attach(bleManager)
                     updateManager.checkAutomaticallyIfNeeded()
                     vibeBarBridge.attach(bleManager: bleManager) { [weak appDelegate] in
                         appDelegate?.reopenMainWindow()

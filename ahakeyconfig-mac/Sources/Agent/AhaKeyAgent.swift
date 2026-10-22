@@ -57,6 +57,14 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var statusWaiters = AgentStatusQueries()
     private var connectionGeneration: UInt64 = 0
     private var presentationSession: AgentPresentationSession!
+    private var foregroundReceiver: WS3ForegroundReceiver?
+    private func receiveForeground(_ update: WS3ForegroundUpdate) -> Bool {
+        if foregroundReceiver == nil {
+            foregroundReceiver = WS3ForegroundReceiver(context: { [weak self] in self?.presentationSession.foregroundContext },
+                apply: { [weak self] in self?.presentationSession.setForegroundTerminal($0) })
+        }
+        return foregroundReceiver?.receive(update) ?? false
+    }
     private var presentationPoisoned = false
     private let legacyCommandDrain = AgentLegacyCommandDrain()
     private var presentationDrainID: UUID?
@@ -494,6 +502,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private func handleJsonCommand(cmd: String, obj: [String: Any], clientFd: Int32) {
         let connected = !presentationPoisoned && connectionLock.holdsLock && commandChar != nil && peripheral != nil && cachedSwitchState != nil
         presentationSession.updateConnection(connected: connected, generation: connectionGeneration)
+        foregroundReceiver?.revalidate()
         if connected, ["state", "state_with_reset", "permission"].contains(cmd),
            let task = obj["task"] as? [String: String], let metadata = WS3TaskMetadata(dictionary: task),
            let value = obj["value"] as? Int, (0...8).contains(value) {
@@ -502,6 +511,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         switch cmd {
         case "presentation_tasks":
             replyWithPresentationOverview(clientFd)
+        case "presentation_foreground":
+            let accepted = WS3ForegroundUpdate(parameters: obj).map { receiveForeground($0) } ?? false
+            Self.replyAndClose(clientFd, ["ok": accepted])
         case "presentation_mode":
             guard connected, approvalChannelReady else {
                 Self.replyAndClose(clientFd, ["error": WS3PresentationError.unavailable.rawValue]); return
@@ -523,6 +535,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 }
                 do {
                     _ = try await self.presentationSession.activate(mode)
+                    DistributedNotificationCenter.default().postNotificationName( WS3ForegroundReceiver.refreshNotification, object: nil,
+                        userInfo: nil, deliverImmediately: true)
                     self.replyWithPresentationOverview(clientFd)
                 } catch {
                     Self.replyAndClose(clientFd, ["error": (error as? WS3PresentationError ?? .connectionChanged).rawValue])
@@ -722,6 +736,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         presentationPoisoned = true
         approvalChannelReady = false
         presentationSession.updateConnection(connected: false, generation: connectionGeneration)
+        foregroundReceiver?.revalidate()
         pendingStateReset?.cancel(); pendingStateReset = nil
         let pending = pendingPresentationRead
         pendingPresentationRead = nil
@@ -742,6 +757,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         presentationDrainID = nil
         legacyCommandDrain.reset()
         presentationSession.updateConnection(connected: false, generation: connectionGeneration)
+        foregroundReceiver?.revalidate()
         let presentationRead = pendingPresentationRead
         pendingPresentationRead = nil
         presentationRead?.completion(.failure(WS3PresentationError.connectionChanged))
@@ -889,6 +905,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         presentationPoisoned = false
         legacyCommandDrain.reset()
         presentationSession.updateConnection(connected: false, generation: connectionGeneration)
+        foregroundReceiver?.revalidate()
         statusWaiters = AgentStatusQueries()
         lastUUID = peripheral.identifier
         emit("已连接: \(peripheral.name ?? "?")")
@@ -977,9 +994,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private func handleDeviceStatus(_ status: AgentDeviceStatus) {
         if let previous = lastLoggedStatus, previous.workMode != status.workMode {
             presentationSession.keyboardWorkModeChanged()
+            foregroundReceiver?.revalidate()
+            DistributedNotificationCenter.default().postNotificationName(WS3ForegroundReceiver.refreshNotification,
+                object: nil, userInfo: nil, deliverImmediately: true)
         }
         cachedSwitchState = UInt8(clamping: status.switchState)
         presentationSession.updateConnection(connected: !presentationPoisoned, generation: connectionGeneration)
+        foregroundReceiver?.revalidate()
         cachedLightMode = UInt8(clamping: status.lightMode)
         if lastLoggedStatus != status {
             lastLoggedStatus = status

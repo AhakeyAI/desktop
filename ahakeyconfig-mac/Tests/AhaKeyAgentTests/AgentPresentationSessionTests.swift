@@ -34,6 +34,31 @@ final class AgentPresentationSessionTests: XCTestCase {
     private func task(_ id: String) -> WS3TaskMetadata { WS3TaskMetadata(client: .codex, session: id, event: "CodexPreToolUse")! }
     private let ack = Data([0xAA, 0xBB, 0x99, 0, 0xCC, 0xDD])
 
+    func testForegroundContextIsBoundToConnectionAndPresentationLifetime() async throws {
+        let io = Fixture(), session = io.session()
+        XCTAssertNil(session.foregroundContext)
+        session.updateConnection(connected: true, generation: 1)
+        XCTAssertNil(session.foregroundContext)
+        _ = try await session.activate(.multi)
+        let first = try XCTUnwrap(session.foregroundContext)
+        XCTAssertEqual(first.generation, 1)
+        _ = try await session.activate(.multi)
+        XCTAssertEqual(session.foregroundContext, first)
+        _ = try await session.activate(.single)
+        XCTAssertNil(session.foregroundContext)
+        _ = try await session.activate(.multi)
+        XCTAssertNotEqual(session.foregroundContext, first)
+        session.updateConnection(connected: false, generation: 1)
+        XCTAssertNil(session.foregroundContext)
+        session.updateConnection(connected: true, generation: 2)
+        XCTAssertNil(session.foregroundContext)
+        _ = try await session.activate(.multi)
+        XCTAssertEqual(session.foregroundContext?.generation, 2)
+        XCTAssertNotEqual(session.foregroundContext, first)
+        await session.quiesce()
+        XCTAssertNil(session.foregroundContext)
+    }
+
     func testAsynchronousExpiryPublishesAnEmptyOverviewWithoutAnotherHookOrRead() async throws {
         let io = Fixture(), session = io.session()
         var published: [Int] = []

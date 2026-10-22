@@ -11,6 +11,7 @@ public final class WS3PresentationSession {
     private var tasks = WS3TaskRegistry()
     private var generation: UInt64 = 0
     private var connected = false
+    private var presentationRevision: UInt64 = 0
     public private(set) var requestedMode: WS3PresentationMode?
     private var activationID: UUID?
     private var activationDeadline: Task<Void, Never>?
@@ -42,7 +43,13 @@ public final class WS3PresentationSession {
         onOverviewChanged(overview())
     }
 
+    public var foregroundContext: WS3ForegroundContext? {
+        guard connected, requestedMode == .multi, !isChangingMode else { return nil }
+        return .init(generation: generation, presentation: presentationRevision)
+    }
+
     private func clearRuntime() {
+        presentationRevision &+= 1
         activationID = nil; activationDeadline?.cancel(); activationDeadline = nil
         flushID = nil; flushTask?.cancel(); flushTask = nil
         expiry?.cancel(); expiry = nil
@@ -51,7 +58,8 @@ public final class WS3PresentationSession {
 
     public func overview() -> WS3TaskOverview {
         tasks.overview(connected: connected, at: now())
-            .reportingPresentation(mode: requestedMode, busy: isChangingMode)
+            .reportingPresentation(mode: requestedMode, busy: isChangingMode, generation: connected ? generation : nil,
+                revision: requestedMode != nil ? presentationRevision : nil)
     }
 
     public func observe(_ metadata: WS3TaskMetadata, state: UInt8) {
@@ -71,9 +79,11 @@ public final class WS3PresentationSession {
     /// Caller supplies an independently verified native foreground source.
     /// It changes presentation priority only, never task freshness or approval.
     public func setForegroundTerminal(_ terminal: WS3TerminalTaskIdentity?) {
-        guard connected, !isChangingMode, tasks.setForegroundTerminal(terminal) else { return }
+        guard connected, !isChangingMode else { return }
+        let before = tasks.snapshot(at: now())
+        guard tasks.setForegroundTerminal(terminal) else { return }
         notifyOverview()
-        if requestedMode == .multi { requestFlush() }
+        if requestedMode == .multi, before != tasks.snapshot(at: now()) { requestFlush() }
     }
 
     @MainActor
@@ -82,6 +92,7 @@ public final class WS3PresentationSession {
         guard !isChangingMode else { throw WS3PresentationError.busy }
         if requestedMode == target { return overview() } // No clearing on an idempotent repeat.
         let id = UUID(), epoch = generation
+        presentationRevision &+= 1
         activationID = id
         let timeout = Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: 20_000_000_000)
@@ -173,6 +184,7 @@ public final class WS3PresentationSession {
     }
 
     public func keyboardWorkModeChanged() {
+        presentationRevision &+= 1
         tasks.clear(); expiry?.cancel(); expiry = nil
         notifyOverview()
         if connected, requestedMode == .multi, !isChangingMode { requestFlush() }

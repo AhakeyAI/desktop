@@ -5,6 +5,8 @@ import AhaKeyConfigShared
 /// not presented as visual readback, and no choice is saved/replayed.
 struct WS3TaskOverviewView: View {
     @ObservedObject private var agentManager = AgentManager.shared
+    @ObservedObject private var foregroundBridge = TaskForegroundBridge.shared
+    @ObservedObject private var foregroundSource = TerminalForegroundSource.shared
     @ObservedObject var bleManager: AhaKeyBLEManager
     @ObservedObject private var studio: StudioPresentationController
 
@@ -25,6 +27,18 @@ struct WS3TaskOverviewView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(NSLocalizedString("任务概览", comment: "")).font(.headline)
+            Toggle(NSLocalizedString("跟随当前终端", comment: ""), isOn: $foregroundBridge.enabled)
+                .toggleStyle(.checkbox)
+                .help(NSLocalizedString("适用于 Terminal 和 iTerm；需要 Studio 保持运行。无法确认会话时不突出显示。", comment: ""))
+            if foregroundBridge.enabled {
+                Text(foregroundStatus).font(.caption).foregroundStyle(.secondary)
+                if foregroundSource.status != .following {
+                    Button(NSLocalizedString("允许读取终端状态", comment: "")) {
+                        Task { await foregroundSource.authorize() }
+                    }
+                }
+                if let message = foregroundBridge.deliveryMessage { Text(message).font(.caption).foregroundStyle(.secondary) }
+            }
             Text(NSLocalizedString("读取不会切换显示；新的显示方式需要明确选择并应用。", comment: ""))
                 .font(.caption).foregroundStyle(.secondary)
             Button(reading ? NSLocalizedString("读取中…", comment: "") : NSLocalizedString("读取当前任务（只读）", comment: "")) {
@@ -94,6 +108,9 @@ struct WS3TaskOverviewView: View {
                         Text(String(format: NSLocalizedString("位置 %d · %@ · %@", comment: ""),
                                     task.slot + 1, task.client.rawValue.capitalized, String(task.reference.prefix(8))))
                         Spacer()
+                        if task.foreground == true {
+                            Image(systemName: "rectangle.inset.filled").help(NSLocalizedString("当前终端任务", comment: ""))
+                        }
                         Text(stateLabel(task.state))
                     }
                 }
@@ -118,6 +135,17 @@ struct WS3TaskOverviewView: View {
         .onChange(of: agentManager.isAgentBLEConnected) { _ in overview = nil; failed = false; modeMessage = nil }
         .onChange(of: agentManager.bluetoothConnectionOwner) { _ in overview = nil; failed = false; modeMessage = nil }
         .onChange(of: agentManager.isRunning) { _ in overview = nil; failed = false; modeMessage = nil }
+    }
+
+    private var foregroundStatus: String {
+        switch foregroundSource.status {
+        case .disabled: return ""
+        case .waiting: return NSLocalizedString("切换到 Terminal 或 iTerm 后可识别当前任务。", comment: "")
+        case .accessibility: return NSLocalizedString("需要辅助功能权限以跟随终端窗口变化。", comment: "")
+        case .automation: return NSLocalizedString("需要允许 Studio 读取终端标签状态。", comment: "")
+        case .unavailable: return NSLocalizedString("暂时无法确认当前终端，任务保持普通显示。", comment: "")
+        case .following: return NSLocalizedString("当前终端已识别；会话不明确时保持普通显示。", comment: "")
+        }
     }
 
     private func modeLabel(_ mode: WS3PresentationMode) -> String {

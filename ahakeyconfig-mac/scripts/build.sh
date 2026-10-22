@@ -148,6 +148,8 @@ cat > "$INFO_PLIST" <<PLIST
   <string>AhaKey 配置需要蓝牙连接你的 AhaKey 键盘。</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>AhaKey Studio 需要访问麦克风，才能使用苹果原生语音转写。</string>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>用于识别当前终端标签对应的任务，不读取终端文字或执行命令。</string>
   <key>NSSpeechRecognitionUsageDescription</key>
   <string>AhaKey Studio 需要语音识别权限，才能把语音键转换成苹果原生转写。</string>
 </dict>
@@ -160,6 +162,8 @@ cat > "$ENTITLEMENTS" <<'ENTITLEMENTS'
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+  <key>com.apple.security.automation.apple-events</key>
+  <true/>
   <key>com.apple.security.device.bluetooth</key>
   <true/>
   <key>com.apple.security.device.audio-input</key>

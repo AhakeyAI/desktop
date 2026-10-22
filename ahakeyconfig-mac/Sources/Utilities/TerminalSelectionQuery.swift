@@ -10,7 +10,7 @@ enum TerminalSelectionQuery {
         case terminal = "com.apple.Terminal"
         case iTerm = "com.googlecode.iterm2"
     }
-    enum Failure: Error { case invalidTarget, invalidDescriptor, authorizationRequired, noTTY, staleTarget }
+    enum Failure: Error, Equatable { case invalidTarget, invalidDescriptor, authorizationRequired, noTTY, staleTarget }
     private static let queue = DispatchQueue(label: "lab.jawa.ahakeyconfig.terminal-selection", qos: .utility)
 
     static func readTTY(processID: Int32, provider: Provider) async throws -> String {

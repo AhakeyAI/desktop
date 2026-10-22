@@ -67,16 +67,20 @@ public struct WS3TaskOverview: Codable, Equatable, Sendable {
     /// Optional fields keep older read-only Agent responses decodable.
     public let requestedMode: WS3PresentationMode?
     public let presentationBusy: Bool?
+    public let connectionGeneration: UInt64?
+    public let presentationRevision: UInt64?
 
     public init(connected: Bool, tasks: [WS3ObservedTask], unrepresentedEvents: Int,
-                requestedMode: WS3PresentationMode? = nil, presentationBusy: Bool? = nil) {
+                requestedMode: WS3PresentationMode? = nil, presentationBusy: Bool? = nil,
+                connectionGeneration: UInt64? = nil, presentationRevision: UInt64? = nil) {
         self.connected = connected; self.tasks = tasks; self.unrepresentedEvents = unrepresentedEvents
         self.requestedMode = requestedMode; self.presentationBusy = presentationBusy
+        self.connectionGeneration = connectionGeneration; self.presentationRevision = presentationRevision
     }
 
-    public func reportingPresentation(mode: WS3PresentationMode?, busy: Bool) -> Self {
+    public func reportingPresentation(mode: WS3PresentationMode?, busy: Bool, generation: UInt64? = nil, revision: UInt64? = nil) -> Self {
         Self(connected: connected, tasks: tasks, unrepresentedEvents: unrepresentedEvents,
-             requestedMode: mode, presentationBusy: busy)
+             requestedMode: mode, presentationBusy: busy, connectionGeneration: generation, presentationRevision: revision)
     }
 
     public static func decode(_ data: Data) -> Self? {

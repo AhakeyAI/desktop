@@ -7,6 +7,16 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "跟随当前终端": "Follow the active terminal",
+    "适用于 Terminal 和 iTerm；需要 Studio 保持运行。无法确认会话时不突出显示。": "For Terminal and iTerm. Keep Studio running; ambiguous sessions are not highlighted.",
+    "允许读取终端状态": "Allow reading terminal status",
+    "当前终端任务": "Active terminal task",
+    "切换到 Terminal 或 iTerm 后可识别当前任务。": "Switch to Terminal or iTerm to identify its current task.",
+    "需要辅助功能权限以跟随终端窗口变化。": "Accessibility permission is needed to follow terminal window changes.",
+    "需要允许 Studio 读取终端标签状态。": "Allow Studio to read the selected terminal tab.",
+    "暂时无法确认当前终端，任务保持普通显示。": "The active terminal could not be confirmed. Tasks use the normal display.",
+    "当前终端已识别；会话不明确时保持普通显示。": "Active terminal identified. Ambiguous sessions use the normal display.",
+    "当前连接暂不能跟随前台任务。": "This connection cannot currently follow foreground tasks.",
     "当前连接的新任务事件会自动同步。": "New task events are synchronized automatically for this connection.",
     "部分实时事件未纳入，已清理旧任务；请以实际任务为准。": "Some live events were missed and previous tasks were cleared. Check the actual task status.",
     "可用版本": "Available versions",

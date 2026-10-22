@@ -32,6 +32,18 @@ final class StudioPresentationController: ObservableObject {
         return session
     }()
 
+    private var foregroundReceiver: WS3ForegroundReceiver?
+    var foregroundContext: WS3ForegroundContext? { runtime.foregroundContext }
+    func receiveForeground(_ update: WS3ForegroundUpdate) -> Bool {
+        guard let ble, ble.isConnected, ble.configurationSnapshot.generation == generation,
+              AgentManager.shared.bluetoothConnectionOwner == .ahaKeyStudio else { return false }
+        if foregroundReceiver == nil {
+            foregroundReceiver = WS3ForegroundReceiver(context: { [weak self] in self?.runtime.foregroundContext },
+                apply: { [weak self] in self?.runtime.setForegroundTerminal($0) })
+        }
+        return foregroundReceiver?.receive(update) ?? false
+    }
+
     init(ble: AhaKeyBLEManager) {
         self.ble = ble
         ble.$coreSnapshot.receive(on: DispatchQueue.main).sink { [weak self] _ in self?.updateConnection() }.store(in: &subscriptions)
@@ -67,6 +79,8 @@ final class StudioPresentationController: ObservableObject {
             ble.setPresentationRuntimeActive(true)
             eventsMayBeIncomplete = false
             try startSource()
+            DistributedNotificationCenter.default().postNotificationName( WS3ForegroundReceiver.refreshNotification, object: nil,
+                userInfo: nil, deliverImmediately: true)
             return overview
         } catch {
             fault(expectedGeneration: initialEpoch)
@@ -78,6 +92,7 @@ final class StudioPresentationController: ObservableObject {
         isQuiescing = true
         defer { isQuiescing = false }
         let initialEpoch = generation
+        foregroundReceiver?.reset()
         source.stop(); singleReset?.cancel(); singleReset = nil
         guard let ble else { return }
         if runtime.requestedMode != nil {
@@ -101,19 +116,28 @@ final class StudioPresentationController: ObservableObject {
         } else if !isBusy, !isQuiescing, workMode != nil, workMode != ble.workMode, runtime.requestedMode != nil {
             source.stop(); singleReset?.cancel(); singleReset = nil
             runtime.keyboardWorkModeChanged()
+            foregroundReceiver?.revalidate()
+            DistributedNotificationCenter.default().postNotificationName(WS3ForegroundReceiver.refreshNotification,
+                object: nil, userInfo: nil, deliverImmediately: true)
             do { try startSource() } catch { fault(); return }
         }
         workMode = ble.workMode
         generation = epoch
         runtime.updateConnection(connected: connected, generation: epoch)
         overview = runtime.overview()
+        foregroundReceiver?.revalidate()
     }
     private func startSource() throws {
         try source.start(consume: { [weak self] events, gap in
             guard let self, let ble = self.ble, ble.isConnected,
                   ble.configurationSnapshot.generation == self.generation,
                   AgentManager.shared.bluetoothConnectionOwner == .ahaKeyStudio else { return }
-            if gap { self.eventsMayBeIncomplete = true; self.runtime.keyboardWorkModeChanged() }
+            if gap {
+                self.eventsMayBeIncomplete = true; self.runtime.keyboardWorkModeChanged()
+                self.foregroundReceiver?.revalidate()
+                DistributedNotificationCenter.default().postNotificationName(WS3ForegroundReceiver.refreshNotification,
+                    object: nil, userInfo: nil, deliverImmediately: true)
+            }
             for event in events {
                 self.runtime.observe(event)
                 if self.runtime.requestedMode == .single { self.sendSingle(event) }
@@ -135,6 +159,7 @@ final class StudioPresentationController: ObservableObject {
     }
     private func fault(expectedGeneration: UInt64? = nil) {
         if let expectedGeneration, expectedGeneration != generation || ble?.configurationSnapshot.generation != expectedGeneration { return }
+        foregroundReceiver?.reset()
         source.stop(); singleReset?.cancel(); singleReset = nil
         runtime.updateConnection(connected: false, generation: generation)
         overview = runtime.overview()

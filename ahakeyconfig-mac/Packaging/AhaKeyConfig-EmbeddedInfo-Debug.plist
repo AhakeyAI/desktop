@@ -14,5 +14,7 @@
 	<string>AhaKey Studio 需要访问麦克风，才能使用苹果原生语音转写。</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>AhaKey Studio 需要语音识别权限，才能把语音键转换成苹果原生转写。</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>用于识别当前终端标签对应的任务，不读取终端文字或执行命令。</string>
 </dict>
 </plist>

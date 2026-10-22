@@ -290,6 +290,18 @@ final class AgentManager: ObservableObject {
         throw (body?["error"] as? String).flatMap(WS3PresentationError.init(rawValue:)) ?? .invalidReply
     }
 
+    func updatePresentationForeground(_ update: WS3ForegroundUpdate) async -> Bool {
+        guard bluetoothConnectionOwner == .agentDaemon, isRunning, let parameters = update.parameters else { return false }
+        let ownership = ownershipTransitionGeneration, publication = connectionPublicationGeneration, path = socketPath
+        let data = await Task.detached(priority: .utility) {
+            Self.querySocketData(socketPath: path, command: "presentation_foreground", parameters: parameters)
+        }.value
+        guard ownership == ownershipTransitionGeneration, publication == connectionPublicationGeneration,
+              bluetoothConnectionOwner == .agentDaemon, isRunning, let data,
+              let body = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
+        return body["ok"] as? Bool == true
+    }
+
     nonisolated private static func querySocketBLEConnected(socketPath: String) -> Bool {
         guard let data = querySocketData(socketPath: socketPath, command: "status"),
               let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return false }
