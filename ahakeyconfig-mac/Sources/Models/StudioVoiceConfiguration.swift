@@ -55,6 +55,10 @@ struct StudioVoiceConfiguration: Codable, Equatable {
         var key = draft
         if key.voicePreset?.availableInV1 != true { key.voicePreset = .custom }
         key.voiceProcessingPolicy = key.voiceProcessingPolicy ?? self.key(for: mode).voiceProcessingPolicy
+        if key.voicePreset == .ahaTypeCloud {
+            key.voiceProcessingPolicy?.shortPressAhaType = true
+            key.voiceProcessingPolicy?.longPressAhaType = true
+        }
         var next = self
         next.entries[index].key = key
         guard next.isValid else { throw StudioVoiceConfigurationStore.Failure.invalidConfiguration }
@@ -124,6 +128,7 @@ enum StudioVoiceConfigurationStore {
         }
     }
     static let storageKey = "ahakey.studio.voice.applied.v1"
+    static let pendingGlobalKey = "ahakey.studio.voice.global.pending.v1"
 
     static func loadOrMigrate(draft: AhaKeyStudioDraft, fallback: VoiceProcessingPolicy,
                               defaults: UserDefaults = .standard) throws -> StudioVoiceConfiguration {

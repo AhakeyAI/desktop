@@ -1364,6 +1364,36 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
     }
 
+    func changeVoiceModeConfirmed(baseline: VoiceHandoffSnapshot, target: OrdinaryKeyReadback, expectedGeneration: UInt64,
+                               checkHostReady: () throws -> Void, prepareHost: () throws -> Void, writeStarted: () -> Void = {}) async throws -> VoiceHandoffSnapshot {
+        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        try ensureConfigurationReadSession(generation)
+        guard generation == expectedGeneration else { throw OLEDUploadError.channelNotReady }
+        isManagingVoiceHandoff = true
+        defer { isManagingVoiceHandoff = false }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.identity == .knownWS2Catalog else { throw OLEDUploadError.unsupportedReadOnlyProfile }
+        do {
+            return try await ConfirmedVoiceModeChange.run(baseline: baseline, target: target, checkSession: {
+                try self.ensureConfigurationReadSession(generation)
+            }, checkHostReady: checkHostReady, read: { try await self.readVoiceHandoffSnapshot() }, prepareHost: prepareHost, write: { request in
+                guard let peripheral = self.peripheral, let characteristic = self.commandChar else { throw OLEDUploadError.channelNotReady }
+                let type: CBCharacteristicWriteType = characteristic.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+                let maximum = peripheral.maximumWriteValueLength(for: type)
+                guard request.count <= maximum else { throw ConfirmedSideSwitchSetting.Failure.transportLimit(maximum: maximum) }
+                writeStarted()
+                _ = try await self.sendCommandAwaitingResponse(request, expectedCommand: request[2], confirmedWrite: request[2] == 0x96 ? .voiceHandoff : .ordinaryKey)
+            })
+        } catch {
+            self.configurationSnapshot.recordFailure(.voice, message: error.localizedDescription, generation: generation)
+            for mode: UInt8 in 0..<4 {
+                self.configurationSnapshot.recordFailure(.key(mode: mode, index: 0), message: error.localizedDescription, generation: generation)
+            }
+            throw error
+        }
+    }
+
     func readOrdinaryKeyForEditing(mode: UInt8, index: UInt8) async throws -> OrdinaryKeyReadback {
         guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
         let generation = commandSessionGeneration

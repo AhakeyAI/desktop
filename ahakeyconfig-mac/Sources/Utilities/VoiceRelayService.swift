@@ -255,6 +255,11 @@ final class VoiceRelayService: ObservableObject {
         }
     }
 
+    func hasPreparedRoutes(for draft: AhaKeyStudioDraft) -> Bool {
+        let expected = Self.buildRoutes(from: draft)
+        return routeQueue.sync { routes == expected }
+    }
+
     /// The sync barrier runs after updateRoutes' queued assignment.
     var hasPreparedNativeF18Routes: Bool {
         routeQueue.sync {
@@ -705,6 +710,8 @@ final class VoiceRelayService: ObservableObject {
 
     private static func action(for preset: VoicePreset, shortcut: ShortcutBinding) -> VoiceRouteAction? {
         switch preset {
+        case .systemDictation: nil
+        case .ahaTypeCloud: .macOSDictation
         case .macOSNative:
             .macOSDictation
         case .typeless:

@@ -80,7 +80,7 @@ final class VoicePressRouterTests: XCTestCase {
     }
 
     func testCustomF18AndF19ProduceNoAppRoutes() {
-        var draft = AhaKeyStudioDraft.default
+        var draft = AhaKeyStudioDraft.legacyAppVoice
         for mode in AhaKeyModeSlot.allCases {
             var item = draft.draft(for: mode)
             var voice = item.key(for: .voice)
@@ -92,7 +92,7 @@ final class VoicePressRouterTests: XCTestCase {
     }
 
     func testFnCompatibilityAliasCannotCaptureCustomModeShortcut() throws {
-        var draft = AhaKeyStudioDraft.default
+        var draft = AhaKeyStudioDraft.legacyAppVoice
         var fnMode = draft.draft(for: .mode0), customMode = draft.draft(for: .mode2)
         var fn = fnMode.key(for: .voice), custom = customMode.key(for: .voice)
         fn.voicePreset = .typeless; fn.shortcut = .init(keyCode: HIDUsage.f19)
