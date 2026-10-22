@@ -90,6 +90,7 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
     case key3
     case key4
     case toggleSwitch
+    case modeButton
 
     var id: String { rawValue }
 
@@ -109,6 +110,8 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
             "Key 4"
         case .toggleSwitch:
             NSLocalizedString("拨杆", comment: "")
+        case .modeButton:
+            NSLocalizedString("模式与待机", comment: "")
         }
     }
 
@@ -128,6 +131,8 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
             NSLocalizedString("删除键", comment: "")
         case .toggleSwitch:
             NSLocalizedString("批准方式", comment: "")
+        case .modeButton:
+            NSLocalizedString("工作模式与全局待机", comment: "")
         }
     }
 
@@ -148,6 +153,8 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
             "delete.left"
         case .toggleSwitch:
             "switch.2"
+        case .modeButton:
+            "arrow.triangle.2.circlepath"
         }
     }
 

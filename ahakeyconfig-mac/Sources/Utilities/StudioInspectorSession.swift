@@ -36,6 +36,7 @@ final class StudioInspectorSession: ObservableObject {
     @Published private(set) var isBusy = false
     private let access: Access
     private let timeout: Duration
+    private var activeLease: UInt64?
 
     init(access: Access, timeout: Duration = .seconds(15)) {
         self.access = access
@@ -51,9 +52,13 @@ final class StudioInspectorSession: ObservableObject {
         isBusy = true
         defer { isBusy = false }
         let lease = try access.begin()
+        activeLease = lease
         // Check ownership before releasing: an old finally must not change a
         // user's newer App/Agent choice, even if it selected App again.
-        defer { if access.isCurrent(lease) { access.release(lease) } }
+        defer {
+            if access.isCurrent(lease) { access.release(lease) }
+            activeLease = nil
+        }
         let deadline = ContinuousClock.now.advanced(by: timeout)
         while true {
             try Task.checkCancellation()
@@ -67,9 +72,15 @@ final class StudioInspectorSession: ObservableObject {
               expectedDeviceID.map({ $0 == context.deviceID }) ?? true else { throw Failure.deviceChanged }
         let result = try await operation(context)
         try Task.checkCancellation()
-        guard access.isCurrent(lease) else { throw Failure.ownershipChanged }
+        try validate(context)
+        return result
+    }
+
+    /// Recheck after an awaited read and before starting the next device command.
+    func validate(_ context: Context) throws {
+        try Task.checkCancellation()
+        guard let lease = activeLease, access.isCurrent(lease) else { throw Failure.ownershipChanged }
         guard access.isReady(), access.generation() == context.generation else { throw Failure.sessionChanged }
         guard access.deviceID() == context.deviceID else { throw Failure.deviceChanged }
-        return result
     }
 }

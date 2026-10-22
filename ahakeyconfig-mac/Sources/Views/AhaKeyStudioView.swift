@@ -34,15 +34,6 @@ struct AhaKeyStudioView: View {
     @State private var isTransitioningToKeyboardControl = false
     @State private var showsOLEDPlaybackPreview = false
     @State private var showsDeviceInfo = false
-    @State private var keyboardSettingsRequest: KeyboardSettingsRequest?
-    private struct KeyboardSettingsRequest: Identifiable {
-        let id = UUID()
-        let tab: KeyboardSettingsTab
-        let mode: UInt8
-        let index: UInt8
-        let proposal: OrdinaryKeyReadback?
-        let error: String?
-    }
     @State private var showsFirmwareFlasher = false
     @State private var showsCloudAccount = false
     @State private var showsLanguageRestartAlert = false
@@ -50,6 +41,8 @@ struct AhaKeyStudioView: View {
     @AppStorage(VibeBarVisibilityPreference.enabledKey) private var vibeBarEnabled = true
     @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
     @StateObject private var lightInspectorModel = StudioLightInspectorModel()
+    @StateObject private var resourceInspectorModel = StudioResourceInspectorModel()
+    @StateObject private var deviceInspectorModel = StudioDeviceInspectorModel()
     @StateObject private var inspectorSession: StudioInspectorSession
     @State private var inlineKeyTarget: StudioInlineKeyTarget?
     @State private var inlineKeyFact: StudioInlineKeyFact?
@@ -164,13 +157,15 @@ struct AhaKeyStudioView: View {
         .onReceive(lightInspectorModel.writeCompleted) { result in
             writeOutcome = .init(succeeded: true, message: result.message, wrote: result.wrote)
         }
+        .onReceive(resourceInspectorModel.writeCompleted) { writeOutcome = $0 }
+        .onReceive(deviceInspectorModel.writeCompleted) { writeOutcome = $0 }
+        .onReceive(deviceInspectorModel.$message.compactMap { $0 }) { syncStatusMessage = $0 }
         .onReceive(NotificationCenter.default.publisher(for: .ahaKeyHardwareEditingFinished)) { _ in
-            keyboardSettingsRequest = nil
             completeEditingAfterSuccessfulWrite()
         }
         .onChange(of: agentManager.bluetoothConnectionOwner) { owner in
             if owner == .agentDaemon, inlineKeyTarget == nil,
-               !(isEditingInspector && usesInlineLightEditor) {
+               !(isEditingInspector && usesInlineHardwareEditor) {
                 isEditingInspector = false
                 syncStatusMessage = "已返回日常连接，未应用的画布草稿仍保留。"
             }
@@ -244,10 +239,6 @@ struct AhaKeyStudioView: View {
                 assetPath: currentModeDraft.oled.localAssetPath,
                 fps: currentModeDraft.oled.framesPerSecond
             )
-        }
-        .sheet(item: $keyboardSettingsRequest) { request in
-            KeyboardSettingsView(bleManager: bleManager, initialTab: request.tab, mode: request.mode, index: request.index,
-                                 proposedKey: request.proposal, proposalError: request.error)
         }
         .sheet(isPresented: $showsDeviceInfo) {
             DeviceInfoSheetContainer(bleManager: bleManager)
@@ -329,7 +320,6 @@ struct AhaKeyStudioView: View {
                     bleManager.disconnect()
                     bleManager.userInitiatedConnect()
                 }
-                Button("键盘设置…") { openKeyboardSettings() }
                 Button("恢复出厂设置") {
                     restoreCurrentModeDefaults()
                 }
@@ -494,6 +484,13 @@ struct AhaKeyStudioView: View {
     private var usesInlineLightEditor: Bool {
         selectedPart == .lightBar && bleManager.firmwareCapabilityProfile?.identity != .legacy
     }
+    private var usesInlineHardwareEditor: Bool {
+        bleManager.firmwareCapabilityProfile?.identity != .legacy &&
+            [.lightBar, .oledDisplay, .toggleSwitch, .modeButton].contains(selectedPart)
+    }
+    private var componentBusy: Bool {
+        inspectorSession.isBusy || resourceInspectorModel.isBusy || resourceInspectorModel.isPreparing || deviceInspectorModel.isBusy
+    }
 
     private var canvasModeDraft: AhaKeyModeDraft {
         var draft = currentModeDraft
@@ -511,7 +508,7 @@ struct AhaKeyStudioView: View {
 
     private var canvasPane: some View {
         VStack(alignment: .leading, spacing: 18) {
-            modeEditorHeader
+            modeEditorHeader.disabled(componentBusy)
 
             VStack(alignment: .leading, spacing: 8) {
                 AhaKeyKeyboardCanvasView(
@@ -520,8 +517,8 @@ struct AhaKeyStudioView: View {
                     lightBarPreview: lightBarPreview,
                     switchTitle: currentSwitchTitle,
                     dirtyParts: dirtyPartsForCurrentMode(),
-                    onSelect: { selectedPart = $0 },
-                    onModeSwitch: { cycleModeForward() },
+                    onSelect: { if !componentBusy { selectedPart = $0 } },
+                    onModeSwitch: { if !componentBusy { selectedPart = .modeButton } },
                     liveLightMode: liveCanvasLightMode,
                     liveIDEStateValue: liveCanvasIDEStateValue,
                     switchState: liveCanvasSwitchState,
@@ -529,6 +526,7 @@ struct AhaKeyStudioView: View {
                 )
                 .aspectRatio(109.0 / 54.0, contentMode: .fit)
                 .frame(maxWidth: .infinity)
+                .disabled(componentBusy)
 
                 Text("点按拨杆查看实体档位；其他部件可进入对应配置。")
                     .font(.callout)
@@ -666,6 +664,8 @@ struct AhaKeyStudioView: View {
                             case .oledDisplay: oledInspector
                             case .lightBar: lightBarInspector
                             case .toggleSwitch: switchInspector
+                            case .modeButton:
+                                StudioDeviceInspectorView(model: deviceInspectorModel, ble: bleManager, session: inspectorSession, lever: false)
                             }
                         }
 
@@ -720,6 +720,7 @@ struct AhaKeyStudioView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.regular)
+                    .disabled(componentBusy)
 
                     Spacer()
                     if inlineKeyTarget != nil && inspectorSession.isBusy {
@@ -727,6 +728,11 @@ struct AhaKeyStudioView: View {
                             inlineKeyTask?.cancel()
                             if bleManager.isConfigurationOperationInProgress { bleManager.cancelConfigurationOperation() }
                         }
+                    }
+                    if resourceInspectorModel.isBusy || resourceInspectorModel.isPreparing {
+                        Button(NSLocalizedString("取消当前操作", comment: "")) { resourceInspectorModel.cancel(ble: bleManager) }
+                    } else if deviceInspectorModel.isBusy {
+                        Button(NSLocalizedString("取消当前操作", comment: "")) { deviceInspectorModel.cancel(ble: bleManager) }
                     }
 
                     if selectedPart == .lightBar && bleManager.firmwareCapabilityProfile?.identity == .legacy {
@@ -744,6 +750,14 @@ struct AhaKeyStudioView: View {
                     if usesInlineLightEditor {
                         StudioLightInspectorActions(model: lightInspectorModel, session: inspectorSession,
                                                     bleManager: bleManager, mode: selectedMode)
+                    } else if usesInlineHardwareEditor {
+                        Button(NSLocalizedString(componentBusy ? "处理中…" : "写入键盘", comment: "")) {
+                            if selectedPart == .oledDisplay { resourceInspectorModel.confirmsUpload = true }
+                            else { deviceInspectorModel.write(lever: selectedPart == .toggleSwitch, ble: bleManager, session: inspectorSession) }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(componentBusy || (selectedPart == .oledDisplay ? !resourceInspectorModel.canWrite :
+                            (selectedPart == .toggleSwitch ? !deviceInspectorModel.canWriteLever : deviceInspectorModel.standbyDraft == nil)))
                     } else {
                         Button {
                             writeToKeyboard()
@@ -770,6 +784,7 @@ struct AhaKeyStudioView: View {
         }
         .onChange(of: selectedMode) { _ in
             if inlineKeyTarget != nil { clearInlineKeyEditing(); isEditingInspector = false }
+            if isEditingInspector && selectedPart == .oledDisplay { resourceInspectorModel.select(mode: selectedMode) }
             if editingModeSlot != nil && editingModeSlot != selectedMode {
                 commitModeNameEdit()
             }
@@ -1050,9 +1065,16 @@ struct AhaKeyStudioView: View {
         switch selectedPart {
         case .key1:          voiceKeySummary
         case .key2, .key3, .key4: actionKeySummary
-        case .oledDisplay:   oledSummary
+        case .oledDisplay:
+            if bleManager.firmwareCapabilityProfile?.identity == .legacy { oledSummary }
+            else {
+                StudioScreenSummaryView(model: resourceInspectorModel, mode: selectedMode)
+                WS3TaskOverviewView()
+            }
         case .lightBar:      lightBarSummary
         case .toggleSwitch:  switchSummary
+        case .modeButton:
+            Text(NSLocalizedString("浏览模式不会改变键盘。点击修改可设置全局待机时间；切换模式使用底部按钮。", comment: ""))
         }
     }
 
@@ -1629,13 +1651,14 @@ struct AhaKeyStudioView: View {
         )
     }
 
-    private var oledInspector: some View {
+    @ViewBuilder private var oledInspector: some View {
+        if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+            StudioResourceInspectorView(model: resourceInspectorModel, ble: bleManager, session: inspectorSession, mode: selectedMode)
+        } else { legacyOLEDInspector }
+    }
+
+    private var legacyOLEDInspector: some View {
         VStack(alignment: .leading, spacing: 16) {
-            if bleManager.firmwareCapabilityProfile?.identity != .legacy {
-                Button(NSLocalizedString("打开显示素材设置…", comment: "")) { openKeyboardSettings() }
-                Text(NSLocalizedString("新固件请在显示素材设置中选择位置并上传；画布草稿不会自动覆盖键盘素材。", comment: ""))
-                    .font(.caption).foregroundStyle(.secondary)
-            }
             StudioInspectorSection("当前模式的 LCD 动图") {
                 VStack(alignment: .leading, spacing: 14) {
                     ZStack {
@@ -1845,6 +1868,9 @@ struct AhaKeyStudioView: View {
             }
 
             switchEffectivenessBox
+            if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+                StudioDeviceInspectorView(model: deviceInspectorModel, ble: bleManager, session: inspectorSession, lever: true)
+            }
 
             if liveKeyboardSwitchState == 0 {
                 StudioInspectorSection {
@@ -1958,22 +1984,10 @@ struct AhaKeyStudioView: View {
                 .lineLimit(1)
             Spacer()
             Button(bleManager.isChangingWorkMode ? "正在切换…" : "切换键盘到 \(selectedMode.title)") {
-                let target = UInt8(selectedMode.rawValue)
-                syncStatusMessage = "正在确认键盘模式…"
-                Task { @MainActor in
-                    do {
-                        let actual = try await bleManager.switchWorkModeConfirmed(target)
-                        syncStatusMessage = "键盘已确认切换到 Mode \(actual + 1)。"
-                    } catch {
-                        if let actual = bleManager.workModeForDisplay, let mode = AhaKeyModeSlot(rawValue: actual) {
-                            selectedMode = mode
-                        }
-                        syncStatusMessage = "模式切换未确认：\(error.localizedDescription)"
-                    }
-                }
+                deviceInspectorModel.switchMode(UInt8(selectedMode.rawValue), ble: bleManager, session: inspectorSession)
             }
-            .disabled(!bleManager.isConnected || bleManager.isConfigurationOperationInProgress)
-            .help("只切换键盘当前模式，不保存或覆盖键位配置；请先进入编辑配置连接键盘。")
+            .disabled(componentBusy)
+            .help(NSLocalizedString("只切换工作模式，不保存其他组件。", comment: ""))
             if let lastSyncDate {
                 Text("最近同步 \(Self.timeFormatter.string(from: lastSyncDate))")
                     .font(.callout)
@@ -2186,13 +2200,14 @@ struct AhaKeyStudioView: View {
             for role in AhaKeyKeyRole.allCases where current.key(for: role) != baseline.key(for: role) {
                 count += 1
             }
-            if current.oled != baseline.oled {
+            if bleManager.firmwareCapabilityProfile?.identity == .legacy && current.oled != baseline.oled {
                 count += 1
             }
-            if current.lightBar != baseline.lightBar {
+            if bleManager.firmwareCapabilityProfile?.identity == .legacy && current.lightBar != baseline.lightBar {
                 count += 1
             }
-        }
+        } + (bleManager.firmwareCapabilityProfile?.identity == .legacy ? 0 :
+            resourceInspectorModel.dirtyEntries.count + (deviceInspectorModel.standbyDirty ? 1 : 0) + (deviceInspectorModel.leverDirty ? 1 : 0))
     }
 
     private func restoreCurrentModeDefaults() {
@@ -2332,6 +2347,9 @@ struct AhaKeyStudioView: View {
             guard let role = part.keyRole else { return false }
             return current.key(for: role) != baseline.key(for: role)
         case .oledDisplay:
+            if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+                return resourceInspectorModel.dirtyEntries.contains { $0 / 4 == UInt8(selectedMode.rawValue) || $0 >= 16 }
+            }
             return current.oled != baseline.oled
         case .lightBar:
             if bleManager.firmwareCapabilityProfile?.identity != .legacy {
@@ -2339,7 +2357,9 @@ struct AhaKeyStudioView: View {
             }
             return current.lightBar != baseline.lightBar
         case .toggleSwitch:
-            return false
+            return deviceInspectorModel.leverDirty
+        case .modeButton:
+            return deviceInspectorModel.standbyDirty
         }
     }
 
@@ -2384,6 +2404,18 @@ struct AhaKeyStudioView: View {
     }
 
     private func enterEditingConfiguration() {
+        if usesInlineHardwareEditor {
+            clearInlineKeyEditing()
+            switch selectedPart {
+            case .oledDisplay:
+                resourceInspectorModel.select(mode: selectedMode)
+                resourceInspectorModel.read(ble: bleManager, session: inspectorSession)
+            case .toggleSwitch, .modeButton:
+                deviceInspectorModel.read(lever: selectedPart == .toggleSwitch, ble: bleManager, session: inspectorSession)
+            default: break
+            }
+            return
+        }
         if usesInlineLightEditor {
             clearInlineKeyEditing()
             return
@@ -2409,7 +2441,7 @@ struct AhaKeyStudioView: View {
 
         if bleManager.firmwareCapabilityProfile?.identity != .legacy {
             syncStatusMessage = "画布草稿等待核对，请读取当前键位后明确载入和应用。"
-            openKeyboardSettings()
+            syncStatusMessage = NSLocalizedString("请在当前组件右侧读取并写入键盘。", comment: "")
             return
         }
         if bleManager.isConnected && bleManager.commandCharReady {
@@ -2419,21 +2451,6 @@ struct AhaKeyStudioView: View {
             bleManager.userInitiatedConnect()
             waitForConnectionThenSync()
         }
-    }
-
-    private func openKeyboardSettings() {
-        let tab: KeyboardSettingsTab
-        switch selectedPart {
-        case .toggleSwitch: tab = .lever
-        case .lightBar, .oledDisplay: tab = .display
-        default: tab = .keys
-        }
-        var proposal: OrdinaryKeyReadback?, error: String?
-        if selectedPart.keyRole != nil {
-            do { proposal = try StudioKeyWriteProposal.make(key: currentSelectedKey, mode: selectedMode) }
-            catch let failure { error = failure.localizedDescription }
-        }
-        keyboardSettingsRequest = .init(tab: tab, mode: UInt8(selectedMode.rawValue), index: UInt8(selectedPart.keyRole?.rawValue ?? 0), proposal: proposal, error: error)
     }
 
     private func writeToKeyboard() {
@@ -2513,8 +2530,7 @@ struct AhaKeyStudioView: View {
         }
 
         guard bleManager.firmwareCapabilityProfile?.identity == .legacy else {
-            syncStatusMessage = "请在键盘设置中读回当前值、载入此键草稿，再明确应用。"
-            openKeyboardSettings()
+            syncStatusMessage = NSLocalizedString("请在当前组件右侧读取并写入键盘。", comment: "")
             return
         }
         guard !studioDraft.modes.contains(where: { $0.key(for: .voice).voicePreset == .systemDictation }) else {
@@ -3807,10 +3823,11 @@ private struct AhaKeyKeyboardCanvasView: View {
                     .lineLimit(1)
             }
             .frame(width: rect.width, height: rect.height)
+            .modifier(HotspotChrome(part: .modeButton, selectedPart: selectedPart, dirtyParts: dirtyParts))
         }
         .buttonStyle(CanvasKeyButtonStyle())
         .position(x: rect.midX, y: rect.midY)
-        .help("浏览模式配置（不会切换键盘模式）")
+        .help(NSLocalizedString("模式与待机", comment: ""))
     }
 
     private func switchButton(width: CGFloat, height: CGFloat) -> some View {

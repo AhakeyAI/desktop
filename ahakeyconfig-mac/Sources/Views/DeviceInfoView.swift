@@ -377,10 +377,6 @@ struct DeviceInfoView: View {
                 Text("BLE 连接状态")
             }
 
-            StandbySettingsView(bleManager: bleManager).disabled(isReadingFirmwareCatalog)
-            SideSwitchSettingsView(bleManager: bleManager).disabled(isReadingFirmwareCatalog)
-            OrdinaryKeySettingsView(bleManager: bleManager).disabled(isReadingFirmwareCatalog)
-            VoiceHandoffSettingsView(bleManager: bleManager).disabled(isReadingFirmwareCatalog)
             configurationReadbackSection
 
             // MARK: - 操作

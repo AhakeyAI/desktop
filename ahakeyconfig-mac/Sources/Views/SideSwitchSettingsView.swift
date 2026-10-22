@@ -85,7 +85,7 @@ struct SideSwitchSettingsView: View {
     }
 }
 
-private struct SideSwitchPositionEditor: View {
+struct SideSwitchPositionEditor: View {
     @Binding var position: SideSwitchReadback.Position
     let title: String
     private let labels = [NSLocalizedString("出厂自动", comment: ""), NSLocalizedString("出厂手动", comment: ""), NSLocalizedString("禁用", comment: ""), NSLocalizedString("自定义", comment: "")]
