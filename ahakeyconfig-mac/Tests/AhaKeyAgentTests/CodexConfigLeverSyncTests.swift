@@ -527,9 +527,9 @@ final class CodexConfigLeverSyncTests: XCTestCase {
 
     // MARK: - 两个 Hook 事件的生产接线（行为级 recording sink）
 
-    /// 记录 policy seam 的调用参数（拨杆是否自动档）。
+    /// Record native-policy preparation calls, independent of lever grants.
     private final class PolicyRecorder {
-        var values: [Bool] = []
+        var calls = 0
     }
 
     /// 替换 `CodexHookHandler` 的全部 IO 依赖：不读 stdin、不连 socket、不写诊断日志、
@@ -546,7 +546,7 @@ final class CodexConfigLeverSyncTests: XCTestCase {
             emitPermissionStderr: { _, _, _, _ in },
             appendDiagnostic: { _, _, _, _, _, _, _, _, _, _, _ in },
             writeStdout: { _ in },
-            policySink: { recorder.values.append($0) },
+            preparePolicy: { recorder.calls += 1 },
             approvalControlDirectory: root.appendingPathComponent("approval-control")
         )
     }
@@ -562,17 +562,17 @@ final class CodexConfigLeverSyncTests: XCTestCase {
         body(recorder)
     }
 
-    func testCodexSessionStartRoutesLeverThroughSharedPolicySeam() {
+    func testCodexSessionStartPreparesNativePolicy() {
         withFakeHookDependencies(reply: { _ in 0 }) { recorder in
             CodexHookHandler.handleState(stateValue: 4)   // CodexSessionStart
-            XCTAssertEqual(recorder.values, [true], "SessionStart 必须经 seam 写入自动档")
+            XCTAssertEqual(recorder.calls, 1, "SessionStart prepares a native policy regardless of dial state")
         }
     }
 
     func testCodexSessionStartDoesNotSyncForOtherStateValues() {
         withFakeHookDependencies(reply: { _ in 0 }) { recorder in
             CodexHookHandler.handleState(stateValue: 2)   // CodexPostToolUse
-            XCTAssertTrue(recorder.values.isEmpty, "非 SessionStart 事件不得触碰 policy seam")
+            XCTAssertEqual(recorder.calls, 0, "PostToolUse does not prepare a session")
         }
     }
 
@@ -583,25 +583,25 @@ final class CodexConfigLeverSyncTests: XCTestCase {
         withFakeHookDependencies(reply: { _ in 0 }) { recorder in
             CodexHookHandler.handleState(stateValue: 4)
             CodexHookHandler.handlePermissionRequest()
-            XCTAssertEqual(recorder.values, [false, false])
+            XCTAssertEqual(recorder.calls, 2)
         }
     }
 
     func testCodexPermissionRequestRoutesLeverThroughSharedPolicySeam() {
         withFakeHookDependencies(reply: { _ in 1 }) { recorder in
             CodexHookHandler.handlePermissionRequest()
-            XCTAssertEqual(recorder.values, [false], "PermissionRequest 必须经 seam 写入手动档")
+            XCTAssertEqual(recorder.calls, 1)
         }
     }
 
-    func testBothHookEventsUseTheSameSeamWithLeverDerivedValues() {
-        // state/status 查询给自动档(0)，permission 查询给手动档(1)。
+    func testBothHookEventsPrepareNativePolicyRegardlessOfLever() {
+        // The policy preparation is identical for automatic and manual replies.
         withFakeHookDependencies(reply: { request in
             (request["cmd"] as? String) == "approval_status" ? 0 : 1
         }) { recorder in
-            CodexHookHandler.handleState(stateValue: 4)   // CodexSessionStart → 0 → true
-            CodexHookHandler.handlePermissionRequest()    // CodexPermissionRequest → 1 → false
-            XCTAssertEqual(recorder.values, [true, false], "两条生产路径必须都经同一 switchStateAuto seam")
+            CodexHookHandler.handleState(stateValue: 4)   // CodexSessionStart
+            CodexHookHandler.handlePermissionRequest()    // CodexPermissionRequest
+            XCTAssertEqual(recorder.calls, 2, "Both paths prepare a native policy without persisting auto grants")
         }
     }
 
@@ -609,7 +609,7 @@ final class CodexConfigLeverSyncTests: XCTestCase {
         withFakeHookDependencies(reply: { _ in nil }) { recorder in
             CodexHookHandler.handleState(stateValue: 4)
             CodexHookHandler.handlePermissionRequest()
-            XCTAssertEqual(recorder.values, [false, false], "不可验证时退出 AhaKey 自动策略")
+            XCTAssertEqual(recorder.calls, 2, "Unverified callers still prepare native approval")
         }
     }
 
@@ -620,7 +620,7 @@ final class CodexConfigLeverSyncTests: XCTestCase {
             let url = try writeFixture("approval_policy = \"on-request\" # keep\n")
             var output = ""
             var dependencies = installFakeHookDependencies(recorder: PolicyRecorder(), reply: { _ in state })
-            dependencies.policySink = { _ = CodexConfigLeverSync.apply(switchStateAuto: $0, configURL: url) }
+            dependencies.preparePolicy = { _ = CodexConfigLeverSync.prepareHookManagedSession(configURL: url) }
             dependencies.writeStdout = { output = $0 }
             CodexHookHandler.dependencies = dependencies
             CodexHookHandler.handlePermissionRequest()
@@ -628,21 +628,21 @@ final class CodexConfigLeverSyncTests: XCTestCase {
             let hook = try XCTUnwrap(json["hookSpecificOutput"] as? [String: Any])
             let decision = hook["decision"] as? [String: String]
             XCTAssertEqual(decision?["behavior"], state == 0 ? "allow" : nil)
-            let policy = state == 0 ? "never" : "on-request"
+            let policy = "on-request"
             XCTAssertEqual(try text(of: url), "approval_policy = \"\(policy)\" # keep\n")
         }
     }
 
-    func testSessionStartWritesLeverPolicyThroughProductionWriter() throws {
+    func testSessionStartPreparesNativePolicyThroughProductionWriter() throws {
         let original = CodexHookHandler.dependencies
         defer { CodexHookHandler.dependencies = original }
         for state in [0, 1] {
             let url = try writeFixture("approval_policy = \"untrusted\" # keep\n")
             var dependencies = installFakeHookDependencies(recorder: PolicyRecorder(), reply: { _ in state })
-            dependencies.policySink = { _ = CodexConfigLeverSync.apply(switchStateAuto: $0, configURL: url) }
+            dependencies.preparePolicy = { _ = CodexConfigLeverSync.prepareHookManagedSession(configURL: url) }
             CodexHookHandler.dependencies = dependencies
             CodexHookHandler.handleState(stateValue: 4)
-            let policy = state == 0 ? "never" : "on-request"
+            let policy = "on-request"
             XCTAssertEqual(try text(of: url), "approval_policy = \"\(policy)\" # keep\n")
         }
     }

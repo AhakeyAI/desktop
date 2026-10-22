@@ -1,0 +1,190 @@
+{
+  "date": "2026-10-23",
+  "baseCommit": "a2cbe4c5b49963d867afadc1ecd40fb256900c6a",
+  "sourceSHA256": {
+    "ahakeyconfig-mac/Sources/Agent/CodexHookHandler.swift": "69b8fb8f8a76d8c4be238491fc1756490a1b2b676da13f5a58548c0d99bc2219",
+    "ahakeyconfig-mac/Sources/Agent/HookSupport.swift": "0c7373811c035d893a2bfedc9f7bc8cad396c05707908538d5b4e657907edaab",
+    "ahakeyconfig-mac/Sources/Shared/CodexConfigLeverSync.swift": "9fcfdcc747e73aba82c53efc3b47440d53c1bb2bb1ecd8cab0d03e69696e9b28",
+    "ahakeyconfig-mac/Sources/Shared/CodexHookApproval.swift": "ed52e1beb4847cc8f3d72660a6c8bf0bbe54bfcabffa8a403ee87d63b01e11ce",
+    "ahakeyconfig-mac/Sources/Utilities/AgentManager.swift": "c597b19d407c9718c39cdb8c5e7eaabe8c34682e1e001f135bad4d4fefc18246",
+    "ahakeyconfig-mac/Tests/AhaKeyAgentTests/CodexLiveApprovalGuardTests.swift": "77295257287bff6b9535278d950dd98a627c647e74a87eb96226753a9f8fc1b6",
+    "ahakeyconfig-mac/Tests/AhaKeyAgentTests/CodexConfigLeverSyncTests.swift": "a0f5b0dc5acf831c79777c6a7bc3fcf0479c875737004e97ca19b3d885823217",
+    "ahakeyconfig-mac/Tests/AhaKeyAgentTests/CodexTaskMetadataTests.swift": "d6ebce8b5a41c90c0db683c2a48a3517c27b7bb9242d9eb3275e5d125cd04360",
+    "ahakeyconfig-mac/Tests/AhaKeyConfigSharedTests/CodexHookApprovalTests.swift": "185bf8d3358279f075425513de64d3df904d48f21e064423571b9ace79bf5c64",
+    "ahakeyconfig-mac/scripts/verify-codex-live-approval.py": "a8981df959caf8d53d92ce4154a51403ed2a5724096e48291b1ba45e359cbba0"
+  },
+  "redProof": {
+    "result": "assertion failed: active CLI kept bypassPermissions after owned file restored",
+    "fixture": {
+      "outcomes": {
+        "auto": {
+          "completed": true,
+          "marker": true,
+          "approvals": [],
+          "hooks": [
+            {
+              "event": "CodexSessionStart",
+              "mode": "bypassPermissions"
+            },
+            {
+              "event": "CodexUserPromptSubmit",
+              "mode": "bypassPermissions"
+            },
+            {
+              "event": "CodexPreToolUse",
+              "mode": "bypassPermissions"
+            },
+            {
+              "event": "CodexPostToolUse",
+              "mode": "bypassPermissions"
+            },
+            {
+              "event": "CodexStop",
+              "mode": "bypassPermissions"
+            }
+          ]
+        },
+        "manual": {
+          "completed": true,
+          "marker": true,
+          "approvals": [],
+          "hooks": [
+            {
+              "event": "CodexUserPromptSubmit",
+              "mode": "bypassPermissions"
+            },
+            {
+              "event": "CodexPreToolUse",
+              "mode": "bypassPermissions"
+            },
+            {
+              "event": "CodexPostToolUse",
+              "mode": "bypassPermissions"
+            },
+            {
+              "event": "CodexStop",
+              "mode": "bypassPermissions"
+            }
+          ]
+        }
+      },
+      "providerRequests": 4,
+      "stderr": ""
+    },
+    "scope": "Old persistent-policy architecture, trusted actual hooks and safe markers; not physical BLE"
+  },
+  "native": {
+    "cli": "codex-cli 0.162.1",
+    "legacyBypass": false,
+    "outcomes": {
+      "auto": {
+        "markerExecuted": true,
+        "nativeApprovals": [],
+        "permissionMode": "default"
+      },
+      "manual": {
+        "markerExecuted": false,
+        "nativeApprovals": [
+          "item/commandExecution/requestApproval"
+        ],
+        "permissionMode": "default"
+      },
+      "offline": {
+        "markerExecuted": false,
+        "nativeApprovals": [
+          "item/commandExecution/requestApproval"
+        ],
+        "permissionMode": "default"
+      },
+      "paused": {
+        "markerExecuted": false,
+        "nativeApprovals": [
+          "item/commandExecution/requestApproval"
+        ],
+        "permissionMode": "default"
+      },
+      "restored": {
+        "markerExecuted": true,
+        "nativeApprovals": [],
+        "permissionMode": "default"
+      }
+    },
+    "localProviderRequests": 10,
+    "scope": "Production policy/output builders and native CLI; synthetic lever facts, no physical BLE or real provider"
+  },
+  "legacyBypass": {
+    "cli": "codex-cli 0.162.1",
+    "legacyBypass": true,
+    "outcomes": {
+      "auto": {
+        "markerExecuted": true,
+        "nativeApprovals": [],
+        "permissionMode": "bypassPermissions"
+      },
+      "manual": {
+        "markerExecuted": false,
+        "nativeApprovals": [],
+        "permissionMode": "bypassPermissions"
+      },
+      "offline": {
+        "markerExecuted": false,
+        "nativeApprovals": [],
+        "permissionMode": "bypassPermissions"
+      },
+      "paused": {
+        "markerExecuted": false,
+        "nativeApprovals": [],
+        "permissionMode": "bypassPermissions"
+      },
+      "restored": {
+        "markerExecuted": true,
+        "nativeApprovals": [],
+        "permissionMode": "bypassPermissions"
+      }
+    },
+    "localProviderRequests": 10,
+    "scope": "Production policy/output builders and native CLI; synthetic lever facts, no physical BLE or real provider"
+  },
+  "hookLifecycle": {
+    "initial": {
+      "hooks": 7,
+      "trusted": 7
+    },
+    "reinstall": {
+      "hooks": 7,
+      "trusted": 7
+    },
+    "remove": {
+      "hooks": 1,
+      "trusted": 1
+    },
+    "executed": [
+      "CodexSessionStart",
+      "CodexUserPromptSubmit",
+      "user"
+    ],
+    "codex": "codex-cli 0.162.1"
+  },
+  "focusedSwift": {
+    "count": 44,
+    "failures": 0
+  },
+  "fullSwift": {
+    "count": 601,
+    "failures": 0
+  },
+  "releaseGuards": {
+    "count": 9,
+    "failures": 0
+  },
+  "reviews": {
+    "spec": "passed, including explicit bypass/profile copy clarification",
+    "standards": "passed, including final copy clarification"
+  },
+  "limits": [
+    "Synthetic physical/Agent replies; no real BLE or UDS end-to-end claim",
+    "Old explicit bypass / GUI Full Access must restore native approvals or use native-approval session",
+    "No installed client, real CLI settings, accounts, Voice or Coffee changed",
+    "Full legacy/GUI/physical matrix and native Kimi live control remain incomplete"
+  ]
+}

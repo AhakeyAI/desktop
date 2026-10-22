@@ -114,3 +114,14 @@ Kimi进一步核验的[官方SDK实现](https://github.com/MoonshotAI/kimi-code/
 [官方设置文档](https://code.claude.com/docs/en/settings#when-edits-take-effect)说明设置文件变更会重载；[官方受管设置文档](https://code.claude.com/docs/en/managed-settings)说明managed来源不因settingSources缩小而关闭。审查因此补了两种模式共同的系统策略隔离前置检查：系统managed文件/目录/断链、偏好域存在或无法确认均拒绝启动CLI，不打印策略值。两轴复核P2已关闭。
 
 b223860的CI在新增子进程回归处失败：远端macOS对已结束的孤儿进程组的killpg(...,0)返回EPERM。夹具现在核对精确PGID的非Z成员，无活进程才视为结束；有活成员仍失败。新增可确定复现该返回值的测试，连同原真实子进程和策略隔离共5项通过。此处是夹具兼容修复；CI重跑前不声称b223860全绿。
+
+
+### H02-CODEX-LIVE：活动会话撤回缺口与修复
+
+真实CLI0.162.1已复现旧实现“文件回到on-request、活动会话仍bypassPermissions”的失败。新实现不再产生持久never；自动由当前PermissionRequest授权，手动/离线/暂停交回原生。旧bypass/未知模式在每次工具前重新验证，没有实时自动证明即deny，要求恢复原生审批或新建原生审批会话；不能把显式CLI bypass/GUI Full Access的阻止伪装成已经显示原生审批框。详见 `../../ahastudio/codex-hook-managed-approval-2026-10-23.md`。
+
+代码/配置反例44项通过，包括真实Handler路径、默认会话无额外BLE查询、大输入不误挡、暂停和不完整证明、旧租约升级/丢失文件/损坏所有权；最终完整Swift601项零失败，发布守卫9项零失败，两轴复核和最终文案澄清均通过。
+
+真实原生CLI两类会话各5状态（自动→手动→离线→暂停→恢复自动）均通过：原生会话的三个非自动阶段确实发起native approval，夹具拒绝后不执行标记；旧bypass三个阶段直接阻止，恢复有效自动才执行。6个Hook受信启用，代码来自实际共享生产策略/输出模块，配置确认是回环provider，目标仅临时文件。使用合成档位事实而非实际BLE，不宣称真实硬件端到端完成。生产生成的Codex Hook生命周期7/7/1同步复验通过，用户Hook保留并执行。
+
+收据codex-live-approval-2026-10-23.json绑定本批源文件摘要、红例/最终两类会话与生命周期结果。当前已安装客户端、真实配置与语音素材未修改；签名候选与实体验收随后进行。总WBS新增此P0子项后为29行（父子项不能相加成独立功能数）。

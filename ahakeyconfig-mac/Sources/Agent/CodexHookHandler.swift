@@ -4,7 +4,7 @@ import AhaKeyConfigShared
 enum CodexHookHandler {
     /// 事件级依赖（测试注入点）。生产默认全部转发 `HookSupport`；测试可替换为 fake/recording
     /// 实现，从而真实驱动 `CodexSessionStart` 与 `CodexPermissionRequest` 两条事件路径，
-    /// 而不触碰用户 socket、诊断日志或真实 `~/.codex/config.toml`。Hook 协议语义不变。
+    /// 而不触碰用户 socket、诊断日志或真实配置。旧免审批会话另经 PreToolUse 实时校验。
     struct Dependencies {
         var readStdin: () -> Data
         var parseContext: (Data, String) -> [String: Any]
@@ -15,8 +15,8 @@ enum CodexHookHandler {
             String, String, [String: Any], [String: Any]?, Int?, Bool, String?, String?, [String: Any]?, String?, [String: Any]?
         ) -> Void
         var writeStdout: (String) -> Void
-        /// 唯一 policy seam：值为「拨杆是否自动档」。
-        var policySink: (Bool) -> Void
+        /// Prepare the conservative native baseline independently of a per-tool grant.
+        var preparePolicy: () -> Void
         var approvalControlDirectory: URL = ApprovalAutomationControl.productionDirectory
 
         static let production = Dependencies(
@@ -42,20 +42,13 @@ enum CodexHookHandler {
                 )
             },
             writeStdout: { print($0) },
-            policySink: { CodexConfigLeverSync.apply(switchStateAuto: $0) }
+            preparePolicy: { _ = CodexConfigLeverSync.prepareHookManagedSession() }
         )
     }
 
     /// 测试可整体替换；生产为 `Dependencies.production`。
     static var dependencies = Dependencies.production
 
-    /// 两个 Hook 事件共用的唯一接线：把观测到的拨杆状态交给 typed policy seam。
-    /// 不可验证或离线时恢复原生询问，不沿用之前的自动策略。
-    @discardableResult
-    private static func syncPolicy(switchState: Int?) -> Bool {
-        dependencies.policySink(switchState == 0)
-        return true
-    }
     static func handleState(stateValue: UInt8) {
         let stdinData = dependencies.readStdin()
         let ctx = dependencies.parseContext(stdinData, "Codex")
@@ -73,16 +66,22 @@ enum CodexHookHandler {
         request = WS3TaskMetadata.enrich(request, client: .codex,
             event: codexAgentEventName(forStateValue: stateValue), stdin: stdinData)
         let reply = dependencies.sendRequest(request, HookSupport.stateRequestTimeout)
-        let switchState = HookSupport.intValue(reply?["switchState"])
+        var switchState = HookSupport.intValue(reply?["switchState"])
 
-        // SessionStart 时把拨杆状态写入顶层 approval_policy：
-        // Codex 在会话开始即读取审批策略，之后才会决定是否触发 PermissionRequest，
-        // 必须在这里同步才能让"自动/手动"在本次会话生效。
-        // 注意：`cmd: "state"` 的回包不带 switchState（见 AhaKeyAgent.handleJsonCommand），
-        // 必须单独发 `approval_status` 验证实时状态与绑定。
+        var output: [String: Any] = [:]
+        var decision: String?
         if stateValue == 4 {
-            let statusReply = dependencies.sendRequest(["cmd": "approval_status"], HookSupport.stateRequestTimeout)
-            syncPolicy(switchState: HookSupport.approvalSwitchState(statusReply, client: .codex, controlDirectory: dependencies.approvalControlDirectory))
+            dependencies.preparePolicy()
+        } else if stateValue == 3, CodexHookApproval.requiresPreToolVerification(permissionMode: ctx["permission_mode"] as? String) {
+            // A previously opened bypass session cannot be changed by a file
+            // write. Verify every tool there, or block until it is reopened.
+            dependencies.preparePolicy()
+            let status = dependencies.sendRequest(["cmd": "approval_status"], HookSupport.stateRequestTimeout)
+            switchState = HookSupport.approvalSwitchState(status, client: .codex,
+                controlDirectory: dependencies.approvalControlDirectory)
+            if let blocked = CodexHookApproval.bypassPreToolOutput(verifiedAuto: switchState == 0) {
+                output = blocked; decision = "blocked_stale_bypass"
+            }
         }
 
         dependencies.appendHookLog(
@@ -92,9 +91,12 @@ enum CodexHookHandler {
             ctx,
             reply,
             switchState,
-            nil
+            decision
         )
-        dependencies.writeStdout("{}")
+        if let data = try? JSONSerialization.data(withJSONObject: output),
+           let json = String(data: data, encoding: .utf8) {
+            dependencies.writeStdout(json)
+        }
     }
 
     static func handlePermissionRequest() {
@@ -106,16 +108,12 @@ enum CodexHookHandler {
         let switchState = HookSupport.approvalSwitchState(reply, client: .codex, controlDirectory: dependencies.approvalControlDirectory)
         let isAuto = switchState == 0
 
-        syncPolicy(switchState: switchState)
+        dependencies.preparePolicy()
 
         if !isAuto {
             dependencies.emitPermissionStderr("Codex", "PermissionRequest", reply, switchState)
         }
 
-        var hookOut: [String: Any] = ["hookEventName": "PermissionRequest"]
-        if isAuto {
-            hookOut["decision"] = ["behavior": "allow"]
-        }
         dependencies.appendHookLog(
             "PermissionRequest",
             "CodexPermissionRequest",
@@ -125,7 +123,7 @@ enum CodexHookHandler {
             switchState,
             isAuto ? "allow" : "pass_through"
         )
-        let out: [String: Any] = ["hookSpecificOutput": hookOut]
+        let out = CodexHookApproval.permissionRequestOutput(verifiedAuto: isAuto)
         if let data = try? JSONSerialization.data(withJSONObject: out, options: []),
            let str = String(data: data, encoding: .utf8) {
             dependencies.writeStdout(str)

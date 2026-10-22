@@ -18,7 +18,7 @@ final class CodexTaskMetadataTests: XCTestCase {
             appendHookLog: { _, _, _, _, _, _, _ in },
             emitPermissionStderr: { _, _, _, _ in },
             appendDiagnostic: { _, _, _, _, _, _, _, _, _, _, _ in },
-            writeStdout: { output.append($0) }, policySink: { _ in },
+            writeStdout: { output.append($0) }, preparePolicy: {},
             approvalControlDirectory: URL(fileURLWithPath: "/tmp/aha-task-control-\(UUID().uuidString)"))
         CodexHookHandler.handleState(stateValue: 2)
         CodexHookHandler.handlePermissionRequest()

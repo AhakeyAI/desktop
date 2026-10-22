@@ -1168,12 +1168,16 @@ final class AgentManager: ObservableObject {
                 log.error("installCodexHooks: 写入后校验失败 \(self.codexConfigPath)")
                 return "Codex Hooks：已尝试写入 \(codexConfigPath)，但校验时未发现 AhaKey 标记块。请确认对「用户主目录 /.codex」有写权限，或关闭占用该文件的其它程序。"
             }
+            switch CodexConfigLeverSync.prepareHookManagedSession() {
+            case .alreadyDesired, .replaced, .inserted: break
+            default:
+                return "Codex Hooks 已写入，但原生审批配置未确认。请检查自定义策略后重新安装；已有会话请重开。"
+            }
             guard ApprovalAutomationControl.resume(.codex) else { return "无法恢复 Codex 审批管理权限。" }
             log.info("Codex hooks 已写入 ~/.codex/config.toml")
             let cliRepair = repairCodexCliPathIfNeeded()
-            return cliRepair.isEmpty
-                ? ""
-                : "Codex Hooks 已写入 ~/.codex/config.toml。\n\n\(cliRepair)\n\n安装完成。请重启 Codex 终端或客户端后再使用。"
+            let note = "Codex Hooks 已安装。自动档按每次请求放行，手动档保留原生审批；已有会话请启用 Codex 原生审批，或新建使用原生审批的会话。"
+            return cliRepair.isEmpty ? note : note + "\n\n" + cliRepair
         } catch {
             log.error("installCodexHooks: \(error.localizedDescription)")
             return "Codex Hooks：无法写入 \(codexConfigPath)：\(error.localizedDescription)"

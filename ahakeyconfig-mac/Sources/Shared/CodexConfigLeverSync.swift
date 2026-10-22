@@ -1,43 +1,17 @@
 import Foundation
 
-/// 将键盘拨杆与 Codex `~/.codex/config.toml` 顶层的 **`approval_policy`** 对齐：
-/// **自动档 → `"never"`**（不弹审批，直接执行），**手动档 → `"on-request"`**（由模型
-/// 在需要时暂停询问用户）。
-///
-/// 历史：手动档曾映射 `"untrusted"`（除已知安全只读命令外一律询问），但 Codex
-/// 0.154 起已移除该取值——启动时直接报错
-/// `approval_policy = "untrusted" is no longer supported; remove this setting`，
-/// 导致客户端无法打开。手动档改用 `on-request`。
-///
-/// 取值边界：**本产品只写 `on-request` / `never` 这两个 scalar 值**（由 `ApprovalPolicy`
-/// 冻结）。Codex 官方 `approval_policy` 还支持 granular 形式与其它取值，本卡不写、也不
-/// 代表全局合法集合；`untrusted` 在 0.154 起不再是可写值。
-///
-/// 注意：项目级 `[projects."<path>"].trust_level` 只控制是否加载该项目本地的 `.codex/`
-/// 配置层（config / hooks / rules），**不**决定是否弹出审批确认——那是 `approval_policy`
-/// 的职责（官方文档：参见 https://developers.openai.com/codex/config-reference）。
-/// 早期版本曾误以为改 `trust_level` 就能让拨杆接管 Codex，经实测无效，已改为
-/// `approval_policy`。
-///
-/// Codex 的 `PermissionRequest` hook 协议本身不支持 `ask`/`deny`，必须像
-/// `KimiPermissionModeController` 改写 Kimi 的 `default_permission_mode` 一样，
-/// 直接改写 Codex 自身的审批策略开关，才能让拨杆真正接管。
-///
-/// 深模块边界：
-/// - 唯一 raw-policy 写入口 `apply(policy:configURL:)` 是 **private**——其它 Source 文件
-///   在编译期无法调用它，结构门由访问控制承担，不靠源码文本扫描。
-/// - 对外 seam 只有 `apply(switchStateAuto:)`（生产，真实 `~/.codex/config.toml`）与
-///   `apply(switchStateAuto:configURL:)`（测试注入 fixture）。
-/// - 文件改写是**字节保真**的：只替换目标 TOML value token 的精确字节范围，或在精确
-///   offset 插入；换行（LF/CRLF/CR）、行尾注释、key 周边空白与其它字节全部原样保留。
-///   歧义 / 重复 key / 词法未闭合 / 非 scalar value 一律 typed fail-closed 且零写。
+/// Prepare the native on-request baseline for hook-managed sessions. Codex
+/// snapshots approval_policy: a persistent never policy cannot be revoked by
+/// changing this file after the thread starts. Automatic approval now comes
+/// only from a verified PermissionRequest, not a persistent policy override.
+/// The byte-preserving writer and legacy lease cleanup remain shared.
 public enum CodexConfigLeverSync {
-    /// 本产品可写的审批策略集合（Codex 0.154 起 `untrusted` 不可写）。
+    /// Legacy tokens for migration/byte-edit fixtures; runtime uses on-request.
     enum ApprovalPolicy: String, CaseIterable {
         case onRequest = "on-request"
         case never = "never"
 
-        /// 拨杆状态 → policy：自动档 `never`，手动档 `on-request`。
+        /// Historical mapping used only to reproduce old owned-policy fixtures.
         static func forLever(switchStateAuto: Bool) -> ApprovalPolicy {
             switchStateAuto ? .never : .onRequest
         }
@@ -77,20 +51,37 @@ public enum CodexConfigLeverSync {
             .appendingPathComponent(".codex/config.toml", isDirectory: false)
     }
 
-    /// 生产入口：`CodexSessionStart` / `CodexPermissionRequest` 的唯一 seam。
-    public static func apply(switchStateAuto: Bool) {
-        _ = apply(switchStateAuto: switchStateAuto, configURL: productionConfigURL,
-                  controlDirectory: ApprovalAutomationControl.productionDirectory)
+    /// Production hooks never create a persistent bypass policy.
+    @discardableResult
+    public static func prepareHookManagedSession() -> Outcome {
+        prepareHookManagedSession(configURL: productionConfigURL,
+            controlDirectory: ApprovalAutomationControl.productionDirectory)
     }
 
-    /// Upgrade cleanup runs before Codex starts, when a broken policy would prevent hooks running.
-    /// Only the deprecated scalar is migrated; valid policies and absent keys are left untouched.
+    @discardableResult
+    static func prepareHookManagedSession(configURL: URL, controlDirectory: URL? = nil) -> Outcome {
+        let directory = controlDirectory ?? configURL.deletingLastPathComponent().appendingPathComponent("approval-control")
+        return ApprovalAutomationControl.locked(directory: directory) {
+            apply(policy: .onRequest, configURL: configURL)
+        } ?? .writeFailed
+    }
+
+    /// Upgrade before the next CLI launch. Only an owned bypass or the old
+    /// deprecated scalar is changed; unrelated valid user policies survive.
     @discardableResult
     public static func migrateLegacyPolicy(configURL: URL = productionConfigURL) -> Outcome {
-        apply(policy: .onRequest, configURL: configURL, replacingOnlyLegacy: true)
+        let directory = configURL == productionConfigURL ? ApprovalAutomationControl.productionDirectory
+            : configURL.deletingLastPathComponent().appendingPathComponent("approval-control")
+        return ApprovalAutomationControl.locked(directory: directory) {
+            if FileManager.default.fileExists(atPath: leaseURL(configURL).path) {
+                return releaseOwnedAutomation(configURL: configURL)
+            }
+            return apply(policy: .onRequest, configURL: configURL, replacingOnlyLegacy: true)
+        } ?? .writeFailed
     }
 
-    /// 测试注入入口：同样的 typed seam，只是换 fixture URL。
+    /// Legacy fixture seam: retained to verify old leases and byte-preserving
+    /// edits. Runtime callers use prepareHookManagedSession, never auto=true.
     @discardableResult
     static func apply(switchStateAuto: Bool, configURL: URL, controlDirectory: URL? = nil) -> Outcome {
         let directory = controlDirectory ?? configURL.deletingLastPathComponent().appendingPathComponent("approval-control")
@@ -103,6 +94,13 @@ public enum CodexConfigLeverSync {
     private static func leaseURL(_ url: URL) -> URL { url.appendingPathExtension("ahakey-auto-lease") }
     static func releaseOwnedAutomation(configURL: URL) -> Outcome {
         guard FileManager.default.fileExists(atPath: leaseURL(configURL).path) else { return .noLegacyPolicy }
+        guard (try? Data(contentsOf: leaseURL(configURL))) == Data([1]) else {
+            return .unsupportedSyntax(reason: "Invalid AhaKey policy lease")
+        }
+        guard FileManager.default.fileExists(atPath: configURL.path) else {
+            do { try FileManager.default.removeItem(at: leaseURL(configURL)); return .missingConfig }
+            catch { return .writeFailed }
+        }
         guard let data = try? Data(contentsOf: configURL) else { return .unreadableConfig }
         switch TomlPolicyLocator.locate(Array(data)) {
         case .existingScalar(_, let decoded) where decoded == "never":

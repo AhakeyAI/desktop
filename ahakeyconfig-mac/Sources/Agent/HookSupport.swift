@@ -132,6 +132,9 @@ enum HookSupport {
               let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
             return out
         }
+        if let mode = obj["permission_mode"] as? String, ["default", "bypassPermissions"].contains(mode) {
+            out["permission_mode"] = mode
+        }
         if let t = obj["tool_name"] as? String {
             out["tool_name"] = t
         }
