@@ -163,7 +163,8 @@ struct AhaKeyStudioView: View {
             syncStatusMessage = "Mode \(actual.mode + 1) · Key \(actual.keyIndex + 1) 已保存并读回确认。"
         }
         .onChange(of: agentManager.bluetoothConnectionOwner) { owner in
-            if owner == .agentDaemon, inlineKeyTarget == nil {
+            if owner == .agentDaemon, inlineKeyTarget == nil,
+               !(isEditingInspector && usesInlineLightEditor) {
                 isEditingInspector = false
                 syncStatusMessage = "已返回日常连接，未应用的画布草稿仍保留。"
             }
@@ -483,6 +484,10 @@ struct AhaKeyStudioView: View {
         }
     }
 
+    private var usesInlineLightEditor: Bool {
+        selectedPart == .lightBar && bleManager.firmwareCapabilityProfile?.identity != .legacy
+    }
+
     private var canvasModeDraft: AhaKeyModeDraft {
         var draft = currentModeDraft
         guard bleManager.firmwareCapabilityProfile?.identity != .legacy else { return draft }
@@ -719,7 +724,7 @@ struct AhaKeyStudioView: View {
                         .disabled(isSyncing || !bleManager.isConnected || !bleManager.commandCharReady || bleManager.firmwareCapabilityProfile?.identity != .legacy)
                     }
 
-                    if selectedPart != .lightBar || bleManager.firmwareCapabilityProfile?.identity == .legacy {
+                    if !usesInlineLightEditor {
                         Button {
                             writeToKeyboard()
                         } label: {
@@ -2356,7 +2361,7 @@ struct AhaKeyStudioView: View {
     }
 
     private func enterEditingConfiguration() {
-        if selectedPart == .lightBar, bleManager.firmwareCapabilityProfile?.identity != .legacy {
+        if usesInlineLightEditor {
             clearInlineKeyEditing()
             return
         }
