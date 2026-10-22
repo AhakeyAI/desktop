@@ -530,3 +530,8 @@ PR151已合入connect&talk/f1cd1fd。新分支codex/connect-talk-ws3-light-save�
 真机完整19项、预览及停止ACK、Claude通知同值保存、四模式通知OFF保存及完整36项读回通过。当前四模式通知暂为OFF，原值均10中心脉冲；亮度35%、有效1/19、Codex Coffee位置8一帧，按键/Voice未改。已请求用户正常重启验证OFF断电保持，尚待回复；收到后先fresh19及36项，再明确恢复四个通知为中心脉冲并读回，最后关闭设置交还日常Agent核对连接/实体档位。不要重复请求刷写或Forget PC，不要把临时OFF留作最终状态。
 
 PR152目前草稿，不自动合并未完成的现场验收。完成恢复后更新docs/validation/connect-talk-hil-2026-10-22/LIGHT_SAVE.md和WBS，精确最终head四项CI全成功再按已授权合入connect&talk。完整4×9保存和存储/无线故障矩阵仍待，F5继续暂缓。
+
+
+### 第41节现场收尾
+
+用户确认重启并唤醒后直连成功，fresh19项35%/有效1项/Codex1帧，fresh36项四模式通知均OFF，保持通过。已逐项保存恢复原值10中心脉冲，各自读回一致；再fresh36项确认四项恢复，其余32项未变。没有第二次重启恢复值，不扩大保持声明。已交还Agent，fresh connected=true、physical/effective=0、autoVerified=true，首页44%/自动批准、语音桥运行中。无待用户动作或临时配置恢复；验收见LIGHT_SAVE.md。PR152待最终文档head四项CI成功后按授权合入connect&talk。
