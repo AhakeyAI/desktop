@@ -67,6 +67,10 @@ public final class VoiceRelayPlatform {
         windows.stop();
     }
 
+    public void simulateVoiceKeyPress(boolean longPress, long holdMillis) {
+        windows.simulateVoiceKeyPress(longPress, holdMillis);
+    }
+
     public void simulateVoiceKeyTap(ModeSlot mode) {
         windows.simulateVoiceKeyTap(mode);
     }

@@ -350,6 +350,34 @@ public final class WindowsVoiceRelayService {
         statusMessage.set(text("voice.bridge.stopped"));
     }
 
+    /**
+     * Simulates the physical voice key through the same routing as F18: a
+     * short press, or a long press held for {@code holdMillis}. Used by the K1
+     * "simulate" buttons so actions can be tested without the keyboard.
+     */
+    public void simulateVoiceKeyPress(boolean longPress, long holdMillis) {
+        if (!longPress) {
+            actionRouter.route(new VoiceButtonEvent(VoiceButtonEvent.Type.SHORT_PRESS, System.nanoTime()));
+            lastSimulateHint.set(text("voice.simulate.short",
+                voiceActionTitle(actionRouter.actionFor(VoiceButtonEvent.Type.SHORT_PRESS))));
+            return;
+        }
+        actionRouter.route(new VoiceButtonEvent(VoiceButtonEvent.Type.LONG_PRESS_START, System.nanoTime()));
+        lastSimulateHint.set(text("voice.simulate.long",
+            voiceActionTitle(actionRouter.actionFor(VoiceButtonEvent.Type.LONG_PRESS_START)),
+            holdMillis / 1000));
+        Thread release = new Thread(() -> {
+            try {
+                Thread.sleep(holdMillis);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            actionRouter.route(new VoiceButtonEvent(VoiceButtonEvent.Type.LONG_PRESS_END, System.nanoTime()));
+        }, "voice-key-simulated-release");
+        release.setDaemon(true);
+        release.start();
+    }
+
     public void simulateVoiceKeyTap(ModeSlot mode) {
         WindowsVoiceTyping.trigger();
         lastSimulateHint.set(text("voice.simulate.windows-prefix") + mode.getShortName() + text("voice.simulate.windows-suffix"));

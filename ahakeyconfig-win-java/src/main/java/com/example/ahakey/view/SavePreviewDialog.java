@@ -27,7 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Shows the 16 key bindings (4 modes × K1–K4) that are about to be written to
+ * Shows the 12 key bindings (4 modes × K2–K4) that are about to be written to
  * the keyboard and lets the user confirm or cancel. Nothing is read from the
  * device: the current firmware protocol has no key binding read command.
  *
@@ -42,11 +42,12 @@ public final class SavePreviewDialog {
     public record Row(String mode, String key, String value) {
     }
 
+    /** K1 is the voice key: its actions stay on the computer and are not written. */
     private static final StudioPart[] KEYS = {
-        StudioPart.KEY1, StudioPart.KEY2, StudioPart.KEY3, StudioPart.KEY4
+        StudioPart.KEY2, StudioPart.KEY3, StudioPart.KEY4
     };
 
-    /** Rows in mode order, then K1..K4; pure so it can be tested without JavaFX. */
+    /** Rows in mode order, then K2..K4; pure so it can be tested without JavaFX. */
     public static List<Row> rows(StudioState state) {
         List<Row> rows = new ArrayList<>();
         for (ModeSlot mode : ModeSlot.values()) {

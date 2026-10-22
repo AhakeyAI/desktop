@@ -84,8 +84,10 @@ public class InspectorPane extends ScrollPane {
         studioState.selectedModeProperty().addListener((obs, oldValue, newValue) -> rebuild());
         studioState.lightBarPreviewProperty().addListener((obs, oldValue, newValue) -> rebuild());
         agentManager.bluetoothOwnerProperty().addListener((obs, oldValue, newValue) -> rebuild());
+        // Rebuild after the other availability listeners ran (App may switch
+        // the default long press to local voice when the feature turns on).
         LocalVoiceFeature.getInstance().availableProperty()
-            .addListener((obs, oldValue, newValue) -> rebuild());
+            .addListener((obs, oldValue, newValue) -> Platform.runLater(this::rebuild));
         controller.getTaskActivityService().addDisplayModeListener(result -> {
             try {
                 Platform.runLater(taskModeRefresh);
@@ -124,7 +126,10 @@ public class InspectorPane extends ScrollPane {
         ));
 
         if (part == StudioPart.KEY1) {
+            // 与轻量版一致：按键设置 → 模拟按键。K1 由电脑端区分短按 / 长按，
+            // 不写入键盘，因此按键设置位置显示语音键的短按 / 长按动作。
             body.getChildren().add(createDualVoiceKeyGroup());
+            body.getChildren().add(createVoiceKeySimulateGroup());
         } else if (part.isKey()) {
             body.getChildren().add(createKeyBindingGroup(part));
             body.getChildren().add(createDescriptionGroup(part));
@@ -183,13 +188,13 @@ public class InspectorPane extends ScrollPane {
             rebuild();
         });
 
-        VBox block = new VBox(8, new Label(shortPress
+        VBox block = new VBox(8, fieldLabel(shortPress
             ? localize("短按动作（一次触发）") : localize("长按动作（按住）")), action);
 
         if (current == VoiceAction.CUSTOM_SHORTCUT) {
             VBox shortcut = createVoiceShortcutEditor(shortPress);
             block.getChildren().add(new VBox(6,
-                new Label(shortPress ? localize("短按快捷键") : localize("长按快捷键")), shortcut));
+                fieldLabel(shortPress ? localize("短按快捷键") : localize("长按快捷键")), shortcut));
         } else if (current == VoiceAction.AHAKEY_VOICE) {
             if (!localVoice) {
                 Label unavailable = new Label(localize("AhaKey 本地语音（当前不可用）"));
@@ -198,6 +203,8 @@ public class InspectorPane extends ScrollPane {
             } else {
                 javafx.scene.control.CheckBox ahaType = new javafx.scene.control.CheckBox(
                     localize("识别结果经 AhaType 云端整理"));
+                // The global label style is white (dark theme); use the inspector's text color.
+                ahaType.setStyle("-fx-text-fill: #1f2937;");
                 ahaType.setSelected(studioState.isVoiceAhaTypeEnabled(shortPress));
                 ahaType.selectedProperty().addListener((obs, oldValue, value) ->
                     studioState.setVoiceAhaTypeEnabled(shortPress, value));
@@ -209,6 +216,13 @@ public class InspectorPane extends ScrollPane {
             }
         }
         return List.of(block);
+    }
+
+    /** Same style as the lite client's field labels (e.g. "按键类型"). */
+    private static Label fieldLabel(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("field-label");
+        return label;
     }
 
     /** Edits one Desktop-local shortcut without touching firmware bindings. */
@@ -261,6 +275,26 @@ public class InspectorPane extends ScrollPane {
             case NONE -> localize("禁用");
             case CUSTOM_SHORTCUT -> localize("自定义快捷键");
         };
+    }
+
+    /** Lite-style "simulate" group for K1, routed like the physical voice key. */
+    private VBox createVoiceKeySimulateGroup() {
+        return createGroupBox(languageManager.getString("inspector.simulate-key"), () -> {
+            VBox box = new VBox(8);
+            var voice = controller.getVoiceRelay();
+            Button tap = new Button(localize("模拟按一次 Key1"));
+            tap.getStyleClass().add("button-prominent");
+            tap.setOnAction(e -> voice.simulateVoiceKeyPress(false, 0));
+            Button hold = new Button(localize("模拟长按 Key1（3 秒）"));
+            hold.setOnAction(e -> voice.simulateVoiceKeyPress(true, 3000));
+            HBox buttons = new HBox(8, tap, hold);
+            Label hint = new Label();
+            hint.textProperty().bind(voice.lastSimulateHintProperty());
+            hint.getStyleClass().add("warning-note");
+            hint.setWrapText(true);
+            box.getChildren().addAll(buttons, hint);
+            return box;
+        });
     }
 
     private VBox createSimulateKeyGroup(StudioPart part) {
@@ -1018,7 +1052,8 @@ public class InspectorPane extends ScrollPane {
             return box;
         });
 
-        root.getChildren().addAll(taskModeBox, brightnessBox, statesBox);
+        // 顺序以轻量版为准：亮度 → AI 状态灯效；新增的任务灯效模式放在最后。
+        root.getChildren().addAll(brightnessBox, statesBox, taskModeBox);
         return root;
     }
     private Label caption(String text) {

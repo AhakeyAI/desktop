@@ -81,6 +81,7 @@ $manifestPath = Join-Path $OutputDir "manifest.json"
 $json = $manifest | ConvertTo-Json -Depth 5
 [IO.File]::WriteAllText($manifestPath, $json, (New-Object Text.UTF8Encoding($false)))
 
-$total = ($files | Measure-Object -Property size -Sum).Sum
+$total = [long]0
+foreach ($file in $files) { $total += [long]$file.size }
 Write-Output ("LOCAL_VOICE_PACK=OK files={0} total={1:N0} bytes" -f $files.Count, $total)
 Write-Output "MANIFEST=$manifestPath"

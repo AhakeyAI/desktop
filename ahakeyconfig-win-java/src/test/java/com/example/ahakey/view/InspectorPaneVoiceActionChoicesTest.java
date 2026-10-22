@@ -66,7 +66,10 @@ class InspectorPaneVoiceActionChoicesTest {
     void mainAhaTypeAndVoiceControlsRemainDiscoverableWithoutModelFlag() throws IOException {
         String source = Files.readString(Path.of(
             "src/main/java/com/example/ahakey/view/TopBar.java"));
-        assertTrue(source.contains("new FlowPane(16, 8, infoPills, ahaTypeControls, voiceControlBox, configStatus)"));
+        // Lite single-row layout: AhaType and voice sit after the BLE driver button.
+        String flat = source.replaceAll("\\s+", " ");
+        assertTrue(flat.contains("titleBox, infoPills, spacer, actionButtons, "
+            + "ahaTypeControls, voiceControlBox, rightSpacer, configStatus, configModeButton, menuBar"));
         assertTrue(source.contains("button.start-voice"));
     }
 }

@@ -337,22 +337,23 @@ public class TopBar extends VBox {
 
         // 云端账号只服务于 AhaType，而 AhaType 依赖本地语音：未开启本地语音时隐藏。
         cloudAccount.visibleProperty().bind(LocalVoiceFeature.getInstance().availableProperty());
+        // 菜单顺序以轻量版为准：轻量版原有的菜单项在前，新增功能放在分隔线之后。
+        SeparatorMenuItem divider2 = new SeparatorMenuItem();
         moreMenu.getItems().addAll(
             restoreDefaults,
             reconnect,
             clearOled,
-            screenAnimations,
             divider1,
             deviceInfo,
+            cloudAccount,
+            divider2,
+            screenAnimations,
             versionInfo,
             languageMenuItem,
-            exitApp,
-            cloudAccount
+            exitApp
         );
 
         MenuBar menuBar = new MenuBar(moreMenu);
-        menuBar.setMinWidth(Region.USE_PREF_SIZE);
-        configModeButton.setMinWidth(Region.USE_PREF_SIZE);
         menuBar.setUseSystemMenuBar(false);
         menuBar.getStyleClass().add("toolbar-menu");
 
@@ -361,28 +362,46 @@ public class TopBar extends VBox {
         actionButtons.setAlignment(Pos.CENTER_LEFT);
         actionButtons.getChildren().addAll(connectButton, bleButton);
 
-        // Primary actions stay visible; secondary groups wrap at narrow widths.
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox toolbar = new HBox(8, titleBox, spacer, actionButtons, configModeButton, menuBar);
-        toolbar.setAlignment(Pos.CENTER_LEFT);
-        toolbar.setPadding(new Insets(8, 16, 6, 16));
-        titleBox.setMinWidth(Region.USE_PREF_SIZE);
-        actionButtons.setMinWidth(Region.USE_PREF_SIZE);
-
+        // 布局以轻量版为准：所有控件在一行。AhaType 和语音控件位于 BLE 驱动之后，
+        // 只有在设置中开启本地语音后才显示，默认形态与轻量版完全一致。
         HBox ahaTypeControls = new HBox(8, ahaTypeToggle, ahaTypeStatus);
         ahaTypeControls.setAlignment(Pos.CENTER_LEFT);
-        // 默认的轻量形态不显示语音和 AhaType；在设置中开启本地语音后才出现。
         var localVoiceAvailable = LocalVoiceFeature.getInstance().availableProperty();
         for (Region optional : new Region[] {ahaTypeControls, voiceControlBox}) {
             optional.visibleProperty().bind(localVoiceAvailable);
             optional.managedProperty().bind(localVoiceAvailable);
         }
-        FlowPane statusRow = new FlowPane(16, 8, infoPills, ahaTypeControls, voiceControlBox, configStatus);
-        statusRow.setPadding(new Insets(0, 16, 8, 16));
-        statusRow.setMinWidth(0);
         voiceResultPreview.setMaxWidth(260);
-        getChildren().addAll(toolbar, statusRow);
+
+        // 状态信息与操作按钮之间的固定间距
+        Region spacer = new Region();
+        spacer.setMinWidth(12);
+        spacer.setPrefWidth(16);
+        spacer.setMaxWidth(40);
+
+        // 右侧弹性 spacer：把编辑配置/菜单推到最右
+        Region rightSpacer = new Region();
+        HBox.setHgrow(rightSpacer, Priority.ALWAYS);
+
+        // 主行 HBox：所有控件在一行，不会换行
+        HBox mainRow = new HBox(10);
+        mainRow.setAlignment(Pos.CENTER_LEFT);
+        mainRow.setPadding(new Insets(6, 16, 6, 16));
+        mainRow.setMinWidth(Region.USE_PREF_SIZE); // 保持首选宽度，不缩小
+        mainRow.getChildren().addAll(titleBox, infoPills, spacer, actionButtons,
+            ahaTypeControls, voiceControlBox, rightSpacer, configStatus, configModeButton, menuBar);
+
+        // 包裹在水平 ScrollPane 中：宽屏时不显示滚动条，分屏窄时可水平滚动
+        ScrollPane scrollWrapper = new ScrollPane(mainRow);
+        scrollWrapper.setFitToWidth(true);
+        scrollWrapper.setFitToHeight(true);
+        scrollWrapper.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scrollWrapper.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollWrapper.setPannable(false);
+        scrollWrapper.setStyle("-fx-background: transparent; -fx-background-color: transparent;");
+        mainRow.setStyle("-fx-background-color: transparent;");
+
+        getChildren().add(scrollWrapper);
         updateVoiceButtonState();
     }
     
@@ -694,6 +713,11 @@ public class TopBar extends VBox {
         }
         
         voiceRecordButton.setDisable(false);
+        if (!voiceRunning) {
+            // The service may have just finished loading after local voice was
+            // turned on; replace the earlier "not loaded" error.
+            setVoiceStatus("stopped", languageManager.getString("voice.status.stopped"));
+        }
         
         if (voiceRunning) {
             voiceRecordButton.getStyleClass().add("voice-recording");
@@ -851,19 +875,24 @@ public class TopBar extends VBox {
         actionButtons.getChildren().addAll(connectBtn, disconnectBtn, clearLogBtn, closeBtn);
         actionButtons.setAlignment(Pos.CENTER_RIGHT);
 
+        // 顺序以轻量版为准：设备信息 → Hook → 日志 → 操作按钮；新增的设置放在其后。
+        Label moreSettingsTitle = new Label(localize("更多设置"));
+        moreSettingsTitle.getStyleClass().add("dialog-card-title");
+        moreSettingsTitle.setPadding(new Insets(8, 0, 0, 4));
         content.getChildren().addAll(
             deviceCard,
-            standbyCard,
-            localVoiceCard,
-            maintenanceCards,
-            pairingGuideCard,
-            supportCard,
             claudeCard.root(),
             cursorCard.root(),
             codexCard.root(),
             kimiCard.root(),
             logCard,
-            actionButtons
+            actionButtons,
+            moreSettingsTitle,
+            localVoiceCard,
+            standbyCard,
+            maintenanceCards,
+            pairingGuideCard,
+            supportCard
         );
         scrollPane.setContent(content);
 

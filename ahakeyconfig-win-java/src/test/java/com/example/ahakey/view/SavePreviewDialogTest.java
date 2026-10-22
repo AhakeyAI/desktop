@@ -13,12 +13,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SavePreviewDialogTest {
     @Test
-    void listsAllSixteenBindingsInModeThenKeyOrder() {
+    void listsTheTwelveWrittenBindingsAndLeavesOutTheDesktopOnlyVoiceKey() {
         List<SavePreviewDialog.Row> rows = SavePreviewDialog.rows(new StudioState());
-        assertEquals(16, rows.size());
-        assertEquals("K1", rows.get(0).key());
-        assertEquals("K4", rows.get(3).key());
-        assertEquals(ModeSlot.values()[1].getShortName(), rows.get(4).mode());
+        assertEquals(12, rows.size());
+        assertEquals("K2", rows.get(0).key());
+        assertEquals("K4", rows.get(2).key());
+        assertEquals(ModeSlot.values()[1].getShortName(), rows.get(3).mode());
+        assertTrue(rows.stream().noneMatch(row -> row.key().equals("K1")));
     }
 
     @Test
