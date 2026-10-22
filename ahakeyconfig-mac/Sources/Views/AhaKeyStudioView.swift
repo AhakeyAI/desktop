@@ -44,6 +44,14 @@ struct AhaKeyStudioView: View {
     @AppStorage(AppLanguageInitializer.selectedLanguageKey) private var selectedLanguage = AppLanguageInitializer.systemSelection
     @AppStorage(VibeBarVisibilityPreference.enabledKey) private var vibeBarEnabled = true
     @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
+    @StateObject private var inspectorSession: StudioInspectorSession
+    @State private var inlineKeyTarget: StudioInlineKeyTarget?
+    @State private var inlineKeyFact: StudioInlineKeyFact?
+    @State private var inlineKeyConflict: StudioInlineKeyConflict?
+    @State private var inlineKeyMessage: String?
+    @State private var inlineKeyTask: Task<Void, Never>?
+    @State private var inlineKeyOperationID = UUID()
+    @State private var inlineKeyUnconfirmed: Set<String> = []
     @State private var isEditingInspector = false
     @State private var showsDiagnostics = false
     @State private var showsKeyHelp = false
@@ -58,6 +66,7 @@ struct AhaKeyStudioView: View {
 
     init(bleManager: AhaKeyBLEManager) {
         self.bleManager = bleManager
+        _inspectorSession = StateObject(wrappedValue: StudioInspectorSession(bleManager: bleManager))
         let initialDraft = AhaKeyStudioStore.load() ?? .default
         // 注意：不要在这里调用 VoiceRelayService.updateRoutes —— SwiftUI 会因 bleManager
         // 的 @Published 属性（workMode/电量/连接状态等）频繁重建 view，init 会跟着多次执行。
@@ -74,10 +83,10 @@ struct AhaKeyStudioView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            topBar
+            topBar.disabled(inspectorSession.isBusy)
             Divider()
             HStack(spacing: 0) {
-                canvasPane
+                canvasPane.disabled(inspectorSession.isBusy)
                 Divider()
                 inspectorPane
             }
@@ -124,7 +133,7 @@ struct AhaKeyStudioView: View {
             syncStatusMessage = "Mode \(actual.mode + 1) · Key \(actual.keyIndex + 1) 已保存并读回确认。"
         }
         .onChange(of: agentManager.bluetoothConnectionOwner) { owner in
-            if owner == .agentDaemon {
+            if owner == .agentDaemon, inlineKeyTarget == nil {
                 isEditingInspector = false
                 syncStatusMessage = "已返回日常连接，未应用的画布草稿仍保留。"
             }
@@ -137,7 +146,7 @@ struct AhaKeyStudioView: View {
         // 这样 LCD 预览、快捷键草稿、发出去的 updateState 三者一致。
         .onChange(of: bleManager.workModeForDisplay) { newValue in
             guard let newValue, let slot = AhaKeyModeSlot(rawValue: newValue) else { return }
-            if slot != selectedMode { selectedMode = slot }
+            if slot != selectedMode, inlineKeyTarget == nil { selectedMode = slot }
             // Reconnection can make an already-read Agent cache live without
             // changing its stored value; update the router on that transition.
             if !bleManager.isConnected {
@@ -584,7 +593,8 @@ struct AhaKeyStudioView: View {
 
                         Group {
                             switch selectedPart {
-                            case .key1, .key2, .key3, .key4: keyInspector
+                            case .key1, .key2, .key3, .key4:
+                                keyInspector
                             case .oledDisplay: oledInspector
                             case .lightBar: lightBarInspector
                             case .toggleSwitch: switchInspector
@@ -619,6 +629,7 @@ struct AhaKeyStudioView: View {
                             .buttonStyle(.borderedProminent)
                             .controlSize(.regular)
                             .keyboardShortcut("e", modifiers: .command)
+                            .disabled(inspectorSession.isBusy)
                         }
                         .padding(.top, 6)
                     }
@@ -631,6 +642,7 @@ struct AhaKeyStudioView: View {
                 HStack(spacing: 12) {
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
+                            clearInlineKeyEditing()
                             isEditingInspector = false
                             returnToKeyboardControl()
                         }
@@ -642,6 +654,12 @@ struct AhaKeyStudioView: View {
                     .controlSize(.regular)
 
                     Spacer()
+                    if inlineKeyTarget != nil && inspectorSession.isBusy {
+                        Button(NSLocalizedString("取消当前操作", comment: "")) {
+                            inlineKeyTask?.cancel()
+                            if bleManager.isConfigurationOperationInProgress { bleManager.cancelConfigurationOperation() }
+                        }
+                    }
 
                     if selectedPart == .lightBar {
                         Button {
@@ -658,12 +676,12 @@ struct AhaKeyStudioView: View {
                     Button {
                         writeToKeyboard()
                     } label: {
-                        Label(isSyncing ? "写入中…" : (bleManager.firmwareCapabilityProfile?.identity == .legacy ? "写入键盘" : "核对并保存"), systemImage: isSyncing ? "arrow.trianglehead.2.clockwise" : "square.and.arrow.down")
+                        Label(NSLocalizedString(isSyncing || inspectorSession.isBusy ? "处理中…" : (inlineKeyTarget != nil ? "保存此键" : (bleManager.firmwareCapabilityProfile?.identity == .legacy ? "写入键盘" : "核对并保存")), comment: ""), systemImage: isSyncing ? "arrow.trianglehead.2.clockwise" : "square.and.arrow.down")
                             .font(.callout.weight(.semibold))
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.regular)
-                    .disabled(isSyncing || !bleManager.isConnected)
+                    .disabled(isSyncing || inspectorSession.isBusy || (inlineKeyTarget != nil ? !inlineKeyIsEditable : !bleManager.isConnected))
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 12)
@@ -673,12 +691,26 @@ struct AhaKeyStudioView: View {
         .frame(maxHeight: .infinity)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
         .onChange(of: selectedPart) { _ in
+            clearInlineKeyEditing()
             commitModeNameEdit()
             withAnimation(.easeInOut(duration: 0.18)) { isEditingInspector = false }
         }
         .onChange(of: selectedMode) { _ in
+            if inlineKeyTarget != nil { clearInlineKeyEditing(); isEditingInspector = false }
             if editingModeSlot != nil && editingModeSlot != selectedMode {
                 commitModeNameEdit()
+            }
+        }
+        .onDisappear { inlineKeyTask?.cancel() }
+        .alert(NSLocalizedString("键盘当前值已变化", comment: ""), isPresented: Binding(get: { inlineKeyConflict != nil }, set: { if !$0 { inlineKeyConflict = nil } })) {
+            if let conflict = inlineKeyConflict {
+                Button(NSLocalizedString("确认修改", comment: "")) { inlineKeyConflict = nil; saveInlineKey(overwrite: conflict) }
+                Button(NSLocalizedString("采用这次读回值", comment: "")) { adoptInlineKeyConflict(conflict); inlineKeyConflict = nil }
+            }
+            Button(NSLocalizedString("取消", comment: ""), role: .cancel) { inlineKeyConflict = nil }
+        } message: {
+            if let conflict = inlineKeyConflict {
+                Text(NSLocalizedString("键盘当前：", comment: "") + StudioKeyWriteProposal.summary(conflict.actual) + "\n" + NSLocalizedString("准备修改为：", comment: "") + StudioKeyWriteProposal.summary(conflict.desired))
             }
         }
         .alert(NSLocalizedString("写入结果", comment: ""), isPresented: $showsWriteResultAlert) {
@@ -1008,7 +1040,7 @@ struct AhaKeyStudioView: View {
     private var keyInspector: some View {
         let key = currentSelectedKey
         return VStack(alignment: .leading, spacing: 16) {
-            GroupBox(NSLocalizedString("按键描述", comment: "")) {
+            StudioInspectorSection(NSLocalizedString("按键描述", comment: "")) {
                 VStack(alignment: .leading, spacing: 8) {
                     TextField(NSLocalizedString("例如 Record / Accept / Reject / Backspace", comment: ""), text: selectedKeyDescriptionBinding)
                         .textFieldStyle(.roundedBorder)
@@ -1017,12 +1049,14 @@ struct AhaKeyStudioView: View {
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
-                    Text(bleManager.firmwareCapabilityProfile?.identity == .legacy ? "旧版写入预览：\(currentSelectedKeySanitizedDescription.isEmpty ? "空白" : currentSelectedKeySanitizedDescription)" : "保存前将在键盘设置中核对当前值与待应用描述。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text("同步到键盘后，短按实体键切换模式时，LCD 会先短暂显示这里的描述，然后回到该模式的动图。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if inlineKeyTarget == nil {
+                        Text(bleManager.firmwareCapabilityProfile?.identity == .legacy ? "旧版写入预览：\(currentSelectedKeySanitizedDescription.isEmpty ? "空白" : currentSelectedKeySanitizedDescription)" : "保存前会重新读取并核对，只修改当前选中的按键。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("同步到键盘后，短按实体键切换模式时，LCD 会先短暂显示这里的描述，然后回到该模式的动图。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     if selectedMode == .mode0 {
                         Text(NSLocalizedString("Mode 1 默认文案：Record / Accept / Reject / Backspace", comment: ""))
                             .font(.caption)
@@ -1031,9 +1065,10 @@ struct AhaKeyStudioView: View {
                 }
                 .padding(.top, 4)
             }
+            .disabled(inlineKeyControlsDisabled)
 
             if key.role == .voice {
-                GroupBox(NSLocalizedString("语音输入方式", comment: "")) {
+                StudioInspectorSection(NSLocalizedString("语音输入方式", comment: "")) {
                     VStack(alignment: .leading, spacing: 12) {
                         VoicePresetPicker(
                             selectedPreset: key.voicePreset ?? .custom,
@@ -1051,7 +1086,7 @@ struct AhaKeyStudioView: View {
                     .padding(.top, 4)
                 }
             } else {
-                GroupBox(NSLocalizedString("按键职责", comment: "")) {
+                StudioInspectorSection(NSLocalizedString("按键职责", comment: "")) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(key.role.manualText)
                             .font(.callout)
@@ -1064,147 +1099,158 @@ struct AhaKeyStudioView: View {
             }
 
             // ── 触发方式（短按 / 长按 Tab）──────────────────────────────
-            GroupBox(NSLocalizedString("触发方式", comment: "")) {
+            StudioInspectorSection(NSLocalizedString("触发方式", comment: "")) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Picker("", selection: $selectedTriggerTab) {
-                        Text(NSLocalizedString("短按", comment: "")).tag(0)
-                        Text(NSLocalizedString("长按", comment: "")).tag(1)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
+                    VStack(alignment: .leading, spacing: 12) {
+                        Picker("", selection: $selectedTriggerTab) {
+                            Text(NSLocalizedString("短按", comment: "")).tag(0)
+                            Text(NSLocalizedString("长按", comment: "")).tag(1)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
 
-                    Divider()
+                        Divider()
 
-                    if key.role == .voice {
-                        // ── 语音键触发方式 ──────────────────────────────
-                        if selectedTriggerTab == 0 {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Label(NSLocalizedString("按一下开始，再按一下结束", comment: ""), systemImage: "hand.tap.fill")
-                                    .font(.callout.weight(.semibold))
-                                Text("录音结束后根据下方开关决定是否经 AhaType 整理，再写入光标。")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Toggle(isOn: $nativeSpeech.shortPressAhaTypeEnabled) {
-                                    HStack(spacing: 6) {
-                                        Text(NSLocalizedString("使用 AhaType 整理", comment: ""))
-                                            .font(.callout)
-                                        if !ahaType.isEnabled {
-                                            Text(NSLocalizedString("（AhaType 总开关已关闭）", comment: ""))
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                }
-                                .toggleStyle(.switch)
-                                .disabled(!ahaType.isEnabled)
-
-                                Divider()
-
-                                // 绑定摘要（短按 = 语音键 HID 绑定）
-                                HStack {
-                                    Text(key.displaySummary)
-                                        .font(.system(.callout, design: .rounded).weight(.semibold))
-                                        .lineLimit(1)
-                                    Spacer()
-                                    Text(key.usesMacro ? NSLocalizedString("固件宏", comment: "") : NSLocalizedString("底层 HID", comment: ""))
+                        if key.role == .voice {
+                            // ── 语音键触发方式 ──────────────────────────────
+                            if selectedTriggerTab == 0 {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Label(NSLocalizedString("按一下开始，再按一下结束", comment: ""), systemImage: "hand.tap.fill")
+                                        .font(.callout.weight(.semibold))
+                                    Text("录音结束后根据下方开关决定是否经 AhaType 整理，再写入光标。")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                }
-                                Picker("", selection: selectedKeyBindingModeBinding) {
-                                    Text(NSLocalizedString("单键 / 组合键", comment: "")).tag(KeyBindingMode.shortcut)
-                                    Text(NSLocalizedString("宏", comment: "")).tag(KeyBindingMode.macro)
-                                }
-                                .pickerStyle(.segmented)
-                                .labelsHidden()
-                                .disabled((key.voicePreset ?? .custom) != .custom)
-                                if key.usesMacro {
-                                    macroEditor(for: key)
-                                } else {
-                                    ShortcutBindingEditor(shortcut: selectedKeyShortcutBinding)
-                                }
-                                Text(voicePresetDetail)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                if (key.voicePreset ?? .custom) != .custom {
-                                    Text(NSLocalizedString("语音键预设会固定使用单键绑定；如需录制宏，请先把预设改为自定义快捷键。", comment: ""))
+                                    Toggle(isOn: $nativeSpeech.shortPressAhaTypeEnabled) {
+                                        HStack(spacing: 6) {
+                                            Text(NSLocalizedString("使用 AhaType 整理", comment: ""))
+                                                .font(.callout)
+                                            if !ahaType.isEnabled {
+                                                Text(NSLocalizedString("（AhaType 总开关已关闭）", comment: ""))
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                    }
+                                    .toggleStyle(.switch)
+                                    .disabled(!ahaType.isEnabled)
+
+                                    Divider()
+
+                                    // 绑定摘要（短按 = 语音键 HID 绑定）
+                                    HStack {
+                                        Text(key.displaySummary)
+                                            .font(.system(.callout, design: .rounded).weight(.semibold))
+                                            .lineLimit(1)
+                                        Spacer()
+                                        Text(key.usesMacro ? NSLocalizedString("固件宏", comment: "") : NSLocalizedString("底层 HID", comment: ""))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Picker("", selection: selectedKeyBindingModeBinding) {
+                                        Text(NSLocalizedString("单键 / 组合键", comment: "")).tag(KeyBindingMode.shortcut)
+                                        Text(NSLocalizedString("宏", comment: "")).tag(KeyBindingMode.macro)
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .labelsHidden()
+                                    .disabled((key.voicePreset ?? .custom) != .custom)
+                                    if key.usesMacro {
+                                        macroEditor(for: key)
+                                    } else {
+                                        ShortcutBindingEditor(shortcut: selectedKeyShortcutBinding)
+                                    }
+                                    Text(voicePresetDetail)
                                         .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    if (key.voicePreset ?? .custom) != .custom {
+                                        Text(NSLocalizedString("语音键预设会固定使用单键绑定；如需录制宏，请先把预设改为自定义快捷键。", comment: ""))
+                                            .font(.caption)
+                                            .foregroundStyle(.orange)
+                                    }
+                                }
+                            } else {
+                                // 长按 Tab（语音键）— 始终开启，仅配置 AhaType 与阈值
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Label(NSLocalizedString("按住录音，松手即发送", comment: ""), systemImage: "hand.draw.fill")
+                                        .font(.callout.weight(.semibold))
+                                    Text(NSLocalizedString("按住键盘录音键不松手开始录音，松手后直接将 ASR 结果写入，响应更快。", comment: ""))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Toggle(isOn: $nativeSpeech.longPressAhaTypeEnabled) {
+                                        HStack(spacing: 6) {
+                                            Text(NSLocalizedString("使用 AhaType 整理", comment: ""))
+                                                .font(.callout)
+                                            if !ahaType.isEnabled {
+                                                Text(NSLocalizedString("（AhaType 总开关已关闭）", comment: ""))
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                    }
+                                    .toggleStyle(.switch)
+                                    .disabled(!ahaType.isEnabled)
+                                    HStack(spacing: 10) {
+                                        Text(NSLocalizedString("触发阈值", comment: ""))
+                                            .font(.callout)
+                                        Slider(
+                                            value: Binding(
+                                                get: { Double(nativeSpeech.longPressThresholdMs) },
+                                                set: { nativeSpeech.longPressThresholdMs = Int($0) }
+                                            ),
+                                            in: 200...1000,
+                                            step: 50
+                                        )
+                                        Text("\(nativeSpeech.longPressThresholdMs) ms")
+                                            .font(.caption.monospacedDigit())
+                                            .foregroundStyle(.secondary)
+                                            .frame(width: 58, alignment: .trailing)
+                                    }
+                                }
+                            }
+                        } else {
+                            // ── 普通键触发方式 ──────────────────────────────
+                            if selectedTriggerTab == 0 {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    HStack {
+                                        Text(key.displaySummary)
+                                            .font(.system(.callout, design: .rounded).weight(.semibold))
+                                            .lineLimit(2)
+                                        Spacer()
+                                        Text(key.usesMacro ? NSLocalizedString("固件宏", comment: "") : NSLocalizedString("底层 HID", comment: ""))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Picker("", selection: selectedKeyBindingModeBinding) {
+                                        Text(NSLocalizedString("单键 / 组合键", comment: "")).tag(KeyBindingMode.shortcut)
+                                        Text(NSLocalizedString("宏", comment: "")).tag(KeyBindingMode.macro)
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .labelsHidden()
+                                    if key.usesMacro {
+                                        macroEditor(for: key)
+                                    } else {
+                                        ShortcutBindingEditor(shortcut: selectedKeyShortcutBinding)
+                                    }
+                                }
+                            } else {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Label(NSLocalizedString("需要固件 v2+ 支持", comment: ""), systemImage: "exclamationmark.triangle")
+                                        .font(.callout.weight(.semibold))
                                         .foregroundStyle(.orange)
-                                }
-                            }
-                        } else {
-                            // 长按 Tab（语音键）— 始终开启，仅配置 AhaType 与阈值
-                            VStack(alignment: .leading, spacing: 10) {
-                                Label(NSLocalizedString("按住录音，松手即发送", comment: ""), systemImage: "hand.draw.fill")
-                                    .font(.callout.weight(.semibold))
-                                Text(NSLocalizedString("按住键盘录音键不松手开始录音，松手后直接将 ASR 结果写入，响应更快。", comment: ""))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Toggle(isOn: $nativeSpeech.longPressAhaTypeEnabled) {
-                                    HStack(spacing: 6) {
-                                        Text(NSLocalizedString("使用 AhaType 整理", comment: ""))
-                                            .font(.callout)
-                                        if !ahaType.isEnabled {
-                                            Text(NSLocalizedString("（AhaType 总开关已关闭）", comment: ""))
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                }
-                                .toggleStyle(.switch)
-                                .disabled(!ahaType.isEnabled)
-                                HStack(spacing: 10) {
-                                    Text(NSLocalizedString("触发阈值", comment: ""))
-                                        .font(.callout)
-                                    Slider(
-                                        value: Binding(
-                                            get: { Double(nativeSpeech.longPressThresholdMs) },
-                                            set: { nativeSpeech.longPressThresholdMs = Int($0) }
-                                        ),
-                                        in: 200...1000,
-                                        step: 50
-                                    )
-                                    Text("\(nativeSpeech.longPressThresholdMs) ms")
-                                        .font(.caption.monospacedDigit())
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 58, alignment: .trailing)
-                                }
-                            }
-                        }
-                    } else {
-                        // ── 普通键触发方式 ──────────────────────────────
-                        if selectedTriggerTab == 0 {
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack {
-                                    Text(key.displaySummary)
-                                        .font(.system(.callout, design: .rounded).weight(.semibold))
-                                        .lineLimit(2)
-                                    Spacer()
-                                    Text(key.usesMacro ? NSLocalizedString("固件宏", comment: "") : NSLocalizedString("底层 HID", comment: ""))
+                                    Text(NSLocalizedString("长按绑定不同快捷键需固件升级后生效，当前仅短按绑定会写入设备。", comment: ""))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
-                                Picker("", selection: selectedKeyBindingModeBinding) {
-                                    Text(NSLocalizedString("单键 / 组合键", comment: "")).tag(KeyBindingMode.shortcut)
-                                    Text(NSLocalizedString("宏", comment: "")).tag(KeyBindingMode.macro)
-                                }
-                                .pickerStyle(.segmented)
-                                .labelsHidden()
-                                if key.usesMacro {
-                                    macroEditor(for: key)
-                                } else {
-                                    ShortcutBindingEditor(shortcut: selectedKeyShortcutBinding)
-                                }
-                            }
-                        } else {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Label(NSLocalizedString("需要固件 v2+ 支持", comment: ""), systemImage: "exclamationmark.triangle")
-                                    .font(.callout.weight(.semibold))
-                                    .foregroundStyle(.orange)
-                                Text(NSLocalizedString("长按绑定不同快捷键需固件升级后生效，当前仅短按绑定会写入设备。", comment: ""))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
                             }
                         }
+                    }
+                    .disabled(inlineKeyControlsDisabled)
+                    if inlineKeyTarget != nil {
+                        inlineKeyStatus
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(NSLocalizedString("保存前会重新读取并核对，只修改当前选中的按键。", comment: ""))
+                            Text(NSLocalizedString("同步到键盘后，短按实体键切换模式时，LCD 会先短暂显示这里的描述，然后回到该模式的动图。", comment: ""))
+                        }
+                        .font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 .padding(.top, 4)
@@ -1420,7 +1466,7 @@ struct AhaKeyStudioView: View {
                 Text(NSLocalizedString("新固件请在显示素材设置中选择位置并上传；画布草稿不会自动覆盖键盘素材。", comment: ""))
                     .font(.caption).foregroundStyle(.secondary)
             }
-            GroupBox("当前模式的 LCD 动图") {
+            StudioInspectorSection("当前模式的 LCD 动图") {
                 VStack(alignment: .leading, spacing: 14) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 12)
@@ -1487,7 +1533,7 @@ struct AhaKeyStudioView: View {
                 .padding(.top, 4)
             }
 
-            GroupBox(NSLocalizedString("显示逻辑", comment: "")) {
+            StudioInspectorSection(NSLocalizedString("显示逻辑", comment: "")) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("切换到当前模式时，LCD 会先显示该模式的按键描述，约 1 秒后回到该模式动图。")
                     Text(NSLocalizedString("后续会继续增加文字状态、token 用量、模型环境等信息显示能力。", comment: ""))
@@ -1501,7 +1547,7 @@ struct AhaKeyStudioView: View {
     private var lightBarInspector: some View {
         VStack(alignment: .leading, spacing: 16) {
             if bleManager.supportsConfigurableLighting == false {
-                GroupBox {
+                StudioInspectorSection {
                     VStack(alignment: .leading, spacing: 6) {
                         Label("当前键盘固件不支持可写灯效", systemImage: "exclamationmark.triangle.fill")
                             .font(.callout.weight(.semibold))
@@ -1518,7 +1564,7 @@ struct AhaKeyStudioView: View {
                     .foregroundStyle(.green)
             }
 
-            GroupBox(NSLocalizedString("状态灯效映射", comment: "")) {
+            StudioInspectorSection(NSLocalizedString("状态灯效映射", comment: "")) {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(IDEState.workflowOrder) { state in
                         HStack {
@@ -1538,7 +1584,7 @@ struct AhaKeyStudioView: View {
                 .padding(.top, 4)
             }
 
-            GroupBox(NSLocalizedString("亮度", comment: "")) {
+            StudioInspectorSection(NSLocalizedString("亮度", comment: "")) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Slider(value: brightnessBinding, in: 1...100, step: 1)
@@ -1550,7 +1596,7 @@ struct AhaKeyStudioView: View {
                 .padding(.top, 4)
             }
 
-            GroupBox(NSLocalizedString("状态预览", comment: "")) {
+            StudioInspectorSection(NSLocalizedString("状态预览", comment: "")) {
                 VStack(alignment: .leading, spacing: 12) {
                     Text(lightBarPreview.shortLabel)
                         .font(.system(.title3, design: .rounded).weight(.semibold))
@@ -1598,7 +1644,7 @@ struct AhaKeyStudioView: View {
 
     private var switchInspector: some View {
         VStack(alignment: .leading, spacing: 16) {
-            GroupBox(NSLocalizedString("实时档位", comment: "")) {
+            StudioInspectorSection(NSLocalizedString("实时档位", comment: "")) {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text(currentSwitchTitle)
@@ -1618,7 +1664,7 @@ struct AhaKeyStudioView: View {
             switchEffectivenessBox
 
             if liveKeyboardSwitchState == 0 {
-                GroupBox {
+                StudioInspectorSection {
                     VStack(alignment: .leading, spacing: 8) {
                         Label("自动批准依赖 Agent 与 Hook，且须蓝牙由 Agent 占用", systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
@@ -1630,7 +1676,7 @@ struct AhaKeyStudioView: View {
                 }
             }
 
-            GroupBox(NSLocalizedString("如何理解这个部件", comment: "")) {
+            StudioInspectorSection(NSLocalizedString("如何理解这个部件", comment: "")) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("拨杆对 Claude / Cursor / Codex / Kimi **同时生效**，与键盘当前所在 Mode 无关。Agent 后台同时监听所有 IDE 的 Hook，拨杆拨动后四个 IDE 的批准行为立即切换。")
                     Divider()
@@ -1648,7 +1694,7 @@ struct AhaKeyStudioView: View {
     private var switchEffectivenessBox: some View {
         let agentReady = agentManager.isInstalled && agentManager.isRunning && agentManager.hooksInstalled
         let hasAnyMissing = !agentManager.isInstalled || !agentManager.isRunning || !agentManager.hooksInstalled
-        GroupBox(agentReady ? "已生效" : "未生效") {
+        StudioInspectorSection(agentReady ? "已生效" : "未生效") {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     Image(systemName: agentReady ? "checkmark.seal.fill" : "exclamationmark.circle.fill")
@@ -2138,6 +2184,14 @@ struct AhaKeyStudioView: View {
     }
 
     private func enterEditingConfiguration() {
+        if let role = selectedPart.keyRole, role != .voice,
+           bleManager.firmwareCapabilityProfile?.identity != .legacy {
+            let target = StudioInlineKeyTarget(mode: UInt8(selectedMode.rawValue), index: UInt8(role.rawValue))
+            inlineKeyTarget = target
+            readInlineKey(target)
+            return
+        }
+        clearInlineKeyEditing()
         isTransitioningToKeyboardControl = false
         agentManager.setBluetoothConnectionOwner(.ahaKeyStudio, bleManager: bleManager)
         syncStatusMessage = "已进入编辑配置，AhaKey Studio 将临时接管蓝牙。"
@@ -2179,6 +2233,7 @@ struct AhaKeyStudioView: View {
     }
 
     private func writeToKeyboard() {
+        if inlineKeyTarget != nil { saveInlineKey(); return }
         performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: false, showResultAlert: true)
     }
 
@@ -5210,5 +5265,181 @@ private struct FAQTopicView: View {
             Divider().padding(.leading, 26).padding(.top, 4)
         }
         .padding(.vertical, 8)
+    }
+}
+
+// MARK: - Current-component ordinary-key transactions
+private extension AhaKeyStudioView {
+    var inlineKeyIsEditable: Bool {
+        guard let fact = inlineKeyFact, let target = inlineKeyTarget,
+              fact.value.mode == target.mode, fact.value.keyIndex == target.index else { return false }
+        return StudioKeyWriteProposal.draft(from: fact.value, preserving: currentSelectedKey) != nil
+    }
+
+    var inlineKeyControlsDisabled: Bool {
+        inlineKeyTarget != nil && (inspectorSession.isBusy || !inlineKeyIsEditable)
+    }
+
+    @ViewBuilder
+    var inlineKeyStatus: some View {
+        if let target = inlineKeyTarget {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    if inspectorSession.isBusy {
+                        ProgressView().controlSize(.small)
+                        Text(NSLocalizedString("处理中…", comment: ""))
+                    } else if let fact = inlineKeyFact {
+                        Text(String(format: NSLocalizedString("已读取：%@", comment: ""), StudioKeyWriteProposal.actionSummary(fact.value)))
+                            .textSelection(.enabled)
+                    } else {
+                        Text(NSLocalizedString("尚未读取", comment: ""))
+                    }
+                    Spacer(minLength: 0)
+                    Button { readInlineKey(target) } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.borderless)
+                    .help(NSLocalizedString("重新读取此键", comment: ""))
+                    .accessibilityLabel(NSLocalizedString("重新读取此键", comment: ""))
+                    .disabled(inspectorSession.isBusy)
+                }
+                .font(.caption).foregroundStyle(.secondary)
+                if let fact = inlineKeyFact {
+                    if !inlineKeyIsEditable {
+                        Text(NSLocalizedString("此动作无法在当前编辑器中完整表示，保持只读。", comment: ""))
+                            .font(.caption).foregroundStyle(.orange)
+                    }
+                    if inlineKeyUnconfirmed.contains(inlineKeyReceiptID(fact)) {
+                        Text(NSLocalizedString("上次保存未确认，已发出的修改可能生效；请重新读取并核对。", comment: ""))
+                            .font(.caption).foregroundStyle(.orange)
+                    }
+                }
+                if let inlineKeyMessage { Text(inlineKeyMessage).font(.caption).textSelection(.enabled) }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    func inlineKeyReceiptID(_ fact: StudioInlineKeyFact) -> String {
+        "\(fact.deviceID):\(fact.value.mode):\(fact.value.keyIndex)"
+    }
+
+    func clearInlineKeyEditing() {
+        inlineKeyOperationID = UUID()
+        inlineKeyTask?.cancel()
+        inlineKeyTask = nil
+        inlineKeyTarget = nil
+        inlineKeyFact = nil
+        inlineKeyConflict = nil
+        inlineKeyMessage = nil
+    }
+
+    func setInlineDraft(_ key: AhaKeyKeyDraft, target: StudioInlineKeyTarget) {
+        guard let mode = AhaKeyModeSlot(rawValue: Int(target.mode)) else { return }
+        var draft = studioDraft.draft(for: mode)
+        draft.updateKey(key)
+        var next = studioDraft
+        next.updateMode(draft)
+        studioDraft = next
+    }
+
+    func readInlineKey(_ target: StudioInlineKeyTarget) {
+        guard !inspectorSession.isBusy else { return }
+        inlineKeyTask?.cancel()
+        let ticket = UUID()
+        inlineKeyOperationID = ticket
+        inlineKeyMessage = nil
+        let retainDraft = partIsDirty(selectedPart)
+        let original = currentSelectedKey
+        let expectedDevice = inlineKeyFact?.deviceID
+        inlineKeyTask = Task { @MainActor in
+            guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
+            do {
+                let fact = try await inspectorSession.withConnection(expectedDeviceID: expectedDevice) { context in
+                    let actual = try await bleManager.readOrdinaryKeyForEditing(mode: target.mode, index: target.index)
+                    return StudioInlineKeyFact(deviceID: context.deviceID, value: actual)
+                }
+                guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
+                inlineKeyFact = fact
+                if !retainDraft, let imported = StudioKeyWriteProposal.draft(from: fact.value, preserving: original) {
+                    setInlineDraft(imported, target: target)
+                    lastSyncedDraft = StudioKeyWriteProposal.reconcile(baseline: lastSyncedDraft, current: studioDraft, actual: fact.value)
+                }
+                inlineKeyTask = nil
+            } catch {
+                guard inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
+                inlineKeyMessage = KeyboardSettingsFeedback.message(for: error)
+                inlineKeyTask = nil
+            }
+        }
+    }
+
+    func saveInlineKey(overwrite: StudioInlineKeyConflict? = nil) {
+        guard !inspectorSession.isBusy, let target = inlineKeyTarget,
+              let baselineFact = inlineKeyFact, let mode = AhaKeyModeSlot(rawValue: Int(target.mode)) else { return }
+        let desired: OrdinaryKeyReadback
+        do { desired = try overwrite?.desired ?? StudioKeyWriteProposal.make(key: currentSelectedKey, mode: mode) }
+        catch { inlineKeyMessage = error.localizedDescription; return }
+        let expected = overwrite?.actual ?? baselineFact.value
+        let deviceID = overwrite?.deviceID ?? baselineFact.deviceID
+        guard desired.mode == target.mode, desired.keyIndex == target.index,
+              expected.mode == target.mode, expected.keyIndex == target.index else { return }
+        inlineKeyTask?.cancel()
+        let ticket = UUID()
+        inlineKeyOperationID = ticket
+        inlineKeyMessage = nil
+        inlineKeyTask = Task { @MainActor in
+            guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
+            var attemptedWrite = false
+            do {
+                let result = try await StudioInlineKeySave.run(session: inspectorSession,
+                    baseline: .init(deviceID: deviceID, value: expected), desired: desired,
+                    read: { mode, index in try await bleManager.readOrdinaryKeyForEditing(mode: mode, index: index) },
+                    save: { actual, target, generation in
+                        try await bleManager.setOrdinaryKeyConfirmed(baseline: actual, target: target, expectedGeneration: generation)
+                    }, writeStarted: { attemptedWrite = true })
+                guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else {
+                    if attemptedWrite { inlineKeyUnconfirmed.insert("\(deviceID):\(target.mode):\(target.index)") }
+                    return
+                }
+                switch result {
+                case .conflict(let conflict):
+                    inlineKeyConflict = conflict
+                case .readOnly(let fact):
+                    inlineKeyFact = fact
+                    inlineKeyMessage = NSLocalizedString("此动作无法在当前编辑器中完整表示，保持只读。", comment: "")
+                case .unchanged(let fact):
+                    inlineKeyFact = fact
+                    inlineKeyMessage = NSLocalizedString("草稿与读回值一致，本次未写入；此前未确认的保存记录仍保留。", comment: "")
+                case .saved(let fact):
+                    inlineKeyFact = fact
+                    inlineKeyUnconfirmed.remove(inlineKeyReceiptID(fact))
+                    lastSyncedDraft = StudioKeyWriteProposal.reconcile(baseline: lastSyncedDraft, current: studioDraft, actual: fact.value)
+                    inlineKeyMessage = NSLocalizedString("此键改动已保存并读回一致；断电保持性尚未验证。", comment: "")
+                    syncStatusMessage = target.title + " · " + NSLocalizedString("已保存并读回一致", comment: "")
+                }
+                inlineKeyTask = nil
+            } catch {
+                let failure = error as? ConfirmedOrdinaryKeySetting.Failure
+                if attemptedWrite && failure != .invalidValue && failure != .changedSinceRead && failure != .voicePresetOwnsKey {
+                    inlineKeyUnconfirmed.insert("\(deviceID):\(target.mode):\(target.index)")
+                }
+                guard inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
+                inlineKeyMessage = KeyboardSettingsFeedback.message(for: error)
+                inlineKeyTask = nil
+            }
+        }
+    }
+
+    func adoptInlineKeyConflict(_ conflict: StudioInlineKeyConflict) {
+        guard let target = inlineKeyTarget, target.mode == conflict.actual.mode,
+              target.index == conflict.actual.keyIndex,
+              let imported = StudioKeyWriteProposal.draft(from: conflict.actual, preserving: currentSelectedKey) else {
+            inlineKeyMessage = NSLocalizedString("此动作无法在当前编辑器中完整表示，保持只读。", comment: "")
+            return
+        }
+        inlineKeyFact = .init(deviceID: conflict.deviceID, value: conflict.actual)
+        setInlineDraft(imported, target: target)
+        lastSyncedDraft = StudioKeyWriteProposal.reconcile(baseline: lastSyncedDraft, current: studioDraft, actual: conflict.actual)
+        inlineKeyMessage = NSLocalizedString("已采用这次读回值，未写入键盘。", comment: "")
     }
 }

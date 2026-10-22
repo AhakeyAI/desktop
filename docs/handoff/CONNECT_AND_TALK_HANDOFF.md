@@ -535,3 +535,56 @@ PR152目前草稿，不自动合并未完成的现场验收。完成恢复后更
 ### 第41节现场收尾
 
 用户确认重启并唤醒后直连成功，fresh19项35%/有效1项/Codex1帧，fresh36项四模式通知均OFF，保持通过。已逐项保存恢复原值10中心脉冲，各自读回一致；再fresh36项确认四项恢复，其余32项未变。没有第二次重启恢复值，不扩大保持声明。已交还Agent，fresh connected=true、physical/effective=0、autoVerified=true，首页44%/自动批准、语音桥运行中。无待用户动作或临时配置恢复；验收见LIGHT_SAVE.md。PR152待最终文档head四项CI成功后按授权合入connect&talk。
+
+
+## 42. 右侧Inspector整合终版（2026-10-22）
+
+用户明确不要独立“键盘设置”页，要求沿用选虚拟键盘组件→右侧修改→保存。已完成代码调研和逐项grill，用户确认终版；方案见../ahastudio/inspector-integration-plan-2026-10-22.md。当前仅文档，客户端/固件及本机测试候选未改。
+
+确认决定：只保存当前组件；编辑草稿时Agent保持连接，仅读取/保存/明确预览时临时交接并重读授权；保存前冲突展示最新设备值与草稿，明确选择；上传完成或明确取消才离开；拨杆实体档位只展示，高级绑定默认收起，无软件切档。
+
+Voice要求已升级：四模式独立，支持Consumer/App原生/AhaType/普通自定义快捷键混用，禁止沿用四模式统一F18接管。Consumer全局状态及现有App路由限制需核验，Fn/Globe不当普通组合键直发能力承诺。可先做客户端其他工作，但最终不能隐藏Consumer混用后声称全完成。WBS为I01、I02a/b/c、I03–I07，固件核验提前；不重复询问已确认产品取舍。后续PR目标connect&talk。
+
+## 43. 总WBS v2与I01/I02a首批（2026-10-22）
+
+用户要求WS4/5一起做、统一优先级并开工。总表mac-adaptation-master-wbs-2026-10-22.md及CSV替代历史“WS4/5另发”范围，旧计划顶部已加新表指针。最新Harness076382b的WS4/5 PRD/EXECUTION仍Stage B输入、architecture未接受；已按其真实范围拆G40/G50–54，独立长按KLP01、整机恢复R50单列，未擅分配opcode或发布自拟稳定目录。
+
+分支codex/connect-talk-inspector-session含方案0a2a0fb。实现I01短连接租约和I02a普通Key2/3/4现有右侧读取/保存/冲突选择：读写临时接管、后台编辑草稿、固定设备/模式/键号和generation；新任务先取消排队旧任务且开始前核对票据，旧租约不能释放新owner。无损导入/未知只读，冲突前fresh值再验，宏差异显示动作，单键确认只调和该键；同值是无写入而非新保存。
+
+代码75a3445，388测试和双轴窄复核通过；签名0.2.3 arm64已安装。原Key1/灯条/素材/模式/待机/高级绑定尚未迁入，因此旧设置页入口暂保留至对应能力接线完成，不能提早删除。新的普通键保存不跳页。
+
+真机从Key4选中后点击“修改”时CUA原生pipe断管；reset仍失败，已请求用户重开Codex，不重复安装Studio或重启键盘。界面验收未通过，源包保留；未执行按键/资源/Voice写入。fresh后台RPC connected=true、physical/effective=0、autoVerified=true。详见INSPECTOR_KEY.md，恢复界面后继续读取/临时描述写入及还原、返回后台再最终CI合connect&talk；期间PR保持Draft。
+
+### 第43节续验：重开后原生工具仍失败，V10静态结论
+
+用户已重开Codex。CUA getApp精确路径仍pipe closed；reset后getState可列应用，但getApp无法原生读取，不能以此称App异常或UI通过。已请求用户手动选Codex Key4→修改，只读确认右侧键盘读回/Mode3 Key4/Backspace且不跳页，等待该回复；不要再要求重复重开。fresh后台connected=true、physical/effective=0、autoVerified=true，候选源仍75a3445。PR153原head3c5f450四项CI成功，UI未完成仍Draft。
+
+等待期间V10已核实接受源70ca334的psk_multi_button.c分发：全局Mac Consumer为真时Key1事件发0x00CF后直接return，绕过各mode普通绑定；0x96只能全局suppress，普通解析只73/74。因此完整Consumer/其他方案逐模式混用需要固件增量，不是仅改客户端门控；详见consumer-per-mode-feasibility-2026-10-22.md和总WBS V10。无固件生产修改或外部通知/issue新增。
+
+### 第43节UI精简候选5af6605
+
+用户确认右侧读取正常，要求信息简化并放按键描述下方。5af6605已将独立读回GroupBox改为描述下单行已读取动作+刷新，移除重复mode/key及机制说明。错误/未知/保存未确认条件显示；刷新在首次读取失败时不受字段禁用影响。宏动作详细信息及冲突完整摘要保留。
+
+swift build和StudioInlineKeyTests7项通过，两轴窄复核均无问题；上一业务版完整388已通过，本次仅UI布局与摘要复用。签名0.2.3 arm64/5af6605已构建在local-builds/connect-talk-inspector-compact-20261022，deep/strict和Info.plist来源已核对，尚未替换当前/Applications的75a3445。
+
+CUA仍不可原生操作，已请用户用CmdQ退出AhaKey Studio（不是Codex）以便替换。收到退出确认后，先备份当前App，再ditto精简候选到/Applications、签名/来源核对；请用户打开确认布局及后续单键保存/还原。无需重启键盘、无需再重开Codex；此前没有真实按键写入。PR153仍Draft，不能仅凭读取正常就合入。
+
+补充：用户已退出Studio，5af6605精简版现已替换到/Applications，签名/源码核对通过，旧包备份studio-before-inspector-compact-20261022。已请用户打开并确认新布局，先不写键盘。不要再次要求退出安装同一包；后续继续保存/还原验收。
+
+### 主键下方统一布局dbea629
+
+用户确认5af6605展示正常，进一步指定回读和说明统一在主键下方，先回读再说明。dbea629已按此移动，描述区不重复两段说明；控件和可重试读回区分开禁用，宏/长按亦能显示。swift build、两轴窄复核及签名构建通过；布局调整不新增模拟测试。新包local-builds/connect-talk-inspector-primary-20261022，源码标识dbea62996d976745e5f02eacab0be0208a7f32c6，尚未替换当前5af6605。
+
+已请求用户退出Studio以替换这份新布局包；不是重复安装同一包。退出确认后备份5af包再替换、核对签名/来源，请用户打开确认主键下新顺序，再继续单键保存及还原HIL。原生工具仍不可用，不要求重开Codex/重启键盘。PR153仍Draft。
+
+dbea629新布局现已安装，签名/来源已核对，不要重复要求用户退出安装。用户要求Agent自行修复界面服务。已找到稳定触发：普通首页可读/点击，进入按键编辑后SkyComputerUseService崩溃；完整AX/截图同样失败，5份ips的Array.remove断言堆栈偏移相同，服务签名完好。不是简单重开Codex就解决，也不能先称永久修复。CUA甚至拒绝未成功读取App的CmdQ，已请求一次AppleScript替代技术授权（限定Studio恢复与验收），待用户答复，授权前不执行。现App编辑态可能仍开着，后台connected/autoVerified=true；无按键/Voice/素材写入。私有证据见cua-service-diagnosis-20261022，公开验收INSPECTOR_KEY.md。
+
+## 44. 原生控制恢复及右侧单键保存闭环（2026-10-22）
+
+用户已明确授权AppleScript仅用于Studio退出/重开、窗口检查和本轮验收；无需再问同一授权，不扩展到其他应用。已自行恢复环境，不要求用户再代点。
+
+稳定对照：首页原生可读，默认GroupBox的按键/OLED编辑态触发Sky服务Array.remove断言；宏和长按也失败，完整AX/截图不能规避。AppleScript读到标题是无普通文本子节点的AXHeading；GroupBoxStyle仍有同结构无效。最终d2345a2使用StudioInspectorSection显式Text标题，保留14组原内容和可访问子控件，去除无效Style试验。两轴窄复核通过；原生按键、宏、长按、OLED编辑、截图、输入和保存均重测成功。没有修改闭源服务本体，不声称所有App的同类服务缺陷被永久修复。
+
+签名0.2.3 arm64/d2345a2已自动替换安装，deep/strict与源码核对通过，最终完整388测试通过。右侧主键下读回/说明顺序已截图核对。Codex Key4描述Backspace→TestBack保存读回、新连接独立读取仍TestBack、再恢复Backspace保存、同值再次保存明确无写入，全原位完成、无独立设置页。宏/长按对照只改本地草稿，已恢复普通Backspace/短按，未同步0。没有Voice/素材/灯光/其他键修改或刷机，无需用户物理重启；不把此批当完整持久性/故障/旧机矩阵。
+
+最终已退出编辑归还Agent：fresh connected=true、physical/effective=0、autoVerified=true、presentationBusy=false；首页36%/自动批准、Key4 Backspace、未同步0。私有AX/截图/崩溃文件仅本机；公开截图只裁取右侧。详见CONTROL_SERVICE_RECOVERY.md。PR153待本次最终文档head四项CI全成功后按既定授权合入connect&talk；旧“等待用户退出/界面断管”均为历史检查点，无待用户动作。
