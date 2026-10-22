@@ -6,36 +6,16 @@ call; the configured provider points at an unavailable loopback endpoint.
 This proves lifecycle/config compatibility, not physical or live dial control.
 """
 import argparse
-import http.server
 import json
 import os
 from pathlib import Path
 import shutil
 import subprocess
 import tempfile
-import threading
 
 
-class ForbiddenModelEndpoint:
-    def __enter__(self):
-        class Handler(http.server.BaseHTTPRequestHandler):
-            def do_POST(self):
-                self.server.calls += 1
-                self.send_error(503, "A lifecycle fixture must not call a model")
+from hook_lifecycle_fixture import ForbiddenModelEndpoint
 
-            def log_message(self, *args):
-                pass
-
-        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        self.server.calls = 0
-        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
-        self.thread.start()
-        return self
-
-    def __exit__(self, *args):
-        self.server.shutdown()
-        self.server.server_close()
-        self.thread.join(timeout=2)
 
 SWIFT = r'''
 import Foundation
@@ -70,7 +50,7 @@ def main():
         parser.error("this fixture targets native Kimi v2; legacy support has separate tests")
     sources = Path(__file__).resolve().parents[1] / "Sources/Shared"
     names = ["CodexConfigLeverSync.swift", "ApprovalAutomationControl.swift", "CursorApprovalPolicySync.swift",
-             "KimiConfigPolicySync.swift", "CodexHookTrust.swift", "KimiHooksConfiguration.swift"]
+             "KimiConfigPolicySync.swift", "CodexHookTrust.swift", "KimiHooksConfiguration.swift", "JSONHooksConfiguration.swift"]
     with tempfile.TemporaryDirectory(prefix="ahakey-kimi-lifecycle-") as directory, ForbiddenModelEndpoint() as endpoint:
         root = Path(directory).resolve()
         (root / "main.swift").write_text(SWIFT)

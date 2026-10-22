@@ -115,3 +115,12 @@ VOICE-PAUSE-01: passed on signed f719026 hardware candidate. Continuous hold wit
 ### 2026-10-23 Kimi 阶段修复状态
 
 ca6a1c4已补原生版配置与状态Hook兼容，50项局部回归和真实CLI生命周期通过；原生版即时审批接管仍未实现，界面明确状态同步范围，不自动修改原生权限。新增H02-KIMI2子项继续跟踪源码层面的接管方案，不能将其并入已完成项。CSV当前28行工作项含父子，仍不可直接相加为独立功能数。之前567项是上一个实现基线的完整回归，本批仅记录50项相关回归，待独立开发继续收口后再集中重跑完整矩阵。签名候选ce615c9未因本批自动替换，也未进行实体操作。
+
+
+### 2026-10-23 Claude/Cursor 生命周期补齐与误删修复
+
+H02/Q01继续执行，不等待实体操作。补验发现原JSON Hook卸载按命令子串认领，会误删 `echo ahakeyconfig-agent` 等用户钩子；回归测试先复现Claude/Cursor两处失败。本批把两者安装/卸载转换放入生产共用的JSONHooksConfiguration，按字面argv识别Agent/旧脚本，保留用户命令、空事件组、未知事件和其他设置，损坏结构拒绝写入。Cursor原有损坏JSON也不再被当作空配置覆盖。Kimi复用同一命令识别器，权限范围不扩大。
+
+真实Claude Code 2.1.299在独立CLAUDE_CONFIG_DIR中完成12/12/1 Hook安装、重装、卸载；SessionStart/UserPromptSubmit/SessionEnd与用户阻止Hook实际执行，模型请求为0。Kimi 2.3.0的8/8/1生命周期同步复验；两者均不使用真实账号、真实配置或键盘。22项相关Swift回归通过。机器收据见 `../validation/connect-talk-hil-2026-10-22/hook-lifecycle-2026-10-23.json`。这些结果不代表当前会话配置重载、异常退出收权及全部Cursor真实CLI矩阵完成。
+
+Kimi即时接管继续保留未完成：对已安装2.3.0对应的公开源码b5e28fd6beac752a2cdcc0ff2f5fdf40e6494fbb核验，PreToolUse实际只返回block reason，permission mode是进程内agent state，插件配置无权限服务注入字段；与已有真实TUI的allow无效、当轮REST切手动无效一致。官方源码允许进一步研究适配，但不因此替换用户原生可执行文件、安装未验证的CLI分叉或将仅状态同步标为完整接管。后续继续查SDK/会话控制接入；本批未操作实体设备、未安装候选。

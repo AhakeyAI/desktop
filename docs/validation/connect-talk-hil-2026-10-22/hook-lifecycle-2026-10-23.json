@@ -1,0 +1,93 @@
+{
+  "date": "2026-10-23",
+  "baseCommit": "901a6975f0725a14eeaa8873c02513df3c31c0b8",
+  "sourceSHA256": {
+    "ahakeyconfig-mac/Sources/Shared/JSONHooksConfiguration.swift": "08f25e6c4871d702ebaa2e8cfd6b6008b005f4229880ed0039e185a5e260826b",
+    "ahakeyconfig-mac/Sources/Shared/KimiHooksConfiguration.swift": "fdb9c25b10bd6236d3e258a760a4c5149fcdf4d1deb4eb2080d14c0aad24b126",
+    "ahakeyconfig-mac/Sources/Utilities/AgentManager.swift": "cb2da0c59abfb9235c2ee0f1ad55dd507b8e7322d203209a2c26b877965f22d8",
+    "ahakeyconfig-mac/scripts/verify-claude-hooks.py": "bc073f606fe59b70460e4685a56bce4c9339c836fe635be60d867f93e9358174",
+    "ahakeyconfig-mac/scripts/verify-kimi-native-hooks.py": "49ed19a29be28e68ac0448400c74d1d2b122a03160181cb6801e1f4a23d0ef54",
+    "ahakeyconfig-mac/scripts/hook_lifecycle_fixture.py": "be17b9d1d637523046ddeba784c3685b9ff427dbd77aa8cddcec4f85b170d0ec"
+  },
+  "focusedSwift": {
+    "tests": 22,
+    "failures": 0,
+    "command": "swift test -j 4 --filter 'JSONHooksConfigurationTests|KimiNativeCompatibilityTests|ClaudeHookHandlerTests|CursorHookHandlerTests'"
+  },
+  "redProof": {
+    "tests": 2,
+    "failures": 2,
+    "symptom": "User commands containing agent name were removed for both JSON clients"
+  },
+  "claude": {
+    "cli": "2.1.299 (Claude Code)",
+    "lifecycle": {
+      "initial": {
+        "hooks": 12,
+        "executed": [
+          "SessionEnd",
+          "SessionStart",
+          "UserPromptSubmit",
+          "user"
+        ],
+        "exit": 0
+      },
+      "reinstall": {
+        "hooks": 12,
+        "executed": [
+          "SessionEnd",
+          "SessionStart",
+          "UserPromptSubmit",
+          "user"
+        ],
+        "exit": 0
+      },
+      "remove": {
+        "hooks": 1,
+        "executed": [
+          "user"
+        ],
+        "exit": 0
+      }
+    },
+    "modelRequests": 0
+  },
+  "kimi": {
+    "cli": "2.3.0",
+    "lifecycle": {
+      "initial": {
+        "configuredHooks": 8,
+        "executed": [
+          "KimiSessionStart",
+          "KimiUserPromptSubmit",
+          "user"
+        ],
+        "cliExit": 1
+      },
+      "reinstall": {
+        "configuredHooks": 8,
+        "executed": [
+          "KimiSessionStart",
+          "KimiUserPromptSubmit",
+          "user"
+        ],
+        "cliExit": 1
+      },
+      "remove": {
+        "configuredHooks": 1,
+        "executed": [
+          "user"
+        ],
+        "cliExit": 1
+      }
+    },
+    "modelRequests": 0,
+    "scope": "temporary home; lifecycle only; no live dial control claimed"
+  },
+  "limits": [
+    "No physical keyboard/configuration writes",
+    "No current-session hot reload or crash revocation proof",
+    "Cursor real CLI lifecycle pending",
+    "Native Kimi live permission control remains incomplete"
+  ]
+}

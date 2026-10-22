@@ -84,42 +84,7 @@ public enum KimiHooksConfiguration {
         if case .existingScalar(_, let value) = TomlPolicyLocator.locate(scalar) { return value }
         return nil
     }
-    private static func owns(_ command: String, depth: Int = 0) -> Bool {
-        guard depth < 4, command.utf8.count <= 32_768, var words = arguments(command), !words.isEmpty else { return false }
-        if ["/bin/sh", "/bin/zsh"].contains(words[0]), words.count == 3, ["-c", "-lc", "-fc"].contains(words[1]) {
-            return owns(words[2], depth: depth + 1)
-        }
-        if words[0] == "/usr/bin/env" {
-            words.removeFirst()
-            while words.first?.range(of: "^[A-Za-z_][A-Za-z0-9_]*=", options: .regularExpression) != nil { words.removeFirst() }
-        }
-        guard words.count == 3, words[1] == "hook", events.map({ "Kimi" + $0 }).contains(words[2]) else { return false }
-        return ["ahakeyconfig-agent", "ahakey-state"].contains(URL(fileURLWithPath: words[0]).lastPathComponent)
-    }
-    /// A bounded recognizer for our literal argv/wrappers, not a shell evaluator.
-    /// Substitution, pipelines and redirection never grant removal ownership.
-    private static func arguments(_ text: String) -> [String]? {
-        var words: [String] = [], word = "", quote: Character?, escaped = false, started = false
-        for character in text {
-            if escaped { word.append(character); escaped = false; started = true; continue }
-            if character == "\\", quote != "'" { escaped = true; started = true; continue }
-            if let active = quote {
-                if character == active { quote = nil }
-                else {
-                    if active == "\"", character == "$" || character == "`" { return nil }
-                    word.append(character)
-                }
-            } else if character == "'" || character == "\"" { quote = character; started = true }
-            else if character.isWhitespace {
-                if started { words.append(word); word = ""; started = false }
-                if words.count > 128 { return nil }
-            } else {
-                guard !"$`;|&<>()".contains(character) else { return nil }
-                word.append(character); started = true
-            }
-        }
-        guard quote == nil, !escaped else { return nil }
-        if started { words.append(word) }
-        return words
+    private static func owns(_ command: String) -> Bool {
+        ManagedHookCommand.owns(command, events: events.map { "Kimi" + $0 })
     }
 }

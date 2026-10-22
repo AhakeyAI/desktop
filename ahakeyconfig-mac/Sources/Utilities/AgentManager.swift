@@ -496,7 +496,7 @@ final class AgentManager: ObservableObject {
             guard let eventHooks = value as? [[String: Any]] else { continue }
             for entry in eventHooks {
                 let cmds = entry["hooks"] as? [[String: Any]] ?? []
-                if cmds.contains(where: { isAhakeyHookCommand(($0["command"] as? String) ?? "") }) {
+                if cmds.contains(where: { JSONHooksConfiguration.owns(($0["command"] as? String) ?? "") }) {
                     return true
                 }
             }
@@ -509,7 +509,7 @@ final class AgentManager: ObservableObject {
               let hooks = settings["hooks"] as? [String: Any] else { return false }
         for (_, value) in hooks {
             guard let entries = value as? [[String: Any]] else { continue }
-            if entries.contains(where: { isAhakeyHookCommand(($0["command"] as? String) ?? "") }) {
+            if entries.contains(where: { JSONHooksConfiguration.owns(($0["command"] as? String) ?? "") }) {
                 return true
             }
         }
@@ -972,65 +972,14 @@ final class AgentManager: ObservableObject {
 
     // MARK: - Claude hooks 追加
 
-    /// Claude Code 支持的 hook 事件（和 HookClient.eventMap 对齐）
-    private let hookEvents: [String] = [
-        "Notification",
-        "PermissionRequest",
-        "PreToolUse",
-        "PostToolUse",
-        "Stop",
-        "SubagentStop",  // Claude Code 拆分后：手动终止任务时触发此事件
-        "SessionStart",
-        "SessionEnd",
-        "UserPromptSubmit",
-        "TaskCompleted",
-        "PreCompact",
-    ]
-
-    /// Shell 安全地引用一个路径（单引号包裹 + 转义内部单引号）
-    private func shellQuote(_ s: String) -> String {
-        "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
-    }
-
     /// 空串表示已写入；非空为「跳过 / 失败」说明，需展示给用户。
     private func installClaudeHooks() -> String {
         guard var settings = loadClaudeSettings() else {
             return "Claude Hooks：未找到 ~/.claude/settings.json，已跳过。使用 Claude Code 并生成该文件后，可再点「安装 Claude Hooks」。"
         }
-        var hooks = settings["hooks"] as? [String: Any] ?? [:]
-
-        let binQuoted = shellQuote(agentBinaryPath)
-
-        for event in hookEvents {
-            let ahakeyCmd = "\(binQuoted) hook \(event)"
-            var eventHooks = hooks[event] as? [[String: Any]] ?? []
-
-            // 先清掉老的 ahakey 条目，避免 shell 脚本 + 新二进制并存
-            for i in eventHooks.indices {
-                var entry = eventHooks[i]
-                if var cmds = entry["hooks"] as? [[String: Any]] {
-                    cmds.removeAll { isAhakeyHookCommand(($0["command"] as? String) ?? "") }
-                    entry["hooks"] = cmds
-                    eventHooks[i] = entry
-                }
-            }
-
-            if let idx = eventHooks.firstIndex(where: { ($0["matcher"] as? String) == "" }) {
-                var entry = eventHooks[idx]
-                var cmds = entry["hooks"] as? [[String: Any]] ?? []
-                cmds.append(["type": "command", "command": ahakeyCmd])
-                entry["hooks"] = cmds
-                eventHooks[idx] = entry
-            } else {
-                eventHooks.append([
-                    "matcher": "",
-                    "hooks": [["type": "command", "command": ahakeyCmd]],
-                ])
-            }
-            hooks[event] = eventHooks
-        }
-
-        settings["hooks"] = hooks
+        do {
+            settings = try JSONHooksConfiguration.installing(in: settings, client: .claude, agentPath: agentBinaryPath)
+        } catch { return "Claude Hooks：配置结构无效，未修改现有文件。" }
         if saveClaudeSettings(settings) {
             guard ApprovalAutomationControl.resume(.claude) else { return "无法恢复 Claude 审批管理权限。" }
             log.info("Claude hooks 已写入 ahakeyconfig-agent hook 子命令")
@@ -1041,22 +990,8 @@ final class AgentManager: ObservableObject {
 
     private func removeClaudeHooks() {
         guard var settings = loadClaudeSettings() else { return }
-        guard var hooks = settings["hooks"] as? [String: Any] else { return }
-
-        for event in hookEvents {
-            guard var eventHooks = hooks[event] as? [[String: Any]] else { continue }
-            for i in eventHooks.indices {
-                var entry = eventHooks[i]
-                if var cmds = entry["hooks"] as? [[String: Any]] {
-                    cmds.removeAll { isAhakeyHookCommand(($0["command"] as? String) ?? "") }
-                    entry["hooks"] = cmds
-                    eventHooks[i] = entry
-                }
-            }
-            hooks[event] = eventHooks
-        }
-
-        settings["hooks"] = hooks
+        do { settings = try JSONHooksConfiguration.removing(in: settings, client: .claude) }
+        catch { log.error("removeClaudeHooks: 配置结构无效，未写入"); return }
         if !saveClaudeSettings(settings) {
             log.error("removeClaudeHooks: 无法写回 settings")
         } else {
@@ -1084,22 +1019,6 @@ final class AgentManager: ObservableObject {
     }
 
     // MARK: - Cursor hooks
-
-    /// Cursor 支持的 hook 事件（小驼峰，与 `HookClient` 一致）。
-    /// 批准链集中在 `preToolUse`（在任意工具前调用，可 stdout `permission`）；若你在 `hooks.json` 里自行添加
-    /// `beforeShellExecution` / `beforeMCPExecution` 并指向本 agent，其事件名在 `HookClient` 中同样支持拨杆。
-    /// 安装时写入这些事件；**卸载**时会遍历 `hooks` 的**所有键**（含旧版/合并进的 `beforeReadFile`、`beforeSubmitPrompt` 等），避免只卸一半导致「没反应」。
-    private let cursorHookEvents: [String] = [
-        "sessionStart",
-        "sessionEnd",
-        "preToolUse",
-        "beforeShellExecution",
-        "beforeMCPExecution",
-        "beforeReadFile",
-        "beforeSubmitPrompt",
-        "postToolUse",
-        "stop",
-    ]
 
     private let codexHookBlockStart = CodexHookTrust.blockStart
     private let codexHookBlockEnd = CodexHookTrust.blockEnd
@@ -1207,29 +1126,13 @@ final class AgentManager: ObservableObject {
             return "Cursor Hooks：无法创建目录 \(cursorDir)：\(error.localizedDescription)"
         }
 
+        if FileManager.default.fileExists(atPath: cursorHooksPath), loadCursorSettings() == nil {
+            return "Cursor Hooks：现有配置无法解析，未修改文件。"
+        }
         var settings = loadCursorSettings() ?? [:]
-        var hooks = settings["hooks"] as? [String: Any] ?? [:]
-
-        let binQuoted = shellQuote(agentBinaryPath)
-
-        for event in cursorHookEvents {
-            let cmd = "\(binQuoted) hook \(event)"
-            // Cursor：`{ "hooks": { "<event>": [{ "command": "...", "timeout": N }] } }`
-            // 读拨杆/写状态略慢，长超时与 `HookClient` 一致
-            let t: Int
-            if event == "beforeSubmitPrompt" { t = 30 }
-            else if ["preToolUse", "beforeShellExecution", "beforeMCPExecution", "beforeReadFile", "sessionStart"].contains(event) { t = 20 }
-            else { t = 10 }
-            var entries = hooks[event] as? [[String: Any]] ?? []
-            entries.removeAll { isAhakeyHookCommand(($0["command"] as? String) ?? "") }
-            entries.append(["command": cmd, "timeout": t])
-            hooks[event] = entries
-        }
-
-        settings["hooks"] = hooks
-        if settings["version"] == nil {
-            settings["version"] = 1
-        }
+        do {
+            settings = try JSONHooksConfiguration.installing(in: settings, client: .cursor, agentPath: agentBinaryPath)
+        } catch { return "Cursor Hooks：配置结构无效，未修改现有文件。" }
         if saveCursorSettings(settings) {
             guard ApprovalAutomationControl.resume(.cursor) else { return "无法恢复 Cursor 审批管理权限。" }
             log.info("Cursor hooks 已写入")
@@ -1777,21 +1680,15 @@ final class AgentManager: ObservableObject {
             return "hooks.json 中无「hooks」或为空，没有可移除的 AhaKey 项。"
         }
 
-        var removedCount = 0
-        for event in Array(hooks.keys).sorted() {
-            guard var entries = hooks[event] as? [[String: Any]] else { continue }
-            let before = entries.count
-            entries.removeAll { isAhakeyHookCommand(($0["command"] as? String) ?? "") }
-            removedCount += before - entries.count
-            if entries.isEmpty {
-                hooks.removeValue(forKey: event)
-            } else {
-                hooks[event] = entries
-            }
-        }
+        let beforeCount = hooks.values.compactMap { $0 as? [[String: Any]] }.reduce(0) { $0 + $1.count }
+        do { settings = try JSONHooksConfiguration.removing(in: settings, client: .cursor) }
+        catch { return "Cursor Hooks：配置结构无效，未修改现有文件。" }
+        hooks = settings["hooks"] as? [String: Any] ?? [:]
+        let afterCount = hooks.values.compactMap { $0 as? [[String: Any]] }.reduce(0) { $0 + $1.count }
+        let removedCount = beforeCount - afterCount
 
         if removedCount == 0 {
-            return "在 \(path) 中**未发现**包含 `ahakeyconfig-agent` 或 `ahakey-state` 的 `command`。\n\n若 Hook 在**项目级** `.cursor/hooks.json`，请在该仓库内手动删除；本按钮只改用户级 `~/.cursor/hooks.json`。"
+            return "在 \(path) 中**未发现**执行 AhaKey Agent 的 `command`。\n\n若 Hook 在**项目级** `.cursor/hooks.json`，请在该仓库内手动删除；本按钮只改用户级 `~/.cursor/hooks.json`。"
         }
 
         if hooks.isEmpty {
