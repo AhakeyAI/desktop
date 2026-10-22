@@ -588,3 +588,12 @@ dbea629新布局现已安装，签名/来源已核对，不要重复要求用户
 签名0.2.3 arm64/d2345a2已自动替换安装，deep/strict与源码核对通过，最终完整388测试通过。右侧主键下读回/说明顺序已截图核对。Codex Key4描述Backspace→TestBack保存读回、新连接独立读取仍TestBack、再恢复Backspace保存、同值再次保存明确无写入，全原位完成、无独立设置页。宏/长按对照只改本地草稿，已恢复普通Backspace/短按，未同步0。没有Voice/素材/灯光/其他键修改或刷机，无需用户物理重启；不把此批当完整持久性/故障/旧机矩阵。
 
 最终已退出编辑归还Agent：fresh connected=true、physical/effective=0、autoVerified=true、presentationBusy=false；首页36%/自动批准、Key4 Backspace、未同步0。私有AX/截图/崩溃文件仅本机；公开截图只裁取右侧。详见CONTROL_SERVICE_RECOVERY.md。PR153待本次最终文档head四项CI全成功后按既定授权合入connect&talk；旧“等待用户退出/界面断管”均为历史检查点，无待用户动作。
+
+
+## 45. 2026-10-22 I02b-1 语音路由运行时首批
+
+- 基线PR153 merge ca7981f；源码da3814d，分支codex/connect-talk-voice-mode-runtime。
+- VoicePressRouter真实接入事件监听：严格当前模式、按下捕获至松开、custom F18/F19直发、重复抑制；NativeVoicePressGate限制单一录音手势，取消使旧计时令牌失效。
+- 完整401测试通过，双轴复核P2已闭环。签名候选已安装，启动/界面/连接只读检查通过，无硬件配置写入。详见VOICE_MODE_RUNTIME.md验收文档。
+- 窗口共享排查见WINDOW_SHARING_INVESTIGATION.md；当前原生截图及控制恢复，Appshots自身未被关闭。
+- 下一项I02b-2：Key1草稿与生效态分离、单模式确认保存、原生/AhaType逐模式处理及每次录音策略锁定。真实语音回填/Consumer混用仍未宣称完成。
