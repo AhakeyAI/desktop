@@ -67,7 +67,7 @@ struct StudioLightInspectorView: View {
             ForEach(AhaKeyModeSlot.allCases) { slot in
                 ForEach(IDEState.allCases) { item in
                     if model.values.unconfirmed.contains(.effect(mode: UInt8(slot.rawValue), state: item.rawValue)) {
-                        Text(slot.name + " · " + item.label + "：保存尚未确认，请重新读取并保存核对。")
+                        Text(String(format: NSLocalizedString("%@ · %@：保存尚未确认，请重新读取并保存核对。", comment: ""), slot.name, item.label))
                             .font(.caption).foregroundStyle(.orange)
                     }
                 }
@@ -84,7 +84,7 @@ struct StudioLightInspectorView: View {
             Button("采用键盘当前值") { model.values.adopt(conflict.target) }
             Button("取消", role: .cancel) { }
         } message: { conflict in
-            Text("键盘当前：\(label(conflict.actual.value, target: conflict.target))\n你的草稿：\(label(conflict.desired, target: conflict.target))\n确认后仍会重新读取并核对。")
+            Text(String(format: NSLocalizedString("%@\n键盘当前：%@\n你的草稿：%@\n确认后仍会重新读取并核对。", comment: ""), StudioLightInspectorModel.scopeTitle(conflict.target), label(conflict.actual.value, target: conflict.target), label(conflict.desired, target: conflict.target)))
         }
         .confirmationDialog("清除本地灯光草稿和读回记录？", isPresented: $showsDiscardDrafts) {
             Button("清除本地灯光草稿", role: .destructive) {
@@ -105,7 +105,7 @@ struct StudioLightInspectorView: View {
         let value = model.values.drafts[item]
         let editable = fact.map { item.accepts($0.value) } ?? false
         HStack {
-            Text(fact.map { "上次读回：" + label($0.value, target: item) } ?? "尚未读取")
+            Text(fact.map { String(format: NSLocalizedString("上次读回：%@", comment: ""), label($0.value, target: item)) } ?? NSLocalizedString("尚未读取", comment: ""))
                 .font(.caption).foregroundStyle(.secondary)
             Spacer()
             Button { run(item) } label: { Label("读取", systemImage: "arrow.clockwise") }.disabled(busy)
@@ -116,7 +116,7 @@ struct StudioLightInspectorView: View {
                 Text(value.map { "\($0)%" } ?? "—").monospacedDigit()
             }.disabled(busy || !editable)
         } else {
-            Picker(title, selection: Binding(get: { value }, set: { if let value = $0 { model.values.edit(item, value: value) } })) {
+            Picker(NSLocalizedString(title, comment: ""), selection: Binding(get: { value }, set: { if let value = $0 { model.values.edit(item, value: value) } })) {
                 Text("请选择").tag(Optional<UInt8>.none)
                 ForEach(LightEffectStyle.allCases) { Text($0.title).tag(Optional($0.firmwareIndex)) }
                 if let value, !item.accepts(value) { Text("未知灯效（只读）").tag(Optional(value)) }
@@ -133,7 +133,7 @@ struct StudioLightInspectorView: View {
                     run(item, preview: .light(effect: value, brightness: brightness))
                 }
             }.disabled(busy || !editable || value == nil || (item != .brightness && (value == 0 || model.values.drafts[.brightness] == nil)))
-            Button("保存" + title) { model.run(target: item, ble: bleManager, session: session, save: true) }
+            Button(NSLocalizedString(item == .brightness ? "保存亮度" : "保存灯效", comment: "")) { model.run(target: item, ble: bleManager, session: session, save: true) }
                 .disabled(busy || !editable || value == nil)
         }
         if model.values.unconfirmed.contains(item) {
@@ -148,6 +148,6 @@ struct StudioLightInspectorView: View {
 
     private func label(_ value: UInt8, target: StudioLightDrafts.Target) -> String {
         if target == .brightness { return "\(value)%" }
-        return LightEffectStyle(firmwareIndex: value)?.title ?? "未知灯效 \(value)（只读）"
+        return LightEffectStyle(firmwareIndex: value)?.title ?? String(format: NSLocalizedString("未知灯效 %@（只读）", comment: ""), String(value))
     }
 }

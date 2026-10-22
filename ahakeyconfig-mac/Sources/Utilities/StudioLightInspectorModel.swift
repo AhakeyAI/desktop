@@ -35,15 +35,16 @@ final class StudioLightInspectorModel: ObservableObject {
              save: Bool = false, overwrite: Conflict? = nil, preview: WS3DisplayPreview? = nil) {
         guard !isBusy, !session.isBusy else { return }
         let baseline = values.facts[target]
-        let desired = overwrite?.desired ?? values.drafts[target]
         let action: StudioInlineLightOperation.Action
         if save {
-            guard let baseline, target.accepts(baseline.value), let desired, target.accepts(desired) else { return }
-            action = .save(baseline: overwrite?.actual ?? baseline, desired: desired)
+            guard let planned = StudioInlineLightOperation.saving(target: target, values: values,
+                baselineOverride: overwrite?.actual, desiredOverride: overwrite?.desired) else { return }
+            action = planned
         } else if let preview { action = .preview(preview) }
         else { action = .read }
         let deviceID = baseline?.deviceID ?? values.facts[.brightness]?.deviceID
-        perform(session: session) { [self] in
+        let scope = preview == .stop ? NSLocalizedString("临时预览", comment: "") : Self.scopeTitle(target)
+        perform(scope: scope, session: session) { [self] in
             let result = try await StudioInlineLightOperation.run(target: target, action: action,
                 session: session, expectedDeviceID: deviceID, read: { selected, context in
                     // Re-establish the existing CP2 readback gate for every lease.
@@ -73,7 +74,7 @@ final class StudioLightInspectorModel: ObservableObject {
                 conflict = Conflict(target: target, actual: reading.selected, desired: desired)
             case .saved(let reading, let wrote):
                 observe(reading, target: target)
-                values.confirm(target, fact: reading.selected)
+                if wrote || !values.unconfirmed.contains(target) { values.confirm(target, fact: reading.selected) }
                 message = NSLocalizedString(wrote ? "已保存并读回一致；未修改其他灯效或按键。" : "与键盘当前值一致，本次未写入。", comment: "")
             case .previewed(let reading):
                 observe(reading, target: target)
@@ -84,7 +85,7 @@ final class StudioLightInspectorModel: ObservableObject {
 
     func readCatalog(ble: AhaKeyBLEManager, session: StudioInspectorSession) {
         let deviceID = values.facts[.brightness]?.deviceID
-        perform(session: session) { [self] in
+        perform(scope: NSLocalizedString("四模式灯效总览", comment: ""), session: session) { [self] in
             let result = try await session.withConnection(expectedDeviceID: deviceID) { context in
                 let display = try await ble.readWS3DisplayForEditing()
                 let catalog = try await ble.readWS3LightCatalogForEditing()
@@ -109,16 +110,33 @@ final class StudioLightInspectorModel: ObservableObject {
         message = NSLocalizedString("本地灯光草稿已清除，请重新读取；未重置键盘，也不会撤销已发送的修改。", comment: "")
     }
 
-    private func perform(session: StudioInspectorSession, body: @escaping @MainActor () async throws -> Void) {
+    private func perform(scope: String, session: StudioInspectorSession, body: @escaping @MainActor () async throws -> Void) {
         guard !isBusy, !session.isBusy else { return }
         isBusy = true
         message = nil
         conflict = nil
         operation = Task { @MainActor in
             defer { isBusy = false; operation = nil }
-            do { try await body() }
-            catch { message = KeyboardSettingsFeedback.message(for: error) }
+            do {
+                try await body()
+                if let currentMessage = message { message = Self.receipt(scope: scope, text: currentMessage) }
+            } catch { message = Self.receipt(scope: scope, text: KeyboardSettingsFeedback.message(for: error)) }
         }
+    }
+
+    static func scopeTitle(_ target: StudioLightDrafts.Target) -> String {
+        switch target {
+        case .brightness: return NSLocalizedString("全局亮度", comment: "")
+        case .effect(let mode, let state):
+            guard let slot = AhaKeyModeSlot(rawValue: Int(mode)), let item = IDEState(rawValue: state) else {
+                return NSLocalizedString("灯效", comment: "")
+            }
+            return slot.title + " · " + slot.name + " · " + item.label
+        }
+    }
+
+    static func receipt(scope: String, text: String) -> String {
+        String(format: NSLocalizedString("%@：%@", comment: ""), scope, text)
     }
 
     private func observe(_ reading: StudioInlineLightOperation.Reading, target: StudioLightDrafts.Target) {

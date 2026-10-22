@@ -1110,9 +1110,9 @@ struct AhaKeyStudioView: View {
             ForEach(IDEState.allCases) { state in
                 let item = StudioLightDrafts.Target.effect(mode: UInt8(selectedMode.rawValue), state: state.rawValue)
                 let value = lightInspectorModel.values.drafts[item]
-                summaryRow(state.shortLabel, value: value.map { LightEffectStyle(firmwareIndex: $0)?.title ?? "未知灯效（只读）" } ?? "未读取")
+                summaryRow(state.shortLabel, value: value.map { LightEffectStyle(firmwareIndex: $0)?.title ?? NSLocalizedString("未知灯效（只读）", comment: "") } ?? NSLocalizedString("未读取", comment: ""))
             }
-            summaryRow("全局亮度", value: lightInspectorModel.values.drafts[.brightness].map { "\($0)%" } ?? "未读取")
+            summaryRow("全局亮度", value: lightInspectorModel.values.drafts[.brightness].map { "\($0)%" } ?? NSLocalizedString("未读取", comment: ""))
             Text("显示本地草稿或上次读回值；修改后需分别保存所选灯效和全局亮度。")
                 .font(.caption).foregroundStyle(.secondary)
         } else {

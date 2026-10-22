@@ -43,6 +43,31 @@ final class StudioInlineLightTests: XCTestCase {
         XCTAssertEqual(releases, 2)
     }
 
+    func testFailedPersistenceReadThenRetryActuallyWritesBeforeClearingUncertainty() async throws {
+        var values = StudioLightDrafts()
+        values.observe(target, fact: baseline); values.edit(target, value: 3); values.markUnconfirmed(target)
+        values.observe(target, fact: .init(deviceID: "keyboard-A", value: 3))
+        XCTAssertTrue(values.unconfirmed.contains(target))
+        let action = try XCTUnwrap(StudioInlineLightOperation.saving(target: target, values: values))
+        var writes = 0
+        let result = try await StudioInlineLightOperation.run(target: target, action: action, session: session(),
+            expectedDeviceID: "keyboard-A", read: { _, _ in .init(selected: .init(deviceID: "keyboard-A", value: 3), brightness: 35) },
+            save: { setting, _, _ in XCTAssertEqual(setting, .singleLight(mode: 2, state: 7, effect: 3)); writes += 1 },
+            preview: { _ in XCTFail() }, writeStarted: {})
+        guard case .saved(let reading, let wrote) = result else { return XCTFail() }
+        XCTAssertTrue(wrote); XCTAssertEqual(writes, 1)
+        values.confirm(target, fact: reading.selected)
+        XCTAssertFalse(values.unconfirmed.contains(target))
+    }
+
+    func testLateReceiptRetainsCapturedModeAndState() {
+        let originalScope = StudioLightInspectorModel.scopeTitle(target)
+        let message = StudioLightInspectorModel.receipt(scope: originalScope, text: "saved")
+        XCTAssertTrue(message.contains(originalScope))
+        XCTAssertNotEqual(originalScope, StudioLightInspectorModel.scopeTitle(.effect(mode: 3, state: 7)))
+        XCTAssertNotEqual(originalScope, StudioLightInspectorModel.scopeTitle(.effect(mode: 2, state: 1)))
+    }
+
     func testUnknownActualValueStaysReadOnlyInsteadOfOfferingOverride() async throws {
         let result = try await StudioInlineLightOperation.run(target: target, action: .save(baseline: baseline, desired: 3), session: session(),
             expectedDeviceID: "keyboard-A", read: { _, _ in .init(selected: .init(deviceID: "keyboard-A", value: 255), brightness: 35) },
