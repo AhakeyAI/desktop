@@ -31,3 +31,13 @@ Xcode SDK的libproc/sys/proc_info.h提供PROC_PIDTBSDINFO、控制TTY e_tdev、T
 下一步仍需：可核验的窗口/标签来源；来源存活/权限/退出/睡眠撤销；App/Agent桥接；用户界面整合；GUI客户端无可靠会话API时明确未知；最终自动/真实窗口与OLED验收。没有安装新包或写入键盘。
 
 两轴审查通过。没有将身份/映射基础设施当成窗口焦点来源已实现；后续消费端必须独立验证实际前台窗口及来源存活，并在不能证明时撤销标记。
+
+## 只读标签查询
+
+新增TerminalSelectionQuery，构造固定core/getd Apple Event：Terminal读取window1→selected tab(tcnt)→tty(ttty)；iTerm读取current window(Crwn)→current session(Wcsn)→tty(Stty)。来源为本机Terminal.sdef及[iTerm官方字典](https://github.com/gnachman/iTerm2/blob/master/iTerm2.sdef)。按已运行PID寻址，不按bundle自动拉起，不请求contents/text、do script、write、select或键盘事件。
+
+读取前后核对前台应用PID/bundle及launchDate，查询前检查已有自动化授权（ask=false）；只有独立的显式权限动作可ask=true。固定get请求使用neverInteract/dontRecord及1秒超时，在单独串行队列执行，不用NSAppleScript解释器或shell进程，避免主界面阻塞。取消或目标已更换的结果不返回为有效标签。
+
+新增3项描述符/回包测试，确认目标为PID、精确对象链、只读事件类别、非法PID/非TTY/错误回包拒绝；连同原生身份和PTY共8项相关测试通过。测试没有发送任何实际Apple Event，也没有请求权限。此批仍不是完整窗口监听、权限界面或App/Agent桥接；这些后续接线完成后才做真实窗口自动验证。
+
+只读标签查询的两轴审查通过；所测描述符/回包和原生身份8项通过不替代真实应用交互。完整前台链路的窗口通知、权限状态、来源退出、连接/呈现代次与App/Agent跨进程桥接仍是下一批开发内容。

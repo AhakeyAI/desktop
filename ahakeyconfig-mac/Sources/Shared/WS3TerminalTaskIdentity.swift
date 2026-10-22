@@ -44,8 +44,7 @@ public struct WS3TerminalTaskIdentity: Codable, Equatable, Sendable {
     /// Only a native foreground-provider may supply the selected tab's TTY.
     /// This reads its device/group metadata, never terminal input or output.
     public static func captureTTY(_ path: String) -> Self? {
-        guard path.hasPrefix("/dev/ttys"), (10...64).contains(path.utf8.count),
-              path.dropFirst(9).allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { return nil }
+        guard validTTYPath(path) else { return nil }
         var state = stat()
         guard lstat(path, &state) == 0, state.st_mode & S_IFMT == S_IFCHR else { return nil }
         let device = UInt32(bitPattern: state.st_rdev)
@@ -65,6 +64,10 @@ public struct WS3TerminalTaskIdentity: Codable, Equatable, Sendable {
             return identity
         }
         return nil
+    }
+    public static func validTTYPath(_ path: String) -> Bool {
+        path.hasPrefix("/dev/ttys") && (10...64).contains(path.utf8.count) &&
+            path.dropFirst(9).allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber) }
     }
     public func isAlive() -> Bool {
         Self.capture(device: device, group: processGroup) == self
