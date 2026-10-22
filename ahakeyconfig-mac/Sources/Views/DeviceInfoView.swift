@@ -249,7 +249,7 @@ struct DeviceInfoView: View {
                         Text("~/.cursor/cli-config.json").tag(3)
                         Text("~/.codex/config.toml").tag(4)
                         Text("Codex Hook（codex-hook.log）").tag(5)
-                        Text("~/.kimi/config.toml").tag(6)
+                        Text((agentManager.userKimiConfigFilePath as NSString).abbreviatingWithTildeInPath).tag(6)
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)

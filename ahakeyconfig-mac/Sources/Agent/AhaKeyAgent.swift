@@ -46,6 +46,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private(set) var cachedSwitchState: UInt8?
     /// 最新 lightMode
     private(set) var cachedLightMode: UInt8?
+    /// 最近一次同步到 Kimi 配置的拨杆状态：Kimi Code 只在新会话启动时读权限模式，必须随拨杆即时落盘。
+    private var lastKimiSyncedSwitchState: Int?
     /// 等待下一次 status 回包的回调队列（用于 querySwitchState）
     private var statusWaiters = AgentStatusQueries()
     /// 工具完成 / 用户提交等短暂态的自动回落。
@@ -595,6 +597,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
         cachedSwitchState = UInt8(clamping: status.switchState)
         cachedLightMode = UInt8(clamping: status.lightMode)
+        // 未装 Kimi hooks 时不记账：用户之后安装 hooks，下一次轮询即可补同步当前拨杆。
+        if (0...1).contains(status.switchState), status.switchState != lastKimiSyncedSwitchState,
+           KimiConfigLeverSync.hasAhaKeyHooks() {
+            lastKimiSyncedSwitchState = status.switchState
+            KimiConfigLeverSync.apply(switchStateAuto: status.switchState == 0)
+        }
         if lastLoggedStatus != status {
             lastLoggedStatus = status
             emit("← status battery=\(status.battery) light=\(status.lightMode) switch=\(status.switchState)")

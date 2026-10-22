@@ -1,16 +1,45 @@
 import Foundation
+import AhaKeyConfigShared
 
-/// 将键盘拨杆与 Kimi **`~/.kimi/config.toml`** 的根级 **`default_yolo`** 对齐：**自动档 `true`，手动档 `false`**。
+/// 将键盘拨杆同步到 **当前 Kimi CLI 实际读取的配置**（`KimiConfigLocation.activeConfigURL()`）：
+/// - Kimi Code CLI 2.x：`~/.kimi-code/config.toml` 顶层 `default_permission_mode`（自动档 `yolo` / 手动档 `manual`），
+///   见 `KimiPermissionModeSync`。新建会话生效。
+/// - 旧版 Python kimi-cli：`~/.kimi/config.toml` 根级 `default_yolo`（自动档 `true` / 手动档 `false`），`/reload` 生效。
 ///
-/// 不使用「整文件恢复快照」来代表手动档：快照往往在用户原本就开启过 YOLO 时记下 `default_yolo=true`，一还原无论怎样 `/reload` 都会回到 YOLO。自动档仍可在首次写入前备份一份 **`.ahakey.lever0.bak`** 供你以后自行比对；切到手动档时会删掉该快照以免再次误还原。
+/// 旧版路径不使用「整文件恢复快照」来代表手动档：快照往往在用户原本就开启过 YOLO 时记下 `default_yolo=true`，一还原无论怎样 `/reload` 都会回到 YOLO。自动档仍可在首次写入前备份一份 **`.ahakey.lever0.bak`** 供你以后自行比对；切到手动档时会删掉该快照以免再次误还原。
 enum KimiConfigLeverSync {
-    private static var configURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".kimi/config.toml", isDirectory: false)
-    }
+    private static var configURL: URL { KimiConfigLocation.legacyConfigURL() }
 
     private static var snapshotURL: URL { configURL.appendingPathExtension("ahakey.lever0.bak") }
 
+    private static var hooksProbeCache: (path: String, modified: Date, result: Bool)?
+
+    /// 只有装了 AhaKey Kimi hooks 的配置才由 Agent 常驻进程随拨杆改写，避免碰未接入 AhaKey 的 Kimi。
+    /// Agent 每次状态轮询都会问一次，按修改时间缓存，文件不变就不重读。
+    static func hasAhaKeyHooks(at url: URL = KimiConfigLocation.activeConfigURL()) -> Bool {
+        guard let modified = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date else {
+            return false
+        }
+        if let cache = hooksProbeCache, cache.path == url.path, cache.modified == modified {
+            return cache.result
+        }
+        let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        let result = text.contains("ahakeyconfig-agent") && text.contains("hook Kimi")
+        hooksProbeCache = (url.path, modified, result)
+        return result
+    }
+
     static func apply(switchStateAuto: Bool) {
+        let active = KimiConfigLocation.activeConfigURL()
+        guard KimiConfigLocation.isLegacy(active) else {
+            let outcome = KimiPermissionModeSync.apply(switchStateAuto: switchStateAuto, configURL: active)
+            KimiHookDebugLog.append(event: "kimi_permission_mode_sync", details: [
+                "path": active.path,
+                "switchStateAuto": switchStateAuto,
+                "outcome": String(describing: outcome),
+            ])
+            return
+        }
         if switchStateAuto {
             enableYoloInConfig()
         } else {

@@ -48,21 +48,21 @@ enum KimiHookHandler {
         ])
         var leverSnapshotForLog = kimiProbeInitial
         if switchState == nil {
-            KimiHookDebugLog.stderrLine("no switchState from agent → skipped default_yolo sync; kimiPreTool=\(kimiPreToolDecision); check BLE/agent")
+            KimiHookDebugLog.stderrLine("no switchState from agent → skipped Kimi permission sync; kimiPreTool=\(kimiPreToolDecision); check BLE/agent")
         } else {
             KimiConfigLeverSync.apply(switchStateAuto: isAuto)
             leverSnapshotForLog = KimiConfigLeverSync.diagnosticSnapshotForLog()
-            KimiHookDebugLog.append(event: "kimi_PreToolUse_after_default_yolo_disk_sync", details: leverSnapshotForLog)
-            KimiHookDebugLog.stderrLine(
-                "default_yolo synced on disk (\(isAuto ? "true" : "false")); if kimi is already running: enter /reload in that session — no quit needed."
-            )
-            let yoloSnippet: String
-            if let v = leverSnapshotForLog["default_yolo_valueSnippet"], !(v is NSNull) {
-                yoloSnippet = String(describing: v)
+            KimiHookDebugLog.append(event: "kimi_PreToolUse_after_lever_disk_sync", details: leverSnapshotForLog)
+            let path = leverSnapshotForLog["kimiConfigPath"] as? String ?? "?"
+            if leverSnapshotForLog["kimiConfigGeneration"] as? String == "kimi_code" {
+                let mode = leverSnapshotForLog["default_permission_mode"].flatMap { $0 as? String } ?? "(unset/absent)"
+                KimiHookDebugLog.stderrLine(
+                    "default_permission_mode=\(mode) in \(path); applies to new Kimi sessions — use /yolo or /permission to switch the current one."
+                )
             } else {
-                yoloSnippet = "(unset/absent)"
+                let yoloSnippet = leverSnapshotForLog["default_yolo_valueSnippet"].flatMap { $0 as? String } ?? "(unset/absent)"
+                KimiHookDebugLog.stderrLine("default_yolo=\(yoloSnippet) in \(path); run /reload in the running kimi session.")
             }
-            KimiHookDebugLog.stderrLine("on-disk default_yolo now reads \(yoloSnippet); /reload picks it up.")
         }
 
         if !stdoutPayload.isEmpty {
@@ -71,7 +71,7 @@ enum KimiHookHandler {
         KimiHookDebugLog.append(event: "kimi_PreToolUse_stdout", details: [
             "kimiDecision": kimiPreToolDecision,
             "stdoutChars": stdoutPayload.count,
-            "hint": "kimi-cli 读 default_yolo 在 KimiCLI.create/load_config；已开着的会话请输入 /reload 即可（不必退出 kimi）。PreToolUse 仍仅 deny 会拦工具；default_yolo 管交互批准层。",
+            "hint": "PreToolUse 仅 deny 会拦工具，放行由权限模式决定：Kimi Code 读 default_permission_mode（新会话生效，当前会话用 /yolo、/permission）；旧版 kimi-cli 读 default_yolo（/reload 生效）。",
         ])
         KimiHookDebugLog.stderrLine("stdout chars=\(stdoutPayload.count) decision=\(kimiPreToolDecision)")
 
