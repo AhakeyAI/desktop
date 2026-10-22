@@ -570,3 +570,9 @@ swift build和StudioInlineKeyTests7项通过，两轴窄复核均无问题；上
 CUA仍不可原生操作，已请用户用CmdQ退出AhaKey Studio（不是Codex）以便替换。收到退出确认后，先备份当前App，再ditto精简候选到/Applications、签名/来源核对；请用户打开确认布局及后续单键保存/还原。无需重启键盘、无需再重开Codex；此前没有真实按键写入。PR153仍Draft，不能仅凭读取正常就合入。
 
 补充：用户已退出Studio，5af6605精简版现已替换到/Applications，签名/源码核对通过，旧包备份studio-before-inspector-compact-20261022。已请用户打开并确认新布局，先不写键盘。不要再次要求退出安装同一包；后续继续保存/还原验收。
+
+### 主键下方统一布局dbea629
+
+用户确认5af6605展示正常，进一步指定回读和说明统一在主键下方，先回读再说明。dbea629已按此移动，描述区不重复两段说明；控件和可重试读回区分开禁用，宏/长按亦能显示。swift build、两轴窄复核及签名构建通过；布局调整不新增模拟测试。新包local-builds/connect-talk-inspector-primary-20261022，源码标识dbea62996d976745e5f02eacab0be0208a7f32c6，尚未替换当前5af6605。
+
+已请求用户退出Studio以替换这份新布局包；不是重复安装同一包。退出确认后备份5af包再替换、核对签名/来源，请用户打开确认主键下新顺序，再继续单键保存及还原HIL。原生工具仍不可用，不要求重开Codex/重启键盘。PR153仍Draft。
