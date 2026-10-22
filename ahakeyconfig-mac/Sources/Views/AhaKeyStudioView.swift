@@ -2033,10 +2033,13 @@ struct AhaKeyStudioView: View {
     private var liveKeyboardSwitchState: Int? { bleManager.switchStateForDisplay }
     private var liveKeyboardWorkMode: Int? { bleManager.workModeForDisplay }
     private var liveCanvasLightMode: Int? {
+        // Inspect the selected draft on canvas; this does not send a preview.
+        guard !(isEditingInspector && usesInlineLightEditor) else { return nil }
         guard let workMode = liveKeyboardWorkMode, selectedMode.rawValue == workMode else { return nil }
         return liveKeyboardLightMode
     }
     private var liveCanvasIDEStateValue: Int? {
+        guard !(isEditingInspector && usesInlineLightEditor) else { return nil }
         guard let workMode = liveKeyboardWorkMode, selectedMode.rawValue == workMode else { return nil }
         return bleManager.liveIDEStateValue
     }

@@ -68,6 +68,26 @@ final class StudioInlineLightTests: XCTestCase {
         XCTAssertNotEqual(originalScope, StudioLightInspectorModel.scopeTitle(.effect(mode: 2, state: 1)))
     }
 
+    func testPreviewOfCachedSelectionSurvivesExternallyChangedReadback() {
+        var values = StudioLightDrafts()
+        values.observe(target, fact: baseline)
+        values.observe(.brightness, fact: .init(deviceID: "keyboard-A", value: 35))
+        // The user explicitly previews 10 at brightness 35. Another client has
+        // meanwhile changed persisted values to effect 3 and brightness 40.
+        values.observePreview(target: target, selected: .init(deviceID: "keyboard-A", value: 3),
+                              brightness: 40, request: .light(effect: 10, brightness: 35))
+        XCTAssertEqual(values.facts[target]?.value, 3)
+        XCTAssertEqual(values.facts[.brightness]?.value, 40)
+        XCTAssertEqual(values.drafts[target], 10)
+        XCTAssertEqual(values.drafts[.brightness], 35)
+        XCTAssertEqual(values.dirtyTargets, [target, .brightness])
+        values.observePreview(target: target, selected: .init(deviceID: "keyboard-A", value: 3), brightness: 40, request: .stop)
+        XCTAssertEqual(values.drafts[target], 10)
+        values.observePreview(target: target, selected: .init(deviceID: "keyboard-A", value: 255), brightness: 40, request: .light(effect: 10, brightness: 35))
+        XCTAssertEqual(values.drafts[target], 10)
+        XCTAssertNil(StudioInlineLightOperation.saving(target: target, values: values))
+    }
+
     func testUnknownActualValueStaysReadOnlyInsteadOfOfferingOverride() async throws {
         let result = try await StudioInlineLightOperation.run(target: target, action: .save(baseline: baseline, desired: 3), session: session(),
             expectedDeviceID: "keyboard-A", read: { _, _ in .init(selected: .init(deviceID: "keyboard-A", value: 255), brightness: 35) },

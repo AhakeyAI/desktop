@@ -25,6 +25,7 @@ struct StudioLightInspectorView: View {
                             .background(model.selectedState == item.rawValue ? Color.accentColor.opacity(0.16) : Color.primary.opacity(0.05))
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                     }.buttonStyle(.plain).disabled(busy)
+                        .accessibilityAddTraits(model.selectedState == item.rawValue ? .isSelected : [])
                 }
             }
 
@@ -101,6 +102,7 @@ struct StudioLightInspectorView: View {
             }
             .buttonStyle(.plain).disabled(busy || !editable)
             .accessibilityLabel(effect.title).accessibilityHint(effect.detail)
+            .accessibilityAddTraits(selected ? .isSelected : [])
             if effect != .off {
                 Button {
                     model.previewEffect(effect, mode: mode, ble: bleManager, session: session)
@@ -110,8 +112,8 @@ struct StudioLightInspectorView: View {
                 }
                 .buttonStyle(.plain).padding(5)
                 .disabled(busy || !editable || model.values.drafts[.brightness] == nil)
-                .help(String(format: NSLocalizedString("预览 %@", comment: ""), effect.title))
-                .accessibilityLabel(String(format: NSLocalizedString("预览 %@", comment: ""), effect.title))
+                .help(String(format: NSLocalizedString("在键盘上预览 %@", comment: ""), effect.title))
+                .accessibilityLabel(String(format: NSLocalizedString("在键盘上预览 %@", comment: ""), effect.title))
             }
         }
     }
@@ -125,6 +127,7 @@ struct StudioLightInspectorView: View {
             HStack(spacing: 8) {
                 Text("亮度").font(.subheadline.weight(.semibold))
                 Text("全部模式").font(.caption).foregroundStyle(.secondary)
+                if model.values.dirtyTargets.contains(item) { Text("未保存").font(.caption).foregroundStyle(.orange) }
                 Spacer()
                 Text(value.map { "\($0)%" } ?? "—").font(.caption.monospacedDigit())
                 Button("保存亮度") { model.run(target: item, ble: bleManager, session: session, save: true) }
@@ -181,8 +184,7 @@ struct StudioLightInspectorView: View {
     }
 
     private func resetSelectionFeedback() {
-        model.conflict = nil
-        model.message = nil
+        model.clearFeedback()
         if model.values.facts[target] == nil { readSelectedState() }
     }
 
@@ -208,7 +210,7 @@ struct StudioLightInspectorActions: View {
             if busy {
                 Button("取消") { model.cancel() }
             } else {
-                Button("预览") {
+                Button("预览到键盘") {
                     if let effect { model.previewEffect(effect, mode: mode, ble: bleManager, session: session) }
                 }.disabled(!known || effect == nil || effect == .off || model.values.drafts[.brightness] == nil)
                 Button("停止") { model.run(target: target, ble: bleManager, session: session, preview: .stop) }

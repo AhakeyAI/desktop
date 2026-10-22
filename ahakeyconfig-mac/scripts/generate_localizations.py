@@ -1731,7 +1731,7 @@ TRANSLATIONS.update({'状态灯效': 'Status lighting',
  '未读取': 'Not read'})
 
 # Flat lighting choices and concise feedback
-TRANSLATIONS.update({'读取键盘设置': 'Read keyboard settings', '未保存': 'Unsaved',
+TRANSLATIONS.update({'在键盘上预览 %@': 'Preview %@ on the keyboard', '读取键盘设置': 'Read keyboard settings', '未保存': 'Unsaved',
  '保存结果待确认，请重新读取后保存。': 'Save unconfirmed. Read again, then save.',
  '操作未完成，请重试。': 'Could not finish. Please try again.',
  '选择灯效': 'Choose an effect',

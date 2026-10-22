@@ -39,10 +39,21 @@ struct StudioLightDrafts: Codable {
         }
     }
 
-    mutating func observe(_ target: Target, fact: Fact) {
+    mutating func observe(_ target: Target, fact: Fact, preservingDraft: Bool = false) {
         let wasClean = drafts[target] == nil || drafts[target] == facts[target]?.value
         facts[target] = fact
-        if wasClean { drafts[target] = fact.value }
+        if wasClean && (!preservingDraft || drafts[target] == nil) { drafts[target] = fact.value }
+    }
+
+    mutating func observePreview(target: Target, selected: Fact, brightness: UInt8, request: WS3DisplayPreview) {
+        let keep: Set<Target>
+        switch request {
+        case .brightness: keep = [.brightness]
+        case .light: keep = [target, .brightness]
+        case .stop: keep = []
+        }
+        observe(.brightness, fact: .init(deviceID: selected.deviceID, value: brightness), preservingDraft: keep.contains(.brightness))
+        observe(target, fact: selected, preservingDraft: keep.contains(target))
     }
 
     mutating func edit(_ target: Target, value: UInt8) {

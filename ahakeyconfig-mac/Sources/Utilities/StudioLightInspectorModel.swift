@@ -46,6 +46,12 @@ final class StudioLightInspectorModel: ObservableObject {
 
     func cancel() { operation?.cancel() }
 
+    func clearFeedback() {
+        conflict = nil
+        message = nil
+        showsError = false
+    }
+
     func run(target: StudioLightDrafts.Target, ble: AhaKeyBLEManager, session: StudioInspectorSession,
              save: Bool = false, overwrite: Conflict? = nil, preview: WS3DisplayPreview? = nil) {
         guard !isBusy, !session.isBusy else { return }
@@ -83,7 +89,9 @@ final class StudioLightInspectorModel: ObservableObject {
                 message = NSLocalizedString("已读取。", comment: "")
             case .readOnly(let reading):
                 showsError = true
-                observe(reading, target: target)
+                if let preview {
+                    values.observePreview(target: target, selected: reading.selected, brightness: reading.brightness, request: preview)
+                } else { observe(reading, target: target, preservingSelection: true) }
                 message = NSLocalizedString("键盘当前值无法安全编辑，保持只读。", comment: "")
             case .conflict(let reading, let desired):
                 observe(reading, target: target)
@@ -93,7 +101,9 @@ final class StudioLightInspectorModel: ObservableObject {
                 if wrote || !values.unconfirmed.contains(target) { values.confirm(target, fact: reading.selected) }
                 message = NSLocalizedString(wrote ? "已保存。" : "已是当前设置。", comment: "")
             case .previewed(let reading):
-                observe(reading, target: target)
+                if let preview {
+                    values.observePreview(target: target, selected: reading.selected, brightness: reading.brightness, request: preview)
+                }
                 message = NSLocalizedString(preview == .stop ? "预览已停止。" : "已发送预览，约 10 秒后结束。", comment: "")
             }
         }
@@ -157,9 +167,9 @@ final class StudioLightInspectorModel: ObservableObject {
         String(format: NSLocalizedString("%@：%@", comment: ""), scope, text)
     }
 
-    private func observe(_ reading: StudioInlineLightOperation.Reading, target: StudioLightDrafts.Target) {
+    private func observe(_ reading: StudioInlineLightOperation.Reading, target: StudioLightDrafts.Target, preservingSelection: Bool = false) {
         values.observe(.brightness, fact: .init(deviceID: reading.selected.deviceID, value: reading.brightness))
-        values.observe(target, fact: reading.selected)
+        values.observe(target, fact: reading.selected, preservingDraft: preservingSelection)
     }
 }
 
