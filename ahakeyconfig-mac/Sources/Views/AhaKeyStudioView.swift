@@ -5861,7 +5861,7 @@ private extension AhaKeyStudioView {
                 }
                 inlineKeyUnconfirmed.remove("\(request.deviceID):\(target.mode):0")
                 inlineKeyMessage = NSLocalizedString("已核对：全局退出 Consumer，仅当前模式键位改变；其他模式保留原普通键位。", comment: "")
-                writeOutcome = .init(succeeded: true, message: NSLocalizedString("当前语音设置已确认生效。", comment: ""))
+                writeOutcome = .init(succeeded: true, message: NSLocalizedString("当前语音设置已确认生效。", comment: ""), wrote: wrote)
             } catch {
                 if wrote { inlineKeyUnconfirmed.insert("\(request.deviceID):\(target.mode):0") }
                 if inlineKeyOperationID == ticket { reportVoiceFailure(error) }
