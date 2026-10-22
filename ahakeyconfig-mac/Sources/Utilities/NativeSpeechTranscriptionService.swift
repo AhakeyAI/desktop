@@ -53,6 +53,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     private var recognitionTask: SFSpeechRecognitionTask?
     private var finalizeWorkItem: DispatchWorkItem?
     private var currentTranscript = ""
+    private var transcriptAccumulator = SpeechTranscriptAccumulator()
     /// 防止 `isFinal`、1s 超时、`error` 回调各触发一次，导致同一段被 ⌘V 多遍
     private var hasCommittedThisRecording = false
 
@@ -419,6 +420,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         recordingPolicy = snapshot
         pendingFinalizeBypassAhaType = !snapshot.usesAhaType
         currentTranscript = ""
+        transcriptAccumulator = SpeechTranscriptAccumulator()
         transcriptPreview = ""
         lastCommittedText = ""
         hasCommittedThisRecording = false
@@ -464,10 +466,12 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
     }
 
-    /// One recognition task revises the full hypothesis, including earlier words.
-    /// Treat each nonempty result as a replacement rather than concatenating it.
-    private func applyStreamingTranscriptionPartial(_ newRaw: String) {
-        currentTranscript = SpeechTranscriptSnapshot.applying(newRaw, to: currentTranscript)
+    /// Untimed partials revise the active utterance. Completed audio ranges
+    /// distinguish a new utterance from a revision of already-recognized audio.
+    private func applyStreamingTranscriptionPartial(_ newRaw: String,
+                                                    audioSpan: SpeechTranscriptAccumulator.AudioSpan?,
+                                                    isFinal: Bool) {
+        currentTranscript = transcriptAccumulator.apply(newRaw, audioSpan: audioSpan, isFinal: isFinal)
     }
 
     private var pendingFinalizeBypassAhaType = false
@@ -475,18 +479,10 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     private func handleRecognition(result: SFSpeechRecognitionResult?, error: Error?) {
         if let result {
             let newText = result.bestTranscription.formattedString
-            // Temporary, text-free timing probe for the captured pause loss.
-            let segmentTiming = result.bestTranscription.segments.map { segment in
-                String(format: "%.3f+%.3f:%ld", segment.timestamp, segment.duration, segment.substringRange.length)
-            }.joined(separator: "|")
-            let metadataTiming = result.speechRecognitionMetadata.map { metadata in
-                String(format: "%.3f+%.3f", metadata.speechStartTimestamp, metadata.speechDuration)
-            } ?? "none"
-            appendDiagnostic("[DEBUG-voice-pause-20261022] generation=\(recordingGeneration.uuidString.prefix(8)) final=\(result.isFinal) chars=\(newText.count) segments=\(segmentTiming) metadata=\(metadataTiming)")
-            // This callback belongs to one generation-checked recognition task.
-            // Its revised hypothesis can change the beginning as well as the end.
+            // Metadata can finish an utterance before the recording isFinal.
+            // Keep prior audio while revising the currently recognized utterance.
             if !newText.isEmpty {
-                applyStreamingTranscriptionPartial(newText)
+                applyStreamingTranscriptionPartial(newText, audioSpan: completedAudioSpan(for: result), isFinal: result.isFinal)
                 transcriptPreview = currentTranscript
             }
             appendDiagnostic("partial result=\(newText) isFinal=\(result.isFinal)")
@@ -508,6 +504,18 @@ final class NativeSpeechTranscriptionService: ObservableObject {
                     autoHideAfter: 2.0
                 )
             }
+        }
+    }
+
+    private func completedAudioSpan(for result: SFSpeechRecognitionResult) -> SpeechTranscriptAccumulator.AudioSpan? {
+        guard result.isFinal || result.speechRecognitionMetadata != nil else { return nil }
+        let segments = result.bestTranscription.segments
+        let timed = segments.compactMap { SpeechTranscriptAccumulator.AudioSpan(start: $0.timestamp, duration: $0.duration) }
+        // Use the enclosing audio interval, including pauses, rather than the
+        // sum of voiced durations when a cumulative result covers older chunks.
+        if timed.count == segments.count, let span = SpeechTranscriptAccumulator.AudioSpan.covering(timed) { return span }
+        return result.speechRecognitionMetadata.flatMap {
+            SpeechTranscriptAccumulator.AudioSpan(start: $0.speechStartTimestamp, duration: $0.speechDuration)
         }
     }
 
