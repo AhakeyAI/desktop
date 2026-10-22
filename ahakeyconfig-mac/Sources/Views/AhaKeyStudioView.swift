@@ -44,6 +44,14 @@ struct AhaKeyStudioView: View {
     @AppStorage(AppLanguageInitializer.selectedLanguageKey) private var selectedLanguage = AppLanguageInitializer.systemSelection
     @AppStorage(VibeBarVisibilityPreference.enabledKey) private var vibeBarEnabled = true
     @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
+    @StateObject private var inspectorSession: StudioInspectorSession
+    @State private var inlineKeyTarget: StudioInlineKeyTarget?
+    @State private var inlineKeyFact: StudioInlineKeyFact?
+    @State private var inlineKeyConflict: StudioInlineKeyConflict?
+    @State private var inlineKeyMessage: String?
+    @State private var inlineKeyTask: Task<Void, Never>?
+    @State private var inlineKeyOperationID = UUID()
+    @State private var inlineKeyUnconfirmed: Set<String> = []
     @State private var isEditingInspector = false
     @State private var showsDiagnostics = false
     @State private var showsKeyHelp = false
@@ -58,6 +66,7 @@ struct AhaKeyStudioView: View {
 
     init(bleManager: AhaKeyBLEManager) {
         self.bleManager = bleManager
+        _inspectorSession = StateObject(wrappedValue: StudioInspectorSession(bleManager: bleManager))
         let initialDraft = AhaKeyStudioStore.load() ?? .default
         // 注意：不要在这里调用 VoiceRelayService.updateRoutes —— SwiftUI 会因 bleManager
         // 的 @Published 属性（workMode/电量/连接状态等）频繁重建 view，init 会跟着多次执行。
@@ -74,10 +83,10 @@ struct AhaKeyStudioView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            topBar
+            topBar.disabled(inspectorSession.isBusy)
             Divider()
             HStack(spacing: 0) {
-                canvasPane
+                canvasPane.disabled(inspectorSession.isBusy)
                 Divider()
                 inspectorPane
             }
@@ -124,7 +133,7 @@ struct AhaKeyStudioView: View {
             syncStatusMessage = "Mode \(actual.mode + 1) · Key \(actual.keyIndex + 1) 已保存并读回确认。"
         }
         .onChange(of: agentManager.bluetoothConnectionOwner) { owner in
-            if owner == .agentDaemon {
+            if owner == .agentDaemon, inlineKeyTarget == nil {
                 isEditingInspector = false
                 syncStatusMessage = "已返回日常连接，未应用的画布草稿仍保留。"
             }
@@ -137,7 +146,7 @@ struct AhaKeyStudioView: View {
         // 这样 LCD 预览、快捷键草稿、发出去的 updateState 三者一致。
         .onChange(of: bleManager.workModeForDisplay) { newValue in
             guard let newValue, let slot = AhaKeyModeSlot(rawValue: newValue) else { return }
-            if slot != selectedMode { selectedMode = slot }
+            if slot != selectedMode, inlineKeyTarget == nil { selectedMode = slot }
             // Reconnection can make an already-read Agent cache live without
             // changing its stored value; update the router on that transition.
             if !bleManager.isConnected {
@@ -584,7 +593,9 @@ struct AhaKeyStudioView: View {
 
                         Group {
                             switch selectedPart {
-                            case .key1, .key2, .key3, .key4: keyInspector
+                            case .key1, .key2, .key3, .key4:
+                                if inlineKeyTarget != nil { inlineKeyStatus }
+                                keyInspector.disabled(inlineKeyTarget != nil && (inspectorSession.isBusy || !inlineKeyIsEditable))
                             case .oledDisplay: oledInspector
                             case .lightBar: lightBarInspector
                             case .toggleSwitch: switchInspector
@@ -619,6 +630,7 @@ struct AhaKeyStudioView: View {
                             .buttonStyle(.borderedProminent)
                             .controlSize(.regular)
                             .keyboardShortcut("e", modifiers: .command)
+                            .disabled(inspectorSession.isBusy)
                         }
                         .padding(.top, 6)
                     }
@@ -631,6 +643,7 @@ struct AhaKeyStudioView: View {
                 HStack(spacing: 12) {
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
+                            clearInlineKeyEditing()
                             isEditingInspector = false
                             returnToKeyboardControl()
                         }
@@ -642,6 +655,12 @@ struct AhaKeyStudioView: View {
                     .controlSize(.regular)
 
                     Spacer()
+                    if inlineKeyTarget != nil && inspectorSession.isBusy {
+                        Button(NSLocalizedString("取消当前操作", comment: "")) {
+                            inlineKeyTask?.cancel()
+                            if bleManager.isConfigurationOperationInProgress { bleManager.cancelConfigurationOperation() }
+                        }
+                    }
 
                     if selectedPart == .lightBar {
                         Button {
@@ -658,12 +677,12 @@ struct AhaKeyStudioView: View {
                     Button {
                         writeToKeyboard()
                     } label: {
-                        Label(isSyncing ? "写入中…" : (bleManager.firmwareCapabilityProfile?.identity == .legacy ? "写入键盘" : "核对并保存"), systemImage: isSyncing ? "arrow.trianglehead.2.clockwise" : "square.and.arrow.down")
+                        Label(NSLocalizedString(isSyncing || inspectorSession.isBusy ? "处理中…" : (inlineKeyTarget != nil ? "保存此键" : (bleManager.firmwareCapabilityProfile?.identity == .legacy ? "写入键盘" : "核对并保存")), comment: ""), systemImage: isSyncing ? "arrow.trianglehead.2.clockwise" : "square.and.arrow.down")
                             .font(.callout.weight(.semibold))
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.regular)
-                    .disabled(isSyncing || !bleManager.isConnected)
+                    .disabled(isSyncing || inspectorSession.isBusy || (inlineKeyTarget != nil ? !inlineKeyIsEditable : !bleManager.isConnected))
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 12)
@@ -673,12 +692,26 @@ struct AhaKeyStudioView: View {
         .frame(maxHeight: .infinity)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
         .onChange(of: selectedPart) { _ in
+            clearInlineKeyEditing()
             commitModeNameEdit()
             withAnimation(.easeInOut(duration: 0.18)) { isEditingInspector = false }
         }
         .onChange(of: selectedMode) { _ in
+            if inlineKeyTarget != nil { clearInlineKeyEditing(); isEditingInspector = false }
             if editingModeSlot != nil && editingModeSlot != selectedMode {
                 commitModeNameEdit()
+            }
+        }
+        .onDisappear { inlineKeyTask?.cancel() }
+        .alert(NSLocalizedString("键盘当前值已变化", comment: ""), isPresented: Binding(get: { inlineKeyConflict != nil }, set: { if !$0 { inlineKeyConflict = nil } })) {
+            if let conflict = inlineKeyConflict {
+                Button(NSLocalizedString("确认修改", comment: "")) { inlineKeyConflict = nil; saveInlineKey(overwrite: conflict) }
+                Button(NSLocalizedString("采用这次读回值", comment: "")) { adoptInlineKeyConflict(conflict); inlineKeyConflict = nil }
+            }
+            Button(NSLocalizedString("取消", comment: ""), role: .cancel) { inlineKeyConflict = nil }
+        } message: {
+            if let conflict = inlineKeyConflict {
+                Text(NSLocalizedString("键盘当前：", comment: "") + StudioKeyWriteProposal.summary(conflict.actual) + "\n" + NSLocalizedString("准备修改为：", comment: "") + StudioKeyWriteProposal.summary(conflict.desired))
             }
         }
         .alert(NSLocalizedString("写入结果", comment: ""), isPresented: $showsWriteResultAlert) {
@@ -1017,7 +1050,7 @@ struct AhaKeyStudioView: View {
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
-                    Text(bleManager.firmwareCapabilityProfile?.identity == .legacy ? "旧版写入预览：\(currentSelectedKeySanitizedDescription.isEmpty ? "空白" : currentSelectedKeySanitizedDescription)" : "保存前将在键盘设置中核对当前值与待应用描述。")
+                    Text(bleManager.firmwareCapabilityProfile?.identity == .legacy ? "旧版写入预览：\(currentSelectedKeySanitizedDescription.isEmpty ? "空白" : currentSelectedKeySanitizedDescription)" : "保存前会重新读取并核对，只修改当前选中的按键。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Text("同步到键盘后，短按实体键切换模式时，LCD 会先短暂显示这里的描述，然后回到该模式的动图。")
@@ -2138,6 +2171,14 @@ struct AhaKeyStudioView: View {
     }
 
     private func enterEditingConfiguration() {
+        if let role = selectedPart.keyRole, role != .voice,
+           bleManager.firmwareCapabilityProfile?.identity != .legacy {
+            let target = StudioInlineKeyTarget(mode: UInt8(selectedMode.rawValue), index: UInt8(role.rawValue))
+            inlineKeyTarget = target
+            readInlineKey(target)
+            return
+        }
+        clearInlineKeyEditing()
         isTransitioningToKeyboardControl = false
         agentManager.setBluetoothConnectionOwner(.ahaKeyStudio, bleManager: bleManager)
         syncStatusMessage = "已进入编辑配置，AhaKey Studio 将临时接管蓝牙。"
@@ -2179,6 +2220,7 @@ struct AhaKeyStudioView: View {
     }
 
     private func writeToKeyboard() {
+        if inlineKeyTarget != nil { saveInlineKey(); return }
         performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: false, showResultAlert: true)
     }
 
@@ -5210,5 +5252,161 @@ private struct FAQTopicView: View {
             Divider().padding(.leading, 26).padding(.top, 4)
         }
         .padding(.vertical, 8)
+    }
+}
+
+// MARK: - Current-component ordinary-key transactions
+private extension AhaKeyStudioView {
+    var inlineKeyIsEditable: Bool {
+        guard let fact = inlineKeyFact, let target = inlineKeyTarget,
+              fact.value.mode == target.mode, fact.value.keyIndex == target.index else { return false }
+        return StudioKeyWriteProposal.draft(from: fact.value, preserving: currentSelectedKey) != nil
+    }
+
+    @ViewBuilder
+    var inlineKeyStatus: some View {
+        if let target = inlineKeyTarget {
+            GroupBox(NSLocalizedString("键盘读回", comment: "")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(target.title).font(.caption.weight(.semibold))
+                    if let fact = inlineKeyFact {
+                        Text(StudioKeyWriteProposal.summary(fact.value)).font(.caption).textSelection(.enabled)
+                        Text(NSLocalizedString("这是上次读取的设备值；保存前会重新核对。", comment: ""))
+                            .font(.caption).foregroundStyle(.secondary)
+                        if !inlineKeyIsEditable {
+                            Text(NSLocalizedString("此动作无法在当前编辑器中完整表示，保持只读。", comment: ""))
+                                .font(.caption).foregroundStyle(.orange)
+                        }
+                        if inlineKeyUnconfirmed.contains(inlineKeyReceiptID(fact)) {
+                            Text(NSLocalizedString("上次保存未确认，已发出的修改可能生效；请重新读取并核对。", comment: ""))
+                                .font(.caption).foregroundStyle(.orange)
+                        }
+                    }
+                    Button(inspectorSession.isBusy ? NSLocalizedString("处理中…", comment: "") : NSLocalizedString("重新读取此键", comment: "")) {
+                        readInlineKey(target)
+                    }.disabled(inspectorSession.isBusy)
+                    if let inlineKeyMessage { Text(inlineKeyMessage).font(.caption).textSelection(.enabled) }
+                    Text(NSLocalizedString("编辑草稿时后台保持连接；读写期间自动批准可能短暂不可用。", comment: ""))
+                        .font(.caption).foregroundStyle(.secondary)
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    func inlineKeyReceiptID(_ fact: StudioInlineKeyFact) -> String {
+        "\(fact.deviceID):\(fact.value.mode):\(fact.value.keyIndex)"
+    }
+
+    func clearInlineKeyEditing() {
+        inlineKeyOperationID = UUID()
+        inlineKeyTask?.cancel()
+        inlineKeyTask = nil
+        inlineKeyTarget = nil
+        inlineKeyFact = nil
+        inlineKeyConflict = nil
+        inlineKeyMessage = nil
+    }
+
+    func setInlineDraft(_ key: AhaKeyKeyDraft, target: StudioInlineKeyTarget) {
+        guard let mode = AhaKeyModeSlot(rawValue: Int(target.mode)) else { return }
+        var draft = studioDraft.draft(for: mode)
+        draft.updateKey(key)
+        var next = studioDraft
+        next.updateMode(draft)
+        studioDraft = next
+    }
+
+    func readInlineKey(_ target: StudioInlineKeyTarget) {
+        guard !inspectorSession.isBusy else { return }
+        let ticket = UUID()
+        inlineKeyOperationID = ticket
+        inlineKeyMessage = nil
+        let retainDraft = partIsDirty(selectedPart)
+        let original = currentSelectedKey
+        let expectedDevice = inlineKeyFact?.deviceID
+        inlineKeyTask = Task { @MainActor in
+            do {
+                let fact = try await inspectorSession.withConnection(expectedDeviceID: expectedDevice) { context in
+                    let actual = try await bleManager.readOrdinaryKeyForEditing(mode: target.mode, index: target.index)
+                    return StudioInlineKeyFact(deviceID: context.deviceID, value: actual)
+                }
+                guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
+                inlineKeyFact = fact
+                if !retainDraft, let imported = StudioKeyWriteProposal.draft(from: fact.value, preserving: original) {
+                    setInlineDraft(imported, target: target)
+                    lastSyncedDraft = StudioKeyWriteProposal.reconcile(baseline: lastSyncedDraft, current: studioDraft, actual: fact.value)
+                }
+                inlineKeyTask = nil
+            } catch {
+                guard inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
+                inlineKeyMessage = KeyboardSettingsFeedback.message(for: error)
+                inlineKeyTask = nil
+            }
+        }
+    }
+
+    func saveInlineKey(overwrite: StudioInlineKeyConflict? = nil) {
+        guard !inspectorSession.isBusy, let target = inlineKeyTarget,
+              let baselineFact = inlineKeyFact, let mode = AhaKeyModeSlot(rawValue: Int(target.mode)) else { return }
+        let desired: OrdinaryKeyReadback
+        do { desired = try overwrite?.desired ?? StudioKeyWriteProposal.make(key: currentSelectedKey, mode: mode) }
+        catch { inlineKeyMessage = error.localizedDescription; return }
+        let expected = overwrite?.actual ?? baselineFact.value
+        let deviceID = overwrite?.deviceID ?? baselineFact.deviceID
+        guard desired.mode == target.mode, desired.keyIndex == target.index,
+              expected.mode == target.mode, expected.keyIndex == target.index else { return }
+        let ticket = UUID()
+        inlineKeyOperationID = ticket
+        inlineKeyMessage = nil
+        inlineKeyTask = Task { @MainActor in
+            var attemptedWrite = false
+            do {
+                let result = try await StudioInlineKeySave.run(session: inspectorSession,
+                    baseline: .init(deviceID: deviceID, value: expected), desired: desired,
+                    read: { mode, index in try await bleManager.readOrdinaryKeyForEditing(mode: mode, index: index) },
+                    save: { actual, target, generation in
+                        try await bleManager.setOrdinaryKeyConfirmed(baseline: actual, target: target, expectedGeneration: generation)
+                    }, writeStarted: { attemptedWrite = true })
+                guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else {
+                    if attemptedWrite { inlineKeyUnconfirmed.insert("\(deviceID):\(target.mode):\(target.index)") }
+                    return
+                }
+                switch result {
+                case .conflict(let conflict):
+                    inlineKeyConflict = conflict
+                case .unchanged(let fact):
+                    inlineKeyFact = fact
+                    inlineKeyMessage = NSLocalizedString("草稿与读回值一致，本次未写入；此前未确认的保存记录仍保留。", comment: "")
+                case .saved(let fact):
+                    inlineKeyFact = fact
+                    inlineKeyUnconfirmed.remove(inlineKeyReceiptID(fact))
+                    lastSyncedDraft = StudioKeyWriteProposal.reconcile(baseline: lastSyncedDraft, current: studioDraft, actual: fact.value)
+                    inlineKeyMessage = NSLocalizedString("此键改动已保存并读回一致；断电保持性尚未验证。", comment: "")
+                    syncStatusMessage = target.title + " · " + NSLocalizedString("已保存并读回一致", comment: "")
+                }
+                inlineKeyTask = nil
+            } catch {
+                let failure = error as? ConfirmedOrdinaryKeySetting.Failure
+                if attemptedWrite && failure != .invalidValue && failure != .changedSinceRead && failure != .voicePresetOwnsKey {
+                    inlineKeyUnconfirmed.insert("\(deviceID):\(target.mode):\(target.index)")
+                }
+                guard inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
+                inlineKeyMessage = KeyboardSettingsFeedback.message(for: error)
+                inlineKeyTask = nil
+            }
+        }
+    }
+
+    func adoptInlineKeyConflict(_ conflict: StudioInlineKeyConflict) {
+        guard let target = inlineKeyTarget, target.mode == conflict.actual.mode,
+              target.index == conflict.actual.keyIndex,
+              let imported = StudioKeyWriteProposal.draft(from: conflict.actual, preserving: currentSelectedKey) else {
+            inlineKeyMessage = NSLocalizedString("此动作无法在当前编辑器中完整表示，保持只读。", comment: "")
+            return
+        }
+        inlineKeyFact = .init(deviceID: conflict.deviceID, value: conflict.actual)
+        setInlineDraft(imported, target: target)
+        lastSyncedDraft = StudioKeyWriteProposal.reconcile(baseline: lastSyncedDraft, current: studioDraft, actual: conflict.actual)
+        inlineKeyMessage = NSLocalizedString("已采用这次读回值，未写入键盘。", comment: "")
     }
 }

@@ -59,6 +59,7 @@ final class AgentManager: ObservableObject {
     private let label = "lab.jawa.ahakeyconfig.agent"
     private let socketPath: String
     private var ownershipTransitionGeneration: UInt64 = 0
+    var bluetoothOwnershipRevision: UInt64 { ownershipTransitionGeneration }
     private let connectionQuery: @Sendable (String) -> Bool
     private var connectionHeartbeatTimer: Timer?
     private var connectionQueryID: UUID?
