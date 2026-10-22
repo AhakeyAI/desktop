@@ -1730,6 +1730,32 @@ TRANSLATIONS.update({'状态灯效': 'Status lighting',
                                     'brightness separately.',
  '未读取': 'Not read'})
 
+# Flat lighting choices and concise feedback
+TRANSLATIONS.update({'读取键盘设置': 'Read keyboard settings', '未保存': 'Unsaved',
+ '保存结果待确认，请重新读取后保存。': 'Save unconfirmed. Read again, then save.',
+ '操作未完成，请重试。': 'Could not finish. Please try again.',
+ '选择灯效': 'Choose an effect',
+ '%@\n键盘当前：%@\n你的选择：%@': '%1$@\nKeyboard: %2$@\nYour selection: %3$@',
+ '放弃所有未保存的灯光修改？': 'Discard all unsaved lighting changes?',
+ '放弃灯光修改': 'Discard lighting changes',
+ '清除全部模式的本地灯光修改；已经写入键盘的更改不会撤销。': 'Discard local lighting changes in all modes. Changes already written to the keyboard '
+                                 'will not be undone.',
+ '预览 %@': 'Preview %@',
+ '全部模式': 'All modes',
+ '灯光亮度': 'Light brightness',
+ '亮度保存结果待确认，请重新读取后保存。': 'Brightness save unconfirmed. Read again, then save.',
+ '查看全部模式灯效': 'View lighting in all modes',
+ '%@ · %@：待确认': '%1$@ · %2$@: unconfirmed',
+ '放弃未保存的灯光修改…': 'Discard unsaved lighting changes…',
+ '预览': 'Preview',
+ '停止灯效预览': 'Stop lighting preview',
+ '已读取。': 'Read completed.',
+ '已保存。': 'Saved.',
+ '已是当前设置。': 'Already matches the keyboard.',
+ '预览已停止。': 'Preview stopped.',
+ '已发送预览，约 10 秒后结束。': 'Preview sent. It ends in about 10 seconds.',
+ '已读取全部灯效。': 'All lighting settings read.'})
+
 def escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 

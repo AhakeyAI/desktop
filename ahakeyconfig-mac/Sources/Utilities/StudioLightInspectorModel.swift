@@ -19,6 +19,8 @@ final class StudioLightInspectorModel: ObservableObject {
         }
     }
     @Published private(set) var catalog: WS3LightCatalogSnapshot?
+    @Published var selectedState: UInt8 = 0
+    @Published private(set) var showsError = false
     @Published var message: String?
     @Published var conflict: Conflict?
     @Published private(set) var isBusy = false
@@ -27,6 +29,19 @@ final class StudioLightInspectorModel: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         values = defaults.data(forKey: Self.storageKey).flatMap { try? JSONDecoder().decode(StudioLightDrafts.self, from: $0) } ?? .init()
+    }
+
+    func target(for mode: AhaKeyModeSlot) -> StudioLightDrafts.Target {
+        .effect(mode: UInt8(mode.rawValue), state: selectedState)
+    }
+
+    func previewEffect(_ effect: LightEffectStyle, mode: AhaKeyModeSlot,
+                       ble: AhaKeyBLEManager, session: StudioInspectorSession) {
+        let selected = target(for: mode)
+        guard !isBusy, !session.isBusy, effect != .off, let brightness = values.drafts[.brightness],
+              let fact = values.facts[selected], selected.accepts(fact.value) else { return }
+        values.edit(selected, value: effect.firmwareIndex)
+        run(target: selected, ble: ble, session: session, preview: .light(effect: effect.firmwareIndex, brightness: brightness))
     }
 
     func cancel() { operation?.cancel() }
@@ -65,8 +80,9 @@ final class StudioLightInspectorModel: ObservableObject {
             switch result {
             case .read(let reading):
                 observe(reading, target: target)
-                message = NSLocalizedString("已读取，未写入键盘。", comment: "")
+                message = NSLocalizedString("已读取。", comment: "")
             case .readOnly(let reading):
+                showsError = true
                 observe(reading, target: target)
                 message = NSLocalizedString("键盘当前值无法安全编辑，保持只读。", comment: "")
             case .conflict(let reading, let desired):
@@ -75,10 +91,10 @@ final class StudioLightInspectorModel: ObservableObject {
             case .saved(let reading, let wrote):
                 observe(reading, target: target)
                 if wrote || !values.unconfirmed.contains(target) { values.confirm(target, fact: reading.selected) }
-                message = NSLocalizedString(wrote ? "已保存并读回一致；未修改其他灯效或按键。" : "与键盘当前值一致，本次未写入。", comment: "")
+                message = NSLocalizedString(wrote ? "已保存。" : "已是当前设置。", comment: "")
             case .previewed(let reading):
                 observe(reading, target: target)
-                message = NSLocalizedString(preview == .stop ? "停止预览请求已接受，未保存设置。" : "临时预览请求已接受，约 10 秒后恢复；未保存设置。", comment: "")
+                message = NSLocalizedString(preview == .stop ? "预览已停止。" : "已发送预览，约 10 秒后结束。", comment: "")
             }
         }
     }
@@ -98,13 +114,14 @@ final class StudioLightInspectorModel: ObservableObject {
             }
             values = updated
             catalog = result.catalog
-            message = NSLocalizedString("已读取四模式全部灯效，未保存或播放。", comment: "")
+            message = NSLocalizedString("已读取全部灯效。", comment: "")
         }
     }
 
     func discardDrafts() {
         guard !isBusy else { return }
         values = .init()
+        showsError = false
         catalog = nil
         conflict = nil
         message = NSLocalizedString("本地灯光草稿已清除，请重新读取；未重置键盘，也不会撤销已发送的修改。", comment: "")
@@ -113,6 +130,7 @@ final class StudioLightInspectorModel: ObservableObject {
     private func perform(scope: String, session: StudioInspectorSession, body: @escaping @MainActor () async throws -> Void) {
         guard !isBusy, !session.isBusy else { return }
         isBusy = true
+        showsError = false
         message = nil
         conflict = nil
         operation = Task { @MainActor in
@@ -120,7 +138,7 @@ final class StudioLightInspectorModel: ObservableObject {
             do {
                 try await body()
                 if let currentMessage = message { message = Self.receipt(scope: scope, text: currentMessage) }
-            } catch { message = Self.receipt(scope: scope, text: KeyboardSettingsFeedback.message(for: error)) }
+            } catch { showsError = true; message = Self.receipt(scope: scope, text: KeyboardSettingsFeedback.message(for: error)) }
         }
     }
 
@@ -131,7 +149,7 @@ final class StudioLightInspectorModel: ObservableObject {
             guard let slot = AhaKeyModeSlot(rawValue: Int(mode)), let item = IDEState(rawValue: state) else {
                 return NSLocalizedString("灯效", comment: "")
             }
-            return slot.title + " · " + slot.name + " · " + item.label
+            return slot.title + " · " + slot.name + " · " + item.shortLabel
         }
     }
 

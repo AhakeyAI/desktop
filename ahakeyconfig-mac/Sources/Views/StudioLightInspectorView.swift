@@ -7,147 +7,216 @@ struct StudioLightInspectorView: View {
     let bleManager: AhaKeyBLEManager
     let mode: AhaKeyModeSlot
     let selectPreviewState: (UInt8) -> Void
-    @State private var state: UInt8 = 0
     @State private var showsDiscardDrafts = false
 
-    private var target: StudioLightDrafts.Target { .effect(mode: UInt8(mode.rawValue), state: state) }
+    private var target: StudioLightDrafts.Target { model.target(for: mode) }
     private var busy: Bool { model.isBusy || session.isBusy }
+    private var editable: Bool { model.values.facts[target].map { target.accepts($0.value) } ?? false }
+    private let columns = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            StudioInspectorSection("状态灯效") {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(mode.name).font(.headline)
-                    Picker("工作状态", selection: $state) {
-                        ForEach(IDEState.allCases) { Text($0.label).tag($0.rawValue) }
-                    }.disabled(busy)
-                    controls(target, title: "灯效")
-                    Text("只保存当前模式的所选状态，不切换实体模式。")
-                        .font(.caption).foregroundStyle(.secondary)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
+                ForEach(IDEState.workflowOrder) { item in
+                    Button { model.selectedState = item.rawValue } label: {
+                        Text(item.shortLabel)
+                            .font(.caption.weight(model.selectedState == item.rawValue ? .semibold : .regular))
+                            .frame(maxWidth: .infinity).padding(.vertical, 7)
+                            .background(model.selectedState == item.rawValue ? Color.accentColor.opacity(0.16) : Color.primary.opacity(0.05))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                    }.buttonStyle(.plain).disabled(busy)
                 }
             }
-            StudioInspectorSection("全局亮度") {
-                VStack(alignment: .leading, spacing: 10) {
-                    controls(.brightness, title: "亮度")
-                    Text("亮度对全部模式生效，单独保存，不会带存其他草稿。")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
+
+            HStack(spacing: 8) {
+                Text(readbackTitle).font(.caption).foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                if model.values.dirtyTargets.contains(target) { Text("未保存").font(.caption).foregroundStyle(.orange) }
             }
-            DisclosureGroup("四模式灯效总览（只读）") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Button("读取全部 36 项灯效") { model.readCatalog(ble: bleManager, session: session) }.disabled(busy)
-                    if let catalog = model.catalog {
-                        Text("上次完整读回；不代表当前连接已确认。").font(.caption).foregroundStyle(.secondary)
-                        Grid(alignment: .leading, horizontalSpacing: 4, verticalSpacing: 6) {
-                            GridRow {
-                                Text("状态").frame(width: 48, alignment: .leading)
-                                ForEach(AhaKeyModeSlot.allCases) { Text($0.name).lineLimit(1).frame(width: 56, alignment: .leading) }
-                            }
-                            ForEach(IDEState.allCases) { state in
-                                GridRow {
-                                    Text(state.shortLabel).frame(width: 48, alignment: .leading)
-                                    ForEach(AhaKeyModeSlot.allCases) { slot in
-                                        if let light = catalog.light(mode: UInt8(slot.rawValue), state: state.rawValue) {
-                                            Text(label(light.effect, target: .effect(mode: light.mode, state: light.state)))
-                                                .lineLimit(1).frame(width: 56, alignment: .leading)
-                                                .help(slot.name + " · " + state.label + "：" + label(light.effect, target: target))
-                                        }
-                                    }
-                                }
-                            }
-                        }.font(.caption2)
-                    }
-                    Text("读取不会播放、保存或覆盖未保存的草稿。").font(.caption).foregroundStyle(.secondary)
-                }.padding(.top, 8)
+            if model.values.unconfirmed.contains(target) {
+                Label("保存结果待确认，请重新读取后保存。", systemImage: "exclamationmark.circle")
+                    .font(.caption).foregroundStyle(.orange)
             }
-            HStack {
-                Button("停止临时预览") { run(target, preview: .stop) }.disabled(busy)
-                if busy { Button("取消当前操作") { model.cancel() } }
+            if model.isBusy { ProgressView("处理中…").controlSize(.small) }
+            if model.showsError {
+                Label("操作未完成，请重试。", systemImage: "exclamationmark.circle")
+                    .font(.caption).foregroundStyle(.orange)
             }
-            ForEach(AhaKeyModeSlot.allCases) { slot in
-                ForEach(IDEState.allCases) { item in
-                    if model.values.unconfirmed.contains(.effect(mode: UInt8(slot.rawValue), state: item.rawValue)) {
-                        Text(String(format: NSLocalizedString("%@ · %@：保存尚未确认，请重新读取并保存核对。", comment: ""), slot.name, item.label))
-                            .font(.caption).foregroundStyle(.orange)
-                    }
-                }
+
+            Text("选择灯效").font(.subheadline.weight(.semibold))
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+                ForEach(LightEffectStyle.allCases) { effect in effectCard(effect) }
             }
-            if model.isBusy { ProgressView("正在核对键盘…").controlSize(.small) }
-            if let message = model.message { Text(message).font(.caption).textSelection(.enabled) }
-            Button("清除本地灯光草稿…") { showsDiscardDrafts = true }
-                .font(.caption).disabled(busy)
-            Text("仅读取、保存或预览时临时连接；结束后交还后台。读回一致不代表已验证断电保持。")
-                .font(.caption).foregroundStyle(.secondary)
+
+            brightnessControls
+            moreControls
         }
         .alert("键盘当前值已变化", isPresented: Binding(get: { model.conflict != nil }, set: { if !$0 { model.conflict = nil } }), presenting: model.conflict) { conflict in
             Button("确认修改") { model.run(target: conflict.target, ble: bleManager, session: session, save: true, overwrite: conflict) }
             Button("采用键盘当前值") { model.values.adopt(conflict.target) }
             Button("取消", role: .cancel) { }
         } message: { conflict in
-            Text(String(format: NSLocalizedString("%@\n键盘当前：%@\n你的草稿：%@\n确认后仍会重新读取并核对。", comment: ""), StudioLightInspectorModel.scopeTitle(conflict.target), label(conflict.actual.value, target: conflict.target), label(conflict.desired, target: conflict.target)))
+            Text(String(format: NSLocalizedString("%@\n键盘当前：%@\n你的选择：%@", comment: ""), StudioLightInspectorModel.scopeTitle(conflict.target), label(conflict.actual.value, target: conflict.target), label(conflict.desired, target: conflict.target)))
         }
-        .confirmationDialog("清除本地灯光草稿和读回记录？", isPresented: $showsDiscardDrafts) {
-            Button("清除本地灯光草稿", role: .destructive) {
+        .confirmationDialog("放弃所有未保存的灯光修改？", isPresented: $showsDiscardDrafts) {
+            Button("放弃灯光修改", role: .destructive) {
                 model.discardDrafts()
+                readSelectedState()
             }
         } message: {
-            Text("清除全部模式的本地灯光草稿和读回记录，以便重新读取或更换键盘；不会修改键位、语音或键盘保存值。")
+            Text("清除全部模式的本地灯光修改；已经写入键盘的更改不会撤销。")
         }
-        .onAppear { selectPreviewState(state) }
-        .onChange(of: mode) { _ in model.conflict = nil; model.message = nil }
-        .onChange(of: state) { value in model.conflict = nil; model.message = nil; selectPreviewState(value) }
+        .onAppear {
+            selectPreviewState(model.selectedState)
+            if model.values.facts[target] == nil { readSelectedState() }
+        }
+        .onChange(of: mode) { _ in resetSelectionFeedback() }
+        .onChange(of: model.selectedState) { value in
+            selectPreviewState(value)
+            resetSelectionFeedback()
+        }
         .onDisappear { model.cancel() }
     }
 
-    @ViewBuilder
-    private func controls(_ item: StudioLightDrafts.Target, title: String) -> some View {
-        let fact = model.values.facts[item]
-        let value = model.values.drafts[item]
-        let editable = fact.map { item.accepts($0.value) } ?? false
-        HStack {
-            Text(fact.map { String(format: NSLocalizedString("上次读回：%@", comment: ""), label($0.value, target: item)) } ?? NSLocalizedString("尚未读取", comment: ""))
-                .font(.caption).foregroundStyle(.secondary)
-            Spacer()
-            Button { run(item) } label: { Label("读取", systemImage: "arrow.clockwise") }.disabled(busy)
-        }
-        if item == .brightness {
-            HStack {
-                Slider(value: Binding(get: { Double(value ?? 50) }, set: { model.values.edit(item, value: UInt8($0.rounded())) }), in: 1...100, step: 1)
-                Text(value.map { "\($0)%" } ?? "—").monospacedDigit()
-            }.disabled(busy || !editable)
-        } else {
-            Picker(NSLocalizedString(title, comment: ""), selection: Binding(get: { value }, set: { if let value = $0 { model.values.edit(item, value: value) } })) {
-                Text("请选择").tag(Optional<UInt8>.none)
-                ForEach(LightEffectStyle.allCases) { Text($0.title).tag(Optional($0.firmwareIndex)) }
-                if let value, !item.accepts(value) { Text("未知灯效（只读）").tag(Optional(value)) }
-            }.disabled(busy || !editable)
-        }
-        if let fact, value != fact.value {
-            Button("采用键盘读回值") { model.values.adopt(item) }.disabled(busy)
-        }
-        HStack {
-            Button("预览（10 秒）") {
-                guard let value else { return }
-                if item == .brightness { run(item, preview: .brightness(value)) }
-                else if let brightness = model.values.drafts[.brightness] {
-                    run(item, preview: .light(effect: value, brightness: brightness))
+    private var readbackTitle: String {
+        guard let fact = model.values.facts[target] else { return NSLocalizedString("尚未读取", comment: "") }
+        return String(format: NSLocalizedString("已读取：%@", comment: ""), label(fact.value, target: target))
+    }
+
+    private func effectCard(_ effect: LightEffectStyle) -> some View {
+        let selected = model.values.drafts[target] == effect.firmwareIndex
+        return ZStack(alignment: .topTrailing) {
+            Button { model.values.edit(target, value: effect.firmwareIndex) } label: {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(effect.title).font(.caption.weight(.semibold)).padding(.trailing, 24)
+                    Text(effect.detail).font(.caption2).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
                 }
-            }.disabled(busy || !editable || value == nil || (item != .brightness && (value == 0 || model.values.drafts[.brightness] == nil)))
-            Button(NSLocalizedString(item == .brightness ? "保存亮度" : "保存灯效", comment: "")) { model.run(target: item, ble: bleManager, session: session, save: true) }
-                .disabled(busy || !editable || value == nil)
-        }
-        if model.values.unconfirmed.contains(item) {
-            Text("本项保存尚未确认，已发出的修改可能生效；请重新读取并核对保存。")
-                .font(.caption).foregroundStyle(.orange)
+                .frame(maxWidth: .infinity, minHeight: 62, alignment: .topLeading)
+                .padding(10)
+                .background(selected ? Color.accentColor.opacity(0.12) : Color(nsColor: .controlBackgroundColor).opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(selected ? Color.accentColor : Color.primary.opacity(0.10), lineWidth: 1))
+            }
+            .buttonStyle(.plain).disabled(busy || !editable)
+            .accessibilityLabel(effect.title).accessibilityHint(effect.detail)
+            if effect != .off {
+                Button {
+                    model.previewEffect(effect, mode: mode, ble: bleManager, session: session)
+                } label: {
+                    Image(systemName: "play.circle").font(.system(size: 17))
+                        .foregroundStyle(Color.accentColor).frame(width: 25, height: 25)
+                }
+                .buttonStyle(.plain).padding(5)
+                .disabled(busy || !editable || model.values.drafts[.brightness] == nil)
+                .help(String(format: NSLocalizedString("预览 %@", comment: ""), effect.title))
+                .accessibilityLabel(String(format: NSLocalizedString("预览 %@", comment: ""), effect.title))
+            }
         }
     }
 
-    private func run(_ item: StudioLightDrafts.Target, preview: WS3DisplayPreview? = nil) {
-        model.run(target: item, ble: bleManager, session: session, preview: preview)
+    private var brightnessControls: some View {
+        let item = StudioLightDrafts.Target.brightness
+        let value = model.values.drafts[item]
+        let canEdit = model.values.facts[item].map { item.accepts($0.value) } ?? false
+        return VStack(alignment: .leading, spacing: 8) {
+            Divider().padding(.top, 2)
+            HStack(spacing: 8) {
+                Text("亮度").font(.subheadline.weight(.semibold))
+                Text("全部模式").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Text(value.map { "\($0)%" } ?? "—").font(.caption.monospacedDigit())
+                Button("保存亮度") { model.run(target: item, ble: bleManager, session: session, save: true) }
+                    .controlSize(.small)
+                    .disabled(busy || !canEdit || (!model.values.dirtyTargets.contains(item) && !model.values.unconfirmed.contains(item)))
+            }
+            Slider(value: Binding(get: { Double(value ?? 35) }, set: { model.values.edit(item, value: UInt8($0.rounded())) }), in: 1...100, step: 1)
+                .disabled(busy || !canEdit).accessibilityLabel(NSLocalizedString("灯光亮度", comment: ""))
+            if model.values.unconfirmed.contains(item) {
+                Text("亮度保存结果待确认，请重新读取后保存。").font(.caption).foregroundStyle(.orange)
+            }
+        }
+    }
+
+    private var moreControls: some View {
+        DisclosureGroup("更多") {
+            VStack(alignment: .leading, spacing: 12) {
+                Button("查看全部模式灯效") { model.readCatalog(ble: bleManager, session: session) }.disabled(busy)
+                if let catalog = model.catalog {
+                    Grid(alignment: .leading, horizontalSpacing: 4, verticalSpacing: 6) {
+                        GridRow {
+                            Text("状态").frame(width: 48, alignment: .leading)
+                            ForEach(AhaKeyModeSlot.allCases) { Text($0.name).lineLimit(1).frame(width: 56, alignment: .leading) }
+                        }
+                        ForEach(IDEState.allCases) { item in
+                            GridRow {
+                                Text(item.shortLabel).frame(width: 48, alignment: .leading)
+                                ForEach(AhaKeyModeSlot.allCases) { slot in
+                                    if let light = catalog.light(mode: UInt8(slot.rawValue), state: item.rawValue) {
+                                        Text(label(light.effect, target: .effect(mode: light.mode, state: light.state)))
+                                            .lineLimit(1).frame(width: 56, alignment: .leading)
+                                    }
+                                }
+                            }
+                        }
+                    }.font(.caption2)
+                }
+                ForEach(AhaKeyModeSlot.allCases) { slot in
+                    ForEach(IDEState.allCases) { item in
+                        if model.values.unconfirmed.contains(.effect(mode: UInt8(slot.rawValue), state: item.rawValue)) {
+                            Text(String(format: NSLocalizedString("%@ · %@：待确认", comment: ""), slot.name, item.shortLabel))
+                                .font(.caption).foregroundStyle(.orange)
+                        }
+                    }
+                }
+                if model.showsError, let message = model.message { Text(message).font(.caption).textSelection(.enabled) }
+                Button("放弃未保存的灯光修改…") { showsDiscardDrafts = true }.disabled(busy)
+            }.padding(.top, 10)
+        }.font(.caption)
+    }
+
+    private func readSelectedState() {
+        model.run(target: target, ble: bleManager, session: session)
+    }
+
+    private func resetSelectionFeedback() {
+        model.conflict = nil
+        model.message = nil
+        if model.values.facts[target] == nil { readSelectedState() }
     }
 
     private func label(_ value: UInt8, target: StudioLightDrafts.Target) -> String {
         if target == .brightness { return "\(value)%" }
-        return LightEffectStyle(firmwareIndex: value)?.title ?? String(format: NSLocalizedString("未知灯效 %@（只读）", comment: ""), String(value))
+        return LightEffectStyle(firmwareIndex: value)?.title ?? NSLocalizedString("未知灯效（只读）", comment: "")
+    }
+}
+
+struct StudioLightInspectorActions: View {
+    @ObservedObject var model: StudioLightInspectorModel
+    @ObservedObject var session: StudioInspectorSession
+    let bleManager: AhaKeyBLEManager
+    let mode: AhaKeyModeSlot
+
+    private var target: StudioLightDrafts.Target { model.target(for: mode) }
+    private var busy: Bool { model.isBusy || session.isBusy }
+    private var effect: LightEffectStyle? { model.values.drafts[target].flatMap { LightEffectStyle(firmwareIndex: $0) } }
+    private var known: Bool { model.values.facts[target].map { target.accepts($0.value) } ?? false }
+
+    var body: some View {
+        Group {
+            if busy {
+                Button("取消") { model.cancel() }
+            } else {
+                Button("预览") {
+                    if let effect { model.previewEffect(effect, mode: mode, ble: bleManager, session: session) }
+                }.disabled(!known || effect == nil || effect == .off || model.values.drafts[.brightness] == nil)
+                Button("停止") { model.run(target: target, ble: bleManager, session: session, preview: .stop) }
+                    .help(NSLocalizedString("停止灯效预览", comment: ""))
+            }
+            Button("保存灯效") { model.run(target: target, ble: bleManager, session: session, save: true) }
+                .buttonStyle(.borderedProminent)
+                .disabled(busy || !known || (!model.values.dirtyTargets.contains(target) && !model.values.unconfirmed.contains(target)))
+        }.controlSize(.small)
     }
 }

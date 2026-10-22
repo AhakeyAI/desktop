@@ -639,8 +639,18 @@ struct AhaKeyStudioView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     if isEditingInspector {
-                        Label(selectedPart.title, systemImage: selectedPart.systemImage)
-                            .font(.system(size: 18, weight: .semibold))
+                        HStack {
+                            Label(selectedPart.title, systemImage: selectedPart.systemImage)
+                                .font(.system(size: 18, weight: .semibold))
+                            Spacer()
+                            if usesInlineLightEditor {
+                                Button {
+                                    lightInspectorModel.run(target: lightInspectorModel.target(for: selectedMode), ble: bleManager, session: inspectorSession)
+                                } label: { Image(systemName: "arrow.clockwise") }
+                                .buttonStyle(.borderless).disabled(lightInspectorModel.isBusy || inspectorSession.isBusy)
+                                .help(NSLocalizedString("读取键盘设置", comment: ""))
+                            }
+                        }
 
                         Group {
                             switch selectedPart {
@@ -724,7 +734,10 @@ struct AhaKeyStudioView: View {
                         .disabled(isSyncing || !bleManager.isConnected || !bleManager.commandCharReady || bleManager.firmwareCapabilityProfile?.identity != .legacy)
                     }
 
-                    if !usesInlineLightEditor {
+                    if usesInlineLightEditor {
+                        StudioLightInspectorActions(model: lightInspectorModel, session: inspectorSession,
+                                                    bleManager: bleManager, mode: selectedMode)
+                    } else {
                         Button {
                             writeToKeyboard()
                         } label: {
@@ -1118,8 +1131,6 @@ struct AhaKeyStudioView: View {
                 summaryRow(state.shortLabel, value: value.map { LightEffectStyle(firmwareIndex: $0)?.title ?? NSLocalizedString("未知灯效（只读）", comment: "") } ?? NSLocalizedString("未读取", comment: ""))
             }
             summaryRow("全局亮度", value: lightInspectorModel.values.drafts[.brightness].map { "\($0)%" } ?? NSLocalizedString("未读取", comment: ""))
-            Text("显示本地草稿或上次读回值；修改后需分别保存所选灯效和全局亮度。")
-                .font(.caption).foregroundStyle(.secondary)
         } else {
             legacyLightBarSummary
         }
@@ -1932,7 +1943,7 @@ struct AhaKeyStudioView: View {
                 .font(.callout)
             Divider()
                 .frame(height: 14)
-            Text(syncStatusMessage)
+            Text(usesInlineLightEditor ? (lightInspectorModel.message ?? syncStatusMessage) : syncStatusMessage)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
