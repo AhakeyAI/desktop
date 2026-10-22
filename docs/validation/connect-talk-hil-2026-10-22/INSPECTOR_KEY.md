@@ -57,3 +57,8 @@
 原生控制服务崩溃后拒绝对未成功读取的App继续发操作，CmdQ也被拒绝；因此已请求一次明确授权，允许AppleScript仅用于退出/重开Studio及该窗口排查/验收。CUA规则要求其他UI技术由用户明确指定，获得答复前不执行替代UI操作。没有改系统权限、覆盖原生服务二进制、杀其他会话或发送外部报告。
 
 私有证据local-backups/cua-service-diagnosis-20261022含5份原始ips及摘要。fresh Agent仍connected=true、physical/effective=0、autoVerified=true。真实单键保存/还原仍未执行，PR保持草稿。
+
+
+## 本轮最终结果
+
+用户授权AppleScript后已自动恢复测试环境；确定默认GroupBox标题的无障碍结构触发原生控制服务崩溃，最终d2345a2改显式文本分组，原生按键/宏/长按/屏幕编辑恢复。原位Key4描述临时写入TestBack→新连接读回→恢复Backspace→同值不写已通过，无遗留测试改动。详细证据和边界见CONTROL_SERVICE_RECOVERY.md；前文等待/断管是历史检查点，不再要求用户代点或重复退出安装。
