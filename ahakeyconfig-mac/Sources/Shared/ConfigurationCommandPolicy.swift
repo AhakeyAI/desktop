@@ -9,6 +9,7 @@ public enum ConfigurationCommandPolicy {
         let b = [UInt8](data)
         guard b.count >= 5, b[0] == 0xAA, b[1] == 0xBB,
               b[b.count - 2] == 0xCC, b[b.count - 1] == 0xDD else { return false }
+        guard FirmwareCommandNamespace(command: b[2]) == .official else { return false }
         if profile?.identity == .legacy { return true }
         switch b[2] {
         case 0x73:
