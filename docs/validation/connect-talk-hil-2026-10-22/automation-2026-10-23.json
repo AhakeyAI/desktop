@@ -1,0 +1,59 @@
+{
+  "date": "2026-10-23",
+  "sourceCommit": "ce615c929d6ad8ecd4a596852616d445d1325923",
+  "firmwareRef": "076382b2214289ac7bc1735d669d7de78730c4da",
+  "swiftFullSuite": {
+    "tests": 567,
+    "failures": 0,
+    "logSHA256": "b9c7c87579df8d3db7aa000d9c847e842f2e56690bf661e11b61b5db03444acd"
+  },
+  "releaseGuardTests": {
+    "tests": 9,
+    "failures": 0,
+    "platformCommands": "mocked; no real notarization or mount claimed"
+  },
+  "codexIsolatedLifecycle": {
+    "initial": {
+      "hooks": 7,
+      "trusted": 7
+    },
+    "reinstall": {
+      "hooks": 7,
+      "trusted": 7
+    },
+    "remove": {
+      "hooks": 1,
+      "trusted": 1
+    },
+    "executed": [
+      "CodexSessionStart",
+      "CodexUserPromptSubmit",
+      "user"
+    ],
+    "codex": "codex-cli 0.162.1"
+  },
+  "candidate": {
+    "version": "0.2.3",
+    "architecture": "arm64",
+    "sourceCommit": "ce615c929d6ad8ecd4a596852616d445d1325923",
+    "developerIDTeam": "P2VFVRZK7P",
+    "signature": "deep/strict verified",
+    "notarized": false,
+    "installed": false,
+    "localPath": "/tmp/ahakey-wbs-candidate-ce615c9/AhaKey Studio.app"
+  },
+  "ui": "Mac locked; native service responds, UI not yet verified",
+  "hardwareChanged": false,
+  "remainingFirmwareContracts": [
+    "Consumer per mode",
+    "WS3 CP3 resource recovery",
+    "independent short/long actions",
+    "full device factory reset"
+  ],
+  "doesNotProve": [
+    "physical keyboard UAT",
+    "full UI matrix",
+    "other client CLI lifecycle",
+    "formal release inputs or release approval"
+  ]
+}
