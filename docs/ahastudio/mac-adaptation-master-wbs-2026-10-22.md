@@ -79,3 +79,7 @@ PR156/160精确head四项CI均通过，按用户新要求已作为开发成果�
 语音连续停顿补验明确失败：前句已被识别但在同一task的后句结果到来时被覆盖（VOICE-PAUSE-01），已暂停后续验收优先修复。真实音频时序证明两个不重叠句子；候选按完成音频范围保留/修订，真实回放转绿、487测试通过，诊断探针清除，待签名修复包原路径真机回填。见集中台账VOICE_PAUSE.md。本项未关闭前不把首次“短长按正常”视为连续停顿通过。
 
 VOICE-PAUSE-01词段方案：首轮粗区间候选经审查发现组合边界、未安装；已改为细粒度音频词段与UTF-16范围，并对不可确认回退保留供核对而不自动粘贴。497测试及实际13条时序回放通过，待双轴复核和签名包真机复验；暂不继续其他WBS。
+
+## Voice acceptance update (2026-10-22)
+
+VOICE-PAUSE-01: passed on signed f719026 hardware candidate. Continuous hold with a two-second pause retains both utterances; short press retains intentional repeated words. 497 automated tests and two-axis review passed. VOICE-LAT-01 (first-use delay before recording UI) remains open and is deferred at the user's request; F18 causality is unconfirmed. Continue the remaining hardware acceptance matrix.
