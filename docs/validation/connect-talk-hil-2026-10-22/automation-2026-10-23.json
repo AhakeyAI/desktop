@@ -55,5 +55,18 @@
     "full UI matrix",
     "other client CLI lifecycle",
     "formal release inputs or release approval"
-  ]
+  ],
+  "newRegressionFinding": {
+    "id": "H02-KIMI2",
+    "status": "reproduced; not fixed",
+    "cli": "Kimi Code 2.3.0 native arm64",
+    "isolation": "temporary KIMI_CODE_HOME; no real configuration or credentials used",
+    "observed": [
+      "native doctor reads relocated config.toml",
+      "production KimiConfigPolicySync still selects .kimi/config.toml",
+      "native doctor explicitly reports default_yolo ignored",
+      "default_permission_mode accepted without warning"
+    ],
+    "candidateReleaseGate": "not final; Kimi2 compatibility requires development before acceptance"
+  }
 }

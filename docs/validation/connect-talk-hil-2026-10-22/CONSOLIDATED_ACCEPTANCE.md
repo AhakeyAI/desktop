@@ -65,3 +65,14 @@
 | Q03 | Windows/Mac交替配置 | 可选，需另一端候选及协作 |
 
 本轮重新读取固件076382b的WS3/WS4/5 EXECUTION与WS4/5 PRD：WS3 CP3仍待细化；WS4/5仍为Stage B输入草案、全部检查点refinement_required_before_start，catalog格式/签名/缓存/发行归档/兼容门槛仍开放。文档描述的未来目标不当作当前固件已具备能力。以上是外部合同现状，不是要求用户重复批准已授权的客户端工作。
+
+
+## 2026-10-23 自动回归后发现 H02-KIMI2（未修复）
+
+567项Swift及9项发布守卫通过后，继续核对真实CLI版本发现：本机Claude Code 2.1.299、Cursor Agent 2026.10.19-6bbf2c4、Kimi Code 2.3.0。不能将旧Kimi Python补丁或fixture通过等同为当前原生二进制兼容。
+
+已在临时KIMI_CODE_HOME复现，无真实配置/凭证/模型服务参与：原生kimi doctor读取指定临时config.toml；同环境编译执行实际KimiConfigPolicySync.productionConfigURL结果不匹配，进程退出1；原生doctor对default_yolo明确输出“Unknown top-level key ignored by the v2 engine: default_yolo”，而default_permission_mode=manual无警告。日志在本机`/tmp/ahakey-kimi-v2-path-repro.log`。这个忽略行为不能只用doctor退出0判为成功。
+
+官方来源：[配置合同](https://moonshotai.github.io/kimi-code/en/configuration/config-files.html)、[Hooks合同](https://moonshotai.github.io/kimi-code/en/customization/hooks)、[权限交互](https://moonshotai.github.io/kimi-code/en/guides/interaction.html)。新目录为.kimi-code/config.toml，显式重定位变量KIMI_CODE_HOME；默认权限字段为default_permission_mode（manual/yolo/auto），与旧default_yolo布尔不同。当前preTool Hook不得因为写盘成功就声称活跃会话已切档，原生2.3也不能应用旧Python源码补丁。
+
+下一步需以版本/安装类型区分旧、新Kimi，统一App/Agent检测、Hook安装移除、诊断和策略所有权；使用隔离配置验证实际Hook和运行时权限行为，再明确动态切档能否通过官方接口实现。保留旧版兼容及用户未托管策略，不把新版仅不报错当成接管成功。ce615c9签名候选尚未安装，仍为开发验收候选，不能宣称最终用户版已齐。
