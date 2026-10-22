@@ -55,3 +55,5 @@ P0先解决误写/误批准及新功能落错入口；P1补齐产品能力；P2�
 
 
 本批补验：原生控制服务遇默认GroupBox标题结构会崩溃，d2345a2以显式可访问文本分组在Inspector内规避，按键/宏/长按/屏幕路径原生重测通过。Codex Key4临时描述TestBack保存、新连接读回、恢复Backspace和同值不写通过，草稿0、日常后台恢复。没有替代其余旧设备/故障/持久性矩阵；详见../validation/connect-talk-hil-2026-10-22/CONTROL_SERVICE_RECOVERY.md。
+
+2026-10-22语音补验更新：Fn实体、普通组合键直发、脱离App及断电保持已通过；云端成功被InvalidEndpoint.ClosedEndpoint阻塞。重复字候选修复447测试通过但真机未关闭，偶发按键/录音延迟及短长按无效后自行恢复仍开放（VOICE-DUP-01 / VOICE-LAT-01）。用户明确要求记录后继续I03，详见../validation/connect-talk-hil-2026-10-22/VOICE_GLOBAL_EXIT.md；未切换麦克风。
