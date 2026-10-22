@@ -820,7 +820,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     /// A catalog probe is read-only. A legacy profile is assigned only after
     /// this connection has independently returned a valid status frame.
-    func readFirmwareCapabilityProfile() async throws -> FirmwareCapabilityProfile {
+    func readFirmwareCapabilityProfile(forceStatusReadback: Bool = false) async throws -> FirmwareCapabilityProfile {
         let generation = commandSessionGeneration
         let previousProfile = firmwareCapabilityProfile
         firmwareCapabilityProfile = nil
@@ -838,10 +838,13 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 configurationSnapshot.reset(generation: generation)
             }
         }
-        if !hasValidStatusReadback {
-            _ = try await sendCommandAwaitingResponse(
+        if forceStatusReadback || !hasValidStatusReadback {
+            let statusResponse = try await sendCommandAwaitingResponse(
                 AhaKeyCommand.queryDeviceStatus(), expectedCommand: 0x00
             )
+            guard AhaKeyResponseParser.parseDeviceStatus(statusResponse.frame) != nil else {
+                throw OLEDUploadError.invalidReadback
+            }
         }
         try ensureConfigurationReadSession(generation)
         let response = try await sendCommandAwaitingResponse(

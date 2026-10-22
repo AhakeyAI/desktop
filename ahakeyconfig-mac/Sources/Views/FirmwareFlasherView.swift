@@ -1,13 +1,22 @@
 import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
+import AhaKeyConfigShared
 
 struct FirmwareFlasherView: View {
     @ObservedObject var bleManager: AhaKeyBLEManager
     @StateObject private var flasher = AhaKeyFirmwareFlasher()
+    @StateObject private var releases = FirmwareReleaseLibrary()
+    @StateObject private var session: StudioInspectorSession
     @Environment(\.dismiss) private var dismiss
     @State private var acknowledgesDataLoss = false
     @State private var showsFlashConfirmation = false
+    @State private var preparationError: String?
+
+    init(bleManager: AhaKeyBLEManager) {
+        self.bleManager = bleManager
+        _session = StateObject(wrappedValue: StudioInspectorSession(bleManager: bleManager))
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -15,6 +24,7 @@ struct FirmwareFlasherView: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    releaseSection
                     firmwareSection
                     preparationSection
                     statusSection
@@ -26,18 +36,99 @@ struct FirmwareFlasherView: View {
         }
         .frame(width: 720, height: 680)
         .task {
-            flasher.loadBundledFirmwareIfNeeded()
+            await releases.load()
+            await releases.readIdentity(ble: bleManager, session: session)
         }
-        .interactiveDismissDisabled(flasher.phase.isBusy)
+        .interactiveDismissDisabled(flasher.phase.isBusy || releases.isBusy)
         .alert("确认全量烧录", isPresented: $showsFlashConfirmation) {
             Button("取消", role: .cancel) {}
             Button("清空并开始烧录", role: .destructive) {
+                guard canStartSelectedFirmware else { return }
                 bleManager.disconnect()
                 flasher.startFlashing()
             }
         } message: {
-            Text("此操作将清空 AhaKey X1 的 CodeFlash 和全部 DataFlash 配置。确认固件文件及 SHA-256 无误，并确保烧录期间不会拔线或退出 App。")
+            Text(NSLocalizedString("此操作将清空 AhaKey X1 的 CodeFlash 和全部 DataFlash 配置。确认固件文件及 SHA-256 无误，并确保烧录期间不会拔线或退出 App。", comment: "") +
+                (flasher.expectedCatalogKey == nil ? "\n" + NSLocalizedString("此本地／工程 HEX 未关联可信发布目录，无法确认其适用版本，也不属于已验证的稳定恢复版本。", comment: "") : ""))
         }
+    }
+
+    private var releaseSection: some View {
+        StudioInspectorSection {
+            HStack {
+                Label("可用版本", systemImage: "square.stack.3d.up").font(.headline)
+                Spacer()
+                Button("重新读取键盘") { Task { await releases.readIdentity(ble: bleManager, session: session) } }
+                Button("刷新列表") { Task { await releases.refresh() } }.disabled(!releases.canRefresh)
+            }
+            .disabled(releases.isBusy || flasher.phase.isBusy || session.isBusy)
+            Text(identityDescription).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+            if releases.candidates.isEmpty {
+                Text("暂无经过验证的公开固件版本。可保留当前固件；手动 HEX 仅用于已确认的测试或恢复。")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            ForEach(releases.candidates, id: \.entry.key) { candidate in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(candidate.entry.displayName).font(.body.weight(.medium))
+                        ForEach(candidate.badges.map(\.rawValue).sorted(), id: \.self) { badge in
+                            Text(badgeTitle(badge)).font(.caption).padding(.horizontal, 6).padding(.vertical, 2)
+                                .background(Capsule().fill(Color.accentColor.opacity(0.12)))
+                        }
+                        Spacer()
+                        Button("选择此版本") { prepare(candidate) }
+                            .disabled(!candidate.canInstall || releases.isBusy || flasher.phase.isBusy || session.isBusy)
+                    }
+                    if case .desktopTooOld(let required) = candidate.compatibility {
+                        Text(String(format: NSLocalizedString("需要客户端 %@ 或更新版本", comment: ""), required)).font(.caption).foregroundStyle(.orange)
+                    }
+                    ForEach(candidate.entry.limitations, id: \.self) { Text($0).font(.caption).foregroundStyle(.secondary) }
+                }
+                .padding(.vertical, 4)
+            }
+            if releases.isBusy {
+                if let progress = releases.downloadProgress { ProgressView(value: progress) }
+                else { ProgressView().controlSize(.small) }
+            }
+            if let message = preparationError ?? releases.message { Text(message).font(.caption).foregroundStyle(.secondary) }
+        }
+    }
+
+    private var identityDescription: String {
+        switch releases.decision.state {
+        case .ready: return NSLocalizedString("已读取键盘版本标识。", comment: "")
+        case .legacy: return NSLocalizedString("当前为旧版固件。", comment: "")
+        case .keyReadFailed: return NSLocalizedString("尚未读取到键盘版本，普通版本安装暂不可用。", comment: "")
+        case .unknownKey: return NSLocalizedString("键盘版本尚未收录；可主动刷新版本列表。", comment: "")
+        case .catalogUnavailable: return NSLocalizedString("固件目录暂不可用。", comment: "")
+        case .desktopTooOld(let required): return String(format: NSLocalizedString("此固件需要客户端 %@ 或更新版本。", comment: ""), required)
+        case .unsupportedHardware, .unsupportedVariant, .unsupportedProtocol: return NSLocalizedString("此固件与当前客户端不兼容。", comment: "")
+        }
+    }
+    private func badgeTitle(_ value: String) -> String {
+        switch value {
+        case "recommended": return NSLocalizedString("推荐", comment: "")
+        case "latest": return NSLocalizedString("最新", comment: "")
+        case "stableRecovery": return NSLocalizedString("稳定恢复", comment: "")
+        case "current": return NSLocalizedString("当前", comment: "")
+        default: return value
+        }
+    }
+    private func prepare(_ candidate: FirmwareInstallCandidate) {
+        acknowledgesDataLoss = false; preparationError = nil
+        Task {
+            do {
+                let url = try await releases.prepare(candidate)
+                flasher.selectCatalogFirmware(at: url, candidate: candidate)
+            } catch { preparationError = NSLocalizedString("固件准备失败，未访问设备。请重新选择或稍后重试。", comment: "") }
+        }
+    }
+
+    private var canStartSelectedFirmware: Bool {
+        guard !releases.isBusy, !session.isBusy, flasher.phase == .ready,
+              flasher.selectedFirmware != nil, acknowledgesDataLoss else { return false }
+        guard let candidate = flasher.selectedCatalogCandidate else { return true }
+        return FirmwareCandidateSelection.isCurrent(candidate, in: releases.candidates)
     }
 
     private var header: some View {
@@ -54,7 +145,7 @@ struct FirmwareFlasherView: View {
             }
             Spacer()
             Button("关闭") { dismiss() }
-                .disabled(flasher.phase.isBusy)
+                .disabled(flasher.phase.isBusy || releases.isBusy)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 18)
@@ -75,7 +166,7 @@ struct FirmwareFlasherView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Label("校验通过", systemImage: "checkmark.seal.fill")
+                        Label("文件格式已核对", systemImage: "checkmark.circle")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(.green)
                     }
@@ -90,20 +181,31 @@ struct FirmwareFlasherView: View {
                             .foregroundStyle(.secondary)
                     }
                 } else {
-                    Text("没有可用的固件。请重新安装完整 App，或选择一个 Intel HEX 文件。")
-                        .foregroundStyle(.orange)
+                    Text("先选择上方版本；有明确测试或恢复需要时，也可手动选择 HEX。")
+                        .foregroundStyle(.secondary)
                 }
 
                 HStack(spacing: 10) {
                     Button("选择 HEX…") { chooseFirmware() }
-                        .disabled(flasher.phase.isBusy)
-                    Button("恢复内置 1.4.6") {
+                    .disabled(flasher.phase.isBusy || releases.isBusy)
+                    Button("使用内置工程固件") {
                         acknowledgesDataLoss = false
                         flasher.selectBundledFirmware()
                     }
-                    .disabled(flasher.phase.isBusy)
+                    .disabled(flasher.phase.isBusy || releases.isBusy)
                 }
                 .buttonStyle(.bordered)
+
+                if let message = flasher.runtimeVerificationMessage {
+                    Text(message).font(.callout).foregroundStyle(.secondary)
+                }
+                if flasher.phase == .awaitingRuntimeVerification {
+                    Button("键盘已正常开机，重新连接核验") {
+                        Task { await flasher.verifyRuntime(ble: bleManager, session: session) }
+                    }
+                    .disabled(session.isBusy)
+                    .buttonStyle(.bordered)
+                }
             }
             .padding(4)
         }
@@ -216,11 +318,7 @@ struct FirmwareFlasherView: View {
                 showsFlashConfirmation = true
             }
             .buttonStyle(.borderedProminent)
-            .disabled(
-                !acknowledgesDataLoss
-                || flasher.selectedFirmware == nil
-                || flasher.phase != .ready
-            )
+            .disabled(!canStartSelectedFirmware)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
@@ -263,6 +361,8 @@ struct FirmwareFlasherView: View {
         panel.allowedContentTypes = [UTType(filenameExtension: "hex") ?? .data]
         guard panel.runModal() == .OK, let url = panel.url else { return }
         acknowledgesDataLoss = false
-        flasher.selectCustomFirmware(at: url)
+        flasher.selectCustomFirmware(at: url) { descriptor in
+            releases.matchingCandidate(sha256: descriptor.sha256, byteCount: descriptor.byteCount)
+        }
     }
 }

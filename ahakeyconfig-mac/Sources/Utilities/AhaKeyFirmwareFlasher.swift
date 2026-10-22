@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import AhaKeyConfigShared
 
 struct FirmwareImageDescriptor: Equatable, Sendable {
     let url: URL
@@ -225,28 +226,32 @@ enum FirmwareFlashPhase: Equatable {
     case erasingDataFlash
     case erasingCodeFlash
     case flashing
+    case awaitingRuntimeVerification
+    case verifyingRuntime
     case success
     case cancelled
     case failed(String)
 
     var title: String {
         switch self {
-        case .idle: return "准备烧录器"
-        case .validating: return "正在校验固件"
-        case .ready: return "固件已校验，可以开始"
-        case .waitingForDevice: return "等待 CH582 USB ISP"
-        case .erasingDataFlash: return "正在清空 DataFlash"
-        case .erasingCodeFlash: return "正在清空 CodeFlash"
-        case .flashing: return "正在写入、校验并复位"
-        case .success: return "烧录成功"
-        case .cancelled: return "已取消，未执行擦除"
-        case .failed: return "烧录失败"
+        case .idle: return NSLocalizedString("准备烧录器", comment: "")
+        case .validating: return NSLocalizedString("正在校验固件", comment: "")
+        case .ready: return NSLocalizedString("固件已校验，可以开始", comment: "")
+        case .waitingForDevice: return NSLocalizedString("等待 CH582 USB ISP", comment: "")
+        case .erasingDataFlash: return NSLocalizedString("正在清空 DataFlash", comment: "")
+        case .erasingCodeFlash: return NSLocalizedString("正在清空 CodeFlash", comment: "")
+        case .flashing: return NSLocalizedString("正在写入、校验并复位", comment: "")
+        case .awaitingRuntimeVerification: return NSLocalizedString("写入校验通过，待重连确认", comment: "")
+        case .verifyingRuntime: return NSLocalizedString("正在核对新固件连接", comment: "")
+        case .success: return NSLocalizedString("升级验证通过", comment: "")
+        case .cancelled: return NSLocalizedString("已取消，未执行擦除", comment: "")
+        case .failed: return NSLocalizedString("烧录失败", comment: "")
         }
     }
 
     var isBusy: Bool {
         switch self {
-        case .validating, .waitingForDevice, .erasingDataFlash, .erasingCodeFlash, .flashing:
+        case .validating, .waitingForDevice, .erasingDataFlash, .erasingCodeFlash, .flashing, .verifyingRuntime:
             return true
         default:
             return false
@@ -270,6 +275,8 @@ enum FirmwareFlashPhase: Equatable {
         case .erasingDataFlash: return 0.2
         case .erasingCodeFlash: return 0.45
         case .flashing: return 0.7
+        case .awaitingRuntimeVerification: return 0.9
+        case .verifyingRuntime: return nil
         case .success: return 1
         case .cancelled, .failed: return 0
         }
@@ -399,6 +406,9 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
     @Published private(set) var chipInfo = ""
     @Published private(set) var logLines: [String] = []
     @Published private(set) var hasStartedDestructiveOperation = false
+    @Published private(set) var selectedCatalogCandidate: FirmwareInstallCandidate?
+    var expectedCatalogKey: String? { selectedCatalogCandidate?.entry.key }
+    @Published private(set) var runtimeVerificationMessage: String?
 
     private let bundle: Bundle
     private let processRunner = WCHISPProcessRunner()
@@ -438,8 +448,45 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
         validateFirmware(at: url, isBundled: true)
     }
 
-    func selectCustomFirmware(at url: URL) {
-        validateFirmware(at: url, isBundled: false)
+    func selectCustomFirmware(at url: URL, match: ((FirmwareImageDescriptor) -> FirmwareInstallCandidate?)? = nil) {
+        validateFirmware(at: url, isBundled: false, match: match)
+    }
+
+    func selectCatalogFirmware(at url: URL, candidate: FirmwareInstallCandidate) {
+        guard candidate.canInstall else { return }
+        validateFirmware(at: url, isBundled: false, candidate: candidate)
+    }
+
+    func verifyRuntime(ble: AhaKeyBLEManager, session: StudioInspectorSession) async {
+        guard phase == .awaitingRuntimeVerification else { return }
+        transition(to: .verifyingRuntime)
+        do {
+            let actualKey = try await session.withConnection { context in
+                let profile = try await ble.readFirmwareCapabilityProfile(forceStatusReadback: true)
+                try session.validate(context)
+                switch profile.identity {
+                case .knownWS2Catalog: return FirmwareCapabilityProfile.ws2CatalogKey as String?
+                case .unknown(let key): return key
+                case .legacy: return nil
+                }
+            }
+            let result = FirmwarePostFlashVerification.evaluate(expectedKey: expectedCatalogKey, actualKey: actualKey,
+                hasValidStatus: true, sameConnection: true)
+            switch result {
+            case .verified:
+                runtimeVerificationMessage = NSLocalizedString("新固件已重新连接，设备状态及版本标识与目标一致。", comment: "")
+                transition(to: .success)
+            case .missingExpectedIdentity:
+                runtimeVerificationMessage = NSLocalizedString("已读到设备，但此 HEX 没有可信目录中的预期版本标识，无法确认完整升级结果。", comment: "")
+                transition(to: .awaitingRuntimeVerification)
+            default:
+                runtimeVerificationMessage = NSLocalizedString("设备版本与预期不一致，尚未确认升级成功。请核对所选固件和连接的键盘。", comment: "")
+                transition(to: .awaitingRuntimeVerification)
+            }
+        } catch {
+            runtimeVerificationMessage = String(format: NSLocalizedString("暂未完成新固件连接核验：%@", comment: ""), KeyboardSettingsFeedback.message(for: error))
+            transition(to: .awaitingRuntimeVerification)
+        }
     }
 
     func startFlashing() {
@@ -465,11 +512,14 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
         appendLog("用户已取消；尚未执行擦除。")
     }
 
-    private func validateFirmware(at url: URL, isBundled: Bool) {
+    private func validateFirmware(at url: URL, isBundled: Bool, candidate: FirmwareInstallCandidate? = nil,
+        match: ((FirmwareImageDescriptor) -> FirmwareInstallCandidate?)? = nil) {
         guard !phase.isBusy else { return }
         validationTask?.cancel()
         transition(to: .validating)
         selectedFirmware = nil
+        selectedCatalogCandidate = nil
+        runtimeVerificationMessage = nil
         chipInfo = ""
         hasStartedDestructiveOperation = false
 
@@ -479,6 +529,14 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
                     try FirmwareImageValidator.validate(url: url, isBundled: isBundled)
                 }.value
                 try Task.checkCancellation()
+
+                let candidate = candidate ?? match?(descriptor)
+                if let candidate {
+                    guard candidate.canInstall, let artifact = candidate.entry.artifact,
+                          descriptor.sha256 == artifact.sha256, descriptor.byteCount == artifact.byteCount else {
+                        throw FirmwareArtifactVerification.Failure.wrongDigest
+                    }
+                }
 
                 if isBundled, descriptor.sha256 != AhaKeyFirmwareFlasherResources.bundledFirmwareSHA256 {
                     throw FirmwareFlasherError.bundledFirmwareIntegrity(
@@ -490,6 +548,7 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
                 guard let self else { return }
                 _ = try self.resolveToolURL()
                 self.selectedFirmware = descriptor
+                self.selectedCatalogCandidate = candidate
                 self.transition(to: .ready)
                 self.logLines = ["固件校验通过：\(descriptor.fileName)"]
             } catch is CancellationError {
@@ -559,8 +618,9 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
                 step: "写入与校验"
             )
 
-            transition(to: .success)
-            appendLog("烧录成功。请拔掉 USB、移除 BOOT—GND 短接，再正常开机。")
+            transition(to: .awaitingRuntimeVerification)
+            runtimeVerificationMessage = NSLocalizedString("请拔掉 USB、移除 BOOT—GND 短接，再正常无线开机；重新连接核验后才能确认完整结果。", comment: "")
+            appendLog("写入和代码校验通过；新固件连接尚未确认。")
         } catch is CancellationError {
             if hasStartedDestructiveOperation {
                 fail(FirmwareFlasherError.interruptedAfterErase)
