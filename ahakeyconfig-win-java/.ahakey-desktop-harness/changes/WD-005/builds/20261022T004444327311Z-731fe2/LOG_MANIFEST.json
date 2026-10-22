@@ -1,0 +1,120 @@
+{
+  "meaning": "全部本轮原始日志/只读分析输出和细节记录；空日志保留",
+  "files": [
+    {
+      "path": "ARTIFACT_MANIFEST.json",
+      "sha256": "0a77fe233854539d0dd1e433b57d31c1adf171f258744cb5278f3a31348e0385",
+      "size": 6118
+    },
+    {
+      "path": "BUILD_DETAILS.md",
+      "sha256": "e26cb99113b91a1e910c8f3488006c0eb2f3b2626ca4366056d93e94d79e51fb",
+      "size": 6890
+    },
+    {
+      "path": "BUILD_EXECUTION.json",
+      "sha256": "0ff71755f5a2b2a6faee5563e77b7732ba85afa285068a3aac91fd533bafccb2",
+      "size": 3272
+    },
+    {
+      "path": "CANVAS_SOURCE_COMPARISON.json",
+      "sha256": "833e335caf11b7278ea919f87e251ea1eb9360aa8967c0f0675f4b3c5a2a7bc4",
+      "size": 151
+    },
+    {
+      "path": "CanvasPane.current.javap.txt",
+      "sha256": "b89258160eeefe6ee40ddfac77a25eacc87fbba2ccbd95c6870defaeff880dda",
+      "size": 70240
+    },
+    {
+      "path": "CanvasPane.current.utf8.javap.txt",
+      "sha256": "b89258160eeefe6ee40ddfac77a25eacc87fbba2ccbd95c6870defaeff880dda",
+      "size": 70240
+    },
+    {
+      "path": "CanvasPane.preview.javap.txt",
+      "sha256": "cf089efc54c58a03a4bf15ac542cdff6a72e827652696beed529f01e9648ad4c",
+      "size": 70242
+    },
+    {
+      "path": "CanvasPane.preview.utf8.javap.txt",
+      "sha256": "cf089efc54c58a03a4bf15ac542cdff6a72e827652696beed529f01e9648ad4c",
+      "size": 70242
+    },
+    {
+      "path": "FINGERPRINT_AFTER.json",
+      "sha256": "49786fdf9a7e365fa83513e1c9e04a0b3f023b61547d9c7af478630a61bec919",
+      "size": 12738
+    },
+    {
+      "path": "FINGERPRINT_BEFORE.json",
+      "sha256": "49786fdf9a7e365fa83513e1c9e04a0b3f023b61547d9c7af478630a61bec919",
+      "size": 12738
+    },
+    {
+      "path": "java-identity.stderr.log",
+      "sha256": "d2f5345bf5ae4a93c3a3518c08feb9153852660880193d078cb9f86f0bacb855",
+      "size": 202
+    },
+    {
+      "path": "java-identity.stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "JAVAP_DIFFERENCES.json",
+      "sha256": "fa7645db19498398cced8bcdbe4a08225dd5f78a758203bdfbd9efe5bdd8805f",
+      "size": 1869
+    },
+    {
+      "path": "JAVAP_EXECUTION.json",
+      "sha256": "2db0b7e46c8ba6d9ea30e66402e6713bbde85acac36cecdc4ee1a89013d42164",
+      "size": 1409
+    },
+    {
+      "path": "javap-current.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "javap-preview.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "maven-identity.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "maven-identity.stdout.log",
+      "sha256": "5abb3d9a04839dbc02f26acdd2a001b35aa8832fc5c6a0120f9bc10e8b4e31c9",
+      "size": 313
+    },
+    {
+      "path": "package.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "package.stdout.log",
+      "sha256": "5f144fa5eae5c2ad8f9d58f4466f92c45caddcfef12407e3e171b6a64e56cc96",
+      "size": 3475
+    },
+    {
+      "path": "PREVIEW_COMPARISON.json",
+      "sha256": "84f85844bccad6f151cb86d555095a4b84f12d923a82b36c91d1ab08eb41b86c",
+      "size": 141849
+    },
+    {
+      "path": "PREVIEW_DIFFERENCE_ANALYSIS.json",
+      "sha256": "9fcbcd2a82f499ad17ef7f4ad6ab28285ebc0250d4bbe3b582ccc61fb38eece2",
+      "size": 1575
+    },
+    {
+      "path": "STATIC_INSPECTION.json",
+      "sha256": "486b59273fc63809c7cb8c1fc783da8af599200269cd9adfc311764b7af72562",
+      "size": 23659
+    }
+  ]
+}

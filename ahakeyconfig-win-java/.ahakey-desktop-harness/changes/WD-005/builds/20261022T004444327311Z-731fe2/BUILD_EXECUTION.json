@@ -1,0 +1,50 @@
+[
+  {
+    "name": "java-identity",
+    "exit_code": 0,
+    "executable": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+    "raw_arguments": "-version",
+    "stderr": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005\\builds\\20261022T004444327311Z-731fe2\\java-identity.stderr.log",
+    "finished_at": "2026-10-22T08:45:31.3849806+08:00",
+    "stdout": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005\\builds\\20261022T004444327311Z-731fe2\\java-identity.stdout.log",
+    "started_at": "2026-10-22T08:45:31.2134296+08:00",
+    "capture": "BaseStream raw bytes; stdout and stderr separate",
+    "environment": {
+      "JAVA_HOME": "D:\\jdk-17.0.19.10-hotspot",
+      "MAVEN_OPTS": "-Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8"
+    },
+    "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java"
+  },
+  {
+    "name": "maven-identity",
+    "exit_code": 0,
+    "executable": "C:\\WINDOWS\\system32\\cmd.exe",
+    "raw_arguments": "/d /s /c \"\"C:\\Program Files\\apache-maven-3.9.12\\bin\\mvn.cmd\" -version\"",
+    "stderr": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005\\builds\\20261022T004444327311Z-731fe2\\maven-identity.stderr.log",
+    "finished_at": "2026-10-22T08:45:32.0113324+08:00",
+    "stdout": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005\\builds\\20261022T004444327311Z-731fe2\\maven-identity.stdout.log",
+    "started_at": "2026-10-22T08:45:31.3878093+08:00",
+    "capture": "BaseStream raw bytes; stdout and stderr separate",
+    "environment": {
+      "JAVA_HOME": "D:\\jdk-17.0.19.10-hotspot",
+      "MAVEN_OPTS": "-Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8"
+    },
+    "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java"
+  },
+  {
+    "name": "package",
+    "exit_code": 0,
+    "executable": "C:\\WINDOWS\\system32\\cmd.exe",
+    "raw_arguments": "/d /s /c \"\"C:\\Program Files\\apache-maven-3.9.12\\bin\\mvn.cmd\" -o \"-Dmaven.repo.local=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.m2repo\" --batch-mode --no-transfer-progress package -DskipTests\"",
+    "stderr": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005\\builds\\20261022T004444327311Z-731fe2\\package.stderr.log",
+    "finished_at": "2026-10-22T08:45:37.9779463+08:00",
+    "stdout": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005\\builds\\20261022T004444327311Z-731fe2\\package.stdout.log",
+    "started_at": "2026-10-22T08:45:32.0323526+08:00",
+    "capture": "BaseStream raw bytes; stdout and stderr separate",
+    "environment": {
+      "JAVA_HOME": "D:\\jdk-17.0.19.10-hotspot",
+      "MAVEN_OPTS": "-Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8"
+    },
+    "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java"
+  }
+]

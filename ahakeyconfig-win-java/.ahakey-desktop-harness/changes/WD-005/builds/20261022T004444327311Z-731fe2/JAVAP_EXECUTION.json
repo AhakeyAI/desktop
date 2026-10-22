@@ -1,0 +1,36 @@
+[
+  {
+    "stdout": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/CanvasPane.current.utf8.javap.txt",
+    "argv": [
+      "-J-Dsun.stdout.encoding=UTF-8",
+      "-J-Dsun.stderr.encoding=UTF-8",
+      "-classpath",
+      ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/runtime-jar-classpath/ahakey-studio-1.0.0.jar",
+      "-p",
+      "-c",
+      "-l",
+      "-verbose",
+      "com.example.ahakey.view.CanvasPane"
+    ],
+    "executable": "D:\\jdk-17.0.19.10-hotspot\\bin\\javap.exe",
+    "stderr": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/javap-current.stderr.log",
+    "exit_code": 0
+  },
+  {
+    "stdout": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/CanvasPane.preview.utf8.javap.txt",
+    "argv": [
+      "-J-Dsun.stdout.encoding=UTF-8",
+      "-J-Dsun.stderr.encoding=UTF-8",
+      "-classpath",
+      ".ahakey-desktop-harness/previews/WD-005/preview-20261021T024920511394Z-2ae03d/runtime-jar-classpath/ahakey-studio-1.0.0.jar",
+      "-p",
+      "-c",
+      "-l",
+      "-verbose",
+      "com.example.ahakey.view.CanvasPane"
+    ],
+    "executable": "D:\\jdk-17.0.19.10-hotspot\\bin\\javap.exe",
+    "stderr": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/javap-preview.stderr.log",
+    "exit_code": 0
+  }
+]

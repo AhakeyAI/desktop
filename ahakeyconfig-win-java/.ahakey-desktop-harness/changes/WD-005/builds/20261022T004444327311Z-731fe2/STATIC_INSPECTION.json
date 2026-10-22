@@ -1,0 +1,804 @@
+{
+  "external_dependencies": [
+    "JDK/JRE17",
+    "现场BLE桥接程序及配置",
+    "本地语音模型（使用本地识别时）"
+  ],
+  "resources": [
+    {
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\src\\main\\resources\\ahakey.jpg",
+      "sha256": "a806907c934f0336b040741ecd88fb3381dedbea4b841a00e8bfb9c9ad17d9a9",
+      "entry": "ahakey.jpg"
+    },
+    {
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\src\\main\\resources\\fxml\\CanvasLayout.fxml",
+      "sha256": "825140d9608cb6582a248f68cd82ea4232918d3e58854d2168a31f90c486e30e",
+      "entry": "fxml/CanvasLayout.fxml"
+    },
+    {
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\src\\main\\resources\\fxml\\VoiceInputPanel.fxml",
+      "sha256": "e3b3a36fd6e1ee7f19945b86c9ad5cdbfd98726e8809462bfa47f57154cce096",
+      "entry": "fxml/VoiceInputPanel.fxml"
+    },
+    {
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\src\\main\\resources\\logback.xml",
+      "sha256": "714a434a5aa5e4b61fd7f83ddcb2d88da3f69295b7cdf93a5bdabea3cca149fa",
+      "entry": "logback.xml"
+    },
+    {
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\src\\main\\resources\\messages_en.properties",
+      "sha256": "70275381f6e2d9fa8f8108f3a79ed45297907b140923cbc842fa69808053a22b",
+      "entry": "messages_en.properties"
+    },
+    {
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\src\\main\\resources\\messages_zh.properties",
+      "sha256": "a40bad173698f9ba490ed6ca956ad72cca53072c24d6dc7422c0012bd34b5138",
+      "entry": "messages_zh.properties"
+    },
+    {
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\src\\main\\resources\\model_config.properties",
+      "sha256": "a32fc4ef090ce3e4c72634f5888fe74462487bf8781a6494ff9e74741f80cbd5",
+      "entry": "model_config.properties"
+    },
+    {
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\src\\main\\resources\\style.css",
+      "sha256": "983a9f0001e8560216f4c445b75c8f4c40ccd993652bfc2e1d72bb291fb23881",
+      "entry": "style.css"
+    }
+  ],
+  "classfiles": [
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/app/StudioController$1.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/app/StudioController.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/app/VoiceInputController.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/App$1.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/App.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/config/ModelConfig.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/Main.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/AiRuntimeDisplayMode.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/AiRuntimeSession.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/AiRuntimeSlotBinding.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/AiRuntimeSlotState$1.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/AiRuntimeSlotState.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/CodexSession.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/DeviceStatus$IdentityState.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/DeviceStatus.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/DisplayConfigState.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/HIDUsage.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/IDEState.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/KeyConfig$1.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/KeyConfig.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/LightBarPreviewState.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/LightEffectStyle$1.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/LightEffectStyle.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/MacroAction.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/MacroStep.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/ModeSlot.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/OledModeDraft.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/OledResourceState$1.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/OledResourceState$Asset.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/OledResourceState$LocalStatus.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/OledResourceState$Metadata.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/OledResourceState.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/StudioPart.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/StudioState$1.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/StudioState$PersistedDraft$ModeDraft.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/StudioState$PersistedDraft.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/StudioState.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/VoicePreset$1.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/model/VoicePreset.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/platform/VoiceRelayPlatform.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/platform/windows/WindowsVoiceRelayService$1.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/platform/windows/WindowsVoiceRelayService$VoiceRoute.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/platform/windows/WindowsVoiceRelayService.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/platform/windows/WindowsVoiceTyping.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/protocol/AhaKeyProtocol.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$CommandResponse.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$DisplayRead.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$OrdinaryKeyReadback.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$PictureState.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$SideSwitchConfig.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$SideSwitchPositionConfig.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$SleepWaitTimeResponse.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/protocol/AhaKeyResponseParser.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/protocol/BleTcpPacket$ParsedPacket.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/protocol/BleTcpPacket.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/AgentManager$BluetoothOwner.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/AgentManager.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/AiRuntimeDisplayService$ApplyPlan.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/AiRuntimeDisplayService$Delivery.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/AiRuntimeDisplayService$RuntimeFact.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/AiRuntimeDisplayService$SingleOwner.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/AiRuntimeDisplayService$UnavailableSlot.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/AiRuntimeDisplayService.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/BleManager$BleCallback.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/BleManager$DisplayLease.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/BleManager$DisplayReadTask.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/BleManager$FirmwareIdentity.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/BleManager.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/CodexSessionDiscoveryService$EventSource.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/CodexSessionDiscoveryService.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/CursorSessionDiscoveryService$ComposerTableResult.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/CursorSessionDiscoveryService$TitleRecord.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/CursorSessionDiscoveryService$WorkspaceRecord.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/CursorSessionDiscoveryService.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/DeviceSyncService$LabeledCommand.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/DeviceSyncService.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/DisplayConfigService$1.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/DisplayConfigService$Operation.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/DisplayConfigService$Work.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/DisplayConfigService.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/FirmwareLightSimulator.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/HookClient.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/HookDispatchServer$1.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/HookDispatchServer$ApprovalCallback.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/HookDispatchServer$EventEntry.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/HookDispatchServer$HookPayload.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/HookDispatchServer$Platform.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/HookDispatchServer.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/HookInstaller$HookStatus.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/HookInstaller$HookWriteResult.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/HookInstaller.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/KeyboardInjector.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/KimiAhaKeyBridge.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/KimiConfigLeverSync.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/OledResourceStore$CleanupFailure.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/OledResourceStore.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/OledUploadService$BeforeCommit.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/OledUploadService$DeviceRejected.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/OledUploadService$Progress.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/OledUploadService$UploadFailure.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/OledUploadService.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/SocketServer.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/SpeechService$Consumer.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/SpeechService.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/UsbHidTransport$Guid$GUID.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/UsbHidTransport$Guid.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/UsbHidTransport$Hid.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/UsbHidTransport$Kernel32.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/UsbHidTransport$SetupApi.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/UsbHidTransport$SP_DEVICE_INTERFACE_DATA.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/UsbHidTransport$SP_DEVICE_INTERFACE_DETAIL_DATA.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/UsbHidTransport.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/VoiceInputManager$Consumer.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/VoiceInputManager$VoiceStatus.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/service/VoiceInputManager.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/sherpa/LibraryLoader.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/SingleInstanceChecker.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/util/AiRuntimeStore$Draft.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/util/AiRuntimeStore.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/util/ConfigStore$1.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/util/ConfigStore.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/util/Icons.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/util/LanguageManager$LanguageChangeListener.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/util/LanguageManager$LanguageChangeNotifier.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/util/LanguageManager.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/util/OLEDFrameEncoder$EncodedFrame.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/util/OLEDFrameEncoder.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/util/StudioStore.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/AccentColor.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/CanvasController.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/CanvasPane.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/FloatingVoiceNotification$1.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/FloatingVoiceNotification$AnimationTimer.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/FloatingVoiceNotification$StatusConfig.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/FloatingVoiceNotification.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/InfoPill.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/InspectorPane$1.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/InspectorPane$2.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/InspectorPane$3.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/InspectorPane$4.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/InspectorPane$RuntimeTreeLoad.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/InspectorPane.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/StatusBar.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/TopBar$1.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/TopBar$SleepWaitTimeControl.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/TopBar$SleepWaitTimeOption.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/TopBar$VoiceStatusLamp$1.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/TopBar$VoiceStatusLamp.class"
+    },
+    {
+      "major": 61,
+      "entry": "com/example/ahakey/view/TopBar.class"
+    }
+  ],
+  "inspection": "只读ZIP内容检查，不加载class/native或启动应用",
+  "libraries": [
+    {
+      "windows_native_entries": [],
+      "jar": "jackson-annotations-2.16.0.jar"
+    },
+    {
+      "windows_native_entries": [],
+      "jar": "jackson-core-2.16.0.jar"
+    },
+    {
+      "windows_native_entries": [],
+      "jar": "jackson-databind-2.16.0.jar"
+    },
+    {
+      "windows_native_entries": [],
+      "jar": "javafx-base-17.0.10-win.jar"
+    },
+    {
+      "windows_native_entries": [],
+      "jar": "javafx-base-17.0.10.jar"
+    },
+    {
+      "windows_native_entries": [],
+      "jar": "javafx-controls-17.0.10-win.jar"
+    },
+    {
+      "windows_native_entries": [],
+      "jar": "javafx-controls-17.0.10.jar"
+    },
+    {
+      "windows_native_entries": [],
+      "jar": "javafx-fxml-17.0.10-win.jar"
+    },
+    {
+      "windows_native_entries": [],
+      "jar": "javafx-fxml-17.0.10.jar"
+    },
+    {
+      "windows_native_entries": [
+        "api-ms-win-core-console-l1-1-0.dll",
+        "api-ms-win-core-console-l1-2-0.dll",
+        "api-ms-win-core-datetime-l1-1-0.dll",
+        "api-ms-win-core-debug-l1-1-0.dll",
+        "api-ms-win-core-errorhandling-l1-1-0.dll",
+        "api-ms-win-core-file-l1-1-0.dll",
+        "api-ms-win-core-file-l1-2-0.dll",
+        "api-ms-win-core-file-l2-1-0.dll",
+        "api-ms-win-core-handle-l1-1-0.dll",
+        "api-ms-win-core-heap-l1-1-0.dll",
+        "api-ms-win-core-interlocked-l1-1-0.dll",
+        "api-ms-win-core-libraryloader-l1-1-0.dll",
+        "api-ms-win-core-localization-l1-2-0.dll",
+        "api-ms-win-core-memory-l1-1-0.dll",
+        "api-ms-win-core-namedpipe-l1-1-0.dll",
+        "api-ms-win-core-processenvironment-l1-1-0.dll",
+        "api-ms-win-core-processthreads-l1-1-0.dll",
+        "api-ms-win-core-processthreads-l1-1-1.dll",
+        "api-ms-win-core-profile-l1-1-0.dll",
+        "api-ms-win-core-rtlsupport-l1-1-0.dll",
+        "api-ms-win-core-string-l1-1-0.dll",
+        "api-ms-win-core-synch-l1-1-0.dll",
+        "api-ms-win-core-synch-l1-2-0.dll",
+        "api-ms-win-core-sysinfo-l1-1-0.dll",
+        "api-ms-win-core-timezone-l1-1-0.dll",
+        "api-ms-win-core-util-l1-1-0.dll",
+        "api-ms-win-crt-conio-l1-1-0.dll",
+        "api-ms-win-crt-convert-l1-1-0.dll",
+        "api-ms-win-crt-environment-l1-1-0.dll",
+        "api-ms-win-crt-filesystem-l1-1-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-locale-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-multibyte-l1-1-0.dll",
+        "api-ms-win-crt-private-l1-1-0.dll",
+        "api-ms-win-crt-process-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "api-ms-win-crt-time-l1-1-0.dll",
+        "api-ms-win-crt-utility-l1-1-0.dll",
+        "decora_sse.dll",
+        "glass.dll",
+        "javafx_font.dll",
+        "javafx_iio.dll",
+        "msvcp140.dll",
+        "msvcp140_1.dll",
+        "msvcp140_2.dll",
+        "prism_common.dll",
+        "prism_d3d.dll",
+        "prism_sw.dll",
+        "ucrtbase.dll",
+        "vcruntime140.dll",
+        "vcruntime140_1.dll"
+      ],
+      "jar": "javafx-graphics-17.0.10-win.jar"
+    },
+    {
+      "windows_native_entries": [],
+      "jar": "javafx-graphics-17.0.10.jar"
+    },
+    {
+      "windows_native_entries": [
+        "com/sun/jna/win32-x86/jnidispatch.dll",
+        "com/sun/jna/win32-x86-64/jnidispatch.dll",
+        "com/sun/jna/win32-aarch64/jnidispatch.dll"
+      ],
+      "jar": "jna-5.14.0.jar"
+    },
+    {
+      "windows_native_entries": [],
+      "jar": "jna-platform-5.14.0.jar"
+    },
+    {
+      "windows_native_entries": [],
+      "jar": "logback-classic-1.4.11.jar"
+    },
+    {
+      "windows_native_entries": [],
+      "jar": "logback-core-1.4.11.jar"
+    },
+    {
+      "windows_native_entries": [
+        "ai/onnxruntime/native/win-x64/onnxruntime.dll",
+        "ai/onnxruntime/native/win-x64/onnxruntime4j_jni.dll"
+      ],
+      "jar": "onnxruntime-1.16.3.jar"
+    },
+    {
+      "windows_native_entries": [],
+      "jar": "slf4j-api-2.0.9.jar"
+    },
+    {
+      "windows_native_entries": [
+        "org/sqlite/native/Windows/x86_64/sqlitejdbc.dll",
+        "org/sqlite/native/Windows/x86/sqlitejdbc.dll",
+        "org/sqlite/native/Windows/armv7/sqlitejdbc.dll",
+        "org/sqlite/native/Windows/aarch64/sqlitejdbc.dll"
+      ],
+      "jar": "sqlite-jdbc-3.46.1.0.jar"
+    }
+  ],
+  "required_entries": [
+    "com/example/ahakey/Main.class",
+    "com/example/ahakey/App.class",
+    "com/example/ahakey/view/InspectorPane.class",
+    "com/example/ahakey/service/BleManager.class",
+    "com/example/ahakey/service/DisplayConfigService.class",
+    "com/example/ahakey/service/OledUploadService.class",
+    "com/example/ahakey/service/AiRuntimeDisplayService.class",
+    "fxml/CanvasLayout.fxml",
+    "style.css",
+    "messages_zh.properties",
+    "messages_en.properties",
+    "model_config.properties",
+    "logback.xml"
+  ]
+}

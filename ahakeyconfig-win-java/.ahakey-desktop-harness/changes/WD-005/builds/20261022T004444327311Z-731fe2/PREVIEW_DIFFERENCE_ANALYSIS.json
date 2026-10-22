@@ -1,0 +1,54 @@
+{
+  "class_change": {
+    "meaning": "class原始字节不同；仅内存替换两个已识别的等长合成变量名即可全部字节相等，不修改任何产物；对照javap常量池和LocalVariableTable，不冒称运行等价验收。",
+    "preview_size": 8527,
+    "replacements": [
+      {
+        "preview_occurrences": 1,
+        "preview": "patt3151$temp",
+        "current_occurrences": 1,
+        "current": "patt3223$temp"
+      },
+      {
+        "preview_occurrences": 1,
+        "preview": "patt2700$temp",
+        "current_occurrences": 1,
+        "current": "patt2763$temp"
+      }
+    ],
+    "exact_byte_equivalence_after_only_named_replacements": true,
+    "entry": "com/example/ahakey/view/CanvasPane.class",
+    "current_size": 8527
+  },
+  "text_changes": [
+    {
+      "current_crlf": 20,
+      "utf8_valid": true,
+      "preview_crlf": 0,
+      "entry": "fxml/VoiceInputPanel.fxml",
+      "only_crlf_lf_difference": true
+    },
+    {
+      "current_crlf": 37,
+      "utf8_valid": true,
+      "preview_crlf": 0,
+      "entry": "logback.xml",
+      "only_crlf_lf_difference": true
+    },
+    {
+      "current_crlf": 1,
+      "utf8_valid": true,
+      "preview_crlf": 0,
+      "entry": "model_config.properties",
+      "only_crlf_lf_difference": true
+    },
+    {
+      "current_crlf": 158,
+      "utf8_valid": true,
+      "preview_crlf": 0,
+      "entry": "META-INF/maven/com.example/ahakey-studio/pom.xml",
+      "only_crlf_lf_difference": true
+    }
+  ],
+  "no_artifact_modification": true
+}

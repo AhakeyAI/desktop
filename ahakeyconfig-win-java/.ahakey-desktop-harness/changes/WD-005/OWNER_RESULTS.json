@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "delivery_packet_sha256": "5b68e983b8de8e63eddbf4f478b222bb6bc68ac9d488e3c9f0da3c6977b0817e",
+  "owner_source": {
+    "path": ".ahakey-desktop-harness/evidence/20261022-wd005-limited-closeout-owner-decision.md",
+    "sha256": "e757058895a4eb37af2370873cb61d971825884197ab94ae9de545634a88b33e"
+  },
+  "actual_connection": "20261021历史Owner Preview为Windows/USB；本次无新运行或设备连接",
+  "acceptance_decision": "LIMITED_ACCEPTANCE_WITH_DEFERRED_ITEMS",
+  "accepted_scope": "只接收原Preview已经验证的Windows/USB正常路径；基于正式候选/产物内容比较复用历史结果。不是全部A01-A11、全硬件或全产品UAT通过。",
+  "formal_artifact_runtime_executed": false,
+  "evidence_reuse": {
+    "preview_token": "preview-20261021T024920511394Z-2ae03d",
+    "tested_jar_sha256": "97a5ae072c18a0ed229538fee7766426bd9f6c8ba807607aee10f141efa3052b",
+    "formal_jar_sha256": "f63f816586d88f7ee44da2c40be419b408948c6b717bfe26a47e90a719af1f1c",
+    "rationale": ".ahakey-desktop-harness/changes/WD-005/FORMAL_ARTIFACT_DLA_VERIFICATION_20261022.md",
+    "historical_owner_feedback": ".ahakey-desktop-harness/previews/WD-005/preview-20261021T024920511394Z-2ae03d/OWNER_PASS_FEEDBACK_20261021.md",
+    "limits": "打包后未启动；文本换行/调试变量名差异不冒称字节一致；656项是既有R9证据，本次未重跑。"
+  },
+  "device_confirmation": {
+    "confirmed": true,
+    "hex_sha256": "ffb9208f79084aa24a832ad2562a14dbbea5df4d114a135cb5b2eb98d4e05539",
+    "source_quote": "已刷入这份 FFB920… 修复版",
+    "scope": "仅当次历史Preview的Owner确认，不是20261022重刷或自动读取设备。"
+  },
+  "steps": [
+    {
+      "id": "T01",
+      "status": "pass",
+      "observation": "复用20261021原Preview清单第1步的整体通过反馈，仅限：文字可读、元信息与成品预览正常，本地草稿/资源/绑定保留。 本日未重新执行；旧反馈没有逐步原始日志或重复次数。",
+      "source_quote": "我已经都测试通过了，按照harness先把这个ws-005收个尾把",
+      "evidence_origin": "historical_preview_reused_not_new_formal_jar_execution"
+    },
+    {
+      "id": "T02",
+      "status": "pass",
+      "observation": "复用20261021原Preview清单第2步的整体通过反馈，仅限：成功读到精确r001自动开放新功能，不需要人工HEX确认。 本日未重新执行；旧反馈没有逐步原始日志或重复次数。",
+      "source_quote": "我已经都测试通过了，按照harness先把这个ws-005收个尾把",
+      "evidence_origin": "historical_preview_reused_not_new_formal_jar_execution"
+    },
+    {
+      "id": "T03",
+      "status": "pass",
+      "observation": "复用20261021原Preview清单第3步的整体通过反馈，仅限：分区清楚，非当前模式禁用并可见原因；亮度独立。 本日未重新执行；旧反馈没有逐步原始日志或重复次数。",
+      "source_quote": "我已经都测试通过了，按照harness先把这个ws-005收个尾把",
+      "evidence_origin": "historical_preview_reused_not_new_formal_jar_execution"
+    },
+    {
+      "id": "T04",
+      "status": "pass",
+      "observation": "复用20261021原Preview清单第4步的整体通过反馈，仅限：成功反馈后设备显示对应资源；不含8/12帧极限或中途故障测试。 本日未重新执行；旧反馈没有逐步原始日志或重复次数。",
+      "source_quote": "我已经都测试通过了，按照harness先把这个ws-005收个尾把",
+      "evidence_origin": "historical_preview_reused_not_new_formal_jar_execution"
+    },
+    {
+      "id": "T05",
+      "status": "pass",
+      "observation": "复用20261021原Preview清单第5步的整体通过反馈，仅限：工作和完成对应资源正常；等待态未安排实测。 本日未重新执行；旧反馈没有逐步原始日志或重复次数。",
+      "source_quote": "我已经都测试通过了，按照harness先把这个ws-005收个尾把",
+      "evidence_origin": "historical_preview_reused_not_new_formal_jar_execution"
+    },
+    {
+      "id": "T06",
+      "status": "pass",
+      "observation": "复用20261021原Preview清单第6步的整体通过反馈，仅限：槽位及主槽普通路径对应；不证明RT-03回退或所有来源竞争已闭环。 本日未重新执行；旧反馈没有逐步原始日志或重复次数。",
+      "source_quote": "我已经都测试通过了，按照harness先把这个ws-005收个尾把",
+      "evidence_origin": "historical_preview_reused_not_new_formal_jar_execution"
+    },
+    {
+      "id": "T07",
+      "status": "pass",
+      "observation": "复用20261021原Preview清单第7步的整体通过反馈，仅限：分别保存/回读正常，不代表断电持久化或全部灯效实测。 本日未重新执行；旧反馈没有逐步原始日志或重复次数。",
+      "source_quote": "我已经都测试通过了，按照harness先把这个ws-005收个尾把",
+      "evidence_origin": "historical_preview_reused_not_new_formal_jar_execution"
+    },
+    {
+      "id": "T08",
+      "status": "pass",
+      "observation": "复用20261021原Preview清单第8步的整体通过反馈，仅限：正常恢复，旧状态不误开放新写入；不替代上传中断线测试。 本日未重新执行；旧反馈没有逐步原始日志或重复次数。",
+      "source_quote": "我已经都测试通过了，按照harness先把这个ws-005收个尾把",
+      "evidence_origin": "historical_preview_reused_not_new_formal_jar_execution"
+    },
+    {
+      "id": "T09",
+      "status": "pass",
+      "observation": "复用20261021原Preview清单第9步的整体通过反馈，仅限：旧入口正常，不等于实际语音输入及全部WS001-004功能重验。 本日未重新执行；旧反馈没有逐步原始日志或重复次数。",
+      "source_quote": "我已经都测试通过了，按照harness先把这个ws-005收个尾把",
+      "evidence_origin": "historical_preview_reused_not_new_formal_jar_execution"
+    },
+    {
+      "id": "T10",
+      "status": "not_executed",
+      "observation": "Owner明确后置：全19目标/全Mode人工巡检、图片边界及错误弹窗、设备已有/不一致实景。没有新增实测结果，不计PASS。",
+      "source_quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+      "evidence_origin": "explicit_owner_deferred"
+    },
+    {
+      "id": "T11",
+      "status": "not_executed",
+      "observation": "Owner明确后置：实际用户库重启、删除源图、写满、只读和迁移异常。没有新增实测结果，不计PASS。",
+      "source_quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+      "evidence_origin": "explicit_owner_deferred"
+    },
+    {
+      "id": "T12",
+      "status": "not_executed",
+      "observation": "Owner明确后置：真机8/12帧、上传中断线/ACK丢失/物理Mode变化/并发输入及恢复重试。没有新增实测结果，不计PASS。",
+      "source_quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+      "evidence_origin": "explicit_owner_deferred"
+    },
+    {
+      "id": "T13",
+      "status": "not_executed",
+      "observation": "Owner明确后置：断电持久化、真机10秒预览与AI竞争、OFF及批量部分失败。没有新增实测结果，不计PASS。",
+      "source_quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+      "evidence_origin": "explicit_owner_deferred"
+    },
+    {
+      "id": "T14",
+      "status": "not_executed",
+      "observation": "Owner明确后置：最小窗口、100/150/200%高DPI和长文案完整检查。没有新增实测结果，不计PASS。",
+      "source_quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+      "evidence_origin": "explicit_owner_deferred"
+    },
+    {
+      "id": "T15",
+      "status": "not_executed",
+      "observation": "Owner明确后置：BLE实链路/性能、桥接修复源码到EXE绑定部署、USB-BLE切换与共存。没有新增实测结果，不计PASS。",
+      "source_quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+      "evidence_origin": "explicit_owner_deferred"
+    },
+    {
+      "id": "T16",
+      "status": "not_executed",
+      "observation": "Owner明确后置：来源缺失全部竞争组合、RT-03固件主槽回退、UP-01/02历史上传根因。没有新增实测结果，不计PASS。",
+      "source_quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+      "evidence_origin": "explicit_owner_deferred"
+    },
+    {
+      "id": "T17",
+      "status": "not_executed",
+      "observation": "Owner明确后置：旧固件实机、完整系统/本地语音及长时休眠回归。没有新增实测结果，不计PASS。",
+      "source_quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+      "evidence_origin": "explicit_owner_deferred"
+    },
+    {
+      "id": "T18",
+      "status": "not_executed",
+      "observation": "Owner明确后置：新正式JAR实际启动运行，当前仅静态对比和历史Preview正常路径结果。没有新增实测结果，不计PASS。",
+      "source_quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+      "evidence_origin": "explicit_owner_deferred"
+    },
+    {
+      "id": "T19",
+      "status": "not_executed",
+      "observation": "Owner明确后置：等待态实际触发与完整应用/设备组合。没有新增实测结果，不计PASS。",
+      "source_quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+      "evidence_origin": "explicit_owner_deferred"
+    }
+  ],
+  "deferred_register": ".ahakey-desktop-harness/changes/WD-005/DEFERRED_FOLLOWUPS_20261022.md",
+  "no_claims": [
+    "BLE优化交付",
+    "完整应用/高DPI/持久化",
+    "上传历史根因闭环",
+    "固件RT-03修复",
+    "正式JAR新运行",
+    "EXE安装或发布"
+  ]
+}

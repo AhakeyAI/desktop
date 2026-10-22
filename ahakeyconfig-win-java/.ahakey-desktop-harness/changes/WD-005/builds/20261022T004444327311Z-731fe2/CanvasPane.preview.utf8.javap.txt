@@ -1,0 +1,1092 @@
+Classfile jar:file:///C:/Users/20825/Desktop/windows软件代码/desktop/ahakeyconfig-win-java/.ahakey-desktop-harness/previews/WD-005/preview-20261021T024920511394Z-2ae03d/runtime-jar-classpath/ahakey-studio-1.0.0.jar!/com/example/ahakey/view/CanvasPane.class
+  Last modified 2026年10月21日; size 8527 bytes
+  SHA-256 checksum 559dca57f32216d1d18b4b706e68b7777d7b6c351233e0ffcfb86d82843eb025
+  Compiled from "CanvasPane.java"
+public class com.example.ahakey.view.CanvasPane extends javafx.scene.layout.VBox
+  minor version: 0
+  major version: 61
+  flags: (0x0021) ACC_PUBLIC, ACC_SUPER
+  this_class: #14                         // com/example/ahakey/view/CanvasPane
+  super_class: #2                         // javafx/scene/layout/VBox
+  interfaces: 0, fields: 5, methods: 8, attributes: 3
+Constant pool:
+    #1 = Methodref          #2.#3         // javafx/scene/layout/VBox."<init>":()V
+    #2 = Class              #4            // javafx/scene/layout/VBox
+    #3 = NameAndType        #5:#6         // "<init>":()V
+    #4 = Utf8               javafx/scene/layout/VBox
+    #5 = Utf8               <init>
+    #6 = Utf8               ()V
+    #7 = Methodref          #8.#9         // com/example/ahakey/util/LanguageManager.getInstance:()Lcom/example/ahakey/util/LanguageManager;
+    #8 = Class              #10           // com/example/ahakey/util/LanguageManager
+    #9 = NameAndType        #11:#12       // getInstance:()Lcom/example/ahakey/util/LanguageManager;
+   #10 = Utf8               com/example/ahakey/util/LanguageManager
+   #11 = Utf8               getInstance
+   #12 = Utf8               ()Lcom/example/ahakey/util/LanguageManager;
+   #13 = Fieldref           #14.#15       // com/example/ahakey/view/CanvasPane.languageManager:Lcom/example/ahakey/util/LanguageManager;
+   #14 = Class              #16           // com/example/ahakey/view/CanvasPane
+   #15 = NameAndType        #17:#18       // languageManager:Lcom/example/ahakey/util/LanguageManager;
+   #16 = Utf8               com/example/ahakey/view/CanvasPane
+   #17 = Utf8               languageManager
+   #18 = Utf8               Lcom/example/ahakey/util/LanguageManager;
+   #19 = Class              #20           // javafx/scene/control/Label
+   #20 = Utf8               javafx/scene/control/Label
+   #21 = Methodref          #19.#3        // javafx/scene/control/Label."<init>":()V
+   #22 = Fieldref           #14.#23       // com/example/ahakey/view/CanvasPane.modeGuidance:Ljavafx/scene/control/Label;
+   #23 = NameAndType        #24:#25       // modeGuidance:Ljavafx/scene/control/Label;
+   #24 = Utf8               modeGuidance
+   #25 = Utf8               Ljavafx/scene/control/Label;
+   #26 = Methodref          #27.#28       // com/example/ahakey/app/StudioController.getStudioState:()Lcom/example/ahakey/model/StudioState;
+   #27 = Class              #29           // com/example/ahakey/app/StudioController
+   #28 = NameAndType        #30:#31       // getStudioState:()Lcom/example/ahakey/model/StudioState;
+   #29 = Utf8               com/example/ahakey/app/StudioController
+   #30 = Utf8               getStudioState
+   #31 = Utf8               ()Lcom/example/ahakey/model/StudioState;
+   #32 = Fieldref           #14.#33       // com/example/ahakey/view/CanvasPane.studioState:Lcom/example/ahakey/model/StudioState;
+   #33 = NameAndType        #34:#35       // studioState:Lcom/example/ahakey/model/StudioState;
+   #34 = Utf8               studioState
+   #35 = Utf8               Lcom/example/ahakey/model/StudioState;
+   #36 = Methodref          #27.#37       // com/example/ahakey/app/StudioController.getDeviceStatus:()Lcom/example/ahakey/model/DeviceStatus;
+   #37 = NameAndType        #38:#39       // getDeviceStatus:()Lcom/example/ahakey/model/DeviceStatus;
+   #38 = Utf8               getDeviceStatus
+   #39 = Utf8               ()Lcom/example/ahakey/model/DeviceStatus;
+   #40 = Fieldref           #14.#41       // com/example/ahakey/view/CanvasPane.deviceStatus:Lcom/example/ahakey/model/DeviceStatus;
+   #41 = NameAndType        #42:#43       // deviceStatus:Lcom/example/ahakey/model/DeviceStatus;
+   #42 = Utf8               deviceStatus
+   #43 = Utf8               Lcom/example/ahakey/model/DeviceStatus;
+   #44 = Fieldref           #14.#45       // com/example/ahakey/view/CanvasPane.controller:Lcom/example/ahakey/app/StudioController;
+   #45 = NameAndType        #46:#47       // controller:Lcom/example/ahakey/app/StudioController;
+   #46 = Utf8               controller
+   #47 = Utf8               Lcom/example/ahakey/app/StudioController;
+   #48 = Methodref          #14.#49       // com/example/ahakey/view/CanvasPane.init:()V
+   #49 = NameAndType        #50:#6        // init:()V
+   #50 = Utf8               init
+   #51 = Double             14.0d
+   #53 = Methodref          #14.#54       // com/example/ahakey/view/CanvasPane.setSpacing:(D)V
+   #54 = NameAndType        #55:#56       // setSpacing:(D)V
+   #55 = Utf8               setSpacing
+   #56 = Utf8               (D)V
+   #57 = Class              #58           // javafx/geometry/Insets
+   #58 = Utf8               javafx/geometry/Insets
+   #59 = Double             16.0d
+   #61 = Methodref          #57.#62       // javafx/geometry/Insets."<init>":(D)V
+   #62 = NameAndType        #5:#56        // "<init>":(D)V
+   #63 = Methodref          #14.#64       // com/example/ahakey/view/CanvasPane.setPadding:(Ljavafx/geometry/Insets;)V
+   #64 = NameAndType        #65:#66       // setPadding:(Ljavafx/geometry/Insets;)V
+   #65 = Utf8               setPadding
+   #66 = Utf8               (Ljavafx/geometry/Insets;)V
+   #67 = Methodref          #14.#68       // com/example/ahakey/view/CanvasPane.getStyleClass:()Ljavafx/collections/ObservableList;
+   #68 = NameAndType        #69:#70       // getStyleClass:()Ljavafx/collections/ObservableList;
+   #69 = Utf8               getStyleClass
+   #70 = Utf8               ()Ljavafx/collections/ObservableList;
+   #71 = String             #72           // canvas-pane
+   #72 = Utf8               canvas-pane
+   #73 = InterfaceMethodref #74.#75       // javafx/collections/ObservableList.add:(Ljava/lang/Object;)Z
+   #74 = Class              #76           // javafx/collections/ObservableList
+   #75 = NameAndType        #77:#78       // add:(Ljava/lang/Object;)Z
+   #76 = Utf8               javafx/collections/ObservableList
+   #77 = Utf8               add
+   #78 = Utf8               (Ljava/lang/Object;)Z
+   #79 = Double             420.0d
+   #81 = Methodref          #14.#82       // com/example/ahakey/view/CanvasPane.setMinWidth:(D)V
+   #82 = NameAndType        #83:#56       // setMinWidth:(D)V
+   #83 = Utf8               setMinWidth
+   #84 = Double             780.0d
+   #86 = Methodref          #14.#87       // com/example/ahakey/view/CanvasPane.setMaxWidth:(D)V
+   #87 = NameAndType        #88:#56       // setMaxWidth:(D)V
+   #88 = Utf8               setMaxWidth
+   #89 = Fieldref           #90.#91       // javafx/scene/layout/Priority.NEVER:Ljavafx/scene/layout/Priority;
+   #90 = Class              #92           // javafx/scene/layout/Priority
+   #91 = NameAndType        #93:#94       // NEVER:Ljavafx/scene/layout/Priority;
+   #92 = Utf8               javafx/scene/layout/Priority
+   #93 = Utf8               NEVER
+   #94 = Utf8               Ljavafx/scene/layout/Priority;
+   #95 = Methodref          #96.#97       // javafx/scene/layout/HBox.setHgrow:(Ljavafx/scene/Node;Ljavafx/scene/layout/Priority;)V
+   #96 = Class              #98           // javafx/scene/layout/HBox
+   #97 = NameAndType        #99:#100      // setHgrow:(Ljavafx/scene/Node;Ljavafx/scene/layout/Priority;)V
+   #98 = Utf8               javafx/scene/layout/HBox
+   #99 = Utf8               setHgrow
+  #100 = Utf8               (Ljavafx/scene/Node;Ljavafx/scene/layout/Priority;)V
+  #101 = Methodref          #14.#102      // com/example/ahakey/view/CanvasPane.getChildren:()Ljavafx/collections/ObservableList;
+  #102 = NameAndType        #103:#70      // getChildren:()Ljavafx/collections/ObservableList;
+  #103 = Utf8               getChildren
+  #104 = Class              #105          // javafx/scene/Node
+  #105 = Utf8               javafx/scene/Node
+  #106 = Methodref          #14.#107      // com/example/ahakey/view/CanvasPane.createHeader:()Ljavafx/scene/layout/VBox;
+  #107 = NameAndType        #108:#109     // createHeader:()Ljavafx/scene/layout/VBox;
+  #108 = Utf8               createHeader
+  #109 = Utf8               ()Ljavafx/scene/layout/VBox;
+  #110 = Methodref          #14.#111      // com/example/ahakey/view/CanvasPane.createPreviewCard:()Ljavafx/scene/layout/StackPane;
+  #111 = NameAndType        #112:#113     // createPreviewCard:()Ljavafx/scene/layout/StackPane;
+  #112 = Utf8               createPreviewCard
+  #113 = Utf8               ()Ljavafx/scene/layout/StackPane;
+  #114 = InterfaceMethodref #74.#115      // javafx/collections/ObservableList.addAll:([Ljava/lang/Object;)Z
+  #115 = NameAndType        #116:#117     // addAll:([Ljava/lang/Object;)Z
+  #116 = Utf8               addAll
+  #117 = Utf8               ([Ljava/lang/Object;)Z
+  #118 = Methodref          #119.#120     // com/example/ahakey/model/StudioState.selectedModeProperty:()Ljavafx/beans/property/ObjectProperty;
+  #119 = Class              #121          // com/example/ahakey/model/StudioState
+  #120 = NameAndType        #122:#123     // selectedModeProperty:()Ljavafx/beans/property/ObjectProperty;
+  #121 = Utf8               com/example/ahakey/model/StudioState
+  #122 = Utf8               selectedModeProperty
+  #123 = Utf8               ()Ljavafx/beans/property/ObjectProperty;
+  #124 = InvokeDynamic      #0:#125       // #0:changed:(Lcom/example/ahakey/view/CanvasPane;)Ljavafx/beans/value/ChangeListener;
+  #125 = NameAndType        #126:#127     // changed:(Lcom/example/ahakey/view/CanvasPane;)Ljavafx/beans/value/ChangeListener;
+  #126 = Utf8               changed
+  #127 = Utf8               (Lcom/example/ahakey/view/CanvasPane;)Ljavafx/beans/value/ChangeListener;
+  #128 = Methodref          #129.#130     // javafx/beans/property/ObjectProperty.addListener:(Ljavafx/beans/value/ChangeListener;)V
+  #129 = Class              #131          // javafx/beans/property/ObjectProperty
+  #130 = NameAndType        #132:#133     // addListener:(Ljavafx/beans/value/ChangeListener;)V
+  #131 = Utf8               javafx/beans/property/ObjectProperty
+  #132 = Utf8               addListener
+  #133 = Utf8               (Ljavafx/beans/value/ChangeListener;)V
+  #134 = Methodref          #14.#135      // com/example/ahakey/view/CanvasPane.refreshPreview:()V
+  #135 = NameAndType        #136:#6       // refreshPreview:()V
+  #136 = Utf8               refreshPreview
+  #137 = Double             8.0d
+  #139 = Methodref          #2.#62        // javafx/scene/layout/VBox."<init>":(D)V
+  #140 = Methodref          #2.#68        // javafx/scene/layout/VBox.getStyleClass:()Ljavafx/collections/ObservableList;
+  #141 = String             #142          // mode-header
+  #142 = Utf8               mode-header
+  #143 = Methodref          #96.#62       // javafx/scene/layout/HBox."<init>":(D)V
+  #144 = Fieldref           #145.#146     // javafx/geometry/Pos.CENTER_LEFT:Ljavafx/geometry/Pos;
+  #145 = Class              #147          // javafx/geometry/Pos
+  #146 = NameAndType        #148:#149     // CENTER_LEFT:Ljavafx/geometry/Pos;
+  #147 = Utf8               javafx/geometry/Pos
+  #148 = Utf8               CENTER_LEFT
+  #149 = Utf8               Ljavafx/geometry/Pos;
+  #150 = Methodref          #96.#151      // javafx/scene/layout/HBox.setAlignment:(Ljavafx/geometry/Pos;)V
+  #151 = NameAndType        #152:#153     // setAlignment:(Ljavafx/geometry/Pos;)V
+  #152 = Utf8               setAlignment
+  #153 = Utf8               (Ljavafx/geometry/Pos;)V
+  #154 = String             #155          // canvas.keyboard-mode
+  #155 = Utf8               canvas.keyboard-mode
+  #156 = Methodref          #8.#157       // com/example/ahakey/util/LanguageManager.getString:(Ljava/lang/String;)Ljava/lang/String;
+  #157 = NameAndType        #158:#159     // getString:(Ljava/lang/String;)Ljava/lang/String;
+  #158 = Utf8               getString
+  #159 = Utf8               (Ljava/lang/String;)Ljava/lang/String;
+  #160 = Methodref          #19.#161      // javafx/scene/control/Label."<init>":(Ljava/lang/String;)V
+  #161 = NameAndType        #5:#162       // "<init>":(Ljava/lang/String;)V
+  #162 = Utf8               (Ljava/lang/String;)V
+  #163 = Methodref          #19.#68       // javafx/scene/control/Label.getStyleClass:()Ljavafx/collections/ObservableList;
+  #164 = String             #165          // section-title
+  #165 = Utf8               section-title
+  #166 = Double             4.0d
+  #168 = Methodref          #96.#68       // javafx/scene/layout/HBox.getStyleClass:()Ljavafx/collections/ObservableList;
+  #169 = String             #170          // mode-picker
+  #170 = Utf8               mode-picker
+  #171 = Methodref          #172.#173     // com/example/ahakey/model/ModeSlot.values:()[Lcom/example/ahakey/model/ModeSlot;
+  #172 = Class              #174          // com/example/ahakey/model/ModeSlot
+  #173 = NameAndType        #175:#176     // values:()[Lcom/example/ahakey/model/ModeSlot;
+  #174 = Utf8               com/example/ahakey/model/ModeSlot
+  #175 = Utf8               values
+  #176 = Utf8               ()[Lcom/example/ahakey/model/ModeSlot;
+  #177 = Class              #178          // javafx/scene/control/ToggleButton
+  #178 = Utf8               javafx/scene/control/ToggleButton
+  #179 = Methodref          #172.#180     // com/example/ahakey/model/ModeSlot.getShortName:()Ljava/lang/String;
+  #180 = NameAndType        #181:#182     // getShortName:()Ljava/lang/String;
+  #181 = Utf8               getShortName
+  #182 = Utf8               ()Ljava/lang/String;
+  #183 = Methodref          #177.#161     // javafx/scene/control/ToggleButton."<init>":(Ljava/lang/String;)V
+  #184 = Methodref          #177.#68      // javafx/scene/control/ToggleButton.getStyleClass:()Ljavafx/collections/ObservableList;
+  #185 = String             #186          // mode-toggle
+  #186 = Utf8               mode-toggle
+  #187 = Methodref          #177.#188     // javafx/scene/control/ToggleButton.setUserData:(Ljava/lang/Object;)V
+  #188 = NameAndType        #189:#190     // setUserData:(Ljava/lang/Object;)V
+  #189 = Utf8               setUserData
+  #190 = Utf8               (Ljava/lang/Object;)V
+  #191 = Methodref          #119.#192     // com/example/ahakey/model/StudioState.getSelectedMode:()Lcom/example/ahakey/model/ModeSlot;
+  #192 = NameAndType        #193:#194     // getSelectedMode:()Lcom/example/ahakey/model/ModeSlot;
+  #193 = Utf8               getSelectedMode
+  #194 = Utf8               ()Lcom/example/ahakey/model/ModeSlot;
+  #195 = Methodref          #177.#196     // javafx/scene/control/ToggleButton.setSelected:(Z)V
+  #196 = NameAndType        #197:#198     // setSelected:(Z)V
+  #197 = Utf8               setSelected
+  #198 = Utf8               (Z)V
+  #199 = Class              #200          // javafx/scene/control/Tooltip
+  #200 = Utf8               javafx/scene/control/Tooltip
+  #201 = String             #202          // 离线时只浏览本地草稿；连接后切换键盘当前模式。
+  #202 = Utf8               离线时只浏览本地草稿；连接后切换键盘当前模式。
+  #203 = Methodref          #199.#161     // javafx/scene/control/Tooltip."<init>":(Ljava/lang/String;)V
+  #204 = Methodref          #177.#205     // javafx/scene/control/ToggleButton.setTooltip:(Ljavafx/scene/control/Tooltip;)V
+  #205 = NameAndType        #206:#207     // setTooltip:(Ljavafx/scene/control/Tooltip;)V
+  #206 = Utf8               setTooltip
+  #207 = Utf8               (Ljavafx/scene/control/Tooltip;)V
+  #208 = Methodref          #177.#209     // javafx/scene/control/ToggleButton.disableProperty:()Ljavafx/beans/property/BooleanProperty;
+  #209 = NameAndType        #210:#211     // disableProperty:()Ljavafx/beans/property/BooleanProperty;
+  #210 = Utf8               disableProperty
+  #211 = Utf8               ()Ljavafx/beans/property/BooleanProperty;
+  #212 = Methodref          #119.#213     // com/example/ahakey/model/StudioState.modeSwitchingProperty:()Ljavafx/beans/property/BooleanProperty;
+  #213 = NameAndType        #214:#211     // modeSwitchingProperty:()Ljavafx/beans/property/BooleanProperty;
+  #214 = Utf8               modeSwitchingProperty
+  #215 = Methodref          #216.#217     // javafx/beans/property/BooleanProperty.bind:(Ljavafx/beans/value/ObservableValue;)V
+  #216 = Class              #218          // javafx/beans/property/BooleanProperty
+  #217 = NameAndType        #219:#220     // bind:(Ljavafx/beans/value/ObservableValue;)V
+  #218 = Utf8               javafx/beans/property/BooleanProperty
+  #219 = Utf8               bind
+  #220 = Utf8               (Ljavafx/beans/value/ObservableValue;)V
+  #221 = InvokeDynamic      #1:#222       // #1:handle:(Lcom/example/ahakey/view/CanvasPane;Ljavafx/scene/layout/HBox;Lcom/example/ahakey/model/ModeSlot;)Ljavafx/event/EventHandler;
+  #222 = NameAndType        #223:#224     // handle:(Lcom/example/ahakey/view/CanvasPane;Ljavafx/scene/layout/HBox;Lcom/example/ahakey/model/ModeSlot;)Ljavafx/event/EventHandler;
+  #223 = Utf8               handle
+  #224 = Utf8               (Lcom/example/ahakey/view/CanvasPane;Ljavafx/scene/layout/HBox;Lcom/example/ahakey/model/ModeSlot;)Ljavafx/event/EventHandler;
+  #225 = Methodref          #177.#226     // javafx/scene/control/ToggleButton.setOnAction:(Ljavafx/event/EventHandler;)V
+  #226 = NameAndType        #227:#228     // setOnAction:(Ljavafx/event/EventHandler;)V
+  #227 = Utf8               setOnAction
+  #228 = Utf8               (Ljavafx/event/EventHandler;)V
+  #229 = Methodref          #96.#102      // javafx/scene/layout/HBox.getChildren:()Ljavafx/collections/ObservableList;
+  #230 = InvokeDynamic      #2:#231       // #2:changed:(Ljavafx/scene/layout/HBox;)Ljavafx/beans/value/ChangeListener;
+  #231 = NameAndType        #126:#232     // changed:(Ljavafx/scene/layout/HBox;)Ljavafx/beans/value/ChangeListener;
+  #232 = Utf8               (Ljavafx/scene/layout/HBox;)Ljavafx/beans/value/ChangeListener;
+  #233 = Methodref          #96.#3        // javafx/scene/layout/HBox."<init>":()V
+  #234 = Fieldref           #90.#235      // javafx/scene/layout/Priority.ALWAYS:Ljavafx/scene/layout/Priority;
+  #235 = NameAndType        #236:#94      // ALWAYS:Ljavafx/scene/layout/Priority;
+  #236 = Utf8               ALWAYS
+  #237 = String             #238          // hero-subtitle
+  #238 = Utf8               hero-subtitle
+  #239 = Methodref          #2.#102       // javafx/scene/layout/VBox.getChildren:()Ljavafx/collections/ObservableList;
+  #240 = Class              #241          // javafx/scene/layout/StackPane
+  #241 = Utf8               javafx/scene/layout/StackPane
+  #242 = Methodref          #240.#3       // javafx/scene/layout/StackPane."<init>":()V
+  #243 = Methodref          #240.#68      // javafx/scene/layout/StackPane.getStyleClass:()Ljavafx/collections/ObservableList;
+  #244 = String             #245          // key-preview
+  #245 = Utf8               key-preview
+  #246 = Class              #247          // javafx/fxml/FXMLLoader
+  #247 = Utf8               javafx/fxml/FXMLLoader
+  #248 = Methodref          #249.#250     // java/lang/Object.getClass:()Ljava/lang/Class;
+  #249 = Class              #251          // java/lang/Object
+  #250 = NameAndType        #252:#253     // getClass:()Ljava/lang/Class;
+  #251 = Utf8               java/lang/Object
+  #252 = Utf8               getClass
+  #253 = Utf8               ()Ljava/lang/Class;
+  #254 = String             #255          // /fxml/CanvasLayout.fxml
+  #255 = Utf8               /fxml/CanvasLayout.fxml
+  #256 = Methodref          #257.#258     // java/lang/Class.getResource:(Ljava/lang/String;)Ljava/net/URL;
+  #257 = Class              #259          // java/lang/Class
+  #258 = NameAndType        #260:#261     // getResource:(Ljava/lang/String;)Ljava/net/URL;
+  #259 = Utf8               java/lang/Class
+  #260 = Utf8               getResource
+  #261 = Utf8               (Ljava/lang/String;)Ljava/net/URL;
+  #262 = Methodref          #246.#263     // javafx/fxml/FXMLLoader."<init>":(Ljava/net/URL;)V
+  #263 = NameAndType        #5:#264       // "<init>":(Ljava/net/URL;)V
+  #264 = Utf8               (Ljava/net/URL;)V
+  #265 = Methodref          #246.#266     // javafx/fxml/FXMLLoader.load:()Ljava/lang/Object;
+  #266 = NameAndType        #267:#268     // load:()Ljava/lang/Object;
+  #267 = Utf8               load
+  #268 = Utf8               ()Ljava/lang/Object;
+  #269 = Methodref          #246.#270     // javafx/fxml/FXMLLoader.getController:()Ljava/lang/Object;
+  #270 = NameAndType        #271:#268     // getController:()Ljava/lang/Object;
+  #271 = Utf8               getController
+  #272 = Class              #273          // com/example/ahakey/view/CanvasController
+  #273 = Utf8               com/example/ahakey/view/CanvasController
+  #274 = Methodref          #272.#275     // com/example/ahakey/view/CanvasController.setStudioState:(Lcom/example/ahakey/model/StudioState;)V
+  #275 = NameAndType        #276:#277     // setStudioState:(Lcom/example/ahakey/model/StudioState;)V
+  #276 = Utf8               setStudioState
+  #277 = Utf8               (Lcom/example/ahakey/model/StudioState;)V
+  #278 = Methodref          #272.#279     // com/example/ahakey/view/CanvasController.setDeviceStatus:(Lcom/example/ahakey/model/DeviceStatus;)V
+  #279 = NameAndType        #280:#281     // setDeviceStatus:(Lcom/example/ahakey/model/DeviceStatus;)V
+  #280 = Utf8               setDeviceStatus
+  #281 = Utf8               (Lcom/example/ahakey/model/DeviceStatus;)V
+  #282 = Methodref          #240.#102     // javafx/scene/layout/StackPane.getChildren:()Ljavafx/collections/ObservableList;
+  #283 = Class              #284          // java/io/IOException
+  #284 = Utf8               java/io/IOException
+  #285 = Methodref          #283.#286     // java/io/IOException.printStackTrace:()V
+  #286 = NameAndType        #287:#6       // printStackTrace:()V
+  #287 = Utf8               printStackTrace
+  #288 = Methodref          #172.#289     // com/example/ahakey/model/ModeSlot.getGuidance:()Ljava/lang/String;
+  #289 = NameAndType        #290:#182     // getGuidance:()Ljava/lang/String;
+  #290 = Utf8               getGuidance
+  #291 = Methodref          #19.#292      // javafx/scene/control/Label.setText:(Ljava/lang/String;)V
+  #292 = NameAndType        #293:#162     // setText:(Ljava/lang/String;)V
+  #293 = Utf8               setText
+  #294 = Methodref          #295.#296     // java/lang/String.isBlank:()Z
+  #295 = Class              #297          // java/lang/String
+  #296 = NameAndType        #298:#299     // isBlank:()Z
+  #297 = Utf8               java/lang/String
+  #298 = Utf8               isBlank
+  #299 = Utf8               ()Z
+  #300 = Methodref          #19.#301      // javafx/scene/control/Label.setVisible:(Z)V
+  #301 = NameAndType        #302:#198     // setVisible:(Z)V
+  #302 = Utf8               setVisible
+  #303 = Methodref          #19.#304      // javafx/scene/control/Label.isVisible:()Z
+  #304 = NameAndType        #305:#299     // isVisible:()Z
+  #305 = Utf8               isVisible
+  #306 = Methodref          #19.#307      // javafx/scene/control/Label.setManaged:(Z)V
+  #307 = NameAndType        #308:#198     // setManaged:(Z)V
+  #308 = Utf8               setManaged
+  #309 = InterfaceMethodref #74.#310      // javafx/collections/ObservableList.iterator:()Ljava/util/Iterator;
+  #310 = NameAndType        #311:#312     // iterator:()Ljava/util/Iterator;
+  #311 = Utf8               iterator
+  #312 = Utf8               ()Ljava/util/Iterator;
+  #313 = InterfaceMethodref #314.#315     // java/util/Iterator.hasNext:()Z
+  #314 = Class              #316          // java/util/Iterator
+  #315 = NameAndType        #317:#299     // hasNext:()Z
+  #316 = Utf8               java/util/Iterator
+  #317 = Utf8               hasNext
+  #318 = InterfaceMethodref #314.#319     // java/util/Iterator.next:()Ljava/lang/Object;
+  #319 = NameAndType        #320:#268     // next:()Ljava/lang/Object;
+  #320 = Utf8               next
+  #321 = Methodref          #177.#322     // javafx/scene/control/ToggleButton.getUserData:()Ljava/lang/Object;
+  #322 = NameAndType        #323:#268     // getUserData:()Ljava/lang/Object;
+  #323 = Utf8               getUserData
+  #324 = Methodref          #27.#325      // com/example/ahakey/app/StudioController.selectKeyboardMode:(Lcom/example/ahakey/model/ModeSlot;)V
+  #325 = NameAndType        #326:#327     // selectKeyboardMode:(Lcom/example/ahakey/model/ModeSlot;)V
+  #326 = Utf8               selectKeyboardMode
+  #327 = Utf8               (Lcom/example/ahakey/model/ModeSlot;)V
+  #328 = Utf8               (Lcom/example/ahakey/app/StudioController;)V
+  #329 = Utf8               Code
+  #330 = Utf8               LineNumberTable
+  #331 = Utf8               LocalVariableTable
+  #332 = Utf8               this
+  #333 = Utf8               Lcom/example/ahakey/view/CanvasPane;
+  #334 = Utf8               button
+  #335 = Utf8               Ljavafx/scene/control/ToggleButton;
+  #336 = Utf8               slot
+  #337 = Utf8               Lcom/example/ahakey/model/ModeSlot;
+  #338 = Utf8               header
+  #339 = Utf8               Ljavafx/scene/layout/VBox;
+  #340 = Utf8               titleRow
+  #341 = Utf8               Ljavafx/scene/layout/HBox;
+  #342 = Utf8               keyboardMode
+  #343 = Utf8               picker
+  #344 = Utf8               spacer
+  #345 = Utf8               StackMapTable
+  #346 = Class              #347          // "[Lcom/example/ahakey/model/ModeSlot;"
+  #347 = Utf8               [Lcom/example/ahakey/model/ModeSlot;
+  #348 = Utf8               loader
+  #349 = Utf8               Ljavafx/fxml/FXMLLoader;
+  #350 = Utf8               layout
+  #351 = Utf8               Lcom/example/ahakey/view/CanvasController;
+  #352 = Utf8               e
+  #353 = Utf8               Ljava/io/IOException;
+  #354 = Utf8               preview
+  #355 = Utf8               Ljavafx/scene/layout/StackPane;
+  #356 = Utf8               mode
+  #357 = Utf8               lambda$createHeader$2
+  #358 = Utf8               (Ljavafx/scene/layout/HBox;Ljavafx/beans/value/ObservableValue;Lcom/example/ahakey/model/ModeSlot;Lcom/example/ahakey/model/ModeSlot;)V
+  #359 = Utf8               patt3151$temp
+  #360 = Utf8               Ljava/lang/Object;
+  #361 = Utf8               tb
+  #362 = Utf8               node
+  #363 = Utf8               Ljavafx/scene/Node;
+  #364 = Utf8               obs
+  #365 = Utf8               Ljavafx/beans/value/ObservableValue;
+  #366 = Utf8               oldValue
+  #367 = Utf8               newValue
+  #368 = Class              #369          // javafx/beans/value/ObservableValue
+  #369 = Utf8               javafx/beans/value/ObservableValue
+  #370 = Utf8               lambda$createHeader$1
+  #371 = Utf8               (Ljavafx/scene/layout/HBox;Lcom/example/ahakey/model/ModeSlot;Ljavafx/event/ActionEvent;)V
+  #372 = Utf8               patt2700$temp
+  #373 = Utf8               s
+  #374 = Utf8               event
+  #375 = Utf8               Ljavafx/event/ActionEvent;
+  #376 = Class              #377          // javafx/event/ActionEvent
+  #377 = Utf8               javafx/event/ActionEvent
+  #378 = Utf8               lambda$init$0
+  #379 = Utf8               (Ljavafx/beans/value/ObservableValue;Lcom/example/ahakey/model/ModeSlot;Lcom/example/ahakey/model/ModeSlot;)V
+  #380 = Utf8               SourceFile
+  #381 = Utf8               CanvasPane.java
+  #382 = Utf8               BootstrapMethods
+  #383 = MethodHandle       6:#384        // REF_invokeStatic java/lang/invoke/LambdaMetafactory.metafactory:(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/CallSite;
+  #384 = Methodref          #385.#386     // java/lang/invoke/LambdaMetafactory.metafactory:(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/CallSite;
+  #385 = Class              #387          // java/lang/invoke/LambdaMetafactory
+  #386 = NameAndType        #388:#389     // metafactory:(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/CallSite;
+  #387 = Utf8               java/lang/invoke/LambdaMetafactory
+  #388 = Utf8               metafactory
+  #389 = Utf8               (Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/CallSite;
+  #390 = MethodType         #391          //  (Ljavafx/beans/value/ObservableValue;Ljava/lang/Object;Ljava/lang/Object;)V
+  #391 = Utf8               (Ljavafx/beans/value/ObservableValue;Ljava/lang/Object;Ljava/lang/Object;)V
+  #392 = MethodHandle       5:#393        // REF_invokeVirtual com/example/ahakey/view/CanvasPane.lambda$init$0:(Ljavafx/beans/value/ObservableValue;Lcom/example/ahakey/model/ModeSlot;Lcom/example/ahakey/model/ModeSlot;)V
+  #393 = Methodref          #14.#394      // com/example/ahakey/view/CanvasPane.lambda$init$0:(Ljavafx/beans/value/ObservableValue;Lcom/example/ahakey/model/ModeSlot;Lcom/example/ahakey/model/ModeSlot;)V
+  #394 = NameAndType        #378:#379     // lambda$init$0:(Ljavafx/beans/value/ObservableValue;Lcom/example/ahakey/model/ModeSlot;Lcom/example/ahakey/model/ModeSlot;)V
+  #395 = MethodType         #379          //  (Ljavafx/beans/value/ObservableValue;Lcom/example/ahakey/model/ModeSlot;Lcom/example/ahakey/model/ModeSlot;)V
+  #396 = MethodType         #397          //  (Ljavafx/event/Event;)V
+  #397 = Utf8               (Ljavafx/event/Event;)V
+  #398 = MethodHandle       5:#399        // REF_invokeVirtual com/example/ahakey/view/CanvasPane.lambda$createHeader$1:(Ljavafx/scene/layout/HBox;Lcom/example/ahakey/model/ModeSlot;Ljavafx/event/ActionEvent;)V
+  #399 = Methodref          #14.#400      // com/example/ahakey/view/CanvasPane.lambda$createHeader$1:(Ljavafx/scene/layout/HBox;Lcom/example/ahakey/model/ModeSlot;Ljavafx/event/ActionEvent;)V
+  #400 = NameAndType        #370:#371     // lambda$createHeader$1:(Ljavafx/scene/layout/HBox;Lcom/example/ahakey/model/ModeSlot;Ljavafx/event/ActionEvent;)V
+  #401 = MethodType         #402          //  (Ljavafx/event/ActionEvent;)V
+  #402 = Utf8               (Ljavafx/event/ActionEvent;)V
+  #403 = MethodHandle       6:#404        // REF_invokeStatic com/example/ahakey/view/CanvasPane.lambda$createHeader$2:(Ljavafx/scene/layout/HBox;Ljavafx/beans/value/ObservableValue;Lcom/example/ahakey/model/ModeSlot;Lcom/example/ahakey/model/ModeSlot;)V
+  #404 = Methodref          #14.#405      // com/example/ahakey/view/CanvasPane.lambda$createHeader$2:(Ljavafx/scene/layout/HBox;Ljavafx/beans/value/ObservableValue;Lcom/example/ahakey/model/ModeSlot;Lcom/example/ahakey/model/ModeSlot;)V
+  #405 = NameAndType        #357:#358     // lambda$createHeader$2:(Ljavafx/scene/layout/HBox;Ljavafx/beans/value/ObservableValue;Lcom/example/ahakey/model/ModeSlot;Lcom/example/ahakey/model/ModeSlot;)V
+  #406 = Utf8               InnerClasses
+  #407 = Class              #408          // java/lang/invoke/MethodHandles$Lookup
+  #408 = Utf8               java/lang/invoke/MethodHandles$Lookup
+  #409 = Class              #410          // java/lang/invoke/MethodHandles
+  #410 = Utf8               java/lang/invoke/MethodHandles
+  #411 = Utf8               Lookup
+{
+  private final com.example.ahakey.model.StudioState studioState;
+    descriptor: Lcom/example/ahakey/model/StudioState;
+    flags: (0x0012) ACC_PRIVATE, ACC_FINAL
+
+  private final com.example.ahakey.model.DeviceStatus deviceStatus;
+    descriptor: Lcom/example/ahakey/model/DeviceStatus;
+    flags: (0x0012) ACC_PRIVATE, ACC_FINAL
+
+  private final com.example.ahakey.app.StudioController controller;
+    descriptor: Lcom/example/ahakey/app/StudioController;
+    flags: (0x0012) ACC_PRIVATE, ACC_FINAL
+
+  private final com.example.ahakey.util.LanguageManager languageManager;
+    descriptor: Lcom/example/ahakey/util/LanguageManager;
+    flags: (0x0012) ACC_PRIVATE, ACC_FINAL
+
+  private final javafx.scene.control.Label modeGuidance;
+    descriptor: Ljavafx/scene/control/Label;
+    flags: (0x0012) ACC_PRIVATE, ACC_FINAL
+
+  public com.example.ahakey.view.CanvasPane(com.example.ahakey.app.StudioController);
+    descriptor: (Lcom/example/ahakey/app/StudioController;)V
+    flags: (0x0001) ACC_PUBLIC
+    Code:
+      stack=3, locals=2, args_size=2
+         0: aload_0
+         1: invokespecial #1                  // Method javafx/scene/layout/VBox."<init>":()V
+         4: aload_0
+         5: invokestatic  #7                  // Method com/example/ahakey/util/LanguageManager.getInstance:()Lcom/example/ahakey/util/LanguageManager;
+         8: putfield      #13                 // Field languageManager:Lcom/example/ahakey/util/LanguageManager;
+        11: aload_0
+        12: new           #19                 // class javafx/scene/control/Label
+        15: dup
+        16: invokespecial #21                 // Method javafx/scene/control/Label."<init>":()V
+        19: putfield      #22                 // Field modeGuidance:Ljavafx/scene/control/Label;
+        22: aload_0
+        23: aload_1
+        24: invokevirtual #26                 // Method com/example/ahakey/app/StudioController.getStudioState:()Lcom/example/ahakey/model/StudioState;
+        27: putfield      #32                 // Field studioState:Lcom/example/ahakey/model/StudioState;
+        30: aload_0
+        31: aload_1
+        32: invokevirtual #36                 // Method com/example/ahakey/app/StudioController.getDeviceStatus:()Lcom/example/ahakey/model/DeviceStatus;
+        35: putfield      #40                 // Field deviceStatus:Lcom/example/ahakey/model/DeviceStatus;
+        38: aload_0
+        39: aload_1
+        40: putfield      #44                 // Field controller:Lcom/example/ahakey/app/StudioController;
+        43: aload_0
+        44: invokevirtual #48                 // Method init:()V
+        47: return
+      LineNumberTable:
+        line 29: 0
+        line 25: 4
+        line 27: 11
+        line 30: 22
+        line 31: 30
+        line 32: 38
+        line 33: 43
+        line 34: 47
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      48     0  this   Lcom/example/ahakey/view/CanvasPane;
+            0      48     1 controller   Lcom/example/ahakey/app/StudioController;
+
+  private void init();
+    descriptor: ()V
+    flags: (0x0002) ACC_PRIVATE
+    Code:
+      stack=5, locals=1, args_size=1
+         0: aload_0
+         1: ldc2_w        #51                 // double 14.0d
+         4: invokevirtual #53                 // Method setSpacing:(D)V
+         7: aload_0
+         8: new           #57                 // class javafx/geometry/Insets
+        11: dup
+        12: ldc2_w        #59                 // double 16.0d
+        15: invokespecial #61                 // Method javafx/geometry/Insets."<init>":(D)V
+        18: invokevirtual #63                 // Method setPadding:(Ljavafx/geometry/Insets;)V
+        21: aload_0
+        22: invokevirtual #67                 // Method getStyleClass:()Ljavafx/collections/ObservableList;
+        25: ldc           #71                 // String canvas-pane
+        27: invokeinterface #73,  2           // InterfaceMethod javafx/collections/ObservableList.add:(Ljava/lang/Object;)Z
+        32: pop
+        33: aload_0
+        34: ldc2_w        #79                 // double 420.0d
+        37: invokevirtual #81                 // Method setMinWidth:(D)V
+        40: aload_0
+        41: ldc2_w        #84                 // double 780.0d
+        44: invokevirtual #86                 // Method setMaxWidth:(D)V
+        47: aload_0
+        48: getstatic     #89                 // Field javafx/scene/layout/Priority.NEVER:Ljavafx/scene/layout/Priority;
+        51: invokestatic  #95                 // Method javafx/scene/layout/HBox.setHgrow:(Ljavafx/scene/Node;Ljavafx/scene/layout/Priority;)V
+        54: aload_0
+        55: invokevirtual #101                // Method getChildren:()Ljavafx/collections/ObservableList;
+        58: iconst_2
+        59: anewarray     #104                // class javafx/scene/Node
+        62: dup
+        63: iconst_0
+        64: aload_0
+        65: invokevirtual #106                // Method createHeader:()Ljavafx/scene/layout/VBox;
+        68: aastore
+        69: dup
+        70: iconst_1
+        71: aload_0
+        72: invokevirtual #110                // Method createPreviewCard:()Ljavafx/scene/layout/StackPane;
+        75: aastore
+        76: invokeinterface #114,  2          // InterfaceMethod javafx/collections/ObservableList.addAll:([Ljava/lang/Object;)Z
+        81: pop
+        82: aload_0
+        83: getfield      #32                 // Field studioState:Lcom/example/ahakey/model/StudioState;
+        86: invokevirtual #118                // Method com/example/ahakey/model/StudioState.selectedModeProperty:()Ljavafx/beans/property/ObjectProperty;
+        89: aload_0
+        90: invokedynamic #124,  0            // InvokeDynamic #0:changed:(Lcom/example/ahakey/view/CanvasPane;)Ljavafx/beans/value/ChangeListener;
+        95: invokevirtual #128                // Method javafx/beans/property/ObjectProperty.addListener:(Ljavafx/beans/value/ChangeListener;)V
+        98: aload_0
+        99: invokevirtual #134                // Method refreshPreview:()V
+       102: return
+      LineNumberTable:
+        line 37: 0
+        line 38: 7
+        line 39: 21
+        line 40: 33
+        line 41: 40
+        line 42: 47
+        line 44: 54
+        line 45: 65
+        line 46: 72
+        line 44: 76
+        line 49: 82
+        line 50: 98
+        line 51: 102
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0     103     0  this   Lcom/example/ahakey/view/CanvasPane;
+
+  private javafx.scene.layout.VBox createHeader();
+    descriptor: ()Ljavafx/scene/layout/VBox;
+    flags: (0x0002) ACC_PRIVATE
+    Code:
+      stack=5, locals=10, args_size=1
+         0: new           #2                  // class javafx/scene/layout/VBox
+         3: dup
+         4: ldc2_w        #137                // double 8.0d
+         7: invokespecial #139                // Method javafx/scene/layout/VBox."<init>":(D)V
+        10: astore_1
+        11: aload_1
+        12: invokevirtual #140                // Method javafx/scene/layout/VBox.getStyleClass:()Ljavafx/collections/ObservableList;
+        15: ldc           #141                // String mode-header
+        17: invokeinterface #73,  2           // InterfaceMethod javafx/collections/ObservableList.add:(Ljava/lang/Object;)Z
+        22: pop
+        23: new           #96                 // class javafx/scene/layout/HBox
+        26: dup
+        27: ldc2_w        #59                 // double 16.0d
+        30: invokespecial #143                // Method javafx/scene/layout/HBox."<init>":(D)V
+        33: astore_2
+        34: aload_2
+        35: getstatic     #144                // Field javafx/geometry/Pos.CENTER_LEFT:Ljavafx/geometry/Pos;
+        38: invokevirtual #150                // Method javafx/scene/layout/HBox.setAlignment:(Ljavafx/geometry/Pos;)V
+        41: new           #19                 // class javafx/scene/control/Label
+        44: dup
+        45: aload_0
+        46: getfield      #13                 // Field languageManager:Lcom/example/ahakey/util/LanguageManager;
+        49: ldc           #154                // String canvas.keyboard-mode
+        51: invokevirtual #156                // Method com/example/ahakey/util/LanguageManager.getString:(Ljava/lang/String;)Ljava/lang/String;
+        54: invokespecial #160                // Method javafx/scene/control/Label."<init>":(Ljava/lang/String;)V
+        57: astore_3
+        58: aload_3
+        59: invokevirtual #163                // Method javafx/scene/control/Label.getStyleClass:()Ljavafx/collections/ObservableList;
+        62: ldc           #164                // String section-title
+        64: invokeinterface #73,  2           // InterfaceMethod javafx/collections/ObservableList.add:(Ljava/lang/Object;)Z
+        69: pop
+        70: new           #96                 // class javafx/scene/layout/HBox
+        73: dup
+        74: ldc2_w        #166                // double 4.0d
+        77: invokespecial #143                // Method javafx/scene/layout/HBox."<init>":(D)V
+        80: astore        4
+        82: aload         4
+        84: invokevirtual #168                // Method javafx/scene/layout/HBox.getStyleClass:()Ljavafx/collections/ObservableList;
+        87: ldc           #169                // String mode-picker
+        89: invokeinterface #73,  2           // InterfaceMethod javafx/collections/ObservableList.add:(Ljava/lang/Object;)Z
+        94: pop
+        95: invokestatic  #171                // Method com/example/ahakey/model/ModeSlot.values:()[Lcom/example/ahakey/model/ModeSlot;
+        98: astore        5
+       100: aload         5
+       102: arraylength
+       103: istore        6
+       105: iconst_0
+       106: istore        7
+       108: iload         7
+       110: iload         6
+       112: if_icmpge     241
+       115: aload         5
+       117: iload         7
+       119: aaload
+       120: astore        8
+       122: new           #177                // class javafx/scene/control/ToggleButton
+       125: dup
+       126: aload         8
+       128: invokevirtual #179                // Method com/example/ahakey/model/ModeSlot.getShortName:()Ljava/lang/String;
+       131: invokespecial #183                // Method javafx/scene/control/ToggleButton."<init>":(Ljava/lang/String;)V
+       134: astore        9
+       136: aload         9
+       138: invokevirtual #184                // Method javafx/scene/control/ToggleButton.getStyleClass:()Ljavafx/collections/ObservableList;
+       141: ldc           #185                // String mode-toggle
+       143: invokeinterface #73,  2           // InterfaceMethod javafx/collections/ObservableList.add:(Ljava/lang/Object;)Z
+       148: pop
+       149: aload         9
+       151: aload         8
+       153: invokevirtual #187                // Method javafx/scene/control/ToggleButton.setUserData:(Ljava/lang/Object;)V
+       156: aload         9
+       158: aload         8
+       160: aload_0
+       161: getfield      #32                 // Field studioState:Lcom/example/ahakey/model/StudioState;
+       164: invokevirtual #191                // Method com/example/ahakey/model/StudioState.getSelectedMode:()Lcom/example/ahakey/model/ModeSlot;
+       167: if_acmpne     174
+       170: iconst_1
+       171: goto          175
+       174: iconst_0
+       175: invokevirtual #195                // Method javafx/scene/control/ToggleButton.setSelected:(Z)V
+       178: aload         9
+       180: new           #199                // class javafx/scene/control/Tooltip
+       183: dup
+       184: ldc           #201                // String 离线时只浏览本地草稿；连接后切换键盘当前模式。
+       186: invokespecial #203                // Method javafx/scene/control/Tooltip."<init>":(Ljava/lang/String;)V
+       189: invokevirtual #204                // Method javafx/scene/control/ToggleButton.setTooltip:(Ljavafx/scene/control/Tooltip;)V
+       192: aload         9
+       194: invokevirtual #208                // Method javafx/scene/control/ToggleButton.disableProperty:()Ljavafx/beans/property/BooleanProperty;
+       197: aload_0
+       198: getfield      #32                 // Field studioState:Lcom/example/ahakey/model/StudioState;
+       201: invokevirtual #212                // Method com/example/ahakey/model/StudioState.modeSwitchingProperty:()Ljavafx/beans/property/BooleanProperty;
+       204: invokevirtual #215                // Method javafx/beans/property/BooleanProperty.bind:(Ljavafx/beans/value/ObservableValue;)V
+       207: aload         9
+       209: aload_0
+       210: aload         4
+       212: aload         8
+       214: invokedynamic #221,  0            // InvokeDynamic #1:handle:(Lcom/example/ahakey/view/CanvasPane;Ljavafx/scene/layout/HBox;Lcom/example/ahakey/model/ModeSlot;)Ljavafx/event/EventHandler;
+       219: invokevirtual #225                // Method javafx/scene/control/ToggleButton.setOnAction:(Ljavafx/event/EventHandler;)V
+       222: aload         4
+       224: invokevirtual #229                // Method javafx/scene/layout/HBox.getChildren:()Ljavafx/collections/ObservableList;
+       227: aload         9
+       229: invokeinterface #73,  2           // InterfaceMethod javafx/collections/ObservableList.add:(Ljava/lang/Object;)Z
+       234: pop
+       235: iinc          7, 1
+       238: goto          108
+       241: aload_0
+       242: getfield      #32                 // Field studioState:Lcom/example/ahakey/model/StudioState;
+       245: invokevirtual #118                // Method com/example/ahakey/model/StudioState.selectedModeProperty:()Ljavafx/beans/property/ObjectProperty;
+       248: aload         4
+       250: invokedynamic #230,  0            // InvokeDynamic #2:changed:(Ljavafx/scene/layout/HBox;)Ljavafx/beans/value/ChangeListener;
+       255: invokevirtual #128                // Method javafx/beans/property/ObjectProperty.addListener:(Ljavafx/beans/value/ChangeListener;)V
+       258: new           #96                 // class javafx/scene/layout/HBox
+       261: dup
+       262: invokespecial #233                // Method javafx/scene/layout/HBox."<init>":()V
+       265: astore        5
+       267: aload         5
+       269: getstatic     #234                // Field javafx/scene/layout/Priority.ALWAYS:Ljavafx/scene/layout/Priority;
+       272: invokestatic  #95                 // Method javafx/scene/layout/HBox.setHgrow:(Ljavafx/scene/Node;Ljavafx/scene/layout/Priority;)V
+       275: aload_2
+       276: invokevirtual #229                // Method javafx/scene/layout/HBox.getChildren:()Ljavafx/collections/ObservableList;
+       279: iconst_3
+       280: anewarray     #104                // class javafx/scene/Node
+       283: dup
+       284: iconst_0
+       285: aload_3
+       286: aastore
+       287: dup
+       288: iconst_1
+       289: aload         4
+       291: aastore
+       292: dup
+       293: iconst_2
+       294: aload         5
+       296: aastore
+       297: invokeinterface #114,  2          // InterfaceMethod javafx/collections/ObservableList.addAll:([Ljava/lang/Object;)Z
+       302: pop
+       303: aload_0
+       304: getfield      #22                 // Field modeGuidance:Ljavafx/scene/control/Label;
+       307: invokevirtual #163                // Method javafx/scene/control/Label.getStyleClass:()Ljavafx/collections/ObservableList;
+       310: ldc           #237                // String hero-subtitle
+       312: invokeinterface #73,  2           // InterfaceMethod javafx/collections/ObservableList.add:(Ljava/lang/Object;)Z
+       317: pop
+       318: aload_1
+       319: invokevirtual #239                // Method javafx/scene/layout/VBox.getChildren:()Ljavafx/collections/ObservableList;
+       322: iconst_2
+       323: anewarray     #104                // class javafx/scene/Node
+       326: dup
+       327: iconst_0
+       328: aload_2
+       329: aastore
+       330: dup
+       331: iconst_1
+       332: aload_0
+       333: getfield      #22                 // Field modeGuidance:Ljavafx/scene/control/Label;
+       336: aastore
+       337: invokeinterface #114,  2          // InterfaceMethod javafx/collections/ObservableList.addAll:([Ljava/lang/Object;)Z
+       342: pop
+       343: aload_1
+       344: areturn
+      LineNumberTable:
+        line 54: 0
+        line 55: 11
+        line 57: 23
+        line 58: 34
+        line 60: 41
+        line 61: 58
+        line 63: 70
+        line 64: 82
+        line 65: 95
+        line 66: 122
+        line 67: 136
+        line 68: 149
+        line 69: 156
+        line 70: 178
+        line 71: 192
+        line 72: 207
+        line 80: 222
+        line 65: 235
+        line 82: 241
+        line 90: 258
+        line 91: 267
+        line 92: 275
+        line 94: 303
+        line 95: 318
+        line 96: 343
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+          136      99     9 button   Ljavafx/scene/control/ToggleButton;
+          122     113     8  slot   Lcom/example/ahakey/model/ModeSlot;
+            0     345     0  this   Lcom/example/ahakey/view/CanvasPane;
+           11     334     1 header   Ljavafx/scene/layout/VBox;
+           34     311     2 titleRow   Ljavafx/scene/layout/HBox;
+           58     287     3 keyboardMode   Ljavafx/scene/control/Label;
+           82     263     4 picker   Ljavafx/scene/layout/HBox;
+          267      78     5 spacer   Ljavafx/scene/layout/HBox;
+      StackMapTable: number_of_entries = 4
+        frame_type = 255 /* full_frame */
+          offset_delta = 108
+          locals = [ class com/example/ahakey/view/CanvasPane, class javafx/scene/layout/VBox, class javafx/scene/layout/HBox, class javafx/scene/control/Label, class javafx/scene/layout/HBox, class "[Lcom/example/ahakey/model/ModeSlot;", int, int ]
+          stack = []
+        frame_type = 255 /* full_frame */
+          offset_delta = 65
+          locals = [ class com/example/ahakey/view/CanvasPane, class javafx/scene/layout/VBox, class javafx/scene/layout/HBox, class javafx/scene/control/Label, class javafx/scene/layout/HBox, class "[Lcom/example/ahakey/model/ModeSlot;", int, int, class com/example/ahakey/model/ModeSlot, class javafx/scene/control/ToggleButton ]
+          stack = [ class javafx/scene/control/ToggleButton ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 0
+          locals = [ class com/example/ahakey/view/CanvasPane, class javafx/scene/layout/VBox, class javafx/scene/layout/HBox, class javafx/scene/control/Label, class javafx/scene/layout/HBox, class "[Lcom/example/ahakey/model/ModeSlot;", int, int, class com/example/ahakey/model/ModeSlot, class javafx/scene/control/ToggleButton ]
+          stack = [ class javafx/scene/control/ToggleButton, int ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 65
+          locals = [ class com/example/ahakey/view/CanvasPane, class javafx/scene/layout/VBox, class javafx/scene/layout/HBox, class javafx/scene/control/Label, class javafx/scene/layout/HBox ]
+          stack = []
+
+  private javafx.scene.layout.StackPane createPreviewCard();
+    descriptor: ()Ljavafx/scene/layout/StackPane;
+    flags: (0x0002) ACC_PRIVATE
+    Code:
+      stack=4, locals=5, args_size=1
+         0: new           #240                // class javafx/scene/layout/StackPane
+         3: dup
+         4: invokespecial #242                // Method javafx/scene/layout/StackPane."<init>":()V
+         7: astore_1
+         8: aload_1
+         9: invokevirtual #243                // Method javafx/scene/layout/StackPane.getStyleClass:()Ljavafx/collections/ObservableList;
+        12: ldc           #244                // String key-preview
+        14: invokeinterface #73,  2           // InterfaceMethod javafx/collections/ObservableList.add:(Ljava/lang/Object;)Z
+        19: pop
+        20: new           #246                // class javafx/fxml/FXMLLoader
+        23: dup
+        24: aload_0
+        25: invokevirtual #248                // Method java/lang/Object.getClass:()Ljava/lang/Class;
+        28: ldc           #254                // String /fxml/CanvasLayout.fxml
+        30: invokevirtual #256                // Method java/lang/Class.getResource:(Ljava/lang/String;)Ljava/net/URL;
+        33: invokespecial #262                // Method javafx/fxml/FXMLLoader."<init>":(Ljava/net/URL;)V
+        36: astore_2
+        37: aload_2
+        38: invokevirtual #265                // Method javafx/fxml/FXMLLoader.load:()Ljava/lang/Object;
+        41: checkcast     #96                 // class javafx/scene/layout/HBox
+        44: astore_3
+        45: aload_2
+        46: invokevirtual #269                // Method javafx/fxml/FXMLLoader.getController:()Ljava/lang/Object;
+        49: checkcast     #272                // class com/example/ahakey/view/CanvasController
+        52: astore        4
+        54: aload         4
+        56: aload_0
+        57: getfield      #32                 // Field studioState:Lcom/example/ahakey/model/StudioState;
+        60: invokevirtual #274                // Method com/example/ahakey/view/CanvasController.setStudioState:(Lcom/example/ahakey/model/StudioState;)V
+        63: aload         4
+        65: aload_0
+        66: getfield      #40                 // Field deviceStatus:Lcom/example/ahakey/model/DeviceStatus;
+        69: invokevirtual #278                // Method com/example/ahakey/view/CanvasController.setDeviceStatus:(Lcom/example/ahakey/model/DeviceStatus;)V
+        72: aload_1
+        73: invokevirtual #282                // Method javafx/scene/layout/StackPane.getChildren:()Ljavafx/collections/ObservableList;
+        76: aload_3
+        77: invokeinterface #73,  2           // InterfaceMethod javafx/collections/ObservableList.add:(Ljava/lang/Object;)Z
+        82: pop
+        83: goto          91
+        86: astore_2
+        87: aload_2
+        88: invokevirtual #285                // Method java/io/IOException.printStackTrace:()V
+        91: aload_1
+        92: areturn
+      Exception table:
+         from    to  target type
+            20    83    86   Class java/io/IOException
+      LineNumberTable:
+        line 100: 0
+        line 101: 8
+        line 104: 20
+        line 105: 37
+        line 106: 45
+        line 107: 54
+        line 108: 63
+        line 109: 72
+        line 112: 83
+        line 110: 86
+        line 111: 87
+        line 114: 91
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+           37      46     2 loader   Ljavafx/fxml/FXMLLoader;
+           45      38     3 layout   Ljavafx/scene/layout/HBox;
+           54      29     4 controller   Lcom/example/ahakey/view/CanvasController;
+           87       4     2     e   Ljava/io/IOException;
+            0      93     0  this   Lcom/example/ahakey/view/CanvasPane;
+            8      85     1 preview   Ljavafx/scene/layout/StackPane;
+      StackMapTable: number_of_entries = 2
+        frame_type = 255 /* full_frame */
+          offset_delta = 86
+          locals = [ class com/example/ahakey/view/CanvasPane, class javafx/scene/layout/StackPane ]
+          stack = [ class java/io/IOException ]
+        frame_type = 4 /* same */
+
+  private void refreshPreview();
+    descriptor: ()V
+    flags: (0x0002) ACC_PRIVATE
+    Code:
+      stack=2, locals=2, args_size=1
+         0: aload_0
+         1: getfield      #32                 // Field studioState:Lcom/example/ahakey/model/StudioState;
+         4: invokevirtual #191                // Method com/example/ahakey/model/StudioState.getSelectedMode:()Lcom/example/ahakey/model/ModeSlot;
+         7: astore_1
+         8: aload_0
+         9: getfield      #22                 // Field modeGuidance:Ljavafx/scene/control/Label;
+        12: aload_1
+        13: invokevirtual #288                // Method com/example/ahakey/model/ModeSlot.getGuidance:()Ljava/lang/String;
+        16: invokevirtual #291                // Method javafx/scene/control/Label.setText:(Ljava/lang/String;)V
+        19: aload_0
+        20: getfield      #22                 // Field modeGuidance:Ljavafx/scene/control/Label;
+        23: aload_1
+        24: invokevirtual #288                // Method com/example/ahakey/model/ModeSlot.getGuidance:()Ljava/lang/String;
+        27: ifnull        44
+        30: aload_1
+        31: invokevirtual #288                // Method com/example/ahakey/model/ModeSlot.getGuidance:()Ljava/lang/String;
+        34: invokevirtual #294                // Method java/lang/String.isBlank:()Z
+        37: ifne          44
+        40: iconst_1
+        41: goto          45
+        44: iconst_0
+        45: invokevirtual #300                // Method javafx/scene/control/Label.setVisible:(Z)V
+        48: aload_0
+        49: getfield      #22                 // Field modeGuidance:Ljavafx/scene/control/Label;
+        52: aload_0
+        53: getfield      #22                 // Field modeGuidance:Ljavafx/scene/control/Label;
+        56: invokevirtual #303                // Method javafx/scene/control/Label.isVisible:()Z
+        59: invokevirtual #306                // Method javafx/scene/control/Label.setManaged:(Z)V
+        62: return
+      LineNumberTable:
+        line 118: 0
+        line 119: 8
+        line 120: 19
+        line 121: 48
+        line 122: 62
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0      63     0  this   Lcom/example/ahakey/view/CanvasPane;
+            8      55     1  mode   Lcom/example/ahakey/model/ModeSlot;
+      StackMapTable: number_of_entries = 2
+        frame_type = 255 /* full_frame */
+          offset_delta = 44
+          locals = [ class com/example/ahakey/view/CanvasPane, class com/example/ahakey/model/ModeSlot ]
+          stack = [ class javafx/scene/control/Label ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 0
+          locals = [ class com/example/ahakey/view/CanvasPane, class com/example/ahakey/model/ModeSlot ]
+          stack = [ class javafx/scene/control/Label, int ]
+
+  private static void lambda$createHeader$2(javafx.scene.layout.HBox, javafx.beans.value.ObservableValue, com.example.ahakey.model.ModeSlot, com.example.ahakey.model.ModeSlot);
+    descriptor: (Ljavafx/scene/layout/HBox;Ljavafx/beans/value/ObservableValue;Lcom/example/ahakey/model/ModeSlot;Lcom/example/ahakey/model/ModeSlot;)V
+    flags: (0x100a) ACC_PRIVATE, ACC_STATIC, ACC_SYNTHETIC
+    Code:
+      stack=3, locals=9, args_size=4
+         0: aload_0
+         1: invokevirtual #229                // Method javafx/scene/layout/HBox.getChildren:()Ljavafx/collections/ObservableList;
+         4: invokeinterface #309,  1          // InterfaceMethod javafx/collections/ObservableList.iterator:()Ljava/util/Iterator;
+         9: astore        4
+        11: aload         4
+        13: invokeinterface #313,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+        18: ifeq          89
+        21: aload         4
+        23: invokeinterface #318,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+        28: checkcast     #104                // class javafx/scene/Node
+        31: astore        5
+        33: aload         5
+        35: instanceof    #177                // class javafx/scene/control/ToggleButton
+        38: ifeq          86
+        41: aload         5
+        43: checkcast     #177                // class javafx/scene/control/ToggleButton
+        46: astore        6
+        48: aload         6
+        50: invokevirtual #321                // Method javafx/scene/control/ToggleButton.getUserData:()Ljava/lang/Object;
+        53: astore        8
+        55: aload         8
+        57: instanceof    #172                // class com/example/ahakey/model/ModeSlot
+        60: ifeq          86
+        63: aload         8
+        65: checkcast     #172                // class com/example/ahakey/model/ModeSlot
+        68: astore        7
+        70: aload         6
+        72: aload         7
+        74: aload_3
+        75: if_acmpne     82
+        78: iconst_1
+        79: goto          83
+        82: iconst_0
+        83: invokevirtual #195                // Method javafx/scene/control/ToggleButton.setSelected:(Z)V
+        86: goto          11
+        89: return
+      LineNumberTable:
+        line 83: 0
+        line 84: 33
+        line 85: 70
+        line 87: 86
+        line 88: 89
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+           55      15     8 patt3151$temp   Ljava/lang/Object;
+           48      38     6    tb   Ljavafx/scene/control/ToggleButton;
+           70      16     7  slot   Lcom/example/ahakey/model/ModeSlot;
+           33      53     5  node   Ljavafx/scene/Node;
+            0      90     0 picker   Ljavafx/scene/layout/HBox;
+            0      90     1   obs   Ljavafx/beans/value/ObservableValue;
+            0      90     2 oldValue   Lcom/example/ahakey/model/ModeSlot;
+            0      90     3 newValue   Lcom/example/ahakey/model/ModeSlot;
+      StackMapTable: number_of_entries = 5
+        frame_type = 252 /* append */
+          offset_delta = 11
+          locals = [ class java/util/Iterator ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 70
+          locals = [ class javafx/scene/layout/HBox, class javafx/beans/value/ObservableValue, class com/example/ahakey/model/ModeSlot, class com/example/ahakey/model/ModeSlot, class java/util/Iterator, class javafx/scene/Node, class javafx/scene/control/ToggleButton, class com/example/ahakey/model/ModeSlot ]
+          stack = [ class javafx/scene/control/ToggleButton ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 0
+          locals = [ class javafx/scene/layout/HBox, class javafx/beans/value/ObservableValue, class com/example/ahakey/model/ModeSlot, class com/example/ahakey/model/ModeSlot, class java/util/Iterator, class javafx/scene/Node, class javafx/scene/control/ToggleButton, class com/example/ahakey/model/ModeSlot ]
+          stack = [ class javafx/scene/control/ToggleButton, int ]
+        frame_type = 248 /* chop */
+          offset_delta = 2
+        frame_type = 250 /* chop */
+          offset_delta = 2
+
+  private void lambda$createHeader$1(javafx.scene.layout.HBox, com.example.ahakey.model.ModeSlot, javafx.event.ActionEvent);
+    descriptor: (Ljavafx/scene/layout/HBox;Lcom/example/ahakey/model/ModeSlot;Ljavafx/event/ActionEvent;)V
+    flags: (0x1002) ACC_PRIVATE, ACC_SYNTHETIC
+    Code:
+      stack=3, locals=9, args_size=4
+         0: aload_1
+         1: invokevirtual #229                // Method javafx/scene/layout/HBox.getChildren:()Ljavafx/collections/ObservableList;
+         4: invokeinterface #309,  1          // InterfaceMethod javafx/collections/ObservableList.iterator:()Ljava/util/Iterator;
+         9: astore        4
+        11: aload         4
+        13: invokeinterface #313,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+        18: ifeq          89
+        21: aload         4
+        23: invokeinterface #318,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+        28: checkcast     #104                // class javafx/scene/Node
+        31: astore        5
+        33: aload         5
+        35: instanceof    #177                // class javafx/scene/control/ToggleButton
+        38: ifeq          86
+        41: aload         5
+        43: checkcast     #177                // class javafx/scene/control/ToggleButton
+        46: astore        6
+        48: aload         6
+        50: invokevirtual #321                // Method javafx/scene/control/ToggleButton.getUserData:()Ljava/lang/Object;
+        53: astore        8
+        55: aload         8
+        57: instanceof    #172                // class com/example/ahakey/model/ModeSlot
+        60: ifeq          86
+        63: aload         8
+        65: checkcast     #172                // class com/example/ahakey/model/ModeSlot
+        68: astore        7
+        70: aload         6
+        72: aload         7
+        74: aload_2
+        75: if_acmpne     82
+        78: iconst_1
+        79: goto          83
+        82: iconst_0
+        83: invokevirtual #195                // Method javafx/scene/control/ToggleButton.setSelected:(Z)V
+        86: goto          11
+        89: aload_0
+        90: getfield      #44                 // Field controller:Lcom/example/ahakey/app/StudioController;
+        93: aload_2
+        94: invokevirtual #324                // Method com/example/ahakey/app/StudioController.selectKeyboardMode:(Lcom/example/ahakey/model/ModeSlot;)V
+        97: return
+      LineNumberTable:
+        line 73: 0
+        line 74: 33
+        line 75: 70
+        line 77: 86
+        line 78: 89
+        line 79: 97
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+           55      15     8 patt2700$temp   Ljava/lang/Object;
+           48      38     6    tb   Ljavafx/scene/control/ToggleButton;
+           70      16     7     s   Lcom/example/ahakey/model/ModeSlot;
+           33      53     5  node   Ljavafx/scene/Node;
+            0      98     0  this   Lcom/example/ahakey/view/CanvasPane;
+            0      98     1 picker   Ljavafx/scene/layout/HBox;
+            0      98     2  slot   Lcom/example/ahakey/model/ModeSlot;
+            0      98     3 event   Ljavafx/event/ActionEvent;
+      StackMapTable: number_of_entries = 5
+        frame_type = 252 /* append */
+          offset_delta = 11
+          locals = [ class java/util/Iterator ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 70
+          locals = [ class com/example/ahakey/view/CanvasPane, class javafx/scene/layout/HBox, class com/example/ahakey/model/ModeSlot, class javafx/event/ActionEvent, class java/util/Iterator, class javafx/scene/Node, class javafx/scene/control/ToggleButton, class com/example/ahakey/model/ModeSlot ]
+          stack = [ class javafx/scene/control/ToggleButton ]
+        frame_type = 255 /* full_frame */
+          offset_delta = 0
+          locals = [ class com/example/ahakey/view/CanvasPane, class javafx/scene/layout/HBox, class com/example/ahakey/model/ModeSlot, class javafx/event/ActionEvent, class java/util/Iterator, class javafx/scene/Node, class javafx/scene/control/ToggleButton, class com/example/ahakey/model/ModeSlot ]
+          stack = [ class javafx/scene/control/ToggleButton, int ]
+        frame_type = 248 /* chop */
+          offset_delta = 2
+        frame_type = 250 /* chop */
+          offset_delta = 2
+
+  private void lambda$init$0(javafx.beans.value.ObservableValue, com.example.ahakey.model.ModeSlot, com.example.ahakey.model.ModeSlot);
+    descriptor: (Ljavafx/beans/value/ObservableValue;Lcom/example/ahakey/model/ModeSlot;Lcom/example/ahakey/model/ModeSlot;)V
+    flags: (0x1002) ACC_PRIVATE, ACC_SYNTHETIC
+    Code:
+      stack=1, locals=4, args_size=4
+         0: aload_0
+         1: invokevirtual #134                // Method refreshPreview:()V
+         4: return
+      LineNumberTable:
+        line 49: 0
+      LocalVariableTable:
+        Start  Length  Slot  Name   Signature
+            0       5     0  this   Lcom/example/ahakey/view/CanvasPane;
+            0       5     1   obs   Ljavafx/beans/value/ObservableValue;
+            0       5     2 oldValue   Lcom/example/ahakey/model/ModeSlot;
+            0       5     3 newValue   Lcom/example/ahakey/model/ModeSlot;
+}
+SourceFile: "CanvasPane.java"
+BootstrapMethods:
+  0: #383 REF_invokeStatic java/lang/invoke/LambdaMetafactory.metafactory:(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/CallSite;
+    Method arguments:
+      #390 (Ljavafx/beans/value/ObservableValue;Ljava/lang/Object;Ljava/lang/Object;)V
+      #392 REF_invokeVirtual com/example/ahakey/view/CanvasPane.lambda$init$0:(Ljavafx/beans/value/ObservableValue;Lcom/example/ahakey/model/ModeSlot;Lcom/example/ahakey/model/ModeSlot;)V
+      #395 (Ljavafx/beans/value/ObservableValue;Lcom/example/ahakey/model/ModeSlot;Lcom/example/ahakey/model/ModeSlot;)V
+  1: #383 REF_invokeStatic java/lang/invoke/LambdaMetafactory.metafactory:(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/CallSite;
+    Method arguments:
+      #396 (Ljavafx/event/Event;)V
+      #398 REF_invokeVirtual com/example/ahakey/view/CanvasPane.lambda$createHeader$1:(Ljavafx/scene/layout/HBox;Lcom/example/ahakey/model/ModeSlot;Ljavafx/event/ActionEvent;)V
+      #401 (Ljavafx/event/ActionEvent;)V
+  2: #383 REF_invokeStatic java/lang/invoke/LambdaMetafactory.metafactory:(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/CallSite;
+    Method arguments:
+      #390 (Ljavafx/beans/value/ObservableValue;Ljava/lang/Object;Ljava/lang/Object;)V
+      #403 REF_invokeStatic com/example/ahakey/view/CanvasPane.lambda$createHeader$2:(Ljavafx/scene/layout/HBox;Ljavafx/beans/value/ObservableValue;Lcom/example/ahakey/model/ModeSlot;Lcom/example/ahakey/model/ModeSlot;)V
+      #395 (Ljavafx/beans/value/ObservableValue;Lcom/example/ahakey/model/ModeSlot;Lcom/example/ahakey/model/ModeSlot;)V
+InnerClasses:
+  public static final #411= #407 of #409; // Lookup=class java/lang/invoke/MethodHandles$Lookup of class java/lang/invoke/MethodHandles

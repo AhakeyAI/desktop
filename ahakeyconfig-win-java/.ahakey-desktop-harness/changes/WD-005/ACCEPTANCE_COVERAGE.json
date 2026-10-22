@@ -1,0 +1,546 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "contract_sha256": "6fc54cd021c463396354783602629f036ee6c7a02919ee7408dbb8b20e31a5c5",
+  "reviewed_by_dla": true,
+  "review_note": "逐条保留原合同文本。所有A条目均含未完成子范围，因此标owner_deferred仅绑定各条残余缺口，不代表全条豁免或全条PASS。656项为R9既有真实限定断言；Owner正常路径复用原Preview并经正式包内容对比，未运行新包。范围依据20261022 Owner明确限定收口决定。",
+  "rows": [
+    {
+      "id": "A001",
+      "line": 129,
+      "section": "## Acceptance",
+      "source_text": "- A01：十九目标映射、左侧Mode跟随、三分组与全局MULTI说明正确；不误写另一目标。",
+      "disposition": "owner_deferred",
+      "step_ids": [],
+      "evidence": [
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_9_20261021.json",
+          "sha256": "85ccfb0608223c429c5f432596cc6a1c3b7c6a792e5dab81e6c072be66f633f4",
+          "scope": "19目标唯一映射及容量断言；普通Mode/资源/两槽界面；仅检查表明确已执行列，不含本条全部人工/硬件项目",
+          "explanation": "当前代码指纹与R9已测输入一致；本次核验日志哈希，没有重跑656项。",
+          "result": "pass",
+          "kind": "machine"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/FORMAL_ARTIFACT_DLA_VERIFICATION_20261022.md",
+          "sha256": "1c32a075e193b704df61ecda2f5ba75cfc61b98fcaaac446ab43251ccb7560cf",
+          "scope": "候选正式包与已测Preview内容差异核验，不是运行验收",
+          "explanation": "依赖一致，资源换行和调试变量名差异无观察到的运行语义变化。",
+          "result": "pass",
+          "kind": "static"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/previews/WD-005/preview-20261021T024920511394Z-2ae03d/OWNER_PASS_FEEDBACK_20261021.md",
+          "sha256": "23cd6ba6a3ef362f891c00e5d7f5048f1bd0e67688f9951aa83e66bc71598226",
+          "scope": "仅原Preview清单普通Windows/USB路径；不证明本条全部边界",
+          "explanation": "历史结果保留原身份；当前Owner限定收口结合新旧包静态比较复用，不冒称新包实际运行。",
+          "result": "pass",
+          "kind": "owner_uat"
+        }
+      ],
+      "reason": "已验证部分：19目标唯一映射及容量断言；普通Mode/资源/两槽界面。本条残余未测部分后置，不登记全条PASS。",
+      "owner_exception": {
+        "path": ".ahakey-desktop-harness/evidence/20261022-wd005-limited-closeout-owner-decision.md",
+        "sha256": "e757058895a4eb37af2370873cb61d971825884197ab94ae9de545634a88b33e",
+        "item_id": "A001",
+        "quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+        "scope": "D01：全19目标/全Mode人工巡检、图片边界及错误弹窗、设备已有/不一致实景；D10：等待态实际触发与完整应用/设备组合"
+      },
+      "deferred_ids": [
+        "D01",
+        "D10"
+      ]
+    },
+    {
+      "id": "A002",
+      "line": 130,
+      "section": "## Acceptance",
+      "source_text": "- A02：GIF/静态图处理后160×80、黑底、完整帧、8/12限额；错误弹窗原因正确。",
+      "disposition": "owner_deferred",
+      "step_ids": [],
+      "evidence": [
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_9_20261021.json",
+          "sha256": "85ccfb0608223c429c5f432596cc6a1c3b7c6a792e5dab81e6c072be66f633f4",
+          "scope": "160x80/RGB565/GIF离线边界断言；图片和短GIF普通上传；仅检查表明确已执行列，不含本条全部人工/硬件项目",
+          "explanation": "当前代码指纹与R9已测输入一致；本次核验日志哈希，没有重跑656项。",
+          "result": "pass",
+          "kind": "machine"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/FORMAL_ARTIFACT_DLA_VERIFICATION_20261022.md",
+          "sha256": "1c32a075e193b704df61ecda2f5ba75cfc61b98fcaaac446ab43251ccb7560cf",
+          "scope": "候选正式包与已测Preview内容差异核验，不是运行验收",
+          "explanation": "依赖一致，资源换行和调试变量名差异无观察到的运行语义变化。",
+          "result": "pass",
+          "kind": "static"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/previews/WD-005/preview-20261021T024920511394Z-2ae03d/OWNER_PASS_FEEDBACK_20261021.md",
+          "sha256": "23cd6ba6a3ef362f891c00e5d7f5048f1bd0e67688f9951aa83e66bc71598226",
+          "scope": "仅原Preview清单普通Windows/USB路径；不证明本条全部边界",
+          "explanation": "历史结果保留原身份；当前Owner限定收口结合新旧包静态比较复用，不冒称新包实际运行。",
+          "result": "pass",
+          "kind": "owner_uat"
+        }
+      ],
+      "reason": "已验证部分：160x80/RGB565/GIF离线边界断言；图片和短GIF普通上传。本条残余未测部分后置，不登记全条PASS。",
+      "owner_exception": {
+        "path": ".ahakey-desktop-harness/evidence/20261022-wd005-limited-closeout-owner-decision.md",
+        "sha256": "e757058895a4eb37af2370873cb61d971825884197ab94ae9de545634a88b33e",
+        "item_id": "A002",
+        "quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+        "scope": "D01：全19目标/全Mode人工巡检、图片边界及错误弹窗、设备已有/不一致实景"
+      },
+      "deferred_ids": [
+        "D01"
+      ]
+    },
+    {
+      "id": "A003",
+      "line": 131,
+      "section": "## Acceptance",
+      "source_text": "- A03：预览来自成品；草稿、清除、重启/源文件删除、本地写盘失败和迁移均不误丢数据。",
+      "disposition": "owner_deferred",
+      "step_ids": [],
+      "evidence": [
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_9_20261021.json",
+          "sha256": "85ccfb0608223c429c5f432596cc6a1c3b7c6a792e5dab81e6c072be66f633f4",
+          "scope": "临时库重启/无源图/损坏索引断言及普通草稿/绑定保留；仅检查表明确已执行列，不含本条全部人工/硬件项目",
+          "explanation": "当前代码指纹与R9已测输入一致；本次核验日志哈希，没有重跑656项。",
+          "result": "pass",
+          "kind": "machine"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/FORMAL_ARTIFACT_DLA_VERIFICATION_20261022.md",
+          "sha256": "1c32a075e193b704df61ecda2f5ba75cfc61b98fcaaac446ab43251ccb7560cf",
+          "scope": "候选正式包与已测Preview内容差异核验，不是运行验收",
+          "explanation": "依赖一致，资源换行和调试变量名差异无观察到的运行语义变化。",
+          "result": "pass",
+          "kind": "static"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/previews/WD-005/preview-20261021T024920511394Z-2ae03d/OWNER_PASS_FEEDBACK_20261021.md",
+          "sha256": "23cd6ba6a3ef362f891c00e5d7f5048f1bd0e67688f9951aa83e66bc71598226",
+          "scope": "仅原Preview清单普通Windows/USB路径；不证明本条全部边界",
+          "explanation": "历史结果保留原身份；当前Owner限定收口结合新旧包静态比较复用，不冒称新包实际运行。",
+          "result": "pass",
+          "kind": "owner_uat"
+        }
+      ],
+      "reason": "已验证部分：临时库重启/无源图/损坏索引断言及普通草稿/绑定保留。本条残余未测部分后置，不登记全条PASS。",
+      "owner_exception": {
+        "path": ".ahakey-desktop-harness/evidence/20261022-wd005-limited-closeout-owner-decision.md",
+        "sha256": "e757058895a4eb37af2370873cb61d971825884197ab94ae9de545634a88b33e",
+        "item_id": "A003",
+        "quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+        "scope": "D02：实际用户库重启、删除源图、写满、只读和迁移异常"
+      },
+      "deferred_ids": [
+        "D02"
+      ]
+    },
+    {
+      "id": "A004",
+      "line": 132,
+      "section": "## Acceptance",
+      "source_text": "- A04：BASIC/INTEGRITY 按需读取，不覆盖草稿；未知/设备已有/已应用/不一致降级可区分。",
+      "disposition": "owner_deferred",
+      "step_ids": [],
+      "evidence": [
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_9_20261021.json",
+          "sha256": "85ccfb0608223c429c5f432596cc6a1c3b7c6a792e5dab81e6c072be66f633f4",
+          "scope": "按需读取、草稿保护、降级与代次断言；正常读取重连；仅检查表明确已执行列，不含本条全部人工/硬件项目",
+          "explanation": "当前代码指纹与R9已测输入一致；本次核验日志哈希，没有重跑656项。",
+          "result": "pass",
+          "kind": "machine"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/FORMAL_ARTIFACT_DLA_VERIFICATION_20261022.md",
+          "sha256": "1c32a075e193b704df61ecda2f5ba75cfc61b98fcaaac446ab43251ccb7560cf",
+          "scope": "候选正式包与已测Preview内容差异核验，不是运行验收",
+          "explanation": "依赖一致，资源换行和调试变量名差异无观察到的运行语义变化。",
+          "result": "pass",
+          "kind": "static"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/previews/WD-005/preview-20261021T024920511394Z-2ae03d/OWNER_PASS_FEEDBACK_20261021.md",
+          "sha256": "23cd6ba6a3ef362f891c00e5d7f5048f1bd0e67688f9951aa83e66bc71598226",
+          "scope": "仅原Preview清单普通Windows/USB路径；不证明本条全部边界",
+          "explanation": "历史结果保留原身份；当前Owner限定收口结合新旧包静态比较复用，不冒称新包实际运行。",
+          "result": "pass",
+          "kind": "owner_uat"
+        }
+      ],
+      "reason": "已验证部分：按需读取、草稿保护、降级与代次断言；正常读取重连。本条残余未测部分后置，不登记全条PASS。",
+      "owner_exception": {
+        "path": ".ahakey-desktop-harness/evidence/20261022-wd005-limited-closeout-owner-decision.md",
+        "sha256": "e757058895a4eb37af2370873cb61d971825884197ab94ae9de545634a88b33e",
+        "item_id": "A004",
+        "quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+        "scope": "D01：全19目标/全Mode人工巡检、图片边界及错误弹窗、设备已有/不一致实景"
+      },
+      "deferred_ids": [
+        "D01"
+      ]
+    },
+    {
+      "id": "A005",
+      "line": 133,
+      "section": "## Acceptance",
+      "source_text": "- A05：上传确认目标不可编辑；逐包、长度、CRC、填充及 ACK 判定正确；互斥覆盖所有写入者。",
+      "disposition": "owner_deferred",
+      "step_ids": [],
+      "evidence": [
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_9_20261021.json",
+          "sha256": "85ccfb0608223c429c5f432596cc6a1c3b7c6a792e5dab81e6c072be66f633f4",
+          "scope": "内存8/12帧CRC/分片/互斥断言；USB普通图片/短GIF上传；仅检查表明确已执行列，不含本条全部人工/硬件项目",
+          "explanation": "当前代码指纹与R9已测输入一致；本次核验日志哈希，没有重跑656项。",
+          "result": "pass",
+          "kind": "machine"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/FORMAL_ARTIFACT_DLA_VERIFICATION_20261022.md",
+          "sha256": "1c32a075e193b704df61ecda2f5ba75cfc61b98fcaaac446ab43251ccb7560cf",
+          "scope": "候选正式包与已测Preview内容差异核验，不是运行验收",
+          "explanation": "依赖一致，资源换行和调试变量名差异无观察到的运行语义变化。",
+          "result": "pass",
+          "kind": "static"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/previews/WD-005/preview-20261021T024920511394Z-2ae03d/OWNER_PASS_FEEDBACK_20261021.md",
+          "sha256": "23cd6ba6a3ef362f891c00e5d7f5048f1bd0e67688f9951aa83e66bc71598226",
+          "scope": "仅原Preview清单普通Windows/USB路径；不证明本条全部边界",
+          "explanation": "历史结果保留原身份；当前Owner限定收口结合新旧包静态比较复用，不冒称新包实际运行。",
+          "result": "pass",
+          "kind": "owner_uat"
+        }
+      ],
+      "reason": "已验证部分：内存8/12帧CRC/分片/互斥断言；USB普通图片/短GIF上传。本条残余未测部分后置，不登记全条PASS。",
+      "owner_exception": {
+        "path": ".ahakey-desktop-harness/evidence/20261022-wd005-limited-closeout-owner-decision.md",
+        "sha256": "e757058895a4eb37af2370873cb61d971825884197ab94ae9de545634a88b33e",
+        "item_id": "A005",
+        "quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+        "scope": "D03：真机8/12帧、上传中断线/ACK丢失/物理Mode变化/并发输入及恢复重试；D06：BLE实链路/性能、桥接修复源码到EXE绑定部署、USB-BLE切换与共存"
+      },
+      "deferred_ids": [
+        "D03",
+        "D06"
+      ]
+    },
+    {
+      "id": "A006",
+      "line": 134,
+      "section": "## Acceptance",
+      "source_text": "- A06：断连/迟到ACK/目标变化/未知结果不假成功、不续传、不盲目重发；恢复后人工重试可完成。",
+      "disposition": "owner_deferred",
+      "step_ids": [],
+      "evidence": [
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_9_20261021.json",
+          "sha256": "85ccfb0608223c429c5f432596cc6a1c3b7c6a792e5dab81e6c072be66f633f4",
+          "scope": "内存超时/迟到ACK/代次/隔离断言；空闲USB重连，不是上传中故障；仅检查表明确已执行列，不含本条全部人工/硬件项目",
+          "explanation": "当前代码指纹与R9已测输入一致；本次核验日志哈希，没有重跑656项。",
+          "result": "pass",
+          "kind": "machine"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/FORMAL_ARTIFACT_DLA_VERIFICATION_20261022.md",
+          "sha256": "1c32a075e193b704df61ecda2f5ba75cfc61b98fcaaac446ab43251ccb7560cf",
+          "scope": "候选正式包与已测Preview内容差异核验，不是运行验收",
+          "explanation": "依赖一致，资源换行和调试变量名差异无观察到的运行语义变化。",
+          "result": "pass",
+          "kind": "static"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/previews/WD-005/preview-20261021T024920511394Z-2ae03d/OWNER_PASS_FEEDBACK_20261021.md",
+          "sha256": "23cd6ba6a3ef362f891c00e5d7f5048f1bd0e67688f9951aa83e66bc71598226",
+          "scope": "仅原Preview清单普通Windows/USB路径；不证明本条全部边界",
+          "explanation": "历史结果保留原身份；当前Owner限定收口结合新旧包静态比较复用，不冒称新包实际运行。",
+          "result": "pass",
+          "kind": "owner_uat"
+        }
+      ],
+      "reason": "已验证部分：内存超时/迟到ACK/代次/隔离断言；空闲USB重连，不是上传中故障。本条残余未测部分后置，不登记全条PASS。",
+      "owner_exception": {
+        "path": ".ahakey-desktop-harness/evidence/20261022-wd005-limited-closeout-owner-decision.md",
+        "sha256": "e757058895a4eb37af2370873cb61d971825884197ab94ae9de545634a88b33e",
+        "item_id": "A006",
+        "quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+        "scope": "D03：真机8/12帧、上传中断线/ACK丢失/物理Mode变化/并发输入及恢复重试"
+      },
+      "deferred_ids": [
+        "D03"
+      ]
+    },
+    {
+      "id": "A007",
+      "line": 135,
+      "section": "## Acceptance",
+      "source_text": "- A07：亮度与当前Mode灯效分开保存、逐项失败可见；OFF可保存但不设备预览。",
+      "disposition": "owner_deferred",
+      "step_ids": [],
+      "evidence": [
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_9_20261021.json",
+          "sha256": "85ccfb0608223c429c5f432596cc6a1c3b7c6a792e5dab81e6c072be66f633f4",
+          "scope": "分项保存/部分失败/OFF断言；USB亮度和一项SINGLE灯效保存回读；仅检查表明确已执行列，不含本条全部人工/硬件项目",
+          "explanation": "当前代码指纹与R9已测输入一致；本次核验日志哈希，没有重跑656项。",
+          "result": "pass",
+          "kind": "machine"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/FORMAL_ARTIFACT_DLA_VERIFICATION_20261022.md",
+          "sha256": "1c32a075e193b704df61ecda2f5ba75cfc61b98fcaaac446ab43251ccb7560cf",
+          "scope": "候选正式包与已测Preview内容差异核验，不是运行验收",
+          "explanation": "依赖一致，资源换行和调试变量名差异无观察到的运行语义变化。",
+          "result": "pass",
+          "kind": "static"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/previews/WD-005/preview-20261021T024920511394Z-2ae03d/OWNER_PASS_FEEDBACK_20261021.md",
+          "sha256": "23cd6ba6a3ef362f891c00e5d7f5048f1bd0e67688f9951aa83e66bc71598226",
+          "scope": "仅原Preview清单普通Windows/USB路径；不证明本条全部边界",
+          "explanation": "历史结果保留原身份；当前Owner限定收口结合新旧包静态比较复用，不冒称新包实际运行。",
+          "result": "pass",
+          "kind": "owner_uat"
+        }
+      ],
+      "reason": "已验证部分：分项保存/部分失败/OFF断言；USB亮度和一项SINGLE灯效保存回读。本条残余未测部分后置，不登记全条PASS。",
+      "owner_exception": {
+        "path": ".ahakey-desktop-harness/evidence/20261022-wd005-limited-closeout-owner-decision.md",
+        "sha256": "e757058895a4eb37af2370873cb61d971825884197ab94ae9de545634a88b33e",
+        "item_id": "A007",
+        "quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+        "scope": "D04：断电持久化、真机10秒预览与AI竞争、OFF及批量部分失败"
+      },
+      "deferred_ids": [
+        "D04"
+      ]
+    },
+    {
+      "id": "A008",
+      "line": 136,
+      "section": "## Acceptance",
+      "source_text": "- A08：0x89临时10秒、本地八灯模拟与固件同源；预览不持久化，离开不发STOP。",
+      "disposition": "owner_deferred",
+      "step_ids": [],
+      "evidence": [
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_9_20261021.json",
+          "sha256": "85ccfb0608223c429c5f432596cc6a1c3b7c6a792e5dab81e6c072be66f633f4",
+          "scope": "灯效金样、临时预览/离开不STOP断言；普通灯效界面；仅检查表明确已执行列，不含本条全部人工/硬件项目",
+          "explanation": "当前代码指纹与R9已测输入一致；本次核验日志哈希，没有重跑656项。",
+          "result": "pass",
+          "kind": "machine"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/FORMAL_ARTIFACT_DLA_VERIFICATION_20261022.md",
+          "sha256": "1c32a075e193b704df61ecda2f5ba75cfc61b98fcaaac446ab43251ccb7560cf",
+          "scope": "候选正式包与已测Preview内容差异核验，不是运行验收",
+          "explanation": "依赖一致，资源换行和调试变量名差异无观察到的运行语义变化。",
+          "result": "pass",
+          "kind": "static"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/previews/WD-005/preview-20261021T024920511394Z-2ae03d/OWNER_PASS_FEEDBACK_20261021.md",
+          "sha256": "23cd6ba6a3ef362f891c00e5d7f5048f1bd0e67688f9951aa83e66bc71598226",
+          "scope": "仅原Preview清单普通Windows/USB路径；不证明本条全部边界",
+          "explanation": "历史结果保留原身份；当前Owner限定收口结合新旧包静态比较复用，不冒称新包实际运行。",
+          "result": "pass",
+          "kind": "owner_uat"
+        }
+      ],
+      "reason": "已验证部分：灯效金样、临时预览/离开不STOP断言；普通灯效界面。本条残余未测部分后置，不登记全条PASS。",
+      "owner_exception": {
+        "path": ".ahakey-desktop-harness/evidence/20261022-wd005-limited-closeout-owner-decision.md",
+        "sha256": "e757058895a4eb37af2370873cb61d971825884197ab94ae9de545634a88b33e",
+        "item_id": "A008",
+        "quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+        "scope": "D04：断电持久化、真机10秒预览与AI竞争、OFF及批量部分失败；D10：等待态实际触发与完整应用/设备组合"
+      },
+      "deferred_ids": [
+        "D04",
+        "D10"
+      ]
+    },
+    {
+      "id": "A009",
+      "line": 137,
+      "section": "## Acceptance",
+      "source_text": "- A09：UI非阻塞、最小窗口及高DPI无重叠；离线编辑和连接恢复保护本地状态。",
+      "disposition": "owner_deferred",
+      "step_ids": [],
+      "evidence": [
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_9_20261021.json",
+          "sha256": "85ccfb0608223c429c5f432596cc6a1c3b7c6a792e5dab81e6c072be66f633f4",
+          "scope": "局部FX禁用与草稿断言；普通窗口真实交互；仅检查表明确已执行列，不含本条全部人工/硬件项目",
+          "explanation": "当前代码指纹与R9已测输入一致；本次核验日志哈希，没有重跑656项。",
+          "result": "pass",
+          "kind": "machine"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/FORMAL_ARTIFACT_DLA_VERIFICATION_20261022.md",
+          "sha256": "1c32a075e193b704df61ecda2f5ba75cfc61b98fcaaac446ab43251ccb7560cf",
+          "scope": "候选正式包与已测Preview内容差异核验，不是运行验收",
+          "explanation": "依赖一致，资源换行和调试变量名差异无观察到的运行语义变化。",
+          "result": "pass",
+          "kind": "static"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/previews/WD-005/preview-20261021T024920511394Z-2ae03d/OWNER_PASS_FEEDBACK_20261021.md",
+          "sha256": "23cd6ba6a3ef362f891c00e5d7f5048f1bd0e67688f9951aa83e66bc71598226",
+          "scope": "仅原Preview清单普通Windows/USB路径；不证明本条全部边界",
+          "explanation": "历史结果保留原身份；当前Owner限定收口结合新旧包静态比较复用，不冒称新包实际运行。",
+          "result": "pass",
+          "kind": "owner_uat"
+        }
+      ],
+      "reason": "已验证部分：局部FX禁用与草稿断言；普通窗口真实交互。本条残余未测部分后置，不登记全条PASS。",
+      "owner_exception": {
+        "path": ".ahakey-desktop-harness/evidence/20261022-wd005-limited-closeout-owner-decision.md",
+        "sha256": "e757058895a4eb37af2370873cb61d971825884197ab94ae9de545634a88b33e",
+        "item_id": "A009",
+        "quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+        "scope": "D05：最小窗口、100/150/200%高DPI和长文案完整检查"
+      },
+      "deferred_ids": [
+        "D05"
+      ]
+    },
+    {
+      "id": "A010",
+      "line": 138,
+      "section": "## Acceptance",
+      "source_text": "- A10：既有按键、侧拨、语音、模式同步、AI runtime、USB/BLE身份和断连流程不回归。",
+      "disposition": "owner_deferred",
+      "step_ids": [],
+      "evidence": [
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_9_20261021.json",
+          "sha256": "85ccfb0608223c429c5f432596cc6a1c3b7c6a792e5dab81e6c072be66f633f4",
+          "scope": "内存旧协议/TTL/归属/连接代次断言；USB信息读回、Mode及普通AI路径；仅检查表明确已执行列，不含本条全部人工/硬件项目",
+          "explanation": "当前代码指纹与R9已测输入一致；本次核验日志哈希，没有重跑656项。",
+          "result": "pass",
+          "kind": "machine"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/FORMAL_ARTIFACT_DLA_VERIFICATION_20261022.md",
+          "sha256": "1c32a075e193b704df61ecda2f5ba75cfc61b98fcaaac446ab43251ccb7560cf",
+          "scope": "候选正式包与已测Preview内容差异核验，不是运行验收",
+          "explanation": "依赖一致，资源换行和调试变量名差异无观察到的运行语义变化。",
+          "result": "pass",
+          "kind": "static"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/previews/WD-005/preview-20261021T024920511394Z-2ae03d/OWNER_PASS_FEEDBACK_20261021.md",
+          "sha256": "23cd6ba6a3ef362f891c00e5d7f5048f1bd0e67688f9951aa83e66bc71598226",
+          "scope": "仅原Preview清单普通Windows/USB路径；不证明本条全部边界",
+          "explanation": "历史结果保留原身份；当前Owner限定收口结合新旧包静态比较复用，不冒称新包实际运行。",
+          "result": "pass",
+          "kind": "owner_uat"
+        }
+      ],
+      "reason": "已验证部分：内存旧协议/TTL/归属/连接代次断言；USB信息读回、Mode及普通AI路径。本条残余未测部分后置，不登记全条PASS。",
+      "owner_exception": {
+        "path": ".ahakey-desktop-harness/evidence/20261022-wd005-limited-closeout-owner-decision.md",
+        "sha256": "e757058895a4eb37af2370873cb61d971825884197ab94ae9de545634a88b33e",
+        "item_id": "A010",
+        "quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+        "scope": "D06：BLE实链路/性能、桥接修复源码到EXE绑定部署、USB-BLE切换与共存；D07：来源缺失全部竞争组合、RT-03固件主槽回退、UP-01/02历史上传根因；D08：旧固件实机、完整系统/本地语音及长时休眠回归；D10：等待态实际触发与完整应用/设备组合"
+      },
+      "deferred_ids": [
+        "D06",
+        "D07",
+        "D08",
+        "D10"
+      ]
+    },
+    {
+      "id": "A011",
+      "line": 139,
+      "section": "## Acceptance",
+      "source_text": "- A11：实施/Preview/正式候选/JAR/固件身份分层绑定；真实持久化和画面体验只由适用真机证据验收。",
+      "disposition": "owner_deferred",
+      "step_ids": [],
+      "evidence": [
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_9_20261021.json",
+          "sha256": "85ccfb0608223c429c5f432596cc6a1c3b7c6a792e5dab81e6c072be66f633f4",
+          "scope": "实际审阅/候选/构建/固件分层核验；已确认固件的历史Preview正常体验；仅检查表明确已执行列，不含本条全部人工/硬件项目",
+          "explanation": "当前代码指纹与R9已测输入一致；本次核验日志哈希，没有重跑656项。",
+          "result": "pass",
+          "kind": "machine"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/changes/WD-005/FORMAL_ARTIFACT_DLA_VERIFICATION_20261022.md",
+          "sha256": "1c32a075e193b704df61ecda2f5ba75cfc61b98fcaaac446ab43251ccb7560cf",
+          "scope": "候选正式包与已测Preview内容差异核验，不是运行验收",
+          "explanation": "依赖一致，资源换行和调试变量名差异无观察到的运行语义变化。",
+          "result": "pass",
+          "kind": "static"
+        },
+        {
+          "workspace": "windows",
+          "path": ".ahakey-desktop-harness/previews/WD-005/preview-20261021T024920511394Z-2ae03d/OWNER_PASS_FEEDBACK_20261021.md",
+          "sha256": "23cd6ba6a3ef362f891c00e5d7f5048f1bd0e67688f9951aa83e66bc71598226",
+          "scope": "仅原Preview清单普通Windows/USB路径；不证明本条全部边界",
+          "explanation": "历史结果保留原身份；当前Owner限定收口结合新旧包静态比较复用，不冒称新包实际运行。",
+          "result": "pass",
+          "kind": "owner_uat"
+        }
+      ],
+      "reason": "已验证部分：实际审阅/候选/构建/固件分层核验；已确认固件的历史Preview正常体验。本条残余未测部分后置，不登记全条PASS。",
+      "owner_exception": {
+        "path": ".ahakey-desktop-harness/evidence/20261022-wd005-limited-closeout-owner-decision.md",
+        "sha256": "e757058895a4eb37af2370873cb61d971825884197ab94ae9de545634a88b33e",
+        "item_id": "A011",
+        "quote": "这些未覆盖项全部列明后置，本次只收已验证的 Windows/USB 正常路径",
+        "scope": "D02：实际用户库重启、删除源图、写满、只读和迁移异常；D04：断电持久化、真机10秒预览与AI竞争、OFF及批量部分失败；D09：新正式JAR实际启动运行，当前仅静态对比和历史Preview正常路径结果"
+      },
+      "deferred_ids": [
+        "D02",
+        "D04",
+        "D09"
+      ]
+    }
+  ],
+  "meaning": "LIMITED_ACCEPTANCE_WITH_EXPLICIT_DEFERRED_REMAINDERS；不是完整A01-A11或全产品UAT。"
+}
