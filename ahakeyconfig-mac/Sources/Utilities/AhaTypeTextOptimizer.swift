@@ -164,7 +164,7 @@ final class AhaTypeTextOptimizer: ObservableObject {
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
         if !validUntil.isEmpty {
-            lastQuotaSummary += lastQuotaSummary.isEmpty ? "有效期 \(validUntil)" : " · 有效期 \(validUntil)"
+            lastQuotaSummary += lastQuotaSummary.isEmpty ? "权益有效期 \(validUntil)" : " · 权益有效期 \(validUntil)"
         }
         if lastQuotaSummary.isEmpty {
             lastQuotaSummary = NSLocalizedString("暂无配额信息。", comment: "")
