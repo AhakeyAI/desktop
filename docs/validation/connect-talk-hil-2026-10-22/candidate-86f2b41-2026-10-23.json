@@ -47,7 +47,7 @@
     "deepStrictSignature": "passed",
     "zipSHA256": "0a78ceddf67f2fda6e478ebde19c57f778d2e305f1bcf4780465b58bdf5de872",
     "notarized": false,
-    "installed": false
+    "installedAtArchiveAudit": false
   },
   "installedSourceAtAudit": "4dce49e90c204c7b3d95ec75a77ecf1abb1e6164",
   "artworkAdaptationRegression": {
@@ -56,9 +56,38 @@
     "scope": "Large PNG beyond old file limit, 8/12-frame animation adaptation, unchanged source, orientation, cancellation and invalid input; no hardware upload"
   },
   "limits": [
-    "Mac locked; actual candidate installation and GUI acceptance not performed",
+    "Mac locked; GUI acceptance not performed",
     "No keyboard writes, Voice changes, resource replacement or flashing",
     "No formal release or notarization acceptance",
-    "Actual BLE/GUI Codex approval withdrawal matrix remains pending"
-  ]
+    "Actual BLE/GUI Codex manual/offline approval withdrawal matrix remains pending; automatic fresh status verified after Agent restart"
+  ],
+  "installation": {
+    "installed": true,
+    "sourceCommit": "86f2b41e9fcde4d7e7a70710e203ece95437a1a9",
+    "version": "0.2.3",
+    "build": "363",
+    "signatureAfterInstall": "deep strict passed",
+    "mainAndAgentRestarted": true,
+    "privateLocalBackup": true,
+    "preferences": {
+      "keys": 55,
+      "allSemanticallyUnchanged": true,
+      "note": "draft JSON serialization ordering changed; decoded values unchanged"
+    },
+    "AhaTypeAccountFileUnchanged": true,
+    "cliConfigurations": {
+      "ClaudeCursorKimiUnchanged": true,
+      "codexOnlyApprovalPolicyChanged": true,
+      "codexPolicyBefore": "never",
+      "codexPolicyAfter": "on-request",
+      "reason": "Expected migration to per-request approval; no persistent automatic bypass"
+    },
+    "freshApprovalStatus": {
+      "physicalSwitchState": 0,
+      "switchState": 0,
+      "approvalAutoVerified": true,
+      "approvalPolicyVersion": 1
+    },
+    "uiAcceptance": "pending manual unlock"
+  }
 }
