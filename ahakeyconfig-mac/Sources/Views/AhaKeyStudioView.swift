@@ -1049,12 +1049,14 @@ struct AhaKeyStudioView: View {
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
-                    Text(bleManager.firmwareCapabilityProfile?.identity == .legacy ? "旧版写入预览：\(currentSelectedKeySanitizedDescription.isEmpty ? "空白" : currentSelectedKeySanitizedDescription)" : "保存前会重新读取并核对，只修改当前选中的按键。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text("同步到键盘后，短按实体键切换模式时，LCD 会先短暂显示这里的描述，然后回到该模式的动图。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    if inlineKeyTarget == nil {
+                        Text(bleManager.firmwareCapabilityProfile?.identity == .legacy ? "旧版写入预览：\(currentSelectedKeySanitizedDescription.isEmpty ? "空白" : currentSelectedKeySanitizedDescription)" : "保存前会重新读取并核对，只修改当前选中的按键。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("同步到键盘后，短按实体键切换模式时，LCD 会先短暂显示这里的描述，然后回到该模式的动图。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     if selectedMode == .mode0 {
                         Text(NSLocalizedString("Mode 1 默认文案：Record / Accept / Reject / Backspace", comment: ""))
                             .font(.caption)
@@ -1064,8 +1066,6 @@ struct AhaKeyStudioView: View {
                 .padding(.top, 4)
             }
             .disabled(inlineKeyControlsDisabled)
-
-            if inlineKeyTarget != nil { inlineKeyStatus }
 
             if key.role == .voice {
                 GroupBox(NSLocalizedString("语音输入方式", comment: "")) {
@@ -1101,151 +1101,161 @@ struct AhaKeyStudioView: View {
             // ── 触发方式（短按 / 长按 Tab）──────────────────────────────
             GroupBox(NSLocalizedString("触发方式", comment: "")) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Picker("", selection: $selectedTriggerTab) {
-                        Text(NSLocalizedString("短按", comment: "")).tag(0)
-                        Text(NSLocalizedString("长按", comment: "")).tag(1)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
+                    VStack(alignment: .leading, spacing: 12) {
+                        Picker("", selection: $selectedTriggerTab) {
+                            Text(NSLocalizedString("短按", comment: "")).tag(0)
+                            Text(NSLocalizedString("长按", comment: "")).tag(1)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
 
-                    Divider()
+                        Divider()
 
-                    if key.role == .voice {
-                        // ── 语音键触发方式 ──────────────────────────────
-                        if selectedTriggerTab == 0 {
-                            VStack(alignment: .leading, spacing: 10) {
-                                Label(NSLocalizedString("按一下开始，再按一下结束", comment: ""), systemImage: "hand.tap.fill")
-                                    .font(.callout.weight(.semibold))
-                                Text("录音结束后根据下方开关决定是否经 AhaType 整理，再写入光标。")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Toggle(isOn: $nativeSpeech.shortPressAhaTypeEnabled) {
-                                    HStack(spacing: 6) {
-                                        Text(NSLocalizedString("使用 AhaType 整理", comment: ""))
-                                            .font(.callout)
-                                        if !ahaType.isEnabled {
-                                            Text(NSLocalizedString("（AhaType 总开关已关闭）", comment: ""))
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                }
-                                .toggleStyle(.switch)
-                                .disabled(!ahaType.isEnabled)
-
-                                Divider()
-
-                                // 绑定摘要（短按 = 语音键 HID 绑定）
-                                HStack {
-                                    Text(key.displaySummary)
-                                        .font(.system(.callout, design: .rounded).weight(.semibold))
-                                        .lineLimit(1)
-                                    Spacer()
-                                    Text(key.usesMacro ? NSLocalizedString("固件宏", comment: "") : NSLocalizedString("底层 HID", comment: ""))
+                        if key.role == .voice {
+                            // ── 语音键触发方式 ──────────────────────────────
+                            if selectedTriggerTab == 0 {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Label(NSLocalizedString("按一下开始，再按一下结束", comment: ""), systemImage: "hand.tap.fill")
+                                        .font(.callout.weight(.semibold))
+                                    Text("录音结束后根据下方开关决定是否经 AhaType 整理，再写入光标。")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                }
-                                Picker("", selection: selectedKeyBindingModeBinding) {
-                                    Text(NSLocalizedString("单键 / 组合键", comment: "")).tag(KeyBindingMode.shortcut)
-                                    Text(NSLocalizedString("宏", comment: "")).tag(KeyBindingMode.macro)
-                                }
-                                .pickerStyle(.segmented)
-                                .labelsHidden()
-                                .disabled((key.voicePreset ?? .custom) != .custom)
-                                if key.usesMacro {
-                                    macroEditor(for: key)
-                                } else {
-                                    ShortcutBindingEditor(shortcut: selectedKeyShortcutBinding)
-                                }
-                                Text(voicePresetDetail)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                if (key.voicePreset ?? .custom) != .custom {
-                                    Text(NSLocalizedString("语音键预设会固定使用单键绑定；如需录制宏，请先把预设改为自定义快捷键。", comment: ""))
+                                    Toggle(isOn: $nativeSpeech.shortPressAhaTypeEnabled) {
+                                        HStack(spacing: 6) {
+                                            Text(NSLocalizedString("使用 AhaType 整理", comment: ""))
+                                                .font(.callout)
+                                            if !ahaType.isEnabled {
+                                                Text(NSLocalizedString("（AhaType 总开关已关闭）", comment: ""))
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                    }
+                                    .toggleStyle(.switch)
+                                    .disabled(!ahaType.isEnabled)
+
+                                    Divider()
+
+                                    // 绑定摘要（短按 = 语音键 HID 绑定）
+                                    HStack {
+                                        Text(key.displaySummary)
+                                            .font(.system(.callout, design: .rounded).weight(.semibold))
+                                            .lineLimit(1)
+                                        Spacer()
+                                        Text(key.usesMacro ? NSLocalizedString("固件宏", comment: "") : NSLocalizedString("底层 HID", comment: ""))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Picker("", selection: selectedKeyBindingModeBinding) {
+                                        Text(NSLocalizedString("单键 / 组合键", comment: "")).tag(KeyBindingMode.shortcut)
+                                        Text(NSLocalizedString("宏", comment: "")).tag(KeyBindingMode.macro)
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .labelsHidden()
+                                    .disabled((key.voicePreset ?? .custom) != .custom)
+                                    if key.usesMacro {
+                                        macroEditor(for: key)
+                                    } else {
+                                        ShortcutBindingEditor(shortcut: selectedKeyShortcutBinding)
+                                    }
+                                    Text(voicePresetDetail)
                                         .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    if (key.voicePreset ?? .custom) != .custom {
+                                        Text(NSLocalizedString("语音键预设会固定使用单键绑定；如需录制宏，请先把预设改为自定义快捷键。", comment: ""))
+                                            .font(.caption)
+                                            .foregroundStyle(.orange)
+                                    }
+                                }
+                            } else {
+                                // 长按 Tab（语音键）— 始终开启，仅配置 AhaType 与阈值
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Label(NSLocalizedString("按住录音，松手即发送", comment: ""), systemImage: "hand.draw.fill")
+                                        .font(.callout.weight(.semibold))
+                                    Text(NSLocalizedString("按住键盘录音键不松手开始录音，松手后直接将 ASR 结果写入，响应更快。", comment: ""))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Toggle(isOn: $nativeSpeech.longPressAhaTypeEnabled) {
+                                        HStack(spacing: 6) {
+                                            Text(NSLocalizedString("使用 AhaType 整理", comment: ""))
+                                                .font(.callout)
+                                            if !ahaType.isEnabled {
+                                                Text(NSLocalizedString("（AhaType 总开关已关闭）", comment: ""))
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                    }
+                                    .toggleStyle(.switch)
+                                    .disabled(!ahaType.isEnabled)
+                                    HStack(spacing: 10) {
+                                        Text(NSLocalizedString("触发阈值", comment: ""))
+                                            .font(.callout)
+                                        Slider(
+                                            value: Binding(
+                                                get: { Double(nativeSpeech.longPressThresholdMs) },
+                                                set: { nativeSpeech.longPressThresholdMs = Int($0) }
+                                            ),
+                                            in: 200...1000,
+                                            step: 50
+                                        )
+                                        Text("\(nativeSpeech.longPressThresholdMs) ms")
+                                            .font(.caption.monospacedDigit())
+                                            .foregroundStyle(.secondary)
+                                            .frame(width: 58, alignment: .trailing)
+                                    }
+                                }
+                            }
+                        } else {
+                            // ── 普通键触发方式 ──────────────────────────────
+                            if selectedTriggerTab == 0 {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    HStack {
+                                        Text(key.displaySummary)
+                                            .font(.system(.callout, design: .rounded).weight(.semibold))
+                                            .lineLimit(2)
+                                        Spacer()
+                                        Text(key.usesMacro ? NSLocalizedString("固件宏", comment: "") : NSLocalizedString("底层 HID", comment: ""))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Picker("", selection: selectedKeyBindingModeBinding) {
+                                        Text(NSLocalizedString("单键 / 组合键", comment: "")).tag(KeyBindingMode.shortcut)
+                                        Text(NSLocalizedString("宏", comment: "")).tag(KeyBindingMode.macro)
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .labelsHidden()
+                                    if key.usesMacro {
+                                        macroEditor(for: key)
+                                    } else {
+                                        ShortcutBindingEditor(shortcut: selectedKeyShortcutBinding)
+                                    }
+                                }
+                            } else {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Label(NSLocalizedString("需要固件 v2+ 支持", comment: ""), systemImage: "exclamationmark.triangle")
+                                        .font(.callout.weight(.semibold))
                                         .foregroundStyle(.orange)
-                                }
-                            }
-                        } else {
-                            // 长按 Tab（语音键）— 始终开启，仅配置 AhaType 与阈值
-                            VStack(alignment: .leading, spacing: 10) {
-                                Label(NSLocalizedString("按住录音，松手即发送", comment: ""), systemImage: "hand.draw.fill")
-                                    .font(.callout.weight(.semibold))
-                                Text(NSLocalizedString("按住键盘录音键不松手开始录音，松手后直接将 ASR 结果写入，响应更快。", comment: ""))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Toggle(isOn: $nativeSpeech.longPressAhaTypeEnabled) {
-                                    HStack(spacing: 6) {
-                                        Text(NSLocalizedString("使用 AhaType 整理", comment: ""))
-                                            .font(.callout)
-                                        if !ahaType.isEnabled {
-                                            Text(NSLocalizedString("（AhaType 总开关已关闭）", comment: ""))
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                }
-                                .toggleStyle(.switch)
-                                .disabled(!ahaType.isEnabled)
-                                HStack(spacing: 10) {
-                                    Text(NSLocalizedString("触发阈值", comment: ""))
-                                        .font(.callout)
-                                    Slider(
-                                        value: Binding(
-                                            get: { Double(nativeSpeech.longPressThresholdMs) },
-                                            set: { nativeSpeech.longPressThresholdMs = Int($0) }
-                                        ),
-                                        in: 200...1000,
-                                        step: 50
-                                    )
-                                    Text("\(nativeSpeech.longPressThresholdMs) ms")
-                                        .font(.caption.monospacedDigit())
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 58, alignment: .trailing)
-                                }
-                            }
-                        }
-                    } else {
-                        // ── 普通键触发方式 ──────────────────────────────
-                        if selectedTriggerTab == 0 {
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack {
-                                    Text(key.displaySummary)
-                                        .font(.system(.callout, design: .rounded).weight(.semibold))
-                                        .lineLimit(2)
-                                    Spacer()
-                                    Text(key.usesMacro ? NSLocalizedString("固件宏", comment: "") : NSLocalizedString("底层 HID", comment: ""))
+                                    Text(NSLocalizedString("长按绑定不同快捷键需固件升级后生效，当前仅短按绑定会写入设备。", comment: ""))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
-                                Picker("", selection: selectedKeyBindingModeBinding) {
-                                    Text(NSLocalizedString("单键 / 组合键", comment: "")).tag(KeyBindingMode.shortcut)
-                                    Text(NSLocalizedString("宏", comment: "")).tag(KeyBindingMode.macro)
-                                }
-                                .pickerStyle(.segmented)
-                                .labelsHidden()
-                                if key.usesMacro {
-                                    macroEditor(for: key)
-                                } else {
-                                    ShortcutBindingEditor(shortcut: selectedKeyShortcutBinding)
-                                }
-                            }
-                        } else {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Label(NSLocalizedString("需要固件 v2+ 支持", comment: ""), systemImage: "exclamationmark.triangle")
-                                    .font(.callout.weight(.semibold))
-                                    .foregroundStyle(.orange)
-                                Text(NSLocalizedString("长按绑定不同快捷键需固件升级后生效，当前仅短按绑定会写入设备。", comment: ""))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
                             }
                         }
+                    }
+                    .disabled(inlineKeyControlsDisabled)
+                    if inlineKeyTarget != nil {
+                        inlineKeyStatus
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(NSLocalizedString("保存前会重新读取并核对，只修改当前选中的按键。", comment: ""))
+                            Text(NSLocalizedString("同步到键盘后，短按实体键切换模式时，LCD 会先短暂显示这里的描述，然后回到该模式的动图。", comment: ""))
+                        }
+                        .font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 .padding(.top, 4)
             }
             .onChange(of: selectedPart) { _ in selectedTriggerTab = 0 }
-            .disabled(inlineKeyControlsDisabled)
 
         }
     }
