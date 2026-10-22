@@ -1,0 +1,64 @@
+{
+  "date": "2026-10-23",
+  "sourceCommit": "86f2b41e9fcde4d7e7a70710e203ece95437a1a9",
+  "ci": {
+    "run": 39845386173,
+    "url": "https://github.com/AhakeyAI/desktop/actions/runs/39845386173",
+    "conclusion": "success",
+    "downloadedArchiveSHA256": "944dfe3fc80904504d408cc502d8a3a504272db8170e1bd7860069f5ae1aa0b3",
+    "extractedComposition": {
+      "sourceCommit": "86f2b41e9fcde4d7e7a70710e203ece95437a1a9",
+      "version": "0.0.0",
+      "build": "363",
+      "minimumMacOS": "13.0",
+      "mainAndAgent": true,
+      "languages": [
+        "en",
+        "zh-Hans"
+      ]
+    },
+    "deepStrictSignature": "passed; ad-hoc CI bundle"
+  },
+  "developerIDCandidate": {
+    "composition": {
+      "sourceCommit": "86f2b41e9fcde4d7e7a70710e203ece95437a1a9",
+      "version": "0.2.3",
+      "build": "363",
+      "minimumMacOS": "13.0",
+      "mainAndAgent": true,
+      "languages": [
+        "en",
+        "zh-Hans"
+      ]
+    },
+    "signature": {
+      "App": {
+        "team": "P2VFVRZK7P",
+        "hardenedRuntime": true,
+        "sha256": "3137cb092bee2d69f51a84cd57fffbd9102b34e39c77ba650dbf07eba429e690"
+      },
+      "Agent": {
+        "team": "P2VFVRZK7P",
+        "hardenedRuntime": true,
+        "sha256": "3130302df6b69541e6c996a74106bcf073f2061fd96195b6b2a756d69dd85865"
+      },
+      "newCodexGuardPresent": true
+    },
+    "deepStrictSignature": "passed",
+    "zipSHA256": "0a78ceddf67f2fda6e478ebde19c57f778d2e305f1bcf4780465b58bdf5de872",
+    "notarized": false,
+    "installed": false
+  },
+  "installedSourceAtAudit": "4dce49e90c204c7b3d95ec75a77ecf1abb1e6164",
+  "artworkAdaptationRegression": {
+    "tests": 7,
+    "failures": 0,
+    "scope": "Large PNG beyond old file limit, 8/12-frame animation adaptation, unchanged source, orientation, cancellation and invalid input; no hardware upload"
+  },
+  "limits": [
+    "Mac locked; actual candidate installation and GUI acceptance not performed",
+    "No keyboard writes, Voice changes, resource replacement or flashing",
+    "No formal release or notarization acceptance",
+    "Actual BLE/GUI Codex approval withdrawal matrix remains pending"
+  ]
+}
