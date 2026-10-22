@@ -1,5 +1,7 @@
 package com.example.ahakey.app;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 import com.example.ahakey.service.VoiceInputManager;
 import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
@@ -33,7 +35,7 @@ public class VoiceInputController {
     private VoiceInputManager voiceManager;
     private final BooleanProperty isListening = new SimpleBooleanProperty(false);
     private final StringProperty recognitionResult = new SimpleStringProperty("");
-    private final StringProperty statusText = new SimpleStringProperty("语音输入已就绪");
+    private final StringProperty statusText = new SimpleStringProperty(localize("语音输入已就绪"));
     
     /**
      * 初始化控制器
@@ -44,7 +46,7 @@ public class VoiceInputController {
         resultPreview.textProperty().bind(recognitionResult);
         
         // 设置按钮样式和提示
-        voiceToggleButton.setTooltip(new Tooltip("点击开始/停止语音输入"));
+        voiceToggleButton.setTooltip(new Tooltip(localize("点击开始/停止语音输入")));
         updateButtonState(false);
         
         // 添加按钮事件
@@ -74,13 +76,13 @@ public class VoiceInputController {
      */
     public void startVoiceInput() {
         if (voiceManager == null) {
-            statusText.set("错误：语音服务未初始化");
+            statusText.set(localize("错误：语音服务未初始化"));
             return;
         }
         
         isListening.set(true);
         updateButtonState(true);
-        statusText.set("正在听...");
+        statusText.set(localize("正在听..."));
         recognitionResult.set("");
         
         voiceManager.startVoiceInput(text -> {
@@ -101,9 +103,9 @@ public class VoiceInputController {
         voiceManager.stopVoiceInput();
         
         if (recognitionResult.get().isEmpty()) {
-            statusText.set("未检测到语音");
+            statusText.set(localize("未检测到语音"));
         } else {
-            statusText.set("识别完成");
+            statusText.set(localize("识别完成"));
         }
     }
     
@@ -113,10 +115,10 @@ public class VoiceInputController {
     private void updateButtonState(boolean listening) {
         if (listening) {
             voiceToggleButton.getStyleClass().add("voice-active");
-            voiceToggleButton.setText("停止");
+            voiceToggleButton.setText(localize("停止"));
         } else {
             voiceToggleButton.getStyleClass().remove("voice-active");
-            voiceToggleButton.setText("语音输入");
+            voiceToggleButton.setText(localize("语音输入"));
         }
     }
     
@@ -127,7 +129,7 @@ public class VoiceInputController {
         isListening.set(false);
         updateButtonState(false);
         recognitionResult.set("");
-        statusText.set("语音输入已就绪");
+        statusText.set(localize("语音输入已就绪"));
     }
     
     /**

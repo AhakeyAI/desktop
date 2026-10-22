@@ -33,12 +33,14 @@ public class ModelConfig {
     private static final String LANGUAGE = "language";
     private static final String TEXT_NORM = "text_norm";
     private static final String STATUS_POLL_PERIOD = "status.poll.period.seconds";
+    private static final String VAD_ENABLED = "vad.enabled";
+    private static final String VAD_MODEL_PATH = "vad.model.path";
     
     // 默认配置值
-    private static final boolean DEFAULT_MODEL_ENABLED = false;
-    private static final String DEFAULT_MODEL_PATH = "model_q8.onnx";
+    private static final boolean DEFAULT_MODEL_ENABLED = true;
+    private static final String DEFAULT_MODEL_PATH = "models";
     private static final String DEFAULT_TOKENS_PATH = "tokens.txt";
-    private static final String DEFAULT_MODEL_TYPE = "SENSE_VOICE_SMALL";
+    private static final String DEFAULT_MODEL_TYPE = "STREAMING_PARAFORMER";
     private static final int DEFAULT_NUM_THREADS = 4;
     private static final int DEFAULT_SAMPLE_RATE = 16000;
     private static final int DEFAULT_N_FFT = 512;
@@ -49,6 +51,8 @@ public class ModelConfig {
     private static final int DEFAULT_LANGUAGE = 0;
     private static final int DEFAULT_TEXT_NORM = 0;
     private static final int DEFAULT_STATUS_POLL_PERIOD = 3;
+    private static final boolean DEFAULT_VAD_ENABLED = false;
+    private static final String DEFAULT_VAD_MODEL_PATH = "silero_vad.onnx";
     
     private ModelConfig() {
         loadConfig();
@@ -188,6 +192,15 @@ public class ModelConfig {
     public int getStatusPollPeriodSeconds() {
         return getIntProperty(STATUS_POLL_PERIOD, DEFAULT_STATUS_POLL_PERIOD);
     }
+
+    /** VAD is deliberately opt-in; the first restored path records while held. */
+    public boolean isVadEnabled() {
+        return getBooleanProperty(VAD_ENABLED, DEFAULT_VAD_ENABLED);
+    }
+
+    public String getVadModelPath() {
+        return properties.getProperty(VAD_MODEL_PATH, DEFAULT_VAD_MODEL_PATH);
+    }
     
     /**
      * 安全获取布尔属性
@@ -233,6 +246,8 @@ public class ModelConfig {
         logger.debug("每块帧数: {}", getFramesPerChunk());
         logger.debug("语言: {}", getLanguage());
         logger.debug("文本规范化: {}", getTextNorm());
+        logger.debug("VAD启用: {}", isVadEnabled());
+        logger.debug("VAD模型路径: {}", getVadModelPath());
         logger.debug("==============================");
     }
 }

@@ -1,6 +1,8 @@
 package com.example.ahakey.service;
 
 import com.example.ahakey.model.IDEState;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,6 +14,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Hook 分发服务器 — 监听固定 TCP 端口，接收来自 Codex/Claude/Cursor/Kimi hook 的事件名，
@@ -33,68 +36,111 @@ public class HookDispatchServer {
 
     public static final int DEFAULT_PORT = 8765;
 
+    /**
+     * 手动批准确认回调 - 用于在手动模式下请求用户确认
+     */
+    @FunctionalInterface
+    public interface ApprovalCallback {
+        /**
+         * 请求用户确认操作
+         * @param platform 平台名称
+         * @param eventName 事件名称
+         * @return true 表示用户确认，false 表示用户拒绝
+         */
+        boolean requestApproval(String platform, String eventName);
+    }
+
     private final BleManager bleManager;
+    private final TaskActivityService taskActivityService;
+    private final ApprovalService approvalService;
+    private static final ObjectMapper JSON = new ObjectMapper();
     private final int port;
     private ServerSocket serverSocket;
     private ExecutorService executor;
     private volatile boolean running;
+    private ApprovalCallback approvalCallback;
+    private final Map<Platform, Long> lastRequestTimes = new ConcurrentHashMap<>();
 
-    /**
-     * 所有平台 hook 事件名 → IDEState 映射。
-     * 前缀 Codex* / Kimi* 以及无前缀的 Claude/Cursor 事件名均映射到相同的 BLE 状态码。
-     */
-    private static final Map<String, IDEState> EVENT_MAP = new HashMap<>();
+    enum Platform { CLAUDE, CODEX, KIMI, CURSOR }
+
+    private static final String SOURCE_HARDWARE_AUTO = "hardware-auto";
+    private static final String SOURCE_USER_CONFIRMED = "user-confirmed";
+    private static final String SOURCE_FAIL_CLOSED = "fail-closed";
+    private static final String SOURCE_CODEX_FALLBACK = "codex-fallback";
+
+    record EventEntry(Platform platform, IDEState state) {}
+
+    /** 事件名 → (Platform, IDEState)，每个事件名唯一归属一个平台，无命名冲突风险。 */
+    private static final Map<String, EventEntry> EVENT_MAP = new HashMap<>();
 
     static {
-        // Claude 事件名（PascalCase）
-        EVENT_MAP.put("SessionStart", IDEState.SESSION_START);
-        EVENT_MAP.put("SessionEnd", IDEState.SESSION_END);
-        EVENT_MAP.put("PreToolUse", IDEState.PRE_TOOL_USE);
-        EVENT_MAP.put("PostToolUse", IDEState.POST_TOOL_USE);
-        EVENT_MAP.put("PermissionRequest", IDEState.PERMISSION_REQUEST);
-        EVENT_MAP.put("Notification", IDEState.NOTIFICATION);
-        EVENT_MAP.put("TaskCompleted", IDEState.TASK_COMPLETED);
-        EVENT_MAP.put("Stop", IDEState.STOP);
-        EVENT_MAP.put("UserPromptSubmit", IDEState.USER_PROMPT_SUBMIT);
+        // Claude（PascalCase）
+        for (String[] e : new String[][]{
+            {"SessionStart", "SESSION_START"}, {"SessionEnd", "SESSION_END"},
+            {"PreToolUse", "PRE_TOOL_USE"}, {"PostToolUse", "POST_TOOL_USE"},
+            {"Notification", "NOTIFICATION"}, {"TaskCompleted", "TASK_COMPLETED"},
+            {"Stop", "STOP"}, {"UserPromptSubmit", "USER_PROMPT_SUBMIT"}
+        }) EVENT_MAP.put(e[0], new EventEntry(Platform.CLAUDE, IDEState.valueOf(e[1])));
+        EVENT_MAP.put("PermissionRequest", new EventEntry(Platform.CLAUDE, IDEState.PERMISSION_REQUEST));
 
-        // Cursor 事件名（camelCase）
-        EVENT_MAP.put("sessionStart", IDEState.SESSION_START);
-        EVENT_MAP.put("sessionEnd", IDEState.SESSION_END);
-        EVENT_MAP.put("preToolUse", IDEState.PRE_TOOL_USE);
-        EVENT_MAP.put("postToolUse", IDEState.POST_TOOL_USE);
-        EVENT_MAP.put("stop", IDEState.STOP);
+        // Codex（Codex* 前缀）
+        for (String[] e : new String[][]{
+            {"CodexSessionStart", "SESSION_START"}, {"CodexSessionEnd", "SESSION_END"},
+            {"CodexPreToolUse", "PRE_TOOL_USE"}, {"CodexPostToolUse", "POST_TOOL_USE"},
+            {"CodexStop", "STOP"}, {"CodexUserPromptSubmit", "USER_PROMPT_SUBMIT"}
+        }) EVENT_MAP.put(e[0], new EventEntry(Platform.CODEX, IDEState.valueOf(e[1])));
+        EVENT_MAP.put("CodexPermissionRequest", new EventEntry(Platform.CODEX, IDEState.PERMISSION_REQUEST));
 
-        // Codex 事件名（Codex* 前缀）
-        EVENT_MAP.put("CodexSessionStart", IDEState.SESSION_START);
-        EVENT_MAP.put("CodexSessionEnd", IDEState.SESSION_END);
-        EVENT_MAP.put("CodexPreToolUse", IDEState.PRE_TOOL_USE);
-        EVENT_MAP.put("CodexPostToolUse", IDEState.POST_TOOL_USE);
-        EVENT_MAP.put("CodexPermissionRequest", IDEState.PERMISSION_REQUEST);
-        EVENT_MAP.put("CodexStop", IDEState.STOP);
-        EVENT_MAP.put("CodexUserPromptSubmit", IDEState.USER_PROMPT_SUBMIT);
+        // Kimi（Kimi* 前缀）
+        for (String[] e : new String[][]{
+            {"KimiNotification", "NOTIFICATION"}, {"KimiSessionStart", "SESSION_START"},
+            {"KimiSessionEnd", "SESSION_END"}, {"KimiPreToolUse", "PRE_TOOL_USE"},
+            {"KimiPostToolUse", "POST_TOOL_USE"}, {"KimiUserPromptSubmit", "USER_PROMPT_SUBMIT"},
+            {"KimiStop", "STOP"}
+        }) EVENT_MAP.put(e[0], new EventEntry(Platform.KIMI, IDEState.valueOf(e[1])));
 
-        // Kimi 事件名（Kimi* 前缀）
-        EVENT_MAP.put("KimiNotification", IDEState.NOTIFICATION);
-        EVENT_MAP.put("KimiSessionStart", IDEState.SESSION_START);
-        EVENT_MAP.put("KimiSessionEnd", IDEState.SESSION_END);
-        EVENT_MAP.put("KimiPreToolUse", IDEState.PRE_TOOL_USE);
-        EVENT_MAP.put("KimiPostToolUse", IDEState.POST_TOOL_USE);
-        EVENT_MAP.put("KimiUserPromptSubmit", IDEState.USER_PROMPT_SUBMIT);
-        EVENT_MAP.put("KimiStop", IDEState.STOP);
+        // Cursor（camelCase）
+        for (String[] e : new String[][]{
+            {"sessionStart", "SESSION_START"}, {"sessionEnd", "SESSION_END"},
+            {"preToolUse", "PRE_TOOL_USE"}, {"postToolUse", "POST_TOOL_USE"},
+            {"stop", "STOP"}
+        }) EVENT_MAP.put(e[0], new EventEntry(Platform.CURSOR, IDEState.valueOf(e[1])));
     }
 
     public HookDispatchServer(BleManager bleManager) {
-        this(bleManager, DEFAULT_PORT);
+        this(bleManager, new TaskActivityService(bleManager), DEFAULT_PORT);
     }
 
     public HookDispatchServer(BleManager bleManager, int port) {
+        this(bleManager, new TaskActivityService(bleManager), port);
+    }
+
+    public HookDispatchServer(BleManager bleManager, TaskActivityService taskActivityService, int port) {
+        this(bleManager, taskActivityService, new ApprovalService(bleManager), port);
+    }
+
+    public HookDispatchServer(
+        BleManager bleManager,
+        TaskActivityService taskActivityService,
+        ApprovalService approvalService,
+        int port
+    ) {
         this.bleManager = bleManager;
+        this.taskActivityService = taskActivityService;
+        this.approvalService = approvalService;
         this.port = port;
     }
 
+    public TaskActivityService getTaskActivityService() { return taskActivityService; }
+
     /**
-     * 启动服务器。如果端口被占用，会自动递增端口号重试（最多 10 次）。
+     * 设置手动批准确认回调
      */
+    public void setApprovalCallback(ApprovalCallback callback) {
+        this.approvalCallback = callback;
+    }
+
+    /** Starts the configured stable endpoint; never silently migrates ports. */
     public void start() {
         if (running) return;
         executor = Executors.newCachedThreadPool(r -> {
@@ -103,25 +149,16 @@ public class HookDispatchServer {
             return t;
         });
 
-        int attempts = 0;
-        int tryPort = port;
-        while (attempts < 10) {
-            try {
-                serverSocket = new ServerSocket();
-                serverSocket.setReuseAddress(true);
-                serverSocket.bind(new InetSocketAddress("127.0.0.1", tryPort));
-                running = true;
-                logger.info("Hook 分发服务器已启动 - 127.0.0.1:{}", tryPort);
-                break;
-            } catch (IOException e) {
-                logger.warn("端口 {} 被占用，尝试下一个...", tryPort);
-                tryPort++;
-                attempts++;
-            }
-        }
-
-        if (!running) {
-            logger.error("Hook 分发服务器启动失败，已尝试端口 {}-{}", port, tryPort - 1);
+        try {
+            serverSocket = new ServerSocket();
+            serverSocket.setReuseAddress(true);
+            serverSocket.bind(new InetSocketAddress("127.0.0.1", port));
+            running = true;
+            logger.info("HOOK_SERVER_STARTED address=127.0.0.1 port={}",
+                serverSocket.getLocalPort());
+        } catch (IOException failure) {
+            logger.error("Hook 分发服务器固定端口 {} 启动失败: {}", port,
+                failure.getMessage());
             return;
         }
 
@@ -134,6 +171,15 @@ public class HookDispatchServer {
 
     public boolean isRunning() {
         return running;
+    }
+
+    public long getLastRequestTimeMillis(String platform) {
+        try {
+            return lastRequestTimes.getOrDefault(
+                Platform.valueOf(platform.toUpperCase()), 0L);
+        } catch (IllegalArgumentException exception) {
+            return 0L;
+        }
     }
 
     private void acceptLoop() {
@@ -162,59 +208,183 @@ public class HookDispatchServer {
 
             line = line.trim();
             String eventName = parseEventName(line);
-            logger.debug("Hook 事件: {} (原始: {})", eventName, line);
 
-            IDEState state = EVENT_MAP.get(eventName);
-            if (state == null) {
-                logger.warn("未知 hook 事件: {}", eventName);
+            EventEntry entry = EVENT_MAP.get(eventName);
+            if (entry == null) {
+                logger.warn("未知 hook 事件: {} (原始: {})", eventName, line);
                 writer.println("{\"ok\":false,\"error\":\"unknown event: " + eventName + "\"}");
                 return;
             }
+            logger.debug("[{}] 收到事件: {} (原始: {})", entry.platform(), eventName, line);
+            lastRequestTimes.put(entry.platform(), System.currentTimeMillis());
+            logger.info("HOOK_REQUEST_RECEIVED platform={} event={}",
+                entry.platform(), eventName);
 
-            // 检查 PermissionRequest 事件是否需要自动批准
-            if (state == IDEState.PERMISSION_REQUEST) {
-                boolean isAutoApproval = bleManager.getCachedStatus().isAutoApproval();
-                if (isAutoApproval) {
-                    logger.info("自动批准模式: 跳过 PermissionRequest 事件");
-                    writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":true}");
-                } else {
-                    logger.info("手动批准模式: 返回拒绝决策");
-                    writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":false}");
-                }
-                return;
-            }
+            HookMetadata metadata = parseMetadata(line);
+            taskActivityService.accept(entry.platform().name(), profile(entry.platform()),
+                metadata.taskId(), metadata.title(), entry.state());
 
-            // Kimi PreToolUse：刷新设备状态后直接返回 Kimi 决策格式，PS1 hook 原样透传
-            if ("KimiPreToolUse".equals(eventName)) {
-                bleManager.queryStatusAndWait(200);
-                boolean isAuto = bleManager.getCachedStatus().isAutoApproval();
-                logger.info("KimiPreToolUse: 拨杆={} (switchState={})",
-                        isAuto ? "自动" : "手动", bleManager.getCachedStatus().getSwitchState());
-                try {
-                    bleManager.updateState((byte) state.getCode());
-                } catch (Exception e) {
-                    logger.warn("BLE 状态更新失败: {}", e.getMessage());
-                }
-                if (isAuto) {
-                    writer.println("{}");
-                } else {
-                    writer.println("{\"hookSpecificOutput\":{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"AhaKey: manual mode, switch dial to auto\"}}");
-                }
-                return;
-            }
-
-            try {
-                bleManager.updateState((byte) state.getCode());
-                logger.info("Hook 分发成功: {} → {} (code={})", eventName, state.name(), state.getCode());
-                writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"state\":" + state.getCode() + "}");
-            } catch (Exception e) {
-                logger.error("BLE 状态更新失败: {}", e.getMessage());
-                writer.println("{\"ok\":false,\"error\":\"BLE update failed\"}");
+            switch (entry.platform()) {
+                case CLAUDE -> handleClaudeEvent(writer, eventName, entry.state());
+                case CODEX  -> handleCodexEvent(writer, eventName, entry.state());
+                case KIMI   -> handleKimiEvent(writer, eventName, entry.state());
+                case CURSOR -> handleCursorEvent(writer, eventName, entry.state());
             }
 
         } catch (IOException e) {
             logger.debug("Hook 客户端处理异常: {}", e.getMessage());
         }
+    }
+
+    private void handleClaudeEvent(PrintWriter writer, String eventName, IDEState state) {
+        if (state == IDEState.PERMISSION_REQUEST) {
+            ApprovalSnapshot snapshot = approvalService.refresh();
+            boolean auto = snapshot.permitsAutomaticApproval();
+            logger.info("[Claude] {} approvalState={} fresh={}",
+                eventName, snapshot.state(), snapshot.fresh());
+            if (!auto && approvalCallback != null) {
+                boolean approved = approvalCallback.requestApproval("Claude", eventName);
+                logger.info("[Claude] {} 用户操作={}", eventName, approved ? "允许" : "拒绝");
+                writeCanonical(writer, Platform.CLAUDE, eventName, approved,
+                    approved ? SOURCE_USER_CONFIRMED : SOURCE_FAIL_CLOSED);
+            } else {
+                writeCanonical(writer, Platform.CLAUDE, eventName, auto,
+                    auto ? SOURCE_HARDWARE_AUTO : SOURCE_FAIL_CLOSED);
+            }
+            return;
+        }
+        handleGeneric(writer, eventName, state, "Claude");
+    }
+
+    private void handleCodexEvent(PrintWriter writer, String eventName, IDEState state) {
+        boolean needApproval = "CodexPreToolUse".equals(eventName) || state == IDEState.PERMISSION_REQUEST;
+        if (needApproval) {
+            ApprovalSnapshot snapshot = approvalService.refresh();
+            boolean auto = snapshot.permitsAutomaticApproval();
+            String decision = auto ? "HARDWARE_AUTO"
+                : isManualDialogEligible(snapshot) ? "MANUAL_DIALOG" : "CODEX_FALLBACK";
+            logger.info("APPROVAL_STATE={} CONNECTED={} FRESH={} SWITCH_STATE={} POLICY_DECISION={}",
+                snapshot.state(), snapshot.connected(), snapshot.fresh(),
+                snapshot.state(), decision);
+            try { bleManager.updateState((byte) state.getCode()); }
+            catch (Exception e) { logger.warn("[Codex] BLE 状态更新失败: {}", e.getMessage()); }
+
+            if (auto) {
+                writeCanonical(writer, Platform.CODEX, eventName, true,
+                    SOURCE_HARDWARE_AUTO);
+            } else if (isManualDialogEligible(snapshot)) {
+                boolean approved = approvalCallback != null
+                    && approvalCallback.requestApproval("Codex", eventName);
+                writeCanonical(writer, Platform.CODEX, eventName, approved,
+                    approved ? SOURCE_USER_CONFIRMED : SOURCE_FAIL_CLOSED);
+            } else {
+                logger.info("FALLBACK_REASON={}", fallbackReason(snapshot));
+                writeCanonical(writer, Platform.CODEX, eventName, false,
+                    SOURCE_CODEX_FALLBACK);
+            }
+            return;
+        }
+        handleGeneric(writer, eventName, state, "Codex");
+    }
+
+    private void handleKimiEvent(PrintWriter writer, String eventName, IDEState state) {
+        if ("KimiPreToolUse".equals(eventName)) {
+            ApprovalSnapshot snapshot = approvalService.refresh();
+            boolean auto = snapshot.permitsAutomaticApproval();
+            logger.info("[Kimi] {} approvalState={} fresh={}",
+                eventName, snapshot.state(), snapshot.fresh());
+            try { bleManager.updateState((byte) state.getCode()); }
+            catch (Exception e) { logger.warn("[Kimi] BLE 状态更新失败: {}", e.getMessage()); }
+            
+            if (auto) {
+                writeCanonical(writer, Platform.KIMI, eventName, true,
+                    SOURCE_HARDWARE_AUTO);
+            } else if (approvalCallback != null && approvalCallback.requestApproval("Kimi", eventName)) {
+                writeCanonical(writer, Platform.KIMI, eventName, true,
+                    SOURCE_USER_CONFIRMED);
+                logger.info("[Kimi] {} 用户操作=允许", eventName);
+            } else {
+                writeCanonical(writer, Platform.KIMI, eventName, false,
+                    SOURCE_FAIL_CLOSED);
+                logger.info("[Kimi] {} 用户操作=拒绝", eventName);
+            }
+            return;
+        }
+        handleGeneric(writer, eventName, state, "Kimi");
+    }
+
+    private void handleCursorEvent(PrintWriter writer, String eventName, IDEState state) {
+        if ("preToolUse".equals(eventName)) {
+            ApprovalSnapshot snapshot = approvalService.refresh();
+            boolean auto = snapshot.permitsAutomaticApproval();
+            logger.info("[Cursor] {} approvalState={} fresh={} callback={}",
+                eventName, snapshot.state(), snapshot.fresh(), approvalCallback != null);
+            try { bleManager.updateState((byte) state.getCode()); }
+            catch (Exception e) { logger.warn("[Cursor] BLE 状态更新失败: {}", e.getMessage()); }
+            
+            if (auto) {
+                logger.info("[Cursor] {} 自动放行", eventName);
+                writeCanonical(writer, Platform.CURSOR, eventName, true,
+                    SOURCE_HARDWARE_AUTO);
+            } else if (approvalCallback != null && approvalCallback.requestApproval("Cursor", eventName)) {
+                logger.info("[Cursor] {} 用户操作=允许", eventName);
+                writeCanonical(writer, Platform.CURSOR, eventName, true,
+                    SOURCE_USER_CONFIRMED);
+            } else {
+                String reason = approvalCallback == null ? "回调未注册" : "用户拒绝";
+                logger.info("[Cursor] {} 用户操作=拒绝({})", eventName, reason);
+                writeCanonical(writer, Platform.CURSOR, eventName, false,
+                    SOURCE_FAIL_CLOSED);
+            }
+            return;
+        }
+        handleGeneric(writer, eventName, state, "Cursor");
+    }
+
+    private void handleGeneric(PrintWriter writer, String eventName, IDEState state, String platform) {
+        try {
+            bleManager.updateState((byte) state.getCode());
+            logger.info("[{}] {} → {} (code={})", platform, eventName, state.name(), state.getCode());
+            writeCanonical(writer, Platform.valueOf(platform.toUpperCase()),
+                eventName, false, SOURCE_FAIL_CLOSED);
+        } catch (Exception e) {
+            logger.error("[{}] BLE 状态更新失败: {}", platform, e.getMessage());
+            writeCanonical(writer, Platform.valueOf(platform.toUpperCase()),
+                eventName, false, SOURCE_FAIL_CLOSED);
+        }
+    }
+
+    private boolean isManualDialogEligible(ApprovalSnapshot snapshot) {
+        return snapshot.state() == ApprovalState.MANUAL
+            && snapshot.connected() && snapshot.fresh();
+    }
+
+    private String fallbackReason(ApprovalSnapshot snapshot) {
+        if (!snapshot.connected() || snapshot.state() == ApprovalState.DISCONNECTED) {
+            return "DISCONNECTED";
+        }
+        if (!snapshot.fresh() || snapshot.state() == ApprovalState.STALE) {
+            return "STALE";
+        }
+        return "UNKNOWN";
+    }
+
+    private static void writeCanonical(
+        PrintWriter writer,
+        Platform platform,
+        String eventName,
+        boolean allow,
+        String approvalSource
+    ) {
+        writer.print("{\"schemaVersion\":1,\"platform\":\"");
+        writer.print(platform.name().toLowerCase());
+        writer.print("\",\"event\":\"");
+        writer.print(eventName);
+        writer.print("\",\"allow\":");
+        writer.print(allow);
+        writer.print(",\"approvalSource\":\"");
+        writer.print(approvalSource);
+        writer.println("\"}");
     }
 
     /**
@@ -242,6 +412,27 @@ public class HookDispatchServer {
         return line;
     }
 
+    private record HookMetadata(String taskId, String title) {}
+
+    private HookMetadata parseMetadata(String line) {
+        if (!line.startsWith("{")) return new HookMetadata("", "");
+        try {
+            JsonNode root = JSON.readTree(line);
+            return new HookMetadata(root.path("taskId").asText(""), root.path("title").asText(""));
+        } catch (Exception ignored) {
+            return new HookMetadata("", "");
+        }
+    }
+
+    private int profile(Platform platform) {
+        return switch (platform) {
+            case CLAUDE -> 0;
+            case CURSOR -> 1;
+            case CODEX -> 2;
+            case KIMI -> 3;
+        };
+    }
+
     public void stop() {
         running = false;
         try {
@@ -254,6 +445,7 @@ public class HookDispatchServer {
         if (executor != null) {
             executor.shutdownNow();
         }
-        logger.info("Hook 分发服务器已停止");
+        taskActivityService.close();
+        logger.info("HOOK_SERVER_STOPPED");
     }
 }

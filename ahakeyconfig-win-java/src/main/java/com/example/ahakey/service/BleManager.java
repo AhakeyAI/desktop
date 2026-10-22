@@ -1,5 +1,6 @@
 package com.example.ahakey.service;
 
+import com.example.ahakey.firmware.FirmwareCapabilities;
 import com.example.ahakey.model.DeviceStatus;
 import com.example.ahakey.protocol.AhaKeyProtocol;
 import com.example.ahakey.protocol.AhaKeyResponseParser;
@@ -12,15 +13,24 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BooleanSupplier;
 
 public class BleManager {
     private static final Logger logger = LoggerFactory.getLogger(BleManager.class);
     private static final String DEFAULT_HOST = "127.0.0.1";
     private static final int DEFAULT_PORT = 9000;
     private static final long RESPONSE_TIMEOUT_MS = 15000;
+    private static final long STATUS_POLL_TIMEOUT_MS = 750;
+    private static final long USB_READY_TIMEOUT_MS = 1500;
+    private static final long RECOVERY_BACKOFF_MS = 2_000;
 
     private final String host;
     private final int port;
@@ -30,16 +40,70 @@ public class BleManager {
     private OutputStream outputStream;
     private InputStream inputStream;
     private Thread readerThread;
-    private final UsbHidTransport usbTransport = new UsbHidTransport();
+    private volatile long bleReceiver;
+    private final UsbHidTransport usbTransport;
+    private final BooleanSupplier usbPresent;
+    private final long usbReadyTimeoutMillis;
+    private final AtomicBoolean usbCandidateInFlight = new AtomicBoolean();
 
-    private final ReentrantLock commandLock = new ReentrantLock();
-    private final Condition responseReady = commandLock.newCondition();
-    private volatile byte[] pendingNotifyFrame;
+    /**
+     * Held for the complete request/response transaction. This must be
+     * separate from responseLock because Condition.await releases its lock.
+     */
+    private final ReentrantLock requestLock = new ReentrantLock(true);
+    private final ReentrantLock responseLock = new ReentrantLock();
+    private final Condition responseReady = responseLock.newCondition();
+    enum TransportKind { USB, BLE, NONE }
+    record TransportSessionToken(TransportKind transport, long epoch, long receiver) {}
+    private record PendingResponse(byte[] frame, TransportSessionToken token) {}
+
+    /** Immutable transport fact used by ordinary waits and post-flash checks. */
+    public record TransportStatusSnapshot(
+        long sessionEpoch,
+        long receiverIdentity,
+        long statusSequence,
+        long lastStatusAtNanos,
+        boolean connected
+    ) {}
+
+    private volatile PendingResponse pendingNotifyFrame;
+    private final ThreadLocal<TransportSessionToken> requestTransportToken =
+        new ThreadLocal<>();
+    private volatile java.util.function.IntConsumer modeChangeListener;
+    private volatile Runnable transportSessionInvalidationListener;
+    private volatile Runnable receiveEntryHookForTest;
 
     private volatile boolean isConnected;
     private volatile boolean isScanning;
+    private volatile boolean userDisconnecting;
+    private volatile boolean recoveringTransport;
+    private volatile boolean shuttingDown;
+    private volatile boolean bridgeBleConnected;
+    private volatile String bridgeDeviceName = "";
     private DeviceStatus cachedStatus = new DeviceStatus();
     private volatile long lastStatusUpdateTime = 0;  // 最后一次状态更新时间
+    /** Monotonic generation of accepted physical status frames. */
+    private final AtomicLong statusUpdateSequence = new AtomicLong();
+    private final PhysicalStatusFreshness physicalStatusFreshness =
+        new PhysicalStatusFreshness();
+    private volatile DeviceStatus acceptedPhysicalStatus;
+    private final ThreadLocal<DeviceStatus> approvalQueryStatus = new ThreadLocal<>();
+    private final PhysicalStatusFreshness.QuerySender statusQuerySender;
+    private final Runnable recoveryAction;
+    private final Executor recoveryExecutor;
+    private final AtomicBoolean recoveryInFlight = new AtomicBoolean();
+    private final AtomicBoolean recoveryPending = new AtomicBoolean();
+    private final AtomicLong lastRecoveryStartedNanos = new AtomicLong();
+    private final AtomicLong sessionSequence = new AtomicLong(1);
+    private final AtomicLong receiverSequence = new AtomicLong(1);
+    private volatile long activeSession = 1;
+    private volatile long activeReceiver = 1;
+    private volatile TransportStatusSnapshot transportStatusSnapshot =
+        new TransportStatusSnapshot(1, 1, 0, 0, false);
+    private volatile long stabilizedContractSession = -1;
+    private volatile AhaKeyResponseParser.DeviceCapabilities stabilizedCapabilities;
+    private volatile long lastStatusUpdateNanos;
+    private volatile boolean usbReady;
 
     public interface BleCallback {
         void onConnected();
@@ -48,14 +112,72 @@ public class BleManager {
         void onError(String message);
     }
 
+    public void setModeChangeListener(java.util.function.IntConsumer listener) {
+        this.modeChangeListener = listener;
+    }
+
+    @FunctionalInterface
+    public interface DeviceTransaction<T> {
+        T execute() throws Exception;
+    }
+
+    public void setTransportSessionInvalidationListener(Runnable listener) {
+        this.transportSessionInvalidationListener = listener;
+    }
+
     public BleManager(BleCallback callback) {
         this(DEFAULT_HOST, DEFAULT_PORT, callback);
     }
 
     public BleManager(String host, int port, BleCallback callback) {
+        this(host, port, callback, new UsbHidTransport(),
+            UsbHidTransport::isPresent, USB_READY_TIMEOUT_MS);
+    }
+
+    BleManager(String host, int port, BleCallback callback,
+               UsbHidTransport usbTransport, BooleanSupplier usbPresent,
+               long usbReadyTimeoutMillis) {
         this.host = host;
         this.port = port;
         this.callback = callback;
+        this.usbTransport = usbTransport;
+        this.usbPresent = usbPresent;
+        this.usbReadyTimeoutMillis = usbReadyTimeoutMillis;
+        this.statusQuerySender = this::sendPhysicalStatusQuery;
+        this.recoveryAction = this::rebuildTransportSession;
+        this.recoveryExecutor = newRecoveryExecutor();
+    }
+
+    BleManager(
+        BleCallback callback,
+        PhysicalStatusFreshness.QuerySender statusQuerySender
+    ) {
+        this(callback, statusQuerySender, () -> {}, newRecoveryExecutor());
+    }
+
+    BleManager(
+        BleCallback callback,
+        PhysicalStatusFreshness.QuerySender statusQuerySender,
+        Runnable recoveryAction,
+        Executor recoveryExecutor
+    ) {
+        this.host = DEFAULT_HOST;
+        this.port = DEFAULT_PORT;
+        this.callback = callback;
+        this.usbTransport = new UsbHidTransport();
+        this.usbPresent = UsbHidTransport::isPresent;
+        this.usbReadyTimeoutMillis = USB_READY_TIMEOUT_MS;
+        this.statusQuerySender = statusQuerySender;
+        this.recoveryAction = recoveryAction;
+        this.recoveryExecutor = recoveryExecutor;
+    }
+
+    private static Executor newRecoveryExecutor() {
+        return Executors.newSingleThreadExecutor(r -> {
+            Thread thread = new Thread(r, "transport-recovery");
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 
     public static BleManager fromEnvironment(BleCallback callback) {
@@ -72,133 +194,237 @@ public class BleManager {
     }
 
     public void connect() {
+        if (shuttingDown) {
+            return;
+        }
+        userDisconnecting = false;
+        // Reusing an active transport avoids closing the TCP bridge while the
+        // status poller is still using it. A repeated Connect click therefore
+        // refreshes the current session instead of creating a disconnect gap.
+        if (isTransportSessionActive()) {
+            logger.info("[BLE] Transport session already active; refreshing status");
+            Thread refresh = new Thread(this::queryStatus, "connect-status-refresh");
+            refresh.setDaemon(true);
+            refresh.start();
+            return;
+        }
+        connectInternal();
+    }
+
+    private void connectInternal() {
+        if (userDisconnecting) {
+            return;
+        }
+        long startTime = System.currentTimeMillis();
+        logger.info("[BLE] === 开始连接 (第{}次尝试) ===", ++connectAttemptCount);
+        
         if (isScanning) {
+            logger.warn("[BLE] 正在扫描中，忽略连接请求");
             return;
         }
         isScanning = true;
-        new Thread(() -> {
-            closeTcpOnly();
-            if (tryConnectUsb()) {
-                return;
-            }
-            logger.info("Start connecting BLE bridge - {}:{}", host, port);
-            try {
-                socket = new Socket();
-                socket.connect(new InetSocketAddress(host, port), 5000);
-                socket.setTcpNoDelay(true);
-                outputStream = socket.getOutputStream();
-                inputStream = socket.getInputStream();
-                isConnected = true;
-                isScanning = false;
-                cachedStatus.setConnected(false);
-                cachedStatus.setDeviceName("Waiting for device");
-                if (cachedStatus.getBatteryLevel() < 0) {
-                    cachedStatus.setBatteryLevel(50);
-                }
-                if (cachedStatus.getSwitchState() < 0) {
-                    cachedStatus.setSwitchState(1);
-                }
-                logger.info("BLE bridge connected - {}:{}", host, port);
-                startReader();
-                queryBridgeDeviceInfo();
-            } catch (IOException e) {
-                isScanning = false;
-                isConnected = false;
-                cachedStatus.setConnected(false);
-                logger.warn("BLE bridge connect failed - {}:{}: {}", host, port, e.getMessage());
-                callback.onError("BLE bridge connect failed (" + host + ":" + port + "): " + e.getMessage());
-            }
-        }, "device-connect").start();
+        
+        new Thread(() -> openPreferredTransport(startTime), "device-connect").start();
     }
+
+    private boolean openPreferredTransport(long startTime) {
+        logger.info("[BLE] 连接线程启动，耗时={}ms", System.currentTimeMillis() - startTime);
+        if (userDisconnecting || shuttingDown) {
+            isScanning = false;
+            return false;
+        }
+        closeTcpOnly();
+        if (tryConnectUsb()) {
+            logger.info("[BLE] USB连接成功，总耗时={}ms", System.currentTimeMillis() - startTime);
+            return true;
+        }
+        logger.info("[BLE] Start connecting BLE bridge - {}:{}", host, port);
+        try {
+            Socket newSocket = new Socket();
+            newSocket.connect(new InetSocketAddress(host, port), 5000);
+            newSocket.setTcpNoDelay(true);
+            if (userDisconnecting || shuttingDown) {
+                newSocket.close();
+                isScanning = false;
+                return false;
+            }
+            socket = newSocket;
+            outputStream = socket.getOutputStream();
+            inputStream = socket.getInputStream();
+            isConnected = true;
+            isScanning = false;
+            cachedStatus.setConnected(false);
+            cachedStatus.setDeviceName("Waiting for device");
+            cachedStatus.setBatteryLevel(-1);
+            cachedStatus.setTransport("NONE");
+            long receiver = beginTransportSession();
+            bleReceiver = receiver;
+            logger.info("[BLE] BLE bridge connected - {}:{}", host, port);
+            startReader(receiver);
+            queryBridgeDeviceInfo();
+            logger.info("[BLE] === 连接完成，总耗时={}ms ===",
+                System.currentTimeMillis() - startTime);
+            return true;
+        } catch (IOException e) {
+            isScanning = false;
+            isConnected = false;
+            cachedStatus.setConnected(false);
+            invalidateApprovalState();
+            logger.warn("[BLE] BLE bridge connect failed - {}:{}: {}, 总耗时={}ms",
+                host, port, e.getMessage(), System.currentTimeMillis() - startTime);
+            callback.onError("BLE bridge connect failed (" + host + ":" + port + "): "
+                + e.getMessage());
+            return false;
+        }
+    }
+    
+    private int connectAttemptCount = 0;
+    public void shutdown() {
+        shuttingDown = true;
+        disconnect();
+    }
+
     public void disconnect() {
-        logger.info("=== 开始断开连接 ===");
+        userDisconnecting = true;
+        recoveryPending.set(false);
+        long startTime = System.currentTimeMillis();
+        logger.info("[BLE] === 开始断开连接 ===");
         
         // 第一步：立即标记断开状态，阻止新操作
-        logger.debug("步骤1: 设置断开状态");
+        long phaseStart = System.currentTimeMillis();
         isConnected = false;
+        isScanning = false;
+        usbReady = false;
         cachedStatus.setConnected(false);
+        cachedStatus.setTransport("NONE");
+        cachedStatus.setDeviceName("");
+        cachedStatus.setBatteryLevel(-1);
+        invalidateReceivers();
+        invalidateApprovalState();
+        logger.info("[BLE] 步骤1: 设置断开状态，耗时={}ms", System.currentTimeMillis() - phaseStart);
         
         // 第二步：唤醒等待响应的线程
-        logger.debug("步骤2: 唤醒等待响应的线程");
-        commandLock.lock();
+        phaseStart = System.currentTimeMillis();
+        responseLock.lock();
         try {
             responseReady.signalAll();
-            logger.debug("步骤2完成: 已唤醒等待线程");
         } finally {
-            commandLock.unlock();
+            responseLock.unlock();
         }
+        logger.info("[BLE] 步骤2: 唤醒等待响应的线程，耗时={}ms", System.currentTimeMillis() - phaseStart);
         
         // 第三步：关闭 USB（会停止其内部 readerThread）
-        logger.debug("步骤3: 关闭 USB 传输");
+        phaseStart = System.currentTimeMillis();
         try {
             usbTransport.close();
-            logger.debug("步骤3完成: USB 传输已关闭");
+            logger.info("[BLE] 步骤3: USB 传输已关闭，耗时={}ms", System.currentTimeMillis() - phaseStart);
         } catch (Exception e) {
-            logger.error("步骤3失败: USB 关闭异常 - {}", e.getMessage(), e);
+            logger.error("[BLE] 步骤3失败: USB 关闭异常 - {}，耗时={}ms", e.getMessage(), System.currentTimeMillis() - phaseStart, e);
         }
         
         // 第四步：关闭 TCP 连接
-        logger.debug("步骤4: 关闭 TCP 连接");
+        phaseStart = System.currentTimeMillis();
         try {
             closeTcpOnly();
-            logger.debug("步骤4完成: TCP 连接已关闭");
+            logger.info("[BLE] 步骤4: TCP 连接已关闭，耗时={}ms", System.currentTimeMillis() - phaseStart);
         } catch (Exception e) {
-            logger.error("步骤4失败: TCP 关闭异常 - {}", e.getMessage(), e);
+            logger.error("[BLE] 步骤4失败: TCP 关闭异常 - {}，耗时={}ms", e.getMessage(), System.currentTimeMillis() - phaseStart, e);
         }
         
         // 第五步：通知回调（最后执行，避免回调中访问正在清理的资源）
-        logger.debug("步骤5: 通知断开回调");
+        phaseStart = System.currentTimeMillis();
         try {
             callback.onDisconnected();
-            logger.debug("步骤5完成: 回调通知成功");
+            logger.info("[BLE] 步骤5: 回调通知成功，耗时={}ms", System.currentTimeMillis() - phaseStart);
         } catch (Exception e) {
-            logger.error("步骤5失败: 回调异常 - {}", e.getMessage(), e);
+            logger.error("[BLE] 步骤5失败: 回调异常 - {}，耗时={}ms", e.getMessage(), System.currentTimeMillis() - phaseStart, e);
         }
         
-        logger.info("=== 断开连接完成 ===");
+        logger.info("[BLE] === 断开连接完成，总耗时={}ms ===", System.currentTimeMillis() - startTime);
     }
 
     private void closeTcpOnly() {
+        long startTime = System.currentTimeMillis();
+        logger.info("[BLE] closeTcpOnly 开始");
+        Thread closingReader = readerThread;
+        InputStream closingInput = inputStream;
+        OutputStream closingOutput = outputStream;
+        Socket closingSocket = socket;
+        readerThread = null;
+        inputStream = null;
+        outputStream = null;
+        socket = null;
+        bleReceiver = 0;
         try {
-            if (readerThread != null) {
-                readerThread.interrupt();
-            }
-            if (inputStream != null) {
-                inputStream.close();
-            }
-            if (outputStream != null) {
-                outputStream.close();
-            }
-            if (socket != null) {
-                socket.close();
-            }
+            // Close the captured resources before joining so a synchronous
+            // read is reliably unblocked. A stale reader never observes a
+            // future session's streams.
+            if (closingSocket != null) closingSocket.close();
+            if (closingInput != null) closingInput.close();
+            if (closingOutput != null) closingOutput.close();
         } catch (IOException e) {
-            logger.warn("Close TCP connection failed: {}", e.getMessage());
-        } finally {
-            inputStream = null;
-            outputStream = null;
-            socket = null;
-            readerThread = null;
+            logger.warn("[BLE] Close TCP connection failed: {}", e.getMessage());
         }
+        if (closingReader != null && closingReader != Thread.currentThread()) {
+            closingReader.interrupt();
+            try {
+                closingReader.join(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        
+        logger.info("[BLE] closeTcpOnly 完成，总耗时={}ms", System.currentTimeMillis() - startTime);
     }
 
     public void sendCommand(byte[] command) throws IOException {
         logger.debug("发送命令: {}", bytesToHex(command, Math.min(20, command.length)));
         if (ensureUsbConnected()) {
-            usbTransport.sendCommand(command);
+            sendOnCurrentSession(TransportKind.USB,
+                () -> usbTransport.sendCommand(command));
         } else {
-            writePacket(BleTcpPacket.WRITE_COMMAND, command);
+            sendOnCurrentSession(TransportKind.BLE,
+                () -> writePacket(BleTcpPacket.WRITE_COMMAND, command));
         }
     }
 
+    @FunctionalInterface
+    private interface CheckedIoWrite { void write() throws IOException; }
+
+    private void sendOnCurrentSession(TransportKind kind, CheckedIoWrite write)
+            throws IOException {
+        TransportSessionToken token = currentTransportToken(kind);
+        requestTransportToken.set(token);
+        try {
+            write.write();
+        } catch (IOException failure) {
+            requestTransportToken.remove();
+            throw failure;
+        }
+        if (!token.equals(currentTransportToken(kind))) {
+            requestTransportToken.remove();
+            throw new IOException("Transport session changed while sending device request");
+        }
+    }
+
+    private TransportSessionToken currentTransportToken(TransportKind expected)
+            throws IOException {
+        TransportKind actual = isUsbConnected() ? TransportKind.USB
+            : isBleBridgeSessionActive() ? TransportKind.BLE : TransportKind.NONE;
+        if (actual != expected) {
+            throw new IOException("Expected " + expected + " transport but active transport is " + actual);
+        }
+        return new TransportSessionToken(actual, activeSession, activeReceiver);
+    }
+
     public void sendCommandExpecting(byte[] command, byte expectedCmd) throws Exception {
-        commandLock.lock();
+        lockDeviceTransaction();
         try {
             pendingNotifyFrame = null;
             sendCommand(command);
             waitForResponse(expectedCmd);
         } finally {
-            commandLock.unlock();
+            requestLock.unlock();
         }
     }
 
@@ -215,12 +441,15 @@ public class BleManager {
         if (address % AhaKeyProtocol.OLED_CHUNK_SIZE != 0) {
             throw new IllegalArgumentException("地址必须 4K 对齐: " + address);
         }
-        commandLock.lock();
+        lockDeviceTransaction();
         try {
             int offset = 0;
             int totalChunks = (int) Math.ceil((double) data.length / AhaKeyProtocol.OLED_CHUNK_SIZE);
             logger.info("开始写入大数据: 地址={}, 总长度={}, 分块数={}", address, data.length, totalChunks);
             while (offset < data.length) {
+                if (Thread.currentThread().isInterrupted()) {
+                    throw new InterruptedException("设备大数据写入已取消");
+                }
                 int chunkLen = Math.min(AhaKeyProtocol.OLED_CHUNK_SIZE, data.length - offset);
                 long chunkAddr = address + offset;
                 byte[] chunk = new byte[chunkLen];
@@ -228,24 +457,64 @@ public class BleManager {
 
                 logger.debug("写入分块 {}/{}: 地址={}, 长度={}", (offset / AhaKeyProtocol.OLED_CHUNK_SIZE) + 1, totalChunks, chunkAddr, chunkLen);
 
-                pendingNotifyFrame = null;
-                sendCommand(AhaKeyProtocol.prepareWrite(chunkLen, chunkAddr));
-                waitForResponse(AhaKeyProtocol.CMD_PREPARE_WRITE);
-
-                pendingNotifyFrame = null;
-                writeData(chunk);
-                waitForResponse(AhaKeyProtocol.CMD_WRITE_RESULT);
+                writeFlashBlockWithRetry(chunkAddr, chunk);
 
                 offset += chunkLen;
             }
             logger.info("大数据写入完成: 地址={}, 总长度={}", address, data.length);
         } finally {
-            commandLock.unlock();
+            requestLock.unlock();
         }
     }
 
+    private void writeFlashBlockWithRetry(long address, byte[] block) throws Exception {
+        Exception lastFailure = null;
+        for (int attempt = 1; attempt <= AhaKeyProtocol.OLED_BLOCK_MAX_ATTEMPTS; attempt++) {
+            try {
+                pendingNotifyFrame = null;
+                sendCommand(AhaKeyProtocol.prepareWrite(block.length, address));
+                waitForResponse(AhaKeyProtocol.CMD_PREPARE_WRITE);
+
+                pendingNotifyFrame = null;
+                for (int offset = 0; offset < block.length;
+                     offset += AhaKeyProtocol.OLED_TRANSFER_BATCH_SIZE) {
+                    int length = Math.min(
+                        AhaKeyProtocol.OLED_TRANSFER_BATCH_SIZE,
+                        block.length - offset
+                    );
+                    byte[] batch = new byte[length];
+                    System.arraycopy(block, offset, batch, 0, length);
+                    writeData(batch);
+                    if (offset + length < block.length) {
+                        Thread.sleep(AhaKeyProtocol.OLED_TRANSFER_BATCH_DELAY_MS);
+                    }
+                }
+                waitForResponse(AhaKeyProtocol.CMD_WRITE_RESULT);
+                return;
+            } catch (Exception failure) {
+                lastFailure = failure;
+                logger.warn(
+                    "OLED flash block failed at address {} (attempt {}/{}): {}",
+                    address,
+                    attempt,
+                    AhaKeyProtocol.OLED_BLOCK_MAX_ATTEMPTS,
+                    failure.getMessage()
+                );
+                if (attempt < AhaKeyProtocol.OLED_BLOCK_MAX_ATTEMPTS) {
+                    Thread.sleep(120L * attempt);
+                }
+            }
+        }
+        throw new IOException(
+            "OLED flash block failed after "
+                + AhaKeyProtocol.OLED_BLOCK_MAX_ATTEMPTS
+                + " attempts at address " + address,
+            lastFailure
+        );
+    }
+
     public AhaKeyResponseParser.PictureState readPictureState(int mode) throws Exception {
-        commandLock.lock();
+        lockDeviceTransaction();
         try {
             pendingNotifyFrame = null;
             sendCommand(AhaKeyProtocol.readPicState(mode));
@@ -256,27 +525,196 @@ public class BleManager {
             }
             return AhaKeyResponseParser.parsePictureState(parsed.payload());
         } finally {
-            commandLock.unlock();
+            requestLock.unlock();
         }
     }
 
-    public void queryStatus() {
+    public AhaKeyResponseParser.DeviceCapabilities queryDeviceCapabilities() throws Exception {
+        lockDeviceTransaction();
         try {
-            if (commandLock.isLocked()) {
-                return;
+            pendingNotifyFrame = null;
+            sendCommand(AhaKeyProtocol.queryCapabilities());
+            byte[] frame = waitForResponse(AhaKeyProtocol.CMD_QUERY_CAPABILITIES);
+            AhaKeyResponseParser.CommandResponse parsed = AhaKeyResponseParser.parseCommandResponse(frame);
+            return parsed == null || parsed.status() != 0
+                ? null
+                : AhaKeyResponseParser.parseDeviceCapabilities(parsed.payload());
+        } finally {
+            requestLock.unlock();
+        }
+    }
+
+    public int readStandbyTimeoutMinutes() throws Exception {
+        lockDeviceTransaction();
+        try {
+            pendingNotifyFrame = null;
+            sendCommand(AhaKeyProtocol.queryStandbyTimeout());
+            byte[] frame = waitForResponse(AhaKeyProtocol.CMD_STANDBY_TIMEOUT);
+            AhaKeyResponseParser.CommandResponse parsed = AhaKeyResponseParser.parseCommandResponse(frame);
+            Integer minutes = parsed == null
+                ? null
+                : AhaKeyResponseParser.parseStandbyTimeoutMinutes(parsed.payload());
+            if (minutes == null) {
+                throw new IOException("待机时间响应格式无效");
             }
+            return minutes;
+        } finally {
+            requestLock.unlock();
+        }
+    }
+
+    public AhaKeyResponseParser.VoiceKeyConfig readVoiceKeyConfig() throws Exception {
+        lockDeviceTransaction();
+        try {
+            pendingNotifyFrame = null;
+            sendCommand(AhaKeyProtocol.queryVoiceKeyConfig());
+            // The set-config ACK and the query response share command 0x97.
+            // BLE may deliver a delayed empty ACK after this query was sent;
+            // ignore it and wait for the response that carries the config.
+            byte[] frame = waitForResponse(AhaKeyProtocol.CMD_VOICE_KEY_CONFIG, 4);
+            AhaKeyResponseParser.CommandResponse parsed =
+                AhaKeyResponseParser.parseCommandResponse(frame);
+            if (parsed == null || parsed.status() != 0) {
+                throw new IOException("设备未返回有效的语音键配置");
+            }
+            AhaKeyResponseParser.VoiceKeyConfig config =
+                AhaKeyResponseParser.parseVoiceKeyConfig(parsed.payload());
+            if (config == null) {
+                throw new IOException("语音键配置回读格式无效，请重新连接 BLE 后重试");
+            }
+            return config;
+        } finally {
+            requestLock.unlock();
+        }
+    }
+
+    public void setStandbyTimeoutMinutes(int minutes) throws Exception {
+        sendCommandExpecting(
+            AhaKeyProtocol.setStandbyTimeoutMinutes(minutes),
+            AhaKeyProtocol.CMD_STANDBY_TIMEOUT
+        );
+    }
+
+    /**
+     * 原子执行待机时间设置、Flash 保存和回读校验。
+     * 整个事务持有 requestLock，防止状态轮询或其他命令插入三个步骤之间。
+     */
+    public int setSaveAndVerifyStandbyTimeoutMinutes(int minutes) throws Exception {
+        lockDeviceTransaction();
+        try {
+            pendingNotifyFrame = null;
+            sendCommand(AhaKeyProtocol.setStandbyTimeoutMinutes(minutes));
+            waitForResponse(AhaKeyProtocol.CMD_STANDBY_TIMEOUT);
+
+            pendingNotifyFrame = null;
+            sendCommand(AhaKeyProtocol.saveConfig());
+            waitForResponse(AhaKeyProtocol.CMD_SAVE_CONFIG);
+
+            pendingNotifyFrame = null;
+            sendCommand(AhaKeyProtocol.queryStandbyTimeout());
+            byte[] frame = waitForResponse(AhaKeyProtocol.CMD_STANDBY_TIMEOUT);
+            AhaKeyResponseParser.CommandResponse parsed = AhaKeyResponseParser.parseCommandResponse(frame);
+            Integer verifiedMinutes = parsed == null
+                ? null
+                : AhaKeyResponseParser.parseStandbyTimeoutMinutes(parsed.payload());
+            if (verifiedMinutes == null) {
+                throw new IOException("保存后的待机时间响应格式无效");
+            }
+            if (verifiedMinutes != minutes) {
+                throw new IOException(
+                    "待机时间回读校验失败，期望 " + minutes + "，实际 " + verifiedMinutes
+                );
+            }
+            return verifiedMinutes;
+        } finally {
+            requestLock.unlock();
+        }
+    }
+
+    /**
+     * Requests the USB-only factory reset. After the acknowledgement, the
+     * device reboots and callers must wait for disconnect and reconnect.
+     */
+    public void factoryReset() throws Exception {
+        if (!isUsbConnected()) {
+            throw new IOException("Factory reset requires a USB connection");
+        }
+        sendCommandExpecting(
+            AhaKeyProtocol.factoryReset(),
+            AhaKeyProtocol.CMD_FACTORY_RESET
+        );
+    }
+
+    /**
+     * Sends a physical CMD_QUERY_STATUS request. Returns false when the
+     * request transaction cannot start; callers must not wait for freshness
+     * in that case.
+     */
+    public boolean queryStatus() {
+        if (recoveryPending.get() || recoveryInFlight.get()
+            || userDisconnecting || shuttingDown) {
+            clearApprovalCache();
+            scheduleTransportRecoveryIfRequired();
+            return false;
+        }
+        if (!tryLockDeviceTransaction(STATUS_POLL_TIMEOUT_MS)) {
+            return false;
+        }
+        boolean fresh;
+        try {
+            fresh = physicalStatusFreshness.queryAndWait(
+                STATUS_POLL_TIMEOUT_MS,
+                statusQuerySender,
+                () -> lastStatusUpdateTime > 0 && cachedStatus.isConnected(),
+                () -> {}
+            );
+            if (!fresh && physicalStatusFreshness.requiresRecovery()) {
+                recoveryPending.set(true);
+            }
+        } finally {
+            requestLock.unlock();
+        }
+        if (!fresh) {
+            clearApprovalCache();
+            scheduleTransportRecoveryIfRequired();
+        }
+        return fresh;
+    }
+
+    /**
+     * Verifies the complete software/firmware contract for the current transport
+     * session. A firmware version by itself is intentionally insufficient.
+     */
+    public AhaKeyResponseParser.DeviceCapabilities requireStabilizedDeviceContract()
+            throws Exception {
+        long session = activeSession;
+        AhaKeyResponseParser.DeviceCapabilities cached = stabilizedCapabilities;
+        if (stabilizedContractSession == session && cached != null) {
+            return cached;
+        }
+        AhaKeyResponseParser.DeviceCapabilities capabilities = queryDeviceCapabilities();
+        FirmwareCapabilities.requireStabilizedContract(capabilities);
+        if (activeSession != session) {
+            throw new IOException("Transport session changed while validating device capabilities");
+        }
+        stabilizedCapabilities = capabilities;
+        stabilizedContractSession = session;
+        return capabilities;
+    }
+
+    private boolean sendPhysicalStatusQuery(java.util.function.LongConsumer markPhysicalWrite) {
+        try {
             if (ensureUsbConnected()) {
-                sendCommand(AhaKeyProtocol.queryDeviceStatus());
-                return;
+                usbTransport.sendCommand(AhaKeyProtocol.queryDeviceStatus());
+                markPhysicalWrite.accept(System.nanoTime());
+                return true;
             }
-            // 查询BLE连接状态（参考Python版本）
-            writePacket(BleTcpPacket.QUERY_BLE_STATUS, null);
-            // 查询设备信息
-            writePacket(BleTcpPacket.QUERY_DEVICE_INFO, null);
-            // 查询设备状态
             writePacket(BleTcpPacket.WRITE_COMMAND, AhaKeyProtocol.queryDeviceStatus());
+            markPhysicalWrite.accept(System.nanoTime());
+            return true;
         } catch (IOException e) {
             callback.onError("查询设备状态失败: " + e.getMessage());
+            return false;
         }
     }
 
@@ -284,62 +722,144 @@ public class BleManager {
      * 查询设备实时状态并等待响应刷新缓存，最多等待 {@code timeoutMs} 毫秒。
      * 用于在读取 switchState 之前确保缓存是最新的。
      */
-    public void queryStatusAndWait(long timeoutMs) {
-        long beforeTs = lastStatusUpdateTime;
-        queryStatus();
-        long deadline = System.currentTimeMillis() + timeoutMs;
-        while (lastStatusUpdateTime == beforeTs && System.currentTimeMillis() < deadline) {
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
+    public boolean queryStatusAndWait(long timeoutMs) {
+        approvalQueryStatus.remove();
+        if (recoveryPending.get() || recoveryInFlight.get()
+            || userDisconnecting || shuttingDown) {
+            clearApprovalCache();
+            scheduleTransportRecoveryIfRequired();
+            return false;
+        }
+        if (!tryLockDeviceTransaction(timeoutMs)) {
+            clearApprovalCache();
+            return false;
+        }
+        boolean fresh;
+        try {
+            fresh = physicalStatusFreshness.queryAndWait(
+                timeoutMs,
+                statusQuerySender,
+                () -> lastStatusUpdateTime > 0 && cachedStatus.isConnected(),
+                () -> approvalQueryStatus.set(copyApprovalStatus(acceptedPhysicalStatus))
+            );
+            if (!fresh && physicalStatusFreshness.requiresRecovery()) {
+                recoveryPending.set(true);
             }
+        } finally {
+            requestLock.unlock();
         }
-        if (lastStatusUpdateTime == beforeTs) {
-            logger.warn("queryStatusAndWait: {}ms 内未收到设备状态更新，使用缓存值 switchState={}", timeoutMs, cachedStatus.getSwitchState());
-        } else {
-            logger.debug("queryStatusAndWait: 状态已刷新 switchState={}", cachedStatus.getSwitchState());
+        if (!fresh) {
+            clearApprovalCache();
+            scheduleTransportRecoveryIfRequired();
+            logger.warn("queryStatusAndWait: {}ms 内未收到已连接设备的新状态", timeoutMs);
+            return false;
         }
+        logger.debug("queryStatusAndWait: 状态已刷新 switchState={}", cachedStatus.getSwitchState());
+        return true;
     }
 
     public void updateState(byte state) {
         try {
-            sendCommand(AhaKeyProtocol.updateState(state));
-        } catch (IOException e) {
+            updateStateOrThrow(state);
+        } catch (Exception e) {
             callback.onError("发送状态更新失败: " + e.getMessage());
         }
     }
 
-    public void setLightEffect(byte effectCode) {
-        try {
-            sendCommand(AhaKeyProtocol.setLightEffect(effectCode));
-        } catch (IOException e) {
-            callback.onError("发送灯效指令失败: " + e.getMessage());
-        }
+    public void updateStateOrThrow(byte state) throws Exception {
+        sendCommandExpecting(AhaKeyProtocol.updateState(state), AhaKeyProtocol.CMD_UPDATE_STATE);
     }
 
-    public void setLightBrightness(int brightness) {
-        try {
-            sendCommand(AhaKeyProtocol.setLightBrightness(brightness));
-        } catch (IOException e) {
-            callback.onError("发送灯光亮度失败: " + e.getMessage());
-        }
+    public void setLightEffect(byte effectCode) throws Exception {
+        sendCommandExpecting(AhaKeyProtocol.setLightEffect(effectCode), AhaKeyProtocol.CMD_SET_LIGHT_EFFECT);
     }
 
-    public void setAiLightConfig(int mode, byte[] effectCodes) {
-        try {
-            sendCommand(AhaKeyProtocol.setAiLightConfig(mode, effectCodes));
-        } catch (IOException e) {
-            callback.onError("发送 AI 状态灯效配置失败: " + e.getMessage());
-        }
+    public void setLightBrightness(int brightness) throws Exception {
+        sendCommandExpecting(AhaKeyProtocol.setLightBrightness(brightness), AhaKeyProtocol.CMD_SET_LIGHT_BRIGHTNESS);
     }
 
-    public void setWorkMode(int mode) {
+    public void setAiLightConfig(int mode, byte[] effectCodes) throws Exception {
+        sendCommandExpecting(AhaKeyProtocol.setAiLightConfig(mode, effectCodes), AhaKeyProtocol.CMD_SET_AI_LIGHT_CONFIG);
+    }
+
+    public boolean setWorkMode(int mode) {
         try {
-            sendCommand(AhaKeyProtocol.setWorkMode(mode));
-        } catch (IOException e) {
+            sendCommandExpecting(AhaKeyProtocol.setWorkMode(mode), AhaKeyProtocol.CMD_SET_WORK_MODE);
+            return true;
+        } catch (Exception e) {
             callback.onError("切换键盘模式失败: " + e.getMessage());
+            return false;
+        }
+    }
+
+    public AhaKeyResponseParser.AiOledState readAiOledState(int mode, int asset) throws Exception {
+        lockDeviceTransaction();
+        try {
+            pendingNotifyFrame = null;
+            sendCommand(AhaKeyProtocol.readAiOledPicture(mode, asset));
+            byte[] frame = waitForResponse(AhaKeyProtocol.CMD_READ_AI_OLED_CONFIG, 10);
+            AhaKeyResponseParser.CommandResponse parsed = AhaKeyResponseParser.parseCommandResponse(frame);
+            return parsed == null ? null : AhaKeyResponseParser.parseAiOledState(parsed.payload());
+        } finally {
+            requestLock.unlock();
+        }
+    }
+
+    public int queryWorkMode() throws Exception {
+        lockDeviceTransaction();
+        try {
+            pendingNotifyFrame = null;
+            sendCommand(AhaKeyProtocol.queryModeSync());
+            byte[] frame = waitForResponse(AhaKeyProtocol.CMD_MODE_SYNC, 2);
+            var parsed = AhaKeyResponseParser.parseCommandResponse(frame);
+            var mode = parsed == null ? null : AhaKeyResponseParser.parseModeSync(parsed.payload());
+            if (mode == null || mode.mode() < 0 || mode.mode() > 3) {
+                throw new IOException("设备模式响应无效");
+            }
+            return mode.mode();
+        } finally {
+            requestLock.unlock();
+        }
+    }
+
+    public int queryTaskDisplayMode() throws Exception {
+        lockDeviceTransaction();
+        try {
+            pendingNotifyFrame = null;
+            sendCommand(AhaKeyProtocol.queryTaskDisplayMode());
+            byte[] frame = waitForResponse(AhaKeyProtocol.CMD_TASK_LIGHT_MODE, 1);
+            var parsed = AhaKeyResponseParser.parseCommandResponse(frame);
+            if (parsed == null || parsed.payload().length < 1) throw new IOException("任务灯效响应无效");
+            return parsed.payload()[0] & 0xFF;
+        } finally {
+            requestLock.unlock();
+        }
+    }
+
+    public void setTaskDisplayMode(int mode) throws Exception {
+        sendCommandExpecting(AhaKeyProtocol.setTaskDisplayMode(mode), AhaKeyProtocol.CMD_TASK_LIGHT_MODE);
+        sendCommandExpecting(AhaKeyProtocol.saveConfig(), AhaKeyProtocol.CMD_SAVE_CONFIG);
+    }
+
+    public void updateTaskSlot(int slot, int profile, int state, boolean foreground) throws Exception {
+        sendCommandExpecting(AhaKeyProtocol.updateTaskSlot(slot, profile, state, foreground),
+            AhaKeyProtocol.CMD_TASK_SLOT_UPDATE);
+    }
+
+    public void sendTaskHeartbeat() throws Exception {
+        sendCommandExpecting(AhaKeyProtocol.taskHeartbeat(), AhaKeyProtocol.CMD_TASK_HEARTBEAT);
+    }
+
+    public AhaKeyResponseParser.GifLayout queryGifLayout() throws Exception {
+        lockDeviceTransaction();
+        try {
+            pendingNotifyFrame = null;
+            sendCommand(AhaKeyProtocol.queryGifLayout());
+            byte[] frame = waitForResponse(AhaKeyProtocol.CMD_GIF_LAYOUT, 8);
+            var parsed = AhaKeyResponseParser.parseCommandResponse(frame);
+            return parsed == null ? null : AhaKeyResponseParser.parseGifLayout(parsed.payload());
+        } finally {
+            requestLock.unlock();
         }
     }
 
@@ -355,8 +875,36 @@ public class BleManager {
         return cachedStatus;
     }
 
+    void reportDeviceError(String message) {
+        callback.onError(message);
+    }
+
     public boolean isUsbConnected() {
-        return usbTransport.isOpen();
+        return usbTransport.isOpen() && usbReady;
+    }
+
+    public boolean isBleBridgeSessionActive() {
+        return isConnected && outputStream != null
+            && socket != null && !socket.isClosed();
+    }
+
+    /** True while either transport can still be polled for device changes. */
+    public boolean isTransportSessionActive() {
+        return isUsbConnected()
+            || isBleBridgeSessionActive();
+    }
+
+    /**
+     * Post-flash readiness requires a status frame from the currently active
+     * transport, not merely an open USB handle or TCP bridge socket. The
+     * status timestamp is reset whenever a transport session changes.
+     */
+    public boolean isReadyForPostFlashVerification() {
+        TransportStatusSnapshot snapshot = transportStatusSnapshot;
+        return isTransportSessionActive()
+            && snapshot.connected()
+            && snapshot.statusSequence() > 0
+            && snapshot.lastStatusAtNanos() > 0;
     }
 
     public String selectPreferredTransport() throws IOException {
@@ -373,12 +921,236 @@ public class BleManager {
         return lastStatusUpdateTime;
     }
 
-    private void queryBridgeDeviceInfo() {
+    /**
+     * Returns a session-local sequence for accepted physical status frames.
+     * Unlike wall-clock milliseconds this cannot collapse two updates that
+     * happen in the same millisecond.
+     */
+    public long getStatusUpdateSequence() {
+        return statusUpdateSequence.get();
+    }
+
+    /** Returns one atomic view of the current transport/session status. */
+    public TransportStatusSnapshot getTransportStatusSnapshot() {
+        return transportStatusSnapshot;
+    }
+
+    DeviceStatus getApprovalQueryStatus() {
+        return approvalQueryStatus.get();
+    }
+
+    boolean isRecoveryInFlight() {
+        return recoveryInFlight.get();
+    }
+
+    boolean isRecoveryPending() {
+        return recoveryPending.get();
+    }
+
+    public <T> T executeDeviceTransaction(DeviceTransaction<T> operation)
+        throws Exception {
+        lockDeviceTransaction();
         try {
-            if (usbTransport.isOpen()) {
-                sendCommand(AhaKeyProtocol.queryDeviceStatus());
-                return;
+            return operation.execute();
+        } finally {
+            requestLock.unlock();
+        }
+    }
+
+    private void lockDeviceTransaction() throws IOException {
+        if (!tryLockDeviceTransaction(RESPONSE_TIMEOUT_MS)) {
+            throw new IOException(recoveryPending.get() || recoveryInFlight.get()
+                ? "设备连接正在恢复，本次操作未开始"
+                : "设备事务繁忙，本次操作未开始");
+        }
+    }
+
+    private boolean tryLockDeviceTransaction(long timeoutMillis) {
+        if (timeoutMillis <= 0 || recoveryPending.get() || recoveryInFlight.get()
+            || userDisconnecting || shuttingDown) {
+            return false;
+        }
+        boolean locked = false;
+        try {
+            locked = requestLock.tryLock(timeoutMillis, TimeUnit.MILLISECONDS);
+            if (!locked) {
+                return false;
             }
+            if (recoveryPending.get() || recoveryInFlight.get()
+                || userDisconnecting || shuttingDown) {
+                requestLock.unlock();
+                return false;
+            }
+            return true;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            if (locked) {
+                requestLock.unlock();
+            }
+            return false;
+        }
+    }
+
+    private long beginTransportSession() {
+        long receiver = receiverSequence.incrementAndGet();
+        activateTransportSession(receiver);
+        return receiver;
+    }
+
+    private void activateTransportSession(long receiver) {
+        activeReceiver = receiver;
+        invalidateApprovalState();
+    }
+
+    private void invalidateReceivers() {
+        activeReceiver = receiverSequence.incrementAndGet();
+    }
+
+    private void invalidateApprovalState() {
+        activeSession = sessionSequence.incrementAndGet();
+        stabilizedCapabilities = null;
+        stabilizedContractSession = -1;
+        physicalStatusFreshness.invalidateSession(activeSession);
+        clearApprovalCache();
+        lastStatusUpdateNanos = 0;
+        transportStatusSnapshot = new TransportStatusSnapshot(
+            activeSession, activeReceiver, 0, 0, false);
+        responseLock.lock();
+        try {
+            pendingNotifyFrame = null;
+            responseReady.signalAll();
+        } finally {
+            responseLock.unlock();
+        }
+        Runnable listener = transportSessionInvalidationListener;
+        if (listener != null) {
+            listener.run();
+        }
+    }
+
+    private void clearApprovalCache() {
+        acceptedPhysicalStatus = null;
+        approvalQueryStatus.remove();
+        lastStatusUpdateTime = 0;
+        lastStatusUpdateNanos = 0;
+        statusUpdateSequence.set(0);
+        cachedStatus.setSwitchState(-1);
+    }
+
+    private void scheduleTransportRecoveryIfRequired() {
+        long now = System.nanoTime();
+        long lastStarted = lastRecoveryStartedNanos.get();
+        if (!(recoveryPending.get() || physicalStatusFreshness.requiresRecovery())
+            || userDisconnecting || shuttingDown
+            || !recoveryInFlight.compareAndSet(false, true)) {
+            return;
+        }
+        recoveryPending.set(true);
+        logger.warn("Scheduling transport recovery: unresolved physical status query; "
+                + "session={}, receiver={}, bridgeConnected={}, lastStatusUpdateTime={}, freshness={}",
+            activeSession, activeReceiver, bridgeBleConnected, lastStatusUpdateTime,
+            physicalStatusFreshness.diagnostics());
+        invalidateReceivers();
+        invalidateApprovalState();
+        recoveringTransport = true;
+        cachedStatus.setConnected(false);
+        cachedStatus.setTransport("NONE");
+        cachedStatus.setDeviceName("Recovering connection");
+        cachedStatus.setBatteryLevel(-1);
+        callback.onStatusReceived(cachedStatus);
+        // Release USB-only compatibility services (notably Java's Kimi 9000
+        // listener) before a BLE bridge reconnect attempts to reclaim them.
+        callback.onDisconnected();
+        recoveryExecutor.execute(() -> {
+            boolean recovered = false;
+            try {
+                long elapsed = lastStarted == 0 ? Long.MAX_VALUE : now - lastStarted;
+                long backoffNanos = TimeUnit.MILLISECONDS.toNanos(RECOVERY_BACKOFF_MS);
+                long delayNanos = elapsed >= backoffNanos ? 100_000_000L
+                    : backoffNanos - elapsed;
+                TimeUnit.NANOSECONDS.sleep(delayNanos);
+                if (!userDisconnecting && !shuttingDown) {
+                    if (!requestLock.tryLock(RESPONSE_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+                        throw new IllegalStateException(
+                            "Timed out waiting for the active device transaction to finish");
+                    }
+                    try {
+                        lastRecoveryStartedNanos.set(System.nanoTime());
+                        recoveryAction.run();
+                        recovered = true;
+                    } finally {
+                        requestLock.unlock();
+                    }
+                }
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+            } catch (RuntimeException exception) {
+                logger.warn("Transport recovery failed: {}", exception.getMessage());
+            } finally {
+                if (recovered) {
+                    recoveryPending.set(false);
+                }
+                recoveringTransport = false;
+                recoveryInFlight.set(false);
+                if (!recovered && recoveryPending.get()
+                    && !userDisconnecting && !shuttingDown) {
+                    scheduleTransportRecoveryIfRequired();
+                }
+            }
+        });
+    }
+
+    private void rebuildTransportSession() {
+        if (userDisconnecting || shuttingDown) {
+            return;
+        }
+        logger.warn("Physical status response was lost; rebuilding transport session");
+        isConnected = false;
+        isScanning = true;
+        usbTransport.close();
+        closeTcpOnly();
+        if (!userDisconnecting && !shuttingDown) {
+            if (!openPreferredTransport(System.currentTimeMillis())) {
+                throw new IllegalStateException("No USB or BLE transport could be rebuilt");
+            }
+        } else {
+            isScanning = false;
+        }
+    }
+
+    static boolean shouldAcceptDeviceInfo(
+        boolean usbConnected,
+        boolean statusConnected,
+        String transport
+    ) {
+        // The bridge's DEVICE_INFO response is cached and does not prove that
+        // the keyboard or its HID input channel is currently alive.
+        return usbConnected;
+    }
+
+    static boolean isDeviceReadyForUi(boolean usbConnected, DeviceStatus status) {
+        if (usbConnected) {
+            return status == null || !status.isConnectionReadinessKnown()
+                || status.isUsbConfigReady();
+        }
+        if (status == null) {
+            return false;
+        }
+        // A fresh protocol status through the BLE bridge proves that the
+        // configuration channel is usable. HID readiness is kept as a
+        // diagnostic signal but does not block configuration or the main UI.
+        // Legacy firmware has no readiness flags, so its fresh status frame is
+        // sufficient as well.
+        return !status.isConnectionReadinessKnown()
+            || status.isBleLinkConnected();
+    }
+
+    private void queryBridgeDeviceInfo() {
+        if (isUsbConnected()) {
+            queryStatus();
+            return;
+        }
+        try {
             writePacket(BleTcpPacket.QUERY_BLE_STATUS, null);
         } catch (IOException ignored) {
         }
@@ -386,48 +1158,171 @@ public class BleManager {
 
     private boolean tryConnectUsb() {
         try {
-            if (!UsbHidTransport.isPresent()) {
+            if (!usbPresent.getAsBoolean()) {
                 return false;
             }
-            closeTcpOnly();
-            usbTransport.open(this::onBleNotify);
-            isConnected = true;
-            isScanning = false;
-            cachedStatus.setConnected(true);
-            cachedStatus.setDeviceName("AhaKey USB");
-            cachedStatus.setBatteryLevel(100);
-            callback.onConnected();
-            queryBridgeDeviceInfo();
-            return true;
+            return openAndVerifyUsb("USB连接成功");
         } catch (Exception e) {
             logger.warn("USB HID connect failed: {}", e.getMessage());
-            usbTransport.close();
+            closeUsbCandidate();
             return false;
         }
     }
 
     private boolean ensureUsbConnected() {
-        if (usbTransport.isOpen()) {
+        if (isUsbConnected()) {
             return true;
         }
-        if (!UsbHidTransport.isPresent()) {
+        if (usbTransport.isOpen() || userDisconnecting || shuttingDown
+            || !usbCandidateInFlight.compareAndSet(false, true)) {
             return false;
         }
         try {
-            closeTcpOnly();
-            usbTransport.open(this::onBleNotify);
-            isConnected = true;
-            isScanning = false;
-            cachedStatus.setConnected(true);
-            cachedStatus.setDeviceName("AhaKey USB");
-            cachedStatus.setBatteryLevel(100);
-            callback.onConnected();
-            return true;
+            if (!usbPresent.getAsBoolean()) {
+                return false;
+            }
+            return openAndVerifyUsb("USB HID reconnect succeeded");
         } catch (Exception e) {
             logger.warn("USB HID reconnect failed: {}", e.getMessage());
-            usbTransport.close();
+            closeUsbCandidate();
             return false;
+        } finally {
+            usbCandidateInFlight.set(false);
         }
+    }
+
+    /**
+     * Opens one immutable USB candidate and proves readiness before promoting it.
+     * A live BLE session remains active throughout candidate verification.
+     */
+    private boolean openAndVerifyUsb(String logMessage) throws Exception {
+        usbReady = false;
+        TransportSessionToken fallback = isBleBridgeSessionActive()
+            ? new TransportSessionToken(TransportKind.BLE, activeSession, activeReceiver)
+            : null;
+        long receiver = receiverSequence.incrementAndGet();
+        AtomicReference<UsbCandidateStatus> candidateStatus = new AtomicReference<>();
+        usbTransport.open(
+            (frame, receivedAtNanos) -> {
+                if (usbReady && receiver == activeReceiver) {
+                    acceptUsbFrame(frame, receivedAtNanos, receiver);
+                    return;
+                }
+                DeviceStatus status = AhaKeyProtocol.isValidFrame(frame)
+                    ? AhaKeyProtocol.parseDeviceStatus(frame) : null;
+                if (status != null && isDeviceReadyForUi(true, status)) {
+                    candidateStatus.compareAndSet(null,
+                        new UsbCandidateStatus(status, receivedAtNanos));
+                }
+            },
+            () -> handleUsbDisconnected(receiver)
+        );
+        isScanning = true;
+        usbTransport.sendCommand(AhaKeyProtocol.queryDeviceStatus());
+        long deadline = System.nanoTime()
+            + TimeUnit.MILLISECONDS.toNanos(usbReadyTimeoutMillis);
+        while (System.nanoTime() < deadline) {
+            UsbCandidateStatus ready = candidateStatus.get();
+            if (ready != null) {
+                if (userDisconnecting || shuttingDown) {
+                    throw new IOException("USB HID candidate was cancelled");
+                }
+                if (fallback != null && !tokenMatchesBleFallback(fallback)) {
+                    throw new IOException("BLE fallback changed while verifying USB HID");
+                }
+                promoteUsbCandidate(receiver, ready, logMessage);
+                return true;
+            }
+            Thread.sleep(20);
+        }
+        throw new IOException("USB HID status readiness timeout");
+    }
+
+    private boolean tokenMatchesBleFallback(TransportSessionToken token) {
+        return token != null && token.transport() == TransportKind.BLE
+            && token.epoch() == activeSession && token.receiver() == activeReceiver
+            && isBleBridgeSessionActive() && !usbReady;
+    }
+
+    private void promoteUsbCandidate(long receiver, UsbCandidateStatus ready,
+                                     String logMessage) {
+        int bleBattery = cachedStatus.getBatteryLevel();
+        activateTransportSession(receiver);
+        long session = activeSession;
+        usbReady = true;
+        isConnected = true;
+        isScanning = false;
+        DeviceStatus status = ready.status();
+        status.setConnected(true);
+        status.setDeviceName("AhaKey USB");
+        status.setTransport("USB");
+        status.setBatteryLevel(bleBattery);
+        cachedStatus = status;
+        lastStatusUpdateTime = System.currentTimeMillis();
+        lastStatusUpdateNanos = ready.receivedAtNanos();
+        long acceptedSequence = statusUpdateSequence.incrementAndGet();
+        transportStatusSnapshot = new TransportStatusSnapshot(
+            session, receiver, acceptedSequence, ready.receivedAtNanos(), true);
+        physicalStatusFreshness.recordPhysicalStatus(
+            ready.receivedAtNanos(), session, true,
+            () -> acceptedPhysicalStatus = copyApprovalStatus(status));
+        callback.onConnected();
+        callback.onStatusReceived(status);
+        logger.info("{}", logMessage);
+    }
+
+    private record UsbCandidateStatus(DeviceStatus status, long receivedAtNanos) {}
+
+    private void closeUsbCandidate() {
+        usbReady = false;
+        usbTransport.close();
+        isScanning = false;
+    }
+
+    private void handleUsbDisconnected(long receiver) {
+        if (receiver != activeReceiver) {
+            return;
+        }
+        usbReady = false;
+        logger.info("USB HID disconnected; preparing BLE fallback");
+        cachedStatus.setConnected(false);
+        cachedStatus.setTransport("NONE");
+        cachedStatus.setDeviceName("");
+        // Keep the BLE bridge alive while USB is preferred.  When USB is
+        // removed, ask that existing session for its current device state
+        // instead of tearing it down and creating a visible disconnect gap.
+        if (isConnected && outputStream != null && bleReceiver > 0) {
+            activateTransportSession(bleReceiver);
+            callback.onStatusReceived(cachedStatus);
+            queryBridgeDeviceInfo();
+            return;
+        }
+
+        invalidateReceivers();
+        invalidateApprovalState();
+
+        isConnected = false;
+        isScanning = false;
+        callback.onDisconnected();
+
+        if (userDisconnecting || recoveringTransport) {
+            return;
+        }
+        recoveringTransport = true;
+        Thread fallbackThread = new Thread(() -> {
+            try {
+                Thread.sleep(250);
+                if (!userDisconnecting && !usbPresent.getAsBoolean()) {
+                    connectInternal();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                recoveringTransport = false;
+            }
+        }, "usb-to-ble-fallback");
+        fallbackThread.setDaemon(true);
+        fallbackThread.start();
     }
     private void writePacket(byte type, byte[] data) throws IOException {
         if (!isConnected || outputStream == null) {
@@ -441,94 +1336,265 @@ public class BleManager {
         }
     }
 
-    private static final long RECONNECT_WAIT_MS = 30000;  // 重连等待时间30秒
-
     private byte[] waitForResponse(byte expectedCmd) throws Exception {
+        return waitForResponse(expectedCmd, 0, requiredRequestToken());
+    }
+
+    private byte[] waitForResponse(byte expectedCmd, int minimumPayloadBytes)
+        throws Exception {
+        return waitForResponse(expectedCmd, minimumPayloadBytes,
+            requiredRequestToken());
+    }
+
+    private TransportSessionToken requiredRequestToken() throws IOException {
+        TransportSessionToken token = requestTransportToken.get();
+        if (token == null) {
+            throw new IOException("Device response wait has no transport session token");
+        }
+        return token;
+    }
+
+    private byte[] waitForResponse(
+        byte expectedCmd,
+        int minimumPayloadBytes,
+        TransportSessionToken token
+    ) throws Exception {
         logger.debug("开始等待响应 0x{}", Integer.toHexString(expectedCmd & 0xFF));
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RESPONSE_TIMEOUT_MS);
-        
-        while (true) {
-            // 检查连接状态，如果断开则等待重连
-            if (!isConnected) {
-                logger.info("BLE连接断开，等待重连...");
-                long reconnectDeadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RECONNECT_WAIT_MS);
-                
-                while (!isConnected) {
-                    long remaining = reconnectDeadline - System.nanoTime();
-                    if (remaining <= 0) {
-                        throw new IOException("BLE连接断开，等待重连超时");
+
+        responseLock.lock();
+        try {
+            while (true) {
+                if (!tokenMatchesActiveSession(token)) {
+                    throw new IOException(
+                        "Transport session changed while waiting for device response");
+                }
+
+                long remaining = deadline - System.nanoTime();
+                if (remaining <= 0) {
+                    throw new IOException(
+                        "等待设备响应 0x"
+                            + Integer.toHexString(expectedCmd & 0xFF)
+                            + " 超时"
+                    );
+                }
+                if (pendingNotifyFrame != null) {
+                    PendingResponse pending = pendingNotifyFrame;
+                    pendingNotifyFrame = null;
+                    if (!token.equals(pending.token())) {
+                        logger.debug("Ignoring device response from another transport session");
+                        continue;
                     }
-                    responseReady.awaitNanos(Math.min(remaining, TimeUnit.MILLISECONDS.toNanos(100)));
-                }
-                
-                logger.info("BLE重连成功，继续等待响应");
-                // 重连后重置响应超时时间
-                deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RESPONSE_TIMEOUT_MS);
-            }
-            
-            long remaining = deadline - System.nanoTime();
-            if (remaining <= 0) {
-                throw new IOException("等待设备响应 0x" + Integer.toHexString(expectedCmd & 0xFF) + " 超时");
-            }
-            if (pendingNotifyFrame != null) {
-                byte[] frame = pendingNotifyFrame;
-                pendingNotifyFrame = null;
-                AhaKeyResponseParser.CommandResponse parsed = AhaKeyResponseParser.parseCommandResponse(frame);
-                if (parsed == null) {
-                    throw new IOException("无法解析设备响应帧");
-                }
-                if (parsed.cmd() == expectedCmd) {
-                    logger.debug("收到期望的响应 0x{}", Integer.toHexString(expectedCmd & 0xFF));
-                    if (parsed.status() != 0) {
-                        throw new IOException("设备返回错误码 " + parsed.status());
+                    byte[] frame = pending.frame();
+                    AhaKeyResponseParser.CommandResponse parsed =
+                        AhaKeyResponseParser.parseCommandResponse(frame);
+                    if (parsed == null) {
+                        throw new IOException("无法解析设备响应帧");
                     }
-                    return frame;
+                    if (parsed.cmd() == expectedCmd) {
+                        logger.debug(
+                            "收到期望的响应 0x{}",
+                            Integer.toHexString(expectedCmd & 0xFF)
+                        );
+                        if (parsed.status() != 0) {
+                            int status = parsed.status() & 0xFF;
+                            throw new IOException(
+                                String.format("命令 0x%02X 失败：%s（错误码 %d）",
+                                    expectedCmd & 0xFF, deviceStatusText(status), status)
+                            );
+                        }
+                        if (!responseHasMinimumPayload(
+                            parsed, expectedCmd, minimumPayloadBytes
+                        )) {
+                            logger.debug(
+                                "收到 0x{} 空 ACK，继续等待完整回读数据",
+                                Integer.toHexString(expectedCmd & 0xFF)
+                            );
+                            continue;
+                        }
+                        return frame;
+                    }
+                    logger.debug(
+                        "收到不匹配的响应 0x{}，期望 0x{}，继续等待",
+                        Integer.toHexString(parsed.cmd() & 0xFF),
+                        Integer.toHexString(expectedCmd & 0xFF)
+                    );
                 }
-                logger.debug("收到不匹配的响应 0x{}，期望 0x{}，继续等待", 
-                    Integer.toHexString(parsed.cmd() & 0xFF),
-                    Integer.toHexString(expectedCmd & 0xFF));
+                responseReady.awaitNanos(remaining);
             }
-            responseReady.awaitNanos(remaining);
+        } finally {
+            responseLock.unlock();
         }
     }
 
-    private void startReader() {
-        readerThread = new Thread(() -> {
+    static boolean responseHasMinimumPayload(
+        AhaKeyResponseParser.CommandResponse parsed,
+        byte expectedCmd,
+        int minimumPayloadBytes
+    ) {
+        return parsed != null
+            && parsed.cmd() == expectedCmd
+            && parsed.payload() != null
+            && parsed.payload().length >= minimumPayloadBytes;
+    }
+
+    static String deviceStatusText(int status) {
+        return switch (status) {
+            case 1 -> "参数或数据格式无效";
+            case 2 -> "地址、分区或范围无效";
+            case 3 -> "当前固件不支持此命令";
+            case 4 -> "此操作仅支持 USB";
+            case 5 -> "外部 Flash 未识别或尚未就绪";
+            case 6 -> "写入超出实际 Flash 容量";
+            case 7 -> "Flash 正忙，请稍后重试";
+            case 8 -> "Flash 写入地址未按 4K 对齐";
+            default -> "设备返回未知错误";
+        };
+    }
+
+    private void startReader(long receiver) {
+        logger.info("[BLE] startReader 开始创建读取线程");
+        InputStream sessionInput = inputStream;
+        Thread sessionReader = new Thread(() -> {
+            logger.info("[BLE] readerThread 已启动");
             byte[] header = new byte[3];
+            boolean unexpectedTransportLoss = false;
             try {
-                while (isConnected && !Thread.currentThread().isInterrupted()) {
-                    if (!readFully(inputStream, header, 3)) {
-                        logger.warn("BLE 读取头部失败，连接可能已断开");
+                while (sessionInput == inputStream
+                    && !Thread.currentThread().isInterrupted()) {
+                    if (!readFully(sessionInput, header, 3)) {
+                        logger.warn("[BLE] readerThread: 读取头部失败，连接可能已断开");
+                        unexpectedTransportLoss = true;
                         break;
                     }
                     int len = (header[1] & 0xFF) | ((header[2] & 0xFF) << 8);
                     byte[] body = len > 0 ? new byte[len] : new byte[0];
-                    if (len > 0 && !readFully(inputStream, body, len)) {
-                        logger.warn("BLE 读取数据失败，连接可能已断开");
+                    if (len > 0 && !readFully(sessionInput, body, len)) {
+                        logger.warn("[BLE] readerThread: 读取数据失败，连接可能已断开");
+                        unexpectedTransportLoss = true;
                         break;
                     }
-                    handlePacket(header[0], body);
+                    handlePacketFromReceiver(header[0], body, receiver);
                 }
             } catch (IOException e) {
-                logger.warn("BLE 读取异常: {}", e.getMessage());
-                if (isConnected) {
+                logger.warn("[BLE] readerThread: 读取异常 - {}", e.getMessage());
+                unexpectedTransportLoss = true;
+                if (receiver == activeReceiver && isConnected) {
                     callback.onError("BLE 桥连接断开: " + e.getMessage());
                 }
             } finally {
-                logger.info("BLE 读取线程退出");
-                if (isConnected && Thread.currentThread() == readerThread) {
-                    disconnect();
+                logger.info("[BLE] readerThread: 线程退出，isConnected={}, isInterrupted={}", 
+                    isConnected, Thread.currentThread().isInterrupted());
+                if (unexpectedTransportLoss && receiver == activeReceiver
+                    && isConnected && Thread.currentThread() == readerThread) {
+                    handleBleTransportLost(receiver);
+                } else if (unexpectedTransportLoss && receiver == bleReceiver
+                    && isUsbConnected() && Thread.currentThread() == readerThread) {
+                    bridgeBleConnected = false;
+                    bridgeDeviceName = "";
+                    closeTcpOnly();
                 }
             }
         }, "ble-tcp-reader");
-        readerThread.setDaemon(true);
-        readerThread.start();
+        readerThread = sessionReader;
+        sessionReader.setDaemon(true);
+        sessionReader.start();
+        logger.info("[BLE] startReader: 读取线程已启动");
     }
 
-    private void handlePacket(byte type, byte[] data) {
-        logger.debug("收到 TCP 包: type=0x{}, len={}", Integer.toHexString(type & 0xFF), data == null ? 0 : data.length);
+    /** Internal transport-loss path; never marks an unexpected loss as user disconnect. */
+    private void handleBleTransportLost(long receiver) {
+        if (receiver != activeReceiver || Thread.currentThread() != readerThread
+            || userDisconnecting || shuttingDown) {
+            return;
+        }
+        logger.warn("[BLE] reader transport lost; scheduling existing recovery");
+        isConnected = false;
+        bridgeBleConnected = false;
+        bridgeDeviceName = "";
+        cachedStatus.setConnected(false);
+        cachedStatus.setTransport("NONE");
+        cachedStatus.setDeviceName("");
+        cachedStatus.setBatteryLevel(-1);
+        closeTcpOnly();
+        recoveryPending.set(true);
+        scheduleTransportRecoveryIfRequired();
+    }
+
+    void handlePacket(byte type, byte[] data) {
+        long receivedAtNanos = System.nanoTime();
+        long receiver = activeReceiver;
+        long frameSession = activeSession;
+        runReceiveEntryHook();
+        dispatchPacket(type, data, receivedAtNanos, receiver, frameSession,
+            isUsbConnected() ? TransportKind.USB : TransportKind.BLE);
+    }
+
+    private boolean tokenMatchesActiveSession(TransportSessionToken token) {
+        if (token == null || token.epoch() != activeSession
+            || token.receiver() != activeReceiver) {
+            return false;
+        }
+        return switch (token.transport()) {
+            case USB -> isUsbConnected();
+            case BLE -> isBleBridgeSessionActive() && !isUsbConnected();
+            case NONE -> false;
+        };
+    }
+
+    private void handlePacketFromReceiver(byte type, byte[] data, long receiver) {
+        long receivedAtNanos = System.nanoTime();
+        long frameSession = activeSession;
+        runReceiveEntryHook();
+        dispatchPacket(type, data, receivedAtNanos, receiver, frameSession,
+            TransportKind.BLE);
+    }
+
+    private void acceptUsbFrame(
+        byte[] data, long receivedAtNanos, long receiver
+    ) {
+        long frameSession = activeSession;
+        runReceiveEntryHook();
+        dispatchPacket(
+            BleTcpPacket.BLE_NOTIFY, data, receivedAtNanos, receiver, frameSession,
+            TransportKind.USB);
+    }
+
+    private void runReceiveEntryHook() {
+        Runnable hook = receiveEntryHookForTest;
+        if (hook != null) {
+            hook.run();
+        }
+    }
+
+    void setReceiveEntryHookForTest(Runnable hook) {
+        receiveEntryHookForTest = hook;
+    }
+
+    private void dispatchPacket(
+        byte type,
+        byte[] data,
+        long receivedAtNanos,
+        long receiver,
+        long frameSession,
+        TransportKind transportKind
+    ) {
+        if (receiver != activeReceiver) {
+            logger.debug("Ignoring frame from stale transport receiver {}", receiver);
+            return;
+        }
+        if (logger.isDebugEnabled()) {
+            byte[] packet = BleTcpPacket.encode(type, data);
+            logger.debug("Received {} packet: type=0x{}, length={}, raw={}, payload={}, "
+                    + "receivedAtNanos={}, session={}, receiver={}",
+                transportKind, Integer.toHexString(type & 0xFF), data == null ? 0 : data.length,
+                bytesToHex(packet, packet.length), data == null ? "" : bytesToHex(data, data.length),
+                receivedAtNanos, frameSession, receiver);
+        }
         switch (type) {
-            case BleTcpPacket.BLE_NOTIFY -> onBleNotify(data);
+            case BleTcpPacket.BLE_NOTIFY ->
+                onBleNotify(data, receivedAtNanos, frameSession, receiver,
+                    transportKind);
             case BleTcpPacket.DEVICE_INFO_RESP -> {
                 if (data != null && data.length >= 8) {
                     int battery = data[0] & 0xFF;
@@ -542,19 +1608,30 @@ public class BleManager {
                     logger.info("收到设备信息 - 电量: {}, 工作模式: {}, 拨杆: {}, 有效: {}", 
                         battery, workMode, switchState, isValidBattery && isValidWorkMode);
                     
-                    // 更新最后状态更新时间
-                    lastStatusUpdateTime = System.currentTimeMillis();
-                    
+                    boolean usbConnected = isUsbConnected();
+                    if (!shouldAcceptDeviceInfo(
+                        usbConnected,
+                        cachedStatus.isConnected(),
+                        cachedStatus.getTransport()
+                    )) {
+                        logger.debug(
+                            "Ignoring cached device info because no live USB/BLE status is present"
+                        );
+                        return;
+                    }
                     // 更新缓存状态
                     cachedStatus.setBatteryLevel(battery);
                     cachedStatus.setWorkMode(workMode);
                     cachedStatus.setSwitchState(switchState);
                     
                     // 如果数据有效，确保标记为已连接
-                    if (isValidBattery && isValidWorkMode) {
+                    if (usbConnected) {
                         cachedStatus.setConnected(true);
-                        cachedStatus.setDeviceName("AhaKey Keyboard");
+                        cachedStatus.setDeviceName("AhaKey USB");
+                        cachedStatus.setTransport("USB");
                     }
+                    // DEVICE_INFO_RESP is bridge/cache metadata. It may update
+                    // the UI, but it never proves approval freshness.
                     
                     callback.onStatusReceived(cachedStatus);
                 }
@@ -564,7 +1641,7 @@ public class BleManager {
                     // 解析BLE状态响应（参考Python的parse_status_response）
                     // 格式: [connected:1][name_len:1][name:N][mac_len:1][mac:N][is_target:1]
                     boolean bleConnected = (data[0] & 0xFF) == 1;
-                    String deviceName = "等待设备";
+                    String deviceName = "";
                     
                     if (data.length >= 3) {
                         int nameLen = data[1] & 0xFF;
@@ -573,28 +1650,52 @@ public class BleManager {
                         }
                     }
                     
-                    logger.info("BLE状态响应 - 连接: {}, 设备名: {}", bleConnected, deviceName);
-                    
-                    // 更新心跳时间戳（收到BLE状态响应也算作状态更新）
-                    lastStatusUpdateTime = System.currentTimeMillis();
+                    logger.info("BLE状态响应 - 连接: {}, 设备名: {}", bleConnected, deviceName.isEmpty() ? "(empty)" : deviceName);
                     
                     boolean wasConnected = cachedStatus.isConnected();
-                    cachedStatus.setConnected(bleConnected);
-                    cachedStatus.setDeviceName(bleConnected ? deviceName : "等待设备");
+                    boolean usbConnected = isUsbConnected();
+                    boolean bridgeWasConnected = bridgeBleConnected;
+                    bridgeBleConnected = bleConnected;
+                    bridgeDeviceName = bleConnected ? deviceName : "";
+                    if (!bleConnected || !bridgeWasConnected) {
+                        // A new bridge session must prove readiness again. Never
+                        // reuse the previous keyboard session's firmware flags.
+                        invalidateApprovalState();
+                        cachedStatus.setConnectionReadinessKnown(false);
+                        cachedStatus.setBleLinkConnected(false);
+                        cachedStatus.setHidInputReady(false);
+                    }
+                    boolean firmwareStatusFresh = bleConnected
+                        && lastStatusUpdateTime > 0
+                        && System.currentTimeMillis() - lastStatusUpdateTime <= 5_000
+                        && isDeviceReadyForUi(false, cachedStatus);
+                    cachedStatus.setConnected(
+                        (usbConnected && isDeviceReadyForUi(true, cachedStatus))
+                            || firmwareStatusFresh
+                    );
+                    cachedStatus.setDeviceName(usbConnected
+                        ? "AhaKey USB"
+                        : (firmwareStatusFresh
+                            ? (deviceName.isBlank() ? "AhaKey BLE" : deviceName)
+                            : ""));
+                    cachedStatus.setTransport(usbConnected
+                        ? "USB" : (firmwareStatusFresh ? "BLE" : "NONE"));
+                    if (!usbConnected && !bleConnected) {
+                        cachedStatus.setBatteryLevel(-1);
+                    }
                     
                     // 如果是从断开变为连接，通知回调
-                    if (bleConnected && !wasConnected) {
+                    if (cachedStatus.isConnected() && !wasConnected) {
                         callback.onConnected();
                     }
                     
                     // 如果是从连接变为断开，更新状态并唤醒等待线程
-                    if (!bleConnected && wasConnected) {
-                        isConnected = false;
-                        commandLock.lock();
+                    if (!cachedStatus.isConnected() && wasConnected) {
+                        responseLock.lock();
                         try {
                             responseReady.signalAll();
                         } finally {
-                            commandLock.unlock();
+                            responseLock.unlock();
                         }
                     }
                     
@@ -606,9 +1707,17 @@ public class BleManager {
         }
     }
 
-    private void onBleNotify(byte[] data) {
+    private void onBleNotify(
+        byte[] data,
+        long receivedAtNanos,
+        long frameSession,
+        long receiver,
+        TransportKind transportKind
+    ) {
+        if (receiver != activeReceiver || frameSession != activeSession) {
+            return;
+        }
         logger.debug("收到 BLE NOTIFY 通知，数据长度: {}", data.length);
-        lastStatusUpdateTime = System.currentTimeMillis();
         
         // 打印前16字节的十六进制数据
         StringBuilder hex = new StringBuilder();
@@ -629,32 +1738,104 @@ public class BleManager {
         }
         DeviceStatus status = AhaKeyProtocol.parseDeviceStatus(data);
         if (status != null) {
+            if (receiver != activeReceiver || frameSession != activeSession) {
+                return;
+            }
+            boolean wasConnected = cachedStatus.isConnected();
+            logger.info(
+                "Device readiness - bleLink={}, hidInput={}, usbConfig={}, known={}",
+                status.isBleLinkConnected(),
+                status.isHidInputReady(),
+                status.isUsbConfigReady(),
+                status.isConnectionReadinessKnown()
+            );
             logger.info("解析到设备状态 - 电量: {}, 工作模式: {}, 拨杆状态: {}", 
                 status.getBatteryLevel(), 
                 status.getWorkMode(), 
                 status.getSwitchState());
-            if (usbTransport.isOpen()) {
+            if (isUsbConnected()) {
                 status.setDeviceName("AhaKey USB");
-            } else if (cachedStatus.getDeviceName() != null && !cachedStatus.getDeviceName().isBlank()
-                && !"等待设备".equals(cachedStatus.getDeviceName())) {
-                status.setDeviceName(cachedStatus.getDeviceName());
+                status.setTransport("USB");
+                // Charging voltage is not a reliable state-of-charge value.
+                // Keep the most recent battery percentage learned over BLE.
+                status.setBatteryLevel(cachedStatus.getBatteryLevel());
+            } else {
+                boolean ready = bridgeBleConnected && isDeviceReadyForUi(false, status);
+                status.setTransport(ready ? "BLE" : "NONE");
+                status.setDeviceName(ready
+                    ? (bridgeDeviceName.isBlank() ? "AhaKey BLE" : bridgeDeviceName)
+                    : "");
             }
-            status.setConnected(true);
+            status.setConnected(isDeviceReadyForUi(isUsbConnected(), status)
+                && (isUsbConnected() || bridgeBleConnected));
             cachedStatus = status;
-            callback.onStatusReceived(status);
+            lastStatusUpdateTime = System.currentTimeMillis();
+            lastStatusUpdateNanos = receivedAtNanos;
+            long acceptedSequence = statusUpdateSequence.incrementAndGet();
+            transportStatusSnapshot = new TransportStatusSnapshot(
+                frameSession, receiver, acceptedSequence, receivedAtNanos,
+                status.isConnected());
+            logger.debug("Physical status parsed: battery={}, signal={}, firmware={}.{}, "
+                    + "mode={}, light={}, switch={}, connected={}, lastStatusUpdateTime={}, "
+                    + "sequence={}, receivedAtNanos={}, session={}",
+                status.getBatteryLevel(), status.getSignal(), status.getFirmwareMain(),
+                status.getFirmwareSub(), status.getWorkMode(), status.getLightMode(),
+                status.getSwitchState(), status.isConnected(), lastStatusUpdateTime,
+                acceptedSequence, receivedAtNanos, frameSession);
+            physicalStatusFreshness.recordPhysicalStatus(
+                receivedAtNanos,
+                frameSession,
+                status.isConnected(),
+                () -> acceptedPhysicalStatus = copyApprovalStatus(status));
+            boolean suppressUsbUi = transportKind == TransportKind.USB && !usbReady;
+            if (status.isConnected() && !wasConnected && !suppressUsbUi) {
+                callback.onConnected();
+            }
+            if (!suppressUsbUi) {
+                callback.onStatusReceived(status);
+            }
             return;
         }
         logger.debug("parseDeviceStatus 返回 null");
 
-        commandLock.lock();
+        AhaKeyResponseParser.CommandResponse unsolicited =
+            AhaKeyResponseParser.parseCommandResponse(data);
+        if (unsolicited != null && unsolicited.cmd() == AhaKeyProtocol.CMD_MODE_SYNC
+            && unsolicited.payload().length >= 2) {
+            AhaKeyResponseParser.ModeSync mode =
+                AhaKeyResponseParser.parseModeSync(unsolicited.payload());
+            if (mode != null && mode.mode() >= 0 && mode.mode() <= 3) {
+                cachedStatus.setWorkMode(mode.mode());
+                java.util.function.IntConsumer listener = modeChangeListener;
+                if (listener != null) listener.accept(mode.mode());
+                callback.onStatusReceived(cachedStatus);
+            }
+            // A query response still has to wake a pending caller; keyboard-originated
+            // events use source=1 and are fully consumed here.
+            if (mode != null && mode.source() == 1) return;
+        }
+
+        responseLock.lock();
         try {
-            pendingNotifyFrame = data;
+            pendingNotifyFrame = new PendingResponse(data,
+                new TransportSessionToken(transportKind, frameSession, receiver));
             responseReady.signalAll();
             byte receivedCmd = data[2];
             logger.debug("收到响应 0x{}，唤醒等待线程", Integer.toHexString(receivedCmd & 0xFF));
         } finally {
-            commandLock.unlock();
+            responseLock.unlock();
         }
+    }
+
+    private static DeviceStatus copyApprovalStatus(DeviceStatus source) {
+        if (source == null) {
+            return null;
+        }
+        DeviceStatus copy = new DeviceStatus();
+        copy.setConnected(source.isConnected());
+        copy.setSwitchState(source.getSwitchState());
+        copy.setTransport(source.getTransport());
+        return copy;
     }
 
     private static String bytesToHex(byte[] bytes, int len) {

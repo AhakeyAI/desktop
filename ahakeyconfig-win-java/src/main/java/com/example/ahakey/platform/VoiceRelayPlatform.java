@@ -1,10 +1,13 @@
 package com.example.ahakey.platform;
 
 import com.example.ahakey.model.ModeSlot;
+import com.example.ahakey.model.KeyConfig;
 import com.example.ahakey.model.StudioState;
 import com.example.ahakey.model.VoicePreset;
+import com.example.ahakey.platform.voice.VoiceAction;
 import com.example.ahakey.platform.windows.WindowsVoiceRelayService;
 import com.example.ahakey.platform.windows.WindowsVoiceTyping;
+import com.example.ahakey.update.SemanticVersion;
 
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.StringProperty;
@@ -12,7 +15,7 @@ import javafx.beans.property.StringProperty;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
-/** 跨平台语音桥门面；当前 Windows 完整实现 Win+H。 */
+/** Cross-platform voice facade; Windows consumes physical F18 and routes actions. */
 public final class VoiceRelayPlatform {
     private final WindowsVoiceRelayService windows = WindowsVoiceRelayService.getInstance();
 
@@ -26,6 +29,34 @@ public final class VoiceRelayPlatform {
 
     public void updateRoutes(StudioState state) {
         windows.updateRoutes(state);
+    }
+
+    public void configureVoiceActions(VoiceAction shortAction, VoiceAction longAction,
+                                      int thresholdMs) {
+        windows.configureVoiceActions(shortAction, longAction, thresholdMs);
+    }
+
+    public void configureVoiceActions(VoiceAction shortAction, VoiceAction longAction,
+                                      int thresholdMs, int shortCustomShortcutHid,
+                                      int longCustomShortcutHid) {
+        windows.configureVoiceActions(shortAction, longAction, thresholdMs,
+            shortCustomShortcutHid, longCustomShortcutHid);
+    }
+
+    public void setAhaKeyVoiceAvailable(boolean available) {
+        windows.setAhaKeyVoiceAvailable(available);
+    }
+
+    public boolean isAhaKeyVoiceAvailable() {
+        return windows.isAhaKeyVoiceAvailable();
+    }
+
+    public void setFirmwareVersion(SemanticVersion version) {
+        windows.setFirmwareVersion(version);
+    }
+
+    public boolean isRawF18RoutingEnabled() {
+        return windows.isRawF18RoutingEnabled();
     }
 
     public void start() {
@@ -46,6 +77,20 @@ public final class VoiceRelayPlatform {
 
     public void simulateKeyByHid(int hidCode) {
         windows.simulateKeyByHid(hidCode);
+    }
+
+    public void simulateMacro(KeyConfig config) { windows.simulateMacro(config); }
+
+    public void pressKeyByHid(int hidCode) {
+        windows.pressKeyByHid(hidCode);
+    }
+
+    public void releaseKeyByHid(int hidCode) {
+        windows.releaseKeyByHid(hidCode);
+    }
+
+    public void releaseAllSimulatedKeys() {
+        windows.releaseAllSimulatedKeys();
     }
 
     public BooleanProperty listeningProperty() {

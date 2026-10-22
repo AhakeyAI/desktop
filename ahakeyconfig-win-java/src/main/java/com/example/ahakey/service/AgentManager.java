@@ -1,5 +1,7 @@
 package com.example.ahakey.service;
 
+import static com.example.ahakey.util.LanguageManager.text;
+
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleBooleanProperty;
@@ -71,6 +73,6 @@ public class AgentManager {
         installed.set(true);
         hooksInstalled.set(true);
         operationInProgress.set(false);
-        userAlert.set("Hooks 安装成功！AI 应用重启后生效。");
+        userAlert.set(text("hooks.installed"));
     }
 }

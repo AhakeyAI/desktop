@@ -1,16 +1,21 @@
 package com.example.ahakey.view;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 import com.example.ahakey.model.DeviceStatus;
 import com.example.ahakey.model.IDEState;
 import com.example.ahakey.model.LightEffectStyle;
 import com.example.ahakey.model.ModeSlot;
 import com.example.ahakey.model.StudioPart;
 import com.example.ahakey.model.StudioState;
+import com.example.ahakey.util.LanguageManager;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.beans.binding.Bindings;
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;
+import javafx.scene.control.Tooltip;
+import com.example.ahakey.service.TaskActivityService;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.Region;
@@ -46,6 +51,9 @@ public class CanvasController {
 
     @FXML
     private Label modeIcon;
+    
+    @FXML
+    private Label lightBarLabel;
     
     @FXML
     private StackPane lightBarCard;
@@ -90,6 +98,7 @@ public class CanvasController {
     private DeviceStatus deviceStatus;
     private Timeline lightAnimation;
     private int animationFrame = 0;
+    private TaskActivityService taskActivityService;
     
     private static final String COLOR_ACTIVE = "#0a84ff";
     private static final String COLOR_DIM = "#6b7280";
@@ -100,7 +109,9 @@ public class CanvasController {
     private static final String COLOR_AMBER = "#ff9f0a";
     
     public void initialize() {
-        // 初始化时绑定事件
+        if (lightBarLabel != null) {
+            lightBarLabel.setText(LanguageManager.getInstance().getString("studio-part.light-bar"));
+        }
     }
     
     public void setStudioState(StudioState studioState) {
@@ -114,12 +125,46 @@ public class CanvasController {
         this.deviceStatus = deviceStatus;
         bindDeviceStatus();
     }
+
+    public void setTaskActivityService(TaskActivityService service) {
+        this.taskActivityService = service;
+        service.visibleTasksProperty().addListener((obs, old, value) -> refreshTaskLights());
+        refreshTaskLights();
+    }
+
+    private void refreshTaskLights() {
+        if (taskActivityService == null || !taskActivityService.isMultiMode()) {
+            setStableLightPreview();
+            return;
+        }
+        Region[] segments = {lightSeg1, lightSeg2, lightSeg3, lightSeg4};
+        for (int i = 0; i < segments.length; i++) {
+            Region seg = segments[i];
+            if (seg == null) continue;
+            int slot = i;
+            var task = taskActivityService.getVisibleTasks().stream().filter(t -> t.slot() == slot).findFirst();
+            if (task.isEmpty()) {
+                setLightSegment(seg, COLOR_DIM, 0.35);
+                Tooltip.install(seg, new Tooltip(localize("任务槽 ") + (i + 1) + localize("：空闲")));
+            } else {
+                var t = task.get();
+                String color = t.state() == 2 || t.state() == 4 ? COLOR_RED : COLOR_GREEN;
+                setLightSegment(seg, color, t.foreground() ? 1.0 : 0.72);
+                Tooltip.install(seg, new Tooltip(t.platform() + "\n" + t.title() + "\n" + taskStateText(t.state())));
+            }
+        }
+    }
+
+    private String taskStateText(int state) {
+        return switch (state) { case 1 -> localize("运行中"); case 2 -> localize("等待审批"); case 3 -> localize("已完成"); case 4 -> localize("错误"); default -> localize("空闲"); };
+    }
     
     private void bindDeviceStatus() {
         if (toggleLabel != null && deviceStatus != null) {
             toggleLabel.textProperty().bind(Bindings.createStringBinding(
                 deviceStatus::getSwitchTitle,
-                deviceStatus.switchStateProperty()
+                deviceStatus.switchStateProperty(),
+                deviceStatus.isConnectedProperty()
             ));
             deviceStatus.switchStateProperty().addListener((obs, old, value) -> refreshToggleThumb());
             refreshToggleThumb();
