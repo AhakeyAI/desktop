@@ -1879,7 +1879,7 @@ struct AhaKeyStudioView: View {
                         Label("自动批准依赖 Agent 与 Hook，且须蓝牙由 Agent 占用", systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
                             .font(.callout.weight(.semibold))
-                        Text("Claude Code：PreToolUse allow，PermissionRequest 兜底（桌面版须使用 Code 本地会话，Chat 不支持本地 Hook）。Cursor：preToolUse 等与 cli-config。Codex：PermissionRequest allow。Kimi：安装过 AhaKey Kimi Hooks 后，**拨杆会直接接管当前会话的自动批准**；若刚装完或刚升级 kimi-cli，请**完全关闭并重新打开一次 kimi**。钩子 stdout 只对 **`permissionDecision: deny`** 有特殊拦截语义。Agent 须在跑且蓝牙由其占用。")
+                        Text(LocalizedStringKey(agentManager.kimiUsesNativeCLI ? "Claude、Cursor、Codex 需要后台与 Hook 保持连接。Kimi 原生版当前仅同步任务状态，审批仍由 Kimi 自身管理。" : "Claude Code：PreToolUse allow，PermissionRequest 兜底（桌面版须使用 Code 本地会话，Chat 不支持本地 Hook）。Cursor：preToolUse 等与 cli-config。Codex：PermissionRequest allow。Kimi：安装过 AhaKey Kimi Hooks 后，**拨杆会直接接管当前会话的自动批准**；若刚装完或刚升级 kimi-cli，请**完全关闭并重新打开一次 kimi**。钩子 stdout 只对 **`permissionDecision: deny`** 有特殊拦截语义。Agent 须在跑且蓝牙由其占用。"))
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
@@ -1888,9 +1888,9 @@ struct AhaKeyStudioView: View {
 
             StudioInspectorSection(NSLocalizedString("如何理解这个部件", comment: "")) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("拨杆对 Claude / Cursor / Codex / Kimi **同时生效**，与键盘当前所在 Mode 无关。Agent 后台同时监听所有 IDE 的 Hook，拨杆拨动后四个 IDE 的批准行为立即切换。")
+                    Text(LocalizedStringKey(agentManager.kimiUsesNativeCLI ? "实体拨杆对 Claude、Cursor、Codex 的审批生效，与键盘 Mode 无关。Kimi 原生版当前仅同步任务状态，审批仍由 Kimi 自身管理。" : "拨杆对 Claude / Cursor / Codex / Kimi **同时生效**，与键盘当前所在 Mode 无关。Agent 后台同时监听所有 IDE 的 Hook，拨杆拨动后四个 IDE 的批准行为立即切换。"))
                     Divider()
-                    Text("自动批准：**Claude Code PreToolUse**（PermissionRequest 兜底；桌面版仅 Code 本地会话）、**Codex PermissionRequest**、**Cursor preToolUse**（含 cli-config）。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管**当前会话**的自动批准；刚装完或刚升级 kimi-cli 时，重开一次 kimi 即可。")
+                    Text(LocalizedStringKey(agentManager.kimiUsesNativeCLI ? "Claude、Cursor、Codex 需要后台与 Hook 保持连接。Kimi 原生版当前仅同步任务状态，审批仍由 Kimi 自身管理。" : "自动批准：**Claude Code PreToolUse**（PermissionRequest 兜底；桌面版仅 Code 本地会话）、**Codex PermissionRequest**、**Cursor preToolUse**（含 cli-config）。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管**当前会话**的自动批准；刚装完或刚升级 kimi-cli 时，重开一次 kimi 即可。"))
                     Text(NSLocalizedString("手动批准：会交回用户/终端确认。若 Cursor、Codex 或 Kimi 仍弹窗，请看 diagnostics 里的 ide 与 diagnostic 字段。", comment: ""))
                     Text(NSLocalizedString("若仍出现手动：在「设备信息」里打开「工具批准诊断」查看 permission-request.log（含 ide、hookEvent、diagnostic 等）。", comment: ""))
                 }
@@ -1904,14 +1904,14 @@ struct AhaKeyStudioView: View {
     private var switchEffectivenessBox: some View {
         let agentReady = agentManager.isInstalled && agentManager.isRunning && agentManager.hooksInstalled
         let hasAnyMissing = !agentManager.isInstalled || !agentManager.isRunning || !agentManager.hooksInstalled
-        StudioInspectorSection(agentReady ? "已生效" : "未生效") {
+        StudioInspectorSection(agentReady ? (agentManager.kimiUsesNativeCLI ? "后台已就绪" : "已生效") : "未生效") {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     Image(systemName: agentReady ? "checkmark.seal.fill" : "exclamationmark.circle.fill")
                         .foregroundStyle(agentReady ? .green : .orange)
-                    Text(agentReady
-                         ? "Agent 就绪时 Claude/Cursor/Codex 可随拨杆走批准。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管当前会话；若刚装完或刚升级 kimi-cli，重开一次 kimi 即可。"
-                         : "拨杆在 IDE 中生效需先安装 Agent 与 Hook，并把蓝牙交给 Agent；否则仅为状态显示。")
+                    Text(LocalizedStringKey(agentReady
+                         ? (agentManager.kimiUsesNativeCLI ? "Claude、Cursor、Codex 可随实体拨杆审批。Kimi 原生版当前仅同步任务状态，审批仍由 Kimi 自身管理。" : "Agent 就绪时 Claude/Cursor/Codex 可随拨杆走批准。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管当前会话；若刚装完或刚升级 kimi-cli，重开一次 kimi 即可。")
+                         : "拨杆在 IDE 中生效需先安装 Agent 与 Hook，并把蓝牙交给 Agent；否则仅为状态显示。"))
                         .font(.callout)
                 }
 

@@ -2,8 +2,17 @@ import Foundation
 import AhaKeyConfigShared
 
 enum KimiHookHandler {
-    static func handlePreToolPermission() {
-        let stdinData = HookSupport.readAllStdinSilently()
+    static func handlePreToolPermission(stdin suppliedInput: Data? = nil,
+        layout suppliedLayout: KimiConfigPolicySync.Layout? = nil,
+        send suppliedSend: (([String: Any], Double) -> [String: Any]?)? = nil) {
+        let stdinData = suppliedInput ?? HookSupport.readAllStdinSilently()
+        let send = suppliedSend ?? { HookSupport.sendJsonRequest($0, timeout: $1) }
+        if (suppliedLayout ?? KimiConfigPolicySync.productionLocation.layout) == .nativeV2 {
+            let request = WS3TaskMetadata.enrich(["cmd": "state", "value": Int(HookSupport.permissionLedValue)],
+                client: .kimi, event: "KimiPreToolUse", stdin: stdinData)
+            _ = send(request, HookSupport.stateRequestTimeout)
+            return
+        }
         let ctx = HookSupport.parseStdinContext(stdinData, label: "Kimi")
         KimiHookDebugLog.append(event: "kimi_PreToolUse_start", details: [
             "stdinBytes": stdinData.count,
@@ -14,7 +23,7 @@ enum KimiHookHandler {
 
         let request = WS3TaskMetadata.enrich(["cmd": "permission", "value": Int(HookSupport.permissionLedValue)],
             client: .kimi, event: "KimiPreToolUse", stdin: stdinData)
-        let reply = HookSupport.sendJsonRequest(request, timeout: HookSupport.permissionRequestTimeout)
+        let reply = send(request, HookSupport.permissionRequestTimeout)
         let switchState = HookSupport.approvalSwitchState(reply, client: .kimi)
         let isAuto = switchState == 0
 

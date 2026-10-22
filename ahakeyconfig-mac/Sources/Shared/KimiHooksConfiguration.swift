@@ -1,0 +1,125 @@
+import Foundation
+
+/// Production installer and isolated CLI tests share this lexical edit. Never
+/// consume a provider table merely because it follows an owned [[hooks]] entry.
+public enum KimiHooksConfiguration {
+    public static let blockStart = "# BEGIN AhaKey Kimi Hooks"
+    public static let blockEnd = "# END AhaKey Kimi Hooks"
+    public static let events = ["Notification", "SessionStart", "SessionEnd", "PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop"]
+    public enum Failure: Error { case malformed, unsafePath }
+
+    public static func installing(in text: String, location: KimiConfigPolicySync.Location, agentPath: String) throws -> String {
+        guard location.isValid, agentPath.hasPrefix("/"), !agentPath.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { throw Failure.unsafePath }
+        var result = try removing(in: text).trimmingCharacters(in: .whitespacesAndNewlines)
+        if !result.isEmpty { result += "\n\n" }
+        result += blockStart + "\n# Managed by AhaKey Studio. Kimi lifecycle hooks.\n"
+        for event in events {
+            var call = "/usr/bin/env AHAKEY_KIMI_LAYOUT=\(location.layout.rawValue)"
+            if location.layout == .nativeV2 { call += " KIMI_CODE_HOME=\(shellQuote(location.root.path))" }
+            call += " \(shellQuote(agentPath)) hook Kimi\(event)"
+            let command = "/bin/sh -c \(shellQuote(call))"
+            result += "\n[[hooks]]\nevent = \"\(event)\"\nmatcher = \"\"\ncommand = \(tomlQuote(command))\ntimeout = \(event == "PreToolUse" ? 20 : 10)\n"
+        }
+        result += "\n" + blockEnd + "\n"
+        _ = try TomlPolicyLocator.statements(in: result)
+        return result
+    }
+
+    public static func removing(in text: String) throws -> String {
+        let bytes = Array(text.utf8)
+        let statements = try TomlPolicyLocator.statements(in: text)
+        var ranges: [Range<Int>] = []
+        var marked = false
+        for item in statements {
+            guard case .comment = item.kind else { continue }
+            let comment = String(decoding: bytes[item.range], as: UTF8.self).trimmingCharacters(in: .whitespaces)
+            if comment == blockStart {
+                guard !marked else { throw Failure.malformed }
+                marked = true; ranges.append(item.range)
+            } else if comment == blockEnd {
+                guard marked else { throw Failure.malformed }
+                marked = false; ranges.append(item.range)
+            } else if marked && (comment.hasPrefix("# Managed by AhaKey Studio.") || comment.hasPrefix("# Dial integration is managed by AhaKey Studio.")) {
+                ranges.append(item.range)
+            }
+        }
+        guard !marked else { throw Failure.malformed }
+        for index in statements.indices {
+            guard case .table(let path, let array) = statements[index].kind, path == ["hooks"], array else { continue }
+            var end = index + 1
+            while end < statements.count {
+                if case .table = statements[end].kind { break }
+                end += 1
+            }
+            let fields = statements[(index + 1)..<end]
+            let owned = fields.contains { item in
+                guard case .assignment(let key) = item.kind, key == ["command"] else { return false }
+                guard let command = scalarString(bytes: bytes, statement: item) else { return false }
+                return owns(command)
+            }
+            if owned {
+                // Delete the owned header and fields, not comments belonging to
+                // surrounding configuration or the next unrelated table.
+                ranges.append(statements[index].range)
+                ranges += fields.compactMap { item in
+                    if case .assignment = item.kind { return item.range }
+                    return nil
+                }
+            }
+        }
+        var result = bytes
+        for range in ranges.sorted(by: { $0.lowerBound > $1.lowerBound }) { result.removeSubrange(range) }
+        return String(decoding: result, as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
+    }
+    private static func shellQuote(_ text: String) -> String { "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'" }
+    private static func tomlQuote(_ text: String) -> String {
+        "\"" + text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
+    }
+    private static func scalarString(bytes: [UInt8], statement: TomlPolicyLocator.Statement) -> String? {
+        guard let equal = bytes[statement.range].firstIndex(of: 0x3D) else { return nil }
+        // Reuse the actual TOML string decoder, including quotes/unicode, rather
+        // than interpreting escaped command text as shell source.
+        let scalar = Array("approval_policy ".utf8) + bytes[equal..<statement.range.upperBound]
+        if case .existingScalar(_, let value) = TomlPolicyLocator.locate(scalar) { return value }
+        return nil
+    }
+    private static func owns(_ command: String, depth: Int = 0) -> Bool {
+        guard depth < 4, command.utf8.count <= 32_768, var words = arguments(command), !words.isEmpty else { return false }
+        if ["/bin/sh", "/bin/zsh"].contains(words[0]), words.count == 3, ["-c", "-lc", "-fc"].contains(words[1]) {
+            return owns(words[2], depth: depth + 1)
+        }
+        if words[0] == "/usr/bin/env" {
+            words.removeFirst()
+            while words.first?.range(of: "^[A-Za-z_][A-Za-z0-9_]*=", options: .regularExpression) != nil { words.removeFirst() }
+        }
+        guard words.count == 3, words[1] == "hook", events.map({ "Kimi" + $0 }).contains(words[2]) else { return false }
+        return ["ahakeyconfig-agent", "ahakey-state"].contains(URL(fileURLWithPath: words[0]).lastPathComponent)
+    }
+    /// A bounded recognizer for our literal argv/wrappers, not a shell evaluator.
+    /// Substitution, pipelines and redirection never grant removal ownership.
+    private static func arguments(_ text: String) -> [String]? {
+        var words: [String] = [], word = "", quote: Character?, escaped = false, started = false
+        for character in text {
+            if escaped { word.append(character); escaped = false; started = true; continue }
+            if character == "\\", quote != "'" { escaped = true; started = true; continue }
+            if let active = quote {
+                if character == active { quote = nil }
+                else {
+                    if active == "\"", character == "$" || character == "`" { return nil }
+                    word.append(character)
+                }
+            } else if character == "'" || character == "\"" { quote = character; started = true }
+            else if character.isWhitespace {
+                if started { words.append(word); word = ""; started = false }
+                if words.count > 128 { return nil }
+            } else {
+                guard !"$`;|&<>()".contains(character) else { return nil }
+                word.append(character); started = true
+            }
+        }
+        guard quote == nil, !escaped else { return nil }
+        if started { words.append(word) }
+        return words
+    }
+}

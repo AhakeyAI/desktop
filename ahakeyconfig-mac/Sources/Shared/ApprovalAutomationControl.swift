@@ -56,9 +56,20 @@ public enum ApprovalAutomationControl {
                 }
             }
             if client == nil || client == .kimi {
-                switch KimiConfigPolicySync.releaseOwnedAutomation(configURL: kimiURL) {
-                case .invalid, .writeFailed: success = false
-                default: break
+                let registered = KimiConfigPolicySync.ownedConfigURLs(directory: directory)
+                if registered == nil { success = false }
+                var urls = Set((registered ?? []) + [kimiURL])
+                if directory == productionDirectory {
+                    let home = FileManager.default.homeDirectoryForCurrentUser
+                    urls.insert(home.appendingPathComponent(".kimi/config.toml"))
+                    urls.insert(home.appendingPathComponent(".kimi-code/config.toml"))
+                }
+                for url in urls {
+                    switch KimiConfigPolicySync.releaseOwnedAutomation(configURL: url) {
+                    case .invalid, .writeFailed: success = false
+                    default:
+                        if !KimiConfigPolicySync.record(url, owned: false, directory: directory) { success = false }
+                    }
                 }
             }
             return success

@@ -7,6 +7,11 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "Kimi 任务状态同步已配置。请重新打开 Kimi；原生版的审批仍由 Kimi 管理。": "Kimi task-state synchronization is configured. Reopen Kimi to load it. Native Kimi continues to manage its own approvals.",
+    "后台已就绪": "Background connection ready",
+    "实体拨杆对 Claude、Cursor、Codex 的审批生效，与键盘 Mode 无关。Kimi 原生版当前仅同步任务状态，审批仍由 Kimi 自身管理。": "The physical lever controls Claude, Cursor and Codex approvals regardless of keyboard mode. Native Kimi currently synchronizes task status and manages its own approvals.",
+    "Claude、Cursor、Codex 需要后台与 Hook 保持连接。Kimi 原生版当前仅同步任务状态，审批仍由 Kimi 自身管理。": "Claude, Cursor and Codex require the background connection and hooks. Native Kimi currently synchronizes task status and manages its own approvals.",
+    "Claude、Cursor、Codex 可随实体拨杆审批。Kimi 原生版当前仅同步任务状态，审批仍由 Kimi 自身管理。": "Claude, Cursor and Codex can follow the physical lever. Native Kimi currently synchronizes task status and manages its own approvals.",
     "跟随当前终端": "Follow the active terminal",
     "适用于 Terminal 和 iTerm；需要 Studio 保持运行。无法确认会话时不突出显示。": "For Terminal and iTerm. Keep Studio running; ambiguous sessions are not highlighted.",
     "允许读取终端状态": "Allow reading terminal status",
