@@ -1062,9 +1062,28 @@ struct AhaKeyStudioDraft: Codable, Equatable {
 
 enum AhaKeyStudioStore {
     private static let key = "ahakey.studio.draft.v1"
+    /// 最近一次经固件确认写入键盘的配置，作为"未同步改动"的基线；重启后据此恢复未下发计数。
+    private static let syncedKey = "ahakey.studio.synced.v1"
 
-    static func load() -> AhaKeyStudioDraft? {
-        guard let data = UserDefaults.standard.data(forKey: key),
+    static func load(from defaults: UserDefaults = .standard) -> AhaKeyStudioDraft? {
+        decode(forKey: key, from: defaults)
+    }
+
+    static func save(_ draft: AhaKeyStudioDraft, to defaults: UserDefaults = .standard) {
+        encode(draft, forKey: key, to: defaults)
+    }
+
+    /// 未记录过基线（首次安装或从旧版本升级）时返回 nil，由调用方决定回退值。
+    static func loadSynced(from defaults: UserDefaults = .standard) -> AhaKeyStudioDraft? {
+        decode(forKey: syncedKey, from: defaults)
+    }
+
+    static func saveSynced(_ draft: AhaKeyStudioDraft, to defaults: UserDefaults = .standard) {
+        encode(draft, forKey: syncedKey, to: defaults)
+    }
+
+    private static func decode(forKey key: String, from defaults: UserDefaults) -> AhaKeyStudioDraft? {
+        guard let data = defaults.data(forKey: key),
               var draft = try? JSONDecoder().decode(AhaKeyStudioDraft.self, from: data) else {
             return nil
         }
@@ -1075,9 +1094,9 @@ enum AhaKeyStudioStore {
         return migratedDraft(from: draft)
     }
 
-    static func save(_ draft: AhaKeyStudioDraft) {
+    private static func encode(_ draft: AhaKeyStudioDraft, forKey key: String, to defaults: UserDefaults) {
         guard let data = try? JSONEncoder().encode(draft) else { return }
-        UserDefaults.standard.set(data, forKey: key)
+        defaults.set(data, forKey: key)
     }
 
     static func migratedDraft(from draft: AhaKeyStudioDraft) -> AhaKeyStudioDraft {
