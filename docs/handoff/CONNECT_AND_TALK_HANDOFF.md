@@ -554,3 +554,9 @@ Voice要求已升级：四模式独立，支持Consumer/App原生/AhaType/普通
 代码75a3445，388测试和双轴窄复核通过；签名0.2.3 arm64已安装。原Key1/灯条/素材/模式/待机/高级绑定尚未迁入，因此旧设置页入口暂保留至对应能力接线完成，不能提早删除。新的普通键保存不跳页。
 
 真机从Key4选中后点击“修改”时CUA原生pipe断管；reset仍失败，已请求用户重开Codex，不重复安装Studio或重启键盘。界面验收未通过，源包保留；未执行按键/资源/Voice写入。fresh后台RPC connected=true、physical/effective=0、autoVerified=true。详见INSPECTOR_KEY.md，恢复界面后继续读取/临时描述写入及还原、返回后台再最终CI合connect&talk；期间PR保持Draft。
+
+### 第43节续验：重开后原生工具仍失败，V10静态结论
+
+用户已重开Codex。CUA getApp精确路径仍pipe closed；reset后getState可列应用，但getApp无法原生读取，不能以此称App异常或UI通过。已请求用户手动选Codex Key4→修改，只读确认右侧键盘读回/Mode3 Key4/Backspace且不跳页，等待该回复；不要再要求重复重开。fresh后台connected=true、physical/effective=0、autoVerified=true，候选源仍75a3445。PR153原head3c5f450四项CI成功，UI未完成仍Draft。
+
+等待期间V10已核实接受源70ca334的psk_multi_button.c分发：全局Mac Consumer为真时Key1事件发0x00CF后直接return，绕过各mode普通绑定；0x96只能全局suppress，普通解析只73/74。因此完整Consumer/其他方案逐模式混用需要固件增量，不是仅改客户端门控；详见consumer-per-mode-feasibility-2026-10-22.md和总WBS V10。无固件生产修改或外部通知/issue新增。

@@ -22,3 +22,12 @@
 4. 最终返回日常Agent，记录UI/RPC，补截图及WBS；未验收前PR保持草稿，不合入。
 
 未知/旧设备、真实故障、Consumer混用、灯条/素材迁入仍是后续工作，不能因本批代码和编译通过标记完整适配完成。
+
+
+## 用户重开Codex后的续验
+
+用户确认已重开。原生getApp仍报pipe closed；reset后getState能读取应用清单，但通过bundleID（多个历史包歧义）及精确安装路径重新绑定仍不能读取原生窗口。没有要求用户再次重开，也没有改用其他UI自动化技术绕过。
+
+已改请用户手动选Codex Key4→修改、只读核对右侧显示，不保存；等待反馈。fresh后台RPC仍connected=true、physical/effective=0、autoVerified=true；PR153当前3c5f450四项CI均成功，但手动/自动UI验收未完成，仍保持草稿。
+
+等待期间完成V10静态核验，见consumer-per-mode-feasibility-2026-10-22.md；未修改Voice、其他按键或固件。
