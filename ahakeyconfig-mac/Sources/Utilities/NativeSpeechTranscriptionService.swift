@@ -16,6 +16,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     @Published private(set) var statusMessage = NSLocalizedString("等待苹果原生转写就绪。", comment: "")
     @Published private(set) var transcriptPreview = ""
     @Published private(set) var lastCommittedText = ""
+    @Published private(set) var deferredTranscripts: [DeferredVoiceTranscript] = []
     @Published private(set) var lastPermissionCheckSummary = NSLocalizedString("尚未检查麦克风、语音转写与 Siri 权限。", comment: "")
 
     // MARK: 录音触发方式配置
@@ -602,12 +603,27 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         VoiceStatusHUDController.shared.show(willUseAhaType ? .ahaType : .pasting)
         appendDiagnostic("finalize begin reason=\(reason) bypass=\(bypassAhaType) rawText=\(text)")
 
+        let completionTicket = recordingGeneration
         Task { @MainActor in
+            let result = await VoiceTranscriptCompletion.run(text: text, ticket: completionTicket,
+                currentTicket: { self.recordingGeneration }, process: { source in
+                    if willUseAhaType {
+                        return await AhaTypeTextOptimizer.shared.processIfEnabled(source, enabledForRecording: true)
+                    }
+                    return source
+                })
             let output: String
-            if willUseAhaType {
-                output = await AhaTypeTextOptimizer.shared.processIfEnabled(text, enabledForRecording: true)
-            } else {
-                output = text
+            switch result {
+            case .ready(let value):
+                guard self.recordingGeneration == completionTicket else {
+                    self.deferredTranscripts.append(.init(text: value))
+                    return
+                }
+                output = value
+            case .deferred(let value):
+                self.deferredTranscripts.append(.init(text: value))
+                self.appendDiagnostic("late completion retained for explicit copy")
+                return
             }
             if self.injectText(output) {
                 self.lastCommittedText = output
@@ -619,6 +635,15 @@ final class NativeSpeechTranscriptionService: ObservableObject {
                 VoiceStatusHUDController.shared.show(.failed, autoHideAfter: 2.0)
                 self.appendDiagnostic("finalize inject failed reason=\(reason) text=\(output)")
             }
+        }
+    }
+
+    func copyDeferredTranscript(id: UUID) {
+        guard let item = deferredTranscripts.first(where: { $0.id == id }) else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        if pasteboard.setString(item.text, forType: .string) {
+            deferredTranscripts.removeAll { $0.id == id }
         }
     }
 

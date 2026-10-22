@@ -136,9 +136,12 @@ final class AhaTypeTextOptimizer: ObservableObject {
             }
 
             if let quota = inner["quota"] as? [String: Any] {
-                mergeQuota(quota, into: &config)
-                saveConfig(config)
-                updateStatus(from: config)
+                var latest = loadConfig()
+                guard stringValue(latest["access_token"]) == token else { return text }
+                mergeQuota(quota, into: &latest)
+                saveConfig(latest)
+                isEnabled = boolValue(latest["typeless_enabled"])
+                updateStatus(from: latest)
             }
 
             let output = stringValue(inner["text"]).isEmpty ? stringValue(inner["result"]) : stringValue(inner["text"])

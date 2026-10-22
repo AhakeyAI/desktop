@@ -998,6 +998,23 @@ struct AhaKeyStudioView: View {
         summaryRow(NSLocalizedString("语音桥", comment: ""), value: voiceRelay.isListening ? NSLocalizedString("运行中", comment: "") : NSLocalizedString("等待权限", comment: ""),
                    dot: voiceRelay.isListening ? .green : .orange)
         summaryRow(NSLocalizedString("按键描述", comment: ""), value: key.description.isEmpty ? "—" : key.description)
+        deferredVoiceTranscripts
+    }
+
+    @ViewBuilder
+    private var deferredVoiceTranscripts: some View {
+        if !nativeSpeech.deferredTranscripts.isEmpty {
+            Text(NSLocalizedString("上一段转写稍晚完成，已保留，可复制后自行粘贴。", comment: ""))
+                .font(.caption).foregroundStyle(.secondary)
+            ForEach(nativeSpeech.deferredTranscripts) { item in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(item.text).font(.caption).lineLimit(2).textSelection(.enabled)
+                    Button(NSLocalizedString("复制已完成的转写", comment: "")) {
+                        nativeSpeech.copyDeferredTranscript(id: item.id)
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -1068,6 +1085,7 @@ struct AhaKeyStudioView: View {
             .disabled(inlineKeyControlsDisabled)
 
             if key.role == .voice {
+                deferredVoiceTranscripts
                 StudioInspectorSection(NSLocalizedString("语音输入方式", comment: "")) {
                     VStack(alignment: .leading, spacing: 12) {
                         VoicePresetPicker(

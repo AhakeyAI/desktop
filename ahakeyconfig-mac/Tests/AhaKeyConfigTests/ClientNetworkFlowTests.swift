@@ -128,6 +128,26 @@ final class ClientNetworkFlowTests: XCTestCase {
         XCTAssertEqual(redirects, 1)
     }
 
+    func testQuotaResponseMergesIntoLatestPreferences() async throws {
+        let (optimizer, folder) = try optimizer { _ in XCTFail("valid token") }
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("config.json")
+        ClientStubProtocol.handle = { _ in
+            var latest = (try! JSONSerialization.jsonObject(with: Data(contentsOf: file))) as! [String: Any]
+            latest["typeless_enabled"] = false
+            latest["future_preference"] = "keep-new-value"
+            try! JSONSerialization.data(withJSONObject: latest).write(to: file)
+            return (200, #"{"code":0,"data":{"text":"processed","quota":{"used_daily":3}}}"#)
+        }
+        let result = await optimizer.processIfEnabled("speech", enabledForRecording: true)
+        XCTAssertEqual(result, "processed")
+        let latest = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as! [String: Any]
+        XCTAssertEqual(latest["typeless_enabled"] as? Bool, false)
+        XCTAssertEqual(latest["future_preference"] as? String, "keep-new-value")
+        XCTAssertEqual(latest["used_daily"] as? Int, 3)
+        XCTAssertFalse(optimizer.isEnabled)
+    }
+
     func testRecordingDecisionIsNotReplacedByLaterGlobalToggle() async throws {
         let (optimizer, folder) = try optimizer { _ in XCTFail("valid token") }
         defer { try? FileManager.default.removeItem(at: folder) }
