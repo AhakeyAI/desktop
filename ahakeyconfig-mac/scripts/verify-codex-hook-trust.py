@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Check production-generated hook trust with a local Codex CLI, without user config/auth.
 
-Requires macOS, swiftc and codex. Only temporary fixture hooks execute; the local
+Full verification requires macOS, swiftc and codex. --compile-only exercises
+only the production fixture lifecycle with swiftc. Only temporary fixture hooks execute; the local
 model endpoint is intentionally unavailable and UserPromptSubmit blocks the turn.
 """
+import argparse
 import json
 import os
 from pathlib import Path
@@ -125,17 +127,30 @@ def inspect(codex, root, execute=False):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--compile-only", action="store_true",
+                        help="Compile and exercise production hook fixtures without starting Codex")
+    args = parser.parse_args()
     codex = shutil.which("codex")
-    if not codex:
+    if not args.compile_only and not codex:
         raise SystemExit("codex CLI is required")
     sources = Path(__file__).resolve().parents[1] / "Sources" / "Shared"
     with tempfile.TemporaryDirectory(prefix="ahakey-hook-smoke-") as temporary:
         root = Path(temporary).resolve()
         (root / "main.swift").write_text(SWIFT_FIXTURE)
         generate = root / "generate"
-        subprocess.run(["swiftc", str(sources / "CodexConfigLeverSync.swift"),
-                        str(sources / "CodexHookTrust.swift"), str(root / "main.swift"),
-                        "-o", str(generate)], check=True)
+        # TomlPolicyLocator shares the production policy module's source file;
+        # compile its real lifecycle dependencies rather than stubbing them.
+        fixture_sources = ["CodexConfigLeverSync.swift", "ApprovalAutomationControl.swift",
+                           "CursorApprovalPolicySync.swift", "KimiConfigPolicySync.swift", "CodexHookTrust.swift"]
+        subprocess.run(["swiftc", *[str(sources / name) for name in fixture_sources],
+                        str(root / "main.swift"), "-o", str(generate)], check=True)
+        if args.compile_only:
+            for mode in ("initial", "reinstall", "remove"):
+                subprocess.run([str(generate), str(root), mode], check=True)
+            print(json.dumps(dict(fixture_compiled=True, fixture_lifecycle=["initial", "reinstall", "remove"],
+                                  cli_executed=False)))
+            return
         (root / "user-hook.sh").write_text(
             '#!/bin/sh\ncat >/dev/null\necho user >> "$CODEX_HOME/executed"\nprintf "{}\\n"\n')
         agent = root / "test agent's hook.sh"
