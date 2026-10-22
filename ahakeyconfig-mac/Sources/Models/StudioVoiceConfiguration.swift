@@ -15,6 +15,7 @@ struct StudioVoiceConfiguration: Codable, Equatable {
     init(draft: AhaKeyStudioDraft, fallback: VoiceProcessingPolicy) {
         entries = AhaKeyModeSlot.allCases.map { mode in
             var key = draft.draft(for: mode).key(for: .voice)
+            if key.voicePreset?.availableInV1 != true { key.voicePreset = .custom }
             key.voiceProcessingPolicy = key.voiceProcessingPolicy ?? fallback
             return Entry(mode: mode, key: key)
         }
@@ -45,18 +46,31 @@ struct StudioVoiceConfiguration: Codable, Equatable {
 
     var routeDraft: AhaKeyStudioDraft { overlay(on: .default) }
 
+    /// Resolve the same fallback the inspector displays and reject invalid host
+    /// settings before any hardware write is attempted.
+    func preparing(_ draft: AhaKeyKeyDraft, mode: AhaKeyModeSlot) throws -> AhaKeyKeyDraft {
+        guard draft.role == .voice, let index = entries.firstIndex(where: { $0.mode == mode }) else {
+            throw StudioVoiceConfigurationStore.Failure.invalidConfiguration
+        }
+        var key = draft
+        if key.voicePreset?.availableInV1 != true { key.voicePreset = .custom }
+        key.voiceProcessingPolicy = key.voiceProcessingPolicy ?? self.key(for: mode).voiceProcessingPolicy
+        var next = self
+        next.entries[index].key = key
+        guard next.isValid else { throw StudioVoiceConfigurationStore.Failure.invalidConfiguration }
+        return key
+    }
+
     func committing(key: AhaKeyKeyDraft, mode: AhaKeyModeSlot,
                     actual: OrdinaryKeyReadback) throws -> Self {
-        guard key.role == .voice, actual.keyIndex == 0, actual.mode == UInt8(mode.rawValue),
-              try StudioKeyWriteProposal.make(key: key, mode: mode) == actual else {
+        let prepared = try preparing(key, mode: mode)
+        guard actual.keyIndex == 0, actual.mode == UInt8(mode.rawValue),
+              try StudioKeyWriteProposal.make(key: prepared, mode: mode) == actual else {
             throw ConfirmedOrdinaryKeySetting.Failure.mismatch
         }
         var next = self
-        guard let index = next.entries.firstIndex(where: { $0.mode == mode }) else {
-            throw StudioVoiceConfigurationStore.Failure.invalidConfiguration
-        }
-        next.entries[index].key = key
-        guard next.isValid else { throw StudioVoiceConfigurationStore.Failure.invalidConfiguration }
+        let index = next.entries.firstIndex { $0.mode == mode }!
+        next.entries[index].key = prepared
         return next
     }
 

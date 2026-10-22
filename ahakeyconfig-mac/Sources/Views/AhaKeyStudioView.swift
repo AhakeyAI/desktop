@@ -87,6 +87,7 @@ struct AhaKeyStudioView: View {
         for slot in AhaKeyModeSlot.allCases {
             var mode = editable.draft(for: slot)
             var voice = mode.key(for: .voice)
+            if voice.voicePreset?.availableInV1 != true { voice.voicePreset = .custom }
             voice.voiceProcessingPolicy = voice.voiceProcessingPolicy ?? applied.key(for: slot).voiceProcessingPolicy
             mode.updateKey(voice); editable.updateMode(mode)
         }
@@ -144,6 +145,7 @@ struct AhaKeyStudioView: View {
                 studioDraft = prepared
                 if let applied = try? StudioVoiceConfigurationStore.loadOrMigrate(draft: prepared, fallback: .legacy()) {
                     voiceConfiguration = applied
+                    voiceConfigurationError = nil
                 }
             }
         }
@@ -5439,9 +5441,14 @@ private extension AhaKeyStudioView {
     func saveInlineKey(overwrite: StudioInlineKeyConflict? = nil) {
         guard !inspectorSession.isBusy, let target = inlineKeyTarget,
               let baselineFact = inlineKeyFact, let mode = AhaKeyModeSlot(rawValue: Int(target.mode)) else { return }
-        let submittedKey = overwrite?.voiceDraft ?? currentSelectedKey
+        let submittedKey: AhaKeyKeyDraft
         let desired: OrdinaryKeyReadback
-        do { desired = try overwrite?.desired ?? StudioKeyWriteProposal.make(key: submittedKey, mode: mode) }
+        do {
+            let draft = overwrite?.voiceDraft ?? currentSelectedKey
+            submittedKey = target.index == 0 ? try voiceConfiguration.preparing(draft, mode: mode) : draft
+            desired = try overwrite?.desired ?? StudioKeyWriteProposal.make(key: submittedKey, mode: mode)
+            if target.index == 0, overwrite == nil { setInlineDraft(submittedKey, target: target) }
+        }
         catch { inlineKeyMessage = error.localizedDescription; return }
         let expected = overwrite?.actual ?? baselineFact.value
         let deviceID = overwrite?.deviceID ?? baselineFact.deviceID
@@ -5572,7 +5579,7 @@ private extension AhaKeyStudioView {
         voiceConfiguration = applied
         voiceConfigurationError = nil
         var baseline = lastSyncedDraft.draft(for: mode)
-        baseline.updateKey(key)
+        baseline.updateKey(applied.key(for: mode))
         lastSyncedDraft.updateMode(baseline)
     }
 }

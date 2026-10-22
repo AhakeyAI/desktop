@@ -148,4 +148,37 @@ final class StudioVoiceConfigurationTests: XCTestCase {
         XCTAssertNotEqual(reconciled, voice)
     }
 
+    func testLegacyModesWithoutUsablePresetDoNotPauseOtherModes() throws {
+        for missing: VoicePreset? in [nil, .codex] {
+            var old = AhaKeyStudioDraft.default
+            var mode = old.draft(for: .mode1)
+            var voice = mode.key(for: .voice)
+            voice.voicePreset = missing
+            mode.updateKey(voice); old.updateMode(mode)
+            let expected = VoiceRelayService.buildRoutes(from: old)
+            let migrated = try StudioVoiceConfigurationStore.loadOrMigrate(draft: old, fallback: policy, defaults: defaults())
+            XCTAssertTrue(migrated.isValid)
+            XCTAssertEqual(migrated.key(for: .mode1).voicePreset, .custom)
+            let actual = VoiceRelayService.buildRoutes(from: migrated.routeDraft)
+            XCTAssertEqual(actual.map(\.mode), expected.map(\.mode))
+            XCTAssertEqual(actual.map(\.binding), expected.map(\.binding))
+            XCTAssertEqual(actual.map(\.action), expected.map(\.action))
+            XCTAssertTrue(actual.contains { $0.mode == .mode2 })
+        }
+    }
+
+    func testRestoredDefaultsResolveDisplayedPolicyBeforeHardwareCommit() throws {
+        let applied = StudioVoiceConfiguration(draft: .default, fallback: policy)
+        let restored = AhaKeyModeDraft.default(for: .mode2).key(for: .voice)
+        XCTAssertNil(restored.voiceProcessingPolicy)
+        let prepared = try applied.preparing(restored, mode: .mode2)
+        XCTAssertEqual(prepared.voiceProcessingPolicy, applied.key(for: .mode2).voiceProcessingPolicy)
+        let actual = try StudioKeyWriteProposal.make(key: restored, mode: .mode2)
+        let saved = try applied.committing(key: restored, mode: .mode2, actual: actual)
+        XCTAssertEqual(saved.key(for: .mode2), prepared)
+        var invalid = restored
+        invalid.voiceProcessingPolicy = .init(shortPressAhaType: false, longPressAhaType: false, longPressThresholdMs: -1)
+        XCTAssertThrowsError(try applied.preparing(invalid, mode: .mode2))
+    }
+
 }
