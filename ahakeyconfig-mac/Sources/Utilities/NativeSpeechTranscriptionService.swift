@@ -464,84 +464,10 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
     }
 
-    /// 流式 + 同一段录音里停顿后续说：多数帧里 `formattedString` 是「从本段开录至今的整段」；  
-    /// 若用英文空格去拼两段中文，或把「同一句的改判」与「下一段整句」都旧+新硬接，就会叠出很多遍。  
-    /// 结束提交：另见 `hasCommittedThisRecording`。
+    /// One recognition task revises the full hypothesis, including earlier words.
+    /// Treat each nonempty result as a replacement rather than concatenating it.
     private func applyStreamingTranscriptionPartial(_ newRaw: String) {
-        let newT = newRaw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if newT.isEmpty { return }
-
-        let oldT = currentTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
-        if oldT.isEmpty {
-            currentTranscript = newT
-            return
-        }
-        if newT == oldT { return }
-        if newT.hasPrefix(oldT) {
-            currentTranscript = newT
-            return
-        }
-        if oldT.hasPrefix(newT) {
-            return
-        }
-        if newT.contains(oldT), newT.count > oldT.count {
-            currentTranscript = newT
-            return
-        }
-        if oldT.contains(newT) {
-            return
-        }
-        if let merged = Self.mergeByTailHeadOverlap(prior: oldT, next: newT) {
-            currentTranscript = merged
-            return
-        }
-        if Self.commonPrefixLength(oldT, newT) >= 3 {
-            currentTranscript = newT
-            return
-        }
-        if newT.count <= 6, let a = oldT.last, let b = newT.first, Self.isCJK(a), Self.isCJK(b) {
-            currentTranscript = oldT + newT
-            return
-        }
-        if let last = oldT.last, last == "。" || last == "！" || last == "？" {
-            if let b = newT.first, Self.isCJK(b) {
-                currentTranscript = oldT + newT
-                return
-            }
-        }
-        // 不盲拼长串；以本次整段假设为准
-        currentTranscript = newT
-    }
-
-    private static func commonPrefixLength(_ a: String, _ b: String) -> Int {
-        var n = 0
-        for (x, y) in zip(a, b) {
-            if x == y { n += 1 } else { break }
-        }
-        return n
-    }
-
-    private static func mergeByTailHeadOverlap(prior: String, next: String) -> String? {
-        if prior.isEmpty { return next }
-        if next.isEmpty { return prior }
-        let maxK = min(prior.count, next.count)
-        guard maxK > 0 else { return nil }
-        for k in stride(from: maxK, through: 1, by: -1) {
-            if String(prior.suffix(k)) == String(next.prefix(k)) {
-                return prior + next.dropFirst(k)
-            }
-        }
-        return nil
-    }
-
-    private static func isCJK(_ ch: Character) -> Bool {
-        for s in ch.unicodeScalars {
-            let v = s.value
-            if (0x4E00 ... 0x9FFF).contains(v) { return true }
-            if (0x3400 ... 0x4DBF).contains(v) { return true }
-            if (0x3000 ... 0x303F).contains(v) { return true }
-        }
-        return false
+        currentTranscript = SpeechTranscriptSnapshot.applying(newRaw, to: currentTranscript)
     }
 
     private var pendingFinalizeBypassAhaType = false
@@ -549,8 +475,8 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     private func handleRecognition(result: SFSpeechRecognitionResult?, error: Error?) {
         if let result {
             let newText = result.bestTranscription.formattedString
-            // 流式结果：同一句会以前缀方式变长，直接取 new 即可；中间停顿后系统可能只返回
-            // 新一段文字（不含前句），再整串赋值会顶掉前句——须按前缀关系合并，否则拼接。
+            // This callback belongs to one generation-checked recognition task.
+            // Its revised hypothesis can change the beginning as well as the end.
             if !newText.isEmpty {
                 applyStreamingTranscriptionPartial(newText)
                 transcriptPreview = currentTranscript
