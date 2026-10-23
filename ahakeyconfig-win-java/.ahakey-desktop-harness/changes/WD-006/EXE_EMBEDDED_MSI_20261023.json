@@ -1,0 +1,8 @@
+{
+  "installer": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD006-LocalModel-20261023\\installer-validated\\AhaKeyStudio-1.0.6.exe",
+  "msi": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-wix-validated\\images\\win-exe.image\\AhaKeyStudio-1.0.6.msi",
+  "msi_bytes": 287445892,
+  "embedded_offset": 565516,
+  "msi_sha256": "9d115864922d803753919825a464df5b154c55c0159fea7e8640cac205891585",
+  "exe_embeds_exact_validated_msi": true
+}

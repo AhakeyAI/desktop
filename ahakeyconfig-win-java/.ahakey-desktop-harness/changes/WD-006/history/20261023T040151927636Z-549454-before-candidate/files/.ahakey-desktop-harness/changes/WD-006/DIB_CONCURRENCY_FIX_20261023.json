@@ -1,0 +1,25 @@
+{
+  "change": "WD-006",
+  "at": "2026-10-23T03:38:26.741763+00:00",
+  "reason": "fresh reviewer blocker: synchronized final injection could stall F18 hook",
+  "execution_output_chunk": "1fa5fa",
+  "production_compile_exit_code": 0,
+  "test_compile_exit_code": 0,
+  "lifecycle_exit_code": 0,
+  "lifecycle_checks": 37,
+  "files": [
+    {
+      "path": "src/main/java/com/example/ahakey/service/VoiceInputManager.java",
+      "sha256": "f0e1c5438e0f7247334b0c362722b445ee9b375883ab2ab00cc61a2b662b1bfe"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/speech/SpeechLifecycleCheck.java",
+      "sha256": "3bd2ac4cef71b377d3e6561cfe0e36a38bc8537278d6bf3cad280ea4f6a4373b"
+    }
+  ],
+  "log": {
+    "path": ".ahakey-desktop-harness/changes/WD-006/DIB_LIFECYCLE_20261023_03.log",
+    "sha256": "e2f903b1a41813e6329a01bdb436988c9be85c956c7f9a151b33b8bade3004e5"
+  },
+  "submitted": false
+}
