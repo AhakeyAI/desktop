@@ -270,6 +270,12 @@ public final class DeviceMaintenancePane {
             daemon("firmware-read-version", () -> {
                 try {
                     var caps = bleManager.queryDeviceCapabilities();
+                    if (caps == null && bleManager.lacksCapabilityQuery()) {
+                        throw new IllegalStateException(text(
+                            localize("这把键盘的固件较早，读不到版本号。如需更新固件，请勾选“高级选项：我了解风险，允许降级”后继续"),
+                            "This keyboard runs older firmware that cannot report its version. To update it, tick \"Advanced: I understand the risk and allow downgrade\" and continue"
+                        ));
+                    }
                     if (caps == null && bleManager.isCatalogKeyFirmware()) {
                         throw new IllegalStateException(text(
                             localize("当前键盘是新一代固件，这个客户端版本读不到它的版本号"),

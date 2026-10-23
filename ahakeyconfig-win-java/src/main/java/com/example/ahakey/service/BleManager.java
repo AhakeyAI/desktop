@@ -111,6 +111,8 @@ public class BleManager {
     private volatile long protocolCheckedSession = -1;
     /** Session in which 0x9F returned a firmware catalog key (newer firmware). */
     private volatile long catalogFirmwareSession = -1;
+    /** Session in which 0x9F went unanswered; the firmware will not start answering later. */
+    private volatile long capabilityTimeoutSession = -1;
     private volatile AhaKeyResponseParser.DeviceCapabilities stabilizedCapabilities;
     private volatile long lastStatusUpdateNanos;
     private volatile boolean usbReady;
@@ -540,6 +542,11 @@ public class BleManager {
     }
 
     public AhaKeyResponseParser.DeviceCapabilities queryDeviceCapabilities() throws Exception {
+        if (capabilityTimeoutSession == activeSession) {
+            // Older firmware (e.g. official v1.1.0) has no 0x9F; do not wait
+            // another 15 s on every settings page for the same connection.
+            return null;
+        }
         lockDeviceTransaction();
         try {
             pendingNotifyFrame = null;
@@ -552,7 +559,10 @@ public class BleManager {
                 // Older firmware (e.g. official v1.1.0) does not answer 0x9F;
                 // newer firmware always does. Remember the outcome so later
                 // guarded commands do not wait for another timeout.
-                if (activeSession == session) protocolCheckedSession = session;
+                if (activeSession == session) {
+                    protocolCheckedSession = session;
+                    if (!(e instanceof DeviceCommandException)) capabilityTimeoutSession = session;
+                }
                 throw e;
             }
             if (activeSession == session) {
@@ -739,6 +749,11 @@ public class BleManager {
 
         public byte command() { return command; }
         public int status() { return status; }
+    }
+
+    /** True when this connection's firmware did not answer 0x9F (older firmware). */
+    public boolean lacksCapabilityQuery() {
+        return capabilityTimeoutSession == activeSession;
     }
 
     public boolean isCatalogKeyFirmware() {
@@ -1113,6 +1128,7 @@ public class BleManager {
         stabilizedContractSession = -1;
         protocolCheckedSession = -1;
         catalogFirmwareSession = -1;
+        capabilityTimeoutSession = -1;
         physicalStatusFreshness.invalidateSession(activeSession);
         clearApprovalCache();
         lastStatusUpdateNanos = 0;

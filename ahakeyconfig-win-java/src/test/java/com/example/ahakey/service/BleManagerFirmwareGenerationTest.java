@@ -104,6 +104,14 @@ class BleManagerFirmwareGenerationTest {
                 "a 0x9F timeout is remembered for the connection");
             assertEquals(2, usb.sentCommands.stream()
                 .filter(code -> code == AhaKeyProtocol.CMD_TASK_HEARTBEAT).count());
+
+            // Settings pages ask again; they get an immediate answer, no new wait.
+            long started = System.nanoTime();
+            assertNull(manager.queryDeviceCapabilities());
+            assertTrue(System.nanoTime() - started < TimeUnit.MILLISECONDS.toNanos(200));
+            assertTrue(manager.lacksCapabilityQuery());
+            assertEquals(1, usb.sentCommands.stream()
+                .filter(code -> code == AhaKeyProtocol.CMD_QUERY_CAPABILITIES).count());
         } finally {
             BleManager.setResponseTimeoutForTesting(0);
             manager.shutdown();
