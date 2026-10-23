@@ -1,0 +1,57 @@
+{
+  "at": "2026-10-23T03:45:33.390014+00:00",
+  "role": "DIB",
+  "verification": "resource hashes and 87 scope-outside bytes independently rechecked; no new audio execution",
+  "files": [
+    {
+      "path": "pom.xml",
+      "sha256": "b6fa46812aa860758e2e54db7d44ccd224f1b3a8f16ea08ab5ccca73e9055b0b"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/config/ModelConfig.java",
+      "sha256": "d201444fc438db279fa88721239ab84e46390853791b7f358dd3cc7f52ba85d1"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/SpeechService.java",
+      "sha256": "4f2551fcc3c519d30b3cfe84daf398bebc05078c77bec48facd17d2fcbd02b34"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/VoiceInputManager.java",
+      "sha256": "f0e1c5438e0f7247334b0c362722b445ee9b375883ab2ab00cc61a2b662b1bfe"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/sherpa/LibraryLoader.java",
+      "sha256": "122336c83ed023b70452f25d137f323c3c1debaef1c1e31f8ca50f137fd60f79"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/App.java",
+      "sha256": "a23aa9be360dbfbebecffdf02e0df7f7de5e45f6d4e856c1308e6b0cbe2f37a8"
+    },
+    {
+      "path": "src/main/resources/model_config.properties",
+      "sha256": "bffbce2f84b05bc2cc328ada986bcf8d643e2b140b81642f35efdaef1155f91b"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/speech/SpeechLifecycleCheck.java",
+      "sha256": "3bd2ac4cef71b377d3e6561cfe0e36a38bc8537278d6bf3cad280ea4f6a4373b"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/speech/SpeechNativeCheck.java",
+      "sha256": "109ebcc661f673fba38dfe3d18eab8779da443c352052d3ebe62302a654b8ae4"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/speech/SpeechNativeFailureCheck.java",
+      "sha256": "d6dfb2c07b1b0529a2dd1861dd2d0d7695edc6a2f01826792ebcd6499d0b6508"
+    },
+    {
+      "path": "scripts/package-local-model.ps1",
+      "sha256": "d8ff6a56cb4c7f57b03acfe10686fa75b7da81d1083614bce689036e2774bccc"
+    },
+    {
+      "path": "third-party/sherpa-onnx-java-api-1.13.3.jar",
+      "sha256": "4a1fabf547d5e3bb5c9b0ddfc767142692cabe658da84f16adfafd519149b082"
+    }
+  ],
+  "assets_verified_count": 7,
+  "outside_scope_unchanged_count": 87
+}

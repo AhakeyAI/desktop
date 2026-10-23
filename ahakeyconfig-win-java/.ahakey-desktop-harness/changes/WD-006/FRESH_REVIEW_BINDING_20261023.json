@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "id": "WD-006",
+  "at": "2026-10-23T03:50:21.060526+00:00",
+  "decision": "pass",
+  "pack_sha256": "dce7f25c04590aa2db5e115d929a768b8ebe7af70ef76116eafa09a9adb63f74",
+  "pack_hash_method": "SHA256(json.dumps(pack, sort_keys=True, ensure_ascii=False, separators=(comma,colon)).encode(UTF-8)); matches desktop.py canonical/digest",
+  "session": "/root/voice_fresh_review",
+  "analysis": "已独立审阅实际start recovery与固定main源码；原慢速最终注入持锁导致F18 Hook阻塞已由DIB修复，外部回调/慢输出移至锁外并明确generation输出提交边界，独立重跑37项生命周期及并发检查PASS。12项当前文件SHA均与独立报告完全一致，正式pack changed_paths恰为该12项，ACTUAL_DIFF hash有效且无缺失start字节。打包配方安装身份问题也已修复，当前生产及配方未发现剩余静态阻断。父DLA新增两条官方WAV真实JNI重复识别/释放日志已阅读；Owner麦克风、GUI、安装、键盘及设备体验仍未验收，不声明UAT或发布PASS。",
+  "report": {
+    "path": ".ahakey-desktop-harness/changes/WD-006/FRESH_REVIEW_20261023.md",
+    "sha256": "1679931941a7dcb8cb6120cbea7f7e1d8ea1eda4f777229d871b636408b9a410"
+  },
+  "review_pack": {
+    "path": ".ahakey-desktop-harness/changes/WD-006/review_pack.json",
+    "canonical_sha256": "dce7f25c04590aa2db5e115d929a768b8ebe7af70ef76116eafa09a9adb63f74",
+    "diff_path": ".ahakey-desktop-harness/changes/WD-006/reviews/20261023T034817004540Z-6b2f2d/ACTUAL_DIFF.txt",
+    "diff_sha256": "0375446b406d1abf6838f7dded282f473cc32e57d07eaa78fdf2a7c481e8a35e",
+    "code_fingerprint": "e9928c761f70109b3e31235104ec78de826e24f520b87a77170b05356475969a"
+  },
+  "reviewed_files": {
+    "pom.xml": "b6fa46812aa860758e2e54db7d44ccd224f1b3a8f16ea08ab5ccca73e9055b0b",
+    "src/main/java/com/example/ahakey/App.java": "a23aa9be360dbfbebecffdf02e0df7f7de5e45f6d4e856c1308e6b0cbe2f37a8",
+    "src/main/java/com/example/ahakey/config/ModelConfig.java": "d201444fc438db279fa88721239ab84e46390853791b7f358dd3cc7f52ba85d1",
+    "src/main/java/com/example/ahakey/service/SpeechService.java": "4f2551fcc3c519d30b3cfe84daf398bebc05078c77bec48facd17d2fcbd02b34",
+    "src/main/java/com/example/ahakey/service/VoiceInputManager.java": "f0e1c5438e0f7247334b0c362722b445ee9b375883ab2ab00cc61a2b662b1bfe",
+    "src/main/java/com/example/ahakey/sherpa/LibraryLoader.java": "122336c83ed023b70452f25d137f323c3c1debaef1c1e31f8ca50f137fd60f79",
+    "src/main/resources/model_config.properties": "bffbce2f84b05bc2cc328ada986bcf8d643e2b140b81642f35efdaef1155f91b",
+    "src/test/java/com/example/ahakey/speech/SpeechLifecycleCheck.java": "3bd2ac4cef71b377d3e6561cfe0e36a38bc8537278d6bf3cad280ea4f6a4373b",
+    "src/test/java/com/example/ahakey/speech/SpeechNativeCheck.java": "109ebcc661f673fba38dfe3d18eab8779da443c352052d3ebe62302a654b8ae4",
+    "src/test/java/com/example/ahakey/speech/SpeechNativeFailureCheck.java": "d6dfb2c07b1b0529a2dd1861dd2d0d7695edc6a2f01826792ebcd6499d0b6508",
+    "scripts/package-local-model.ps1": "d8ff6a56cb4c7f57b03acfe10686fa75b7da81d1083614bce689036e2774bccc",
+    "third-party/sherpa-onnx-java-api-1.13.3.jar": "4a1fabf547d5e3bb5c9b0ddfc767142692cabe658da84f16adfafd519149b082"
+  },
+  "additional_evidence_read": [
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-006/NATIVE_WAV_0_20261023.log",
+      "sha256": "db2301c036d46db78e5297bee103ebd7f6a2441da144e7a04d6e47edf9cc0bc9",
+      "observation": "RECOGNIZED: 昨天是 monday today day is 礼拜二 the day after tomorrow 是星期三\nPASS real Sherpa JNI/WAV repeat and release",
+      "meaning": "父DLA执行的真实JNI/WAV日志已阅读；本fresh对话未重跑native，不将非空转写等同准确率验收。"
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-006/NATIVE_WAV_1_20261023.log",
+      "sha256": "39924772da540cfa6542434ec727c904beb8d5e65728b9e2a436753876afed24",
+      "observation": "RECOGNIZED: 这是第一种第二种种叫嗯与 always o s 什么意思啊\nPASS real Sherpa JNI/WAV repeat and release",
+      "meaning": "父DLA执行的真实JNI/WAV日志已阅读；本fresh对话未重跑native，不将非空转写等同准确率验收。"
+    }
+  ],
+  "limitations": [
+    "EXE尚待实际构建与内容/运行时验证；本结论不代替安装测试。",
+    "不启动App、Hook、麦克风或注入，不替Owner作出真实UAT结论。"
+  ]
+}

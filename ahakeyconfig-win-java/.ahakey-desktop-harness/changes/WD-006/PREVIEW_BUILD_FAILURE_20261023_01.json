@@ -1,0 +1,39 @@
+{
+  "at": "2026-10-23T03:53:34.084157+00:00",
+  "preview_token": "preview-20261023T035100762491Z-0eeedd",
+  "scope": "PREVIEW_ONLY",
+  "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-006\\preview-20261023T035100762491Z-0eeedd\\source",
+  "command": "./scripts/package-local-model.ps1 -SourceRoot '.ahakey-desktop-harness/previews/WD-006/preview-20261023T035100762491Z-0eeedd/source' -OutputRoot 'target/WD006-LocalModel-20261023' -ModelRoot 'target/wd006-dependencies/verified-models' -NativeJar 'target/wd006-dependencies/sherpa-onnx-native-lib-win-x64-v1.13.3.jar' -MavenRepository '.m2repo' -BleDriver 'BLE_tcp_driver.exe' -SherpaLicense 'target/wd006-dependencies/Sherpa-ONNX-LICENSE.txt'",
+  "exit_code": 1,
+  "completed": [
+    "Maven package (tests skipped)",
+    "jlink runtime",
+    "jpackage app-image",
+    "launcher API/native classpath validation"
+  ],
+  "failed": "jpackage --type exe: WiX light.exe exited 216; jpackage exited 1",
+  "artifacts": [
+    {
+      "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD006-LocalModel-20261023\\build.log",
+      "bytes": 1259,
+      "sha256": "10625c1ded49c956229fa51d60b52b65e417def8c5701258eb2827707185a0f2"
+    },
+    {
+      "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD006-LocalModel-20261023\\image\\AhaKeyStudio\\AhaKeyStudio.exe",
+      "bytes": 485888,
+      "sha256": "2d7064299659d48c3b1180a490cc9f61135bb485f2ccf22b35fa3cbd02fd4b48"
+    },
+    {
+      "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD006-LocalModel-20261023\\image\\AhaKeyStudio\\app\\AhaKeyStudio.cfg",
+      "bytes": 1226,
+      "sha256": "f3e40b680f378cc5485882d89da296062d78bb2ba35c5a811e6e3fb3f903eaae"
+    },
+    {
+      "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD006-LocalModel-20261023\\image\\AhaKeyStudio\\app\\ahakey-studio-1.0.0.jar",
+      "bytes": 647381,
+      "sha256": "e2225bbfb76d8c41d8132ba944ef2cd5c4dd0afb1ec089c93c33ce823d9e9c95"
+    }
+  ],
+  "installed_or_launched": false,
+  "production_or_frozen_report_modified": false
+}

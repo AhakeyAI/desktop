@@ -1,0 +1,64 @@
+{
+  "schema_version": 3,
+  "id": "WD-006",
+  "title": "基于main官方模型版补齐本地语音并准备EXE",
+  "revision": 1,
+  "phase": "CHANGE",
+  "status": "DRAFT",
+  "build_round": 0,
+  "assignment": {
+    "owner_record": ".ahakey-desktop-harness/evidence/20261023-wd006-main-model-owner-approval.md",
+    "record_sha256": "d547985527683efc9b58aabb01b4604a152ec82bd5bd7e6e6984b7b3897d513a",
+    "at": "2026-10-23T03:04:55+00:00"
+  },
+  "delivery_scope": "internal_integration",
+  "requirements": {
+    "ui_entry_changed": false,
+    "device_related": false,
+    "real_device": false,
+    "owner_uat": true
+  },
+  "allowed_paths": [
+    "pom.xml",
+    "src/main/java/com/example/ahakey/config/ModelConfig.java",
+    "src/main/java/com/example/ahakey/service/SpeechService.java",
+    "src/main/java/com/example/ahakey/service/VoiceInputManager.java",
+    "src/main/java/com/example/ahakey/sherpa/LibraryLoader.java",
+    "src/main/java/com/example/ahakey/App.java",
+    "src/main/resources/model_config.properties",
+    "src/test/java/com/example/ahakey/speech",
+    "scripts/package-local-model.ps1",
+    "third-party/sherpa-onnx-java-api-1.13.3.jar"
+  ],
+  "preserved_behaviors": [
+    "WD-005 OLED/灯光/协议/Hook/会话代码与数据模型不变",
+    "F18路由与系统Win+H语义、用户配置保持",
+    "不从eternal引入语音或其他功能，不引入模型版云账号/UI/固件",
+    "缺模型或JNI错误不能使主应用崩溃；无真实录音/注入测试不宣称通过"
+  ],
+  "approval_assets": [
+    "CONTRACT.md",
+    "REFERENCES.json",
+    "SOURCE_MANIFEST.json"
+  ],
+  "ui_mode": "existing",
+  "ui_note_ref": "CONTRACT.md",
+  "ui_current_refs": [],
+  "ui_preview_refs": [],
+  "mock_plan": "CONTRACT.md",
+  "checkpoints": [
+    "编译和生命周期/失败检查",
+    "固定模型与JNI的真实离线WAV识别",
+    "独立实际diff审阅",
+    "隔离EXE构建与内容核验；Owner实际体验另记"
+  ],
+  "approval": null,
+  "change_classification": [
+    "architecture_change",
+    "scope_expansion"
+  ],
+  "journey_ids": [
+    "J007"
+  ],
+  "review_policy": "high_impact"
+}

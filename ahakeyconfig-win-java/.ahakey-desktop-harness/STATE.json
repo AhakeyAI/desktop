@@ -5,21 +5,21 @@
     "product_approved": false,
     "approval": null
   },
-  "phase": "CHANGE",
-  "mode": "WAIT_OWNER_TASK",
-  "status": "awaiting_owner_task",
-  "active_change": null,
+  "phase": "VERIFY",
+  "mode": "CANDIDATE_GIT",
+  "status": "awaiting_actual_diff_review",
+  "active_change": "WD-006",
   "next_actor": "Owner",
-  "next_mode": "ASSIGN_TASK",
+  "next_mode": "GIT_SAVE",
   "owner_action": {
-    "required": false,
-    "action": "等待 Owner 按固件进度指派；不要求现在选择候选，不自动开工。"
+    "required": true,
+    "action": "先审查本项 CANDIDATE_GIT_PLAN.ps1 的精确清单，暂存后检查diff，由Owner执行commit；Agent不自动Git写。"
   },
   "test_action": {
     "required": false,
-    "reason": "没有当前测试任务；不运行构建或设备操作。"
+    "reason": "候选或结果存档中；不是新测试任务。"
   },
-  "revision": 98,
+  "revision": 105,
   "upgrade_history": [
     {
       "from": "0.2.0-pilot",
@@ -141,9 +141,9 @@
     }
   ],
   "workflow": "V1_CHANGE_IMPLEMENT_VERIFY_RELEASE",
-  "current_assignment": null,
+  "current_assignment": "WD-006",
   "current_investigation": null,
-  "updated_at": "2026-10-22T04:45:15+00:00",
+  "updated_at": "2026-10-23T03:55:38+00:00",
   "v1_runtime": {
     "installed": true,
     "version": "1.3.0",

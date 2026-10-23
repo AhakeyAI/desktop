@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-23T03:25:24.521866+00:00",
+  "execution_output_chunk": "2d773f",
+  "jdk": "17.0.19",
+  "production_command": "javac '-J-Dfile.encoding=UTF-8' -encoding UTF-8 -cp 'target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar' -d target/wd006-builder-check/classes '@target/wd006-builder-check/sources.txt'",
+  "production_exit_code": 0,
+  "production_stdout_stderr": "",
+  "test_compile_exit_code": 0,
+  "test_compile_stdout_stderr": "",
+  "note": "成功无输出，Tee-Object未创建空日志；此记录保留实际调用结果，非虚构编译器输出。"
+}

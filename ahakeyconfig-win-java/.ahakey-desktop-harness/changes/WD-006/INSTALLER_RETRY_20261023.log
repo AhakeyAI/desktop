@@ -1,0 +1,82 @@
+[11:54:20.425] Running candle.exe
+[11:54:20.651] Running light.exe
+[11:54:20.920] ��⵽ [light.exe] �汾 [3.14.1.8722]��
+[11:54:20.920] ��⵽ [candle.exe] �汾 [3.14.1.8722]��
+[11:54:20.920] ��⵽ WiX 3.14.1.8722���������ø߼����������
+[11:54:21.883] ʹ��Ĭ�ϳ������Դ InstallDirNotEmptyDlg.wxs [Not empty install directory dialog WiX project file]���� InstallDirNotEmptyDlg.wxs ���ӵ� resource-dir ���Խ��ж��ƣ���
+[11:54:21.885] MSI ProductCode��6389b9b1-d048-3171-962e-30f4e37e3c2d��
+[11:54:21.885] MSI UpgradeCode��03e5a934-ffca-3815-b455-7d49bf1ca1dc��
+[11:54:21.972] ʹ��Ĭ�ϳ������Դ main.wxs [�� WiX ��Ŀ�ļ�]���� main.wxs ���ӵ� resource-dir ���Խ��ж��ƣ���
+[11:54:21.974] ʹ��Ĭ�ϳ������Դ overrides.wxi [���� WiX ��Ŀ�ļ�]���� overrides.wxi ���ӵ� resource-dir ���Խ��ж��ƣ���
+[11:54:21.976] ����׼�� MSI ����: C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\images\win-exe.image\AhaKeyStudio-1.0.6.msi��
+[11:54:21.977] �������� MSI: C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\images\win-exe.image\AhaKeyStudio-1.0.6.msi��
+[11:54:21.996] Running candle.exe in C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\images\win-msi.image\AhaKeyStudio
+[11:54:22.369] Command [PID: 51144]:
+    candle.exe -nologo C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\config\main.wxs -ext WixUtilExtension -arch x64 -out C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\main.wixobj -dJpAppDescription=AhaKey Studio WD-006 Local Model Preview -dJpProductCode=6389b9b1-d048-3171-962e-30f4e37e3c2d -dJpAppName=AhaKeyStudio -dJpIsSystemWide=yes -dJpAllowDowngrades=yes -dJpIcon=C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\images\win-msi.image\AhaKeyStudio\AhaKeyStudio.exe -dJpAppSizeKb=314016 -dJpAppVersion=1.0.6 -dJpAllowUpgrades=yes -dJpProductUpgradeCode=03e5a934-ffca-3815-b455-7d49bf1ca1dc -dJpAppVendor=AhaKey -dJpConfigDir=C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\config
+[11:54:22.370] Output:
+    main.wxs
+[11:54:22.373] Returned: 0
+
+[11:54:22.373] Running candle.exe in C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\images\win-msi.image\AhaKeyStudio
+[11:54:22.718] Command [PID: 58528]:
+    candle.exe -nologo C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\config\bundle.wxf -ext WixUtilExtension -arch x64 -out C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\bundle.wixobj
+[11:54:22.718] Output:
+    bundle.wxf
+[11:54:22.718] Returned: 0
+
+[11:54:22.718] Running candle.exe in C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\images\win-msi.image\AhaKeyStudio
+[11:54:23.017] Command [PID: 64616]:
+    candle.exe -nologo C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\config\ui.wxf -ext WixUtilExtension -arch x64 -out C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\ui.wixobj
+[11:54:23.018] Output:
+    ui.wxf
+[11:54:23.018] Returned: 0
+
+[11:54:23.018] Running candle.exe in C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\images\win-msi.image\AhaKeyStudio
+[11:54:23.311] Command [PID: 32320]:
+    candle.exe -nologo C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\config\InstallDirNotEmptyDlg.wxs -ext WixUtilExtension -arch x64 -out C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\InstallDirNotEmptyDlg.wixobj -dJpAfterInstallDirDlg=VerifyReadyDlg
+[11:54:23.311] Output:
+    InstallDirNotEmptyDlg.wxs
+[11:54:23.311] Returned: 0
+
+[11:54:23.312] Running light.exe in C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\images\win-msi.image\AhaKeyStudio
+[11:54:42.399] Command [PID: 68380]:
+    light.exe -nologo -spdb -ext WixUtilExtension -out C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\images\win-exe.image\AhaKeyStudio-1.0.6.msi -ext WixUIExtension -b C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\config -sice:ICE27 -loc C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\config\MsiInstallerStrings_zh_CN.wxl -cultures:zh-CN C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\main.wixobj C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\bundle.wixobj C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\ui.wixobj C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\InstallDirNotEmptyDlg.wixobj
+[11:54:42.399] Output:
+    light.exe : error LGHT0217 : Error executing ICE action 'ICE01'. The most common cause of this kind of ICE failure is an incorrectly registered scripting engine. See http://wixtoolset.org/documentation/error217/ for details and how to solve this problem. The following string format was not expected by the external UI message logger: "The Windows Installer Service could not be accessed. This can occur if the Windows Installer is not correctly installed. Contact your support personnel for assistance.".
+    light.exe : error LGHT0217 : Error executing ICE action 'ICE02'. The most common cause of this kind of ICE failure is an incorrectly registered scripting engine. See http://wixtoolset.org/documentation/error217/ for details and how to solve this problem. The following string format was not expected by the external UI message logger: "The Windows Installer Service could not be accessed. This can occur if the Windows Installer is not correctly installed. Contact your support personnel for assistance.".
+    light.exe : error LGHT0217 : Error executing ICE action 'ICE03'. The most common cause of this kind of ICE failure is an incorrectly registered scripting engine. See http://wixtoolset.org/documentation/error217/ for details and how to solve this problem. The following string format was not expected by the external UI message logger: "The Windows Installer Service could not be accessed. This can occur if the Windows Installer is not correctly installed. Contact your support personnel for assistance.".
+    light.exe : error LGHT0217 : Error executing ICE action 'ICE04'. The most common cause of this kind of ICE failure is an incorrectly registered scripting engine. See http://wixtoolset.org/documentation/error217/ for details and how to solve this problem. The following string format was not expected by the external UI message logger: "The Windows Installer Service could not be accessed. This can occur if the Windows Installer is not correctly installed. Contact your support personnel for assistance.".
+    light.exe : error LGHT0217 : Error executing ICE action 'ICE05'. The most common cause of this kind of ICE failure is an incorrectly registered scripting engine. See http://wixtoolset.org/documentation/error217/ for details and how to solve this problem. The following string format was not expected by the external UI message logger: "The Windows Installer Service could not be accessed. This can occur if the Windows Installer is not correctly installed. Contact your support personnel for assistance.".
+    light.exe : error LGHT0217 : Error executing ICE action 'ICE06'. The most common cause of this kind of ICE failure is an incorrectly registered scripting engine. See http://wixtoolset.org/documentation/error217/ for details and how to solve this problem. The following string format was not expected by the external UI message logger: "The Windows Installer Service could not be accessed. This can occur if the Windows Installer is not correctly installed. Contact your support personnel for assistance.".
+    light.exe : error LGHT0217 : Error executing ICE action 'ICE07'. The most common cause of this kind of ICE failure is an incorrectly registered scripting engine. See http://wixtoolset.org/documentation/error217/ for details and how to solve this problem. The following string format was not expected by the external UI message logger: "The Windows Installer Service could not be accessed. This can occur if the Windows Installer is not correctly installed. Contact your support personnel for assistance.".
+    light.exe : error LGHT0216 : An unexpected Win32 exception with error code 0x643 occurred: Action - 'ICE09' ��װʱ�������ش���
+[11:54:42.401] Returned: 216
+
+[11:54:42.401] java.io.IOException: Command [light.exe, -nologo, -spdb, -ext, WixUtilExtension, -out, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\images\win-exe.image\AhaKeyStudio-1.0.6.msi, -ext, WixUIExtension, -b, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\config, -sice:ICE27, -loc, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\config\MsiInstallerStrings_zh_CN.wxl, -cultures:zh-CN, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\main.wixobj, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\bundle.wixobj, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\ui.wixobj, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\InstallDirNotEmptyDlg.wixobj] in C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\images\win-msi.image\AhaKeyStudio exited with 216 code
+	at jdk.jpackage/jdk.jpackage.internal.Executor.executeExpectSuccess(Executor.java:90)
+	at jdk.jpackage/jdk.jpackage.internal.WixPipeline.execute(WixPipeline.java:135)
+	at jdk.jpackage/jdk.jpackage.internal.WixPipeline.buildMsi(WixPipeline.java:99)
+	at jdk.jpackage/jdk.jpackage.internal.WinMsiBundler.buildMSI(WinMsiBundler.java:557)
+	at jdk.jpackage/jdk.jpackage.internal.WinMsiBundler.execute(WinMsiBundler.java:416)
+	at jdk.jpackage/jdk.jpackage.internal.WinExeBundler.bundle(WinExeBundler.java:104)
+	at jdk.jpackage/jdk.jpackage.internal.WinExeBundler.execute(WinExeBundler.java:77)
+	at jdk.jpackage/jdk.jpackage.internal.Arguments.generateBundle(Arguments.java:674)
+	at jdk.jpackage/jdk.jpackage.internal.Arguments.processArguments(Arguments.java:551)
+	at jdk.jpackage/jdk.jpackage.main.Main.execute(Main.java:91)
+	at jdk.jpackage/jdk.jpackage.main.Main.main(Main.java:52)
+[11:54:42.402] ���ڵ��Ե��ѱ�������Ŀ¼: C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug
+[11:54:42.402] jdk.jpackage.internal.PackagerException: java.io.IOException: Command [light.exe, -nologo, -spdb, -ext, WixUtilExtension, -out, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\images\win-exe.image\AhaKeyStudio-1.0.6.msi, -ext, WixUIExtension, -b, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\config, -sice:ICE27, -loc, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\config\MsiInstallerStrings_zh_CN.wxl, -cultures:zh-CN, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\main.wixobj, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\bundle.wixobj, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\ui.wixobj, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\InstallDirNotEmptyDlg.wixobj] in C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\images\win-msi.image\AhaKeyStudio exited with 216 code
+	at jdk.jpackage/jdk.jpackage.internal.WinMsiBundler.execute(WinMsiBundler.java:419)
+	at jdk.jpackage/jdk.jpackage.internal.WinExeBundler.bundle(WinExeBundler.java:104)
+	at jdk.jpackage/jdk.jpackage.internal.WinExeBundler.execute(WinExeBundler.java:77)
+	at jdk.jpackage/jdk.jpackage.internal.Arguments.generateBundle(Arguments.java:674)
+	at jdk.jpackage/jdk.jpackage.internal.Arguments.processArguments(Arguments.java:551)
+	at jdk.jpackage/jdk.jpackage.main.Main.execute(Main.java:91)
+	at jdk.jpackage/jdk.jpackage.main.Main.main(Main.java:52)
+Caused by: java.io.IOException: Command [light.exe, -nologo, -spdb, -ext, WixUtilExtension, -out, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\images\win-exe.image\AhaKeyStudio-1.0.6.msi, -ext, WixUIExtension, -b, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\config, -sice:ICE27, -loc, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\config\MsiInstallerStrings_zh_CN.wxl, -cultures:zh-CN, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\main.wixobj, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\bundle.wixobj, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\ui.wixobj, C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\wixobj\InstallDirNotEmptyDlg.wixobj] in C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\wd006-wix-debug\images\win-msi.image\AhaKeyStudio exited with 216 code
+	at jdk.jpackage/jdk.jpackage.internal.Executor.executeExpectSuccess(Executor.java:90)
+	at jdk.jpackage/jdk.jpackage.internal.WixPipeline.execute(WixPipeline.java:135)
+	at jdk.jpackage/jdk.jpackage.internal.WixPipeline.buildMsi(WixPipeline.java:99)
+	at jdk.jpackage/jdk.jpackage.internal.WinMsiBundler.buildMSI(WinMsiBundler.java:557)
+	at jdk.jpackage/jdk.jpackage.internal.WinMsiBundler.execute(WinMsiBundler.java:416)
+	... 6 more

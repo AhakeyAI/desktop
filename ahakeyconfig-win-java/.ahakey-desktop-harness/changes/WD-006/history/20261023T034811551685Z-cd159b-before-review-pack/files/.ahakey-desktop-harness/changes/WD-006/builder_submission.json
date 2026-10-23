@@ -1,0 +1,8 @@
+{
+  "at": "2026-10-23T03:47:21+00:00",
+  "build_round": 1,
+  "approval_sha256": "ced0fe5c76ca8b46db254c4459d620830791596fffc829d6d6811819ade6d93f",
+  "report_sha256": "1f798e2abbf32ade067d6b180feb85baae3e82767d873a41cbb6223713f4bc77",
+  "code_fingerprint": "e9928c761f70109b3e31235104ec78de826e24f520b87a77170b05356475969a",
+  "evidence_model": "phase_scoped_v1.3"
+}

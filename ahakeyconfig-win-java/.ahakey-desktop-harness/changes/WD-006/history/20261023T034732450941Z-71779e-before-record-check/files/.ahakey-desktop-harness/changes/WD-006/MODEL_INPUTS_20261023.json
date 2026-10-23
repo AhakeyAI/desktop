@@ -1,0 +1,52 @@
+{
+  "at": "2026-10-23T03:41:29.617201+00:00",
+  "main_source": "a2dae1a1772507b4d74201f045342599ebbf0603",
+  "model_revision": "8e40c43232a1c5c66c82111efc5820d3accca11b",
+  "upstream_model_license": "Apache-2.0 per pinned README",
+  "official_release_digests_verified": true,
+  "official_lfs_model_digests_verified": true,
+  "files": [
+    {
+      "path": "third-party/sherpa-onnx-java-api-1.13.3.jar",
+      "source_url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.3/sherpa-onnx-v1.13.3.jar",
+      "bytes": 175636,
+      "sha256": "4a1fabf547d5e3bb5c9b0ddfc767142692cabe658da84f16adfafd519149b082"
+    },
+    {
+      "path": "target/wd006-dependencies/sherpa-onnx-native-lib-win-x64-v1.13.3.jar",
+      "source_url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.3/sherpa-onnx-native-lib-win-x64-v1.13.3.jar",
+      "bytes": 7707183,
+      "sha256": "560926df020860b1e4549d299ac365eda3715660cc36f41e9c547cb7493302c7"
+    },
+    {
+      "path": "target/wd006-dependencies/verified-models/encoder.int8.onnx",
+      "source_url": "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-paraformer-bilingual-zh-en/resolve/8e40c43232a1c5c66c82111efc5820d3accca11b/encoder.int8.onnx",
+      "bytes": 165462184,
+      "sha256": "81a70226a8934e6ed92aa1d4fc486b428b5398e2f2619ed4897b7294cab90e9a"
+    },
+    {
+      "path": "target/wd006-dependencies/verified-models/decoder.int8.onnx",
+      "source_url": "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-paraformer-bilingual-zh-en/resolve/8e40c43232a1c5c66c82111efc5820d3accca11b/decoder.int8.onnx",
+      "bytes": 71664561,
+      "sha256": "f3cca9f77bb9d93c8fcbfb63ae617b6b1ee96818df3aa3b151c40658fe38594f"
+    },
+    {
+      "path": "target/wd006-dependencies/verified-models/tokens.txt",
+      "source_url": "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-paraformer-bilingual-zh-en/resolve/8e40c43232a1c5c66c82111efc5820d3accca11b/tokens.txt",
+      "bytes": 75756,
+      "sha256": "59aba8873a2ed1e122c25fee421e25f283b63290efbde85c1f01a853d83cb6e6"
+    },
+    {
+      "path": "target/wd006-dependencies/models/0.wav",
+      "source_url": "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-paraformer-bilingual-zh-en/resolve/8e40c43232a1c5c66c82111efc5820d3accca11b/test_wavs/0.wav",
+      "bytes": 321744,
+      "sha256": "7d93384ca14702cc584a7a33fe2fed92e89e708549161cb12ea38c916882103b"
+    },
+    {
+      "path": "target/wd006-dependencies/models/1.wav",
+      "source_url": "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-paraformer-bilingual-zh-en/resolve/8e40c43232a1c5c66c82111efc5820d3accca11b/test_wavs/1.wav",
+      "bytes": 163244,
+      "sha256": "8bfb42c963e623ebab31b81ff4404867d07d3102507c87ac14577c4c61663b8c"
+    }
+  ]
+}

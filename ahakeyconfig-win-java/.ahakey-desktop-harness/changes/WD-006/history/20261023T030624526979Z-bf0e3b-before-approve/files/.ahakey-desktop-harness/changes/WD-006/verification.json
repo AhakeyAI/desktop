@@ -1,0 +1,26 @@
+{
+  "change_id": "WD-006",
+  "checks": {
+    "machine": {
+      "status": "pending"
+    },
+    "core_regression": {
+      "status": "pending"
+    },
+    "special_regression": {
+      "status": "pending"
+    },
+    "mock": {
+      "status": "pending"
+    },
+    "real_device": {
+      "status": "pending"
+    },
+    "owner_uat": {
+      "status": "pending"
+    },
+    "review": {
+      "status": "pending"
+    }
+  }
+}

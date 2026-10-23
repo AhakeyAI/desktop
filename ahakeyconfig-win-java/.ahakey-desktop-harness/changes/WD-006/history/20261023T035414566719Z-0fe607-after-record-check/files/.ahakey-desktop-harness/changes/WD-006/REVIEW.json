@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "id": "WD-006",
+  "pack_sha256": "dce7f25c04590aa2db5e115d929a768b8ebe7af70ef76116eafa09a9adb63f74",
+  "reviewer_role": "DLA",
+  "review_session": "/root DLA 20261023 WD-006",
+  "builder_session": "/root/voice_builder",
+  "independence": "separate_dla_conversation",
+  "decision": "pass",
+  "scope_conclusion": "12项变化全部属于批准的main模型方案适配/配方/验证范围，原始字节齐全；无scope外生产变更。",
+  "per_file": [
+    {
+      "path": "pom.xml",
+      "purpose": "替换旧ONNX Java依赖",
+      "reviewed_hunks": "固定官方1.13.3 API systemPath；独立打包显式补入API/native，旧onnxruntime不混入。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/package-local-model.ps1",
+      "purpose": "隔离本地模型EXE配方",
+      "reviewed_hunks": "全文复核：固定SHA、全新输出、离线Maven、源false/staging true、匹配资源JAR、jlink和Main入口；不安装/启动/kill；实际构建必须用snapshot，旧安装范围保留。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/App.java",
+      "purpose": "初始化可用性日志",
+      "reviewed_hunks": "两处日志diff，真实F18 start/stop回调及系统路由无改动。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/config/ModelConfig.java",
+      "purpose": "流式模型路径配置",
+      "reviewed_hunks": "默认类型与encoder/decoder getter；旧公开getter保留、默认enabled false不触发JNI。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/SpeechService.java",
+      "purpose": "官方流式Paraformer适配",
+      "reviewed_hunks": "完整新实现及旧服务替换边界复核；单worker/session生命周期、松键flush、停止解阻塞、关闭先stream再recognizer；路径URI/中文内容缓存；真实JNI两段WAV重复识别通过。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/VoiceInputManager.java",
+      "purpose": "激活录音输出状态协调",
+      "reviewed_hunks": "完整实现和旧final路径复核；旧AhaType仅原文返回不丢云逻辑；partial不注入、generation取消、一次final、UI回调保留；fresh发现慢注入持锁已改为锁外，37项检查通过。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/sherpa/LibraryLoader.java",
+      "purpose": "统一官方JNI加载",
+      "reviewed_hunks": "空OnlineStream触发官方once-only loader；javap ptr0确认；异常保持loaded false，官方JAR真实加载通过。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/model_config.properties",
+      "purpose": "显式默认关闭与路径",
+      "reviewed_hunks": "保留5秒status poll，主线false，外部三个模型路径与打包目录一致。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/speech/SpeechLifecycleCheck.java",
+      "purpose": "离线生命周期并发回归",
+      "reviewed_hunks": "实际断言检查PCM、缺空模型、中文缓存、停止flush、关闭取消、JNI错误、第二次录音、慢注入不阻塞F18及取消先赢；37项通过。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/speech/SpeechNativeCheck.java",
+      "purpose": "真实JNI模型探针",
+      "reviewed_hunks": "两段官方WAV各执行两次文本非空且一致，最终release重复安全；不打开麦克风。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/speech/SpeechNativeFailureCheck.java",
+      "purpose": "缺JNI失败隔离",
+      "reviewed_hunks": "独立JVM无native资源，真实UnsatisfiedLinkError且loaded=false。",
+      "within_contract": true
+    },
+    {
+      "path": "third-party/sherpa-onnx-java-api-1.13.3.jar",
+      "purpose": "固定官方API二进制",
+      "reviewed_hunks": "官方release digest一致；jar内容和javap入口核对，无eternal文件。",
+      "within_contract": true
+    }
+  ],
+  "production_journey": "原启动入口读取ModelConfig，初始化VoiceInputManager；既有F18路由调用start/stop，SpeechService官方Paraformer单stream在松键flush，final经manager回调与原KeyboardInjector输出，错误反馈现有界面。",
+  "preserved_behavior_assessment": "WD-005范围外87项原字节完全相同；F18系统Win+H路由和OLED/灯光/协议未改。GUI、真实麦克风、注入、安装升级由Owner确认，未自动执行。",
+  "baseline_assessment": "WD-005 CLOSED的生产指纹与本任务起点相同；start恢复完整，不重用旧artifact的语音结论。新实际JNI检查不等于整机UAT。",
+  "protocol_assessment": "本轮无设备协议或Firmware改动；本地音频16k mono PCM与官方模型接口由真实WAV验证。",
+  "risk_level": "high",
+  "fresh_review_required": true,
+  "risk_rationale": "本地识别引擎替换与JNI生命周期为architecture_change，采用独立fresh审阅并修复其发现。",
+  "findings": [
+    {
+      "issue": "慢文本注入持有manager锁可能阻塞F18 Hook",
+      "resolution": "fixed",
+      "evidence": "DIB_CONCURRENCY_FIX_20261023.md、37项测试及FRESH_REVIEW_20261023.md复查"
+    },
+    {
+      "issue": "配方新增安装身份可能导致与原应用并存",
+      "resolution": "fixed",
+      "evidence": "移除新增UUID/per-user，沿用旧名称vendor默认安装范围；实际升级体验待Owner"
+    }
+  ],
+  "baseline_gap_owner_record": null,
+  "fresh_review_record": ".ahakey-desktop-harness/changes/WD-006/FRESH_REVIEW_BINDING_20261023.json"
+}

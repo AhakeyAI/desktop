@@ -1,0 +1,12 @@
+11:19:18.103 [ahakey-local-speech] ERROR com.example.ahakey.service.SpeechService -- 本地语音录音/识别失败
+javax.sound.sampled.LineUnavailableException: fake unavailable
+	at com.example.ahakey.service.SpeechLifecycleCheck.lambda$main$5(SpeechLifecycleCheck.java:82)
+	at com.example.ahakey.service.SpeechService.record(SpeechService.java:141)
+	at com.example.ahakey.service.SpeechService.lambda$startListening$2(SpeechService.java:132)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+11:19:18.118 [main] ERROR com.example.ahakey.service.VoiceInputManager -- 本地语音初始化失败
+java.lang.UnsatisfiedLinkError: fake missing DLL
+	at com.example.ahakey.service.SpeechLifecycleCheck$3.initialize(SpeechLifecycleCheck.java:105)
+	at com.example.ahakey.service.VoiceInputManager.initialize(VoiceInputManager.java:47)
+	at com.example.ahakey.service.SpeechLifecycleCheck.main(SpeechLifecycleCheck.java:107)
+PASS SpeechLifecycleCheck: 26 checks; no devices or keyboard injection

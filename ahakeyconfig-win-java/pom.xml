@@ -76,11 +76,13 @@
             <version>1.4.11</version>
         </dependency>
 
-        <!-- ONNX Runtime for SenseVoice-Small -->
+        <!-- Official Sherpa API; the matching native resource JAR is supplied by packaging. -->
         <dependency>
-            <groupId>com.microsoft.onnxruntime</groupId>
-            <artifactId>onnxruntime</artifactId>
-            <version>1.16.3</version>
+            <groupId>com.k2fsa.sherpa</groupId>
+            <artifactId>sherpa-onnx-java-api</artifactId>
+            <version>1.13.3</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/third-party/sherpa-onnx-java-api-1.13.3.jar</systemPath>
         </dependency>
     </dependencies>
 

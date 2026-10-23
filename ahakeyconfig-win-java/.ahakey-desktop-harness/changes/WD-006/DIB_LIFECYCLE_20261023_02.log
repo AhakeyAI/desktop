@@ -1,0 +1,18 @@
+11:22:40.231 [ahakey-local-speech] ERROR com.example.ahakey.service.SpeechService -- 本地语音录音/识别失败
+javax.sound.sampled.LineUnavailableException: fake unavailable
+	at com.example.ahakey.service.SpeechLifecycleCheck.lambda$main$7(SpeechLifecycleCheck.java:96)
+	at com.example.ahakey.service.SpeechService.record(SpeechService.java:146)
+	at com.example.ahakey.service.SpeechService.lambda$startListening$3(SpeechService.java:137)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+11:22:40.243 [main] ERROR com.example.ahakey.service.VoiceInputManager -- 本地语音初始化失败
+java.lang.UnsatisfiedLinkError: fake missing DLL
+	at com.example.ahakey.service.SpeechLifecycleCheck$4.initialize(SpeechLifecycleCheck.java:119)
+	at com.example.ahakey.service.VoiceInputManager.initialize(VoiceInputManager.java:48)
+	at com.example.ahakey.service.SpeechLifecycleCheck.main(SpeechLifecycleCheck.java:121)
+11:22:40.245 [main] WARN com.example.ahakey.config.ModelConfig -- 未找到模型配置文件，使用默认配置
+11:22:40.245 [main] ERROR com.example.ahakey.service.VoiceInputManager -- 本地语音初始化失败
+java.lang.IllegalStateException: 此版本未启用本地语音模型
+	at com.example.ahakey.service.SpeechService.initialize(SpeechService.java:53)
+	at com.example.ahakey.service.VoiceInputManager.initialize(VoiceInputManager.java:48)
+	at com.example.ahakey.service.SpeechLifecycleCheck.main(SpeechLifecycleCheck.java:126)
+PASS SpeechLifecycleCheck: 30 checks; no devices or keyboard injection

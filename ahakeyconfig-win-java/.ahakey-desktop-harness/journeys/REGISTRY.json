@@ -72,6 +72,23 @@
       "owner_record_sha256": "04879c694266ab63023e2e90c8b8a74247f010b70069d3a7c8767063ddab0359",
       "created_at": "2026-10-15T11:25:02+00:00",
       "status": "approved_reference"
+    },
+    {
+      "id": "J007",
+      "name": "Windows本地离线语音输入",
+      "trigger": "现有启动语音输入与F18入口",
+      "state_owner": "Windows语音服务负责模型与录音生命周期，沿用现有F18路由",
+      "protocol": "不修改键盘协议，沿用既有F18输入",
+      "failure_modes": [
+        "模型缺失、原生库加载失败、录音失败时明确反馈并保持主应用可用"
+      ],
+      "regression": [
+        "WD-005源码保持；原系统语音/F18路由保持"
+      ],
+      "owner_record": ".ahakey-desktop-harness/evidence/20261023-wd006-main-model-owner-approval.md",
+      "owner_record_sha256": "d547985527683efc9b58aabb01b4604a152ec82bd5bd7e6e6984b7b3897d513a",
+      "created_at": "2026-10-23T03:04:56+00:00",
+      "status": "approved_reference"
     }
   ]
 }

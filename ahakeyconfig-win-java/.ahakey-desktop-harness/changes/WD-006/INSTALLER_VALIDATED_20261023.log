@@ -1,0 +1,55 @@
+[11:56:10.393] Running candle.exe
+[11:56:10.575] Running light.exe
+[11:56:10.833] 检测到 [candle.exe] 版本 [3.14.1.8722]。
+[11:56:10.833] 检测到 [light.exe] 版本 [3.14.1.8722]。
+[11:56:10.835] 检测到 WiX 3.14.1.8722。正在启用高级清除操作。
+[11:56:11.610] 使用默认程序包资源 InstallDirNotEmptyDlg.wxs [Not empty install directory dialog WiX project file]（将 InstallDirNotEmptyDlg.wxs 添加到 resource-dir 中以进行定制）。
+[11:56:11.612] MSI ProductCode：6389b9b1-d048-3171-962e-30f4e37e3c2d。
+[11:56:11.612] MSI UpgradeCode：03e5a934-ffca-3815-b455-7d49bf1ca1dc。
+[11:56:11.676] 使用默认程序包资源 main.wxs [主 WiX 项目文件]（将 main.wxs 添加到 resource-dir 中以进行定制）。
+[11:56:11.677] 使用默认程序包资源 overrides.wxi [覆盖 WiX 项目文件]（将 overrides.wxi 添加到 resource-dir 中以进行定制）。
+[11:56:11.679] 正在准备 MSI 配置: C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\images\win-exe.image\AhaKeyStudio-1.0.6.msi。
+[11:56:11.680] 正在生成 MSI: C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\images\win-exe.image\AhaKeyStudio-1.0.6.msi。
+[11:56:11.692] Running candle.exe in C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\images\win-msi.image\AhaKeyStudio
+[11:56:12.000] Command [PID: 42908]:
+    candle.exe -nologo C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\config\main.wxs -ext WixUtilExtension -arch x64 -out C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\wixobj\main.wixobj -dJpAppDescription=AhaKey Studio WD-006 Local Model Preview -dJpProductCode=6389b9b1-d048-3171-962e-30f4e37e3c2d -dJpAppName=AhaKeyStudio -dJpIsSystemWide=yes -dJpAllowDowngrades=yes -dJpIcon=C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\images\win-msi.image\AhaKeyStudio\AhaKeyStudio.exe -dJpAppSizeKb=314016 -dJpAppVersion=1.0.6 -dJpAllowUpgrades=yes -dJpProductUpgradeCode=03e5a934-ffca-3815-b455-7d49bf1ca1dc -dJpAppVendor=AhaKey -dJpConfigDir=C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\config
+[11:56:12.000] Output:
+    main.wxs
+[11:56:12.002] Returned: 0
+
+[11:56:12.002] Running candle.exe in C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\images\win-msi.image\AhaKeyStudio
+[11:56:12.344] Command [PID: 43352]:
+    candle.exe -nologo C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\config\bundle.wxf -ext WixUtilExtension -arch x64 -out C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\wixobj\bundle.wixobj
+[11:56:12.344] Output:
+    bundle.wxf
+[11:56:12.344] Returned: 0
+
+[11:56:12.344] Running candle.exe in C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\images\win-msi.image\AhaKeyStudio
+[11:56:12.599] Command [PID: 66612]:
+    candle.exe -nologo C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\config\ui.wxf -ext WixUtilExtension -arch x64 -out C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\wixobj\ui.wixobj
+[11:56:12.599] Output:
+    ui.wxf
+[11:56:12.599] Returned: 0
+
+[11:56:12.600] Running candle.exe in C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\images\win-msi.image\AhaKeyStudio
+[11:56:12.887] Command [PID: 25776]:
+    candle.exe -nologo C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\config\InstallDirNotEmptyDlg.wxs -ext WixUtilExtension -arch x64 -out C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\wixobj\InstallDirNotEmptyDlg.wixobj -dJpAfterInstallDirDlg=VerifyReadyDlg
+[11:56:12.887] Output:
+    InstallDirNotEmptyDlg.wxs
+[11:56:12.887] Returned: 0
+
+[11:56:12.888] Running light.exe in C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\images\win-msi.image\AhaKeyStudio
+[11:56:43.664] Command [PID: 47792]:
+    light.exe -nologo -spdb -ext WixUtilExtension -out C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\images\win-exe.image\AhaKeyStudio-1.0.6.msi -ext WixUIExtension -b C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\config -sice:ICE27 -loc C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\config\MsiInstallerStrings_zh_CN.wxl -cultures:zh-CN C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\wixobj\main.wixobj C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\wixobj\bundle.wixobj C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\wixobj\ui.wixobj C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\wixobj\InstallDirNotEmptyDlg.wixobj
+[11:56:43.664] Output:
+    C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\config\main.wxs(53) : warning LGHT1076 : ICE61: This product should remove only older versions of itself. No Maximum version was detected for the current product. (JP_DOWNGRADABLE_FOUND)
+    C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\config\bundle.wxf(12) : warning LGHT1076 : ICE69: Mismatched component reference. Entry 'shortcutc071dde2b50735eb90f8dac129cf1ece' of the Shortcut table belongs to component 'cshortcutc071dde2b50735eb90f8dac129cf1ece'. However, the formatted string in column 'Target' references file 'file7fb5deb98dcf38b6afdc279c1799cb32' which belongs to component 'cfile7fb5deb98dcf38b6afdc279c1799cb32'. Components are in the same feature.
+    C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\target\wd006-wix-validated\config\bundle.wxf(21) : warning LGHT1076 : ICE69: Mismatched component reference. Entry 'shortcutd64ada0c2cef39cea5774024af36d311' of the Shortcut table belongs to component 'cshortcutd64ada0c2cef39cea5774024af36d311'. However, the formatted string in column 'Target' references file 'file7fb5deb98dcf38b6afdc279c1799cb32' which belongs to component 'cfile7fb5deb98dcf38b6afdc279c1799cb32'. Components are in the same feature.
+[11:56:43.664] Returned: 0
+
+[11:56:43.666] 正在为安装程序生成 EXE, 位置: C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\WD006-LocalModel-20261023\installer-validated。
+[11:56:43.674] 警告：Windows Defender 可能会阻止 jpackage 正常工作。如果存在问题，可以通过禁用实时监视或者为目录 "C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated" 添加排除项来解决。
+[11:56:43.677] 使用默认程序包资源 WinInstaller.template [用于创建可执行属性文件的模板]（将 WinInstaller.properties 添加到 resource-dir 中以进行定制）。
+[11:56:46.130] 安装程序 (.exe) 已保存到: C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\WD006-LocalModel-20261023\installer-validated
+[11:56:46.130] 已成功地构建 EXE 安装程序包 程序包
+[11:56:46.130] 用于调试的已保留工作目录: C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\wd006-wix-validated

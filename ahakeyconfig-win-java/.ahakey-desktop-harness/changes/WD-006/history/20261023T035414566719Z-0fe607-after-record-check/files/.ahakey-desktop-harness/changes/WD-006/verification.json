@@ -1,0 +1,92 @@
+{
+  "change_id": "WD-006",
+  "checks": {
+    "machine": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-006/DIB_CONCURRENCY_FIX_20261023.json": "6ebcea91fae820531d6bcdd451fe668761401378b15da3f575f32ac720909a7c",
+        ".ahakey-desktop-harness/changes/WD-006/DIB_COMPILE_RESULT_20261023.json": "1aaa62dc1c4c39a7cc9e80719e431a94d41d2cc7d2111d42bb539e867c76a75c",
+        ".ahakey-desktop-harness/changes/WD-006/IMPLEMENT_INPUTS_FINAL_20261023.json": "3e40f08355252fee8d3a39ccf979284727b0d86a528cd8a81106340778a772f8"
+      },
+      "role": "DIB",
+      "at": "2026-10-23T03:46:03+00:00",
+      "code_fingerprint": "e9928c761f70109b3e31235104ec78de826e24f520b87a77170b05356475969a",
+      "build_round": 1,
+      "approval_sha256": "ced0fe5c76ca8b46db254c4459d620830791596fffc829d6d6811819ade6d93f"
+    },
+    "core_regression": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-006/DIB_LIFECYCLE_20261023_03.log": "e2f903b1a41813e6329a01bdb436988c9be85c956c7f9a151b33b8bade3004e5",
+        ".ahakey-desktop-harness/changes/WD-006/WD005_PRESERVATION_20261023.json": "5754a601f7051c8e94be7b5ffde6888022e6ee40590d48e94210cf1884f43460"
+      },
+      "role": "DIB",
+      "at": "2026-10-23T03:46:16+00:00",
+      "code_fingerprint": "e9928c761f70109b3e31235104ec78de826e24f520b87a77170b05356475969a",
+      "build_round": 1,
+      "approval_sha256": "ced0fe5c76ca8b46db254c4459d620830791596fffc829d6d6811819ade6d93f"
+    },
+    "special_regression": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-006/DIB_NATIVE_MISSING_20261023_01.log": "7e8a2d4a1b7a1dba242cf4ebdf6961120988225f4a3fcb6f9756faf3b7fb3cd8",
+        ".ahakey-desktop-harness/changes/WD-006/NATIVE_WAV_0_20261023.log": "db2301c036d46db78e5297bee103ebd7f6a2441da144e7a04d6e47edf9cc0bc9",
+        ".ahakey-desktop-harness/changes/WD-006/NATIVE_WAV_1_20261023.log": "39924772da540cfa6542434ec727c904beb8d5e65728b9e2a436753876afed24",
+        ".ahakey-desktop-harness/changes/WD-006/MODEL_INPUTS_20261023.json": "059b34c93eb090d832398c00faeb5bd9b4d5ed9af7dd34b8cc6d2d5dde5b36ca"
+      },
+      "role": "DIB",
+      "at": "2026-10-23T03:46:27+00:00",
+      "code_fingerprint": "e9928c761f70109b3e31235104ec78de826e24f520b87a77170b05356475969a",
+      "build_round": 1,
+      "approval_sha256": "ced0fe5c76ca8b46db254c4459d620830791596fffc829d6d6811819ade6d93f"
+    },
+    "mock": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-006/DIB_LIFECYCLE_20261023_03.log": "e2f903b1a41813e6329a01bdb436988c9be85c956c7f9a151b33b8bade3004e5",
+        ".ahakey-desktop-harness/changes/WD-006/DIB_CONCURRENCY_FIX_20261023.json": "6ebcea91fae820531d6bcdd451fe668761401378b15da3f575f32ac720909a7c"
+      },
+      "role": "DIB",
+      "at": "2026-10-23T03:46:40+00:00",
+      "code_fingerprint": "e9928c761f70109b3e31235104ec78de826e24f520b87a77170b05356475969a",
+      "build_round": 1,
+      "approval_sha256": "ced0fe5c76ca8b46db254c4459d620830791596fffc829d6d6811819ade6d93f"
+    },
+    "real_device": {
+      "status": "not_applicable",
+      "reason": "本任务仅本地语音适配，requirements.device_related=false；未执行设备读写，WD-005硬件验收不作替代。",
+      "evidence": {},
+      "role": "DLA",
+      "at": "2026-10-23T03:47:28+00:00",
+      "code_fingerprint": "e9928c761f70109b3e31235104ec78de826e24f520b87a77170b05356475969a",
+      "build_round": 1,
+      "approval_sha256": "ced0fe5c76ca8b46db254c4459d620830791596fffc829d6d6811819ade6d93f"
+    },
+    "owner_uat": {
+      "status": "pending",
+      "reason": "等待Owner安装带模型EXE后体验GUI、麦克风与F18输入；离线WAV不代替真实体验。",
+      "evidence": {},
+      "role": "DLA",
+      "at": "2026-10-23T03:47:33+00:00",
+      "code_fingerprint": "e9928c761f70109b3e31235104ec78de826e24f520b87a77170b05356475969a",
+      "build_round": 1,
+      "approval_sha256": "ced0fe5c76ca8b46db254c4459d620830791596fffc829d6d6811819ade6d93f"
+    },
+    "review": {
+      "status": "pass",
+      "reason": "DLA actual diff与已绑定fresh通过；fresh记录由REVIEW.json引用，不作为主REVIEW表重复解析。",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-006/REVIEW.json": "fb71518f3fd4c301135f261c9cf4a01e90c68a9ce6344d724bd2df9976e40dc7"
+      },
+      "role": "DLA",
+      "at": "2026-10-23T03:54:14+00:00",
+      "code_fingerprint": "e9928c761f70109b3e31235104ec78de826e24f520b87a77170b05356475969a",
+      "build_round": 1,
+      "approval_sha256": "ced0fe5c76ca8b46db254c4459d620830791596fffc829d6d6811819ade6d93f"
+    }
+  }
+}

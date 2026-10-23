@@ -1,0 +1,37 @@
+{
+  "change_id": "WD-006",
+  "checks": {
+    "machine": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-006/DIB_CONCURRENCY_FIX_20261023.json": "6ebcea91fae820531d6bcdd451fe668761401378b15da3f575f32ac720909a7c",
+        ".ahakey-desktop-harness/changes/WD-006/DIB_COMPILE_RESULT_20261023.json": "1aaa62dc1c4c39a7cc9e80719e431a94d41d2cc7d2111d42bb539e867c76a75c",
+        ".ahakey-desktop-harness/changes/WD-006/IMPLEMENT_INPUTS_FINAL_20261023.json": "3e40f08355252fee8d3a39ccf979284727b0d86a528cd8a81106340778a772f8"
+      },
+      "role": "DIB",
+      "at": "2026-10-23T03:46:03+00:00",
+      "code_fingerprint": "e9928c761f70109b3e31235104ec78de826e24f520b87a77170b05356475969a",
+      "build_round": 1,
+      "approval_sha256": "ced0fe5c76ca8b46db254c4459d620830791596fffc829d6d6811819ade6d93f"
+    },
+    "core_regression": {
+      "status": "pending"
+    },
+    "special_regression": {
+      "status": "pending"
+    },
+    "mock": {
+      "status": "pending"
+    },
+    "real_device": {
+      "status": "pending"
+    },
+    "owner_uat": {
+      "status": "pending"
+    },
+    "review": {
+      "status": "pending"
+    }
+  }
+}

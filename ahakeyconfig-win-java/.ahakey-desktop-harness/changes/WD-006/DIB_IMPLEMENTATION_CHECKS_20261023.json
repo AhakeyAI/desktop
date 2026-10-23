@@ -1,0 +1,71 @@
+{
+  "role": "DIB",
+  "change": "WD-006",
+  "at": "2026-10-23T03:25:24.524394+00:00",
+  "source": "main@a2dae1a1772507b4d74201f045342599ebbf0603 / ahakeyconfig-win-model-java",
+  "eternal_used": false,
+  "files": [
+    {
+      "path": "pom.xml",
+      "sha256": "b6fa46812aa860758e2e54db7d44ccd224f1b3a8f16ea08ab5ccca73e9055b0b"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/App.java",
+      "sha256": "a23aa9be360dbfbebecffdf02e0df7f7de5e45f6d4e856c1308e6b0cbe2f37a8"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/config/ModelConfig.java",
+      "sha256": "d201444fc438db279fa88721239ab84e46390853791b7f358dd3cc7f52ba85d1"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/SpeechService.java",
+      "sha256": "4f2551fcc3c519d30b3cfe84daf398bebc05078c77bec48facd17d2fcbd02b34"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/VoiceInputManager.java",
+      "sha256": "b9b5f8f979a093279eaf3112fa767f351bdc27fb649653bd5b1213d8abfb1abd"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/sherpa/LibraryLoader.java",
+      "sha256": "122336c83ed023b70452f25d137f323c3c1debaef1c1e31f8ca50f137fd60f79"
+    },
+    {
+      "path": "src/main/resources/model_config.properties",
+      "sha256": "bffbce2f84b05bc2cc328ada986bcf8d643e2b140b81642f35efdaef1155f91b"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/speech/SpeechLifecycleCheck.java",
+      "sha256": "922fef82ea0ca38c2c68d0b33d82c5902692ea36c8d89a3dc67ac7031bd4028d"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/speech/SpeechNativeCheck.java",
+      "sha256": "109ebcc661f673fba38dfe3d18eab8779da443c352052d3ebe62302a654b8ae4"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/speech/SpeechNativeFailureCheck.java",
+      "sha256": "d6dfb2c07b1b0529a2dd1861dd2d0d7695edc6a2f01826792ebcd6499d0b6508"
+    }
+  ],
+  "checks": [
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-006/DIB_COMPILE_RESULT_20261023.json",
+      "sha256": "1aaa62dc1c4c39a7cc9e80719e431a94d41d2cc7d2111d42bb539e867c76a75c",
+      "exit_code": 0
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-006/DIB_LIFECYCLE_20261023_02.log",
+      "sha256": "a450913310d6b6909cfe7fed7efdcc8c7a3ee9f26bda56e7ca70db9c6016bbb6",
+      "exit_code": 0
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-006/DIB_NATIVE_MISSING_20261023_01.log",
+      "sha256": "7e8a2d4a1b7a1dba242cf4ebdf6961120988225f4a3fcb6f9756faf3b7fb3cd8",
+      "exit_code": 0
+    }
+  ],
+  "lifecycle_check_count": 30,
+  "microphone_or_keyboard_used": false,
+  "native_model_decode": "parent DLA pending matching assets",
+  "submitted": false,
+  "independent_review": "pending"
+}
