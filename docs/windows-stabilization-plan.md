@@ -1500,3 +1500,18 @@ F18 相同的路由。
 本地 HTTP 服务器提供真实 Paraformer 模型包，开启 → 下载 → 校验 → 加载 Sherpa 成功；关闭保留/再开启
 不重新下载；关闭删除/同进程再开启成功；启动语音输入、模拟长按/短按录音；官方 `test_wavs` 识别与
 繁体转换正确。键盘真机、真实麦克风注入、AhaType 账号、保存预览写入设备仍待真机验证。
+
+## 43. Guard legacy 0x93-0x9D commands against newer firmware (2026-10-23)
+
+新一代固件（`win-zxy-harness` 适配的 CP4C，`0x9F` 回 ASCII catalog key，如
+`x1-c582-hw1-p1-1.0.0-r001`）把 `0x97`–`0x9A` 用作侧拨、运行态模式、多运行态快照、兼容确认，
+与本客户端的语音键、任务灯模式、槽位更新、心跳含义不同。本客户端在合入新固件支持之前，按连接识别：
+
+- `0x9F` 回 catalog key → 本连接内不发送 `0x93`–`0x9D`（`0x95` 待机两代含义相同，不拦），
+  `queryDeviceCapabilities()` 返回 null，不再把 key 文本解析成假版本号；任务灯只提示一次“新一代固件
+  暂不支持”，不重试、不发心跳；按键保存仍由 `requireStabilizedDeviceContract()` 拦截。
+- `0x9F` 回二进制能力记录、不回或超时 → 视为旧固件，行为与之前相同（含 1.4.3–1.4.6）。
+
+新固件的完整支持在阶段三从 `win-zxy-harness` 移植。验证：`mvn clean package` 385 tests、0 failures、
+1 skipped，`RELEASE_ARTIFACT_CONTENTS=OK`；新增 `BleManagerFirmwareGenerationTest` 用假 USB 设备覆盖
+新固件（两种帧格式）与旧固件两种情况。

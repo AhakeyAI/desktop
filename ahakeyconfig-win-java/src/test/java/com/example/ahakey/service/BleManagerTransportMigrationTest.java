@@ -205,6 +205,9 @@ class BleManagerTransportMigrationTest {
             if (!open) throw new IllegalStateException("closed");
             if (frame[2] == AhaKeyProtocol.CMD_QUERY_STATUS && answerStatus.get()) {
                 emitSoon(statusFrame());
+            } else if (frame[2] == AhaKeyProtocol.CMD_QUERY_CAPABILITIES) {
+                // Older firmware: binary capability record, so legacy commands stay allowed.
+                emitSoon(BleManagerFirmwareGenerationTest.legacyCapabilityFrame());
             } else if (frame[2] == AhaKeyProtocol.CMD_MODE_SYNC) {
                 modeQuery.countDown();
                 if (answerMode.get()) emitSoon(modeFrame(2));

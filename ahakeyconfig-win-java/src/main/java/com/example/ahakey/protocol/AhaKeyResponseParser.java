@@ -80,6 +80,40 @@ public final class AhaKeyResponseParser {
         return new CommandResponse(cmd, status, payload);
     }
 
+    /**
+     * True when a 0x9F reply carries a firmware catalog key such as
+     * {@code x1-c582-hw1-p1-1.0.0-r001}. Newer firmware answers 0x9F this way and
+     * gives 0x97-0x9D different meanings, so this client must not send those
+     * commands to it. Older firmware answers with a binary capability record.
+     */
+    public static boolean isFirmwareCatalogKeyResponse(byte[] frame) {
+        if (!AhaKeyProtocol.isValidFrame(frame) || frame.length < 6
+            || frame[2] != AhaKeyProtocol.CMD_QUERY_CAPABILITIES) {
+            return false;
+        }
+        // The key may follow a status byte or start right after the command byte.
+        return isCatalogKeyText(frame, 3) || isCatalogKeyText(frame, 4);
+    }
+
+    private static boolean isCatalogKeyText(byte[] frame, int offset) {
+        int end = frame.length - 2;
+        int index = offset;
+        int dashes = 0;
+        while (index < end && frame[index] != 0) {
+            int c = frame[index] & 0xFF;
+            boolean allowed = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                || (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_';
+            if (!allowed) return false;
+            if (c == '-') dashes++;
+            index++;
+        }
+        if (index - offset < 8 || dashes < 3) return false;
+        while (index < end) {
+            if (frame[index++] != 0) return false;
+        }
+        return true;
+    }
+
     public static PictureState parsePictureState(byte[] payload) {
         if (payload == null || payload.length < 9) {
             return null;

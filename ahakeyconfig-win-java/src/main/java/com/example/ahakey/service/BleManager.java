@@ -101,6 +101,10 @@ public class BleManager {
     private volatile TransportStatusSnapshot transportStatusSnapshot =
         new TransportStatusSnapshot(1, 1, 0, 0, false);
     private volatile long stabilizedContractSession = -1;
+    /** Session in which 0x9F was answered (or tried) and its generation recorded. */
+    private volatile long protocolCheckedSession = -1;
+    /** Session in which 0x9F returned a firmware catalog key (newer firmware). */
+    private volatile long catalogFirmwareSession = -1;
     private volatile AhaKeyResponseParser.DeviceCapabilities stabilizedCapabilities;
     private volatile long lastStatusUpdateNanos;
     private volatile boolean usbReady;
@@ -534,7 +538,22 @@ public class BleManager {
         try {
             pendingNotifyFrame = null;
             sendCommand(AhaKeyProtocol.queryCapabilities());
+            long session = activeSession;
             byte[] frame = waitForResponse(AhaKeyProtocol.CMD_QUERY_CAPABILITIES);
+            if (activeSession == session) {
+                if (AhaKeyResponseParser.isFirmwareCatalogKeyResponse(frame)) {
+                    if (catalogFirmwareSession != session) {
+                        logger.warn("Keyboard runs newer catalog-key firmware; "
+                            + "0x93-0x9D commands of this client are disabled for this connection");
+                    }
+                    catalogFirmwareSession = session;
+                }
+                protocolCheckedSession = session;
+            }
+            if (AhaKeyResponseParser.isFirmwareCatalogKeyResponse(frame)) {
+                // Not a capability record; parsing it would yield a bogus version.
+                return null;
+            }
             AhaKeyResponseParser.CommandResponse parsed = AhaKeyResponseParser.parseCommandResponse(frame);
             return parsed == null || parsed.status() != 0
                 ? null
@@ -564,6 +583,7 @@ public class BleManager {
     }
 
     public AhaKeyResponseParser.VoiceKeyConfig readVoiceKeyConfig() throws Exception {
+        requireLegacyCommandSet("voice key config (0x97)");
         lockDeviceTransaction();
         try {
             pendingNotifyFrame = null;
@@ -636,6 +656,7 @@ public class BleManager {
      * device reboots and callers must wait for disconnect and reconnect.
      */
     public void factoryReset() throws Exception {
+        requireLegacyCommandSet("factory reset (0x96)");
         if (!isUsbConnected()) {
             throw new IOException("Factory reset requires a USB connection");
         }
@@ -685,6 +706,35 @@ public class BleManager {
      * Verifies the complete software/firmware contract for the current transport
      * session. A firmware version by itself is intentionally insufficient.
      */
+    /**
+     * True when the connected keyboard answered 0x9F with a firmware catalog key.
+     * That firmware uses 0x97-0x9D for different features, so this client's
+     * commands in that range must not be sent to it.
+     */
+    public boolean isCatalogKeyFirmware() {
+        return catalogFirmwareSession == activeSession;
+    }
+
+    /**
+     * Blocks commands 0x93-0x9D on newer firmware. Older firmware, including
+     * versions that do not answer 0x9F at all, keeps working as before.
+     */
+    private void requireLegacyCommandSet(String feature) throws IOException {
+        long session = activeSession;
+        if (protocolCheckedSession != session) {
+            try {
+                queryDeviceCapabilities();
+            } catch (Exception e) {
+                logger.debug("0x9F not answered before {}: {}", feature, e.getMessage());
+            }
+            if (activeSession == session) protocolCheckedSession = session;
+        }
+        if (catalogFirmwareSession == session) {
+            throw new IOException("This keyboard runs newer firmware that this client version "
+                + "does not support for " + feature + "; nothing was sent");
+        }
+    }
+
     public AhaKeyResponseParser.DeviceCapabilities requireStabilizedDeviceContract()
             throws Exception {
         long session = activeSession;
@@ -793,6 +843,7 @@ public class BleManager {
     }
 
     public AhaKeyResponseParser.AiOledState readAiOledState(int mode, int asset) throws Exception {
+        requireLegacyCommandSet("AI OLED state (0x94)");
         lockDeviceTransaction();
         try {
             pendingNotifyFrame = null;
@@ -806,6 +857,7 @@ public class BleManager {
     }
 
     public int queryWorkMode() throws Exception {
+        requireLegacyCommandSet("mode sync (0x9B)");
         lockDeviceTransaction();
         try {
             pendingNotifyFrame = null;
@@ -823,6 +875,7 @@ public class BleManager {
     }
 
     public int queryTaskDisplayMode() throws Exception {
+        requireLegacyCommandSet("task display mode (0x98)");
         lockDeviceTransaction();
         try {
             pendingNotifyFrame = null;
@@ -837,20 +890,24 @@ public class BleManager {
     }
 
     public void setTaskDisplayMode(int mode) throws Exception {
+        requireLegacyCommandSet("task display mode (0x98)");
         sendCommandExpecting(AhaKeyProtocol.setTaskDisplayMode(mode), AhaKeyProtocol.CMD_TASK_LIGHT_MODE);
         sendCommandExpecting(AhaKeyProtocol.saveConfig(), AhaKeyProtocol.CMD_SAVE_CONFIG);
     }
 
     public void updateTaskSlot(int slot, int profile, int state, boolean foreground) throws Exception {
+        requireLegacyCommandSet("task slot update (0x99)");
         sendCommandExpecting(AhaKeyProtocol.updateTaskSlot(slot, profile, state, foreground),
             AhaKeyProtocol.CMD_TASK_SLOT_UPDATE);
     }
 
     public void sendTaskHeartbeat() throws Exception {
+        requireLegacyCommandSet("task heartbeat (0x9A)");
         sendCommandExpecting(AhaKeyProtocol.taskHeartbeat(), AhaKeyProtocol.CMD_TASK_HEARTBEAT);
     }
 
     public AhaKeyResponseParser.GifLayout queryGifLayout() throws Exception {
+        requireLegacyCommandSet("GIF layout (0x9C)");
         lockDeviceTransaction();
         try {
             pendingNotifyFrame = null;
@@ -1010,6 +1067,8 @@ public class BleManager {
         activeSession = sessionSequence.incrementAndGet();
         stabilizedCapabilities = null;
         stabilizedContractSession = -1;
+        protocolCheckedSession = -1;
+        catalogFirmwareSession = -1;
         physicalStatusFreshness.invalidateSession(activeSession);
         clearApprovalCache();
         lastStatusUpdateNanos = 0;

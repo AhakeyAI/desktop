@@ -270,6 +270,12 @@ public final class DeviceMaintenancePane {
             daemon("firmware-read-version", () -> {
                 try {
                     var caps = bleManager.queryDeviceCapabilities();
+                    if (caps == null && bleManager.isCatalogKeyFirmware()) {
+                        throw new IllegalStateException(text(
+                            localize("当前键盘是新一代固件，这个客户端版本读不到它的版本号"),
+                            "This keyboard runs newer firmware; this client version cannot read its version"
+                        ));
+                    }
                     if (caps == null) {
                         throw new IllegalStateException(text(
                             localize("设备未返回有效的 0x9F 版本信息"),

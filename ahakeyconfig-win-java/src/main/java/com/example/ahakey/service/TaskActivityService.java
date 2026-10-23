@@ -207,6 +207,15 @@ public final class TaskActivityService implements AutoCloseable {
                     text("task.mode.reconnected"));
                 lastConnected = true;
             } catch (Exception failure) {
+                if (ble.isCatalogKeyFirmware()) {
+                    // Newer firmware uses 0x98-0x9A for other features; stay off
+                    // for this connection instead of retrying every tick.
+                    confirmedMultiMode = false;
+                    lastConnected = true;
+                    notifyDisplayMode(DisplayModeStatus.FAILED,
+                        text("task.mode.unsupported-firmware"));
+                    return;
+                }
                 reportSyncFailure(text("task.light.confirm"), failure);
                 notifyDisplayMode(DisplayModeStatus.FAILED,
                     text("task.mode.unconfirmed") + failure.getMessage());
