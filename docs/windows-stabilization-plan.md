@@ -1535,8 +1535,8 @@ F18 相同的路由。
 - `0x9F` 回 catalog key → 本连接内不发送 `0x93`–`0x9D`（`0x95` 待机两代含义相同，不拦），
   `queryDeviceCapabilities()` 返回 null，不再把 key 文本解析成假版本号；任务灯只提示一次“新一代固件
   暂不支持”，不重试、不发心跳；按键保存仍由 `requireStabilizedDeviceContract()` 拦截。
-- `0x9F` 回二进制能力记录、不回或超时 → 视为旧固件，行为与之前相同（含 1.4.3–1.4.6）。
+- `0x9F` 回二进制能力记录、不回或超时 → 视为旧固件，行为与之前相同（含 1.4.3–1.4.6，以及不回 `0x9F` 的官方 v1.1.0）。超时结果在本连接内记住，后续命令不再重复等待 15 秒。
 
-新固件的完整支持在阶段三从 `win-zxy-harness` 移植。验证：`mvn clean package` 385 tests、0 failures、
+新固件的完整支持在阶段三从 `win-zxy-harness` 移植。验证：`mvn clean package` 386 tests、0 failures、
 1 skipped，`RELEASE_ARTIFACT_CONTENTS=OK`；新增 `BleManagerFirmwareGenerationTest` 用假 USB 设备覆盖
 新固件（两种帧格式）与旧固件两种情况。

@@ -88,6 +88,28 @@ class BleManagerFirmwareGenerationTest {
         }
     }
 
+    @Test
+    void firmwareThatNeverAnswers0x9FIsProbedOnlyOnce() throws Exception {
+        FakeUsb usb = new FakeUsb(null);
+        BleManager manager = connect(usb);
+        try {
+            BleManager.setResponseTimeoutForTesting(300);
+            manager.sendTaskHeartbeat();
+            manager.sendTaskHeartbeat();
+            manager.updateTaskSlot(0, 0, 0, false);
+
+            assertFalse(manager.isCatalogKeyFirmware());
+            assertEquals(1, usb.sentCommands.stream()
+                .filter(code -> code == AhaKeyProtocol.CMD_QUERY_CAPABILITIES).count(),
+                "a 0x9F timeout is remembered for the connection");
+            assertEquals(2, usb.sentCommands.stream()
+                .filter(code -> code == AhaKeyProtocol.CMD_TASK_HEARTBEAT).count());
+        } finally {
+            BleManager.setResponseTimeoutForTesting(0);
+            manager.shutdown();
+        }
+    }
+
     private static BleManager connect(FakeUsb usb) throws Exception {
         int unusedPort;
         try (ServerSocket socket = new ServerSocket(0)) {
@@ -166,7 +188,7 @@ class BleManagerFirmwareGenerationTest {
             if (command == AhaKeyProtocol.CMD_QUERY_STATUS) {
                 emitSoon(statusFrame());
             } else if (command == AhaKeyProtocol.CMD_QUERY_CAPABILITIES) {
-                emitSoon(capabilityReply);
+                if (capabilityReply != null) emitSoon(capabilityReply);
             } else {
                 emitSoon(ack(command));
             }

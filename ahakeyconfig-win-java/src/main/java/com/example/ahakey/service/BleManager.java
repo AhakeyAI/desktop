@@ -28,6 +28,12 @@ public class BleManager {
     private static final String DEFAULT_HOST = "127.0.0.1";
     private static final int DEFAULT_PORT = 9000;
     private static final long RESPONSE_TIMEOUT_MS = 15000;
+    /** Tests only: shortens response waits; 0 means the normal timeout. */
+    private static volatile long responseTimeoutOverrideMs;
+
+    static void setResponseTimeoutForTesting(long millis) {
+        responseTimeoutOverrideMs = millis;
+    }
     private static final long STATUS_POLL_TIMEOUT_MS = 750;
     private static final long USB_READY_TIMEOUT_MS = 1500;
     private static final long RECOVERY_BACKOFF_MS = 2_000;
@@ -539,7 +545,16 @@ public class BleManager {
             pendingNotifyFrame = null;
             sendCommand(AhaKeyProtocol.queryCapabilities());
             long session = activeSession;
-            byte[] frame = waitForResponse(AhaKeyProtocol.CMD_QUERY_CAPABILITIES);
+            byte[] frame;
+            try {
+                frame = waitForResponse(AhaKeyProtocol.CMD_QUERY_CAPABILITIES);
+            } catch (Exception e) {
+                // Older firmware (e.g. official v1.1.0) does not answer 0x9F;
+                // newer firmware always does. Remember the outcome so later
+                // guarded commands do not wait for another timeout.
+                if (activeSession == session) protocolCheckedSession = session;
+                throw e;
+            }
             if (activeSession == session) {
                 if (AhaKeyResponseParser.isFirmwareCatalogKeyResponse(frame)) {
                     if (catalogFirmwareSession != session) {
@@ -1419,7 +1434,8 @@ public class BleManager {
         TransportSessionToken token
     ) throws Exception {
         logger.debug("开始等待响应 0x{}", Integer.toHexString(expectedCmd & 0xFF));
-        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RESPONSE_TIMEOUT_MS);
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(
+            responseTimeoutOverrideMs > 0 ? responseTimeoutOverrideMs : RESPONSE_TIMEOUT_MS);
 
         responseLock.lock();
         try {
