@@ -4108,22 +4108,17 @@ private struct AnimatedGIFView: NSViewRepresentable {
 /// Updates only a backing layer's contents. Keeping the GIF clock out of SwiftUI state
 /// prevents every frame from invalidating the surrounding keyboard layout tree.
 @MainActor
-private final class AnimatedGIFLayerView: NSView {
-    private var source: CGImageSource?
-    private var frameCount = 0
-    private let frameCache = NSCache<NSNumber, CGImage>()
+final class AnimatedGIFLayerView: NSView {
+    private let frames = GIFPreviewFrames()
     private var requestedPlayback = false
     private var requestedFPS = 1
     private var currentFrame = 0
     private var gifTimer: Timer?
-    private var loadedPath: String?
-    private var loadedPixelSize = 0
     private var playbackFPS = 0
     private var observers: [NSObjectProtocol] = []
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        frameCache.totalCostLimit = 16 * 1024 * 1024
         wantsLayer = true
         layer?.backgroundColor = NSColor.black.cgColor
         layer?.contentsGravity = .resizeAspect
@@ -4157,13 +4152,33 @@ private final class AnimatedGIFLayerView: NSView {
                 })
             }
         }
+        refreshFrameSizing()
         refreshPlayback()
     }
 
+    override func layout() {
+        super.layout()
+        refreshFrameSizing()
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        layer?.contentsScale = window?.backingScaleFactor ?? 2
+        refreshFrameSizing()
+    }
+
+    private func refreshFrameSizing() {
+        if frames.updateViewport(size: bounds.size, backingScale: window?.backingScaleFactor ?? 2) {
+            layer?.contents = frames.image(at: currentFrame)
+        }
+    }
+
     func configure(path: String, fps: Int, maxPixelSize: Int, plays: Bool) {
-        if loadedPath != path || loadedPixelSize != maxPixelSize {
-            loadedPixelSize = maxPixelSize
-            loadFrames(path: path)
+        if frames.load(path: path, maximumPixelSize: maxPixelSize) {
+            stopPlayback()
+            currentFrame = 0
+            refreshFrameSizing()
+            layer?.contents = frames.image(at: 0)
         }
 
         requestedPlayback = plays
@@ -4172,46 +4187,12 @@ private final class AnimatedGIFLayerView: NSView {
     }
 
     private func refreshPlayback() {
-        if requestedPlayback, frameCount > 1, let window,
+        if requestedPlayback, frames.count > 1, let window,
            window.isVisible, !window.isMiniaturized, NSApp.isActive {
             startPlayback(fps: requestedFPS)
         } else {
             stopPlayback()
         }
-    }
-
-    private func loadFrames(path: String) {
-        stopPlayback()
-        loadedPath = path
-        frameCache.removeAllObjects()
-        source = nil
-        frameCount = 0
-        currentFrame = 0
-        layer?.contents = nil
-        let url = URL(fileURLWithPath: path)
-        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
-        guard let src = CGImageSourceCreateWithURL(url as CFURL, sourceOptions) else { return }
-        let count = CGImageSourceGetCount(src)
-        guard count > 0 else { return }
-        source = src
-        frameCount = count
-        layer?.contents = image(at: 0)
-    }
-
-    private func image(at index: Int) -> CGImage? {
-        let key = NSNumber(value: index)
-        if let image = frameCache.object(forKey: key) { return image }
-        guard let source else { return nil }
-        let options = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: loadedPixelSize,
-            kCGImageSourceShouldCache: false,
-            kCGImageSourceShouldCacheImmediately: true,
-        ] as CFDictionary
-        guard let image = CGImageSourceCreateThumbnailAtIndex(source, index, options) else { return nil }
-        frameCache.setObject(image, forKey: key, cost: image.bytesPerRow * image.height)
-        return image
     }
 
     private func startPlayback(fps: Int) {
@@ -4227,9 +4208,9 @@ private final class AnimatedGIFLayerView: NSView {
     }
 
     private func advanceFrame() {
-        guard frameCount > 0 else { return }
-        currentFrame = (currentFrame + 1) % frameCount
-        layer?.contents = image(at: currentFrame)
+        guard frames.count > 0 else { return }
+        currentFrame = (currentFrame + 1) % frames.count
+        layer?.contents = frames.image(at: currentFrame)
     }
 
     deinit {
