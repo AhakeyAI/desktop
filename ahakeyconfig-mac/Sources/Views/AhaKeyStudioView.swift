@@ -1070,7 +1070,6 @@ struct AhaKeyStudioView: View {
             if bleManager.firmwareCapabilityProfile?.identity == .legacy { oledSummary }
             else {
                 StudioScreenSummaryView(model: resourceInspectorModel, mode: selectedMode)
-                WS3TaskOverviewView(bleManager: bleManager)
             }
         case .lightBar:      lightBarSummary
         case .toggleSwitch:  switchSummary
@@ -1655,6 +1654,8 @@ struct AhaKeyStudioView: View {
     @ViewBuilder private var oledInspector: some View {
         if bleManager.firmwareCapabilityProfile?.identity != .legacy {
             StudioResourceInspectorView(model: resourceInspectorModel, ble: bleManager, session: inspectorSession, mode: selectedMode)
+            Divider().padding(.vertical, 8)
+            WS3TaskOverviewView(bleManager: bleManager)
         } else { legacyOLEDInspector }
     }
 
