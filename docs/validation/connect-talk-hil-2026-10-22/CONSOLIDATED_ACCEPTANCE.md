@@ -1,5 +1,8 @@
 # 集中补验台账 — 2026-10-22
 
+[当前剩余开发与验收索引](../../ahastudio/mac-adaptation-remaining-work-2026-10-23.md)：5组能力待合同或方案闭环，另有WS4/WS5正式输入及8组完整验收。
+
+
 开发统一分支：connect&talk。用户要求先补已有功能验收，再继续剩余开发。首轮候选0.2.3/source5225cf3；本轮修复编辑模式交接后已更新安装0.2.3/source342e4e861929f32f3c8a9d9674cdba1380ed7ba8，Developer ID及deep/strict验证通过。
 
 ## 当前状态索引（2026-10-23，build367）

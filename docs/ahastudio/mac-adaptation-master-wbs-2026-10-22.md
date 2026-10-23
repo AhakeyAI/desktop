@@ -1,5 +1,8 @@
 # Mac客户端适配总WBS v2 — Inspector、WS3与WS4/5
 
+[当前剩余开发与验收索引](mac-adaptation-remaining-work-2026-10-23.md)：5组能力待合同或方案闭环，另有WS4/WS5正式输入及8组完整验收。
+
+
 日期：2026-10-22。用户已要求将WS4/5纳入本轮开发，旧文档“另发/不在范围”不再适用。方案基线：connect&talk b0ce2ea（PR152），Inspector产品决定见inspector-integration-plan-2026-10-22.md。此表是当前执行总表；旧WBS和验收记录保留历史证据，不把已有功能重新计作全部待开发。
 
 ## 最新依据与范围纠正
