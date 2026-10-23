@@ -118,6 +118,28 @@ class BleManagerFirmwareGenerationTest {
         }
     }
 
+    @Test
+    void callersQueuedBehindA0x9FTimeoutDoNotSendItAgain() throws Exception {
+        FakeUsb usb = new FakeUsb(null);
+        BleManager manager = connect(usb);
+        try {
+            BleManager.setResponseTimeoutForTesting(300);
+            Thread first = new Thread(() -> {
+                try { manager.queryDeviceCapabilities(); } catch (Exception ignored) { }
+            });
+            first.start();
+            Thread.sleep(50);
+            assertNull(manager.queryDeviceCapabilities(), "queued caller gets the timeout result");
+            first.join(2000);
+
+            assertEquals(1, usb.sentCommands.stream()
+                .filter(code -> code == AhaKeyProtocol.CMD_QUERY_CAPABILITIES).count());
+        } finally {
+            BleManager.setResponseTimeoutForTesting(0);
+            manager.shutdown();
+        }
+    }
+
     private static BleManager connect(FakeUsb usb) throws Exception {
         int unusedPort;
         try (ServerSocket socket = new ServerSocket(0)) {

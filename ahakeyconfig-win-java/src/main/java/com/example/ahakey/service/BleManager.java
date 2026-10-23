@@ -549,6 +549,10 @@ public class BleManager {
         }
         lockDeviceTransaction();
         try {
+            if (capabilityTimeoutSession == activeSession) {
+                // Another caller timed out while this one waited for the channel.
+                return null;
+            }
             pendingNotifyFrame = null;
             sendCommand(AhaKeyProtocol.queryCapabilities());
             long session = activeSession;
