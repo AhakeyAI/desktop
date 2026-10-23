@@ -19,15 +19,96 @@
       }
     }
   },
-  "installed": false,
+  "installed": true,
   "limits": [
-    "Output function and actual timeout-path regression, not a real Claude TUI prompt/model acceptance",
-    "Existing native CLI lifecycle evidence does not prove PermissionRequest rendering",
-    "No user rule edits or physical keyboard writes"
+    "Installed production Hook through real socket and fresh BLE automatic-state evidence; no real Claude/Cursor approval UI or model call",
+    "Physical manual, offline and restore-automatic phases pending",
+    "No persistent keyboard configuration writes; Cursor existing owned CLI policy follows actual lever state",
+    "Kimi native2.x real-time approval remains unsupported"
   ],
   "sourceSHA256": {
     "ahakeyconfig-mac/Sources/Agent/ClaudeHookHandler.swift": "172f1e34ff7cdd058f4d970b39097786a9531a43e14ea22d601a3a25cc145c47",
     "ahakeyconfig-mac/Tests/AhaKeyAgentTests/ClaudeHookHandlerTests.swift": "4b27ee2300c87fea31e7774154eed8fe0d26b83a369ee33c9ff51dce43e36e79",
     "ahakeyconfig-mac/Tests/AhaKeyAgentTests/AgentStatusReplyTests.swift": "dd5db1e9ac043dc8114dece1b4d7da435c64330e1ced2867d33646a809e09330"
-  }
+  },
+  "sourceCommit": "2103343cd19a60cdde2fd7317d286edac049f9a3",
+  "reviews": {
+    "spec": "passed",
+    "standards": "passed"
+  },
+  "version": "0.2.3",
+  "build": "365",
+  "postInstallSignature": "deep strict passed",
+  "realAutoHookProbe": {
+    "sourceCommit": "2103343cd19a60cdde2fd7317d286edac049f9a3",
+    "phase": "auto",
+    "physicalState": 0,
+    "freshApprovalBefore": {
+      "physicalSwitchState": 0,
+      "switchState": 0,
+      "approvalAutoVerified": true
+    },
+    "probes": [
+      {
+        "event": "PreToolUse",
+        "output": {
+          "hookSpecificOutput": {
+            "permissionDecision": "allow",
+            "hookEventName": "PreToolUse"
+          }
+        },
+        "passed": true
+      },
+      {
+        "event": "PermissionRequest",
+        "output": {
+          "hookSpecificOutput": {
+            "hookEventName": "PermissionRequest",
+            "decision": {
+              "behavior": "allow"
+            }
+          }
+        },
+        "passed": true
+      },
+      {
+        "event": "beforeShellExecution",
+        "output": {
+          "permission": "allow"
+        },
+        "passed": true
+      },
+      {
+        "event": "CodexPermissionRequest",
+        "output": {
+          "hookSpecificOutput": {
+            "decision": {
+              "behavior": "allow"
+            },
+            "hookEventName": "PermissionRequest"
+          }
+        },
+        "passed": true
+      },
+      {
+        "event": "CodexPreToolUse",
+        "output": {},
+        "passed": true
+      },
+      {
+        "event": "CodexPreToolUse",
+        "output": {},
+        "passed": true
+      }
+    ],
+    "restoredRuntimeState": 3,
+    "scope": "Installed production Hook -> actual Unix socket -> fresh real BLE; no model call, tool execution, configuration save to keyboard or fabricated session metadata; Cursor existing owned CLI policy follows physical state",
+    "limits": [
+      "Not evidence of a real Claude/Cursor approval UI",
+      "Kimi native2.x approval unsupported and not tested"
+    ]
+  },
+  "existingUserDraftSemanticallyUnchanged": true,
+  "noTemporaryMaterialDrafts": true,
+  "installedAgentSHA256": "4ac1240a054bca32c4bc9d4187bb858311a545ef4f6e0c1341d651d14405f802"
 }
