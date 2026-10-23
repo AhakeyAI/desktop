@@ -726,6 +726,21 @@ public class BleManager {
      * That firmware uses 0x97-0x9D for different features, so this client's
      * commands in that range must not be sent to it.
      */
+    /** The keyboard answered a command with a non-zero status (it received and rejected it). */
+    public static final class DeviceCommandException extends IOException {
+        private final byte command;
+        private final int status;
+
+        DeviceCommandException(byte command, int status, String message) {
+            super(message);
+            this.command = command;
+            this.status = status;
+        }
+
+        public byte command() { return command; }
+        public int status() { return status; }
+    }
+
     public boolean isCatalogKeyFirmware() {
         return catalogFirmwareSession == activeSession;
     }
@@ -737,12 +752,21 @@ public class BleManager {
     private void requireLegacyCommandSet(String feature) throws IOException {
         long session = activeSession;
         if (protocolCheckedSession != session) {
+            // Another thread may be probing right now; wait for the channel and
+            // check again so the probe (and its timeout) happens only once.
+            lockDeviceTransaction();
             try {
-                queryDeviceCapabilities();
-            } catch (Exception e) {
-                logger.debug("0x9F not answered before {}: {}", feature, e.getMessage());
+                if (protocolCheckedSession != session) {
+                    try {
+                        queryDeviceCapabilities();
+                    } catch (Exception e) {
+                        logger.debug("0x9F not answered before {}: {}", feature, e.getMessage());
+                    }
+                    if (activeSession == session) protocolCheckedSession = session;
+                }
+            } finally {
+                requestLock.unlock();
             }
-            if (activeSession == session) protocolCheckedSession = session;
         }
         if (catalogFirmwareSession == session) {
             throw new IOException("This keyboard runs newer firmware that this client version "
@@ -769,13 +793,18 @@ public class BleManager {
 
     private boolean sendPhysicalStatusQuery(java.util.function.LongConsumer markPhysicalWrite) {
         try {
+            // Mark the time the write starts, not when it returns: a USB HID
+            // write can return after the keyboard has already answered, and
+            // that answer must still count as fresh.
             if (ensureUsbConnected()) {
+                long writeStartedAt = System.nanoTime();
                 usbTransport.sendCommand(AhaKeyProtocol.queryDeviceStatus());
-                markPhysicalWrite.accept(System.nanoTime());
+                markPhysicalWrite.accept(writeStartedAt);
                 return true;
             }
+            long writeStartedAt = System.nanoTime();
             writePacket(BleTcpPacket.WRITE_COMMAND, AhaKeyProtocol.queryDeviceStatus());
-            markPhysicalWrite.accept(System.nanoTime());
+            markPhysicalWrite.accept(writeStartedAt);
             return true;
         } catch (IOException e) {
             callback.onError("查询设备状态失败: " + e.getMessage());
@@ -1473,7 +1502,7 @@ public class BleManager {
                         );
                         if (parsed.status() != 0) {
                             int status = parsed.status() & 0xFF;
-                            throw new IOException(
+                            throw new DeviceCommandException(expectedCmd, status,
                                 String.format("命令 0x%02X 失败：%s（错误码 %d）",
                                     expectedCmd & 0xFF, deviceStatusText(status), status)
                             );

@@ -207,13 +207,16 @@ public final class TaskActivityService implements AutoCloseable {
                     text("task.mode.reconnected"));
                 lastConnected = true;
             } catch (Exception failure) {
-                if (ble.isCatalogKeyFirmware()) {
-                    // Newer firmware uses 0x98-0x9A for other features; stay off
-                    // for this connection instead of retrying every tick.
+                boolean newerFirmware = ble.isCatalogKeyFirmware();
+                if (newerFirmware || rejectedByFirmware(failure)) {
+                    // Newer firmware uses 0x98-0x9A for other features, and older
+                    // firmware without task lights rejects 0x98. Either way stay
+                    // off for this connection instead of retrying every tick.
                     confirmedMultiMode = false;
                     lastConnected = true;
-                    notifyDisplayMode(DisplayModeStatus.FAILED,
-                        text("task.mode.unsupported-firmware"));
+                    notifyDisplayMode(DisplayModeStatus.FAILED, text(newerFirmware
+                        ? "task.mode.unsupported-firmware" : "task.mode.unsupported-legacy"));
+                    logger.info("Task lights unavailable on this connection: {}", failure.getMessage());
                     return;
                 }
                 reportSyncFailure(text("task.light.confirm"), failure);
@@ -235,6 +238,16 @@ public final class TaskActivityService implements AutoCloseable {
     }
     private void resendSnapshot() {
         tasks.values().stream().filter(task -> task.slot >= 0 && task.state != 0).forEach(this::send);
+    }
+    /** The keyboard received 0x98 and answered with an error: it has no task lights. */
+    static boolean rejectedByFirmware(Throwable failure) {
+        for (Throwable t = failure; t != null; t = t.getCause()) {
+            if (t instanceof BleManager.DeviceCommandException rejected
+                && rejected.command() == com.example.ahakey.protocol.AhaKeyProtocol.CMD_TASK_LIGHT_MODE) {
+                return true;
+            }
+        }
+        return false;
     }
     private void reportSyncFailure(String operation, Exception failure) {
         logger.warn("{}失败，设备灯效可能与 IDE 状态不同步: {}", operation,

@@ -19,8 +19,9 @@ final class PhysicalStatusFreshness {
     @FunctionalInterface
     interface QuerySender {
         /**
-         * Calls the marker exactly once with the monotonic timestamp captured
-         * after the physical write/flush has successfully returned.
+         * Calls the marker exactly once, after the physical write succeeded,
+         * with the monotonic timestamp captured just before the write started.
+         * The keyboard may answer before a USB HID write call returns.
          */
         boolean send(LongConsumer markSuccessfulPhysicalWrite);
     }

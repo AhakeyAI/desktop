@@ -52,6 +52,48 @@ class TaskActivityServiceTest {
         }
     }
 
+    @Test
+    void firmwareWithoutTaskLightsIsAskedOnlyOncePerConnection() throws Exception {
+        RejectingBle ble = new RejectingBle();
+        try (TaskActivityService service = new TaskActivityService(ble)) {
+            for (int tick = 0; tick < 5; tick++) {
+                service.reconcileAtForTest(System.currentTimeMillis());
+            }
+
+            assertEquals(1, ble.modeQueries.get(), "0x98 rejection stops the retries");
+            assertEquals(0, ble.heartbeats.get());
+            assertEquals(null, ble.reported.get(), "no device error is shown for missing task lights");
+        }
+    }
+
+    private static final class RejectingBle extends BleManager {
+        private final DeviceStatus status = new DeviceStatus();
+        private final java.util.concurrent.atomic.AtomicInteger modeQueries =
+            new java.util.concurrent.atomic.AtomicInteger();
+        private final java.util.concurrent.atomic.AtomicInteger heartbeats =
+            new java.util.concurrent.atomic.AtomicInteger();
+        private final AtomicReference<String> reported = new AtomicReference<>();
+
+        private RejectingBle() {
+            super(new BleCallback() {
+                @Override public void onConnected() {}
+                @Override public void onDisconnected() {}
+                @Override public void onStatusReceived(DeviceStatus status) {}
+                @Override public void onError(String message) {}
+            });
+            status.setConnected(true);
+        }
+
+        @Override public DeviceStatus getCachedStatus() { return status; }
+        @Override public int queryTaskDisplayMode() throws Exception {
+            modeQueries.incrementAndGet();
+            throw new DeviceCommandException(
+                com.example.ahakey.protocol.AhaKeyProtocol.CMD_TASK_LIGHT_MODE, 1, "rejected");
+        }
+        @Override public void sendTaskHeartbeat() { heartbeats.incrementAndGet(); }
+        @Override void reportDeviceError(String message) { reported.set(message); }
+    }
+
     private static final class OfflineBle extends BleManager {
         private final DeviceStatus status = new DeviceStatus();
 
