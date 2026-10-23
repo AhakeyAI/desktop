@@ -67,7 +67,12 @@ public struct CodexDesktopLeverState {
     public func acknowledge(_ lease: Lease) throws -> Bool {
         try transaction { state in
             guard let index = state.leases.firstIndex(where: { $0.operationID == lease.operationID && $0.owner == lease.owner }) else { return false }
-            state.leases[index].acknowledged = true
+            // Called only after the owner's pending-update barrier and exact
+            // native readback. Older possible values are no longer outstanding;
+            // retaining them would hide a later user change to an ordinary mode.
+            let value = state.leases[index]
+            state.leases[index] = Lease(owner: value.owner, baseline: value.baseline, intended: value.intended,
+                operationID: value.operationID, acknowledged: true, possibleOwnedSettings: [value.intended])
             try save(state); return true
         }
     }
@@ -86,7 +91,11 @@ public struct CodexDesktopLeverState {
     /// value outside every value this lease might have submitted.
     @discardableResult
     public func removeAfterExternalChange(_ lease: Lease, observed: CodexDesktopSessionBridge.Settings) throws -> Bool {
-        guard observed != lease.baseline, !lease.possibleOwnedSettings.contains(observed) else { return false }
+        if lease.acknowledged {
+            guard observed != lease.intended else { return false }
+        } else {
+            guard observed != lease.baseline, !lease.possibleOwnedSettings.contains(observed) else { return false }
+        }
         return try removeAfterVerifiedRestore(lease)
     }
 

@@ -136,6 +136,21 @@ final class CodexDesktopLeverCoordinatorTests: XCTestCase {
         }
     }
 
+    func testUserCanReturnToTheOriginalOrdinaryModeAfterAnAcknowledgedGrant() async throws {
+        try await withFixture { state, runtime in
+            try state.setManagementEnabled(true)
+            let worker = coordinator(state, runtime)
+            _ = await worker.reconcile(threadIDs: [id], hint: .verifiedAutomatic, epoch: 0)
+            await runtime.setCurrent(Runtime.baseline) // User chooses request approval in Codex.
+            let before = await runtime.counts()
+            let result = await worker.reconcile(threadIDs: [id], hint: .verifiedAutomatic, epoch: 0, retry: true)
+            XCTAssertEqual(result[id], .externalChange)
+            let after = await runtime.counts()
+            XCTAssertEqual(after.writes, before.writes, "A confirmed old auto value must not conceal the user's manual choice")
+            XCTAssertTrue(try state.snapshot().leases.isEmpty)
+        }
+    }
+
     func testUnstablePhysicalProofHasABoundedRetryLoopAndNoWrites() async throws {
         try await withFixture { state, runtime in
             try state.setManagementEnabled(true)

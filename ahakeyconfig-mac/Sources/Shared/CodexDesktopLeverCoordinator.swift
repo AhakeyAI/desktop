@@ -109,7 +109,9 @@ public actor CodexDesktopLeverCoordinator {
         let current = try await dependencies.read(owner)
         guard token == revision else { return }
         if let existing = lease {
-            if current != existing.baseline && !existing.possibleOwnedSettings.contains(current) {
+            let externallyChanged = existing.acknowledged ? current != existing.intended :
+                current != existing.baseline && !existing.possibleOwnedSettings.contains(current)
+            if externallyChanged {
                 guard try state.removeAfterExternalChange(existing, observed: current) else { throw CodexDesktopSessionBridge.BridgeError.ownerChanged }
                 heldForUserChange.insert(id); outcomes[id] = .externalChange; return
             }
