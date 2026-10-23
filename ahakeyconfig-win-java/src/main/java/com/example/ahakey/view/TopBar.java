@@ -31,6 +31,7 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.ToggleButton;
+import javafx.scene.control.Tooltip;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
@@ -68,6 +69,17 @@ public class TopBar extends VBox {
     private Label voiceResultPreview;
     private volatile boolean isRecording = false;
     private volatile boolean voiceRunning = false;
+    /** Mirrors voiceRunning for UI bindings. */
+    private final javafx.beans.property.BooleanProperty voiceRunningProperty =
+        new javafx.beans.property.SimpleBooleanProperty(false);
+    private ToggleButton ahaTypeSwitch;
+    /** Voice input starts once the model is loaded. */
+    private boolean startVoiceWhenReady;
+    /** Set only when the user turned the switch on: then also turn on cloud refinement. */
+    private boolean enableCloudWhenReady;
+    /** Last voice service error, shown under "AhaType 开启". */
+    private final javafx.beans.property.StringProperty voiceErrorProperty =
+        new javafx.beans.property.SimpleStringProperty("");
     private FloatingVoiceNotification floatingNotification;  // 浮动通知窗口
     
     // BLE按钮长按相关
@@ -143,6 +155,132 @@ public class TopBar extends VBox {
         }
         this.voiceInputManager = voiceInputManager;
         updateVoiceButtonState();
+        // There is no start button: voice input runs whenever local voice is
+        // available, whether it was turned on here, in settings, or at startup.
+        if (LocalVoiceFeature.getInstance().isAvailable()) {
+            startVoiceWhenReady = false;
+            if (voiceInputManager == null) {
+                setVoiceStatus("error", text("aha.master.start-failed"));
+                return;
+            }
+            if (!voiceRunning) startVoiceService();
+            if (enableCloudWhenReady) {
+                enableCloudWhenReady = false;
+                enableCloudRefinementIfPossible();
+            }
+        }
+    }
+
+    private boolean isAhaTypeMasterOn() {
+        LocalVoiceFeature feature = LocalVoiceFeature.getInstance();
+        LocalVoiceFeature.Phase phase = feature.phaseProperty().get();
+        return feature.enabledProperty().get()
+            || phase == LocalVoiceFeature.Phase.CHECKING
+            || phase == LocalVoiceFeature.Phase.DOWNLOADING
+            || phase == LocalVoiceFeature.Phase.INSTALLING;
+    }
+
+    /** Second line under "AhaType 开启/关闭": what the switch is doing right now. */
+    private String ahaTypeMasterDetail() {
+        LocalVoiceFeature feature = LocalVoiceFeature.getInstance();
+        LocalVoiceFeature.Phase phase = feature.phaseProperty().get();
+        if (phase == LocalVoiceFeature.Phase.FAILED) return feature.messageProperty().get();
+        if (!isAhaTypeMasterOn()) return text("aha.master.off-detail");
+        if (!feature.isAvailable()) {
+            String message = feature.messageProperty().get();
+            return message == null || message.isBlank() ? text("aha.master.preparing") : message;
+        }
+        String error = voiceErrorProperty.get();
+        if (error != null && !error.isBlank()) return error;
+        String voice = text(voiceRunning ? "aha.master.voice-running" : "aha.master.voice-ready");
+        return voice + " · " + text(studioState.ahaTypeEnabledProperty().get()
+            ? "aha.master.cloud-on" : "aha.master.cloud-off");
+    }
+
+    private void turnAhaTypeOn() {
+        LocalVoiceFeature feature = LocalVoiceFeature.getInstance();
+        if (feature.isBusy()) return;
+        if (!feature.installedProperty().get() && !confirmLocalVoiceDownload()) {
+            return;
+        }
+        voiceErrorProperty.set("");
+        startVoiceWhenReady = true;
+        enableCloudWhenReady = true;
+        feature.enable();
+        if (feature.isAvailable() && voiceInputManager != null) {
+            // Already installed and loaded (e.g. turned on again in the same session).
+            startVoiceWhenReady = false;
+            enableCloudWhenReady = false;
+            if (!voiceRunning) startVoiceService();
+            enableCloudRefinementIfPossible();
+        }
+    }
+
+    private void turnAhaTypeOff() {
+        startVoiceWhenReady = false;
+        enableCloudWhenReady = false;
+        voiceErrorProperty.set("");
+        if (voiceRunning) stopVoiceService();
+        studioState.toggleAhaType(false);
+        LocalVoiceFeature.getInstance().disable(false);
+    }
+
+    private void enableCloudRefinementIfPossible() {
+        boolean changed = studioState.toggleAhaType(true);
+        if (shouldOpenCloudAccountOnAhaTypeToggle(
+            true, changed, studioState.shouldOpenAhaTypeAccountForEnable())) {
+            showCloudAccountDialog();
+        }
+    }
+
+    /** Explains local voice before the first download; nothing is downloaded without consent. */
+    private boolean confirmLocalVoiceDownload() {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        if (getScene() != null) alert.initOwner(getScene().getWindow());
+        alert.setTitle(text("aha.download.title"));
+        alert.setHeaderText(text("aha.download.header"));
+        Label body = new Label(text("aha.download.body"));
+        body.setWrapText(true);
+        body.setMaxWidth(440);
+        alert.getDialogPane().setContent(body);
+        ButtonType download = new ButtonType(text("aha.download.confirm"),
+            javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancel = new ButtonType(text("aha.download.cancel"),
+            javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
+        alert.getButtonTypes().setAll(download, cancel);
+        return alert.showAndWait().filter(download::equals).isPresent();
+    }
+
+    /** Like {@link #createStatusBox} but with the switch right after the title text. */
+    private VBox createSwitchStatusBox(
+        ToggleButton toggle,
+        javafx.beans.value.ObservableValue<Boolean> isPositive,
+        javafx.beans.value.ObservableValue<String> title,
+        javafx.beans.value.ObservableValue<String> detail
+    ) {
+        VBox box = createStatusBox(isPositive, title, detail);
+        // createStatusBox: box > row(dot, text) > text(title, detail)
+        HBox row = (HBox) box.getChildren().get(0);
+        VBox textColumn = (VBox) row.getChildren().get(1);
+        Label titleLabel = (Label) textColumn.getChildren().get(0);
+        textColumn.getChildren().remove(titleLabel);
+        HBox titleLine = new HBox(10, titleLabel, toggle);
+        titleLine.setAlignment(Pos.CENTER_LEFT);
+        textColumn.getChildren().add(0, titleLine);
+        return box;
+    }
+
+    /** Small on/off switch drawn with CSS (track + knob). */
+    private static ToggleButton createSwitch() {
+        Region knob = new Region();
+        knob.getStyleClass().add("aha-switch-knob");
+        StackPane track = new StackPane(knob);
+        track.getStyleClass().add("aha-switch-track");
+        ToggleButton toggle = new ToggleButton();
+        toggle.getStyleClass().setAll("aha-switch");
+        toggle.setGraphic(track);
+        toggle.setAccessibleText("AhaType");
+        return toggle;
     }
 
     private void initContent() {
@@ -152,25 +290,34 @@ public class TopBar extends VBox {
         HBox titleBox = new HBox(8);
         titleBox.getChildren().addAll(titleIcon, titleLabel);
 
+        // 连接状态块兼作 BLE 驱动入口：点击打开/置前驱动，长按 5 秒停止（原 BLE 驱动按钮）。
+        InfoPill connectionPill = new InfoPill(
+            Bindings.createStringBinding(
+                () -> controller.isEffectivelyConnected() ? languageManager.getString("status.connected")
+                    : (deviceStatus.isScanning() ? languageManager.getString("status.scanning") : languageManager.getString("status.disconnected")),
+                deviceStatus.isConnectedProperty(),
+                deviceStatus.isScanningProperty()
+            ),
+            Bindings.createStringBinding(
+                () -> controller.isEffectivelyConnected() ? deviceStatus.getDeviceName() : languageManager.getString("status.waiting-device"),
+                deviceStatus.isConnectedProperty(),
+                deviceStatus.deviceNameProperty()
+            ),
+            Bindings.createObjectBinding(
+                () -> connectionAccent(controller.isEffectivelyConnected(), deviceStatus.isScanning()),
+                deviceStatus.isConnectedProperty(),
+                deviceStatus.isScanningProperty()
+            )
+        );
+        connectionPill.getStyleClass().add("info-pill-clickable");
+        Tooltip.install(connectionPill, new Tooltip(text("status.ble-driver-hint")));
+        connectionPill.setAccessibleRole(javafx.scene.AccessibleRole.BUTTON);
+        connectionPill.setAccessibleText(languageManager.getString("button.ble-driver"));
+        setupBleButtonLongPress(connectionPill);
+
         HBox infoPills = new HBox(10);
         infoPills.getChildren().addAll(
-            new InfoPill(
-                Bindings.createStringBinding(
-                    () -> controller.isEffectivelyConnected() ? languageManager.getString("status.connected")
-                        : (deviceStatus.isScanning() ? languageManager.getString("status.scanning") : languageManager.getString("status.disconnected")),
-                    deviceStatus.isConnectedProperty(),
-                    deviceStatus.isScanningProperty()
-                ),
-                Bindings.createStringBinding(
-                    () -> controller.isEffectivelyConnected() ? deviceStatus.getDeviceName() : languageManager.getString("status.waiting-device"),
-                    deviceStatus.isConnectedProperty(),
-                    deviceStatus.deviceNameProperty()
-                ),
-                Bindings.createObjectBinding(
-                    () -> controller.isEffectivelyConnected() ? AccentColor.GREEN : AccentColor.ORANGE,
-                    deviceStatus.isConnectedProperty()
-                )
-            ),
+            connectionPill,
             new InfoPill(
                 Bindings.createStringBinding(() -> languageManager.getString("status.battery")),
                 Bindings.createStringBinding(
@@ -179,15 +326,23 @@ public class TopBar extends VBox {
                     deviceStatus.batteryLevelProperty(),
                     deviceStatus.transportProperty()
                 ),
-                Bindings.createObjectBinding(() -> AccentColor.BLUE)
+                Bindings.createObjectBinding(
+                    () -> batteryAccent(deviceStatus.isConnected(), deviceStatus.getTransport(),
+                        deviceStatus.getBatteryLevel()),
+                    deviceStatus.isConnectedProperty(),
+                    deviceStatus.batteryLevelProperty(),
+                    deviceStatus.transportProperty()
+                )
             ),
             new InfoPill(
                 Bindings.createStringBinding(() -> languageManager.getString("status.switch")),
                 Bindings.createStringBinding(deviceStatus::getSwitchTitle,
                     deviceStatus.switchStateProperty(), deviceStatus.isConnectedProperty()),
                 Bindings.createObjectBinding(
-                    () -> deviceStatus.isAutoApproval() ? AccentColor.MINT : AccentColor.INDIGO,
-                    deviceStatus.switchStateProperty()
+                    () -> !deviceStatus.isConnected() ? AccentColor.GRAY
+                        : deviceStatus.isAutoApproval() ? AccentColor.MINT : AccentColor.INDIGO,
+                    deviceStatus.switchStateProperty(),
+                    deviceStatus.isConnectedProperty()
                 )
             )
         );
@@ -212,34 +367,21 @@ public class TopBar extends VBox {
             }
         });
 
-        // BLE 驱动按钮
-        Button bleButton = new Button(languageManager.getString("button.ble-driver"));
-        bleButton.getStyleClass().add("button-ble");
-        setupBleButtonLongPress(bleButton);
-
-        ToggleButton ahaTypeToggle = new ToggleButton();
-        ahaTypeToggle.getStyleClass().add("toggle-button");
-        ahaTypeToggle.textProperty().bind(Bindings.createStringBinding(
-            () -> studioState.ahaTypeEnabledProperty().get() ? "AhaType" : "AhaType",
-            studioState.ahaTypeEnabledProperty()
-        ));
-        ahaTypeToggle.setSelected(studioState.ahaTypeEnabledProperty().get());
-        studioState.ahaTypeEnabledProperty().addListener((obs, oldValue, newValue) -> {
-            if (ahaTypeToggle.isSelected() != newValue) {
-                ahaTypeToggle.setSelected(newValue);
+        // AhaType 总开关：开=启用本地语音（首次需确认下载）并开启云端整理；
+        // 关=隐藏语音控件、关闭云端整理，模型保留。
+        LocalVoiceFeature localVoice = LocalVoiceFeature.getInstance();
+        ahaTypeSwitch = createSwitch();
+        ahaTypeSwitch.setSelected(isAhaTypeMasterOn());
+        Runnable syncSwitch = () -> ahaTypeSwitch.setSelected(isAhaTypeMasterOn());
+        localVoice.enabledProperty().addListener((obs, oldValue, newValue) -> syncSwitch.run());
+        localVoice.phaseProperty().addListener((obs, oldValue, newValue) -> syncSwitch.run());
+        ahaTypeSwitch.setOnAction(event -> {
+            if (ahaTypeSwitch.isSelected()) {
+                turnAhaTypeOn();
+            } else {
+                turnAhaTypeOff();
             }
-        });
-        ahaTypeToggle.setOnAction(event -> {
-            boolean requestedEnable = ahaTypeToggle.isSelected();
-            boolean changed = studioState.toggleAhaType(requestedEnable);
-            if (!changed) {
-                ahaTypeToggle.setSelected(studioState.ahaTypeEnabledProperty().get());
-            }
-            if (shouldOpenCloudAccountOnAhaTypeToggle(
-                requestedEnable, changed,
-                studioState.shouldOpenAhaTypeAccountForEnable())) {
-                showCloudAccountDialog();
-            }
+            syncSwitch.run();
         });
 
         // 语音启动按钮
@@ -264,18 +406,20 @@ public class TopBar extends VBox {
         voiceButtonRow.getChildren().addAll(voiceRecordButton, voiceStatusLamp, voiceStatusLabel);
         voiceControlBox.getChildren().addAll(voiceButtonRow, voiceResultPreview);
 
-        VBox ahaTypeStatus = createStatusBox(
-            studioState.ahaTypeEnabledProperty(),
+        javafx.beans.binding.BooleanBinding masterOn = Bindings.createBooleanBinding(
+            this::isAhaTypeMasterOn, localVoice.enabledProperty(), localVoice.phaseProperty());
+        VBox ahaTypeStatus = createSwitchStatusBox(
+            ahaTypeSwitch,
+            localVoice.availableProperty(),
             Bindings.createStringBinding(
-                () -> studioState.ahaTypeEnabledProperty().get() ? languageManager.getString("aha-type.enabled") : languageManager.getString("aha-type.disabled"),
-                studioState.ahaTypeEnabledProperty()
+                () -> text(masterOn.get() ? "aha.master.on" : "aha.master.off"),
+                masterOn
             ),
             Bindings.createStringBinding(
-                () -> studioState.ahaTypeEnabledProperty().get()
-                    ? ""
-                    : studioState.ahaTypeStatusProperty().get(),
-                studioState.ahaTypeEnabledProperty(),
-                studioState.ahaTypeStatusProperty()
+                this::ahaTypeMasterDetail,
+                masterOn, localVoice.availableProperty(), localVoice.phaseProperty(),
+                localVoice.messageProperty(), studioState.ahaTypeEnabledProperty(),
+                studioState.ahaTypeStatusProperty(), voiceRunningProperty, voiceErrorProperty
             )
         );
 
@@ -360,17 +504,14 @@ public class TopBar extends VBox {
         // 将操作按钮放入统一的 HBox
         HBox actionButtons = new HBox(4);
         actionButtons.setAlignment(Pos.CENTER_LEFT);
-        actionButtons.getChildren().addAll(connectButton, bleButton);
+        actionButtons.getChildren().addAll(connectButton);
 
         // 布局以轻量版为准：所有控件在一行。AhaType 和语音控件位于 BLE 驱动之后，
         // 只有在设置中开启本地语音后才显示，默认形态与轻量版完全一致。
-        HBox ahaTypeControls = new HBox(8, ahaTypeToggle, ahaTypeStatus);
+        // 导航栏只保留 AhaType 状态和总开关；语音输入随开关自动启动/停止，
+        // 运行状态和错误显示在 AhaType 第二行。
+        HBox ahaTypeControls = new HBox(ahaTypeStatus);
         ahaTypeControls.setAlignment(Pos.CENTER_LEFT);
-        var localVoiceAvailable = LocalVoiceFeature.getInstance().availableProperty();
-        for (Region optional : new Region[] {ahaTypeControls, voiceControlBox}) {
-            optional.visibleProperty().bind(localVoiceAvailable);
-            optional.managedProperty().bind(localVoiceAvailable);
-        }
         voiceResultPreview.setMaxWidth(260);
 
         // 状态信息与操作按钮之间的固定间距
@@ -389,7 +530,7 @@ public class TopBar extends VBox {
         mainRow.setPadding(new Insets(6, 16, 6, 16));
         mainRow.setMinWidth(Region.USE_PREF_SIZE); // 保持首选宽度，不缩小
         mainRow.getChildren().addAll(titleBox, infoPills, spacer, actionButtons,
-            ahaTypeControls, voiceControlBox, rightSpacer, configStatus, configModeButton, menuBar);
+            ahaTypeControls, rightSpacer, configStatus, configModeButton, menuBar);
 
         // 包裹在水平 ScrollPane 中：宽屏时不显示滚动条，分屏窄时可水平滚动
         ScrollPane scrollWrapper = new ScrollPane(mainRow);
@@ -452,7 +593,7 @@ public class TopBar extends VBox {
      * 设置 BLE 按钮长按功能。长按只停止当前精确匹配且已拥有/收养的实例，
      * 不再按进程名全局 taskkill。
      */
-    private void setupBleButtonLongPress(Button bleButton) {
+    private void setupBleButtonLongPress(javafx.scene.Node bleButton) {
         bleButton.setOnMousePressed(event -> {
             bleButtonPressed = true;
             bleLongPressTriggered = false;
@@ -593,6 +734,7 @@ public class TopBar extends VBox {
      */
     private void startVoiceService() {
         voiceRunning = true;
+        voiceRunningProperty.set(true);
         updateVoiceButtonState();
         setVoiceStatus("starting", languageManager.getString("voice.status.starting"));
         
@@ -648,6 +790,7 @@ public class TopBar extends VBox {
      */
     private void stopVoiceService() {
         voiceRunning = false;
+        voiceRunningProperty.set(false);
         updateVoiceButtonState();
         setVoiceStatus("stopping", languageManager.getString("voice.status.stopping"));
         
@@ -680,6 +823,12 @@ public class TopBar extends VBox {
      * 设置语音状态
      */
     private void setVoiceStatus(String status, String text) {
+        boolean known = switch (status) {
+            case "stopped", "idle", "starting", "stopping", "processing", "recognizing",
+                 "recording", "ready" -> true;
+            default -> false;
+        };
+        voiceErrorProperty.set(known ? "" : (text == null ? "" : text));
         if (voiceStatusLamp != null) {
             voiceStatusLamp.setStatus(status);
         }
@@ -1204,6 +1353,21 @@ public class TopBar extends VBox {
                 }
             });
         });
+    }
+
+    /** Dot colour of the connection block: green connected, orange scanning, red disconnected. */
+    static AccentColor connectionAccent(boolean connected, boolean scanning) {
+        if (connected) return AccentColor.GREEN;
+        return scanning ? AccentColor.ORANGE : AccentColor.RED;
+    }
+
+    /** Dot colour of the battery block: grey unknown, green USB or above 50 %, orange to 20 %, red below. */
+    static AccentColor batteryAccent(boolean connected, String transport, int level) {
+        if (!connected) return AccentColor.GRAY;
+        if ("USB".equals(transport)) return AccentColor.GREEN;
+        if (level < 0 || level > 100) return AccentColor.GRAY;
+        if (level > 50) return AccentColor.GREEN;
+        return level > 20 ? AccentColor.ORANGE : AccentColor.RED;
     }
 
     private static String formatBattery(DeviceStatus status) {

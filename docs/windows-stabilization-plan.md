@@ -1561,3 +1561,14 @@ Keyboard connected over USB; its firmware does not answer `0x9F` (like official 
 Verification: `mvn clean package` 391 tests, 0 failures, 1 skipped, `RELEASE_ARTIFACT_CONTENTS=OK`; on the
 keyboard: connect, status (USB power, lever auto-approve), device dialog, Hook status, standby and version pages.
 No configuration was written to the keyboard.
+
+## 45. AhaType master switch and modifier-only K1 shortcuts (2026-10-23)
+
+- **AhaType 总开关。** 顶栏只保留 AhaType 状态和一个开关（开关在“AhaType 开启/关闭”标题右侧），不再有
+  “启动语音输入”按钮和“语音未就绪”标签。打开时：未下载本地语音则先弹窗说明功能、约 260 MB 下载和云端整理，
+  用户确认后才下载；已下载则直接启用，语音输入随开关自动启动，并开启 AhaType 云端整理。关闭时停止语音、
+  关闭云端整理，模型保留。下载、就绪、运行和失败状态显示在开关第二行。
+- **BLE 驱动入口移到连接状态块。** 顶栏不再有“BLE驱动”按钮。点击第一个状态块（已连接/未连接）打开或置前
+  `BLE_tcp_driver.exe`，长按 5 秒停止当前精确路径的自有/接管实例，行为与原按钮相同（`setupBleButtonLongPress`）。
+- **左侧状态块加彩色圆点。** 与右侧状态一致，每块标题前有圆点：连接（绿 已连接 / 橙 扫描中 / 红 未连接）、
+  电量（绿 USB 或 >50% / 橙 21–50% / 红 ≤20% / 灰 未连接或读取中）、拨杆（薄荷 自动批准 / 靛蓝 手动 / 灰 未连接）。

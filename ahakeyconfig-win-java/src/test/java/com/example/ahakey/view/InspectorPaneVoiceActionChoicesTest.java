@@ -66,10 +66,14 @@ class InspectorPaneVoiceActionChoicesTest {
     void mainAhaTypeAndVoiceControlsRemainDiscoverableWithoutModelFlag() throws IOException {
         String source = Files.readString(Path.of(
             "src/main/java/com/example/ahakey/view/TopBar.java"));
-        // Lite single-row layout: AhaType and voice sit after the BLE driver button.
+        // Lite single-row layout: the AhaType status and master switch sit after
+        // the connect button; voice starts and stops with the switch. The BLE
+        // driver opens from the connection block instead of its own button.
         String flat = source.replaceAll("\\s+", " ");
         assertTrue(flat.contains("titleBox, infoPills, spacer, actionButtons, "
-            + "ahaTypeControls, voiceControlBox, rightSpacer, configStatus, configModeButton, menuBar"));
-        assertTrue(source.contains("button.start-voice"));
+            + "ahaTypeControls, rightSpacer, configStatus, configModeButton, menuBar"));
+        assertTrue(source.contains("ahaTypeSwitch = createSwitch()"));
+        assertTrue(source.contains("setupBleButtonLongPress(connectionPill)"));
+        assertFalse(source.contains("\"button-ble\""));
     }
 }
