@@ -5,6 +5,8 @@ import java.nio.file.Path;
 /**
  * Generates the documented WCHISPStudio CH57x/CH59x command-line configuration.
  * DataFlash is deliberately preserved for an ordinary firmware update.
+ * WCHISP 4.0 also requires the literal "Quick Verification Mode" key;
+ * omitting it produces vendor Code 2 before device discovery.
  */
 public final class WchIspConfig {
     private WchIspConfig() {}
@@ -45,6 +47,7 @@ public final class WchIspConfig {
             IsEraseAllCFlash=1
             IsAfterDownRest=0
             bVerifyType=0
+            Quick Verification Mode=0
             """.formatted(path);
     }
 }
