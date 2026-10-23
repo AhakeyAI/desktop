@@ -1,0 +1,67 @@
+#ifndef __COMM_SOL_H
+#define __COMM_SOL_H
+#include "CONFIG.h"
+#include "HAL.h"
+#include "lwrb.h"
+
+/*
+ * AhaKey protocol command range policy.
+ *
+ * 0x00 - 0x9F: official AhaKey firmware / AhaKey Studio commands.
+ * 0xA0 - 0xEF: reserved for SDK user custom commands. Official firmware
+ *               development should not allocate commands in this range.
+ * 0xF0 - 0xFF: reserved for system/debug/factory use.
+ */
+#define AHAKEY_PROTOCOL_OFFICIAL_MIN 0x00
+#define AHAKEY_PROTOCOL_OFFICIAL_MAX 0x9F
+#define AHAKEY_PROTOCOL_USER_MIN     0xA0
+#define AHAKEY_PROTOCOL_USER_MAX     0xEF
+#define AHAKEY_PROTOCOL_SYSTEM_MIN   0xF0
+#define AHAKEY_PROTOCOL_SYSTEM_MAX   0xFF
+
+#define AHAKEY_CMD_DISPLAY_CONFIG_READ          0x88
+#define AHAKEY_CMD_DISPLAY_CONFIG_PREVIEW       0x89
+#define AHAKEY_CMD_RESOURCE_UPLOAD_BEGIN        0x8A
+#define AHAKEY_CMD_RESOURCE_UPLOAD_CHUNK        0x8B
+#define AHAKEY_CMD_RESOURCE_UPLOAD_COMMIT       0x8C
+#define AHAKEY_CMD_RESOURCE_ENTRY_ACTION_CLEAR  0x8D
+#define AHAKEY_CMD_DISPLAY_CONFIG_SAVE          0x8E
+#define AHAKEY_CMD_DISPLAY_CONFIG_RESERVED      0x8F
+#define AHAKEY_CMD_TASK_LIGHT_MODE    0x98
+#define AHAKEY_CMD_TASK_SLOT_UPDATE   0x99
+#define AHAKEY_CMD_TASK_HEARTBEAT     0x9A
+
+#define AHAKEY_STATUS_OK              0
+#define AHAKEY_STATUS_INVALID_PAYLOAD 1
+#define AHAKEY_STATUS_OUT_OF_RANGE    2
+#define AHAKEY_STATUS_TOO_LARGE       3
+
+void receive_bytes(uint8_t *d, uint32_t len);
+void receive_usb_bytes(uint8_t *d, uint32_t len);
+void receive_usb_data(uint8_t *d, uint32_t len);
+void command_process(uint8_t *d, uint32_t len);
+void command_process_ok(void);
+void command_data_buf_init(void);
+void command_return(uint8_t id, uint8_t code);
+void command_return_state(void);
+void command_return_frame(uint8_t *d, uint8_t len);
+uint8_t command_cp2_resource_upload_active(void);
+void command_usb_configured(uint8_t config);
+void command_ble_connected(uint16_t handle);
+void command_link_lost(uint8_t transport);
+void command_receive_ble(uint16_t handle, uint8_t *data, uint32_t len);
+void command_receive_fault(uint8_t transport);
+void command_dispatch_one(void);
+void command_process_losses(void);
+void command_recovery_tick(void);
+void command_boot_sanitize(void);
+uint8_t command_resource_unavailable(uint8_t entry);
+uint8_t command_resource_pending(uint8_t entry);
+uint8_t command_raw_admit(void);
+void command_raw_complete(void);
+
+extern lwrb_t   ble_data_lwrb;
+extern uint8_t *command_data;
+extern uint16_t command_len;
+extern uint8_t  command_in_process;
+#endif

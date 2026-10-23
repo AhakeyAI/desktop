@@ -1,0 +1,6 @@
+{
+  "java_home": "D:\\jdk-17.0.19.10-hotspot",
+  "command": "mvn.cmd -o -Dmaven.repo.local=<absolute workspace .m2repo> --batch-mode --no-transfer-progress test-compile -DskipTests",
+  "exit_code": 0,
+  "maven_opts": "-Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8"
+}

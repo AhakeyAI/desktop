@@ -1,8 +1,87 @@
 package com.example.ahakey.protocol;
 
 import com.example.ahakey.model.DeviceStatus;
+import com.example.ahakey.model.AiRuntimeDisplayMode;
+import com.example.ahakey.model.AiRuntimeSlotBinding;
+import com.example.ahakey.model.AiRuntimeSlotState;
 
 public class AhaKeyProtocol {
+    public static final byte CMD_DISPLAY_READ = (byte) 0x88;
+    public static final byte CMD_DISPLAY_PREVIEW = (byte) 0x89;
+    public static final byte CMD_RESOURCE_BEGIN = (byte) 0x8A;
+    public static final byte CMD_RESOURCE_CHUNK = (byte) 0x8B;
+    public static final byte CMD_RESOURCE_COMMIT = (byte) 0x8C;
+    public static final byte CMD_DISPLAY_SAVE = (byte) 0x8E;
+    public static final int RESOURCE_COUNT = 19;
+    public static final int RESOURCE_CHUNK_BYTES = 48;
+
+    public static int resourceCapacity(int entry) {
+        requireRange(entry, 0, 18, "entry");
+        return entry < 16 && entry % 4 == 0 ? 8 : 12;
+    }
+
+    public static byte[] displayRead(int kind, int... selectors) {
+        requireRange(kind, 0, 3, "read kind");
+        int count = kind == 0 ? 0 : kind == 1 ? 2 : 1;
+        if (selectors.length != count) throw new IllegalArgumentException("selectors");
+        if (kind == 1) {
+            requireRange(selectors[0], 0, 3, "mode");
+            requireRange(selectors[1], 0, 8, "AI state");
+        } else if (kind > 1) requireRange(selectors[0], 0, 18, "entry");
+        byte[] data = new byte[count + 1];
+        data[0] = (byte) kind;
+        for (int i = 0; i < count; i++) data[i + 1] = (byte) selectors[i];
+        return buildFrame(CMD_DISPLAY_READ, data);
+    }
+
+    public static byte[] previewBrightness(int brightness) {
+        requireRange(brightness, 1, 100, "brightness");
+        return buildFrame(CMD_DISPLAY_PREVIEW, new byte[]{0, (byte) brightness});
+    }
+
+    public static byte[] previewLight(int effect, int brightness) {
+        requireRange(effect, 1, 16, "effect");
+        requireRange(brightness, 1, 100, "brightness");
+        return buildFrame(CMD_DISPLAY_PREVIEW, new byte[]{1, (byte) effect, (byte) brightness});
+    }
+
+    public static byte[] saveDisplayBrightness(int brightness) {
+        requireRange(brightness, 1, 100, "brightness");
+        return buildFrame(CMD_DISPLAY_SAVE, new byte[]{0, (byte) brightness});
+    }
+
+    public static byte[] saveDisplayLight(int mode, int ai, int effect) {
+        requireRange(mode, 0, 3, "mode");
+        requireRange(ai, 0, 8, "AI state");
+        requireRange(effect, 0, 16, "effect");
+        return buildFrame(CMD_DISPLAY_SAVE, new byte[]{1, (byte) mode, (byte) ai, (byte) effect});
+    }
+
+    public static byte[] resourceBegin(int entry, int frames, long crc) {
+        requireRange(frames, 1, resourceCapacity(entry), "frames");
+        if (crc < 0 || crc > 0xffffffffL) throw new IllegalArgumentException("CRC32");
+        java.nio.ByteBuffer data = java.nio.ByteBuffer.allocate(11).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        data.put((byte) entry).putInt(frames * OLED_FRAME_SLOT_SIZE).putShort((short) frames).putInt((int) crc);
+        return buildFrame(CMD_RESOURCE_BEGIN, data.array());
+    }
+
+    public static byte[] resourceChunk(int entry, int offset, byte[] payload) {
+        int capacity = resourceCapacity(entry) * OLED_FRAME_SLOT_SIZE;
+        requireRange(payload.length, 1, RESOURCE_CHUNK_BYTES, "chunk length");
+        requireRange(offset, 0, capacity - payload.length, "offset");
+        java.nio.ByteBuffer data = java.nio.ByteBuffer.allocate(6 + payload.length).order(java.nio.ByteOrder.LITTLE_ENDIAN);
+        data.put((byte) entry).putInt(offset).put((byte) payload.length).put(payload);
+        return buildFrame(CMD_RESOURCE_CHUNK, data.array());
+    }
+
+    public static byte[] resourceCommit(int entry) {
+        resourceCapacity(entry);
+        return buildFrame(CMD_RESOURCE_COMMIT, new byte[]{(byte) entry});
+    }
+
+    private static void requireRange(int value, int min, int max, String field) {
+        if (value < min || value > max) throw new IllegalArgumentException(field + ": " + value);
+    }
     private static final byte[] HEADER = {(byte) 0xAA, (byte) 0xBB};
     private static final byte[] TRAILER = {(byte) 0xCC, (byte) 0xDD};
     
@@ -12,6 +91,7 @@ public class AhaKeyProtocol {
     public static final byte CMD_CHANGE_APPEARANCE = 0x02;
     public static final byte CMD_SAVE_CONFIG = 0x04;
     public static final byte CMD_UPDATE_CUSTOM_KEY = 0x73;
+    public static final byte CMD_ORDINARY_KEY_READBACK = (byte) 0x87;
     public static final byte CMD_PREPARE_WRITE = (byte) 0x80;
     public static final byte CMD_WRITE_RESULT = (byte) 0x81;
     public static final byte CMD_UPDATE_PIC = (byte) 0x82;
@@ -21,6 +101,29 @@ public class AhaKeyProtocol {
     public static final byte CMD_UPDATE_STATE = (byte) 0x90;
     public static final byte CMD_SET_LIGHT_EFFECT = (byte) 0x91;
     public static final byte CMD_SET_WORK_MODE = (byte) 0x92;
+    public static final byte CMD_SLEEP_WAIT_TIME = (byte) 0x95;
+    public static final byte CMD_SIDE_SWITCH_CONFIG = (byte) 0x97;
+    public static final byte CMD_RUNTIME_DISPLAY_MODE = (byte) 0x98;
+    public static final byte CMD_MULTI_RUNTIME_SNAPSHOT = (byte) 0x99;
+    public static final byte CMD_RUNTIME_COMPAT_ACK = (byte) 0x9A;
+    public static final byte CMD_FIRMWARE_CATALOG_KEY = (byte) 0x9F;
+    public static final int STATUS_OK = 0;
+    public static final int STATUS_INVALID_PAYLOAD = 1;
+    public static final int STATUS_OUT_OF_RANGE = 2;
+    public static final int STATUS_TOO_LARGE = 3;
+    public static final int ORDINARY_KEY_READBACK_FRAME_MAX = 64;
+    public static final int ORDINARY_KEY_READBACK_ACTION_DESC_MAX = 53;
+    public static final int ORDINARY_KEY_ACTION_EMPTY = 0x00;
+    public static final int SIDE_SWITCH_POSITION_UP = 0;
+    public static final int SIDE_SWITCH_POSITION_DOWN = 1;
+    public static final int SIDE_SWITCH_BINDING_AUTO = 0;
+    public static final int SIDE_SWITCH_BINDING_MANUAL = 1;
+    public static final int SIDE_SWITCH_BINDING_DISABLED = 2;
+    public static final int SIDE_SWITCH_BINDING_CUSTOM = 3;
+    public static final int SIDE_SWITCH_ACTION_BIND_LEN = 100;
+    public static final int SIDE_SWITCH_READBACK_ACTION_TOTAL_MAX = 52;
+    private static final String CP4C_CATALOG_KEY = "x1-c582-hw1-p1-1.0.0-r001";
+    public static final int MULTI_RUNTIME_SNAPSHOT_VERSION = 1;
     
     // 按键子类型
     public static final byte SUB_SHORTCUT = 0x73;
@@ -75,6 +178,110 @@ public class AhaKeyProtocol {
 
     public static byte[] setWorkMode(int mode) {
         return buildFrame(CMD_SET_WORK_MODE, new byte[]{(byte) Math.max(0, Math.min(3, mode))});
+    }
+
+    public static byte[] querySleepWaitTime() {
+        return buildFrame(CMD_SLEEP_WAIT_TIME, new byte[0]);
+    }
+
+    public static byte[] queryFirmwareCatalogKey() {
+        return buildFrame(CMD_FIRMWARE_CATALOG_KEY, new byte[0]);
+    }
+
+    public static boolean isCp4cCatalogKey(String catalogKey) {
+        return CP4C_CATALOG_KEY.equals(catalogKey);
+    }
+
+    public static boolean isWs3Cp1RuntimeDisplaySupported(String catalogKey) {
+        return CP4C_CATALOG_KEY.equals(catalogKey);
+    }
+
+    public static boolean isDisplayCapabilityResponse(byte[] frame) {
+        if (!isValidFrame(frame) || frame.length < 6 || frame[2] != CMD_FIRMWARE_CATALOG_KEY) return false;
+        int offset = frame[3] == 0 ? 4 : 3;
+        byte[] key = CP4C_CATALOG_KEY.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        if (frame.length - 2 - offset < key.length) return false;
+        for (byte value : key) if (frame[offset++] != value) return false;
+        while (offset < frame.length - 2) if (frame[offset++] != 0) return false;
+        return true;
+    }
+
+    public static byte[] setRuntimeDisplayMode(AiRuntimeDisplayMode mode) {
+        AiRuntimeDisplayMode safeMode = mode == null ? AiRuntimeDisplayMode.SINGLE : mode;
+        return buildFrame(CMD_RUNTIME_DISPLAY_MODE, new byte[]{(byte) safeMode.getProtocolValue()});
+    }
+
+    public static byte[] multiRuntimeSnapshot(AiRuntimeSlotBinding[] slots) {
+        byte[] payload = new byte[1 + 4 * 3];
+        payload[0] = (byte) MULTI_RUNTIME_SNAPSHOT_VERSION;
+        for (int i = 0; i < 4; i++) {
+            AiRuntimeSlotBinding slot = slots != null && i < slots.length ? slots[i] : null;
+            boolean valid = slot != null && slot.isBound();
+            AiRuntimeSlotState state = valid ? slot.runtimeState() : AiRuntimeSlotState.EMPTY;
+            if (state == AiRuntimeSlotState.EMPTY) {
+                valid = false;
+            }
+            int offset = 1 + i * 3;
+            payload[offset] = (byte) (valid ? 1 : 0);
+            payload[offset + 1] = (byte) state.getProtocolValue();
+            payload[offset + 2] = (byte) (slot != null && slot.isForeground() ? 1 : 0);
+        }
+        return buildFrame(CMD_MULTI_RUNTIME_SNAPSHOT, payload);
+    }
+
+    public static byte[] readOrdinaryKeyConfig(int mode, int keyIndex) {
+        return buildFrame(CMD_ORDINARY_KEY_READBACK, new byte[]{
+            (byte) Math.max(0, Math.min(3, mode)),
+            (byte) Math.max(0, Math.min(3, keyIndex))
+        });
+    }
+
+    public static byte[] readSideSwitchConfig() {
+        return buildFrame(CMD_SIDE_SWITCH_CONFIG, new byte[0]);
+    }
+
+    public static byte[] setSideSwitchConfig(
+        int upBinding,
+        byte[] upAction,
+        int downBinding,
+        byte[] downAction
+    ) {
+        int safeUpBinding = normalizeSideSwitchBinding(upBinding);
+        int safeDownBinding = normalizeSideSwitchBinding(downBinding);
+        byte[] safeUpAction = normalizeSideSwitchAction(safeUpBinding, upAction);
+        byte[] safeDownAction = normalizeSideSwitchAction(safeDownBinding, downAction);
+        int actionTotal = safeUpAction.length + safeDownAction.length;
+        if (actionTotal > SIDE_SWITCH_READBACK_ACTION_TOTAL_MAX) {
+            throw new IllegalArgumentException(
+                "侧拨自定义动作过长：" + actionTotal + " 字节，当前固件 0x97 回读上限为 "
+                    + SIDE_SWITCH_READBACK_ACTION_TOTAL_MAX + " 字节"
+            );
+        }
+        byte[] payload = new byte[1 + 2 + safeUpAction.length + 2 + safeDownAction.length];
+        int offset = 0;
+        payload[offset++] = 0x01;
+        payload[offset++] = (byte) safeUpBinding;
+        payload[offset++] = (byte) safeUpAction.length;
+        System.arraycopy(safeUpAction, 0, payload, offset, safeUpAction.length);
+        offset += safeUpAction.length;
+        payload[offset++] = (byte) safeDownBinding;
+        payload[offset++] = (byte) safeDownAction.length;
+        System.arraycopy(safeDownAction, 0, payload, offset, safeDownAction.length);
+        return buildFrame(CMD_SIDE_SWITCH_CONFIG, payload);
+    }
+
+    public static byte[] setSleepWaitTime(int minutes) {
+        if (!isSupportedSleepWaitTime(minutes)) {
+            throw new IllegalArgumentException("Unsupported sleep wait time: " + minutes);
+        }
+        byte[] payload = new byte[2];
+        payload[0] = (byte) (minutes & 0xFF);
+        payload[1] = (byte) ((minutes >> 8) & 0xFF);
+        return buildFrame(CMD_SLEEP_WAIT_TIME, payload);
+    }
+
+    public static boolean isSupportedSleepWaitTime(int minutes) {
+        return minutes == 0 || minutes == 30 || minutes == 60 || minutes == 120;
     }
 
     public static byte[] setAiLightConfig(int mode, byte[] effectCodes) {
@@ -203,5 +410,46 @@ public class AhaKeyProtocol {
             }
         }
         return result.toString();
+    }
+
+    private static int normalizeSideSwitchBinding(int binding) {
+        return switch (binding) {
+            case SIDE_SWITCH_BINDING_AUTO,
+                 SIDE_SWITCH_BINDING_MANUAL,
+                 SIDE_SWITCH_BINDING_DISABLED,
+                 SIDE_SWITCH_BINDING_CUSTOM -> binding;
+            default -> SIDE_SWITCH_BINDING_DISABLED;
+        };
+    }
+
+    private static byte[] normalizeSideSwitchAction(int binding, byte[] action) {
+        if (binding != SIDE_SWITCH_BINDING_CUSTOM) {
+            return new byte[0];
+        }
+        if (action == null || action.length == 0) {
+            throw new IllegalArgumentException("侧拨 Custom 动作缺少 0x73/0x74 动作包");
+        }
+        if (action.length < 2) {
+            throw new IllegalArgumentException("侧拨 Custom 动作缺少长度字段");
+        }
+        if (action.length > SIDE_SWITCH_ACTION_BIND_LEN) {
+            throw new IllegalArgumentException(
+                "侧拨 Custom 动作超过固件存储上限：" + action.length + " 字节"
+            );
+        }
+        int actionType = action[0] & 0xFF;
+        if (actionType != (SUB_SHORTCUT & 0xFF) && actionType != (SUB_MACRO & 0xFF)) {
+            throw new IllegalArgumentException("侧拨 Custom 动作必须以 0x73 或 0x74 开头");
+        }
+        int declaredLength = action[1] & 0xFF;
+        if (declaredLength != action.length - 2) {
+            throw new IllegalArgumentException(
+                "侧拨 Custom 动作长度不匹配：声明 " + declaredLength + " 字节，实际 "
+                    + (action.length - 2) + " 字节"
+            );
+        }
+        byte[] out = new byte[action.length];
+        System.arraycopy(action, 0, out, 0, action.length);
+        return out;
     }
 }

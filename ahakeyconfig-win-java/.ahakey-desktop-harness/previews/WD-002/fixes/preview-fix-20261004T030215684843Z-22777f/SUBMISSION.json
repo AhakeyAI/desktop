@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "WD-002",
+  "token": "preview-fix-20261004T030215684843Z-22777f",
+  "round": 1,
+  "at": "2026-10-04T03:08:10+00:00",
+  "status": "submitted_for_preview_review",
+  "approval_sha256": "a34f0f05a0daee947b6ebddd45a22762a6316d6c41c2304928c2814fc57aeaed",
+  "code_fingerprint": "d8a2a7008bdf0273784a779ffcf22a451e5f460fca8844703a1b30d4696a2c88",
+  "changed_paths": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/view/CanvasPane.java"
+  ],
+  "request_sha256": "cef21e676938ea0ecd6e8fdf4c44a4b0e70f9e04b2dbb2c87725cb9b2f1587c3",
+  "report": {
+    "path": ".ahakey-desktop-harness\\changes\\WD-002\\PREVIEW_FIX_REPORT_20261004_UI_BOUNCE.md",
+    "sha256": "747cec03535cfab44ce74d5e1093f7217510885ef6315c4b47a5d2933138ba75"
+  },
+  "evidence": [
+    {
+      "path": ".ahakey-desktop-harness\\evidence\\owner-preview-feedback-WD-002-usb-ble-mode-sync-20261004.md",
+      "sha256": "fefa9d68a6645a1c863940669023202d059e3021b5e83c0a003f866366f32ee0"
+    }
+  ],
+  "meaning": "Preview-only fix submission. Not formal builder_submission/candidate/UAT."
+}

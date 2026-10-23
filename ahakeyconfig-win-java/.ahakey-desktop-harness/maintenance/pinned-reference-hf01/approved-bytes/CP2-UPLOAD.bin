@@ -1,0 +1,189 @@
+#include "resource_upload_transaction.h"
+
+#include <stddef.h>
+#include <string.h>
+
+static uint8_t resource_upload_publish(resource_upload_transaction_s *tx,
+                                       uint8_t entry_id,
+                                       uint8_t valid,
+                                       uint8_t write_state,
+                                       uint16_t frame_count,
+                                       uint32_t payload_bytes,
+                                       uint32_t crc32)
+{
+    display_resource_metadata_s metadata;
+
+    if (!tx || !tx->metadata_update)
+        return 0;
+
+    metadata.user_resource_valid = valid;
+    metadata.write_state         = write_state;
+    metadata.frame_count         = frame_count;
+    metadata.payload_bytes       = payload_bytes;
+    metadata.crc32               = crc32;
+    return tx->metadata_update(entry_id, &metadata);
+}
+
+void resource_upload_transaction_init(resource_upload_transaction_s *tx,
+                                      resource_upload_write_fn write,
+                                      resource_upload_metadata_fn metadata_update)
+{
+    if (!tx)
+        return;
+    memset(tx, 0, sizeof(*tx));
+    tx->write           = write;
+    tx->metadata_update = metadata_update;
+}
+
+uint8_t resource_upload_transaction_active(const resource_upload_transaction_s *tx)
+{
+    return tx && tx->active;
+}
+
+uint32_t resource_upload_crc32_update(uint32_t crc32, const uint8_t *data, uint32_t len)
+{
+    crc32 = ~crc32;
+    for (uint32_t i = 0; i < len; i++) {
+        crc32 ^= data[i];
+        for (uint8_t bit = 0; bit < 8; bit++)
+            crc32 = (crc32 >> 1) ^ (0xEDB88320UL & (0UL - (crc32 & 1UL)));
+    }
+    return ~crc32;
+}
+
+uint8_t resource_upload_begin(resource_upload_transaction_s *tx,
+                              uint8_t entry_id,
+                              uint16_t frame_count,
+                              uint32_t payload_bytes,
+                              uint32_t crc32)
+{
+    display_resource_entry_s entry;
+
+    if (!tx || tx->active || tx->pending_mask || !tx->write || !tx->metadata_update ||
+        (tx->live && !tx->live()))
+        return 0;
+    if (!display_resource_entry_get(entry_id, &entry))
+        return 0;
+    if (frame_count == 0 || frame_count > entry.max_frames)
+        return 0;
+    if (payload_bytes == 0 || payload_bytes != (uint32_t) frame_count * DISPLAY_RESOURCE_FRAME_BYTES ||
+        payload_bytes > entry.max_bytes)
+        return 0;
+
+    tx->active          = 1;
+    tx->entry_id        = entry_id;
+    tx->frame_count     = frame_count;
+    tx->expected_bytes  = payload_bytes;
+    tx->expected_crc32  = crc32;
+    tx->received_bytes  = 0;
+    tx->running_crc32   = 0;
+    tx->start_address   = entry.start_address;
+    if (!resource_upload_publish(tx,
+                                 entry_id,
+                                 0,
+                                 DISPLAY_RESOURCE_WRITE_WRITING,
+                                 frame_count,
+                                 payload_bytes,
+                                 crc32)) {
+        resource_upload_abort_invalid(tx);
+        return 0;
+    }
+    if (tx->live && !tx->live()) {
+        resource_upload_abort_invalid(tx);
+        return 0;
+    }
+    return 1;
+}
+
+void resource_upload_mark_invalid(resource_upload_transaction_s *tx, uint8_t entry)
+{
+    if (tx && entry < DISPLAY_RESOURCE_ENTRY_COUNT)
+        tx->pending_mask |= 1UL << entry;
+}
+
+void resource_upload_retry_one(resource_upload_transaction_s *tx)
+{
+    if (!tx || !tx->pending_mask)
+        return;
+    for (uint8_t n = 0; n < DISPLAY_RESOURCE_ENTRY_COUNT; ++n) {
+        uint8_t entry = tx->retry_cursor;
+        tx->retry_cursor = (entry + 1) % DISPLAY_RESOURCE_ENTRY_COUNT;
+        if (!(tx->pending_mask & (1UL << entry)))
+            continue;
+        if (resource_upload_publish(tx, entry, 0, DISPLAY_RESOURCE_WRITE_INVALID, 0, 0, 0))
+            tx->pending_mask &= ~(1UL << entry);
+        return;
+    }
+}
+
+void resource_upload_abort_invalid(resource_upload_transaction_s *tx)
+{
+    uint8_t entry_id;
+
+    if (!tx || !tx->active)
+        return;
+    entry_id = tx->entry_id;
+    resource_upload_mark_invalid(tx, entry_id);
+    tx->active = 0;
+    resource_upload_retry_one(tx);
+}
+
+uint8_t resource_upload_chunk(resource_upload_transaction_s *tx,
+                              uint8_t entry_id,
+                              uint32_t byte_offset,
+                              const uint8_t *payload,
+                              uint8_t payload_len)
+{
+    if (tx && (tx->pending_mask || (tx->live && !tx->live())))
+        return 0;
+    if (!tx || !tx->active || entry_id != tx->entry_id || !payload || payload_len == 0 ||
+        payload_len > DISPLAY_RESOURCE_MAX_CHUNK_BYTES) {
+        resource_upload_abort_invalid(tx);
+        return 0;
+    }
+    if (byte_offset != tx->received_bytes ||
+        (uint32_t) payload_len > tx->expected_bytes - tx->received_bytes) {
+        resource_upload_abort_invalid(tx);
+        return 0;
+    }
+
+    tx->write(tx->start_address + byte_offset, payload, payload_len);
+    tx->running_crc32 = resource_upload_crc32_update(tx->running_crc32, payload, payload_len);
+    tx->received_bytes += payload_len;
+    if (tx->live && !tx->live()) {
+        resource_upload_abort_invalid(tx);
+        return 0;
+    }
+    return 1;
+}
+
+uint8_t resource_upload_commit(resource_upload_transaction_s *tx, uint8_t entry_id)
+{
+    if (tx && (tx->pending_mask || (tx->live && !tx->live())))
+        return 0;
+    if (!tx || !tx->active || entry_id != tx->entry_id) {
+        resource_upload_abort_invalid(tx);
+        return 0;
+    }
+    if (tx->received_bytes != tx->expected_bytes || tx->running_crc32 != tx->expected_crc32) {
+        resource_upload_abort_invalid(tx);
+        return 0;
+    }
+
+    if (!resource_upload_publish(tx,
+                                 tx->entry_id,
+                                 1,
+                                 DISPLAY_RESOURCE_WRITE_VALID,
+                                 tx->frame_count,
+                                 tx->expected_bytes,
+                                 tx->expected_crc32)) {
+        resource_upload_abort_invalid(tx);
+        return 0;
+    }
+    if (tx->finish && !tx->finish()) {
+        resource_upload_abort_invalid(tx);
+        return 0;
+    }
+    tx->active = 0;
+    return 1;
+}

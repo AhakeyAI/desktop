@@ -1,0 +1,67 @@
+[
+  {
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigCapabilityChecks"
+    ],
+    "test": "DisplayConfigCapabilityChecks",
+    "exit_code": 0
+  },
+  {
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigIsolationChecks"
+    ],
+    "test": "DisplayConfigIsolationChecks",
+    "exit_code": 0
+  },
+  {
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigChecks"
+    ],
+    "test": "DisplayConfigChecks",
+    "exit_code": 0
+  },
+  {
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigFxChecks"
+    ],
+    "test": "DisplayConfigFxChecks",
+    "exit_code": 0
+  },
+  {
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigRaceChecks"
+    ],
+    "test": "DisplayConfigRaceChecks",
+    "exit_code": 1
+  }
+]

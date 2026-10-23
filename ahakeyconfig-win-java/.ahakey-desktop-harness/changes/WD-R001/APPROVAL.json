@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "record_type": "inherited_recovery_scope_approval",
+  "timestamp": "2026-10-03T01:49:12Z",
+  "actor": "DLA",
+  "change": "WD-R001",
+  "approval_type": "inherited_from_owner_confirmed_recovery_contract",
+  "source_contract": ".ahakey-desktop-harness/changes/WD-001/recovery/RECOVERY_CONTRACT_20261003T011312Z.md",
+  "source_owner_confirmation": ".ahakey-desktop-harness/changes/WD-001/recovery/OWNER_CONFIRMATION_RECOVERY_CONTRACT_20261003T012836Z.md",
+  "owner_scope_already_approved": true,
+  "new_owner_product_scope_confirmation_required": false,
+  "identity_correction_only": true,
+  "superseding_owner_instruction": "Pause DIB handoff and correct recovery task identity so this recovery implementation belongs to WD-R001, while preserving WD-001 historical identity and keeping WD-002 inactive.",
+  "authorized_next_stage": {
+    "phase": "IMPLEMENT",
+    "mode": "DIB",
+    "change": "WD-R001"
+  },
+  "not_authorized": [
+    "modify production Java in this DLA turn",
+    "build/package/create JAR/EXE",
+    "Git write",
+    "Owner real-device test",
+    "modify Firmware",
+    "activate WD-002",
+    "transfer historical PASS"
+  ]
+}

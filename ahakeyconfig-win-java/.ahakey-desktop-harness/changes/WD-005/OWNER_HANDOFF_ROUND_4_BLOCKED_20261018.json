@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "Windows DIB；WD-005 revision 3 / build_round 4；仍在 IMPLEMENT，未正式提交。",
+    "conclusion": "本轮修复与离线证据已保存；397项断言通过。收尾被桥接目录归属门禁阻塞，需要原DLA协调，当前不能交测。"
+  },
+  "completed": [
+    "已调整局部UI、真实发送反馈、会话精确匹配与事实有效期，补上传诊断和查询合并；中文编码样本通过。"
+  ],
+  "remaining": [
+    "桥接目录四个文件需归属协调；上传真实根因、来源缺失的后台事件、固件主槽回退和BLE性能仍未收口。尚无本轮submit、实际审阅、Git候选、新Preview或真机结果。"
+  ],
+  "owner": {
+    "decision": {
+      "required": false,
+      "action": "暂不重复产品确认；DLA先核实已有桥接授权，只有缺失时再请求具体确认。"
+    },
+    "operation": {
+      "required": true,
+      "action": "将下方完整提示词发到原DLA对话。"
+    },
+    "test": {
+      "required": false,
+      "action": "没有本轮新包，不启动旧Preview代测。"
+    }
+  },
+  "next": {
+    "role": "DLA",
+    "destination": "原 DLA 对话",
+    "mode": "INVESTIGATE / 正式归属协调（不是已提交的DLA_REVIEW）",
+    "task": "WD-005 revision 3 / build_round 4 收尾门禁阻塞",
+    "action": "核实兄弟桥接改动归属并按正式维护流程协调，再交DIB核验、record-check及submit。",
+    "authorization": "沿用Owner已批准的WD-005 revision 3；只读调查及新增治理记录。不得将此提示词当作桥接归属的Owner确认，不扩大产品或维护权限。",
+    "goal": "保留当前修复与历史证据，解除合法归属阻塞后恢复正式提交链，不自批实现或交测。",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "facts": [
+      "STATE仍为IMPLEMENT/IMPLEMENT、next_actor=DIB；源码观察指纹e298ea1dd15131f508a602deed06181e0a53c6ff8b5c2366674dfc0cfb44d49d；HEAD仍41c034171e60b2d4962b0adbe8f3cffbf80a0436。397项为本轮真实重跑，不是复用旧283项；DIB未record-check/submit。",
+      "preflight报告SIBLING_WORKSPACE_CHANGED：BLE_tcp_bridge/BRIDGE-01_IMPLEMENTATION_BOUNDARY_20261018.md、Form1.cs、Program.cs、TcpServer.cs。DIB没有改桥接、还原他人工作或手写路由；未package、启动真实应用、Git写入或设备操作。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005\\EXECUTION_REPORT_REVISION_3_ROUND_4_20261018.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005\\IMPLEMENTATION_CHECKS_ROUND_4_20261018.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005\\LAUNCH_ENCODING_RECIPE_R4_20261018.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\evidence\\20261018-wd005-r4-preflight-blocked.log"
+    ],
+    "allowed": [
+      "读取STATE/local、正式合同、当前批准、原起点与隔离记录、真实测试日志及桥接责任/授权证据；DLA自行调查归属。有有效Owner确认才按正式reconcile-foreign流程处理；否则仅请求缺失授权。",
+      "协调后交DIB重跑preflight，确认源码/日志哈希和证据适用性后，按当前revision正式record-check/submit；发生代码变化重测受影响项。提交后再做actual review；固件只读来源C:\\Users\\20825\\Desktop\\vibe-code，外部待办不得冒称修复。"
+    ],
+    "forbidden": [
+      "不改生产/测试/桥接/固件代码、Harness规则/seal、旧批准/起点/冻结报告；不绕门禁、不复用旧preview-fix token、不手写回执；不自动Git写、构建打包、启动应用、安装Hook、设备写入、烧录或发布。"
+    ]
+  }
+}

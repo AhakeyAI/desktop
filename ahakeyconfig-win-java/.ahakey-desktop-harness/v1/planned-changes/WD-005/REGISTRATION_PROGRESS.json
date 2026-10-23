@@ -1,0 +1,24 @@
+{
+  "record_type": "post_owner_approval_registration_progress",
+  "id": "WD-005",
+  "owner_scope": "APPROVED",
+  "owner_record": ".ahakey-desktop-harness/evidence/20261015-wd005-owner-scope-approval.json",
+  "journeys_registered": [
+    "J005",
+    "J006"
+  ],
+  "journey_registry": ".ahakey-desktop-harness/journeys/REGISTRY.json",
+  "formal_change": "NOT_CREATED",
+  "formal_new_result": {
+    "exit_code": 1,
+    "message": "Existing assigned/active task; Owner must explicitly suspend/park before switching. Future analysis may be recorded separately."
+  },
+  "root_active_change": "WD-002",
+  "dib_dispatch": "NOT_ISSUED",
+  "reason": "不把产品范围确认扩成手改STATE或修改Harness规则的授权；需要按获准维护流程恢复历史assignment。",
+  "old_task_guard_observation": "旧任务范围已包含后续任务变化，不能重做WD002审阅/批准以释放槽位；guard-status仅诊断，不是本轮产品失败。",
+  "production_edits": false,
+  "builds": false,
+  "git_writes": false,
+  "device_commands": false
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "WD-002",
+  "token": "preview-fix-20261004T033140561714Z-8ce70e",
+  "round": 2,
+  "at": "2026-10-04T03:34:00+00:00",
+  "status": "submitted_for_preview_review",
+  "approval_sha256": "a34f0f05a0daee947b6ebddd45a22762a6316d6c41c2304928c2814fc57aeaed",
+  "code_fingerprint": "4436cd5bba4fa12d73cebf367e3338648408e485807d5b92854c68ee8b8afec9",
+  "changed_paths": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/view/CanvasPane.java"
+  ],
+  "request_sha256": "db468475b09b3e42da7e7aecd4941825bb8ae7016521f2a636cc21b30c363bb4",
+  "report": {
+    "path": ".ahakey-desktop-harness\\changes\\WD-002\\PREVIEW_FIX_REPORT_20261004_UI_BOUNCE_ROUND2.md",
+    "sha256": "c0271ed9d8bc16a5692edef85604ec9e46bde2d2e39ec431653a0b0fdf396ea0"
+  },
+  "evidence": [
+    {
+      "path": ".ahakey-desktop-harness\\evidence\\owner-preview-feedback-WD-002-ui-bounce-still-fails-20261004.md",
+      "sha256": "b6c6bc8801b48a4ddcd02470fdab4675d97090286704d80b1c376484d879d59e"
+    }
+  ],
+  "meaning": "Preview-only fix submission. Not formal builder_submission/candidate/UAT."
+}

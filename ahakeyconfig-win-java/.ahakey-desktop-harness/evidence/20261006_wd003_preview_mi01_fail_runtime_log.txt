@@ -1,0 +1,229 @@
+on Thread] INFO  com.example.ahakey.App - AhaKey Studio 启动中...
+2026-10-06 12:30:15.625 [JavaFX Application Thread] INFO  com.example.ahakey.App - 语言设置初始化完成，当前语言: zh
+2026-10-06 12:30:15.871 [JavaFX Application Thread] INFO  c.e.a.service.HookDispatchServer - Hook 分发服务器已启动 - 127.0.0.1:8765
+2026-10-06 12:30:15.877 [JavaFX Application Thread] INFO  c.example.ahakey.config.ModelConfig - 模型配置文件加载成功
+2026-10-06 12:30:15.877 [JavaFX Application Thread] INFO  com.example.ahakey.App - 本地模型已禁用 (model.enabled=false)，跳过语音输入初始化
+2026-10-06 12:30:16.130 [JavaFX Application Thread] INFO  com.example.ahakey.App - 系统托盘图标已添加
+2026-10-06 12:30:20.211 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 用户请求连接 - simulateBle: false
+2026-10-06 12:30:20.212 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 使用真实BLE连接
+2026-10-06 12:30:20.212 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] === 开始连接 (第1次尝试) ===
+2026-10-06 12:30:20.213 [device-connect] INFO  c.example.ahakey.service.BleManager - [BLE] 连接线程启动，耗时=1ms
+2026-10-06 12:30:20.213 [device-connect] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 开始
+2026-10-06 12:30:20.213 [device-connect] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 完成，总耗时=0ms
+2026-10-06 12:30:20.213 [device-connect] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 完成，耗时=0ms
+2026-10-06 12:30:20.236 [device-connect] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 开始
+2026-10-06 12:30:20.237 [device-connect] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 完成，总耗时=1ms
+2026-10-06 12:30:20.245 [device-connect] INFO  c.e.ahakey.service.UsbHidTransport - USB HID connected: \\?\hid#vid_413c&pid_2107&mi_01#7&2099f032&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}
+2026-10-06 12:30:20.245 [device-connect] INFO  c.e.ahakey.app.StudioController - 收到设备连接通知
+2026-10-06 12:30:20.245 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: -1
+2026-10-06 12:30:20.245 [device-connect] INFO  c.e.ahakey.service.KimiAhaKeyBridge - KimiAhaKeyBridge started on 127.0.0.1:9000
+2026-10-06 12:30:20.246 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: -1
+2026-10-06 12:30:20.247 [firmware-catalog-key-connect-read] INFO  c.example.ahakey.service.BleManager - Reading firmware catalog key with command 0x9F
+2026-10-06 12:30:20.247 [device-connect] INFO  c.e.ahakey.app.StudioController - 设备状态轮询周期: 5秒
+2026-10-06 12:30:20.248 [firmware-catalog-key-connect-read] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9FCCDD
+2026-10-06 12:30:20.248 [device-connect] DEBUG c.example.ahakey.service.BleManager - Skip async command while waiting for a command response: AABB00CCDD
+2026-10-06 12:30:20.248 [device-connect] INFO  c.example.ahakey.service.BleManager - [BLE] USB连接成功，总耗时=36ms
+2026-10-06 12:30:20.249 [firmware-catalog-key-connect-read] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9f
+2026-10-06 12:30:20.251 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 31
+2026-10-06 12:30:20.251 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9F 00 78 31 2D 63 35 38 32 2D 68 77 31 2D
+2026-10-06 12:30:20.251 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-10-06 12:30:20.252 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9f，唤醒等待线程
+2026-10-06 12:30:20.252 [firmware-catalog-key-connect-read] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9f
+2026-10-06 12:30:20.252 [firmware-catalog-key-connect-read] INFO  c.example.ahakey.service.BleManager - Firmware catalog key: x1-c582-hw1-p1-1.0.0-r001
+2026-10-06 12:30:20.255 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: -1
+2026-10-06 12:30:20.255 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: -1
+2026-10-06 12:30:20.256 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C side switch config with command 0x97
+2026-10-06 12:30:20.257 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB97CCDD
+2026-10-06 12:30:20.258 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x97
+2026-10-06 12:30:20.301 [usb-hid-reader] WARN  c.e.ahakey.service.UsbHidTransport - USB HID read stopped: 1167
+2026-10-06 12:30:20.301 [usb-hid-reader] DEBUG c.e.ahakey.service.UsbHidTransport - USB reader: 线程退出，自行关闭 handles
+2026-10-06 12:30:20.302 [usb-hid-reader] DEBUG c.e.ahakey.service.UsbHidTransport - USB reader: 自行关闭 readHandle
+2026-10-06 12:30:20.302 [usb-hid-reader] DEBUG c.e.ahakey.service.UsbHidTransport - USB reader: 自行关闭 writeHandle
+2026-10-06 12:30:22.256 [status-poller] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 开始
+2026-10-06 12:30:22.257 [status-poller] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 完成，总耗时=1ms
+2026-10-06 12:30:22.263 [status-poller] INFO  c.e.ahakey.service.UsbHidTransport - USB HID connected: \\?\hid#vid_413c&pid_2107&mi_01#7&2099f032&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}
+2026-10-06 12:30:22.263 [status-poller] INFO  c.e.ahakey.app.StudioController - 收到设备连接通知
+2026-10-06 12:30:22.264 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: -1
+2026-10-06 12:30:22.264 [status-poller] INFO  c.e.ahakey.app.StudioController - 设备状态轮询周期: 5秒
+2026-10-06 12:30:22.264 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: -1
+2026-10-06 12:30:22.267 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:30:22.270 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:30:22.270 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:30:22.270 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:30:22.270 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:30:22.271 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:30:22.271 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:30:22.271 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:30:22.295 [JavaFX Application Thread] INFO  com.example.ahakey.view.TopBar - Sleep wait time UI read started: serial=1
+2026-10-06 12:30:24.265 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:30:24.267 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:30:24.268 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:30:24.268 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:30:24.268 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:30:24.269 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:30:24.270 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:30:24.271 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:30:29.266 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:30:29.268 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:30:29.269 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:30:29.269 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:30:29.269 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:30:29.269 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:30:29.269 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:30:29.270 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:30:32.302 [JavaFX Application Thread] WARN  com.example.ahakey.view.TopBar - Sleep wait time UI read timed out: serial=1
+2026-10-06 12:30:34.265 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:30:34.267 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:30:34.268 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:30:34.268 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:30:34.268 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:30:34.268 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:30:34.269 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:30:34.269 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:30:35.260 [cp4c-input-readback] WARN  c.e.ahakey.app.StudioController - CP4C_INPUT_FAILURE catalogKey=x1-c582-hw1-p1-1.0.0-r001 cmd=0x97/0x87 mode=-1 keyIndex=-1 phase=connect-readback reason=等待设备响应 0x97 超时
+2026-10-06 12:30:35.260 [sleep-wait-time-read] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB95CCDD
+2026-10-06 12:30:35.261 [sleep-wait-time-read] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x95
+2026-10-06 12:30:35.262 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 8
+2026-10-06 12:30:35.262 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 95 00 3C 00 CC DD
+2026-10-06 12:30:35.262 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-10-06 12:30:35.262 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x95，唤醒等待线程
+2026-10-06 12:30:35.262 [sleep-wait-time-read] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x95
+2026-10-06 12:30:35.262 [sleep-wait-time-read] INFO  c.example.ahakey.service.BleManager - Sleep wait time read: 60 minutes
+2026-10-06 12:30:35.265 [JavaFX Application Thread] INFO  com.example.ahakey.view.TopBar - Sleep wait time UI update ignored for stale read: serial=1, current=2
+2026-10-06 12:30:39.266 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:30:39.279 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:30:39.280 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:30:39.280 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:30:39.281 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:30:39.281 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:30:39.282 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:30:39.282 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:30:44.268 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:30:44.271 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:30:44.271 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:30:44.271 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:30:44.271 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:30:44.271 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:30:44.271 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:30:44.272 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:30:49.264 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:30:49.266 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:30:49.267 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:30:49.267 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:30:49.267 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:30:49.267 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:30:49.268 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:30:49.268 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:30:54.265 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:30:54.267 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:30:54.268 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:30:54.269 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:30:54.269 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:30:54.269 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:30:54.269 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:30:54.269 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:30:59.265 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:30:59.274 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:30:59.275 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:30:59.275 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:30:59.276 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:30:59.276 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:30:59.276 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:30:59.277 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:31:04.264 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:31:04.266 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:31:04.267 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:31:04.267 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:31:04.267 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:04.267 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:31:04.267 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:04.267 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:31:09.265 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:31:09.268 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:31:09.268 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:31:09.268 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:31:09.268 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:09.269 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:31:09.269 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:09.269 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:31:14.265 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:31:14.268 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:31:14.269 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:31:14.269 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:31:14.269 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:14.269 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:31:14.269 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:14.270 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:31:19.265 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:31:19.272 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:31:19.272 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:31:19.273 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:31:19.273 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:19.273 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:31:19.274 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:19.274 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:31:24.264 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:31:24.266 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:31:24.267 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:31:24.267 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:31:24.267 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:24.267 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:31:24.268 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:24.268 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:31:29.265 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:31:29.267 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:31:29.267 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:31:29.267 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:31:29.267 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:29.267 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:31:29.268 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:29.268 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:31:34.267 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:31:34.269 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:31:34.270 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:31:34.270 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:31:34.270 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:34.270 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:31:34.270 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:34.270 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:31:39.265 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:31:39.278 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:31:39.278 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:31:39.278 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:31:39.278 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:39.279 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:31:39.279 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:39.279 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:31:44.264 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:31:44.266 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:31:44.266 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:31:44.266 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:31:44.267 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:44.267 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:31:44.267 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:44.267 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:31:49.264 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:31:49.268 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:31:49.268 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:31:49.270 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:31:49.270 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:49.270 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:31:49.270 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:49.270 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:31:54.265 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:31:54.270 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:31:54.271 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:31:54.271 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:31:54.271 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:54.271 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:31:54.272 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:54.272 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:31:59.264 [status-poller] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-10-06 12:31:59.273 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 13
+2026-10-06 12:31:59.273 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 00 64 32 01 00 00 00 00 23 CC DD
+2026-10-06 12:31:59.274 [usb-hid-reader] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-10-06 12:31:59.274 [usb-hid-reader] INFO  c.example.ahakey.service.BleManager - 解析到设备状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:59.274 [usb-hid-reader] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+2026-10-06 12:31:59.275 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: 100, 工作模式: 0, 拨杆状态: 0
+2026-10-06 12:31:59.275 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-10-06 12:32:04.263 [status-poller] DEBUG c.examp

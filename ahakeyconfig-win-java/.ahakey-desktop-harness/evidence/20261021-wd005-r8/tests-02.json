@@ -1,0 +1,28 @@
+[
+  {
+    "exit_code": 0,
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+    "test": "DisplayConfigCapabilityChecks",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigCapabilityChecks"
+    ]
+  },
+  {
+    "exit_code": 1,
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+    "test": "DisplayConfigIsolationChecks",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigIsolationChecks"
+    ]
+  }
+]

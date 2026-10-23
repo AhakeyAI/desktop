@@ -1,0 +1,166 @@
+{
+  "schema_version": 5,
+  "harness_version": "1.3.0",
+  "baseline": {
+    "product_approved": false,
+    "approval": null
+  },
+  "phase": "IMPLEMENT",
+  "mode": "PREVIEW_FIX",
+  "status": "preview_fix_requested",
+  "active_change": "WD-005",
+  "next_actor": "DIB",
+  "next_mode": "PREVIEW_FIX",
+  "owner_action": {
+    "required": false,
+    "action": "DIB 只修本次 Owner Preview 的原 Contract 内实现缺陷。"
+  },
+  "test_action": {
+    "required": false,
+    "reason": "修复后走 Preview fix review，再直接重建 Preview 给 Owner。"
+  },
+  "revision": 65,
+  "upgrade_history": [
+    {
+      "from": "0.2.0-pilot",
+      "to": "0.3.0-owner-driven",
+      "at": "2026-09-27T07:04:02.416193+00:00",
+      "previous_routing": {
+        "phase": "BASELINE_ADOPT",
+        "mode": "OWNER_GRILL",
+        "status": "journey_a_selected_startup_brief_prepared",
+        "next_actor": "Owner",
+        "next_mode": "UI_CAPTURE",
+        "owner_action": {
+          "required": true,
+          "action": "按本轮给出的 PowerShell 步骤启动当前真实软件，先不要点击连接、编辑、保存、BLE 驱动或 Hook 安装；回传主窗口截图或启动错误输出。"
+        },
+        "test_action": {
+          "required": true,
+          "reason": "mvn -q -DskipTests compile 已在临时 JDK 17 环境通过；默认 Maven runtime 仍指向 Java 8。现在需要 Owner 获取真实 UI 截图；尚无真机验证。"
+        },
+        "current_investigation": null
+      },
+      "meaning": "Owner changed dispatch policy; preserved baseline approvals/evidence, no feature authorization."
+    },
+    {
+      "from": "0.3.0-owner-driven",
+      "to": "0.4.0-guarded-delivery",
+      "at": "2026-09-29T01:45:30.469258+00:00",
+      "previous_routing": {
+        "phase": "BUILD_VERIFY",
+        "mode": "IMPLEMENT",
+        "status": "active",
+        "active_change": "WD-001",
+        "current_assignment": "WD-001",
+        "next_actor": "DIB",
+        "next_mode": "IMPLEMENT",
+        "owner_action": {
+          "required": false,
+          "action": "DIB 连续完成已批准增量；仅边界变化/阻塞才交回。"
+        },
+        "test_action": {
+          "required": false,
+          "reason": "DIB 先完成机器检查，DLA 随后给 Owner 测试包。"
+        }
+      },
+      "meaning": "In-flight implementation and approvals preserved; guards apply prospectively before formal delivery. No automatic PASS."
+    },
+    {
+      "from": "0.4.0-guarded-delivery",
+      "to": "0.5.0-distribution-handoff",
+      "at": "2026-09-29T07:50:46.201659+00:00",
+      "previous_routing": {
+        "phase": "BUILD_VERIFY",
+        "mode": "OWNER_TEST",
+        "status": "awaiting_owner_test",
+        "active_change": "WD-001",
+        "current_assignment": "WD-001",
+        "next_actor": "Owner",
+        "next_mode": "REAL_TEST",
+        "owner_action": {
+          "required": true,
+          "action": "按 .ahakey-desktop-harness/changes/WD-001/OWNER_TEST.md 测试并返回实际结果；不自动烧录。"
+        },
+        "test_action": {
+          "required": true,
+          "brief": ".ahakey-desktop-harness/changes/WD-001/OWNER_TEST.md",
+          "packet": ".ahakey-desktop-harness/changes/WD-001/test_packet.json"
+        }
+      },
+      "meaning": "Preserve task, approvals, original start, reviewed code, candidate, build and old test packet. Add supplemental distribution/coverage/formal-gate checks, never automatic PASS."
+    },
+    {
+      "from": "0.5.0-distribution-handoff",
+      "to": "1.0.0",
+      "at": "2026-10-02T10:44:24+00:00",
+      "previous_routing": {
+        "phase": "BUILD_VERIFY",
+        "mode": "OWNER_TEST",
+        "status": "awaiting_owner_test",
+        "active_change": "WD-001",
+        "current_assignment": "WD-001",
+        "next_actor": "Owner",
+        "next_mode": "REAL_TEST",
+        "owner_action": {
+          "required": true,
+          "action": "按已直接输出的OWNER_BRIEF逐步测试；先确认设备固件；可用自然语言和截图反馈。"
+        },
+        "test_action": {
+          "required": true,
+          "brief": ".ahakey-desktop-harness/changes/WD-001/OWNER_BRIEF.md",
+          "packet": ".ahakey-desktop-harness/changes/WD-001/DELIVERY_PACKET.json",
+          "meaning": "eligible to execute planned steps; not actual UAT PASS"
+        }
+      },
+      "meaning": "Unified full v1 runtime installed; existing task/history preserved, no product PASS."
+    },
+    {
+      "from": "1.0.0",
+      "to": "1.0.1",
+      "at": "2026-10-02T11:45:29+00:00",
+      "meaning": "Full v1.0.1 replacement installed. Firmware-driven intake added; current task/routing/history preserved; no product PASS."
+    },
+    {
+      "from": "1.0.1",
+      "to": "1.1.0",
+      "at": "2026-10-03T08:57:45+00:00",
+      "meaning": "Full v1.1.0 replacement installed. Chinese Owner communication, progress updates and contract revision reconcile added; current task/routing/history preserved; no product PASS."
+    },
+    {
+      "from": "1.1.0",
+      "to": "1.2.0",
+      "at": "2026-10-04T01:11:40+00:00",
+      "meaning": "Full v1.2.0 replacement installed. Owner Preview, phase-scoped evidence, preserved-foreign candidate handling and concise Chinese Owner communication added; current task/routing/history preserved; no product PASS."
+    },
+    {
+      "from": "1.2.0",
+      "to": "1.3.0",
+      "at": "2026-10-04T02:53:16+00:00",
+      "meaning": "Full v1.3.0 replacement installed. Preview defect fast loop, governance snapshot consistency and phase-scoped evidence hardening added; current task/routing/history preserved; no product PASS."
+    }
+  ],
+  "workflow": "V1_CHANGE_IMPLEMENT_VERIFY_RELEASE",
+  "current_assignment": "WD-005",
+  "current_investigation": null,
+  "updated_at": "2026-10-18T07:03:08+00:00",
+  "v1_runtime": {
+    "installed": true,
+    "version": "1.3.0",
+    "complete_runtime_upgrade": true,
+    "installed_at": "2026-10-04T02:53:16+00:00",
+    "journey_registry": ".ahakey-desktop-harness/journeys/REGISTRY.json",
+    "release_policy": ".ahakey-desktop-harness/releases/POLICY.json",
+    "firmware_driven_intake": true,
+    "firmware_sync": ".ahakey-desktop-harness/firmware-sync.json",
+    "owner_chinese_default": true,
+    "periodic_progress_updates": false,
+    "contract_revision_reconcile": true,
+    "meaningful_progress_only": true,
+    "owner_preview_build": true,
+    "phase_scoped_evidence": true,
+    "preserved_foreign_inputs": true,
+    "preview_iteration_loop": true,
+    "governance_snapshot_consistency": true
+  }
+}

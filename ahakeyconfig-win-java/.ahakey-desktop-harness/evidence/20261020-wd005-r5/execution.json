@@ -1,0 +1,119 @@
+[
+  {
+    "name": "compile-final",
+    "command": [
+      "C:\\Program Files\\apache-maven-3.9.12\\bin\\mvn.cmd",
+      "-o",
+      "-Dmaven.repo.local=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.m2repo",
+      "-DskipTests",
+      "test-compile"
+    ],
+    "exit_code": 0,
+    "summary": [],
+    "log": ".ahakey-desktop-harness/evidence/20261020-wd005-r5/compile-final.log"
+  },
+  {
+    "name": "DisplayConfigRound5Checks",
+    "command": [
+      "D:\\jdk-17.0.19.10-hotspot/bin/java.exe",
+      "-Dfile.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigRound5Checks"
+    ],
+    "exit_code": 0,
+    "summary": [
+      "PASS 46 round5 checks; no device or application started"
+    ],
+    "log": ".ahakey-desktop-harness/evidence/20261020-wd005-r5/DisplayConfigRound5Checks.log"
+  },
+  {
+    "name": "DisplayConfigChecks",
+    "command": [
+      "D:\\jdk-17.0.19.10-hotspot/bin/java.exe",
+      "-Dfile.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigChecks"
+    ],
+    "exit_code": 0,
+    "summary": [
+      "PASS 175 explicit checks; no hardware/UI/UAT claims"
+    ],
+    "log": ".ahakey-desktop-harness/evidence/20261020-wd005-r5/DisplayConfigChecks.log"
+  },
+  {
+    "name": "DisplayConfigFxChecks",
+    "command": [
+      "D:\\jdk-17.0.19.10-hotspot/bin/java.exe",
+      "-Dfile.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigFxChecks"
+    ],
+    "exit_code": 0,
+    "summary": [
+      "PASS 36 isolated FX/service checks; no complete application, hardware or UAT claims"
+    ],
+    "log": ".ahakey-desktop-harness/evidence/20261020-wd005-r5/DisplayConfigFxChecks.log"
+  },
+  {
+    "name": "DisplayConfigRaceChecks",
+    "command": [
+      "D:\\jdk-17.0.19.10-hotspot/bin/java.exe",
+      "-Dfile.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigRaceChecks"
+    ],
+    "exit_code": 0,
+    "summary": [
+      "PASS 72 controlled race checks; no full application or hardware claim"
+    ],
+    "log": ".ahakey-desktop-harness/evidence/20261020-wd005-r5/DisplayConfigRaceChecks.log"
+  },
+  {
+    "name": "DisplayConfigRevision3Checks",
+    "command": [
+      "D:\\jdk-17.0.19.10-hotspot/bin/java.exe",
+      "-Dfile.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigRevision3Checks"
+    ],
+    "exit_code": 0,
+    "summary": [
+      "PASS 72 revision3 checks; no hardware/application claims"
+    ],
+    "log": ".ahakey-desktop-harness/evidence/20261020-wd005-r5/DisplayConfigRevision3Checks.log"
+  },
+  {
+    "name": "DisplayConfigRevision3UiChecks",
+    "command": [
+      "D:\\jdk-17.0.19.10-hotspot/bin/java.exe",
+      "-Dfile.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigRevision3UiChecks",
+      ".ahakey-desktop-harness\\evidence\\20261020-wd005-r5\\ui-round5.png"
+    ],
+    "exit_code": 0,
+    "summary": [
+      "PASS 42 isolated UI checks; full Inspector/Owner Preview not executed"
+    ],
+    "log": ".ahakey-desktop-harness/evidence/20261020-wd005-r5/DisplayConfigRevision3UiChecks.log"
+  },
+  {
+    "name": "diff-check",
+    "command": [
+      "git",
+      "diff",
+      "--check",
+      "--",
+      "src"
+    ],
+    "exit_code": 0,
+    "summary": [],
+    "log": ".ahakey-desktop-harness/evidence/20261020-wd005-r5/diff-check.log"
+  }
+]

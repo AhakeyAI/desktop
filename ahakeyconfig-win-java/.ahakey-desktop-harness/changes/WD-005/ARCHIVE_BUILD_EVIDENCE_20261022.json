@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "scope": "正式构建和比较原证据；只读内容，日志字节相同副本用于Git保存，不改原回执或日志",
+  "files": [
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/ARTIFACT_MANIFEST.json",
+      "sha256": "0a77fe233854539d0dd1e433b57d31c1adf171f258744cb5278f3a31348e0385",
+      "bytes": 6118
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/BUILD_DETAILS.md",
+      "sha256": "e26cb99113b91a1e910c8f3488006c0eb2f3b2626ca4366056d93e94d79e51fb",
+      "bytes": 6890
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/BUILD_EXECUTION.json",
+      "sha256": "0ff71755f5a2b2a6faee5563e77b7732ba85afa285068a3aac91fd533bafccb2",
+      "bytes": 3272
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/BUILD_REPORT.md",
+      "sha256": "9998c438a041b6f9f7202a1f77d7345353078be5d367fd7c888dbf956c9bc1b7",
+      "bytes": 789
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/CANVAS_SOURCE_COMPARISON.json",
+      "sha256": "833e335caf11b7278ea919f87e251ea1eb9360aa8967c0f0675f4b3c5a2a7bc4",
+      "bytes": 151
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/CanvasPane.current.javap.txt",
+      "sha256": "b89258160eeefe6ee40ddfac77a25eacc87fbba2ccbd95c6870defaeff880dda",
+      "bytes": 70240
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/CanvasPane.current.utf8.javap.txt",
+      "sha256": "b89258160eeefe6ee40ddfac77a25eacc87fbba2ccbd95c6870defaeff880dda",
+      "bytes": 70240
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/CanvasPane.preview.javap.txt",
+      "sha256": "cf089efc54c58a03a4bf15ac542cdff6a72e827652696beed529f01e9648ad4c",
+      "bytes": 70242
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/CanvasPane.preview.utf8.javap.txt",
+      "sha256": "cf089efc54c58a03a4bf15ac542cdff6a72e827652696beed529f01e9648ad4c",
+      "bytes": 70242
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/FINGERPRINT_AFTER.json",
+      "sha256": "49786fdf9a7e365fa83513e1c9e04a0b3f023b61547d9c7af478630a61bec919",
+      "bytes": 12738
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/FINGERPRINT_BEFORE.json",
+      "sha256": "49786fdf9a7e365fa83513e1c9e04a0b3f023b61547d9c7af478630a61bec919",
+      "bytes": 12738
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/JAVAP_DIFFERENCES.json",
+      "sha256": "fa7645db19498398cced8bcdbe4a08225dd5f78a758203bdfbd9efe5bdd8805f",
+      "bytes": 1869
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/JAVAP_EXECUTION.json",
+      "sha256": "2db0b7e46c8ba6d9ea30e66402e6713bbde85acac36cecdc4ee1a89013d42164",
+      "bytes": 1409
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/LOG_MANIFEST.json",
+      "sha256": "3849b462f3dd1c5a69ef6ed5696e1a5c5dea38d0ad2ab398b3fc7c1525345bcf",
+      "bytes": 3861
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/PREVIEW_COMPARISON.json",
+      "sha256": "84f85844bccad6f151cb86d555095a4b84f12d923a82b36c91d1ab08eb41b86c",
+      "bytes": 141849
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/PREVIEW_DIFFERENCE_ANALYSIS.json",
+      "sha256": "9fcbcd2a82f499ad17ef7f4ad6ab28285ebc0250d4bbe3b582ccc61fb38eece2",
+      "bytes": 1575
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/RECEIPT.json",
+      "sha256": "b92ceb89c18f7ecf127c724328090b7b002b458f67205037f4594ba3c7cd7a18",
+      "bytes": 6738
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/START.json",
+      "sha256": "8f697f0bb880eabdb832b401fa231393befe0e9a8a9e1af52586fbe3b8c0ee9c",
+      "bytes": 301
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/STATIC_INSPECTION.json",
+      "sha256": "486b59273fc63809c7cb8c1fc783da8af599200269cd9adfc311764b7af72562",
+      "bytes": 23659
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/archive-evidence/20261022-formal-build-logs/java-identity.stderr.log.txt",
+      "sha256": "d2f5345bf5ae4a93c3a3518c08feb9153852660880193d078cb9f86f0bacb855",
+      "bytes": 202
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/archive-evidence/20261022-formal-build-logs/java-identity.stdout.log.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/archive-evidence/20261022-formal-build-logs/javap-current.stderr.log.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/archive-evidence/20261022-formal-build-logs/javap-preview.stderr.log.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/archive-evidence/20261022-formal-build-logs/maven-identity.stderr.log.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/archive-evidence/20261022-formal-build-logs/maven-identity.stdout.log.txt",
+      "sha256": "5abb3d9a04839dbc02f26acdd2a001b35aa8832fc5c6a0120f9bc10e8b4e31c9",
+      "bytes": 313
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/archive-evidence/20261022-formal-build-logs/package.stderr.log.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-005/archive-evidence/20261022-formal-build-logs/package.stdout.log.txt",
+      "sha256": "5f144fa5eae5c2ad8f9d58f4466f92c45caddcfef12407e3e171b6a64e56cc96",
+      "bytes": 3475
+    }
+  ],
+  "log_copies": [
+    {
+      "original": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/java-identity.stderr.log",
+      "copy": ".ahakey-desktop-harness/changes/WD-005/archive-evidence/20261022-formal-build-logs/java-identity.stderr.log.txt",
+      "sha256": "d2f5345bf5ae4a93c3a3518c08feb9153852660880193d078cb9f86f0bacb855",
+      "bytes": 202
+    },
+    {
+      "original": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/java-identity.stdout.log",
+      "copy": ".ahakey-desktop-harness/changes/WD-005/archive-evidence/20261022-formal-build-logs/java-identity.stdout.log.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/javap-current.stderr.log",
+      "copy": ".ahakey-desktop-harness/changes/WD-005/archive-evidence/20261022-formal-build-logs/javap-current.stderr.log.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/javap-preview.stderr.log",
+      "copy": ".ahakey-desktop-harness/changes/WD-005/archive-evidence/20261022-formal-build-logs/javap-preview.stderr.log.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/maven-identity.stderr.log",
+      "copy": ".ahakey-desktop-harness/changes/WD-005/archive-evidence/20261022-formal-build-logs/maven-identity.stderr.log.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/maven-identity.stdout.log",
+      "copy": ".ahakey-desktop-harness/changes/WD-005/archive-evidence/20261022-formal-build-logs/maven-identity.stdout.log.txt",
+      "sha256": "5abb3d9a04839dbc02f26acdd2a001b35aa8832fc5c6a0120f9bc10e8b4e31c9",
+      "bytes": 313
+    },
+    {
+      "original": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/package.stderr.log",
+      "copy": ".ahakey-desktop-harness/changes/WD-005/archive-evidence/20261022-formal-build-logs/package.stderr.log.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "original": ".ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/package.stdout.log",
+      "copy": ".ahakey-desktop-harness/changes/WD-005/archive-evidence/20261022-formal-build-logs/package.stdout.log.txt",
+      "sha256": "5f144fa5eae5c2ad8f9d58f4466f92c45caddcfef12407e3e171b6a64e56cc96",
+      "bytes": 3475
+    }
+  ],
+  "exclusions": "运行JAR/lib不进入Git；原产物留本机并由BUILD_RECEIPT绑定。用户配置、桥接代码、固件、其他任务及Harness核心不纳入本次结果归档。"
+}

@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "id": "WD-002",
+  "status": "PLANNED_FIRMWARE_EVIDENCE",
+  "created_at": "2026-10-02T11:53:18+00:00",
+  "title": "WS2 CP4A Mode Sync + Display Status",
+  "firmware_root": "C:\\Users\\20825\\Desktop\\vibe-code",
+  "gate": {
+    "path": ".ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP4A/20261002T084039/gate-receipt.json",
+    "sha256": "71e61a42b8771a7318467b98bfbb36804ef0b2f3f5c18875c2d9110f7e89b0ab",
+    "sort_time": "2026-10-02T00:41:05+00:00",
+    "formal_hint": true,
+    "status_fields": [
+      {
+        "field": "result",
+        "value": "PASS"
+      }
+    ],
+    "identity_fields": [
+      {
+        "field": "checkpoint",
+        "value": "CP4A"
+      },
+      {
+        "field": "checkpoint_start_commit",
+        "value": "39c08f6820deb7e639dcc13d6db5263ab09a0af8"
+      },
+      {
+        "field": "contract_lock.checkpoint",
+        "value": "CP4A"
+      }
+    ],
+    "commit_fields": [
+      {
+        "field": "checkpoint_start_commit",
+        "value": "39c08f6820deb7e639dcc13d6db5263ab09a0af8"
+      },
+      {
+        "field": "candidate_commit",
+        "value": "bd1ea87e10939fd6f738b599a4c66ba3264acf70"
+      },
+      {
+        "field": "contract_lock.start_commit",
+        "value": "39c08f6820deb7e639dcc13d6db5263ab09a0af8"
+      }
+    ],
+    "sha_fields": [
+      {
+        "field": "contract_lock.prd_sha256",
+        "value": "70310bec709d35ea08fe2c2f0ac01d99605487b0d392053e417792741e2abf80"
+      },
+      {
+        "field": "contract_lock.architecture_sha256",
+        "value": "133f51be35f45df353220f6269f99b6f10dd2575e39612aeafa895b4ffaac1d1"
+      },
+      {
+        "field": "contract_lock.execution_sha256",
+        "value": "8bbf4ce1bc115b1078109ee5db3081527fe977f1155d59abe534a1fb5d133e05"
+      },
+      {
+        "field": "current_contract_hashes.prd_sha256",
+        "value": "70310bec709d35ea08fe2c2f0ac01d99605487b0d392053e417792741e2abf80"
+      },
+      {
+        "field": "current_contract_hashes.architecture_sha256",
+        "value": "133f51be35f45df353220f6269f99b6f10dd2575e39612aeafa895b4ffaac1d1"
+      },
+      {
+        "field": "current_contract_hashes.execution_sha256",
+        "value": "8bbf4ce1bc115b1078109ee5db3081527fe977f1155d59abe534a1fb5d133e05"
+      },
+      {
+        "field": "artifact.sha256",
+        "value": "8e11f2b526e9239a67c5199aff88ebbed875bdc9cb3df0eb5592979e5f021867"
+      }
+    ],
+    "hex_artifacts": [
+      {
+        "path": ".ahakey-harness/evidence/builds/ws2-cp4a-mode-sync-display-status/HID_Keyboard_582m_vibe_coding.hex",
+        "sha256": "8e11f2b526e9239a67c5199aff88ebbed875bdc9cb3df0eb5592979e5f021867"
+      }
+    ]
+  },
+  "windows_state_at_intake": {
+    "phase": "VERIFY",
+    "mode": "RECOVERY_RECONCILE",
+    "active_change": "WD-001",
+    "current_assignment": "WD-001"
+  },
+  "meaning": "Evidence binding only. Does not create changes/WD-002, approve a Contract, activate DIB, transfer old PASS, or modify Firmware.",
+  "owner_burden": "Owner is not required to transcribe local gate/HEX/SHA/protocol facts. DLA reads Firmware evidence; Owner resolves priority/product ambiguity only."
+}

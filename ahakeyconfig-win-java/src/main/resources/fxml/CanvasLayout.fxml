@@ -12,12 +12,16 @@
     <VBox spacing="20" HBox.hgrow="ALWAYS">
         <StackPane fx:id="lightBarCard" styleClass="light-bar-card">
             <VBox spacing="6" alignment="CENTER">
-                <Label styleClass="hotspot-label" text="灯条"/>
-                <HBox fx:id="lightBarTrack" spacing="10" styleClass="light-bar-track" alignment="CENTER">
+                <Label fx:id="lightBarLabel" styleClass="hotspot-label"/>
+                <HBox fx:id="lightBarTrack" spacing="6" styleClass="light-bar-track" alignment="CENTER">
                     <Region fx:id="lightSeg1" styleClass="light-segment"/>
                     <Region fx:id="lightSeg2" styleClass="light-segment"/>
                     <Region fx:id="lightSeg3" styleClass="light-segment"/>
                     <Region fx:id="lightSeg4" styleClass="light-segment"/>
+                    <Region fx:id="lightSeg5" styleClass="light-segment"/>
+                    <Region fx:id="lightSeg6" styleClass="light-segment"/>
+                    <Region fx:id="lightSeg7" styleClass="light-segment"/>
+                    <Region fx:id="lightSeg8" styleClass="light-segment"/>
                 </HBox>
             </VBox>
         </StackPane>
@@ -55,11 +59,12 @@
     <VBox spacing="16" alignment="TOP_RIGHT">
         <StackPane fx:id="oledCard">
             <StackPane fx:id="oledScreen" styleClass="oled-screen-small">
-                <ImageView fx:id="oledPreviewImage" fitWidth="140" fitHeight="80" preserveRatio="true"/>
+                <ImageView fx:id="oledPreviewImage" fitWidth="160" fitHeight="80" preserveRatio="true"/>
                 <VBox spacing="4" alignment="CENTER">
                     <Label fx:id="oledTitle" styleClass="oled-title"/>
                     <Label fx:id="oledCaption" styleClass="oled-caption"/>
                 </VBox>
+                <Label fx:id="oledDraftBadge" text="草稿" visible="false" StackPane.alignment="TOP_RIGHT" styleClass="oled-draft-badge"/>
             </StackPane>
         </StackPane>
 

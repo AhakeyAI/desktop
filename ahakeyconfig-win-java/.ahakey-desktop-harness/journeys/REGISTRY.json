@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "harness_version": "1.2.0",
+  "journeys": [
+    {
+      "id": "J001",
+      "name": "CP3A 睡眠等待时间 Windows 联调",
+      "trigger": "More > device info > sleep wait time",
+      "state_owner": "Legacy WD-001 evidence only; re-confirm for new implementation",
+      "protocol": "0x95 sleep wait time; 0x9F not inherited",
+      "failure_modes": [
+        "disconnect",
+        "timeout",
+        "stale UI update"
+      ],
+      "regression": [
+        "USB",
+        "BLE",
+        "device switch"
+      ],
+      "status": "historical_reference"
+    },
+    {
+      "id": "J002",
+      "name": "CP4A mode sync and display status",
+      "trigger": "Keyboard mode selection from Windows UI and keyboard Power key",
+      "state_owner": "Keyboard is authoritative for current mode; Windows owns PC-initiated mode-set attempts while connected and must confirm with readback.",
+      "protocol": "Existing 0x00 status readback and existing 0x92 mode set; no new firmware opcode.",
+      "failure_modes": [
+        "disconnect",
+        "timeout",
+        "stale status frame",
+        "readback mismatch"
+      ],
+      "regression": [
+        "USB/BLE parity",
+        "offline browse-only boundary",
+        "WD-001 nearby protocol surfaces"
+      ],
+      "status": "active"
+    },
+    {
+      "id": "J005",
+      "name": "OLED本地资源与上传应用",
+      "trigger": "左侧OLED入口，随当前Mode选择默认或SINGLE及全局MULTI资源",
+      "state_owner": "Windows负责草稿成品及事务；固件负责资源元数据、持久化及实际展示",
+      "protocol": "0x88元数据；0x8A/0x8B/0x8C上传事务；禁止0x8D设备清除",
+      "failure_modes": [
+        "导入存储失败保留旧本地资源；断连保留草稿不续传；ACK未知隔离对账；刷新不覆盖草稿"
+      ],
+      "regression": [
+        "A01-A06/A09-A11；USB/BLE、Mode同步、AI runtime及原配置"
+      ],
+      "owner_record": ".ahakey-desktop-harness/evidence/20261015-wd005-owner-scope-approval.json",
+      "owner_record_sha256": "04879c694266ab63023e2e90c8b8a74247f010b70069d3a7c8767063ddab0359",
+      "created_at": "2026-10-15T11:24:53+00:00",
+      "status": "approved_reference"
+    },
+    {
+      "id": "J006",
+      "name": "灯光预览与分责任保存",
+      "trigger": "左侧灯条入口，编辑全局亮度和当前Mode九项SINGLE AI灯效",
+      "state_owner": "Windows负责草稿和模拟；固件负责持久配置、临时预览和真实输出",
+      "protocol": "0x88配置读取；0x89临时预览；0x8E亮度及逐项灯效保存",
+      "failure_modes": [
+        "断连可本地编辑禁止设备写；迟到ACK隔离；部分保存不假成功；刷新不覆盖草稿"
+      ],
+      "regression": [
+        "A04/A07-A11；USB/BLE、八灯金样、10秒预览及原配置"
+      ],
+      "owner_record": ".ahakey-desktop-harness/evidence/20261015-wd005-owner-scope-approval.json",
+      "owner_record_sha256": "04879c694266ab63023e2e90c8b8a74247f010b70069d3a7c8767063ddab0359",
+      "created_at": "2026-10-15T11:25:02+00:00",
+      "status": "approved_reference"
+    }
+  ]
+}

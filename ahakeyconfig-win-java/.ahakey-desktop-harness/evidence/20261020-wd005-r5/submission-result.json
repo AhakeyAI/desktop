@@ -1,0 +1,93 @@
+{
+  "id": "WD-005",
+  "build_round": 5,
+  "submit_exit": 0,
+  "state": {
+    "phase": "VERIFY",
+    "mode": "DLA_REVIEW",
+    "next_actor": "DLA",
+    "status": "awaiting_actual_diff_review"
+  },
+  "submission": {
+    "at": "2026-10-20T02:24:23+00:00",
+    "build_round": 5,
+    "approval_sha256": "92a815701ffe38af7a6c8028e872f9146859055b654e06f703aa5bc3b3e5fd72",
+    "report_sha256": "749264589c44656848f062fcf3b4ecf35784bef80f7356dc1f204834d69a19a2",
+    "code_fingerprint": "1fca9345199cd1166acd8b4df7125d3e17f1cad4032c7736dc1060361a2d3ccf",
+    "evidence_model": "phase_scoped_v1.3"
+  },
+  "checks": {
+    "machine": {
+      "status": "pass",
+      "reason": "第五轮当前源码实际执行；空白diff输出的退出0记录于execution.json；仅隔离测试，不代表真机验收。",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-005/EXECUTION_REPORT_REVISION_3_ROUND_5_20261020.md": "6f895b3be9127864e7b5d1720af559e597a2c05152ab657e18bd0948401ed2f5",
+        ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_5_20261020.json": "ce34ca74508b393f4bcbe7f2683c0d41f867a9b8f0f9cbee9f15040e93910c7a",
+        ".ahakey-desktop-harness/evidence/20261020-wd005-r5/execution.json": "a3a7f6cef2ae0037d5f7d60edd480a680824ea2da8e6405941301dfb9d370579",
+        ".ahakey-desktop-harness/evidence/20261020-wd005-r5/compile-final.log": "0453513fe0b9c785e17dc6d359c991f6b4ae03df837fba007f7aec7beb266d26",
+        ".ahakey-desktop-harness/evidence/20261020-wd005-r5/preflight-final.log": "d4237d5a06d080758b49f0f9ac27cd13336f15354c4e12d6fe5d6c646149fab7"
+      },
+      "role": "DIB",
+      "at": "2026-10-20T02:24:03+00:00",
+      "code_fingerprint": "1fca9345199cd1166acd8b4df7125d3e17f1cad4032c7736dc1060361a2d3ccf",
+      "build_round": 5,
+      "approval_sha256": "92a815701ffe38af7a6c8028e872f9146859055b654e06f703aa5bc3b3e5fd72"
+    },
+    "core_regression": {
+      "status": "pass",
+      "reason": "第五轮当前源码实际执行；空白diff输出的退出0记录于execution.json；仅隔离测试，不代表真机验收。",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-005/EXECUTION_REPORT_REVISION_3_ROUND_5_20261020.md": "6f895b3be9127864e7b5d1720af559e597a2c05152ab657e18bd0948401ed2f5",
+        ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_5_20261020.json": "ce34ca74508b393f4bcbe7f2683c0d41f867a9b8f0f9cbee9f15040e93910c7a",
+        ".ahakey-desktop-harness/evidence/20261020-wd005-r5/execution.json": "a3a7f6cef2ae0037d5f7d60edd480a680824ea2da8e6405941301dfb9d370579",
+        ".ahakey-desktop-harness/evidence/20261020-wd005-r5/DisplayConfigChecks.log": "6adbf20845438f4f763a250c84515c7d5fae0796f1bc0988b1eeeacbcf0defba"
+      },
+      "role": "DIB",
+      "at": "2026-10-20T02:24:07+00:00",
+      "code_fingerprint": "1fca9345199cd1166acd8b4df7125d3e17f1cad4032c7736dc1060361a2d3ccf",
+      "build_round": 5,
+      "approval_sha256": "92a815701ffe38af7a6c8028e872f9146859055b654e06f703aa5bc3b3e5fd72"
+    },
+    "special_regression": {
+      "status": "pass",
+      "reason": "第五轮当前源码实际执行；空白diff输出的退出0记录于execution.json；仅隔离测试，不代表真机验收。",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-005/EXECUTION_REPORT_REVISION_3_ROUND_5_20261020.md": "6f895b3be9127864e7b5d1720af559e597a2c05152ab657e18bd0948401ed2f5",
+        ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_5_20261020.json": "ce34ca74508b393f4bcbe7f2683c0d41f867a9b8f0f9cbee9f15040e93910c7a",
+        ".ahakey-desktop-harness/evidence/20261020-wd005-r5/execution.json": "a3a7f6cef2ae0037d5f7d60edd480a680824ea2da8e6405941301dfb9d370579",
+        ".ahakey-desktop-harness/evidence/20261020-wd005-r5/DisplayConfigRound5Checks.log": "32f9919ff5b8e0bc7c99e06204747e236887ca9d079d740cb4a4d334ee7734f7",
+        ".ahakey-desktop-harness/evidence/20261020-wd005-r5/DisplayConfigFxChecks.log": "d5234c3774835e2fe7a1e5ffa0558a071e79aa972cd353601a5c7612fbab41d9",
+        ".ahakey-desktop-harness/evidence/20261020-wd005-r5/DisplayConfigRaceChecks.log": "a5451de9818781cac70e0de1007a32ebbad64d2759baf2d2261eccfc4cead345",
+        ".ahakey-desktop-harness/evidence/20261020-wd005-r5/DisplayConfigRevision3Checks.log": "6bac4b4fdeed45a943bf39c8aa5701e4c779217d7fa96f42974628e4b6d6f0db",
+        ".ahakey-desktop-harness/evidence/20261020-wd005-r5/DisplayConfigRevision3UiChecks.log": "a85bc6712d49af1e908b1336f346ce76c59ccc142db61bf2ff3bff809c7ffecd"
+      },
+      "role": "DIB",
+      "at": "2026-10-20T02:24:12+00:00",
+      "code_fingerprint": "1fca9345199cd1166acd8b4df7125d3e17f1cad4032c7736dc1060361a2d3ccf",
+      "build_round": 5,
+      "approval_sha256": "92a815701ffe38af7a6c8028e872f9146859055b654e06f703aa5bc3b3e5fd72"
+    },
+    "mock": {
+      "status": "pass",
+      "reason": "第五轮当前源码实际执行；空白diff输出的退出0记录于execution.json；仅隔离测试，不代表真机验收。",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-005/EXECUTION_REPORT_REVISION_3_ROUND_5_20261020.md": "6f895b3be9127864e7b5d1720af559e597a2c05152ab657e18bd0948401ed2f5",
+        ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_5_20261020.json": "ce34ca74508b393f4bcbe7f2683c0d41f867a9b8f0f9cbee9f15040e93910c7a",
+        ".ahakey-desktop-harness/evidence/20261020-wd005-r5/execution.json": "a3a7f6cef2ae0037d5f7d60edd480a680824ea2da8e6405941301dfb9d370579",
+        ".ahakey-desktop-harness/evidence/20261020-wd005-r5/DisplayConfigRound5Checks.log": "32f9919ff5b8e0bc7c99e06204747e236887ca9d079d740cb4a4d334ee7734f7",
+        ".ahakey-desktop-harness/evidence/20261020-wd005-r5/DisplayConfigChecks.log": "6adbf20845438f4f763a250c84515c7d5fae0796f1bc0988b1eeeacbcf0defba",
+        ".ahakey-desktop-harness/evidence/20261020-wd005-r5/DisplayConfigRaceChecks.log": "a5451de9818781cac70e0de1007a32ebbad64d2759baf2d2261eccfc4cead345",
+        ".ahakey-desktop-harness/evidence/20261020-wd005-r5/DisplayConfigRevision3Checks.log": "6bac4b4fdeed45a943bf39c8aa5701e4c779217d7fa96f42974628e4b6d6f0db"
+      },
+      "role": "DIB",
+      "at": "2026-10-20T02:24:17+00:00",
+      "code_fingerprint": "1fca9345199cd1166acd8b4df7125d3e17f1cad4032c7736dc1060361a2d3ccf",
+      "build_round": 5,
+      "approval_sha256": "92a815701ffe38af7a6c8028e872f9146859055b654e06f703aa5bc3b3e5fd72"
+    }
+  },
+  "protected_history_unchanged": true,
+  "production_packaged": false,
+  "git_written": false,
+  "record_retry_note": "First machine registration rejected empty diff-check.log. Retained raw empty log and failed registration. Final binding uses execution.json with actual exit0, no Core change."
+}

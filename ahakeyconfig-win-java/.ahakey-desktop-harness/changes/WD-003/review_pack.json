@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "WD-003",
+  "created_at": "2026-10-07T09:39:00+00:00",
+  "build_round": 9,
+  "code_fingerprint": "a6dec812a6e11de5016e01b241c0e081d44350762dae206639e31ef6ddf3e58d",
+  "approval_sha256": "2368ab728f549a292367ffee6676f23c316f24dbb4414cd50728ec31ce1f4461",
+  "submission_sha256": "98d73c41bd7a5718c59a44fbb9b43fa3f2f5e339ec7b1db947c0a9cc10536f49",
+  "start_sha256": "d30c1781e84fb8acebd151a5de3f71a9efcc6cbb9523d7985d55517bf07d8d58",
+  "changed_paths": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/model/StudioState.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+    "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java"
+  ],
+  "missing_start_bytes": [],
+  "diff_path": ".ahakey-desktop-harness/changes/WD-003/reviews/20261007T093900372181Z-fc2e84/ACTUAL_DIFF.txt",
+  "diff_sha256": "62bd54b1e759401a254eeb60d52fc6611d8e3cf74133828fc7e5d49d83a7ab80",
+  "policy_sha256": "9f94d16138ba7ec55fecebc108a78e56062f0ff39dc7dc99d51b28a3899be32d",
+  "last_verified_baseline": null,
+  "limits": "Machine checks path/identity only. DLA must review every relevant hunk and real call chain; compile is not UAT."
+}

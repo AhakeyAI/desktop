@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "token": "preview-20261017T104547091113Z-0e6fcf",
+  "scope": "OWNER_PREVIEW_PLANNED_NOT_EXECUTED_NOT_FORMAL_ACCEPTANCE",
+  "contract_changed": false,
+  "owner_deferred": [],
+  "items": [
+    {
+      "id": "A01",
+      "steps": "P2/P3",
+      "planned": "四Mode默认+SINGLE三态与全局MULTI三态，19目标",
+      "remaining": "全部目标真实逐一操作仍待Owner反馈",
+      "result": "not_executed"
+    },
+    {
+      "id": "A02",
+      "steps": "P2",
+      "planned": "静图/透明图/合法GIF；默认8/9帧、状态12/13帧限额、坏文件",
+      "remaining": "局部GIF/disposal2/3与独立像素全向量未在本轮重跑",
+      "result": "not_executed"
+    },
+    {
+      "id": "A03",
+      "steps": "P2/P3/P7",
+      "planned": "成品恢复、重启、源文件改名副本、清除本地",
+      "remaining": "写满/只读/坏索引/中断写入及完整迁移故障待独立安全夹具，不在真实用户目录破坏性测试",
+      "result": "not_executed"
+    },
+    {
+      "id": "A04",
+      "steps": "P4/P5",
+      "planned": "按需刷新不盖草稿，未知/设备已有/不一致",
+      "remaining": "错误selector/迟到generation压力需限定模拟，非Owner手工发送非法包",
+      "result": "not_executed"
+    },
+    {
+      "id": "A05",
+      "steps": "P5",
+      "planned": "冻结目标上传、进度及UI互斥",
+      "remaining": "1/8/12帧与特殊字节CRC分片/跨传输全覆盖待后续；首轮不要求冒险重复上传",
+      "result": "not_executed"
+    },
+    {
+      "id": "A06",
+      "steps": "P7",
+      "planned": "完成写入后正常断连重连，草稿保留和重确认",
+      "remaining": "上传中故意断连、丢ACK/迟到ACK/物理切Mode故障注入未安排首轮；保留本地恢复成品后另行协调，不豁免",
+      "result": "not_executed"
+    },
+    {
+      "id": "A07",
+      "steps": "P6",
+      "planned": "亮度与九项状态灯效分开保存、OFF",
+      "remaining": "九项中第5项失败/未知effect等受控注入与全持久化待后续",
+      "result": "not_executed"
+    },
+    {
+      "id": "A08",
+      "steps": "P6",
+      "planned": "左侧模拟、设备10秒预览、离开不立刻停止、保存停止预览",
+      "remaining": "17灯效全部物理向量/AI预览中变化待逐项反馈，金样模拟不替代硬件",
+      "result": "not_executed"
+    },
+    {
+      "id": "A09",
+      "steps": "P2/P5/P7",
+      "planned": "小窗口、长名字、处理中/上传锁定、离线编辑",
+      "remaining": "100/150/200% DPI全覆盖仍待Owner，未测不能通过",
+      "result": "not_executed"
+    },
+    {
+      "id": "A10",
+      "steps": "P4/P7",
+      "planned": "设备信息、普通键/侧拨、双向Mode、已有Hook的CP1",
+      "remaining": "BLE桥接、本地语音缺环境；完整旧功能回归和全量保存写入过滤需后续独立日志证据，不能据页面可打开判通过",
+      "result": "not_executed"
+    },
+    {
+      "id": "A11",
+      "steps": "P1/P4/P7",
+      "planned": "当前JAR/HEX身份、Owner刷入确认、重启后回读",
+      "remaining": "本轮仅Preview；formal candidate/fresh/正式配对及完整硬件验收仍待",
+      "result": "not_executed"
+    }
+  ]
+}

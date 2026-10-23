@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "Windows DLA / CHANGE；WD-005设计草案，未批准实现。",
+    "conclusion": "设计已收口到合同草案；OLED改资源管理，灯光保留现有布局。没有改生产代码、构建或操作设备。"
+  },
+  "completed": [
+    "设计、确认矩阵、协议状态、改动清单和分层验收已保存：[合同](C:/Users/20825/Desktop/windows软件代码/desktop/ahakeyconfig-win-java/.ahakey-desktop-harness/v1/planned-changes/WD-005/CONTRACT.md)。",
+    "OLED：当前Mode默认/SINGLE＋全局MULTI，共19目标；左侧160×80成品预览、本地草稿恢复、确认目标后上传并应用。",
+    "灯光：保留九项布局，全局亮度与Mode灯效分开保存；显式10秒预览、八灯同源模拟、断连保护草稿。",
+    "复用现有热点、Inspector、缩放编码；修改旧上传链、USB/BLE二进制解析、事务互斥和本地库。独立审阅的三处合同风险已修订。",
+    "固件最新20261015T185611 Gate为PASS，18/18，候选08dd24a6及HEX哈希已核对；不是Windows或真机验收。"
+  ],
+  "remaining": [
+    "正式new被历史WD-002 ACTIVE路由阻止，已记录Harness反馈；WD-004不重开，J005/J006只保存草案，不手改STATE绕过。",
+    "尚无实现、Git候选、新JAR或Owner测试。后续先离线/UI与协议模拟，再Preview和正式配对真机验收。"
+  ],
+  "owner": {
+    "decision": {
+      "required": true,
+      "action": "请一次确认上述范围及六项收口提案：本地库放~/.ahakey/oled-resources/v1、仅显式清除不自动清理；固定10fps并移除旧FPS设置；切Mode保留分组/状态；保留源文件2MiB限额；九项保存如实报告部分成功；ACK未知时隔离写入、必要时重连对账。"
+    },
+    "operation": {
+      "required": false,
+      "action": "本轮不用切换对话或搬运固件资料。历史路由须按获准维护流程恢复，不能以范围批准代替治理修复。"
+    },
+    "test": {
+      "required": false,
+      "action": "当前没有新测试包，不需要刷机或测试。"
+    }
+  },
+  "next": {
+    "role": "DLA",
+    "destination": "当前对话",
+    "mode": "CHANGE",
+    "task": "WD-005设计批准与正式登记接续",
+    "action": "收到范围确认后记录批准；正式路由恢复并完成登记后，再交付独立DIB的完整IMPLEMENT提示词。",
+    "repo": "C:/Users/20825/Desktop/windows软件代码/desktop/ahakeyconfig-win-java",
+    "facts": [
+      "WD-004已关闭；WD-005仅planned，根STATE历史WD-002不得导致重启旧任务。",
+      "设计草案和固件新PASS证据已保存；没有生产实现或设备测试。"
+    ],
+    "read": [
+      "C:/Users/20825/Desktop/windows软件代码/desktop/ahakeyconfig-win-java/.ahakey-desktop-harness/v1/planned-changes/WD-005",
+      "C:/Users/20825/Desktop/windows软件代码/desktop/ahakeyconfig-win-java/.ahakey-desktop-harness/STATE.json",
+      "C:/Users/20825/Desktop/windows软件代码/desktop/ahakeyconfig-win-java/.ahakey-desktop-harness/firmware-sync.json"
+    ],
+    "authorization": "本提示词不构成实现批准；核对Owner后续明确确认，仅按已有授权写CHANGE记录。",
+    "goal": "保留历史、完成合法登记和范围批准；前置满足后给独立DIB完整IMPLEMENT提示词。",
+    "allowed": [
+      "读取固件C:/Users/20825/Desktop/vibe-code；复核新证据、记录批准、通过正式helper登记Journey/classification/引用。"
+    ],
+    "forbidden": [
+      "不手改STATE、旧批准或起点；不派未获准DIB，不改生产代码，不构建、Git写入、设备写入、烧录或发布。"
+    ]
+  },
+  "evidence": []
+}

@@ -312,8 +312,8 @@
 }
 
 .light-segment {
-    -fx-min-width: 54px;
-    -fx-max-width: 54px;
+    -fx-min-width: 25px;
+    -fx-max-width: 25px;
     -fx-min-height: 12px;
     -fx-max-height: 12px;
     -fx-background-radius: 6px;
@@ -357,13 +357,36 @@
 }
 
 .oled-screen-small {
-    -fx-background-color: linear-gradient(to bottom, #09090b, #1f2937);
-    -fx-background-radius: 14px;
-    -fx-min-width: 140px;
+    -fx-background-color: #000000;
+    -fx-background-radius: 4px;
+    -fx-min-width: 160px;
     -fx-min-height: 80px;
-    -fx-max-width: 140px;
+    -fx-max-width: 160px;
     -fx-max-height: 80px;
+    -fx-padding: 0;
+}
+
+.oled-resource {
     -fx-padding: 12px;
+    -fx-background-color: #f4f6f8;
+    -fx-border-color: #c6ccd3;
+    -fx-border-radius: 6px;
+    -fx-background-radius: 6px;
+}
+.oled-resource-selected { -fx-border-color: #16836b; }
+.oled-resource .label { -fx-text-fill: #263442; }
+.oled-resource:disabled { -fx-opacity: 1; -fx-background-color: #edf0f3; }
+.oled-resource:disabled .label { -fx-opacity: 1; -fx-text-fill: #465563; }
+.runtime-mode-section:disabled { -fx-opacity: 1; -fx-background-color: #edf0f3; }
+.display-disabled-reason { -fx-text-fill: #35424f; -fx-opacity: 1; -fx-font-size: 12px; }
+.runtime-mode-section:disabled .label { -fx-opacity: 1; -fx-text-fill: #465563; }
+.runtime-mode-section:disabled .button,
+.runtime-mode-section:disabled .combo-box { -fx-opacity: 0.7; }
+.oled-draft-badge {
+    -fx-text-fill: #ffffff;
+    -fx-background-color: #4b5563;
+    -fx-font-size: 10px;
+    -fx-padding: 2px 4px;
 }
 
 .oled-preview {

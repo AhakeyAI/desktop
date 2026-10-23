@@ -1,0 +1,79 @@
+﻿{
+  "schema_version": 1,
+  "progress": {
+    "position": "当前任务已经由实现方完成本轮修复并交回审阅方，正在等待审阅方做实际差异审阅。",
+    "conclusion": "本轮 USB HID 配置接口选择修复已完成并成功提交；这不是审阅通过、真机通过、用户验收或发布。"
+  },
+  "completed": [
+    "已按实现方流程读取适用规则、合同、用户预览失败证据、范围批准和当前状态，并执行预检，结果通过。",
+    "已仅修改授权文件：USB HID 传输类现在对目标设备的配置通道只接受 mi_01，不再把 col02 当作配置通道证据，也不再退回任意同设备标识的路径。",
+    "保留目录键、睡眠等待时间、侧拨配置、普通键回读这几类既有协议语义；未引入禁用的普通键回读命令；未修改固件、界面或范围外功能。",
+    "已用十七版 Java 运行 Maven 编译，退出码为零；已运行静态检查，确认 col02 不再作为配置接口选择条件，且没有禁用回读匹配。",
+    "已追加执行报告，刷新机器检查和不适用的回归记录，并执行提交；实现收据已冻结第六轮构建身份。"
+  ],
+  "remaining": [
+    "审阅方仍需审阅本轮实际差异；当前审阅记录仍是旧失败记录，不能视为通过。",
+    "真实设备测试和用户验收仍为待办；本轮没有连接真实设备验证目录键、睡眠等待时间、侧拨配置、普通键回读是否已通过正确接口正常收发。",
+    "还没有新的预览包、可运行包或安装包交测产物，没有 Git 候选、构建收据或正式测试包。",
+    "本轮未执行任何 Git 写入，未构建安装包，未安装，未关闭进程，未做设备写入或烧录。"
+  ],
+  "owner": {
+    "decision": {"required": false, "action": "不需要新的产品或范围决策；本轮是已批准范围内的 USB HID 接口选择缺陷修复。"},
+    "operation": {"required": true, "action": "请把下方完整提示词复制到原审阅方对话，让审阅方继续本任务的实际差异审阅。"},
+    "test": {"required": false, "action": "现在还不能做用户真机测试；需要先通过审阅，并按后续流程重新准备预览或正式候选。"}
+  },
+  "next": {
+    "role": "DLA",
+    "destination": "原 DLA 对话",
+    "mode": "DLA_REVIEW",
+    "task": "WD-003 Preview FAIL 修复审阅：USB HID 配置接口选择错误导致 0x9F/0x95 写入失败",
+    "action": "读取本轮 submit 记录、执行报告、verification 和实际 diff，审阅 UsbHidTransport.java 是否只按批准范围修复配置接口选择，并决定是否通过 review 后重新开启 Preview fast lane，或 request-fix。",
+    "authorization": "DIB 已在 IMPLEMENT 模式按 Owner-approved scope reconcile 修复并 submit；DLA 只做实际差异审阅和后续 Harness 路由，不把 compile 或 submit 当真机/Owner UAT。",
+    "goal": "确认配置命令不会再写到 mi_00&col02 键盘/Consumer collection，而是只选择 AhaKey vendor/config interface，预期 mi_01，同时确认 0x9F、0x95、0x97、0x87 协议语义未变化。",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "facts": [
+      "当前 STATE 为 VERIFY / DLA_REVIEW，active_change=WD-003，next_actor=DLA。",
+      "实现方已经完成第六轮提交；实现收据中的代码指纹为 94b87d74ea1eb1ef3695a2186e5e07e08da1d86f48d6992f091f6035f0d39a0e。",
+      "本轮生产修复只修改一个传输层文件，路径为 src/main/java/com/example/ahakey/service/UsbHidTransport.java。",
+      "修复内容：findDevicePath() 对 VID 413c / PID 2107 只接受 mi_01；移除 (mi_01 || col02)；移除找不到 mi_01 时退回任意同 VID/PID path 的行为；如果发现 AhaKey 但无 mi_01，记录 warning 后返回 null。",
+      "机器检查已记录：JDK17 Maven compile 退出码 0；静态 grep 确认 col02 不再作为配置通道选择条件，且没有 forbidden 0x98/readback 匹配。",
+      "真实设备测试和用户验收仍为待办；没有新的 Git candidate、BUILD_RECEIPT、test_packet 或 Owner UAT。",
+      "本轮未执行 Git 写入、安装、kill 进程、设备写入、烧录或发布。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\AGENTS.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-lead\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-harness\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\STATE.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\change.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\CONTRACT.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\EXECUTION_REPORT.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\verification.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\IMPLEMENTATION_RECEIPT.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\evidence\\20261006T110555_wd003_owner_preview_usb_hid_interface_fail.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\evidence\\20261006T110555_wd003_usbhidtransport_scope_owner_approval.md"
+    ],
+    "allowed": [
+      "执行 guard-status 和 review-pack，实际审阅 build_round 6 diff。",
+      "重点核对 UsbHidTransport.findDevicePath() 是否不再接受 mi_00&col02 / col02 作为配置接口。",
+      "核对找不到 mi_01 时是否不会退回错误 HID collection。",
+      "核对 0x9F、0x95、0x97、0x87 协议语义未变化，未引入 0x98 普通键 readback。",
+      "若 review pass，可按 Preview fast lane 重新开启 Preview 构建/Owner Preview；若发现缺陷，按 Harness request-fix 退回 DIB。"
+    ],
+    "forbidden": [
+      "不得把 DIB compile 或 submit 称为 DLA review pass、真机 PASS、Owner UAT 或 release。",
+      "不得自动 Git add、commit、push、reset、clean 或 stash。",
+      "不得自动构建安装包、安装、kill 进程、设备写入或烧录。",
+      "不得改 0x87、0x97、0x9F、0x95 已批准协议语义；不得引入 0x98 普通键 readback。",
+      "不得做灯光、OLED/GIF/图片、Voice、Power、Restore Factory、CP5、完整 Host Protocol、固件升级/恢复、HID descriptor 或范围外 UI/协议扩展。"
+    ]
+  },
+  "evidence": [
+    ".ahakey-desktop-harness/changes/WD-003/EXECUTION_REPORT.md",
+    ".ahakey-desktop-harness/changes/WD-003/verification.json",
+    ".ahakey-desktop-harness/changes/WD-003/IMPLEMENTATION_RECEIPT.json",
+    ".ahakey-desktop-harness/evidence/20261006_wd003_usbhid_mi01_compile.log",
+    ".ahakey-desktop-harness/evidence/20261006_wd003_usbhid_mi01_static_grep.log"
+  ]
+}
+

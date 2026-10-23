@@ -1,0 +1,6 @@
+interface:
+  display_name: "AhaKey Harness v1.3"
+  short_description: "CHANGE→IMPLEMENT→VERIFY，中文汇报、可追溯变更与Firmware联调"
+  default_prompt: "使用 $ahakey-desktop-harness，先读取当前规则、VERSION.json 与 STATE；所有面向 Owner 的自然语言用中文。"
+policy:
+  allow_implicit_invocation: false

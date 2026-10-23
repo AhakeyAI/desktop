@@ -8,14 +8,20 @@ import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
+import com.example.ahakey.protocol.AhaKeyProtocol;
+import com.example.ahakey.protocol.AhaKeyResponseParser;
+import com.example.ahakey.service.DeviceSyncService;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 
 public class StudioState {
+    private final DisplayConfigState displayConfig = new DisplayConfigState();
+    public DisplayConfigState displayConfig() { return displayConfig; }
     private static final DateTimeFormatter SYNC_TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
 
     private final ObjectProperty<ModeSlot> selectedMode = new SimpleObjectProperty<>(ModeSlot.MODE0);
@@ -25,6 +31,7 @@ public class StudioState {
     private final StringProperty syncStatus = new SimpleStringProperty("修改会先保存在本地，保存配置后写入键盘。");
     private final StringProperty lastSyncSummary = new SimpleStringProperty("尚未保存");
     private final BooleanProperty syncing = new SimpleBooleanProperty(false);
+    private final BooleanProperty modeSwitching = new SimpleBooleanProperty(false);
     private final BooleanProperty ahaTypeEnabled = new SimpleBooleanProperty(true);
     private final StringProperty ahaTypeStatus = new SimpleStringProperty("云端整理已启用");
     private final ObjectProperty<LightBarPreviewState> lightBarPreview =
@@ -40,6 +47,14 @@ public class StudioState {
     private final Map<ModeSlot, StringProperty> lightBarSummaries = new EnumMap<>(ModeSlot.class);
     private final Map<ModeSlot, EnumMap<IDEState, LightEffectStyle>> aiLightConfigs = new EnumMap<>(ModeSlot.class);
     private final EnumSet<StudioPart> dirtyParts = EnumSet.noneOf(StudioPart.class);
+    private final EnumSet<ModeSlot> dirtyModes = EnumSet.noneOf(ModeSlot.class);
+    private final BooleanProperty cp4cInputConfigEnabled = new SimpleBooleanProperty(false);
+    private final BooleanProperty inputReadbackInProgress = new SimpleBooleanProperty(false);
+    private final IntegerProperty inputBaselineRevision = new SimpleIntegerProperty(0);
+    private final StringProperty inputReadbackStatus = new SimpleStringProperty("");
+    private final StringProperty inputFailureStatus = new SimpleStringProperty("");
+    private final EnumSet<ModeSlot> inputReadModes = EnumSet.noneOf(ModeSlot.class);
+    private AhaKeyResponseParser.SideSwitchConfig sideSwitchConfig = defaultSideSwitchConfig();
 
     public StudioState() {
         seedDefaults();
@@ -63,29 +78,48 @@ public class StudioState {
         return key;
     }
 
+    private KeyConfig createMacroKey(String description, int[][] macroSteps) {
+        KeyConfig key = new KeyConfig(0, description);
+        key.setVoicePreset(VoicePreset.CUSTOM);
+        for (int[] step : macroSteps) {
+            String actionType = switch (step[0]) {
+                case 1 -> "DOWN_KEY";
+                case 2 -> "UP_KEY";
+                default -> "DELAY";
+            };
+            key.addMacroStep(actionType, step[1]);
+        }
+        return key;
+    }
+
     private void resetModeDefaults(ModeSlot mode) {
         EnumMap<StudioPart, KeyConfig> map = keyConfigs.get(mode);
         oledDrafts.putIfAbsent(mode, new OledModeDraft());
         if (mode == ModeSlot.MODE0) {
             map.put(StudioPart.KEY1, createVoiceKey(HIDUsage.F18, "Record", VoicePreset.WINDOWS_NATIVE));
-            map.put(StudioPart.KEY2, createKey(HIDUsage.getCode("Y"), "Approve"));
-            map.put(StudioPart.KEY3, createKey(HIDUsage.getCode("N"), "Reject"));
+            map.put(StudioPart.KEY2, createKey(HIDUsage.ENTER, "Yes"));
+            map.put(StudioPart.KEY3, createMacroKey("No", new int[][]{
+                {1, HIDUsage.DOWN_ARROW}, {2, HIDUsage.DOWN_ARROW}, {3, 10},
+                {1, HIDUsage.DOWN_ARROW}, {2, HIDUsage.DOWN_ARROW}, {3, 10},
+                {1, HIDUsage.DOWN_ARROW}, {2, HIDUsage.DOWN_ARROW}, {3, 10},
+                {1, HIDUsage.ENTER}, {2, HIDUsage.ENTER}
+            }));
             map.put(StudioPart.KEY4, createKey(HIDUsage.BACKSPACE, "Backspace"));
             oledSummaries.put(mode, new SimpleStringProperty("Claude"));
             oledCaptions.put(mode, new SimpleStringProperty("Mode 1"));
             lightBarSummaries.put(mode, new SimpleStringProperty("AI 状态灯效"));
         } else if (mode == ModeSlot.MODE1) {
-            map.put(StudioPart.KEY1, createVoiceKey(HIDUsage.F17, "Transcribe", VoicePreset.WINDOWS_NATIVE));
-            map.put(StudioPart.KEY2, createKey(HIDUsage.getCode("Y"), "Yes"));
-            map.put(StudioPart.KEY3, createKey(HIDUsage.ESCAPE, "Cancel"));
+            map.put(StudioPart.KEY1, createVoiceKey(HIDUsage.F18, "Record", VoicePreset.WINDOWS_NATIVE));
+            map.put(StudioPart.KEY2, createKey(HIDUsage.ENTER, "Accept"));
+            map.put(StudioPart.KEY3, createKey(HIDUsage.BACKSPACE, "Reject"));
             map.put(StudioPart.KEY4, createKey(HIDUsage.BACKSPACE, "Backspace"));
             oledSummaries.put(mode, new SimpleStringProperty("Cursor"));
             oledCaptions.put(mode, new SimpleStringProperty("Mode 2"));
             lightBarSummaries.put(mode, new SimpleStringProperty("AI 状态灯效"));
         } else if (mode == ModeSlot.MODE2) {
             map.put(StudioPart.KEY1, createVoiceKey(HIDUsage.F18, "Record", VoicePreset.WINDOWS_NATIVE));
-            map.put(StudioPart.KEY2, createKey(HIDUsage.getCode("Y"), "Accept"));
-            map.put(StudioPart.KEY3, createKey(HIDUsage.getCode("N"), "Decline"));
+            map.put(StudioPart.KEY2, createKey(HIDUsage.ENTER, "Accept"));
+            map.put(StudioPart.KEY3, createKey(HIDUsage.ESCAPE, "Reject"));
             map.put(StudioPart.KEY4, createKey(HIDUsage.BACKSPACE, "Backspace"));
             oledSummaries.put(mode, new SimpleStringProperty("Codex"));
             oledCaptions.put(mode, new SimpleStringProperty("Mode 3"));
@@ -158,6 +192,69 @@ public class StudioState {
         return syncing;
     }
 
+    public BooleanProperty modeSwitchingProperty() {
+        return modeSwitching;
+    }
+
+    public BooleanProperty cp4cInputConfigEnabledProperty() {
+        return cp4cInputConfigEnabled;
+    }
+
+    public boolean isCp4cInputConfigEnabled() {
+        return cp4cInputConfigEnabled.get();
+    }
+
+    public void setCp4cInputConfigEnabled(boolean enabled) {
+        if (cp4cInputConfigEnabled.get() == enabled) {
+            return;
+        }
+        cp4cInputConfigEnabled.set(enabled);
+        if (!enabled) {
+            inputReadbackInProgress.set(false);
+            inputReadModes.clear();
+            inputReadbackStatus.set("");
+            inputFailureStatus.set("");
+            sideSwitchConfig = defaultSideSwitchConfig();
+        }
+        markInputBaselineChanged();
+    }
+
+    public BooleanProperty inputReadbackInProgressProperty() {
+        return inputReadbackInProgress;
+    }
+
+    public void setInputReadbackInProgress(boolean value) {
+        inputReadbackInProgress.set(value);
+    }
+
+    public IntegerProperty inputBaselineRevisionProperty() {
+        return inputBaselineRevision;
+    }
+
+    public StringProperty inputReadbackStatusProperty() {
+        return inputReadbackStatus;
+    }
+
+    public StringProperty inputFailureStatusProperty() {
+        return inputFailureStatus;
+    }
+
+    public String getInputFailureStatus() {
+        return inputFailureStatus.get();
+    }
+
+    public void setInputReadbackStatus(String value) {
+        inputReadbackStatus.set(value == null ? "" : value);
+    }
+
+    public void setInputFailureStatus(String value) {
+        inputFailureStatus.set(value == null ? "" : value);
+    }
+
+    public boolean isInputModeRead(ModeSlot mode) {
+        return inputReadModes.contains(mode);
+    }
+
     public BooleanProperty ahaTypeEnabledProperty() {
         return ahaTypeEnabled;
     }
@@ -215,6 +312,71 @@ public class StudioState {
         return keyConfigs.get(mode).get(part);
     }
 
+    public void applyOrdinaryKeyReadback(AhaKeyResponseParser.OrdinaryKeyReadback readback) {
+        ModeSlot mode = ModeSlot.fromIndex(readback.mode());
+        StudioPart part = partForKeyIndex(readback.keyIndex());
+        if (part == null) {
+            return;
+        }
+        if (!hasUnsavedDraft(mode)) {
+            keyConfigs.get(mode).put(part, DeviceSyncService.keyConfigFromReadback(readback));
+        }
+        markInputBaselineChanged();
+    }
+
+    public void markInputModeRead(ModeSlot mode) {
+        inputReadModes.add(mode);
+        markInputBaselineChanged();
+    }
+
+    public AhaKeyResponseParser.SideSwitchConfig getSideSwitchConfig() {
+        return sideSwitchConfig;
+    }
+
+    public void applySideSwitchReadback(AhaKeyResponseParser.SideSwitchConfig config) {
+        if (!dirtyParts.contains(StudioPart.TOGGLE_SWITCH)) {
+            sideSwitchConfig = config;
+        }
+        markInputBaselineChanged();
+    }
+
+    public void updateSideSwitchBinding(int position, int binding) {
+        updateSideSwitchPosition(position, new AhaKeyResponseParser.SideSwitchPositionConfig(binding, new byte[0]));
+    }
+
+    public void updateSideSwitchCustomAction(int position, KeyConfig action) {
+        updateSideSwitchPosition(position, new AhaKeyResponseParser.SideSwitchPositionConfig(
+            AhaKeyProtocol.SIDE_SWITCH_BINDING_CUSTOM,
+            DeviceSyncService.encodeSideSwitchActionPayload(action)
+        ));
+    }
+
+    public KeyConfig getSideSwitchCustomAction(int position, boolean macro) {
+        AhaKeyResponseParser.SideSwitchPositionConfig config =
+            position == AhaKeyProtocol.SIDE_SWITCH_POSITION_UP ? sideSwitchConfig.up() : sideSwitchConfig.down();
+        return DeviceSyncService.keyConfigFromSideSwitchActionPayload(config.actionPayload(), macro);
+    }
+
+    public boolean isSideSwitchCustomMacro(int position) {
+        AhaKeyResponseParser.SideSwitchPositionConfig config =
+            position == AhaKeyProtocol.SIDE_SWITCH_POSITION_UP ? sideSwitchConfig.up() : sideSwitchConfig.down();
+        return DeviceSyncService.isSideSwitchMacroActionPayload(config.actionPayload());
+    }
+
+    private void updateSideSwitchPosition(int position, AhaKeyResponseParser.SideSwitchPositionConfig updated) {
+        AhaKeyResponseParser.SideSwitchPositionConfig up = sideSwitchConfig.up();
+        AhaKeyResponseParser.SideSwitchPositionConfig down = sideSwitchConfig.down();
+        if (position == AhaKeyProtocol.SIDE_SWITCH_POSITION_UP) {
+            up = updated;
+            down = complementIfFactory(updated.binding(), down);
+        } else {
+            down = updated;
+            up = complementIfFactory(updated.binding(), up);
+        }
+        sideSwitchConfig = new AhaKeyResponseParser.SideSwitchConfig(sideSwitchConfig.physicalPosition(), up, down);
+        markDirty(StudioPart.TOGGLE_SWITCH);
+    }
+
     public static int keyIndexFor(StudioPart part) {
         return switch (part) {
             case KEY1 -> 0;
@@ -222,6 +384,16 @@ public class StudioState {
             case KEY3 -> 2;
             case KEY4 -> 3;
             default -> 0;
+        };
+    }
+
+    public static StudioPart partForKeyIndex(int keyIndex) {
+        return switch (keyIndex) {
+            case 0 -> StudioPart.KEY1;
+            case 1 -> StudioPart.KEY2;
+            case 2 -> StudioPart.KEY3;
+            case 3 -> StudioPart.KEY4;
+            default -> null;
         };
     }
 
@@ -313,8 +485,13 @@ public class StudioState {
         return dirtyParts.contains(part);
     }
 
+    public boolean hasUnsavedDraft(ModeSlot mode) {
+        return dirtyModes.contains(mode);
+    }
+
     public void markDirty(StudioPart part) {
         dirtyParts.add(part);
+        dirtyModes.add(getSelectedMode());
         dirtyCount.set(dirtyParts.size());
         revision.set(revision.get() + 1);
         syncStatus.set("有 " + dirtyParts.size() + " 处改动待保存。");
@@ -328,6 +505,7 @@ public class StudioState {
         dirtyParts.add(StudioPart.KEY4);
         dirtyParts.add(StudioPart.OLED);
         dirtyParts.add(StudioPart.LIGHT_BAR);
+        dirtyModes.add(getSelectedMode());
         dirtyCount.set(dirtyParts.size());
         revision.set(revision.get() + 1);
         syncStatus.set("已恢复 " + getSelectedMode().getTitle() + " 默认值，等待保存。");
@@ -346,9 +524,42 @@ public class StudioState {
 
     public void clearDirtyAfterSync() {
         dirtyParts.clear();
+        dirtyModes.clear();
         dirtyCount.set(0);
         revision.set(revision.get() + 1);
         lastSyncSummary.set("最近保存 " + LocalDateTime.now().format(SYNC_TIME_FORMAT));
+    }
+
+    private static AhaKeyResponseParser.SideSwitchConfig defaultSideSwitchConfig() {
+        return new AhaKeyResponseParser.SideSwitchConfig(
+            AhaKeyProtocol.SIDE_SWITCH_POSITION_DOWN,
+            new AhaKeyResponseParser.SideSwitchPositionConfig(AhaKeyProtocol.SIDE_SWITCH_BINDING_AUTO, new byte[0]),
+            new AhaKeyResponseParser.SideSwitchPositionConfig(AhaKeyProtocol.SIDE_SWITCH_BINDING_MANUAL, new byte[0])
+        );
+    }
+
+    private void markInputBaselineChanged() {
+        inputBaselineRevision.set(inputBaselineRevision.get() + 1);
+    }
+
+    private static AhaKeyResponseParser.SideSwitchPositionConfig complementIfFactory(
+        int changedBinding,
+        AhaKeyResponseParser.SideSwitchPositionConfig currentOther
+    ) {
+        if (changedBinding == AhaKeyProtocol.SIDE_SWITCH_BINDING_AUTO) {
+            return new AhaKeyResponseParser.SideSwitchPositionConfig(AhaKeyProtocol.SIDE_SWITCH_BINDING_MANUAL, new byte[0]);
+        }
+        if (changedBinding == AhaKeyProtocol.SIDE_SWITCH_BINDING_MANUAL) {
+            return new AhaKeyResponseParser.SideSwitchPositionConfig(AhaKeyProtocol.SIDE_SWITCH_BINDING_AUTO, new byte[0]);
+        }
+        if (changedBinding == AhaKeyProtocol.SIDE_SWITCH_BINDING_CUSTOM) {
+            if (currentOther.binding() == AhaKeyProtocol.SIDE_SWITCH_BINDING_CUSTOM
+                || currentOther.binding() == AhaKeyProtocol.SIDE_SWITCH_BINDING_DISABLED) {
+                return currentOther;
+            }
+            return new AhaKeyResponseParser.SideSwitchPositionConfig(AhaKeyProtocol.SIDE_SWITCH_BINDING_DISABLED, new byte[0]);
+        }
+        return currentOther;
     }
 
     public int getRevision() {
@@ -360,10 +571,18 @@ public class StudioState {
             ModeSlot mode = ModeSlot.values()[i];
             PersistedDraft.ModeDraft md = draft.modes[i];
             EnumMap<StudioPart, KeyConfig> map = keyConfigs.get(mode);
-            map.put(StudioPart.KEY1, new KeyConfig(md.key1Hid, md.key1Desc));
-            map.put(StudioPart.KEY2, new KeyConfig(md.key2Hid, md.key2Desc));
-            map.put(StudioPart.KEY3, new KeyConfig(md.key3Hid, md.key3Desc));
-            map.put(StudioPart.KEY4, new KeyConfig(md.key4Hid, md.key4Desc));
+            KeyConfig k1 = new KeyConfig(md.key1Hid, md.key1Desc);
+            KeyConfig k2 = new KeyConfig(md.key2Hid, md.key2Desc);
+            KeyConfig k3 = new KeyConfig(md.key3Hid, md.key3Desc);
+            KeyConfig k4 = new KeyConfig(md.key4Hid, md.key4Desc);
+            if (md.key1Macro != null) k1.setMacro(md.key1Macro);
+            if (md.key2Macro != null) k2.setMacro(md.key2Macro);
+            if (md.key3Macro != null) k3.setMacro(md.key3Macro);
+            if (md.key4Macro != null) k4.setMacro(md.key4Macro);
+            map.put(StudioPart.KEY1, k1);
+            map.put(StudioPart.KEY2, k2);
+            map.put(StudioPart.KEY3, k3);
+            map.put(StudioPart.KEY4, k4);
             oledSummaries.get(mode).set(md.oledSummary);
             oledCaptions.get(mode).set(md.oledCaption);
             OledModeDraft od = getOledDraft(mode);
@@ -372,7 +591,6 @@ public class StudioState {
             od.setFrameCount(md.oledFrameCount);
             od.setStatusLine(md.oledSummary);
             od.setCaptionLine(md.oledCaption);
-            var k1 = map.get(StudioPart.KEY1);
             if (md.voicePresetId != null) {
                 try {
                     k1.setVoicePreset(VoicePreset.valueOf(md.voicePresetId));
@@ -397,6 +615,7 @@ public class StudioState {
         }
         revision.set(draft.revision);
         dirtyParts.clear();
+        dirtyModes.clear();
         dirtyCount.set(0);
     }
 
@@ -408,14 +627,22 @@ public class StudioState {
         d.modes = new PersistedDraft.ModeDraft[ModeSlot.values().length];
         for (ModeSlot mode : ModeSlot.values()) {
             PersistedDraft.ModeDraft md = new PersistedDraft.ModeDraft();
-            md.key1Hid = getKeyConfig(mode, StudioPart.KEY1).getHidCode();
-            md.key1Desc = getKeyConfig(mode, StudioPart.KEY1).getDescription();
-            md.key2Hid = getKeyConfig(mode, StudioPart.KEY2).getHidCode();
-            md.key2Desc = getKeyConfig(mode, StudioPart.KEY2).getDescription();
-            md.key3Hid = getKeyConfig(mode, StudioPart.KEY3).getHidCode();
-            md.key3Desc = getKeyConfig(mode, StudioPart.KEY3).getDescription();
-            md.key4Hid = getKeyConfig(mode, StudioPart.KEY4).getHidCode();
-            md.key4Desc = getKeyConfig(mode, StudioPart.KEY4).getDescription();
+            KeyConfig k1 = getKeyConfig(mode, StudioPart.KEY1);
+            KeyConfig k2 = getKeyConfig(mode, StudioPart.KEY2);
+            KeyConfig k3 = getKeyConfig(mode, StudioPart.KEY3);
+            KeyConfig k4 = getKeyConfig(mode, StudioPart.KEY4);
+            md.key1Hid = k1.getHidCode();
+            md.key1Desc = k1.getDescription();
+            md.key1Macro = k1.getMacro();
+            md.key2Hid = k2.getHidCode();
+            md.key2Desc = k2.getDescription();
+            md.key2Macro = k2.getMacro();
+            md.key3Hid = k3.getHidCode();
+            md.key3Desc = k3.getDescription();
+            md.key3Macro = k3.getMacro();
+            md.key4Hid = k4.getHidCode();
+            md.key4Desc = k4.getDescription();
+            md.key4Macro = k4.getMacro();
             md.oledSummary = oledSummaries.get(mode).get();
             md.oledCaption = oledCaptions.get(mode).get();
             OledModeDraft od = getOledDraft(mode);
@@ -447,12 +674,16 @@ public class StudioState {
         public static class ModeDraft {
             public int key1Hid;
             public String key1Desc;
+            public List<MacroStep> key1Macro;
             public int key2Hid;
             public String key2Desc;
+            public List<MacroStep> key2Macro;
             public int key3Hid;
             public String key3Desc;
+            public List<MacroStep> key3Macro;
             public int key4Hid;
             public String key4Desc;
+            public List<MacroStep> key4Macro;
             public String oledSummary;
             public String oledCaption;
             public String oledGifPath;

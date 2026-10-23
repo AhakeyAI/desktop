@@ -1,0 +1,12 @@
+{
+  "after": "98fe4428d5187e7f900a30df99b2432c7a540fcc02f7707a7aa1ac659d2213b9",
+  "changed": [
+    "src/main/java/com/example/ahakey/view/InspectorPane.java",
+    "src/main/resources/messages_en.properties",
+    "src/main/resources/messages_zh.properties",
+    "src/test/java/com/example/ahakey/displayconfig/DisplayConfigCapabilityChecks.java"
+  ],
+  "removed": [],
+  "before": "3c1e7cf6a1180291d396d2ad288f44a9b57b5a7e74b27b6334d3299b801b7c3c",
+  "tested": "98fe4428d5187e7f900a30df99b2432c7a540fcc02f7707a7aa1ac659d2213b9"
+}

@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "kind": "OWNER_PREVIEW_PREP_STATIC_VALIDATION",
+  "date": "2026-10-17",
+  "token": "preview-20261017T104547091113Z-0e6fcf",
+  "receipt": {
+    "path": "C:/Users/20825/Desktop/windows软件代码/desktop/ahakeyconfig-win-java/.ahakey-desktop-harness/previews/WD-005/preview-20261017T104547091113Z-0e6fcf/PREVIEW_RECEIPT.json",
+    "sha256": "a60899a40bf0d341f4bd8fcb793a18fca350e683d8ad86f6fe73066d7da0d18c",
+    "status": "ready_for_owner_preview"
+  },
+  "artifact": {
+    "runtime_root": "C:/Users/20825/Desktop/windows软件代码/desktop/ahakeyconfig-win-java/.ahakey-desktop-harness/previews/WD-005/preview-20261017T104547091113Z-0e6fcf/runtime-jar-classpath",
+    "main_jar": "ahakey-studio-1.0.0.jar",
+    "sha256": "e8bbe9ee0dc3da54733d057c4bc2ab6ee8d12fa9bdc333290b4947f055e752e5",
+    "files": 19
+  },
+  "checks": {
+    "receipt_hash_match": true,
+    "all_19_artifact_hashes_match": true,
+    "two_bound_log_hashes_match": true,
+    "manifest_sizes_hashes_match": true,
+    "jar_resources_match_snapshot": true,
+    "main_class_present": true,
+    "current_working_fingerprint_match": true,
+    "snapshot_fingerprint_match": true,
+    "current_approval_review_binding_match": true,
+    "jdk_path_exists": true
+  },
+  "firmware": {
+    "gate": "C:/Users/20825/Desktop/vibe-code/.ahakey-harness/evidence/checkpoints/X1-AI-WORKFLOW-PRESENTATION/CP2/20261015T185611/gate-receipt.json",
+    "gate_sha256": "f9d0849a8a54b58dee20c2e11376c0dea2735434632958770a66152454b742c5",
+    "schema_version": 6,
+    "result": "PASS",
+    "candidate_commit": "08dd24a6e8ce3526fef36661f5c97940add98a25",
+    "machine_checks_pass": 18,
+    "hex": "C:/Users/20825/Desktop/vibe-code/.ahakey-harness/evidence/builds/ws3-cp2-resource-display-config/HID_Keyboard_582m_vibe_coding.hex",
+    "hex_sha256": "d7d10510482228b74a2978bd8272f6a4e32668cf6b4f31f491a8503b0dc11e2e",
+    "gate_and_hex_hash_verified": true,
+    "owner_installed_confirmation": "C:/Users/20825/Desktop/windows软件代码/desktop/ahakeyconfig-win-java/.ahakey-desktop-harness/previews/WD-005/preview-20261017T104547091113Z-0e6fcf/OWNER_INSTALLED_FIRMWARE_CONFIRMATION.md",
+    "hardware_readback_performed": false,
+    "formal_windows_firmware_admission": false
+  },
+  "scope": {
+    "source_and_artifact_isolated": true,
+    "user_data_isolated": false,
+    "missing_runtime": [
+      "JRE",
+      "BLE_tcp_driver.exe及配套文件/配置",
+      "本地语音模型"
+    ],
+    "first_preview": "离线UI + 满足前置后的Owner有线USB测试；BLE暂缺桥接核验，不能声称通过"
+  },
+  "execution": {
+    "dla_build": false,
+    "dla_app_launch": false,
+    "device_operation": false,
+    "hook_install": false,
+    "git_write": false,
+    "tests_rerun": false
+  },
+  "state": {
+    "phase": "VERIFY",
+    "mode": "DLA_REVIEW",
+    "next_actor": "DLA",
+    "changed_by_this_preparation": false
+  },
+  "formal_pending": [
+    "当前pack的high-impact独立fresh",
+    "Git candidate",
+    "formal build/artifact/firmware/test packet",
+    "完整A01-A11适用验收",
+    "真实USB/BLE及Owner UAT"
+  ],
+  "notes": [
+    "Gate machine pass不等于设备功能通过；已读18项机器结果，未重跑固件脚本。",
+    "默认model.enabled=false不变；包不是EXE/Lite安装器。",
+    "进程查询未返回匹配项；监听查询退出1未返回条目，不据此证明端口空闲。启动前仍由Owner确认旧实例/桥接使用情况。",
+    "START/PREVIEW_RECEIPT中的basis_kind=formal_review只表示原DLA来源，并非formal high-impact review门通过。"
+  ]
+}

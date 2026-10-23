@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "id": "WD-004",
+  "kind": "close_archive_preparation",
+  "prepared_at": "2026-10-12T15:24:11+08:00",
+  "status": "closed_with_residual_verification",
+  "candidate": {
+    "commit": "41c034171e60b2d4962b0adbe8f3cffbf80a0436",
+    "tree": "8618ec2f2b70743dba74c595f89af7f6d49aa647"
+  },
+  "build": {
+    "receipt": ".ahakey-desktop-harness/changes/WD-004/builds/20261012T_build_wd004_41c0341/BUILD_RECEIPT.json",
+    "report": ".ahakey-desktop-harness/changes/WD-004/builds/20261012T_build_wd004_41c0341/BUILD_REPORT.md",
+    "jar": ".ahakey-desktop-harness/changes/WD-004/builds/20261012T_build_wd004_41c0341/runtime-jar-classpath/ahakey-studio-1.0.0.jar",
+    "jar_sha256": "7832196bf1b2d8e3f2864763e40f69edb1de5ac622b941b0992377939740A4B6"
+  },
+  "uat": {
+    "result": "pass",
+    "record": ".ahakey-desktop-harness/changes/WD-004/OWNER_UAT_RESULT.json",
+    "evidence": ".ahakey-desktop-harness/evidence/20261012T_wd004_owner_uat_pass.md"
+  },
+  "summary": {
+    "wd004": "Owner UAT passed for wired and Bluetooth paths, Codex/Cursor RUNNING green, DONE red, task slot binding UI, main display selection, tooltip, and slot-to-LED explanation.",
+    "ws001": "Protected in Owner UAT scope: device management, firmware version, and sleep wait time remain usable.",
+    "ws002": "Protected in Owner UAT scope: offline/apply semantics accepted; Bluetooth apply-to-keyboard workflow passed.",
+    "ws003": "Protected in Owner UAT scope: prior key/switch/gate behavior had no reported regression."
+  },
+  "residual_verification": [
+    {
+      "id": "WD004-RV-01",
+      "status": "residual",
+      "summary": "Yellow PermissionRequest / WAITING path is not marked physically passed."
+    }
+  ],
+  "state_drift": {
+    "status": "present",
+    "state_json_active_change": "WD-002",
+    "handling": "Do not use root STATE.json to override WD-004 close facts. Close/Archive decisions must reference WD-004 records directly until STATE drift is repaired by an Owner-authorized Harness maintenance step."
+  },
+  "close_decision": {
+    "allowed_to_mark_closed": true,
+    "closed": true,
+    "closed_at": "2026-10-12T15:45:46+08:00",
+    "limits": "Allowed as WD-004 JAR candidate closure, not EXE/installer release closure. Formal archive/Git record still needs Owner authorization because this turn forbids Git writes."
+  },
+  "release_batch": {
+    "reminder_allowed": true,
+    "note": "Owner may start a Release Batch later; do not start automatically."
+  }
+}

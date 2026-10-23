@@ -48,9 +48,9 @@ public class ConfigStore {
     private static List<KeyConfig> getDefaultKeyMappings() {
         return Arrays.asList(
             new KeyConfig(0x6D, "Record"),      // F18
-            new KeyConfig(0x28, "Enter"),       // Enter
-            new KeyConfig(0x29, "Escape"),      // Escape
-            new KeyConfig(0x28, "Enter")        // Enter
+            new KeyConfig(0x28, "Yes"),         // Enter
+            new KeyConfig(0x28, "No"),          // Enter (Claude No 宏)
+            new KeyConfig(0x2A, "Backspace")    // Backspace
         );
     }
     

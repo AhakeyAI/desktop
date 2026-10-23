@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "WD-003",
+  "observed_at": "2026-10-08T01:19:54+00:00",
+  "firmware_identity": {
+    "path": ".ahakey-desktop-harness/changes/WD-003/FIRMWARE_IDENTITY.json",
+    "sha256": "414b8c33c16541a85139b1ef5ffe55bf20ff33bbb9a11718dfa1bdcced00ffa3"
+  },
+  "formal_gate": {
+    "path": ".ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP4D/20261007T131850/gate-receipt.json",
+    "sha256": "08a08c9031e0bddcda7787e89b48936cde1508a5d64834dcae58de7be8862312"
+  },
+  "adapter": "firmware_gate_schema6",
+  "artifact": {
+    "path": ".ahakey-harness/evidence/builds/ws2-cp4d-ordinary-key-readback/HID_Keyboard_582m_vibe_coding.hex",
+    "sha256": "6f9759eb912ec067564c4e63558589ab9732126344d52c2d2a278383119516be"
+  },
+  "candidate_commit": "8167ba13049c781da2f975bc803eccfe0e6ea2aa",
+  "checkpoint": "CP4D",
+  "producer": "Firmware Harness; Windows read-only reference",
+  "installed_device_status": "requires_owner_confirmation",
+  "limits": "Formal eligibility/file identity only; does not prove physical device flashed or UAT passed."
+}

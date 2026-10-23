@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "hardware_model": "X1 / CP4D ordinary-key readback test unit; physical unit identity must be confirmed by Owner before executing device steps",
+  "firmware_version": "WS2 CP4D ordinary-key readback candidate at firmware commit 8167ba13049c781da2f975bc803eccfe0e6ea2aa",
+  "candidate_id": "ws2-cp4d-ordinary-key-readback / CP4D formal PASS gate / candidate_commit 8167ba13049c781da2f975bc803eccfe0e6ea2aa",
+  "connection": "Use the normal AhaKey Studio USB or BLE test connection. Windows does not install drivers, connect devices, write devices, or flash firmware as part of this record.",
+  "installed_device_confirmation": "Pending Owner confirmation: this record identifies the HEX eligible for WD-003 formal testing, but does not claim the physical keyboard is already flashed with it.",
+  "eligible_for_owner_test": true,
+  "artifact": {
+    "path": ".ahakey-harness/evidence/builds/ws2-cp4d-ordinary-key-readback/HID_Keyboard_582m_vibe_coding.hex",
+    "sha256": "6f9759eb912ec067564c4e63558589ab9732126344d52c2d2a278383119516be"
+  },
+  "gate_evidence": {
+    "path": ".ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP4D/20261007T131850/gate-receipt.json",
+    "sha256": "08a08c9031e0bddcda7787e89b48936cde1508a5d64834dcae58de7be8862312"
+  },
+  "protocol_decision": {
+    "path": ".ahakey-harness/evidence/owner-decisions/X1-INPUT-CONTROL-CP4D-0X87-SINGLE-PACKET-OWNER-DECISION-20261007.md",
+    "sha256": "3ea8548de1ee0a229215ce183415642e994e90c6bb1047f3f1330c318134ed84"
+  }
+}

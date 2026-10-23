@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "id": "WD-002",
+  "decision": "pass",
+  "session": "independent-dla-fresh-review-WD-002-build-round-3-20261003T1848",
+  "reviewer_role": "DLA",
+  "review_type": "fresh_high_impact_review",
+  "reviewed_at": "2026-10-03T18:48:00+08:00",
+  "pack": ".ahakey-desktop-harness/changes/WD-002/reviews/20261003T102347709569Z-c2970c/PACK.json",
+  "actual_diff": ".ahakey-desktop-harness/changes/WD-002/reviews/20261003T102347709569Z-c2970c/ACTUAL_DIFF.txt",
+  "pack_sha256": "c6a35df927f705125e0e17e1a93205a97d3b712b5479351c042aee54722f9d8d",
+  "diff_sha256": "58a73864a6e3c9cb7e7d4cd7ac8f4670b0429eb1c93a1e5002ef44ce53c1193b",
+  "build_round": 3,
+  "code_fingerprint": "937d716d93f20e7fb13e3b994f834b0b002a65fff424acb48cef0855f5981e41",
+  "analysis": "Independent fresh DLA review for WD-002 build_round 3 checked the effective revision 2 contract, DIB execution report, PACK.json, ACTUAL_DIFF.txt, and current source call chains. BleManager.setWorkModeAndVerify still implements the required CP4A sequence by sending existing opcode 0x92, requiring the 0x92 command response to parse as OK, then calling queryDeviceStatusSnapshot for an existing opcode 0x00 readback and comparing the returned workMode to the requested target. The build_round 3 fix resolves the previous blocker: processNotifyFrame now updates cachedStatus/UI for a valid 0x00 status frame and also calls enqueueNotifyFrame(data), so the same status frame remains visible to the command wait path. waitForResponseFrame special-cases CMD_QUERY_STATUS and validates the frame with AhaKeyProtocol.parseDeviceStatus instead of AhaKeyResponseParser.CommandResponse.status, so the 0x00 battery payload byte is not misread as a command status. StudioController preserves Q7 by making disconnected mode selection browse-only with no 0x92 path, making Edit Configuration connect-first, and clearing pending edit on disconnect/error; write paths still require connected state or simulateBle. CanvasPane only exposes the picker and calls StudioController.selectKeyboardMode while disabling controls during mode switching. Adjacent WD-001 surfaces were checked: 0x95 sleep wait time remains on CMD_SLEEP_WAIT_TIME with parseSleepWaitTime, and 0x9F firmware catalog key remains on CMD_FIRMWARE_CATALOG_KEY with parseFirmwareCatalogKey. No Java/Firmware/Git/build/device action was performed in this fresh review. The pack's missing original bytes remain a baseline limitation, so this pass is bounded to current source, generated actual diff, pack identity, contract revision, and call-chain review; it is not real-device proof, Owner UAT, Git candidate, BUILD_RECEIPT, test_packet, installer validation, or Release Batch approval.",
+  "findings": [],
+  "limits": [
+    "Review pack reports missing original bytes for StudioController.java, BleManager.java and CanvasPane.java; this review does not claim byte-perfect original baseline reconstruction.",
+    "DIB mock coverage remains not_applicable because the repository has no src/test tree and WD-002 allowed_paths did not include adding tests.",
+    "No real-device test, Owner UAT, BUILD_RECEIPT, test_packet, Git candidate, installer or Release Batch is claimed."
+  ]
+}

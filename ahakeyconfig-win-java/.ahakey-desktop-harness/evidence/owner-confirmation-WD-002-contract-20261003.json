@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "record_type": "owner_contract_confirmation",
+  "timestamp": "2026-10-03T00:00:00+08:00",
+  "actor": "Owner",
+  "recorded_by": "DLA",
+  "harness_version": "1.0.1",
+  "change_id": "WD-002",
+  "confirmation": "确认 WD-002 Contract：按 CP4A Mode Sync + Display Status 范围进入 IMPLEMENT / DIB；不继续 WD-001 recovery，不执行 WD-R001，不改 Firmware，不创建 Release Batch。",
+  "approved_scope": "CP4A Mode Sync + Display Status",
+  "next_intended_phase": "IMPLEMENT / DIB",
+  "constraints": {
+    "continue_wd001_recovery": false,
+    "implement_wdr001": false,
+    "modify_firmware": false,
+    "create_release_batch": false,
+    "java_change_before_legal_dib_handoff": false
+  },
+  "bound_contract_draft": {
+    "markdown": ".ahakey-desktop-harness/v1/planned-changes/WD-002-contract-confirmation-20261003.md",
+    "json": ".ahakey-desktop-harness/v1/planned-changes/WD-002-contract-confirmation-20261003.json"
+  }
+}

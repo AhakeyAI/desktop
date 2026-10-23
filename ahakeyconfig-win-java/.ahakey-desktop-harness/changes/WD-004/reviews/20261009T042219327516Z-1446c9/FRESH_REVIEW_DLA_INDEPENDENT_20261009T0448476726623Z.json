@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "WD-004",
+  "build_round": 5,
+  "pack_sha256": "8c84838eb824ba9f7ed02061ffc968750a523b80b4ccd259616db3394fd4718f",
+  "session": "independent-dla-review-WD-004-round5-20261009T0448476726623Z",
+  "reviewer_role": "DLA",
+  "decision": "pass",
+  "analysis": "Independent fresh review of pack 20261009T042219327516Z-1446c9 and ACTUAL_DIFF.txt, plus focused source review of StudioController, CursorSessionDiscoveryService, AiRuntimeDisplayService, InspectorPane, TopBar, AhaKeyProtocol, BleManager, HookDispatchServer, HookInstaller, and runtime slot models. The DIB FIX closes the four prior blockers: MULTI apply now accepts at least one latest Codex/Cursor hook and passes real per-tool availability flags into apply paths; Cursor discovery prefers the composerHeaders table with composerId-based stable IDs and falls back to ItemTable only when the table is absent; primary slot selection is limited to bound and currently usable slots after prepareApply repairs persisted state; single-tool hook writes use shared dialog busy state to block other hook action buttons and refresh through write and rescan. The 0x98/0x99 path remains within the approved runtime-display protocol scope: AiRuntimeDisplayService prepares usable four-slot snapshots, BleManager sends setRuntimeDisplayMode and sendMultiRuntimeSnapshot under command locking, and AhaKeyProtocol builds the corresponding frames. Hook events in MULTI are limited to Codex/Cursor, require supported firmware, and match bound session identities before sending full snapshots. No new blocker was found. This review did not build, launch the app, install/update hooks, write a device, or perform any Git write.",
+  "reviewed_paths": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/service/CursorSessionDiscoveryService.java",
+    "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java",
+    "src/main/java/com/example/ahakey/view/TopBar.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/HookDispatchServer.java",
+    "src/main/java/com/example/ahakey/service/HookInstaller.java"
+  ],
+  "findings": [],
+  "remaining_unverified": [
+    "No Maven compile/package was run.",
+    "No JavaFX app launch or UI preview was run.",
+    "No Hook install/update was performed.",
+    "No keyboard/device write or real 0x98/0x99 validation was performed.",
+    "Owner UAT and real-device validation remain pending."
+  ]
+}

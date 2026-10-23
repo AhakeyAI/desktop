@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "id": "WD-004",
+  "at": "2026-10-09T02:03:17+00:00",
+  "from_revision": 2,
+  "to_revision": 3,
+  "reason": {
+    "path": ".ahakey-desktop-harness\\evidence\\20261009T_wd004_hook_task_grill_reconcile_reason.md",
+    "sha256": "e22ada23868f62f4607686d4a458924ca5369d5d7ed8c98732c470addf10f226"
+  },
+  "owner": {
+    "path": ".ahakey-desktop-harness\\evidence\\20261009T_wd004_hook_task_grill_owner_scope.md",
+    "sha256": "4923c54696538b9fbea5b698fe6504316fceba142f78a201280fb0eb6ebe60ed"
+  },
+  "previous_approval": {
+    "at": "2026-10-08T04:38:28+00:00",
+    "owner_record": ".ahakey-desktop-harness\\evidence\\20261008T_wd004_hook_manager_owner_scope.md",
+    "owner_record_sha256": "276f00254e732ad6e8311dba66befafdbba4727562c6a6964146e15b005bc95f",
+    "inputs": {
+      "meta_sha256": "7c510df0f1a69ad71aa7891677b427c234d9e7bc5602c5659004a841d48dbdb3",
+      "assets": {
+        "CONTRACT.md": "6cea7b284060c1417718c6648148419eb59c4c02d8dc3b2ddc1f7769cd6580cd",
+        "REFERENCES.json": "75ecc19291c2e70aff9db65395e04265c586a680caedf38c3bf39341e20c0247"
+      },
+      "reference_sha256": "e017ac9f7241d31b99ffc5590c2b6b6e837a3c5fcab8e71f2405978647dd7a13"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "new_approval": {
+    "at": "2026-10-09T02:03:17+00:00",
+    "owner_record": ".ahakey-desktop-harness\\evidence\\20261009T_wd004_hook_task_grill_owner_scope.md",
+    "owner_record_sha256": "4923c54696538b9fbea5b698fe6504316fceba142f78a201280fb0eb6ebe60ed",
+    "inputs": {
+      "meta_sha256": "e58c92998864bf901891450b7f0378d4d613ca7cefea84a59053c41e44f8b573",
+      "assets": {
+        "CONTRACT.md": "6cea7b284060c1417718c6648148419eb59c4c02d8dc3b2ddc1f7769cd6580cd",
+        "REFERENCES.json": "75ecc19291c2e70aff9db65395e04265c586a680caedf38c3bf39341e20c0247"
+      },
+      "reference_sha256": "e017ac9f7241d31b99ffc5590c2b6b6e837a3c5fcab8e71f2405978647dd7a13"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "origin_repair": null,
+  "changed_paths_since_start": [
+    "pom.xml",
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/model/AiRuntimeDisplayMode.java",
+    "src/main/java/com/example/ahakey/model/AiRuntimeSlotBinding.java",
+    "src/main/java/com/example/ahakey/model/AiRuntimeSlotState.java",
+    "src/main/java/com/example/ahakey/model/CodexSession.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+    "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/CodexSessionDiscoveryService.java",
+    "src/main/java/com/example/ahakey/service/HookDispatchServer.java",
+    "src/main/java/com/example/ahakey/service/HookInstaller.java",
+    "src/main/java/com/example/ahakey/util/AiRuntimeStore.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java"
+  ],
+  "scope_outside_contract": []
+}

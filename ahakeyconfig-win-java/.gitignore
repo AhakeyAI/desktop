@@ -1,0 +1,19 @@
+# AHAKEY-DESKTOP-HARNESS:BEGIN
+/.harness-setup/
+/AhaKey-Windows-Desktop-Harness-v*.zip
+/AhaKey-Windows-Desktop-Harness-v*/
+/.ahakey-desktop-harness/local.json
+/.ahakey-desktop-harness/backups/
+/.ahakey-desktop-harness/INSTALL_RECEIPT.json
+/.ahakey-desktop-harness/UPGRADE_RECEIPT.json
+/.ahakey-desktop-harness/.write.lock
+/.ahakey-desktop-harness/evidence/private/
+/.agents/skills/ahakey-desktop-harness/scripts/__pycache__/
+/.ahakey-desktop-harness/changes/*/recovery/
+/.ahakey-desktop-harness/changes/*/history/
+/.ahakey-desktop-harness/GUARD_POLICY_SEAL.json
+/.ahakey-desktop-harness/delivery/batches/*/artifacts/
+/.ahakey-desktop-harness/delivery/batches/*/staging/
+/.ahakey-desktop-harness/changes/*/delivery-history/
+/.ahakey-desktop-harness/changes/*/delivery-previews/
+# AHAKEY-DESKTOP-HARNESS:END

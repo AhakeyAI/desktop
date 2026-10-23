@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "当前处在第八轮代码审阅之后，已经准备交给构建方生成新的用户预览包。",
+    "conclusion": "审阅结论是通过，可以进入预览构建；但这还不是正式复审、真机通过、用户验收、正式候选或发布。"
+  },
+  "completed": [
+    "已读取任务要求、审阅包、合同、引用、实现收据、验证记录、执行报告和机器检查日志。",
+    "已核对普通键读回按单包格式解析，成功帧不超过 64 字节，并限制动作和描述总长度。",
+    "已核对空槽、快捷键和宏三种动作类型；过长返回会明确失败，不会猜测或截断。",
+    "已核对普通键读回失败不会清掉已成功的侧拨读回，已通过的侧拨保存语义没有被改坏。",
+    "已确认没有引入禁用的普通键新命令，也没有恢复错误的 USB 配置接口回退。",
+    "已打开新的用户预览构建授权，并修正预览构建路由，使构建方预检可以通过。"
+  ],
+  "remaining": [
+    "还没有生成这轮可运行预览包。",
+    "还没有做这轮真机联调、用户预览结果、正式用户验收、正式候选或发布。",
+    "正式高影响独立复审、正式构建收据、固件身份和正式测试包仍是后续缺口。"
+  ],
+  "owner": {
+    "decision": {
+      "required": false,
+      "action": "不需要新的产品范围决策；当前只是进入预览构建。"
+    },
+    "operation": {
+      "required": true,
+      "action": "请把下方完整提示词复制到构建方对话，让它基于新的预览快照生成可运行文件。"
+    },
+    "test": {
+      "required": false,
+      "action": "现在还不能测试新包；需要等构建方完成预览构建，再由审阅方给出启动和测试说明。"
+    }
+  },
+  "next": {
+    "role": "DIB",
+    "destination": "DIB 对话",
+    "mode": "BUILD_ONLY / OWNER_PREVIEW_BUILD",
+    "task": "WD-003 用户预览重构建：CP4D 普通键单包读回适配后的可运行预览文件",
+    "action": "在隔离源码快照内执行构建，保存真实构建日志，成功后绑定令牌、产物、日志、实际命令、启动入口和运行形态。",
+    "authorization": "审阅方已经完成第八轮实际差异审阅并开启用户预览构建授权；这只授权预览构建，不授权生产代码修改、正式候选、正式构建、正式验收、发布或设备操作。",
+    "goal": "产出可供后续审阅方发布预览说明的可运行文件，用于让用户联调验证目录键、睡眠等待时间、侧拨、普通键读回、组合快捷键和短宏表现。",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "facts": [
+      "当前 STATE 为 VERIFY / BUILD_ONLY，active_change=WD-003，next_actor=DIB。",
+      "审阅方已完成本轮实际差异审阅，REVIEW.json decision 为 pass；这不是正式高影响独立复审、正式候选、正式构建、用户验收、真机通过或发布。",
+      "build_round 为 8，工作代码指纹为 a6dec812a6e11de5016e01b241c0e081d44350762dae206639e31ef6ddf3e58d。",
+      "新的用户预览构建令牌已经生成，令牌原文为 preview-20261007T043528705385Z-bd644d。",
+      "预览开始记录已经写入，START.json 中的状态原文为 build_authorized。",
+      "预览源码快照路径为 C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-003\\preview-20261007T043528705385Z-bd644d\\source。",
+      "预览源码快照指纹为 5bf47fb94cb9dbc12e45b16544c5256b047c1c6f98188289918a1671cbf7ad48。",
+      "本轮普通键读回成功响应按 AA BB 87 00 mode key_index action_type action_len action_payload desc_len desc_payload CC DD 解析。",
+      "成功帧必须不超过 64 字节，action_len + desc_len 不超过 53；支持空槽、快捷键和宏；过长状态必须明确失败。",
+      "审阅方已确认没有引入禁用的新普通键读回命令，没有恢复错误 USB 配置接口回退，没有改变已通过的侧拨保存语义。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\AGENTS.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-builder\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-harness\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\STATE.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\change.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\CONTRACT.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\REFERENCES.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\REVIEW.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\review_pack.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\IMPLEMENTATION_RECEIPT.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\verification.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-003\\preview-20261007T043528705385Z-bd644d\\START.json"
+    ],
+    "allowed": [
+      "必须先执行 python .agents\\skills\\ahakey-desktop-harness\\scripts\\desktop.py preflight --role DIB --id WD-003。",
+      "只在预览源码快照内执行 Maven package 和必要构建核对。",
+      "可使用十七版 Java；如需设置 JAVA_HOME，可用 D:\\jdk-17.0.19.10-hotspot。",
+      "保存真实构建日志到证据目录下的新文件。",
+      "构建成功后运行 preview-finish，绑定令牌、实际产物、日志、实际命令、启动入口和运行形态。",
+      "启动入口应记录实际可运行方式；如果直接运行 JAR 缺 JavaFX runtime，应绑定正确的 classpath 启动方式。",
+      "如构建失败，保存失败日志并在当前聊天正文给出下一步完整接力提示词；不要伪造产物。"
+    ],
+    "forbidden": [
+      "不得修改生产 Java、合同、协议语义、固件仓库或 Harness 规则。",
+      "不得执行 Git add、commit、push、reset、clean 或 stash。",
+      "不得构建安装包、安装程序、结束进程、连接设备、写入设备或烧录。",
+      "不得把预览构建、preview-finish 或后续预览称为正式候选、正式构建、正式验收、用户验收、真机通过、发布或 release。",
+      "不得绕过高影响独立复审、Git 候选、正式构建收据、固件身份和正式测试包缺口。"
+    ]
+  },
+  "evidence": [
+    ".ahakey-desktop-harness/changes/WD-003/REVIEW.json",
+    ".ahakey-desktop-harness/changes/WD-003/review_pack.json",
+    ".ahakey-desktop-harness/changes/WD-003/reviews/20261007T042715452172Z-890906/ACTUAL_DIFF.txt",
+    ".ahakey-desktop-harness/previews/WD-003/preview-20261007T043528705385Z-bd644d/START.json",
+    ".ahakey-desktop-harness/evidence/HARNESS_FEEDBACK.md"
+  ]
+}

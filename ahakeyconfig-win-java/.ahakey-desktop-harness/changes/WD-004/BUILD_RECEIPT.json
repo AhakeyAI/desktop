@@ -1,0 +1,43 @@
+{
+  "id": "WD-004",
+  "token": "20261009T063033135002Z-aa08dc",
+  "at": "2026-10-09T06:30:33+00:00",
+  "code_fingerprint": "2916ca02336232a7dd9a29d0ecb947561b5511d6f859b23b2479109e0223ea44",
+  "approval_sha256": "9c1b42d01af29aea1085867b7dc65c789255c44ae1ad1974f72a2a16b2ba32a6",
+  "build_round": 5,
+  "finished_at": "2026-10-09T06:41:29+00:00",
+  "artifact_roots": [
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath"
+  ],
+  "files": {
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/ahakey-studio-1.0.0.jar": "9f87ba05a3798c44426d4f61282f221913816029d075ea48088d1cd87cc01ed8",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/lib/jackson-annotations-2.16.0.jar": "c4b90ea0c0074da17efdc3aa23973525f25d6f34725692169748f529547334a6",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/lib/jackson-core-2.16.0.jar": "66e2cde4cc7e565d5fce2a2998b64e991777bf9fad4d220735c525fd8d01c31a",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/lib/jackson-databind-2.16.0.jar": "8aaf1753823be70b798290e5826ab5bfe015d35b3a36a5d3c2ec9f57d4b0138b",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/lib/javafx-base-17.0.10-win.jar": "79487133c4c27e9db9d47ec9221ef322eb3695c50aacefe2dcac924ae368b2b6",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/lib/javafx-base-17.0.10.jar": "9aff54b645962383d0167610a2e734d644bc9616445b9435604afa9c2ec38a96",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/lib/javafx-controls-17.0.10-win.jar": "0e60640b3217275b44418fc908e4320fbc4e4511096240141e213e7a8abea6fe",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/lib/javafx-controls-17.0.10.jar": "e315426bb3ce3211f6b9ce63107f4bdd6aa078f0d266636d418cd00909d57c88",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/lib/javafx-fxml-17.0.10-win.jar": "a97363c188a3a238e7b9adadc0c00617110f479fed6b8ac9898dcce13c6924db",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/lib/javafx-fxml-17.0.10.jar": "4704658510b80759bbf46d3a77351821b5942ac355ae5f8a86af30037b56dd25",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/lib/javafx-graphics-17.0.10-win.jar": "4c987a834e9ad0f6a0e5991d36d1940ae7b74be302c2a098ee8c20676fe0e2da",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/lib/javafx-graphics-17.0.10.jar": "ce23db5a755c5713451698e7b8e0ccca4bbc6f2fb8fb673576f86a613753d2d1",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/lib/jna-5.14.0.jar": "34ed1e1f27fa896bca50dbc4e99cf3732967cec387a7a0d5e3486c09673fe8c6",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/lib/jna-platform-5.14.0.jar": "ae4caceb3840730c2537f9b7fb55a01baba580286b4122951488bcee558c2449",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/lib/logback-classic-1.4.11.jar": "05850fca185dfa652969ed1e3864e365c0d724737a0f4ec68574baad1d855a0e",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/lib/logback-core-1.4.11.jar": "37ee7367bd24ca87ef77430119a1cb814a76b240afab5c17f802ea383f58aca1",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/lib/onnxruntime-1.16.3.jar": "a1722f61d5d99e8ba1c3bdcadbd47c91678888359f50e90c0b2126579f5a3850",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/lib/slf4j-api-2.0.9.jar": "0818930dc8d7debb403204611691da58e49d42c50b6ffcfdce02dadb7c3c2b6c",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/runtime-jar-classpath/lib/sqlite-jdbc-3.46.1.0.jar": "6dc7464e3803648d3ff18a7359bab6adf079fcd8495b18991f6f5edcb8ac6e3b"
+  },
+  "logs": {
+    ".ahakey-desktop-harness/evidence/20261009T_wd004_build_only_maven_package_success.log": "a2d77dd1e9704841f2487da9514922099c1f1e2d43477809889c6ab56020bc0e"
+  },
+  "candidate_commit": "ce02a09de11c38c7431aae04254dfcd76d5501de",
+  "command": "mvn -Dmaven.repo.local=.m2repo --batch-mode --no-transfer-progress package -DskipTests",
+  "entrypoint": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe -jar .ahakey-desktop-harness\\changes\\WD-004\\builds\\20261009T063033135002Z-aa08dc\\runtime-jar-classpath\\ahakey-studio-1.0.0.jar",
+  "runtime_kind": "jar_classpath",
+  "limits": "Binds declared candidate/build logs/outputs; does not prove launch, UI, Firmware, or UAT.",
+  "build_report": ".ahakey-desktop-harness/changes/WD-004/builds/20261009T063033135002Z-aa08dc/BUILD_REPORT.md",
+  "build_report_sha256": "1c2c712597a876214cd13f8204f168699086412165f51f6842a151ac0a30fdec"
+}

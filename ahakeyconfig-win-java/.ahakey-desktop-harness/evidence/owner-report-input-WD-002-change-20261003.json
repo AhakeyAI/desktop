@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "CHANGE intake / WD-002 Contract confirmation point. Helper STATE still reports VERIFY / RECOVERY_RECONCILE / active WD-001 because close/park/new were blocked by existing guard conditions; no Java implementation has started.",
+    "conclusion": "WD-001 已由 Owner disposition 明确不再作为产品推进阻塞；WD-R001 已在记录中标为 Owner 放弃；自动发现的新 Firmware 功能是 WS2 CP4A Mode Sync + Display Status。WD-002 已有 Firmware evidence binding 和 Contract 确认稿，但还差 Owner 对 WD-002 Contract 的一句确认，且 DLA 需要在确认后处理 helper 路由限制，才能合法交 DIB 改 Java。"
+  },
+  "completed": [
+    "记录 Owner disposition：WD-001 = CLOSED_BY_OWNER / ACCEPTED_AS_IS_FOR_PROGRESS / NO_FURTHER_RECOVERY_REQUIRED；同时保留 T07 not_executed、旧 PASS 只绑定原候选/JAR、不重写历史 Review / Owner Results / Firmware gate。",
+    "记录 WD-R001 disposition：ABANDONED_BY_OWNER / NO_IMPLEMENTATION_REQUIRED / SUPERSEDED_BY_OWNER_ACCEPTANCE；已更新 WD-R001 change.json 和 CONTRACT.md 为归档放弃状态，不进入 IMPLEMENT，不交 DIB。",
+    "运行 firmware-status 并确认 Firmware root 为 C:\\Users\\20825\\Desktop\\vibe-code，cursor 已初始化到 WD-001 / CP3 gate。",
+    "运行 firmware-discover：当前 cursor 之后 helper 没有返回新的 new_candidates；但 Windows 侧已有 WD-002 planned intake/evidence，绑定 CP4A formal PASS gate、candidate commit、HEX 和 SHA256。",
+    "确认 WD-002 自动发现的新 Firmware 功能：WS2 / X1-INPUT-CONTROL / CP4A，Mode sync and display status foundation；candidate commit bd1ea87e10939fd6f738b599a4c66ba3264acf70；HEX SHA256 8e11f2b526e9239a67c5199aff88ebbed875bdc9cb3df0eb5592979e5f021867。",
+    "新增 WD-002 Contract 确认稿，包含 Firmware formal gate、protocol 0x00/0x92、Windows expected behavior、Journey、classification scope_expansion / architecture_change / protocol_change，以及 high_impact review policy。",
+    "未修改 Firmware、未运行构建、未创建 Release Batch、未修改 Java 生产代码。"
+  ],
+  "remaining": [
+    "helper close --id WD-001 被旧生产文件差异拦截；park/new/wait 也被既有 guard 或非标准 WD-R001 记录影响拦截。因此 STATE.json 仍显示 WD-001 active；我没有手改 STATE，也没有修 Harness。",
+    "WD-002 尚未进入 changes/WD-002 的 helper-created DRAFT/APPROVED 状态；当前可作为正式 CHANGE 确认点，但还不是 DIB 实现授权。",
+    "Owner 还需要确认 WD-002 Contract；确认后 DLA 才能继续处理合法路由并准备 DIB handoff。"
+  ],
+  "owner": {
+    "decision": {
+      "required": true,
+      "action": "请确认是否批准 WD-002 Contract。可直接回复：确认 WD-002 Contract：按 CP4A Mode Sync + Display Status 范围进入 IMPLEMENT / DIB；不继续 WD-001 recovery，不执行 WD-R001，不改 Firmware，不创建 Release Batch。"
+    },
+    "operation": {
+      "required": false,
+      "action": "本轮不需要复制到 DIB，也不需要执行 Git、构建、安装、烧录或测试。"
+    },
+    "test": {
+      "required": false,
+      "action": "现在没有 Owner 实测项；WD-002 还在 Contract 确认前，不能把任何 Firmware PASS 或旧 Windows PASS 当成 Windows UAT PASS。"
+    }
+  },
+  "next": {
+    "role": "DLA",
+    "destination": "当前对话",
+    "mode": "CHANGE_APPROVAL_AND_ROUTE_REPAIR_WITHOUT_HARNESS_UPGRADE",
+    "task": "WD-002 - WS2 CP4A Mode Sync + Display Status",
+    "action": "Owner 确认 WD-002 Contract 后，DLA 在当前对话继续：记录批准、处理 helper 路由限制，形成合法 DIB Prompt；在那之前不改 Java。",
+    "authorization": "Owner 已决定 WD-001 recovery 不再阻塞、WD-R001 不执行，并要求 WD-002 进入 Firmware-driven CHANGE；WD-002 Contract 仍需 Owner 最终确认。",
+    "goal": "把 WD-002 从 Contract 确认点推进到合法 IMPLEMENT / DIB handoff，同时不伪造旧测试、不改 Firmware、不创建 Release Batch。",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "facts": [
+      "WD-001 Owner disposition 已记录：CLOSED_BY_OWNER / ACCEPTED_AS_IS_FOR_PROGRESS / NO_FURTHER_RECOVERY_REQUIRED；但 helper STATE 仍显示 active WD-001，因为 close/park/new 被 guard 拦截。",
+      "WD-R001 已在记录中标为 ABANDONED_BY_OWNER / NO_IMPLEMENTATION_REQUIRED，不进入 IMPLEMENT。",
+      "WD-002 Firmware feature 是 WS2 CP4A Mode Sync + Display Status；formal gate path 为 .ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP4A/20261002T084039/gate-receipt.json。",
+      "WD-002 Contract confirmation draft 已生成，review policy 为 high_impact，classification 为 scope_expansion / architecture_change / protocol_change。",
+      "本轮没有改 Java、没有构建、没有 Git 写、没有修改 Firmware。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\AGENTS.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-lead\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-harness\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\templates\\OWNER_COMMUNICATION.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\evidence\\owner-disposition-WD-001-WD-R001-WD-002-20261003.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\v1\\planned-changes\\WD-002-contract-confirmation-20261003.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\v1\\planned-changes\\WD-002-firmware-evidence.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\STATE.json"
+    ],
+    "allowed": [
+      "记录 Owner 对 WD-002 Contract 的确认。",
+      "继续使用现有 helper 能力处理合法路由；如果 helper 仍因旧 guard 阻塞，只报告阻塞，不修 Harness、不手改 STATE。",
+      "准备 DIB Prompt，前提是 WD-002 Contract 已确认且路由合法。"
+    ],
+    "forbidden": [
+      "不要继续 WD-001 recovery 或实施 WD-R001。",
+      "不要修改 Java、Firmware、eternal、Release Batch 或 Harness 规则。",
+      "不要把 T07 或任何未执行测试改成 PASS。",
+      "不要把 Firmware PASS 或旧候选/JAR PASS 转移成 WD-002 Windows UAT PASS。",
+      "不要自动 Git add/commit/push、构建、安装、烧录、kill 进程或发布。"
+    ]
+  },
+  "evidence": [
+    "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\evidence\\owner-disposition-WD-001-WD-R001-WD-002-20261003.md",
+    "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-R001\\change.json",
+    "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-R001\\CONTRACT.md",
+    "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\v1\\planned-changes\\WD-002-contract-confirmation-20261003.md",
+    "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\v1\\planned-changes\\WD-002-firmware-evidence.json"
+  ]
+}

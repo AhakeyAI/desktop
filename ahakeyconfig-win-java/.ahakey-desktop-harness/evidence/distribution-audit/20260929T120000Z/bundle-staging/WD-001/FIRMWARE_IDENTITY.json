@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "hardware_model": "X1 / CP3A test unit; physical unit identity must be confirmed by Owner before executing device steps",
+  "firmware_version": "CP3A candidate at firmware commit a9db65e2e73bc56b669c312e9fc42f3ee02c3d49",
+  "candidate_id": "ws1-cp3a-host-configurable-quiet-sleep-timeout / READY_FOR_REGATE",
+  "connection": "Normal AhaKey Studio connection path for the Owner's X1 / CP3A test keyboard; BLE bridge/driver startup, if needed, is an Owner-side test setup step and is not performed by this packet.",
+  "installed_device_confirmation": "Pending Owner confirmation: this record identifies the HEX eligible for this WD-001 test, but does not claim the physical keyboard is already flashed with it.",
+  "eligible_for_owner_test": true,
+  "artifact": {
+    "path": ".ahakey-harness/evidence/builds/ws1-cp3a-host-configurable-quiet-sleep-timeout/HID_Keyboard_582m_vibe_coding.hex",
+    "sha256": "9aabce5f015fd44d980ff6818d825b6bab34f6e4b4f7ac277e942272d700444c"
+  },
+  "gate_evidence": {
+    "path": ".ahakey-harness/evidence/checkpoints/X1-CONNECTIVITY-POWER/CP3A/candidate-readiness/20260928T164508/candidate-readiness.md",
+    "sha256": "a2cc3dff65d85683409f4796626625201ab2ad58c0d6b77770e41b03ef3da713"
+  },
+  "protocol_decision": {
+    "path": ".ahakey-harness/evidence/owner-decisions/X1-CONNECTIVITY-POWER-CP3A-HOST-CONFIGURABLE-SLEEP-TIMEOUT-PROTOCOL-20260928.md",
+    "sha256": "4d48a0d62424a45793d7a2959609c727ddf6b02796e7f93e0fc9c5873632de19"
+  }
+}

@@ -1,0 +1,32 @@
+[
+  {
+    "name": "java-version.stderr.log",
+    "bytes": 202,
+    "sha256": "d2f5345bf5ae4a93c3a3518c08feb9153852660880193d078cb9f86f0bacb855"
+  },
+  {
+    "name": "java-version.stdout.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "name": "maven-version.stderr.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "name": "maven-version.stdout.log",
+    "bytes": 313,
+    "sha256": "5abb3d9a04839dbc02f26acdd2a001b35aa8832fc5c6a0120f9bc10e8b4e31c9"
+  },
+  {
+    "name": "package.stderr.log",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "name": "package.stdout.log",
+    "bytes": 6680,
+    "sha256": "273781b2e1b4d5631700b506c6bcd188cd5d1adfffe73cc1c7e0d69488a54cec"
+  }
+]

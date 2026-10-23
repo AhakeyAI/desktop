@@ -1,0 +1,121 @@
+{
+  "count": 19,
+  "runtime": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005\\builds\\20261022T004444327311Z-731fe2\\runtime-jar-classpath",
+  "files": [
+    {
+      "size": 647301,
+      "path": "ahakey-studio-1.0.0.jar",
+      "sha256": "f63f816586d88f7ee44da2c40be419b408948c6b717bfe26a47e90a719af1f1c",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\ahakey-studio-1.0.0.jar"
+    },
+    {
+      "size": 78478,
+      "path": "lib/jackson-annotations-2.16.0.jar",
+      "sha256": "c4b90ea0c0074da17efdc3aa23973525f25d6f34725692169748f529547334a6",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\jackson-annotations-2.16.0.jar"
+    },
+    {
+      "size": 579130,
+      "path": "lib/jackson-core-2.16.0.jar",
+      "sha256": "66e2cde4cc7e565d5fce2a2998b64e991777bf9fad4d220735c525fd8d01c31a",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\jackson-core-2.16.0.jar"
+    },
+    {
+      "size": 1636721,
+      "path": "lib/jackson-databind-2.16.0.jar",
+      "sha256": "8aaf1753823be70b798290e5826ab5bfe015d35b3a36a5d3c2ec9f57d4b0138b",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\jackson-databind-2.16.0.jar"
+    },
+    {
+      "size": 746012,
+      "path": "lib/javafx-base-17.0.10-win.jar",
+      "sha256": "79487133c4c27e9db9d47ec9221ef322eb3695c50aacefe2dcac924ae368b2b6",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\javafx-base-17.0.10-win.jar"
+    },
+    {
+      "size": 302,
+      "path": "lib/javafx-base-17.0.10.jar",
+      "sha256": "9aff54b645962383d0167610a2e734d644bc9616445b9435604afa9c2ec38a96",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\javafx-base-17.0.10.jar"
+    },
+    {
+      "size": 2551585,
+      "path": "lib/javafx-controls-17.0.10-win.jar",
+      "sha256": "0e60640b3217275b44418fc908e4320fbc4e4511096240141e213e7a8abea6fe",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\javafx-controls-17.0.10-win.jar"
+    },
+    {
+      "size": 306,
+      "path": "lib/javafx-controls-17.0.10.jar",
+      "sha256": "e315426bb3ce3211f6b9ce63107f4bdd6aa078f0d266636d418cd00909d57c88",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\javafx-controls-17.0.10.jar"
+    },
+    {
+      "size": 130063,
+      "path": "lib/javafx-fxml-17.0.10-win.jar",
+      "sha256": "a97363c188a3a238e7b9adadc0c00617110f479fed6b8ac9898dcce13c6924db",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\javafx-fxml-17.0.10-win.jar"
+    },
+    {
+      "size": 302,
+      "path": "lib/javafx-fxml-17.0.10.jar",
+      "sha256": "4704658510b80759bbf46d3a77351821b5942ac355ae5f8a86af30037b56dd25",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\javafx-fxml-17.0.10.jar"
+    },
+    {
+      "size": 5888983,
+      "path": "lib/javafx-graphics-17.0.10-win.jar",
+      "sha256": "4c987a834e9ad0f6a0e5991d36d1940ae7b74be302c2a098ee8c20676fe0e2da",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\javafx-graphics-17.0.10-win.jar"
+    },
+    {
+      "size": 306,
+      "path": "lib/javafx-graphics-17.0.10.jar",
+      "sha256": "ce23db5a755c5713451698e7b8e0ccca4bbc6f2fb8fb673576f86a613753d2d1",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\javafx-graphics-17.0.10.jar"
+    },
+    {
+      "size": 1878533,
+      "path": "lib/jna-5.14.0.jar",
+      "sha256": "34ed1e1f27fa896bca50dbc4e99cf3732967cec387a7a0d5e3486c09673fe8c6",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\jna-5.14.0.jar"
+    },
+    {
+      "size": 1369287,
+      "path": "lib/jna-platform-5.14.0.jar",
+      "sha256": "ae4caceb3840730c2537f9b7fb55a01baba580286b4122951488bcee558c2449",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\jna-platform-5.14.0.jar"
+    },
+    {
+      "size": 282793,
+      "path": "lib/logback-classic-1.4.11.jar",
+      "sha256": "05850fca185dfa652969ed1e3864e365c0d724737a0f4ec68574baad1d855a0e",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\logback-classic-1.4.11.jar"
+    },
+    {
+      "size": 597931,
+      "path": "lib/logback-core-1.4.11.jar",
+      "sha256": "37ee7367bd24ca87ef77430119a1cb814a76b240afab5c17f802ea383f58aca1",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\logback-core-1.4.11.jar"
+    },
+    {
+      "size": 83199722,
+      "path": "lib/onnxruntime-1.16.3.jar",
+      "sha256": "a1722f61d5d99e8ba1c3bdcadbd47c91678888359f50e90c0b2126579f5a3850",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\onnxruntime-1.16.3.jar"
+    },
+    {
+      "size": 64579,
+      "path": "lib/slf4j-api-2.0.9.jar",
+      "sha256": "0818930dc8d7debb403204611691da58e49d42c50b6ffcfdce02dadb7c3c2b6c",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\slf4j-api-2.0.9.jar"
+    },
+    {
+      "size": 14123618,
+      "path": "lib/sqlite-jdbc-3.46.1.0.jar",
+      "sha256": "6dc7464e3803648d3ff18a7359bab6adf079fcd8495b18991f6f5edcb8ac6e3b",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\sqlite-jdbc-3.46.1.0.jar"
+    }
+  ],
+  "total_bytes": 113775952.0
+}

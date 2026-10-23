@@ -1,0 +1,102 @@
+{
+  "change_id": "WD-004",
+  "checks": {
+    "machine": {
+      "status": "pass",
+      "reason": "2026-10-09 FIX static checks only: preflight PASS, git diff --check PASS with CRLF warnings only, targeted rg checks found no stale failed patterns; Owner forbade build/app/device/hook writes.",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-004/EXECUTION_REPORT_IMPLEMENT.md": "011f89c580e794de243669e0fc4dd9eefeb9aace0f885d39e5e0aec2581811f6"
+      },
+      "role": "DIB",
+      "at": "2026-10-09T03:45:04+00:00",
+      "code_fingerprint": "2916ca02336232a7dd9a29d0ecb947561b5511d6f859b23b2479109e0223ea44",
+      "build_round": 5,
+      "approval_sha256": "9c1b42d01af29aea1085867b7dc65c789255c44ae1ad1974f72a2a16b2ba32a6"
+    },
+    "core_regression": {
+      "status": "not_applicable",
+      "reason": "2026-10-09 FIX did not run app/build/device regression because Owner explicitly forbade build, Hook install/update, device writes, and Git actions in this turn.",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-004/EXECUTION_REPORT_IMPLEMENT.md": "011f89c580e794de243669e0fc4dd9eefeb9aace0f885d39e5e0aec2581811f6"
+      },
+      "role": "DIB",
+      "at": "2026-10-09T03:45:59+00:00",
+      "code_fingerprint": "2916ca02336232a7dd9a29d0ecb947561b5511d6f859b23b2479109e0223ea44",
+      "build_round": 5,
+      "approval_sha256": "9c1b42d01af29aea1085867b7dc65c789255c44ae1ad1974f72a2a16b2ba32a6"
+    },
+    "special_regression": {
+      "status": "not_applicable",
+      "reason": "2026-10-09 FIX was limited to DLA review findings; no special runtime/device regression was run because Owner forbade build/app/device/hook writes.",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-004/EXECUTION_REPORT_IMPLEMENT.md": "011f89c580e794de243669e0fc4dd9eefeb9aace0f885d39e5e0aec2581811f6"
+      },
+      "role": "DIB",
+      "at": "2026-10-09T03:46:34+00:00",
+      "code_fingerprint": "2916ca02336232a7dd9a29d0ecb947561b5511d6f859b23b2479109e0223ea44",
+      "build_round": 5,
+      "approval_sha256": "9c1b42d01af29aea1085867b7dc65c789255c44ae1ad1974f72a2a16b2ba32a6"
+    },
+    "mock": {
+      "status": "not_applicable",
+      "reason": "2026-10-09 FIX did not run mock/app validation because Owner explicitly restricted this turn to implementation/static checks and forbade build/app/device/hook writes.",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-004/EXECUTION_REPORT_IMPLEMENT.md": "011f89c580e794de243669e0fc4dd9eefeb9aace0f885d39e5e0aec2581811f6"
+      },
+      "role": "DIB",
+      "at": "2026-10-09T03:47:15+00:00",
+      "code_fingerprint": "2916ca02336232a7dd9a29d0ecb947561b5511d6f859b23b2479109e0223ea44",
+      "build_round": 5,
+      "approval_sha256": "9c1b42d01af29aea1085867b7dc65c789255c44ae1ad1974f72a2a16b2ba32a6"
+    },
+    "real_device": {
+      "status": "pass",
+      "reason": "Owner reported WD-004 wired and Bluetooth UAT passed on candidate commit 41c034171e60b2d4962b0adbe8f3cffbf80a0436 and the 20261012 JAR/classpath build. Wired path recognized firmware version and sleep wait time; mode switching and multi-task lights passed. Bluetooth path was accepted after applying slots to keyboard. Yellow PermissionRequest / WAITING physical behavior remains residual and is not claimed as physically passed.",
+      "evidence": {
+        ".ahakey-desktop-harness/evidence/20261012T_wd004_owner_uat_pass.md": "a38d552451c6d1aeb1c5d935a35d973b53cdc4f328700be557ef5194377cda66",
+        ".ahakey-desktop-harness/changes/WD-004/OWNER_UAT_RESULT.json": "c7884903c72b5e05786111e68c9e6ef3ee3679a59f10a2a5c6b7c500eb90629e",
+        ".ahakey-desktop-harness/changes/WD-004/builds/20261012T_build_wd004_41c0341/BUILD_RECEIPT.json": "953acfd15764fb0da38aa874adc6e736abb1f5921176b991aea4b5343ae58d34",
+        ".ahakey-desktop-harness/changes/WD-004/builds/20261012T_build_wd004_41c0341/BUILD_REPORT.md": "abdb5baf3b5ecde35384e580e692cf3eea34924854de56fb86c138912a4d7aa0"
+      },
+      "role": "Owner",
+      "recorded_by": "DLA",
+      "at": "2026-10-12T15:24:11+08:00",
+      "candidate_commit": "41c034171e60b2d4962b0adbe8f3cffbf80a0436",
+      "candidate_tree": "8618ec2f2b70743dba74c595f89af7f6d49aa647",
+      "build_round": 5,
+      "residual_verification": [
+        "WD004-RV-01 yellow PermissionRequest / WAITING physical path remains unconfirmed."
+      ]
+    },
+    "owner_uat": {
+      "status": "pass",
+      "reason": "Owner final UAT conclusion: '测试全部通过'. Covered WD-004 wired/Bluetooth behavior, Codex/Cursor RUNNING green and DONE red, task slot UI binding/main display/tooltip/slot-to-LED explanation, and accepted WS001/WS002/WS003 protection scope. Yellow PermissionRequest remains a residual item because it was not explicitly physically observed.",
+      "evidence": {
+        ".ahakey-desktop-harness/evidence/20261012T_wd004_owner_uat_pass.md": "a38d552451c6d1aeb1c5d935a35d973b53cdc4f328700be557ef5194377cda66",
+        ".ahakey-desktop-harness/changes/WD-004/OWNER_UAT_RESULT.json": "c7884903c72b5e05786111e68c9e6ef3ee3679a59f10a2a5c6b7c500eb90629e",
+        ".ahakey-desktop-harness/changes/WD-004/CLOSE_PREP.json": "6103429fe16b99fb3207f76315dd6d9c089357c50ef704c871039b8eccb031bf"
+      },
+      "role": "Owner",
+      "recorded_by": "DLA",
+      "at": "2026-10-12T15:24:11+08:00",
+      "candidate_commit": "41c034171e60b2d4962b0adbe8f3cffbf80a0436",
+      "candidate_tree": "8618ec2f2b70743dba74c595f89af7f6d49aa647",
+      "build_round": 5,
+      "residual_verification": [
+        "WD004-RV-01 yellow PermissionRequest / WAITING physical path remains unconfirmed."
+      ]
+    },
+    "review": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-004/REVIEW.json": "afb2e16e3fa367ff9e837e8d358c6b256ef3f00e532342186c561a634468bd9e"
+      },
+      "role": "DLA",
+      "at": "2026-10-09T04:49:49+00:00",
+      "code_fingerprint": "2916ca02336232a7dd9a29d0ecb947561b5511d6f859b23b2479109e0223ea44",
+      "build_round": 5,
+      "approval_sha256": "9c1b42d01af29aea1085867b7dc65c789255c44ae1ad1974f72a2a16b2ba32a6"
+    }
+  }
+}

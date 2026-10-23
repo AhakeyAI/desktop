@@ -1,0 +1,32 @@
+# BRIDGE-01 退修交回后的外部快照归属
+
+日期：2026-10-18。角色：原Windows DLA。用途：正式reconcile-foreign依据，不是桥接功能审阅PASS。
+
+## 已有Owner依据与完成交接
+
+Owner已授权汇总修复与BLE支线，依据20261018-wd005-consolidated-fix-owner-authorization.md、CROSS_COMPONENT_WORK_20261018.md。DLA只读读取BLE对话01a1236d-d261-7671-9dfb-3f4730e39709的用户指派（turn 01a14e51-a4ed-7123-91e1-4582ce200a68），明确要求B-F1/B-F2/B-F3修复及受控测试、保留原报告，不允许跨端代码/依赖/现场包/Git变更。
+
+此前尚在写入时未登记，见BRIDGE_REPAIR_IN_PROGRESS_COORDINATION_20261018.md。现收到同一BLE对话明确完成退修并回交DLA的消息，指向新增报告/证据及最终三份源码SHA。DLA读取实际文件，最终哈希与完成回执相符。授权来源仍是Owner既有明确指派，而非把Agent回交当新增Owner授权。
+
+## 精确身份
+
+相对上次foreign_acceptance，使用同一foreign_snapshot只读比较，仅以下六项新增/变化；其他兄弟文件身份未变：
+
+- BLE_tcp_bridge/TcpServer.cs：cd4978e768a8b3028f9ce1b93a3079f0bd574330444557ce0d4b67e4d4013745。
+- BLE_tcp_bridge/Program.cs：e235bda01fa4c2c6ae35869d6d5fbb68c02923085146eef0151b3baeba0d50d0。
+- BLE_tcp_bridge/Form1.cs：86a6fd0e6aa940209bda074ccadd804e6b95840937e93cb273ab90a94c3f4dfc。
+- BLE_tcp_bridge/BRIDGE-01_OFFLINE_TIMING_TESTS.ps1：8787d07d0052ef0fb5a981fb70bf3fc633b702c59284bc6559d58dffba994585。
+- BLE_tcp_bridge/BRIDGE-01_REPAIR_EVIDENCE_20261018.md：97e19058aa8954b78e2839a74ad2bea5c19ccc18bb2d4764e397923bea41e5aa。
+- BLE_tcp_bridge/BRIDGE-01_REPAIR_REPORT_20261018.md：ee018513ec2a726b9bcde26cab8f1186dade8d81370d3d29b8db00f7101da6f1。
+
+原边界文件仍为f3956a482dc55fe9314b410634b96e631803e40f3ae8a497fbdf0c65c10b00d7；csproj仍为5a463247a0da8c70d0d67154059d55e4457b15aa0596cf0f4a03e60d9edb110a。
+
+## 已核对与未核对
+
+本次DLA读取退修报告、证据、测试脚本、临时引用targets、Form1差异及源码归属相关接线；桥接范围git diff --check退出0。没有运行编译或测试，也没有完成累计三文件功能复审。测试脚本提取纯helper并运行受控队列/分片/身份谓词，附静态source guards，不等同真实WinRT回调或TCP压力测试。
+
+报告中的临时编译EXE实际SHA为02227aacf2a9530b40e9a9abc08f5014655edb550e51e7c21ab739720a135de8；现场包EXE实际SHA仍为9b8f8c9d18ae7ee93b71ed7c867e1ce1e60040ebc6832498f5f2d00dcbd6106e。只读核对产物存在与哈希，不冒称本DLA重新执行构建、完整可复现证明或准入。
+
+六项归属为已授权BRIDGE-01退修与对应离线证据，属于Windows任务以外的外部协作输入。保留字节，不纳入Windowsallowed_paths/源码存档/候选或Preview叠加，不扩大忽略目录。正式工具保留旧接受快照历史；若后续再次变化，重新核实实际责任/授权，不无限放行。
+
+桥接REQUEST_CHANGES是否已全部解决须后续实际复审，仍不得替换现场驱动。Windows只解除外部归属阻塞，四项397断言证据不替代桥接、固件、性能或真机验收。原Windows起点/批准/报告不改，不执行Git写入或设备操作。

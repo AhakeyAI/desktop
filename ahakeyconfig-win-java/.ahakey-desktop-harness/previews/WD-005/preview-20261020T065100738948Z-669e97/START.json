@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "token": "preview-20261020T065100738948Z-669e97",
+  "at": "2026-10-20T06:51:01+00:00",
+  "status": "build_authorized",
+  "preview_only": true,
+  "build_round": 7,
+  "approval_sha256": "24063e69998760c474b5c3ab426fd1999f40f3724a891337fe2c4dd8b4ffc781",
+  "basis_kind": "formal_review",
+  "basis_submission_sha256": "70366148c34e60b499fa82beeee4cc799052d9ebfb0fcfb9725eda839f9979a5",
+  "basis_review_sha256": "d835f4929b834b48d3a194936b535d4b3d94fb3de480c192ef3d382c730833a7",
+  "working_code_fingerprint": "e10b4d65ad9b3f62221b7790b659c09429243a96a43a169db575dce6b4c18e8a",
+  "snapshot_path": ".ahakey-desktop-harness/previews/WD-005/preview-20261020T065100738948Z-669e97/source",
+  "snapshot_fingerprint": "5683e49cf090a14c1a56159617408ce3a444a6d0f0b107732c459958b5d5bd62",
+  "preserved_foreign": {},
+  "meaning": "OWNER_PREVIEW only. May iterate via PREVIEW_FIX before formal candidate; never implies candidate/release/UAT PASS."
+}

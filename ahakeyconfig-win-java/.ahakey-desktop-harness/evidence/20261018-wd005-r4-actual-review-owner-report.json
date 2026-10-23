@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "当前正式状态：WD-005 / IMPLEMENT / FIX，next_actor=DIB，build_round=5。",
+    "conclusion": "第四轮实际审阅未通过：确认3项P2运行态缺陷，已由Harness正式退修；暂不生成新Preview。"
+  },
+  "completed": [
+    "P2：A开始→B开始→A完成，A终态未更新缓存；随后切MULTI可能再次显示A运行中（AiRuntimeDisplayService.java:308）。",
+    "P2：匿名工具事件清空当前所有者，其他会话迟到终态可能覆盖它（AiRuntimeDisplayService.java:312）。",
+    "P2：补发失败会重新计算旧事件TTL，超过原五分钟仍可能重放（BleManager.java:772、785）。",
+    "累计30文件已审，397项既有断言日志及哈希已核对；本轮未重跑测试、修改生产代码、构建或操作设备。"
+  ],
+  "remaining": [
+    "三项定点修复；上传真实根因、RT-03固件回退和BLE性能仍待验证。正式fresh、candidate、新包与真机验收未完成。"
+  ],
+  "owner": {
+    "decision": {
+      "required": false,
+      "action": "属于已批准合同内实现缺陷，无需重新Grill。"
+    },
+    "operation": {
+      "required": true,
+      "action": "将下方提示词复制到已有DLB/DIB实现窗口。"
+    },
+    "test": {
+      "required": false,
+      "action": "等修复、复审和新Preview包，不用旧包验证本轮修复。"
+    }
+  },
+  "next": {
+    "role": "DIB",
+    "destination": "DIB 对话",
+    "mode": "FIX",
+    "task": "WD-005 revision 3 / round 5 修复R4-F1至F3",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "action": "在已有实现窗口定点修复，提交后由原DLA复审。",
+    "authorization": "当前有效R3合同及Harness request-fix；不是新增产品设计或打包授权。",
+    "goal": "修复三项运行态缺陷，补组合回归并正式submit。",
+    "facts": [
+      "STATE=IMPLEMENT/FIX，next_actor=DIB，build_round=5；第四轮review fail。",
+      "源码存档HEAD=f595262207796dbf325cb9951ed3dc02b4887362；修前源码指纹e298ea1dd15131f508a602deed06181e0a53c6ff8b5c2366674dfc0cfb44d49d。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005\\DLA_ACTUAL_REVIEW_R4_20261018.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005\\DLA_ACTUAL_REVIEW_R4_20261018.json"
+    ],
+    "allowed": [
+      "先读STATE、change、有效合同、批准、原起点和隔离记录，运行preflight；精确遵守R3文件内职责。",
+      "主要修AiRuntimeDisplayService.java、BleManager.java及displayconfig测试：事实更新与SINGLE显示仲裁分离；匿名来源不解除迟到终态保护；补发不延长事实TTL。",
+      "验证交错终态后切MULTI、匿名/具名混合事件、补发异常后的TTL及重连；离线编译/隔离测试依原授权执行。新增报告和适用证据，按round5 record-check/submit，不能冒用397项旧结果。"
+    ],
+    "forbidden": [
+      "不改无关UI、旧按键/侧拨/语音/设备管理、Hook权限策略、桥接、固件、规则/seal；不覆盖冻结报告/批准/起点/旧审阅，不还原dirty。",
+      "不打包、启动真实应用、安装Hook、写设备、烧录、发布或Git写入；旧Preview和源码存档不是本轮测试包/candidate。"
+    ]
+  }
+}

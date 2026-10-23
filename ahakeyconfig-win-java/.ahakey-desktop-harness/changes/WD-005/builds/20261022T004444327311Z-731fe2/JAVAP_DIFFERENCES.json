@@ -1,0 +1,50 @@
+[
+  {
+    "InputObject": "Classfile jar:file:///C:/Users/20825/Desktop/windows��������/desktop/ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/builds/20261022T004444327311Z-731fe2/runtime-jar-classpath/ahakey-studio-1.0.0.jar!/com/example/ahakey/view/CanvasPane.class",
+    "SideIndicator": "=>"
+  },
+  {
+    "InputObject": "  SHA-256 checksum 5494a1f3729dd0039566f4c7b88107ed9b407eb40397f58cfd3c279b1cb45353",
+    "SideIndicator": "=>"
+  },
+  {
+    "InputObject": "  #359 = Utf8               patt3223$temp",
+    "SideIndicator": "=>"
+  },
+  {
+    "InputObject": "  #372 = Utf8               patt2763$temp",
+    "SideIndicator": "=>"
+  },
+  {
+    "InputObject": "           55      15     8 patt3223$temp   Ljava/lang/Object;",
+    "SideIndicator": "=>"
+  },
+  {
+    "InputObject": "           55      15     8 patt2763$temp   Ljava/lang/Object;",
+    "SideIndicator": "=>"
+  },
+  {
+    "InputObject": "Classfile jar:file:///C:/Users/20825/Desktop/windows��������/desktop/ahakeyconfig-win-java/.ahakey-desktop-harness/previews/WD-005/preview-20261021T024920511394Z-2ae03d/runtime-jar-classpath/ahakey-studio-1.0.0.jar!/com/example/ahakey/view/CanvasPane.class",
+    "SideIndicator": "<="
+  },
+  {
+    "InputObject": "  SHA-256 checksum 559dca57f32216d1d18b4b706e68b7777d7b6c351233e0ffcfb86d82843eb025",
+    "SideIndicator": "<="
+  },
+  {
+    "InputObject": "  #359 = Utf8               patt3151$temp",
+    "SideIndicator": "<="
+  },
+  {
+    "InputObject": "  #372 = Utf8               patt2700$temp",
+    "SideIndicator": "<="
+  },
+  {
+    "InputObject": "           55      15     8 patt3151$temp   Ljava/lang/Object;",
+    "SideIndicator": "<="
+  },
+  {
+    "InputObject": "           55      15     8 patt2700$temp   Ljava/lang/Object;",
+    "SideIndicator": "<="
+  }
+]

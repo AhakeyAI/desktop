@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "id": "WD-002",
+  "token": "preview-20261004T035500727825Z-83f2e1",
+  "at": "2026-10-04T03:55:01+00:00",
+  "status": "ready_for_owner_preview",
+  "preview_only": true,
+  "build_round": 3,
+  "approval_sha256": "a34f0f05a0daee947b6ebddd45a22762a6316d6c41c2304928c2814fc57aeaed",
+  "basis_kind": "preview_fix_review",
+  "basis_submission_sha256": "a2c0f941f8a8eaa0ef237542dc954aea81df5768f2cb42137b537b60d679b096",
+  "basis_review_sha256": "90586653937835f2a5c2b65ed982aba6f6ea9d561b7ae326e8eac0550d682398",
+  "working_code_fingerprint": "e2aaf8d2b0fc2ba31b9567029aa5cfc56c789189294ad1bd8f87f0ec641e392b",
+  "snapshot_path": ".ahakey-desktop-harness/previews/WD-002/preview-20261004T035500727825Z-83f2e1/source",
+  "snapshot_fingerprint": "d294d7c5be941a01293ddc9fede3a9b6b319accfb19a06e941d09c465293449f",
+  "preserved_foreign": {
+    "pom.xml": "a163f73c11f38e4a2cd395a3f6a9322e6446e741732fe4abf34cc5bab889f734"
+  },
+  "meaning": "OWNER_PREVIEW only. May iterate via PREVIEW_FIX before formal candidate; never implies candidate/release/UAT PASS.",
+  "finished_at": "2026-10-04T03:58:00+00:00",
+  "artifact_roots": [
+    ".ahakey-desktop-harness\\previews\\WD-002\\preview-20261004T035500727825Z-83f2e1\\runtime\\ahakey-studio-1.0.0.jar"
+  ],
+  "files": {
+    ".ahakey-desktop-harness\\previews\\WD-002\\preview-20261004T035500727825Z-83f2e1\\runtime\\ahakey-studio-1.0.0.jar": "7dac4d32f0779ed55a3a9827fe108aebcd9350993a216dc5044f254b7f49706d"
+  },
+  "logs": {
+    ".ahakey-desktop-harness\\previews\\WD-002\\preview-20261004T035500727825Z-83f2e1\\BUILD.log": "01da34c5d92d4d11af9f13da769c3b65af216df6630ad6e24200a79de57ec5b7"
+  },
+  "command": "cd C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java; D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe -cp .ahakey-desktop-harness\\previews\\WD-002\\preview-20261004T035500727825Z-83f2e1\\runtime\\ahakey-studio-1.0.0.jar;.ahakey-desktop-harness\\previews\\WD-002\\preview-20261004T035500727825Z-83f2e1\\runtime\\lib\\* com.example.ahakey.Main",
+  "entrypoint": "com.example.ahakey.Main",
+  "runtime_kind": "jar_classpath",
+  "scope": "OWNER_PREVIEW_ONLY_NOT_FORMAL_UAT"
+}

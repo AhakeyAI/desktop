@@ -1,0 +1,100 @@
+{
+  "root": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\runtime-jar-classpath",
+  "files": {
+    "ahakey-studio-1.0.0.jar": {
+      "bytes": 639948,
+      "sha256": "c0b3f122fc2f69021514e5ed910265ef1b3c205f722da14f105dfc87b00022b1",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\ahakey-studio-1.0.0.jar"
+    },
+    "lib/jackson-annotations-2.16.0.jar": {
+      "bytes": 78478,
+      "sha256": "c4b90ea0c0074da17efdc3aa23973525f25d6f34725692169748f529547334a6",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\lib\\jackson-annotations-2.16.0.jar"
+    },
+    "lib/jackson-core-2.16.0.jar": {
+      "bytes": 579130,
+      "sha256": "66e2cde4cc7e565d5fce2a2998b64e991777bf9fad4d220735c525fd8d01c31a",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\lib\\jackson-core-2.16.0.jar"
+    },
+    "lib/jackson-databind-2.16.0.jar": {
+      "bytes": 1636721,
+      "sha256": "8aaf1753823be70b798290e5826ab5bfe015d35b3a36a5d3c2ec9f57d4b0138b",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\lib\\jackson-databind-2.16.0.jar"
+    },
+    "lib/javafx-base-17.0.10-win.jar": {
+      "bytes": 746012,
+      "sha256": "79487133c4c27e9db9d47ec9221ef322eb3695c50aacefe2dcac924ae368b2b6",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\lib\\javafx-base-17.0.10-win.jar"
+    },
+    "lib/javafx-base-17.0.10.jar": {
+      "bytes": 302,
+      "sha256": "9aff54b645962383d0167610a2e734d644bc9616445b9435604afa9c2ec38a96",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\lib\\javafx-base-17.0.10.jar"
+    },
+    "lib/javafx-controls-17.0.10-win.jar": {
+      "bytes": 2551585,
+      "sha256": "0e60640b3217275b44418fc908e4320fbc4e4511096240141e213e7a8abea6fe",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\lib\\javafx-controls-17.0.10-win.jar"
+    },
+    "lib/javafx-controls-17.0.10.jar": {
+      "bytes": 306,
+      "sha256": "e315426bb3ce3211f6b9ce63107f4bdd6aa078f0d266636d418cd00909d57c88",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\lib\\javafx-controls-17.0.10.jar"
+    },
+    "lib/javafx-fxml-17.0.10-win.jar": {
+      "bytes": 130063,
+      "sha256": "a97363c188a3a238e7b9adadc0c00617110f479fed6b8ac9898dcce13c6924db",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\lib\\javafx-fxml-17.0.10-win.jar"
+    },
+    "lib/javafx-fxml-17.0.10.jar": {
+      "bytes": 302,
+      "sha256": "4704658510b80759bbf46d3a77351821b5942ac355ae5f8a86af30037b56dd25",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\lib\\javafx-fxml-17.0.10.jar"
+    },
+    "lib/javafx-graphics-17.0.10-win.jar": {
+      "bytes": 5888983,
+      "sha256": "4c987a834e9ad0f6a0e5991d36d1940ae7b74be302c2a098ee8c20676fe0e2da",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\lib\\javafx-graphics-17.0.10-win.jar"
+    },
+    "lib/javafx-graphics-17.0.10.jar": {
+      "bytes": 306,
+      "sha256": "ce23db5a755c5713451698e7b8e0ccca4bbc6f2fb8fb673576f86a613753d2d1",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\lib\\javafx-graphics-17.0.10.jar"
+    },
+    "lib/jna-5.14.0.jar": {
+      "bytes": 1878533,
+      "sha256": "34ed1e1f27fa896bca50dbc4e99cf3732967cec387a7a0d5e3486c09673fe8c6",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\lib\\jna-5.14.0.jar"
+    },
+    "lib/jna-platform-5.14.0.jar": {
+      "bytes": 1369287,
+      "sha256": "ae4caceb3840730c2537f9b7fb55a01baba580286b4122951488bcee558c2449",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\lib\\jna-platform-5.14.0.jar"
+    },
+    "lib/logback-classic-1.4.11.jar": {
+      "bytes": 282793,
+      "sha256": "05850fca185dfa652969ed1e3864e365c0d724737a0f4ec68574baad1d855a0e",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\lib\\logback-classic-1.4.11.jar"
+    },
+    "lib/logback-core-1.4.11.jar": {
+      "bytes": 597931,
+      "sha256": "37ee7367bd24ca87ef77430119a1cb814a76b240afab5c17f802ea383f58aca1",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\lib\\logback-core-1.4.11.jar"
+    },
+    "lib/onnxruntime-1.16.3.jar": {
+      "bytes": 83199722,
+      "sha256": "a1722f61d5d99e8ba1c3bdcadbd47c91678888359f50e90c0b2126579f5a3850",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\lib\\onnxruntime-1.16.3.jar"
+    },
+    "lib/slf4j-api-2.0.9.jar": {
+      "bytes": 64579,
+      "sha256": "0818930dc8d7debb403204611691da58e49d42c50b6ffcfdce02dadb7c3c2b6c",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\lib\\slf4j-api-2.0.9.jar"
+    },
+    "lib/sqlite-jdbc-3.46.1.0.jar": {
+      "bytes": 14123618,
+      "sha256": "6dc7464e3803648d3ff18a7359bab6adf079fcd8495b18991f6f5edcb8ac6e3b",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source\\target\\lib\\sqlite-jdbc-3.46.1.0.jar"
+    }
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "change_id": "WD-003",
+  "checks": {
+    "machine": {
+      "status": "pass",
+      "reason": "DIB build_round 9 revalidation after Contract/reference reconcile: JDK17 Maven compile exited 0; static checks confirmed no 0x98 ordinary-key readback use, no USB mi_00/col02 config-channel fallback, and CP4D/CP4C anchors are present.",
+      "evidence": {
+        ".ahakey-desktop-harness\\evidence\\20261007T1732_wd003_build_round9_revalidate_checks.log": "2b33d5c5b829a194bb981c7fb325b19833a244ad8930b1e9e9e9a4d0a6d95a6b"
+      },
+      "role": "DIB",
+      "at": "2026-10-07T09:32:24+00:00",
+      "code_fingerprint": "a6dec812a6e11de5016e01b241c0e081d44350762dae206639e31ef6ddf3e58d",
+      "build_round": 9,
+      "approval_sha256": "2368ab728f549a292367ffee6676f23c316f24dbb4414cd50728ec31ce1f4461"
+    },
+    "core_regression": {
+      "status": "not_applicable",
+      "reason": "No focused automated core regression suite exists for this Java WD-003 revalidation round; DIB ran JDK17 compile and focused static source checks only.",
+      "evidence": {},
+      "role": "DIB",
+      "at": "2026-10-07T09:33:01+00:00",
+      "code_fingerprint": "a6dec812a6e11de5016e01b241c0e081d44350762dae206639e31ef6ddf3e58d",
+      "build_round": 9,
+      "approval_sha256": "2368ab728f549a292367ffee6676f23c316f24dbb4414cd50728ec31ce1f4461"
+    },
+    "special_regression": {
+      "status": "not_applicable",
+      "reason": "WD-003 special regression requires real CP4C/CP4D firmware and device coverage for USB/BLE; DIB did not connect devices or run true-device tests in this implementation identity refresh.",
+      "evidence": {},
+      "role": "DIB",
+      "at": "2026-10-07T09:33:27+00:00",
+      "code_fingerprint": "a6dec812a6e11de5016e01b241c0e081d44350762dae206639e31ef6ddf3e58d",
+      "build_round": 9,
+      "approval_sha256": "2368ab728f549a292367ffee6676f23c316f24dbb4414cd50728ec31ce1f4461"
+    },
+    "mock": {
+      "status": "not_applicable",
+      "reason": "No mock HID/BLE device was used in this revalidation round; coverage is limited to compile and static source checks.",
+      "evidence": {},
+      "role": "DIB",
+      "at": "2026-10-07T09:33:50+00:00",
+      "code_fingerprint": "a6dec812a6e11de5016e01b241c0e081d44350762dae206639e31ef6ddf3e58d",
+      "build_round": 9,
+      "approval_sha256": "2368ab728f549a292367ffee6676f23c316f24dbb4414cd50728ec31ce1f4461"
+    },
+    "real_device": {
+      "status": "pass",
+      "reason": "Owner reported WD-003 formal test passed after published T01-T13 brief; results-check accepted OWNER_RESULTS.json coverage.",
+      "evidence": {
+        ".ahakey-desktop-harness\\changes\\WD-003\\OWNER_RESULTS.json": "e3a6bf277083dff80a2c6a2ed6cf27794f629085bcb2d16f0502b51a4aef2c08"
+      },
+      "role": "DLA",
+      "at": "2026-10-08T01:32:08+00:00",
+      "code_fingerprint": "a6dec812a6e11de5016e01b241c0e081d44350762dae206639e31ef6ddf3e58d",
+      "build_round": 9,
+      "approval_sha256": "2368ab728f549a292367ffee6676f23c316f24dbb4414cd50728ec31ce1f4461",
+      "test_packet_sha256": "8af36199516b05fd397b3a5e7f51d95f2e7570ec95ec1f1ea4a06115942f3175"
+    },
+    "owner_uat": {
+      "status": "pass",
+      "reason": "Owner reported WD-003 formal test passed after published T01-T13 brief; results-check accepted OWNER_RESULTS.json coverage.",
+      "evidence": {
+        ".ahakey-desktop-harness\\changes\\WD-003\\OWNER_RESULTS.json": "e3a6bf277083dff80a2c6a2ed6cf27794f629085bcb2d16f0502b51a4aef2c08"
+      },
+      "role": "DLA",
+      "at": "2026-10-08T01:33:03+00:00",
+      "code_fingerprint": "a6dec812a6e11de5016e01b241c0e081d44350762dae206639e31ef6ddf3e58d",
+      "build_round": 9,
+      "approval_sha256": "2368ab728f549a292367ffee6676f23c316f24dbb4414cd50728ec31ce1f4461",
+      "test_packet_sha256": "8af36199516b05fd397b3a5e7f51d95f2e7570ec95ec1f1ea4a06115942f3175"
+    },
+    "review": {
+      "status": "pass",
+      "reason": "Independent high-impact fresh review pass is bound to review pack 1a6960d6678bd0cb973d5680209e209d56b5b6352b2ad3efe3286c7a56b79de2; DLA actual diff review decision=pass and fresh_review_record points to FRESH_REVIEW_BUILD_ROUND_9.json. This is review gate only, not formal Owner UAT, true-device PASS, Git candidate, formal build, release, or publication.",
+      "evidence": {
+        ".ahakey-desktop-harness\\changes\\WD-003\\REVIEW.json": "d16dda129bcb4d5fdbd092c74717ddd0f48d68e69ae3328d49ea56655ec1ba96"
+      },
+      "role": "DLA",
+      "at": "2026-10-07T09:57:47+00:00",
+      "code_fingerprint": "a6dec812a6e11de5016e01b241c0e081d44350762dae206639e31ef6ddf3e58d",
+      "build_round": 9,
+      "approval_sha256": "2368ab728f549a292367ffee6676f23c316f24dbb4414cd50728ec31ce1f4461"
+    }
+  }
+}

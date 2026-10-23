@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "id": "WD-003",
+  "at": "2026-10-05T10:50:41+00:00",
+  "from_revision": 2,
+  "to_revision": 3,
+  "reason": {
+    "path": ".ahakey-desktop-harness\\evidence\\20261005T185500_wd003_studiocontroller_scope_reason.md",
+    "sha256": "3a43a3331bac25ef362e03d0f786fbe83b0a0bc86b4a415f96e65069d0ec2392"
+  },
+  "owner": {
+    "path": ".ahakey-desktop-harness\\evidence\\20261005T185500_wd003_studiocontroller_scope_owner_approval.md",
+    "sha256": "1fa8accb6e84d09be3555616723ac0ce3ad7100a4c9fed5c3577b6851122fae8"
+  },
+  "previous_approval": {
+    "at": "2026-10-05T10:49:25+00:00",
+    "owner_record": ".ahakey-desktop-harness\\evidence\\20261005T185500_wd003_studiocontroller_scope_owner_approval.md",
+    "owner_record_sha256": "1fa8accb6e84d09be3555616723ac0ce3ad7100a4c9fed5c3577b6851122fae8",
+    "inputs": {
+      "meta_sha256": "9d629d35a35605a7c30f273a06780bcc812906733cee149ab18062f2172a99d6",
+      "assets": {
+        "CONTRACT.md": "3de51e6ade1a9eb5f5b9e43199f391227783cd8202de9bd5bd64c184b00415b0",
+        "REFERENCES.json": "ec217850f4b774bfa2ec994edb63195ff63a9680365f375e8fec068fe5f86ee1"
+      },
+      "reference_sha256": "0b3d680303677b4e9965c4cbfe817b806f5fc832409560347f64c6db07aae912"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "new_approval": {
+    "at": "2026-10-05T10:50:41+00:00",
+    "owner_record": ".ahakey-desktop-harness\\evidence\\20261005T185500_wd003_studiocontroller_scope_owner_approval.md",
+    "owner_record_sha256": "1fa8accb6e84d09be3555616723ac0ce3ad7100a4c9fed5c3577b6851122fae8",
+    "inputs": {
+      "meta_sha256": "235614161d83af7e0bd5f003c9fc453e9e19eedae17f0a4b7bdac9c25c5d787d",
+      "assets": {
+        "CONTRACT.md": "b5d1fc5f1c66d5cb793bcc8c27da3b326d9435cd184499640180773000056fd0",
+        "REFERENCES.json": "ec217850f4b774bfa2ec994edb63195ff63a9680365f375e8fec068fe5f86ee1"
+      },
+      "reference_sha256": "0b3d680303677b4e9965c4cbfe817b806f5fc832409560347f64c6db07aae912"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "origin_repair": null,
+  "changed_paths_since_start": [],
+  "scope_outside_contract": []
+}

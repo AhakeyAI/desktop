@@ -1,0 +1,64 @@
+{
+  "record_type": "proposed_journeys",
+  "status": "DRAFT_NOT_REGISTERED",
+  "change_id": "WD-005",
+  "owner_source": ".ahakey-desktop-harness/evidence/20261015-wd005-change-owner-dispatch.md",
+  "registration_blocker": "WD-002 remains ACTIVE; preserve history and resolve through authorized Harness maintenance.",
+  "journeys": [
+    {
+      "journey_id": "J005",
+      "name": "OLED本地资源与上传应用",
+      "trigger": "点击左侧OLED，随当前Mode选择默认/SINGLE/全局MULTI目标",
+      "state_owner": "Windows:草稿/成品/操作；Firmware:元数据/持久资源/实际presentation",
+      "protocol": [
+        "0x88 kinds 2/3",
+        "0x8A",
+        "0x8B",
+        "0x8C"
+      ],
+      "failures": [
+        "导入或存储失败保留旧本地资源",
+        "上传断连保留失败草稿，不续传",
+        "ACK未知须对账，不假成功",
+        "清除仅本地",
+        "刷新不覆盖草稿"
+      ],
+      "regression": [
+        "A01",
+        "A02",
+        "A03",
+        "A04",
+        "A05",
+        "A06",
+        "A09",
+        "A10",
+        "A11"
+      ]
+    },
+    {
+      "journey_id": "J006",
+      "name": "灯光预览与分责任保存",
+      "trigger": "点击左侧灯条，编辑全局亮度和当前Mode九项SINGLE AI灯效",
+      "state_owner": "Windows:草稿/模拟；Firmware:持久亮度灯效/临时preview/真实输出",
+      "protocol": [
+        "0x88 kinds 0/1",
+        "0x89 kinds 0/1",
+        "0x8E kinds 0/1"
+      ],
+      "failures": [
+        "断连允许本地编辑但禁止设备写",
+        "预览失败不宣称设备已接受",
+        "逐项保存失败不假装整组成功",
+        "刷新不覆盖草稿"
+      ],
+      "regression": [
+        "A04",
+        "A07",
+        "A08",
+        "A09",
+        "A10",
+        "A11"
+      ]
+    }
+  ]
+}

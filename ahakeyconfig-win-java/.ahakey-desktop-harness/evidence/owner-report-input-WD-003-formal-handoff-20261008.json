@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "WD-003 已从 BUILD_RECEIPT 后的交付资料准备推进到 VERIFY / OWNER_TEST / awaiting_owner_test，下一执行者是 Owner。",
+    "conclusion": "WD-003 的正式交测资料已补齐并通过 Harness 门禁：Git candidate、可运行JAR回执、formal Firmware gate、test_packet、delivery profile、acceptance coverage 和 Owner brief 都已就绪。当前仍不是 formal Owner UAT PASS、真机正式PASS、发布或 release。"
+  },
+  "completed": [
+    "已绑定 CP4D formal Firmware gate 和 HEX 身份，只写 Windows Harness 记录，没有改固件仓库或声明设备已烧录。",
+    "已生成并校验 WD-003 的 FIRMWARE_IDENTITY.json、OWNER_TEST.json/MD、test_packet.json、DELIVERY_PROFILE.json、ACCEPTANCE_COVERAGE.json、FORMAL_FIRMWARE_GATE.json、DELIVERY_PACKET.json 和 OWNER_BRIEF.md。",
+    "guard-status 显示范围治理、DIB提交、DLA审阅、Git candidate、可运行构建回执和旧式测试包身份均 PASS；delivery-status 显示分发形态、formal Firmware admission、验收覆盖、Owner brief 均 PASS。",
+    "Owner brief 已给出正式JAR启动命令和 T01-T13 测试步骤，覆盖 0x9F、0x95、0x97、0x87、侧拨 Custom 单键/组合快捷键/短宏、K1-K4默认读回和legacy回退。"
+  ],
+  "remaining": [
+    "还没有执行应用启动、连接设备、设备写入、烧录或正式 Owner UAT；这些必须由 Owner 按简报真实执行后回传结果。",
+    "轻量EXE、带模型EXE、安装包切换、发布包和 release batch 仍不在本轮通过范围内。"
+  ],
+  "owner": {
+    "decision": {
+      "required": false,
+      "action": "不需要新的产品范围决策；当前只是按已发布的 WD-003 Owner brief 做正式交测。"
+    },
+    "operation": {
+      "required": false,
+      "action": "不需要你再做 Git、构建或文件整理操作；直接使用下面的启动命令和 OWNER_BRIEF.md 里的步骤测试即可。"
+    },
+    "test": {
+      "required": true,
+      "action": "需要你执行正式交测，并按 T01-T13 回传通过、失败或未执行；这才是后续记录 formal Owner UAT 结果的依据。",
+      "prerequisites": [
+        "先确认手上的 X1 已刷入 CP4D HEX：6f9759eb912ec067564c4e63558589ab9732126344d52c2d2a278383119516be。",
+        "使用正式 runtime JAR：52a79397c28529203c777b594555947bdba4822e004d6179d4b9ead03c59a43b，并保留 runtime/lib 的 17 个依赖。"
+      ],
+      "steps": [
+        {
+          "action": "用正式启动命令启动 JAR，并连接目标设备。",
+          "expected": "应用正常打开，设备连接成功，且你明确确认设备固件身份。"
+        },
+        {
+          "action": "验证 0x9F 能力读取、0x95 睡眠等待时间读回、0x97 侧拨配置读回。",
+          "expected": "能力 gating 正确，0x95 没有回归，侧拨配置来自设备读回。"
+        },
+        {
+          "action": "验证当前模式 K1-K4 和四个模式后台 0x87 普通键单包读回。",
+          "expected": "K1-K4 默认/空配置读回不被破坏，16 个普通键读回不显示陈旧本地默认值。"
+        },
+        {
+          "action": "验证侧拨 Custom 单键、组合快捷键、短宏保存后 0x97 读回匹配。",
+          "expected": "只有读回匹配才显示保存成功，超长宏不能静默截断。"
+        },
+        {
+          "action": "验证普通键保存后 0x87 读回匹配、失败/断连提示与日志、legacy回退如有设备则执行。",
+          "expected": "保存成功必须由读回确认；失败不假成功；没有 legacy 设备时 T13 记未执行。"
+        }
+      ],
+      "stop_recovery": "任何启动、连接、读回、保存、断连或日志异常都停止对应子项，保留截图、终端输出和 logs/ahakey-studio.log；不要把预览PASS当正式UAT。",
+      "feedback": "回传实际 USB/BLE 路径、固件确认原话、T01-T13 每项结果、侧拨和 K1-K4 截图；失败时附日志和终端输出。"
+    }
+  },
+  "next": {
+    "role": "DLA",
+    "destination": "等待 Owner 后恢复 DLA",
+    "mode": "RESULTS_RECORD / FORMAL_OWNER_UAT_RESULT",
+    "task": "WD-003 Owner formal test result recording after published Owner brief",
+    "action": "等待 Owner 按 OWNER_BRIEF.md 回传真实测试结果后，由 DLA 只记录结果并运行 results-check / record-check；不能凭本轮交付资料直接关闭。",
+    "authorization": "当前已授权的边界是记录 Owner 基于已发布 WD-003 Owner brief 的真实反馈；不得改生产代码、固件或 Harness 规则，不得Git写入、构建、安装、设备写入、烧录或发布。",
+    "goal": "把 Owner 对 T01-T13 的实际反馈结构化为 OWNER_RESULTS.json，并在真实通过时登记 real_device / owner_uat；如有失败或未执行项则如实记录并停在修复或补测。",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "facts": [
+      "当前任务仍是 WD-003，状态为 VERIFY / OWNER_TEST / awaiting_owner_test，next_actor 为 Owner。",
+      "候选提交已经完成校验，提交号为 23a898d97481cdc4b08ec4a50159d22f27c3619b，candidate-check 已 PASS。",
+      "正式可运行 JAR 已绑定，文件指纹为 52a79397c28529203c777b594555947bdba4822e004d6179d4b9ead03c59a43b。",
+      "CP4D HEX 已绑定，文件指纹为 6f9759eb912ec067564c4e63558589ab9732126344d52c2d2a278383119516be；formal gate 已绑定但不证明物理设备已烧录。",
+      "交付包记录已经生成，DELIVERY_PACKET.json 指纹为 5f811a9bc46155916605faa4baa7ec6d78d003a8397518710b9c004eb0b05540。",
+      "Owner 测试简报已经发布，OWNER_BRIEF.md 指纹为 5cbf08293c0faecdf2cff6333d756a7973a11d3f52fe81dc4423ce26263596f6。",
+      "Owner Preview token preview-20261007T043528705385Z-bd644d 已 pass，但 scope 仍是 OWNER_PREVIEW_RESULT_ONLY_NOT_OWNER_UAT。",
+      "本轮没有修改生产 Java 或 Firmware，没有 Git 写入，没有运行应用、连接设备、设备写入、烧录、formal Owner UAT 或 release。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\AGENTS.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-lead\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-harness\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\STATE.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\OWNER_BRIEF.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\DELIVERY_PACKET.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\ACCEPTANCE_COVERAGE.json"
+    ],
+    "allowed": [
+      "可读取 Owner 的实际反馈、截图或日志，并核对是否覆盖 T01-T13。",
+      "可创建 OWNER_RESULTS.json，前提是逐项绑定 Owner 原话/证据。",
+      "可运行 results-check，并在真实 pass 时用 record-check 登记 real_device / owner_uat。",
+      "如有失败、缺设备确认或未执行必测项，必须停止并准备补测或修复交接。"
+    ],
+    "forbidden": [
+      "不得把本轮交付资料或 Preview PASS 冒充 formal Owner UAT、真机正式PASS、发布或 release。",
+      "不得修改生产 Java、协议语义、Firmware 仓库或 Harness 规则。",
+      "不得 Git add、commit、push、reset、clean、stash、checkout 或 restore。",
+      "不得构建安装包、安装程序、kill进程、连接设备、写入设备或烧录。"
+    ]
+  },
+  "evidence": [
+    ".ahakey-desktop-harness/changes/WD-003/DELIVERY_PACKET.json",
+    ".ahakey-desktop-harness/changes/WD-003/OWNER_BRIEF.md",
+    ".ahakey-desktop-harness/changes/WD-003/test_packet.json",
+    ".ahakey-desktop-harness/changes/WD-003/FORMAL_FIRMWARE_GATE.json"
+  ]
+}

@@ -4,6 +4,7 @@ import com.example.ahakey.app.StudioController;
 import com.example.ahakey.platform.windows.WindowsVoiceRelayService;
 import com.example.ahakey.platform.windows.WindowsVoiceTyping;
 import com.example.ahakey.service.VoiceInputManager;
+import com.example.ahakey.util.LanguageManager;
 import com.example.ahakey.view.CanvasPane;
 import com.example.ahakey.view.InspectorPane;
 import com.example.ahakey.view.StatusBar;
@@ -23,8 +24,18 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
+import javafx.stage.WindowEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.awt.SystemTray;
+import java.awt.TrayIcon;
+import java.awt.MenuItem;
+import java.awt.PopupMenu;
+import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.Toolkit;
+import java.awt.Font;
 
 /**
  * AhaKey Studio 主应用类
@@ -58,6 +69,18 @@ public class App extends Application {
      */
     private VoiceInputManager voiceInputManager;
     private boolean shuttingDown;
+    
+    /**
+     * 系统托盘图标
+     */
+    private TrayIcon trayIcon;
+    private Stage primaryStage;
+    
+    /**
+     * 保存窗口原始尺寸，用于从托盘恢复时恢复尺寸
+     */
+    private double savedWidth = 1280;
+    private double savedHeight = 820;
 
     /**
      * JavaFX 应用的核心方法，负责初始化和显示主界面
@@ -65,7 +88,19 @@ public class App extends Application {
      */
     @Override
     public void start(Stage primaryStage) {
-        // 1. 创建主控制器，作为整个应用的核心协调者
+        if (SingleInstanceChecker.isAlreadyRunning()) {
+            logger.info("检测到已有实例运行，退出");
+            Platform.exit();
+            return;
+        }
+        logger.info("AhaKey Studio 启动中...");
+        
+        this.primaryStage = primaryStage;
+
+        Platform.setImplicitExit(false);
+
+        initLanguage();
+
         controller = new StudioController();
         
         // 2. 条件初始化语音输入管理器（根据 model.enabled 配置）
@@ -75,7 +110,10 @@ public class App extends Application {
             logger.info("本地模型已禁用 (model.enabled=false)，跳过语音输入初始化");
         }
         
-        // 2. 配置主窗口（Stage）属性
+        // 3. 初始化系统托盘
+        initSystemTray();
+        
+        // 4. 配置主窗口（Stage）属性
         primaryStage.setTitle("AhaKey Studio");      // 窗口标题
         primaryStage.setMinWidth(800);              // 最小宽度（分屏/多屏适配）
         primaryStage.setMinHeight(600);              // 最小高度
@@ -211,10 +249,22 @@ public class App extends Application {
         // 8. 显示窗口
         primaryStage.show();
         
-        // 9. 设置窗口关闭时的清理逻辑
+        // 10. 设置窗口关闭时的逻辑：最小化到系统托盘
         // 类比于 Web 中的 beforeunload 事件
         primaryStage.setOnCloseRequest(event -> {
-            shutdownApplication();
+            if (SystemTray.isSupported()) {
+                event.consume(); // 阻止默认关闭行为
+                minimizeToTray();
+            } else {
+                shutdownApplication();
+            }
+        });
+        
+        // 11. 设置窗口最小化时隐藏到托盘
+        primaryStage.iconifiedProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal && SystemTray.isSupported()) {
+                minimizeToTray();
+            }
         });
     }
 
@@ -223,21 +273,151 @@ public class App extends Application {
         shutdownApplication();
     }
 
+    /**
+     * 初始化系统托盘
+     */
+    private void initLanguage() {
+        try {
+            LanguageManager languageManager = LanguageManager.getInstance();
+            
+            java.io.File prefsDir = new java.io.File(
+                System.getProperty("user.home"), ".ahakey"
+            );
+            java.io.File prefsFile = new java.io.File(prefsDir, "preferences.properties");
+            
+            if (prefsFile.exists()) {
+                java.util.Properties prefs = new java.util.Properties();
+                try (java.io.FileInputStream fis = new java.io.FileInputStream(prefsFile)) {
+                    prefs.load(fis);
+                    String savedLang = prefs.getProperty("AhaKeySelectedLanguage");
+                    if (savedLang != null && !savedLang.isEmpty()) {
+                        languageManager.switchLanguage(savedLang);
+                    }
+                }
+            }
+            
+            logger.info("语言设置初始化完成，当前语言: {}", languageManager.getCurrentLanguage());
+        } catch (Exception e) {
+            logger.warn("初始化语言设置失败: {}", e.getMessage());
+        }
+    }
+    
+    private void initSystemTray() {
+        if (!SystemTray.isSupported()) {
+            logger.warn("系统托盘不受支持");
+            return;
+        }
+        
+        try {
+            // 创建弹出菜单
+            PopupMenu popupMenu = new PopupMenu();
+            
+            // 退出菜单项（使用英文避免中文乱码）
+            MenuItem exitItem = new MenuItem("Exit");
+            exitItem.addActionListener(e -> shutdownApplication());
+            popupMenu.add(exitItem);
+            
+            // 创建托盘图标
+            java.awt.Image image = Toolkit.getDefaultToolkit().getImage(
+                getClass().getResource("/ahakey.jpg")
+            );
+            trayIcon = new TrayIcon(image, "AhaKey Studio", popupMenu);
+            
+            // 设置图标大小自适应
+            trayIcon.setImageAutoSize(true);
+            
+            // 添加鼠标点击事件：左键单击显示窗口（右键菜单由系统自动处理）
+            trayIcon.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if (e.getButton() == MouseEvent.BUTTON1) {
+                        showFromTray();
+                    }
+                }
+            });
+            
+            // 添加到系统托盘
+            SystemTray.getSystemTray().add(trayIcon);
+            logger.info("系统托盘图标已添加");
+            
+        } catch (Exception e) {
+            logger.error("初始化系统托盘失败: {}", e.getMessage());
+            trayIcon = null;
+        }
+    }
+    
+    /**
+     * 最小化到系统托盘
+     */
+    private void minimizeToTray() {
+        Platform.runLater(() -> {
+            // 保存当前窗口尺寸
+            savedWidth = primaryStage.getWidth();
+            savedHeight = primaryStage.getHeight();
+            
+            primaryStage.setIconified(false);
+            primaryStage.hide();
+            if (trayIcon != null) {
+                trayIcon.displayMessage("AhaKey Studio", "应用已最小化到托盘", TrayIcon.MessageType.INFO);
+            }
+        });
+    }
+    
+    /**
+     * 从系统托盘显示窗口
+     */
+    private void showFromTray() {
+        Platform.runLater(() -> {
+            // 恢复之前保存的窗口尺寸
+            primaryStage.setWidth(savedWidth);
+            primaryStage.setHeight(savedHeight);
+            
+            // 取消图标化状态，显示窗口并置于前端
+            primaryStage.setIconified(false);
+            primaryStage.show();
+            primaryStage.toFront();
+        });
+    }
+    
     private void shutdownApplication() {
         if (shuttingDown) {
             return;
         }
         shuttingDown = true;
         try {
+            // 移除系统托盘图标（使用局部变量避免竞态条件）
+            TrayIcon iconToRemove = trayIcon;
+            trayIcon = null;
+            if (iconToRemove != null) {
+                try {
+                    SystemTray.getSystemTray().remove(iconToRemove);
+                } catch (Exception e) {
+                    logger.warn("移除系统托盘图标失败: {}", e.getMessage());
+                }
+            }
+            
             shutdownVoiceInputManager();
             if (controller != null) {
                 controller.shutdown();
             }
+            
+            stopBleDriverProcess();
         } catch (Exception e) {
             logger.warn("Application shutdown cleanup failed: {}", e.getMessage());
         } finally {
             Platform.exit();
             System.exit(0);
+        }
+    }
+    
+    private void stopBleDriverProcess() {
+        try {
+            logger.info("停止 BLE_tcp_driver.exe 进程...");
+            new ProcessBuilder("taskkill", "/F", "/IM", "BLE_tcp_driver.exe").redirectErrorStream(true).start().waitFor();
+            Thread.sleep(300);
+            logger.info("BLE_tcp_driver.exe 进程已停止");
+        } catch (Exception e) {
+            logger.warn("停止 BLE_tcp_driver.exe 进程失败: {}", e.getMessage());
         }
     }
     

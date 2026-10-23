@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "WD-002 处于 VERIFY / CANDIDATE_PREP；review 已正式 PASS，但 Git candidate 尚未形成。",
+    "conclusion": "候选准备被正确挡住：candidate-plan 发现 `pom.xml` 有未提交改动且不在 WD-002 allowed_paths 内。DLA 没有执行任何 Git 写动作，也没有构建或真机测试。"
+  },
+  "completed": [
+    "已核对 STATE.json、change.json、REVIEW.json、verification.json 和 fresh review 证据；review=pass 已绑定 build_round=3 和代码指纹 937d716d93f20e7fb13e3b994f834b0b002a65fff424acb48cef0855f5981e41。",
+    "已运行 guard-status：immutable origin / scope / governance、builder submission、actual DLA review 均 PASS；Git candidate、BUILD_RECEIPT、test_packet、delivery supplements、real_device、owner_uat 仍缺。",
+    "已运行 candidate-plan；helper 停止并报告外范围未提交输入：pom.xml。",
+    "已只读查看 pom.xml 差异：新增 `addDefaultImplementationEntries=true` 且补了文件末尾换行；该文件不在 WD-002 allowed_paths，不能进入 WD-002 候选。",
+    "已确认当前没有 staged 文件；没有执行 git add、commit、reset、restore、checkout、stash、clean 或 push。"
+  ],
+  "remaining": [
+    "Owner 需要先处理 pom.xml 这个外范围改动：要么单独保存为非 WD-002 Git 提交，要么确认它是误改后自行恢复；DLA 不能替 Owner 做这个 Git 写动作。",
+    "pom.xml 处理完后，DLA 才能重新运行 candidate-plan 并生成正式 CANDIDATE_GIT_PLAN.ps1。",
+    "候选计划尚未生成，所以 candidate-check 也尚未执行。",
+    "当前还没有 BUILD_RECEIPT、test_packet、Owner brief、real_device PASS 或 owner_uat PASS。"
+  ],
+  "owner": {
+    "decision": {
+      "required": false,
+      "action": "不需要新的产品/范围决策；除非你明确想把 pom.xml 纳入 WD-002，那会变成 scope expansion，需要回 CHANGE。"
+    },
+    "operation": {
+      "required": true,
+      "action": "请先处理 pom.xml 外范围改动：若它是独立构建元数据调整，请单独提交；若是误改，请只恢复 pom.xml。处理后把下面的提示词发回原 DLA 对话。"
+    },
+    "test": {
+      "required": false,
+      "action": "现在没有可运行产物或测试包，不需要真机测试。",
+      "prerequisites": [],
+      "steps": [],
+      "stop_recovery": "如果处理 pom.xml 时不确定它是否应保留，请先停下并说明来源，不要把它混进 WD-002 候选。",
+      "feedback": "处理完 pom.xml 后返回原 DLA 对话继续候选计划即可。"
+    }
+  },
+  "next": {
+    "role": "DLA",
+    "destination": "原 DLA 对话",
+    "mode": "CANDIDATE_PREP",
+    "task": "WD-002 — WS2 CP4A Mode Sync + Display Status",
+    "action": "在 Owner 处理完 pom.xml 外范围改动后，重新运行 guard-status 和 candidate-plan，审查正式候选文件清单，并给 Owner 精确 Git 候选操作说明。",
+    "authorization": "review 已正式 PASS；当前只授权 DLA 候选准备、只读核对和 Harness 候选计划记录。不授权 Java/Firmware 修改、自动 Git 写、构建、安装、真机、烧录或发布。",
+    "goal": "生成合法 WD-002 Git candidate 计划，确保候选只包含 WD-002 范围内输入和必要 Harness 证据，不混入 pom.xml 外范围改动。",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "facts": [
+      "STATE.json 当前为 phase=VERIFY、mode=CANDIDATE_PREP、active_change=WD-002、next_actor=DLA、next_mode=CANDIDATE_PREP。",
+      "verification.json 已记录 review=pass，时间为 2026-10-03T10:50:13+00:00，code_fingerprint=937d716d93f20e7fb13e3b994f834b0b002a65fff424acb48cef0855f5981e41。",
+      "fresh review 证据为 .ahakey-desktop-harness/changes/WD-002/reviews/20261003T102347709569Z-c2970c/FRESH_REVIEW_DLA_INDEPENDENT_20261003T1848.json。",
+      "本轮 candidate-plan 被 helper 阻止，原因是 pom.xml 有未提交改动且不在 WD-002 allowed_paths 内。",
+      "pom.xml 差异为 JAR manifest 增加 addDefaultImplementationEntries=true 并补文件末尾换行；DLA 未修改、未暂存、未提交、未恢复该文件。",
+      "当前没有 staged 文件；Git candidate、BUILD_RECEIPT、test_packet、DELIVERY_PROFILE、FORMAL_FIRMWARE_GATE、ACCEPTANCE_COVERAGE、Owner brief、real_device、owner_uat 仍未完成。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\AGENTS.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-lead\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-harness\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\STATE.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-002\\change.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-002\\REVIEW.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-002\\verification.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-002\\reviews\\20261003T102347709569Z-c2970c\\FRESH_REVIEW_DLA_INDEPENDENT_20261003T1848.json"
+    ],
+    "allowed": [
+      "运行 guard-status、candidate-plan 和必要只读 Git 核对命令。",
+      "审查 candidate-plan 生成的精确文件清单；若清单合法，面向 Owner 输出 Git 暂存/提交/回传记录说明。",
+      "如果 candidate-plan 仍被外范围输入阻塞，明确指出具体文件和处理选项，不自动修复。"
+    ],
+    "forbidden": [
+      "不得修改 Java、Firmware、eternal、pom.xml 或生产资源。",
+      "不得自动执行 Git add、commit、push、reset、clean、stash、checkout、restore。",
+      "不得构建 JAR/EXE、创建 Release Batch、安装、烧录、设备写入或真机测试。",
+      "不得把 review pass 冒充 Git candidate、构建产物、Owner 测试包、real_device PASS 或 owner_uat PASS。"
+    ]
+  },
+  "evidence": [
+    "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-002\\verification.json",
+    "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-002\\REVIEW.json",
+    "candidate-plan 输出：HARNESS STOP: Uncommitted input outside this task scope; classify/preserve separately, no auto include: pom.xml"
+  ]
+}

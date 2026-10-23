@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "id": "WD-003",
+  "at": "2026-10-06T03:07:00+00:00",
+  "from_revision": 3,
+  "to_revision": 4,
+  "reason": {
+    "path": ".ahakey-desktop-harness\\evidence\\20261006T110555_wd003_owner_preview_usb_hid_interface_fail.md",
+    "sha256": "f0a9ed694ca6b1c6179cbde9d90e7871dc700c1607af45b411468ecc5f3bd122"
+  },
+  "owner": {
+    "path": ".ahakey-desktop-harness\\evidence\\20261006T110555_wd003_usbhidtransport_scope_owner_approval.md",
+    "sha256": "ea783e7ebda4751cbbe467bfda179f6740acfe5c5330932b1ab1023774e325ca"
+  },
+  "previous_approval": {
+    "at": "2026-10-05T10:50:41+00:00",
+    "owner_record": ".ahakey-desktop-harness\\evidence\\20261005T185500_wd003_studiocontroller_scope_owner_approval.md",
+    "owner_record_sha256": "1fa8accb6e84d09be3555616723ac0ce3ad7100a4c9fed5c3577b6851122fae8",
+    "inputs": {
+      "meta_sha256": "235614161d83af7e0bd5f003c9fc453e9e19eedae17f0a4b7bdac9c25c5d787d",
+      "assets": {
+        "CONTRACT.md": "b5d1fc5f1c66d5cb793bcc8c27da3b326d9435cd184499640180773000056fd0",
+        "REFERENCES.json": "ec217850f4b774bfa2ec994edb63195ff63a9680365f375e8fec068fe5f86ee1"
+      },
+      "reference_sha256": "0b3d680303677b4e9965c4cbfe817b806f5fc832409560347f64c6db07aae912"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "new_approval": {
+    "at": "2026-10-06T03:07:00+00:00",
+    "owner_record": ".ahakey-desktop-harness\\evidence\\20261006T110555_wd003_usbhidtransport_scope_owner_approval.md",
+    "owner_record_sha256": "ea783e7ebda4751cbbe467bfda179f6740acfe5c5330932b1ab1023774e325ca",
+    "inputs": {
+      "meta_sha256": "23d97f4d56310386e08fd4dc288a5ce2640fc1cf162fe5a138af4a8a54e20706",
+      "assets": {
+        "CONTRACT.md": "296d1722456e349a509b28dc4377e441ba4798cb5e032cfefb371a6cc8196cb5",
+        "REFERENCES.json": "ec217850f4b774bfa2ec994edb63195ff63a9680365f375e8fec068fe5f86ee1"
+      },
+      "reference_sha256": "0b3d680303677b4e9965c4cbfe817b806f5fc832409560347f64c6db07aae912"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "origin_repair": null,
+  "changed_paths_since_start": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/model/StudioState.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java"
+  ],
+  "scope_outside_contract": []
+}

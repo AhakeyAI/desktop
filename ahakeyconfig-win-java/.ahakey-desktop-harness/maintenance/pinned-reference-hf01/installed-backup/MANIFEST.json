@@ -1,0 +1,8 @@
+{
+  "original_files": {
+    ".agents/skills/ahakey-desktop-harness/scripts/desktop.py": "1cbb64eec36da00ed0ebe121b2e09ca2e94343948239a2908a36ae68a5945fa0",
+    ".ahakey-desktop-harness/GUARD_POLICY_SEAL.json": "719f34f0e1f9a6884bb111af23a719c0c114a5b6583d999abd35c945d895794e"
+  },
+  "baseline_sha256": "a9bb480577444c7e70713bfd762a2bd12898f88cb7b92260a0616b2658cdc685",
+  "review_sha256": "c741a581b3d7ba4566d0bec91a853690d9d203b83e206c37f0ec22fd506bc3e6"
+}

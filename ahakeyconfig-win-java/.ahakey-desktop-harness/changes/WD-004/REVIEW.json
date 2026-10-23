@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "id": "WD-004",
+  "pack_sha256": "8c84838eb824ba9f7ed02061ffc968750a523b80b4ccd259616db3394fd4718f",
+  "reviewer_role": "DLA",
+  "review_session": "original DLA conversation, 2026-10-09 WD-004 revision 4 fresh review after DIB FIX",
+  "builder_session": "original DIB conversation, WD-004 revision 4 FIX implementation",
+  "independence": "separate_dla_conversation",
+  "decision": "pass",
+  "scope_conclusion": "The actual diff in review pack 20261009T042219327516Z-1446c9 remains within the WD-004 revision 4 allowed production paths. The DIB FIX addresses the four previous DLA findings without introducing a new product, protocol, or architecture scope expansion.",
+  "per_file": [
+    {
+      "path": "pom.xml",
+      "purpose": "Adds SQLite support for Cursor local metadata discovery.",
+      "reviewed_hunks": "Reviewed dependency addition as required by CursorSessionDiscoveryService. No unrelated dependency expansion found in this review.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "purpose": "Coordinates AI runtime display mode, Hook freshness gate, apply-to-keyboard flow, and connect-time snapshot behavior.",
+      "reviewed_hunks": "Reviewed the revised Codex/Cursor Hook gate, manual MULTI apply flow, unavailable-slot warnings, simulate/disconnected behavior, and firmware-ready auto snapshot path. The previous AND gate is fixed to at-least-one latest, and actual per-tool latest flags are passed into AiRuntimeDisplayService.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/AiRuntimeDisplayMode.java",
+      "purpose": "Defines SINGLE and MULTI runtime display modes.",
+      "reviewed_hunks": "Reviewed enum surface used by the lighting UI and runtime service.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/AiRuntimeSession.java",
+      "purpose": "Represents a selectable Codex/Cursor session source with summary metadata only.",
+      "reviewed_hunks": "Reviewed identity, provider, project, path, transcript and time label fields used by task selection and slot binding.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/AiRuntimeSlotBinding.java",
+      "purpose": "Stores local four-slot binding and foreground/runtime state data.",
+      "reviewed_hunks": "Reviewed slot identity, provider/session/transcript fields, foreground flag and runtime state fields used by 0x99 snapshot preparation.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/AiRuntimeSlotState.java",
+      "purpose": "Maps runtime task state for 0x99 snapshot payloads.",
+      "reviewed_hunks": "Reviewed enum surface for empty/running/success/error style runtime slots.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/CodexSession.java",
+      "purpose": "Supports Codex session metadata compatibility.",
+      "reviewed_hunks": "Reviewed as part of session discovery and summary-only UI data model.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+      "purpose": "Adds WS3 CP1 runtime display writes for 0x98 mode and 0x99 full snapshot.",
+      "reviewed_hunks": "Reviewed protocol entry points and capability gate references. No device write or protocol round-trip was performed.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "purpose": "Owns local runtime display state, slot apply planning, hook-event session matching, and 0x99 snapshot sending.",
+      "reviewed_hunks": "Reviewed prepareApply, slotUnavailableReason, primary-slot repair, applyToKeyboard, SINGLE/MULTI hook event split, session identity matching, and foreground snapshot construction. The primary slot now resolves to a truly usable slot before apply.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "purpose": "Forwards runtime display protocol calls to the active transport.",
+      "reviewed_hunks": "Reviewed added runtime display transport methods only.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CodexSessionDiscoveryService.java",
+      "purpose": "Discovers Codex sessions from local Codex metadata for task-slot selection.",
+      "reviewed_hunks": "Reviewed local data-dir handling, state/index fallback intent, and summary metadata extraction.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CursorSessionDiscoveryService.java",
+      "purpose": "Discovers Cursor sessions from local Cursor metadata for task-slot selection.",
+      "reviewed_hunks": "Reviewed conversation-search.db title extraction, workspaceStorage project mapping, preferred composerHeaders table path, table existence detection, composerId stable ID handling, archived/subagent skipping, timestamp selection, and ItemTable fallback only when the table is absent. This resolves the previous Cursor session-source blocker.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookDispatchServer.java",
+      "purpose": "Receives AI tool hook events and forwards runtime display state updates.",
+      "reviewed_hunks": "Reviewed integration with AiRuntimeDisplayService and preservation of existing dispatch responsibilities.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookInstaller.java",
+      "purpose": "Detects and installs/updates AhaKey hooks for Claude, Cursor, Codex and Kimi.",
+      "reviewed_hunks": "Reviewed status enum usage, version-marker behavior, backup/write flow, non-AhaKey hook preservation intent, Codex identity forwarding, and Cursor native-permission fallback direction. No local Hook was installed or updated.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/AiRuntimeStore.java",
+      "purpose": "Persists local runtime display mode, data directories, slot bindings and primary slot.",
+      "reviewed_hunks": "Reviewed local-only persistence surface and no device configuration persistence beyond runtime display apply.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "purpose": "Adds lighting-side AI runtime display controls, task selector, slot binding UI, primary slot UI, and apply action.",
+      "reviewed_hunks": "Reviewed placement under lighting options, task-source grouping, data-dir rows, slot bind/unbind, unavailable-slot text, primary-slot selectable logic, and apply button flow. The previous bound-but-unavailable primary selection issue is fixed.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/TopBar.java",
+      "purpose": "Adds AhaKey Hook Management under More with scan, status display, one-click update, and per-tool install/update.",
+      "reviewed_hunks": "Reviewed four-tool automatic scan, once-per-run outdated summary, one-click update behavior, single-tool install/update flow, dialog-level busy state, refresh disabling, status/action text, and error presentation. The previous single-button-only write issue is fixed.",
+      "within_contract": true
+    }
+  ],
+  "production_journey": "The reviewed journey is: More -> AhaKey Hook Management scans Claude/Cursor/Codex/Kimi using HookInstaller; lighting right-side AI runtime display reads the same Codex/Cursor Hook statuses, discovers only latest available Codex/Cursor sessions, lets the user bind fixed slots and a usable primary slot, stores those bindings locally, and on Apply sends 0x98/0x99 through AiRuntimeDisplayService -> BleManager -> AhaKeyProtocol when connected to supported firmware. Runtime hook events update only bound session-level slots and send full 0x99 snapshots in MULTI; SINGLE continues to use legacy 0x90.",
+  "preserved_behavior_assessment": "The reviewed diff does not intentionally change ordinary key readback, side-switch configuration, voice, sleep time, 0x9F capability query, 0x92 mode sync, 0x00 status query, resource upload, firmware upgrade/recovery, Restore Factory, or non-runtime display configuration persistence. Legacy SINGLE behavior remains routed through 0x90. This is a static review only; no compile, app launch, Hook install/update, or device write was performed.",
+  "baseline_assessment": "Baseline reference remains the WD-003 last verified candidate supplied in the review pack. This review is bound to build_round 5 and code_fingerprint 2916ca02336232a7dd9a29d0ecb947561b5511d6f859b23b2479109e0223ea44.",
+  "protocol_assessment": "0x98 mode set and 0x99 full 4-slot snapshot remain within the approved WS3 CP1 runtime-display scope. The review inspected packet-call integration only; actual firmware communication and runtime display behavior still require later build/device validation.",
+  "risk_level": "high",
+  "fresh_review_required": true,
+  "risk_rationale": "The code still touches Hook installation/update, local task discovery, runtime protocol writes, and device-facing display behavior, so delivery risk remains high. For this original DLA actual diff review bound to pack 20261009T042219327516Z-1446c9, the previous blockers are fixed and no new code blocker was found. Because WD-004 is high_impact, Harness still requires an independent fresh review record before formal review pass can be registered.",
+  "findings": [],
+  "resolved_previous_findings": [
+    "StudioController MULTI Hook gate now accepts at least one latest Codex/Cursor Hook and passes per-tool flags into apply paths.",
+    "CursorSessionDiscoveryService now prefers the composerHeaders table and uses composerId as the stable Cursor session ID, with ItemTable fallback only when the table is absent.",
+    "InspectorPane primary-slot radio is enabled only for bound and currently usable slots, after prepareApply repairs persisted primary state.",
+    "TopBar single-tool Hook install/update now uses dialog-level busy state and disables the rest of the dialog actions during write/rescan."
+  ],
+  "remaining_unverified": [
+    "No Maven compile/package was run.",
+    "No JavaFX app launch or UI preview was run.",
+    "No local Hook install/update was performed.",
+    "No keyboard/device write or real 0x98/0x99 validation was performed.",
+    "No Git candidate, build receipt, firmware formal admission, acceptance coverage, or Owner test packet exists for this WD-004 round yet."
+  ],
+  "baseline_gap_owner_record": null,
+  "fresh_review_record": ".ahakey-desktop-harness/changes/WD-004/reviews/20261009T042219327516Z-1446c9/FRESH_REVIEW_DLA_INDEPENDENT_20261009T0448476726623Z.json"
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "WD-003",
+  "token": "preview-fix-20261006T072126898999Z-f7e8b6",
+  "round": 2,
+  "at": "2026-10-06T07:50:55+00:00",
+  "status": "pass",
+  "review_record": ".ahakey-desktop-harness\\previews\\WD-003\\fixes\\preview-fix-20261006T072126898999Z-f7e8b6\\PREVIEW_FIX_REVIEW.md",
+  "review_sha256": "b5d5dd9ace78e8954fac2e38d869c6bffd0b8e9502cea3fe141420658a5c8d8c",
+  "code_fingerprint": "38490c39d4194633b237bccbee9138df249b109eebb18b7d4f23b9c3a658e038",
+  "submission_sha256": "63d7f4707f14c2c641fe60a3e07b126521f6ccef2cadb2e4813920f6140fcf52",
+  "scope": "PREVIEW_FIX_REVIEW_ONLY_NOT_FORMAL_REVIEW"
+}

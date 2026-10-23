@@ -1,0 +1,50 @@
+{
+  "record_type": "route_maintenance_attempt",
+  "id": "WD-005",
+  "owner_authorization": ".ahakey-desktop-harness/evidence/20261015-wd005-route-maintenance-owner-authorization.md",
+  "command": "python .agents/skills/ahakey-desktop-harness/scripts/desktop.py suspend --id WD-002 --note .ahakey-desktop-harness/evidence/20261015-wd005-route-maintenance-owner-authorization.md --role DLA",
+  "exit_code": 1,
+  "result": "BLOCKED_GIT_SAVE_REQUIRED",
+  "uncommitted_inputs": [
+    {
+      "path": ".rollback-backups/20261010T084508/status-before.txt",
+      "sha256": "59E0A06546116D9F601D64817E19468564343E1AC497B2452DC9732FB8A887C3"
+    },
+    {
+      "path": ".rollback-backups/20261010T084508/tracked-worktree.patch",
+      "sha256": "8262EE3D01A6883B76CC037244D65317B5AFBD4CAACE826AE03CDCD5478A43E1"
+    },
+    {
+      "path": ".rollback-backups/20261010T084508/untracked-before.txt",
+      "sha256": "6F6A3B1B99FF7A5CE2C0FE6D348BDCF074CA7F86FC85669F493F9BA490900640"
+    },
+    {
+      "path": "config_server.json",
+      "sha256": "14C1886BB4192876644A73B260A4AF0338C64EA023B63BC37EE7A768D9622F62",
+      "historical_preserve_record": ".ahakey-desktop-harness/evidence/20261008T082336_wd003_owner_confirm_config_server_foreign.md",
+      "matches_historical_preserved_hash": true
+    }
+  ],
+  "unchanged_protected_records": [
+    {
+      "path": ".ahakey-desktop-harness/STATE.json",
+      "sha256": "67E92D9F9F5672B4A0F6865E390347F4B2C1BE235C53A0A70CE53161CE52DBF1"
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-002/CONTRACT.md",
+      "sha256": "727BBBF6F2B5507614E8AF9823F22C2559DFA210DA8F80280DDED0E7459D6CD0"
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-002/start-fingerprint.json",
+      "sha256": "C8302FF71EA5B5CC1894C2E6121DF7F14F76D21075B733C983E40455942C1E10"
+    },
+    {
+      "path": ".ahakey-desktop-harness/changes/WD-002/guard-origin.json",
+      "sha256": "D08A566F89C89418C7147F780901585B97002B4AD17B56AADA565AD9AA5D6AE9"
+    }
+  ],
+  "policy": "不提交/还原/搬走无关文件来迎合门禁；不跳过committed_inputs，不手改STATE或reseal。",
+  "production_edits": false,
+  "git_writes": false,
+  "state_mutations": false
+}

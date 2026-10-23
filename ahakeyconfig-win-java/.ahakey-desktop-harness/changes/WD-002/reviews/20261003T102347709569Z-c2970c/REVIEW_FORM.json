@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "WD-002",
+  "pack_sha256": "c6a35df927f705125e0e17e1a93205a97d3b712b5479351c042aee54722f9d8d",
+  "reviewer_role": "DLA",
+  "review_session": "TODO separate DLA conversation identifier",
+  "builder_session": "TODO DIB conversation identifier",
+  "independence": "separate_dla_conversation",
+  "decision": "pending",
+  "scope_conclusion": "TODO explain actual diff scope",
+  "per_file": [
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasPane.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    }
+  ],
+  "production_journey": "TODO real entry to service to protocol/transport to UI response; old writer handling",
+  "preserved_behavior_assessment": "TODO name relevant old behaviors and evidence/remaining tests",
+  "baseline_assessment": "TODO last verified version vs task start; state unknown honestly",
+  "protocol_assessment": "TODO cite current approved protocol or explain not applicable",
+  "risk_level": "normal",
+  "fresh_review_required": false,
+  "risk_rationale": "TODO justify risk classification",
+  "findings": [],
+  "baseline_gap_owner_record": null,
+  "fresh_review_record": null
+}

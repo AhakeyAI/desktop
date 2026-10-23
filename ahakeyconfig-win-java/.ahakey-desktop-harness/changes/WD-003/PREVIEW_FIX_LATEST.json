@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "WD-003",
+  "token": "preview-fix-20261006T072126898999Z-f7e8b6",
+  "round": 2,
+  "at": "2026-10-06T07:37:21+00:00",
+  "status": "review_pass",
+  "approval_sha256": "85e3eacaca54a5c1964c5785bb8a7e86a000961b8d92ac4d13a856f5b631512d",
+  "code_fingerprint": "38490c39d4194633b237bccbee9138df249b109eebb18b7d4f23b9c3a658e038",
+  "changed_paths": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/model/StudioState.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+    "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java"
+  ],
+  "request_sha256": "0ea05e79993d290007e85caa26863ecda0abcb6ca68e5c09c8b8d5b852cd9d2c",
+  "report": {
+    "path": ".ahakey-desktop-harness\\previews\\WD-003\\fixes\\preview-fix-20261006T072126898999Z-f7e8b6\\PREVIEW_FIX_REPORT.md",
+    "sha256": "900a6a8332435ed421b705e4daae197825d173e91fe9566187e7ef221416cbe0"
+  },
+  "evidence": [
+    {
+      "path": ".ahakey-desktop-harness\\evidence\\20261006T1535_wd003_preview_fix_cp4c_action_machine_checks.log",
+      "sha256": "af17f4e9863a347239c0d02380f9a2e18d2eb9c3136da22c9bfcc32a6a1bcefb"
+    }
+  ],
+  "meaning": "Preview-only fix submission. Not formal builder_submission/candidate/UAT.",
+  "review_record": ".ahakey-desktop-harness\\previews\\WD-003\\fixes\\preview-fix-20261006T072126898999Z-f7e8b6\\PREVIEW_FIX_REVIEW.md",
+  "review_sha256": "b5d5dd9ace78e8954fac2e38d869c6bffd0b8e9502cea3fe141420658a5c8d8c",
+  "review_receipt": ".ahakey-desktop-harness/previews/WD-003/fixes/preview-fix-20261006T072126898999Z-f7e8b6/REVIEW.json"
+}

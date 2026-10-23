@@ -1,0 +1,116 @@
+﻿{
+  "schema_version": 1,
+  "sources": [
+    {
+      "id": "fw-ws3-cp1-prd-runtime-presentation",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/workstreams/X1-AI-WORKFLOW-PRESENTATION/PRD.md",
+      "revision_or_commit": "9f2ba8651ce0b352c6d9428148b8f7a8f549deeb",
+      "sha256": "bd7e8703959a5ab0e952af8d2fba54ab99d986f2f73f47ed0b1681306535f366",
+      "section": "WS3-CP1 Runtime Presentation Controller / 0x90 0x98 0x99 0x9A",
+      "kind": "protocol",
+      "maturity": "agreed",
+      "observed_at": "2026-10-08T03:35:00+00:00"
+    },
+    {
+      "id": "fw-ws3-cp1-display-presentation-h",
+      "workspace": "firmware",
+      "path": "APP/services/display_presentation.h",
+      "revision_or_commit": "9f2ba8651ce0b352c6d9428148b8f7a8f549deeb",
+      "sha256": "29ac594434ca2a77515ddb52a4b4c7590a6a89686debe2f64abae123bb3bc4d8",
+      "section": "DISPLAY_PRESENTATION_MULTI_VERSION / slot states",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-10-08T03:35:00+00:00"
+    },
+    {
+      "id": "fw-ws3-cp1-display-presentation-c",
+      "workspace": "firmware",
+      "path": "APP/services/display_presentation.c",
+      "revision_or_commit": "9f2ba8651ce0b352c6d9428148b8f7a8f549deeb",
+      "sha256": "935dd3c898da8950e8c7252db5ebbe548046e9a15f6857822e59ba256cf94693",
+      "section": "0x99 v1 complete four-slot snapshot validation",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-10-08T03:35:00+00:00"
+    },
+    {
+      "id": "fw-ws3-cp1-command-solve",
+      "workspace": "firmware",
+      "path": "APP/sub_main/command_solve.c",
+      "revision_or_commit": "9f2ba8651ce0b352c6d9428148b8f7a8f549deeb",
+      "sha256": "9dabdc1b446c7cfe1a02205240bc16d6f5c4787c1bc4c342a3c7d503b9c7c8ab",
+      "section": "0x98/0x99/0x9A command handling and catalog key",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-10-08T03:35:00+00:00"
+    },
+    {
+      "id": "fw-ws3-cp1-main-display-map",
+      "workspace": "firmware",
+      "path": "APP/sub_main/main.c",
+      "revision_or_commit": "9f2ba8651ce0b352c6d9428148b8f7a8f549deeb",
+      "sha256": "d3c2e6a5bc9c7486739e8d6d1d0cd937b2c0f7abd928d273501909d30861d66a",
+      "section": "SINGLE/MULTI display class mapping",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-10-08T03:35:00+00:00"
+    },
+    {
+      "id": "fw-ws3-cp1-gate-receipt-pass",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/evidence/checkpoints/X1-AI-WORKFLOW-PRESENTATION/CP1/20261006T143035/gate-receipt.json",
+      "revision_or_commit": "9f2ba8651ce0b352c6d9428148b8f7a8f549deeb",
+      "sha256": "491fec8b21cfab0bb4d0568efac9444cbd77f23f6f0d01048ff30583d13efa2f",
+      "section": "result / machine_checks / artifact",
+      "kind": "test",
+      "maturity": "verified",
+      "observed_at": "2026-10-08T03:35:00+00:00"
+    },
+    {
+      "id": "fw-ws3-cp1-host-test",
+      "workspace": "firmware",
+      "path": "tests/host/ai_presentation/test_display_presentation.c",
+      "revision_or_commit": "9f2ba8651ce0b352c6d9428148b8f7a8f549deeb",
+      "sha256": "ae0db1090882e590b2b259c84f3b7bc1ef704799da95ddb91670031d96c22db8",
+      "section": "0x98/0x99/0x9A host-side protocol tests",
+      "kind": "test",
+      "maturity": "verified",
+      "observed_at": "2026-10-08T03:35:00+00:00"
+    },
+    {
+      "id": "fw-ws1-architecture-for-ws005",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/workstreams/X1-CONNECTIVITY-POWER/ARCHITECTURE.md",
+      "revision_or_commit": "9f2ba8651ce0b352c6d9428148b8f7a8f549deeb",
+      "sha256": "b36c30719e85c7abcdc2cc634cf06ea92d95024508e6f87cf2cb5663f62f8ed6",
+      "section": "0x95 and lifecycle/presentation boundaries",
+      "kind": "architecture",
+      "maturity": "agreed",
+      "observed_at": "2026-10-08T03:35:00+00:00"
+    },
+    {
+      "id": "fw-ws2-architecture-for-ws005",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/workstreams/X1-INPUT-CONTROL/ARCHITECTURE.md",
+      "revision_or_commit": "9f2ba8651ce0b352c6d9428148b8f7a8f549deeb",
+      "sha256": "ead70d48e2b36e909e149e64c53f84bd67586363c9dadc3629629b63e703db2c",
+      "section": "0x9F/0x96/0x97/0x87 and legacy fallback boundaries",
+      "kind": "architecture",
+      "maturity": "agreed",
+      "observed_at": "2026-10-08T03:35:00+00:00"
+    },
+    {
+      "id": "fw-capability-registry-for-ws005",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/capability-registry.yaml",
+      "revision_or_commit": "9f2ba8651ce0b352c6d9428148b8f7a8f549deeb",
+      "sha256": "1d4341423f71ca389098f771365553ba691af0f6f0eec565b01848857c8f16af",
+      "section": "capability boundaries / task-and-ai-state",
+      "kind": "architecture",
+      "maturity": "agreed",
+      "observed_at": "2026-10-08T03:35:00+00:00"
+    }
+  ]
+}
+

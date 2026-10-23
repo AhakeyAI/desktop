@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "当前正式路由：WD-005 / IMPLEMENT / FIX，next_actor=DIB，build_round=6。",
+    "conclusion": "三项生产修复通过复核，但发现1项P1测试隔离问题，已正式退修；暂不放行新Preview。"
+  },
+  "completed": [
+    "R4-F1/F2/F3已修复：完成事实不丢失、匿名工具保留显示占用、补发失败不延长TTL。",
+    "P1：新增测试只截获TCP，仍可自动打开并写真实USB键盘；定位DisplayConfigRound5Checks.java:32，调用BleManager.java:462、1017。这是可达风险，不表示已发生设备写入。",
+    "累计31文件复审、443项日志与哈希已核对；Spec无新增确定产品缺陷，Standards发现上述测试隔离违规。本DLA未运行测试或改生产代码。"
+  ],
+  "remaining": [
+    "测试隔离修复及重新验证；上传根因、来源缺失、固件主槽回退、BLE性能仍待收口。fresh、candidate、新包和真机验收未完成。"
+  ],
+  "owner": {
+    "decision": {
+      "required": false,
+      "action": "无需重新Grill；本次定点修测试安全隔离，不推翻三项生产修复。"
+    },
+    "operation": {
+      "required": true,
+      "action": "将下方提示词复制到已有DLB/DIB实现窗口。"
+    },
+    "test": {
+      "required": false,
+      "action": "目前不要运行这些测试或用旧Preview验证新修复。"
+    }
+  },
+  "next": {
+    "role": "DIB",
+    "destination": "DIB 对话",
+    "mode": "FIX",
+    "task": "WD-005 revision 3 / round 6 修复R5-F1测试隔离",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "action": "先封闭测试真实I/O路径，再运行适用离线检查并submit。",
+    "authorization": "当前有效R3合同和正式request-fix，仅修复测试安全边界；无设备或打包授权。",
+    "goal": "消除测试对物理USB状态的依赖，保留三项已修复行为并重新提交。",
+    "facts": [
+      "当前IMPLEMENT/FIX，round6；R4-F1/F2/F3生产修复成立，R5-F1阻断审阅。",
+      "修前源码指纹1fca9345199cd1166acd8b4df7125d3e17f1cad4032c7736dc1060361a2d3ccf；第五轮443项不是本轮PASS。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005\\DLA_ACTUAL_REVIEW_R5_20261020.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005\\DLA_ACTUAL_REVIEW_R5_20261020.json"
+    ],
+    "allowed": [
+      "先读STATE/当前合同/批准/起点/隔离记录并preflight。优先仅修改displayconfig测试夹具与测试，不重写已正确的生产修复。",
+      "封闭FakeSession→sendCommand→ensureUsbConnected的真实发现/open/send路径；核对共享夹具全部调用者、lease关闭与reset之后的隔离。不能只换TCP输出、要求拔键盘或用假quarantine掩盖被测语义。",
+      "先静态确认不会触及真实I/O，再执行授权离线编译/隔离检查；补充隔离确定性证据及适用回归。新增报告/日志，按round6 record-check/submit；需要扩大生产接口改动时先交DLA。"
+    ],
+    "forbidden": [
+      "不连接设备验证风险，不自动打包、运行真实应用、安装Hook、写设备、烧录、发布或Git写入。",
+      "不改桥接/固件、无关功能、Harness规则/seal；不覆盖冻结报告/批准/起点/旧审阅、不还原dirty；不把历史未触硬件声明升级为已证明事实。"
+    ]
+  }
+}

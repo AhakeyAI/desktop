@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "record_type": "owner_disposition",
+  "timestamp": "2026-10-03T00:00:00+08:00",
+  "actor": "Owner",
+  "recorded_by": "DLA",
+  "harness_version": "1.0.1",
+  "summary": "Owner accepts historical WD-001 state, waives further recovery for progression, abandons WD-R001 implementation, and directs WD-002 Firmware-driven CHANGE.",
+  "disposition_text": "Owner accepts historical state and waives further recovery for progression.",
+  "wd001": {
+    "status": "CLOSED_BY_OWNER",
+    "acceptance": "ACCEPTED_AS_IS_FOR_PROGRESS",
+    "recovery": "NO_FURTHER_RECOVERY_REQUIRED",
+    "preserve_facts": [
+      "T07 remains not_executed",
+      "old PASS remains bound to original candidate/JAR",
+      "do not rewrite unexecuted items to PASS",
+      "do not rewrite historical Review, Owner Results or Firmware gate"
+    ],
+    "progression_effect": "Legacy drift, stale review, old candidate/build binding and response ownership recovery no longer block later Windows development."
+  },
+  "wdr001": {
+    "status": "ABANDONED_BY_OWNER",
+    "implementation": "NO_IMPLEMENTATION_REQUIRED",
+    "supersession": "SUPERSEDED_BY_OWNER_ACCEPTANCE",
+    "preserve_archive": true,
+    "do_not_enter_implement": true,
+    "do_not_handoff_to_dib": true
+  },
+  "wd002": {
+    "direction": "START_FORMAL_CHANGE_FROM_FIRMWARE_DRIVEN_INTAKE",
+    "firmware_root": "C:\\Users\\20825\\Desktop\\vibe-code",
+    "owner_burden": "Owner does not manually provide repository facts that DLA can read.",
+    "java_change_before_contract_approval": false
+  }
+}

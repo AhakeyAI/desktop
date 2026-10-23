@@ -1,0 +1,124 @@
+{
+  "schema_version": 3,
+  "id": "WD-005",
+  "title": "WS3 CP2 OLED与灯光配置",
+  "revision": 2,
+  "phase": "VERIFY",
+  "status": "ACTIVE",
+  "build_round": 3,
+  "assignment": {
+    "owner_record": ".ahakey-desktop-harness/evidence/20261015-wd005-owner-scope-approval.json",
+    "record_sha256": "04879c694266ab63023e2e90c8b8a74247f010b70069d3a7c8767063ddab0359",
+    "at": "2026-10-15T11:55:45+00:00"
+  },
+  "delivery_scope": "internal_integration",
+  "requirements": {
+    "ui_entry_changed": false,
+    "device_related": true,
+    "real_device": true,
+    "owner_uat": true
+  },
+  "allowed_paths": [
+    "src/main/java/com/example/ahakey/view/InspectorPane.java",
+    "src/main/java/com/example/ahakey/view/CanvasController.java",
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/model/StudioState.java",
+    "src/main/java/com/example/ahakey/model/OledModeDraft.java",
+    "src/main/java/com/example/ahakey/model/LightEffectStyle.java",
+    "src/main/java/com/example/ahakey/model/OledResourceState.java",
+    "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+    "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+    "src/main/java/com/example/ahakey/util/StudioStore.java",
+    "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+    "src/main/java/com/example/ahakey/service/OledUploadService.java",
+    "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+    "src/main/java/com/example/ahakey/service/FirmwareLightSimulator.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+    "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+    "src/main/resources/fxml/CanvasLayout.fxml",
+    "src/main/resources/style.css",
+    "src/main/resources/messages_zh.properties",
+    "src/main/resources/messages_en.properties",
+    "src/test/java/com/example/ahakey/displayconfig"
+  ],
+  "preserved_behaviors": [
+    "保留键盘热点、按键/侧拨/语音及模式同步；不扩大既有离线配置入口权限。",
+    "CP1事实仍由原服务负责，上传后只补发最新事实；不改主槽位/TTL算法。",
+    "本地草稿不被回读覆盖；清除仅本地，不删除原图或设备资源。",
+    "保留历史dirty及原任务合同/批准/起点，不自动Git、构建、设备写入或发布。"
+  ],
+  "approval_assets": [
+    "CONTRACT.md",
+    "REFERENCES.json",
+    "DECISIONS.md",
+    "IMPLEMENTATION_SCOPE.md",
+    "PROTOCOL_AND_STATE.md",
+    "ACCEPTANCE.md",
+    "DESIGN_REVIEW.md",
+    "REGISTRATION.md"
+  ],
+  "ui_mode": "existing",
+  "ui_note_ref": "CONTRACT.md",
+  "ui_current_refs": [],
+  "ui_preview_refs": [],
+  "mock_plan": "ACCEPTANCE.md",
+  "checkpoints": [
+    "离线模型/编码/存储及UI验证",
+    "协议模拟及跨入口事务验证",
+    "DLA实际差异审阅与Owner Preview",
+    "高影响独立差异审阅与正式配对真机验收"
+  ],
+  "approval": {
+    "at": "2026-10-17T10:22:01+00:00",
+    "owner_record": ".ahakey-desktop-harness/evidence/20261017-wd005-reference-reconcile-owner-authorization.md",
+    "owner_record_sha256": "88c4a5d87201d3313bf4e96bb933caa743bd6195c27bed4df7a98d4730e07022",
+    "inputs": {
+      "meta_sha256": "7eaad597350287b848421539a15ca4b40dc97bbc9177dcb3cd0d7f53cca3cc63",
+      "assets": {
+        "CONTRACT.md": "6fc54cd021c463396354783602629f036ee6c7a02919ee7408dbb8b20e31a5c5",
+        "REFERENCES.json": "1bb3f96c441a6eaa891be6ec3fdc98b58f3e3a45197ba397c26d16027472636f",
+        "DECISIONS.md": "5d5e82ad0d1543a4c4ac7b90ab43a46d2b9486d82bc44b0d1743b43dd6191bef",
+        "IMPLEMENTATION_SCOPE.md": "12c937826c84fff190028348247e2e4204afde04257788016d3e418978483906",
+        "PROTOCOL_AND_STATE.md": "2f0cff7afc3340109abd02c932c9024cede07995471a458e16d56d563c391be7",
+        "ACCEPTANCE.md": "c6ebf4b485d9671fcb66400dcf350897f322f4439f257a2748c264c36d35ff2c",
+        "DESIGN_REVIEW.md": "6084d6b7d51061508faac80df1241fbb9651c2dcd184bb4a0dc47626f62a4c4d",
+        "REGISTRATION.md": "2f2db582d388cf8481f814d6d87b85ceab98d0b041666a3935f39bc78d21e1cf"
+      },
+      "reference_sha256": "fa5f7f46024beb473a44622e595b701998b1e28108893af969586af3b0ab1f84"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "change_classification": [
+    "architecture_change",
+    "protocol_change",
+    "scope_expansion"
+  ],
+  "journey_ids": [
+    "J005",
+    "J006"
+  ],
+  "review_policy": "high_impact",
+  "activated_at": "2026-10-15T12:02:37+00:00",
+  "isolation_record": ".ahakey-desktop-harness/evidence/20261015-wd005-isolation-from-wd002.md",
+  "fix_request": {
+    "at": "2026-10-16T06:40:43+00:00",
+    "record": ".ahakey-desktop-harness/changes/WD-005/REVIEW.json",
+    "sha256": "c88d49fd4a69b1ca793742d3b69966b41ad7bc3f7c24cda1a7aac46dd536eefd"
+  },
+  "contract_revision": {
+    "at": "2026-10-17T10:22:01+00:00",
+    "reason_record": ".ahakey-desktop-harness/evidence/20261017-wd005-reference-reconcile-reason.md",
+    "reason_sha256": "edbdbe520767a7c578342c8aa3090e5dc7882698984ef9e0faf84d17c0f723b9",
+    "owner_record": ".ahakey-desktop-harness/evidence/20261017-wd005-reference-reconcile-owner-authorization.md",
+    "owner_sha256": "88c4a5d87201d3313bf4e96bb933caa743bd6195c27bed4df7a98d4730e07022",
+    "previous_revision": 1
+  },
+  "preview_fix_round": 1,
+  "preview_fix_request": {
+    "path": ".ahakey-desktop-harness/previews/WD-005/fixes/preview-fix-20261018T070308825518Z-7fd8d7/REQUEST.json",
+    "sha256": "8e2267753ba3d5c6bd4960899484db003f06ee7b7d2f6ba7efea0b5142d06841"
+  }
+}

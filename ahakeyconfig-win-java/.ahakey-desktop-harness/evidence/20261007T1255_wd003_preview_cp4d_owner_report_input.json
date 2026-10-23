@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "DIB BUILD_ONLY 已完成，等待 DLA 做预览交接。",
+    "conclusion": "WD-003 build_round 8 的 Owner Preview JAR 已在隔离预览快照内构建成功，并已写入 PREVIEW_RECEIPT；这只是 Owner Preview，不是正式候选、正式构建、Owner UAT 或发布。"
+  },
+  "completed": [
+    "已读取 AGENTS、builder skill、harness skill、STATE、change、CONTRACT、REFERENCES、REVIEW、review_pack、IMPLEMENTATION_RECEIPT、verification、CP4D 执行报告、机器检查日志和 START.json。",
+    "已执行 DIB preflight，结果为 PASS。",
+    "已在预览源码快照内使用 JDK17 执行 Maven package，退出码为 0，构建日志已保存。",
+    "已确认主 JAR 为 ahakey-studio-1.0.0.jar，目标目录包含 lib 依赖，启动入口应使用 jar_classpath 的 com.example.ahakey.Main。",
+    "已执行 preview-finish，PREVIEW_RECEIPT 状态为 ready_for_owner_preview。"
+  ],
+  "remaining": [
+    "DLA 还需要核对 PREVIEW_RECEIPT 和构建日志，并向 Owner 发布预览启动与测试说明。",
+    "尚未运行应用，尚未连接 USB/BLE 真机，尚未记录 Owner Preview pass/fail。",
+    "高影响独立 fresh review、Git candidate、正式构建收据、固件身份和正式测试包仍未完成。"
+  ],
+  "owner": {
+    "decision": {
+      "required": false,
+      "action": "本轮不需要新的产品决策；只是把已通过审阅的 CP4D 0x87 预览快照构建出来。"
+    },
+    "operation": {
+      "required": true,
+      "action": "请把下面完整 Prompt 复制到原 DLA 对话，让 DLA 核对预览收据并发布 Owner Preview 说明。"
+    },
+    "test": {
+      "required": false,
+      "action": "现在先不要把这一步当成测试通过；等 DLA 输出启动命令和测试清单后，再做 USB/BLE 真机预览测试。"
+    }
+  },
+  "next": {
+    "role": "DLA",
+    "destination": "原 DLA 对话",
+    "mode": "PREVIEW_HANDOFF / DLA_REVIEW_CONTINUE",
+    "task": "WD-003 用户预览交接：CP4D 0x87 普通键单包读回适配后的 Owner Preview 说明",
+    "action": "DLA 核对 PREVIEW_RECEIPT 和构建日志，然后输出中文 Owner Preview 启动命令与测试重点。",
+    "authorization": "DIB 已基于 DLA preview-open 授权，在隔离 snapshot 内完成 Maven package 并执行 preview-finish；DLA 可基于 PREVIEW_RECEIPT 发布 Owner Preview 说明，但不能称为正式候选、正式构建、正式验收、Owner UAT、真机 PASS、发布或 release。",
+    "goal": "让 Owner 用当前预览 JAR 与当前固件联调验证 0x9F、0x95、0x97、0x87、侧拨保存读回、组合快捷键、短宏以及 CP4D 普通键单包读回。",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "facts": [
+      "当前任务仍是 WD-003。",
+      "DLA 已完成 build_round 8 CP4D 0x87 actual diff review，REVIEW.json decision 为 pass。",
+      "这不是 formal high-impact fresh review、Git candidate、正式构建、Owner UAT、真机 PASS 或 release。",
+      "本轮 Owner Preview 的预览令牌是 preview-20261007T043528705385Z-bd644d。",
+      "本轮预览收据 PREVIEW_RECEIPT 的状态是 ready_for_owner_preview，表示可交给 Owner 做预览验证。",
+      "工作代码指纹为 a6dec812a6e11de5016e01b241c0e081d44350762dae206639e31ef6ddf3e58d。",
+      "预览源码快照指纹为 5bf47fb94cb9dbc12e45b16544c5256b047c1c6f98188289918a1671cbf7ad48。",
+      "本轮 DIB preflight PASS，随后只在预览源码快照内执行 JDK17 Maven package，退出码为 0。",
+      "构建日志为 C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\evidence\\20261007T1245_wd003_preview_cp4d_0x87_package.log。",
+      "可运行预览目录为 C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-003\\preview-20261007T043528705385Z-bd644d\\source\\target。",
+      "主 JAR 为 C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-003\\preview-20261007T043528705385Z-bd644d\\source\\target\\ahakey-studio-1.0.0.jar，SHA256 为 441b3a4ddcdde8f72f5e301cac118756de9706504b734529640558dc0f99d822。",
+      "启动入口记录为 jar_classpath：Set-Location -LiteralPath 'C:\\Users\\20825\\Desktop\\WINDOW~2\\desktop\\AHAKEY~3\\AHAKEY~1\\previews\\WD-003\\PREVIE~4\\source\\target'; & 'D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe' -cp 'ahakey-studio-1.0.0.jar;lib\\*' com.example.ahakey.Main。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\AGENTS.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-lead\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-harness\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\STATE.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\change.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\CONTRACT.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\REFERENCES.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\REVIEW.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\verification.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-003\\preview-20261007T043528705385Z-bd644d\\START.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-003\\preview-20261007T043528705385Z-bd644d\\PREVIEW_RECEIPT.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\evidence\\20261007T1245_wd003_preview_cp4d_0x87_package.log"
+    ],
+    "allowed": [
+      "可执行只读状态、PREVIEW_RECEIPT 和构建日志核对。",
+      "可基于 PREVIEW_RECEIPT 输出 Owner Preview 中文说明。",
+      "说明中必须给出完整 PowerShell 启动命令，使用 jar_classpath 入口 com.example.ahakey.Main。",
+      "要求 Owner 重点验证 0x9F 固件能力读取、0x95 睡眠等待时间读取、0x97 侧拨配置读回、0x87 普通键单包读回。",
+      "要求 Owner 验证侧拨 Custom 单键、组合快捷键、短宏保存读回，并确认普通键 K1-K4 默认配置读回不被破坏。",
+      "如记录 Owner Preview pass 或 fail，必须使用 preview-result，不能冒充 formal owner_uat。"
+    ],
+    "forbidden": [
+      "不得把 Preview 构建、预览收据或 Owner Preview 称为正式候选、正式构建、正式验收、Owner UAT、真机 PASS、发布或 release。",
+      "不得修改生产 Java、合同、协议语义、固件仓库或 Harness 规则。",
+      "不得 Git add、commit、push、reset、clean 或 stash。",
+      "不得构建安装包、安装程序、kill 进程、连接设备、写入设备或烧录。",
+      "不得绕过高影响独立 fresh review、Git candidate、正式构建收据、固件身份和正式测试包缺口。"
+    ]
+  },
+  "evidence": [
+    "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-003\\preview-20261007T043528705385Z-bd644d\\PREVIEW_RECEIPT.json",
+    "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\evidence\\20261007T1245_wd003_preview_cp4d_0x87_package.log"
+  ]
+}

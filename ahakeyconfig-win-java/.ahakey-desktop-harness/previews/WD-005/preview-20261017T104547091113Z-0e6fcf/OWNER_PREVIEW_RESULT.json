@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "token": "preview-20261017T104547091113Z-0e6fcf",
+  "at": "2026-10-18T07:02:53+00:00",
+  "status": "fail",
+  "owner_record": ".ahakey-desktop-harness/evidence/20261018-wd005-preview-readability-owner-feedback.md",
+  "owner_sha256": "e92384fcb60201f17492926d72db6029041d768dcef7f5e6a7150ccd864d721e",
+  "preview_receipt_sha256": "9f37390788e6b366e4928347b67cc1045ca1a3f6958e69eb917a85f753638fe5",
+  "snapshot_fingerprint": "06dd1f39c426590e8e43ee717aa5069345670e550924747a6a7b91a348b1a194",
+  "scope": "OWNER_PREVIEW_RESULT_ONLY_NOT_OWNER_UAT"
+}

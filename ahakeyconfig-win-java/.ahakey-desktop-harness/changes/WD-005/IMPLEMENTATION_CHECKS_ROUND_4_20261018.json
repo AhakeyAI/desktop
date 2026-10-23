@@ -1,0 +1,258 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "revision": 3,
+  "build_round": 4,
+  "role": "DIB",
+  "status": "LOCAL_EXECUTION_COMPLETE_FORMAL_SUBMIT_BLOCKED",
+  "observed_source_fingerprint": "e298ea1dd15131f508a602deed06181e0a53c6ff8b5c2366674dfc0cfb44d49d",
+  "starting_source_fingerprint": "aea60d8c7eb936cb937cc59522fed7224c845ecf7947cedb17e8f029ad1656c8",
+  "head": "41c034171e60b2d4962b0adbe8f3cffbf80a0436",
+  "frozen_base_report_sha256": "749264589c44656848f062fcf3b4ecf35784bef80f7356dc1f204834d69a19a2",
+  "report": "EXECUTION_REPORT_REVISION_3_ROUND_4_20261018.md",
+  "actual_checks": {
+    "compile_exit": 0,
+    "core": 175,
+    "fx": 36,
+    "races": 72,
+    "revision3": 72,
+    "ui": 42,
+    "total_assertions": 397,
+    "encoding_sample_utf8": {
+      "stdout": true,
+      "stderr": true,
+      "jul": true,
+      "file": true
+    },
+    "source_diff_check_exit": 0
+  },
+  "qualification": "仅实际执行观察，不是正式record-check、submit、审阅、Preview、硬件或UAT通过。",
+  "blocked_by": {
+    "code": "SIBLING_WORKSPACE_CHANGED",
+    "files": [
+      "BLE_tcp_bridge/BRIDGE-01_IMPLEMENTATION_BOUNDARY_20261018.md",
+      "BLE_tcp_bridge/Form1.cs",
+      "BLE_tcp_bridge/Program.cs",
+      "BLE_tcp_bridge/TcpServer.cs"
+    ],
+    "formal_record_check_executed": false,
+    "formal_submit_executed": false
+  },
+  "unresolved": [
+    "UP-01真实根因",
+    "UP-02传输/固件根因及真机恢复",
+    "RT-01缺来源元数据的具体后台事件",
+    "RT-03固件主槽回退",
+    "BLE-PERF-01硬件A/B",
+    "完整App/新Preview/正式配对"
+  ],
+  "changed_since_preview": [
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "sha256": "0bbbcfefc174bc4b7bc30c0316a0050f97de3cf2346b0d9a33267d5a2dbcee90",
+      "preview_snapshot_sha256": "6d5b479c39b3b222bfa11b249cc9ee42e432e86a2264af089ab7cc79477a7955"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "sha256": "6d6e50fa335e0a3a60df01fe0d79b4c0b1b31d10f3f8b16fb1a7209396b34eb1",
+      "preview_snapshot_sha256": "e23309406f53becfdadb99100b92d1b2fac097ec810e6ab123be3ef3f70e3c95"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledUploadService.java",
+      "sha256": "53d9615ad65154c497d730d947a910817712cb4fc165f60557680a94444f589c",
+      "preview_snapshot_sha256": "8554ae96466dde04d061760ed7517bd4ac2dc777435c8671bf77a372613587fc"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "sha256": "e3281557cce33778bb0d038328579794a27af4e13cb68a7941bf291ed2ae8a5b",
+      "preview_snapshot_sha256": "b0d4fd6df99265b2860ac62f6eff735fea0b9a91f010bc6c21576c797a5645c0"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "sha256": "01bc03a37d487441f0a4b68ece47d61b0076d501fc7d779f2abe0e7e7eee3b1f",
+      "preview_snapshot_sha256": "a8035f70d9181b6f4d95bed888727f91ffa039144ebda75cb832188fe13f9318"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "sha256": "981c930a191d6788e0cc5af6a3b54d9df0463a34f01174ff0966d837deca1c14",
+      "preview_snapshot_sha256": "9ec67220c4cc7b985029a4bea6b08d3a5dfe7110d3639aa27aac05694705d6ee"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookDispatchServer.java",
+      "sha256": "124f268d2fea9b600ac9a3b3b0bb98d5358b92ec6bbdc461b48e27e99e87a27b",
+      "preview_snapshot_sha256": "dd8a8315f01b3387b8761627f25b4b10045de188227dac6b573b904f623967c1"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CodexSessionDiscoveryService.java",
+      "sha256": "81443cba8648d5967bc5f5c12d360e98c284a54b6f7c9b2aa4362ed00c106380",
+      "preview_snapshot_sha256": "75e0c495d225fcf643ae549edd7b9460d6187351536a8ab586ebd888e87ab929"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/AiRuntimeSlotBinding.java",
+      "sha256": "6ac6fc4017fdb6697c0ed7f04e0c47d488d6383e4845ebc66662eb3508744513",
+      "preview_snapshot_sha256": "38e6e3d1acb840d9d73e166719b11a12920fb8ea64f6ef34b62540d68fd754ca"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/AiRuntimeStore.java",
+      "sha256": "8a8fb975fde42b545ac1d412c1419b4faf32fded02af5d1af3599b74049201c0",
+      "preview_snapshot_sha256": "619accbb9218f8b1559faa565205be4e099f36cb9e7513e9c67d207e1f752fd5"
+    },
+    {
+      "path": "src/main/resources/style.css",
+      "sha256": "275591780d7020c86d380b549589bbcf27867be7d737041a1285eb94532e235d",
+      "preview_snapshot_sha256": "a0672c95fab0a5e2ed90f560d8d7f13b8a4b490a727f32ff1f6bc70e3db3dad2"
+    },
+    {
+      "path": "src/main/resources/messages_zh.properties",
+      "sha256": "206099a4b323c0933c39c6643273f5f471b90966800d92920b815a7c13669b4a",
+      "preview_snapshot_sha256": "b0456d4020e1b5a604f9657f9dffdc4283889e2d8a073121bf02a278b16f3c30"
+    },
+    {
+      "path": "src/main/resources/messages_en.properties",
+      "sha256": "b927a124f79098b7c3a6edf6d1d760f766ecc717580ff8e9a5154520e32731cb",
+      "preview_snapshot_sha256": "9a94e44c3c8d947d8aa6e2d9797922f19cd9f1c3c92fa70df78d74068753e58d"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigEncodingProbe.java",
+      "sha256": "9143d4c5449dd4e56a9e381cd48b8a61b749635c57c36671a2dd821e7dbc65a0",
+      "preview_snapshot_sha256": null
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3Checks.java",
+      "sha256": "9e3cfda79d174ceb4decf559d3bf6becddb9a7176002b7fa7660a6a4a1586e2a",
+      "preview_snapshot_sha256": null
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3UiChecks.java",
+      "sha256": "083b03aa562069069b7cbfe9066f238603e0b38b601ecb753612c306e312ebc8",
+      "preview_snapshot_sha256": null
+    }
+  ],
+  "evidence_files": [
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-compile-01.log",
+      "bytes": 1814,
+      "sha256": "9097cd57cc809ae08e569c9fcf85b280e622e75269600209fd1d4aec7d09de75"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-compile-02.log",
+      "bytes": 2825,
+      "sha256": "9ba0b63efd9a2afa6113e3822449e43f9bfc71c9306a76fc228d1f89581ff9c3"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-compile-03.log",
+      "bytes": 1918,
+      "sha256": "c6ab1ed088d4e0723e8c1e71d750b9d0a12005d4a6f443545c82c73266861433"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-compile-04.log",
+      "bytes": 1802,
+      "sha256": "cfe486b98d39aa1187af88affe6bacc678bb41c68288602c0c961f8ef69e01e7"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-compile-final.log",
+      "bytes": 1802,
+      "sha256": "399739bbb48f92fd7ebd69605ffd5764b3c519e5f80c028d4a84e2f81bf4536b"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-compile-red.log",
+      "bytes": 1726,
+      "sha256": "d55fdcb8d8a4814c39a6ebe786a4a1631f357502c2e22e8b9e2e43df8caa9d76"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-core-01.log",
+      "bytes": 6548,
+      "sha256": "f89b285e673fd953b03aacb5ae14b4896f6f21e839ae0bf7b7b87698926b13a1"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-diff-check.log",
+      "bytes": 1746,
+      "sha256": "d0f95d4e4b36e8485937265563185003bf9468787a3e77581b4ae91e8dc71703"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-encoding-file.log",
+      "bytes": 167,
+      "sha256": "f28fa7efbb6f119a4fd8f8cebe85dbde4144d2d606f9f1d56c15430275b1a457"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-encoding-stderr.log",
+      "bytes": 233,
+      "sha256": "6c0c9479446297db5b16291bb88e8b9337aacc28a012c23cbf03f944c67e96d9"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-encoding-stdout.log",
+      "bytes": 81,
+      "sha256": "86dd877dabcec35dcb3129a2c82ed16db245490077ebd0d6b7b14492c573d3c9"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-final-DisplayConfigChecks.log",
+      "bytes": 6548,
+      "sha256": "5400a50a28461b7387f3c98622343e3eda8eb921d26293e6b53bc02a0b2f0a38"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-final-DisplayConfigFxChecks.log",
+      "bytes": 2355,
+      "sha256": "182769f5286d7131829a458661fc8a9602a3dc13a27b7631999b8577dfb3b9c8"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-final-DisplayConfigRaceChecks.log",
+      "bytes": 7042,
+      "sha256": "46822a19e25b7e397554edea80f69e95649a74d8d9f70d4cf5990e09f4f36870"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-final-DisplayConfigRevision3Checks.log",
+      "bytes": 610561,
+      "sha256": "da7f2481d6535f7d62d68092dc38bd323a42da97d639f115ddefd58d80e65ccd"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-fx-01.log",
+      "bytes": 2355,
+      "sha256": "5a1c9ea2f53508f3a2e033e24fd41f36afcf38bcaa3eccb1e9bd4d0c64098650"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-preflight-blocked.log",
+      "bytes": 250,
+      "sha256": "d1262ac22d9820264baf47b11c974c0cb9d74a558b8895eb56b25a5940f6fbcb"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-races-01.log",
+      "bytes": 6930,
+      "sha256": "07422d3feaf9fb885acfd66f34b782dd3e63c94dd03ee7aaea99e4f6b7eb949f"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-runtime-green-01.log",
+      "bytes": 1496,
+      "sha256": "9fdb066eac2af00846670197f172744b79865efd9272cd00dc18d1f139d830db"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-runtime-green-02.log",
+      "bytes": 312247,
+      "sha256": "0435d94b13899c34c804b02aa2b56817363dc27e2ca207deee005d3383b58c93"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-runtime-red.log",
+      "bytes": 2371,
+      "sha256": "b800cb31d16f24afb31eccebc9d61b752d346256853eaae8195504d257b1b085"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-ui-01.log",
+      "bytes": 1840,
+      "sha256": "c758eefed78dec9658955c1fbe689b57793aa0c54f43ef349c130b531f416507"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-ui-final.log",
+      "bytes": 1836,
+      "sha256": "b5403b370d4933deb821e44232fe6637a7422321350bee022eb284eaf03835fa"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-ui-final.png",
+      "bytes": 20570,
+      "sha256": "b9590c373619fe26426e78ce790a953a778984407cb8bf821430b64769898568"
+    },
+    {
+      "path": ".ahakey-desktop-harness/evidence/20261018-wd005-r4-ui.png",
+      "bytes": 20571,
+      "sha256": "687795840d6150ab4bf141e0b85b8f3d985ca168cdde4b649b0caea339049a00"
+    }
+  ]
+}

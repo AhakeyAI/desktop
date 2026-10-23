@@ -1,0 +1,3417 @@
+{
+  "content_changes": [
+    {
+      "status": "changed_content",
+      "preview": {
+        "size": 8527,
+        "content_sha256": "559dca57f32216d1d18b4b706e68b7777d7b6c351233e0ffcfb86d82843eb025",
+        "entry": "com/example/ahakey/view/CanvasPane.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 3841
+      },
+      "entry": "com/example/ahakey/view/CanvasPane.class",
+      "current": {
+        "size": 8527,
+        "content_sha256": "5494a1f3729dd0039566f4c7b88107ed9b407eb40397f58cfd3c279b1cb45353",
+        "entry": "com/example/ahakey/view/CanvasPane.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 3840
+      }
+    },
+    {
+      "status": "changed_content",
+      "preview": {
+        "size": 884,
+        "content_sha256": "b6c5f658e60e6c0bfe06bbcaace30db2265e8045d8ac97250e1448ff3b75d291",
+        "entry": "fxml/VoiceInputPanel.fxml",
+        "last_write_time": "2026-10-21T10:49:20.0000000+08:00",
+        "compressed_size": 460
+      },
+      "entry": "fxml/VoiceInputPanel.fxml",
+      "current": {
+        "size": 904,
+        "content_sha256": "e3b3a36fd6e1ee7f19945b86c9ad5cdbfd98726e8809462bfa47f57154cce096",
+        "entry": "fxml/VoiceInputPanel.fxml",
+        "last_write_time": "2026-09-24T15:10:20.0000000+08:00",
+        "compressed_size": 465
+      }
+    },
+    {
+      "status": "changed_content",
+      "preview": {
+        "size": 1413,
+        "content_sha256": "47aef3936b40d7baa595aa77064c8f238bb296989f474dfa6cefc2b35b73e618",
+        "entry": "logback.xml",
+        "last_write_time": "2026-10-21T10:49:20.0000000+08:00",
+        "compressed_size": 586
+      },
+      "entry": "logback.xml",
+      "current": {
+        "size": 1450,
+        "content_sha256": "714a434a5aa5e4b61fd7f83ddcb2d88da3f69295b7cdf93a5bdabea3cca149fa",
+        "entry": "logback.xml",
+        "last_write_time": "2026-09-24T15:10:20.0000000+08:00",
+        "compressed_size": 588
+      }
+    },
+    {
+      "status": "changed_content",
+      "preview": {
+        "size": 6736,
+        "content_sha256": "f74c0152e8e6a584db50bcbf999631976d1a50f5a362ed02480c4d2354615fc3",
+        "entry": "META-INF/maven/com.example/ahakey-studio/pom.xml",
+        "last_write_time": "2026-10-21T10:49:20.0000000+08:00",
+        "compressed_size": 1333
+      },
+      "entry": "META-INF/maven/com.example/ahakey-studio/pom.xml",
+      "current": {
+        "size": 6894,
+        "content_sha256": "499a92b34f4e9047b80d378c0d0e1692818d9c770f533e097a242bd1433f7a24",
+        "entry": "META-INF/maven/com.example/ahakey-studio/pom.xml",
+        "last_write_time": "2026-10-08T11:41:12.0000000+08:00",
+        "compressed_size": 1361
+      }
+    },
+    {
+      "status": "changed_content",
+      "preview": {
+        "size": 29,
+        "content_sha256": "551c776bc15ec07c4b801e9017cff4c8361b47dd01802db5c58ad1ff1be17e6a",
+        "entry": "model_config.properties",
+        "last_write_time": "2026-10-21T10:49:20.0000000+08:00",
+        "compressed_size": 31
+      },
+      "entry": "model_config.properties",
+      "current": {
+        "size": 30,
+        "content_sha256": "a32fc4ef090ce3e4c72634f5888fe74462487bf8781a6494ff9e74741f80cbd5",
+        "entry": "model_config.properties",
+        "last_write_time": "2026-09-24T15:10:20.0000000+08:00",
+        "compressed_size": 32
+      }
+    }
+  ],
+  "preview_jar_sha256": "97a5ae072c18a0ed229538fee7766426bd9f6c8ba807607aee10f141efa3052b",
+  "metadata_only_entries": 173,
+  "meaning": "逐条ZIP解压内容SHA及容器条目时间/压缩长度对比；不证明新包启动或UAT。",
+  "dependency_differences": [],
+  "dependencies": [
+    {
+      "file": "jackson-annotations-2.16.0.jar",
+      "byte_equal": true,
+      "preview_sha256": "c4b90ea0c0074da17efdc3aa23973525f25d6f34725692169748f529547334a6",
+      "current_sha256": "c4b90ea0c0074da17efdc3aa23973525f25d6f34725692169748f529547334a6"
+    },
+    {
+      "file": "jackson-core-2.16.0.jar",
+      "byte_equal": true,
+      "preview_sha256": "66e2cde4cc7e565d5fce2a2998b64e991777bf9fad4d220735c525fd8d01c31a",
+      "current_sha256": "66e2cde4cc7e565d5fce2a2998b64e991777bf9fad4d220735c525fd8d01c31a"
+    },
+    {
+      "file": "jackson-databind-2.16.0.jar",
+      "byte_equal": true,
+      "preview_sha256": "8aaf1753823be70b798290e5826ab5bfe015d35b3a36a5d3c2ec9f57d4b0138b",
+      "current_sha256": "8aaf1753823be70b798290e5826ab5bfe015d35b3a36a5d3c2ec9f57d4b0138b"
+    },
+    {
+      "file": "javafx-base-17.0.10-win.jar",
+      "byte_equal": true,
+      "preview_sha256": "79487133c4c27e9db9d47ec9221ef322eb3695c50aacefe2dcac924ae368b2b6",
+      "current_sha256": "79487133c4c27e9db9d47ec9221ef322eb3695c50aacefe2dcac924ae368b2b6"
+    },
+    {
+      "file": "javafx-base-17.0.10.jar",
+      "byte_equal": true,
+      "preview_sha256": "9aff54b645962383d0167610a2e734d644bc9616445b9435604afa9c2ec38a96",
+      "current_sha256": "9aff54b645962383d0167610a2e734d644bc9616445b9435604afa9c2ec38a96"
+    },
+    {
+      "file": "javafx-controls-17.0.10-win.jar",
+      "byte_equal": true,
+      "preview_sha256": "0e60640b3217275b44418fc908e4320fbc4e4511096240141e213e7a8abea6fe",
+      "current_sha256": "0e60640b3217275b44418fc908e4320fbc4e4511096240141e213e7a8abea6fe"
+    },
+    {
+      "file": "javafx-controls-17.0.10.jar",
+      "byte_equal": true,
+      "preview_sha256": "e315426bb3ce3211f6b9ce63107f4bdd6aa078f0d266636d418cd00909d57c88",
+      "current_sha256": "e315426bb3ce3211f6b9ce63107f4bdd6aa078f0d266636d418cd00909d57c88"
+    },
+    {
+      "file": "javafx-fxml-17.0.10-win.jar",
+      "byte_equal": true,
+      "preview_sha256": "a97363c188a3a238e7b9adadc0c00617110f479fed6b8ac9898dcce13c6924db",
+      "current_sha256": "a97363c188a3a238e7b9adadc0c00617110f479fed6b8ac9898dcce13c6924db"
+    },
+    {
+      "file": "javafx-fxml-17.0.10.jar",
+      "byte_equal": true,
+      "preview_sha256": "4704658510b80759bbf46d3a77351821b5942ac355ae5f8a86af30037b56dd25",
+      "current_sha256": "4704658510b80759bbf46d3a77351821b5942ac355ae5f8a86af30037b56dd25"
+    },
+    {
+      "file": "javafx-graphics-17.0.10-win.jar",
+      "byte_equal": true,
+      "preview_sha256": "4c987a834e9ad0f6a0e5991d36d1940ae7b74be302c2a098ee8c20676fe0e2da",
+      "current_sha256": "4c987a834e9ad0f6a0e5991d36d1940ae7b74be302c2a098ee8c20676fe0e2da"
+    },
+    {
+      "file": "javafx-graphics-17.0.10.jar",
+      "byte_equal": true,
+      "preview_sha256": "ce23db5a755c5713451698e7b8e0ccca4bbc6f2fb8fb673576f86a613753d2d1",
+      "current_sha256": "ce23db5a755c5713451698e7b8e0ccca4bbc6f2fb8fb673576f86a613753d2d1"
+    },
+    {
+      "file": "jna-5.14.0.jar",
+      "byte_equal": true,
+      "preview_sha256": "34ed1e1f27fa896bca50dbc4e99cf3732967cec387a7a0d5e3486c09673fe8c6",
+      "current_sha256": "34ed1e1f27fa896bca50dbc4e99cf3732967cec387a7a0d5e3486c09673fe8c6"
+    },
+    {
+      "file": "jna-platform-5.14.0.jar",
+      "byte_equal": true,
+      "preview_sha256": "ae4caceb3840730c2537f9b7fb55a01baba580286b4122951488bcee558c2449",
+      "current_sha256": "ae4caceb3840730c2537f9b7fb55a01baba580286b4122951488bcee558c2449"
+    },
+    {
+      "file": "logback-classic-1.4.11.jar",
+      "byte_equal": true,
+      "preview_sha256": "05850fca185dfa652969ed1e3864e365c0d724737a0f4ec68574baad1d855a0e",
+      "current_sha256": "05850fca185dfa652969ed1e3864e365c0d724737a0f4ec68574baad1d855a0e"
+    },
+    {
+      "file": "logback-core-1.4.11.jar",
+      "byte_equal": true,
+      "preview_sha256": "37ee7367bd24ca87ef77430119a1cb814a76b240afab5c17f802ea383f58aca1",
+      "current_sha256": "37ee7367bd24ca87ef77430119a1cb814a76b240afab5c17f802ea383f58aca1"
+    },
+    {
+      "file": "onnxruntime-1.16.3.jar",
+      "byte_equal": true,
+      "preview_sha256": "a1722f61d5d99e8ba1c3bdcadbd47c91678888359f50e90c0b2126579f5a3850",
+      "current_sha256": "a1722f61d5d99e8ba1c3bdcadbd47c91678888359f50e90c0b2126579f5a3850"
+    },
+    {
+      "file": "slf4j-api-2.0.9.jar",
+      "byte_equal": true,
+      "preview_sha256": "0818930dc8d7debb403204611691da58e49d42c50b6ffcfdce02dadb7c3c2b6c",
+      "current_sha256": "0818930dc8d7debb403204611691da58e49d42c50b6ffcfdce02dadb7c3c2b6c"
+    },
+    {
+      "file": "sqlite-jdbc-3.46.1.0.jar",
+      "byte_equal": true,
+      "preview_sha256": "6dc7464e3803648d3ff18a7359bab6adf079fcd8495b18991f6f5edcb8ac6e3b",
+      "current_sha256": "6dc7464e3803648d3ff18a7359bab6adf079fcd8495b18991f6f5edcb8ac6e3b"
+    }
+  ],
+  "entry_comparison": [
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 183002,
+        "content_sha256": "a806907c934f0336b040741ecd88fb3381dedbea4b841a00e8bfb9c9ad17d9a9",
+        "entry": "ahakey.jpg",
+        "last_write_time": "2026-10-21T10:49:20.0000000+08:00",
+        "compressed_size": 174499
+      },
+      "entry": "ahakey.jpg",
+      "current": {
+        "size": 183002,
+        "content_sha256": "a806907c934f0336b040741ecd88fb3381dedbea4b841a00e8bfb9c9ad17d9a9",
+        "entry": "ahakey.jpg",
+        "last_write_time": "2026-09-24T15:10:20.0000000+08:00",
+        "compressed_size": 174499
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 0
+      },
+      "entry": "com/",
+      "current": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/",
+        "last_write_time": "2026-10-12T12:18:34.0000000+08:00",
+        "compressed_size": 0
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 0
+      },
+      "entry": "com/example/",
+      "current": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/",
+        "last_write_time": "2026-10-12T12:18:34.0000000+08:00",
+        "compressed_size": 0
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 0
+      },
+      "entry": "com/example/ahakey/",
+      "current": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 0
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 20009,
+        "content_sha256": "a405f78993fedcc99fae17abc543f96e35afb162f55dc860119cb02162586698",
+        "entry": "com/example/ahakey/App.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 9305
+      },
+      "entry": "com/example/ahakey/App.class",
+      "current": {
+        "size": 20009,
+        "content_sha256": "a405f78993fedcc99fae17abc543f96e35afb162f55dc860119cb02162586698",
+        "entry": "com/example/ahakey/App.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 9305
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/app/",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 0
+      },
+      "entry": "com/example/ahakey/app/",
+      "current": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/app/",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 0
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 51328,
+        "content_sha256": "f74c943e68343a42bf4919018439c394105650db55b285847f5f0994dd7a4508",
+        "entry": "com/example/ahakey/app/StudioController.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 21831
+      },
+      "entry": "com/example/ahakey/app/StudioController.class",
+      "current": {
+        "size": 51328,
+        "content_sha256": "f74c943e68343a42bf4919018439c394105650db55b285847f5f0994dd7a4508",
+        "entry": "com/example/ahakey/app/StudioController.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 21831
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 5218,
+        "content_sha256": "ee43c23746980c40cbf064ac140c038ff73ecb8c9f9eb783ae47612216d72200",
+        "entry": "com/example/ahakey/app/StudioController$1.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 2251
+      },
+      "entry": "com/example/ahakey/app/StudioController$1.class",
+      "current": {
+        "size": 5218,
+        "content_sha256": "ee43c23746980c40cbf064ac140c038ff73ecb8c9f9eb783ae47612216d72200",
+        "entry": "com/example/ahakey/app/StudioController$1.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 2251
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 5072,
+        "content_sha256": "f3174fad420f42878d2b02087e428dc3f1ae0ad7862c63379c82de3a54e2ffa9",
+        "entry": "com/example/ahakey/app/VoiceInputController.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 2305
+      },
+      "entry": "com/example/ahakey/app/VoiceInputController.class",
+      "current": {
+        "size": 5072,
+        "content_sha256": "f3174fad420f42878d2b02087e428dc3f1ae0ad7862c63379c82de3a54e2ffa9",
+        "entry": "com/example/ahakey/app/VoiceInputController.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 2305
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 795,
+        "content_sha256": "ddba7ffae28e454d9807be2f5934778d3c6999aa593bac3f2a62b96fcbefdf86",
+        "entry": "com/example/ahakey/App$1.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 476
+      },
+      "entry": "com/example/ahakey/App$1.class",
+      "current": {
+        "size": 795,
+        "content_sha256": "ddba7ffae28e454d9807be2f5934778d3c6999aa593bac3f2a62b96fcbefdf86",
+        "entry": "com/example/ahakey/App$1.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 476
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/config/",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 0
+      },
+      "entry": "com/example/ahakey/config/",
+      "current": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/config/",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 0
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 6338,
+        "content_sha256": "883528e90fa733eb97c975e476be5645fc7455cc410ed8c1b9753922cd5c8207",
+        "entry": "com/example/ahakey/config/ModelConfig.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 3038
+      },
+      "entry": "com/example/ahakey/config/ModelConfig.class",
+      "current": {
+        "size": 6338,
+        "content_sha256": "883528e90fa733eb97c975e476be5645fc7455cc410ed8c1b9753922cd5c8207",
+        "entry": "com/example/ahakey/config/ModelConfig.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 3038
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 439,
+        "content_sha256": "977dff67ebee51ae9a1601a9022f3ea93b099f9782f02bfcbcadaaaedd505707",
+        "entry": "com/example/ahakey/Main.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 279
+      },
+      "entry": "com/example/ahakey/Main.class",
+      "current": {
+        "size": 439,
+        "content_sha256": "977dff67ebee51ae9a1601a9022f3ea93b099f9782f02bfcbcadaaaedd505707",
+        "entry": "com/example/ahakey/Main.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 279
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/model/",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 0
+      },
+      "entry": "com/example/ahakey/model/",
+      "current": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/model/",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 0
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1839,
+        "content_sha256": "bb3e93465acaa116be41f4f86d421a30a191636edc405b95fd2589e516025c17",
+        "entry": "com/example/ahakey/model/AiRuntimeDisplayMode.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 936
+      },
+      "entry": "com/example/ahakey/model/AiRuntimeDisplayMode.class",
+      "current": {
+        "size": 1839,
+        "content_sha256": "bb3e93465acaa116be41f4f86d421a30a191636edc405b95fd2589e516025c17",
+        "entry": "com/example/ahakey/model/AiRuntimeDisplayMode.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 936
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 4509,
+        "content_sha256": "db6e8f421f459a981ccc8e87605bcf4c10f58439c7fd72bbacdc8385c5a33ce9",
+        "entry": "com/example/ahakey/model/AiRuntimeSession.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 2029
+      },
+      "entry": "com/example/ahakey/model/AiRuntimeSession.class",
+      "current": {
+        "size": 4509,
+        "content_sha256": "db6e8f421f459a981ccc8e87605bcf4c10f58439c7fd72bbacdc8385c5a33ce9",
+        "entry": "com/example/ahakey/model/AiRuntimeSession.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 2029
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 4135,
+        "content_sha256": "0e847ea13657130c9fd674b75572fc3d837145654b9234b9d4dcde2a57f73e56",
+        "entry": "com/example/ahakey/model/AiRuntimeSlotBinding.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 1568
+      },
+      "entry": "com/example/ahakey/model/AiRuntimeSlotBinding.class",
+      "current": {
+        "size": 4135,
+        "content_sha256": "0e847ea13657130c9fd674b75572fc3d837145654b9234b9d4dcde2a57f73e56",
+        "entry": "com/example/ahakey/model/AiRuntimeSlotBinding.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1568
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2304,
+        "content_sha256": "da25aac55d6188a864f2c0cd806ad9bd4f3f715f10fe0fd10a5b2010c877402c",
+        "entry": "com/example/ahakey/model/AiRuntimeSlotState.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 1127
+      },
+      "entry": "com/example/ahakey/model/AiRuntimeSlotState.class",
+      "current": {
+        "size": 2304,
+        "content_sha256": "da25aac55d6188a864f2c0cd806ad9bd4f3f715f10fe0fd10a5b2010c877402c",
+        "entry": "com/example/ahakey/model/AiRuntimeSlotState.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1127
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1167,
+        "content_sha256": "7a954a43623064fcd0fb9721d207b7c7005f0b3593e8a675c1214ae7b88d22b0",
+        "entry": "com/example/ahakey/model/AiRuntimeSlotState$1.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 681
+      },
+      "entry": "com/example/ahakey/model/AiRuntimeSlotState$1.class",
+      "current": {
+        "size": 1167,
+        "content_sha256": "7a954a43623064fcd0fb9721d207b7c7005f0b3593e8a675c1214ae7b88d22b0",
+        "entry": "com/example/ahakey/model/AiRuntimeSlotState$1.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 681
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2973,
+        "content_sha256": "f19f5ccd66337498d091d9df8c0d17b7010d51a0acc888fdc360e87fe62bb719",
+        "entry": "com/example/ahakey/model/CodexSession.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 1130
+      },
+      "entry": "com/example/ahakey/model/CodexSession.class",
+      "current": {
+        "size": 2973,
+        "content_sha256": "f19f5ccd66337498d091d9df8c0d17b7010d51a0acc888fdc360e87fe62bb719",
+        "entry": "com/example/ahakey/model/CodexSession.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1130
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 7861,
+        "content_sha256": "ebb991b14d02a02a463bd25c9e0ffda807c2beb65336245ebe6e43ee3bb21fab",
+        "entry": "com/example/ahakey/model/DeviceStatus.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 2733
+      },
+      "entry": "com/example/ahakey/model/DeviceStatus.class",
+      "current": {
+        "size": 7861,
+        "content_sha256": "ebb991b14d02a02a463bd25c9e0ffda807c2beb65336245ebe6e43ee3bb21fab",
+        "entry": "com/example/ahakey/model/DeviceStatus.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 2733
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1501,
+        "content_sha256": "708b38a0b28f0182c4be58354a4c691387534568c85e599cdc4ba1fe8ddb4669",
+        "entry": "com/example/ahakey/model/DeviceStatus$IdentityState.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 725
+      },
+      "entry": "com/example/ahakey/model/DeviceStatus$IdentityState.class",
+      "current": {
+        "size": 1501,
+        "content_sha256": "708b38a0b28f0182c4be58354a4c691387534568c85e599cdc4ba1fe8ddb4669",
+        "entry": "com/example/ahakey/model/DeviceStatus$IdentityState.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 725
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 5985,
+        "content_sha256": "563b3f5b192e025ef350d5478459399dda1a77b119094e212a684d208f0b3354",
+        "entry": "com/example/ahakey/model/DisplayConfigState.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 2785
+      },
+      "entry": "com/example/ahakey/model/DisplayConfigState.class",
+      "current": {
+        "size": 5985,
+        "content_sha256": "563b3f5b192e025ef350d5478459399dda1a77b119094e212a684d208f0b3354",
+        "entry": "com/example/ahakey/model/DisplayConfigState.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 2785
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 6906,
+        "content_sha256": "837c6fae6b06ca72a79c4bdd3c577f6b9adac79378287ca4b2e5a302be6d1554",
+        "entry": "com/example/ahakey/model/HIDUsage.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 3223
+      },
+      "entry": "com/example/ahakey/model/HIDUsage.class",
+      "current": {
+        "size": 6906,
+        "content_sha256": "837c6fae6b06ca72a79c4bdd3c577f6b9adac79378287ca4b2e5a302be6d1554",
+        "entry": "com/example/ahakey/model/HIDUsage.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 3223
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 3605,
+        "content_sha256": "e364c99762ca3b48bbe3fe7de3397ab1a77e569972d5c7ce5d03f9135bf2bb41",
+        "entry": "com/example/ahakey/model/IDEState.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 1719
+      },
+      "entry": "com/example/ahakey/model/IDEState.class",
+      "current": {
+        "size": 3605,
+        "content_sha256": "e364c99762ca3b48bbe3fe7de3397ab1a77e569972d5c7ce5d03f9135bf2bb41",
+        "entry": "com/example/ahakey/model/IDEState.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1719
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 5971,
+        "content_sha256": "766a4cf46294e5af18627b7ff2d791ceb8ca89e80ab9917b47679782e939b001",
+        "entry": "com/example/ahakey/model/KeyConfig.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 2722
+      },
+      "entry": "com/example/ahakey/model/KeyConfig.class",
+      "current": {
+        "size": 5971,
+        "content_sha256": "766a4cf46294e5af18627b7ff2d791ceb8ca89e80ab9917b47679782e939b001",
+        "entry": "com/example/ahakey/model/KeyConfig.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 2722
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 806,
+        "content_sha256": "28a20790797df9776abb47d2033a110c57023c591fd9dfeb716cc746d9cff326",
+        "entry": "com/example/ahakey/model/KeyConfig$1.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 500
+      },
+      "entry": "com/example/ahakey/model/KeyConfig$1.class",
+      "current": {
+        "size": 806,
+        "content_sha256": "28a20790797df9776abb47d2033a110c57023c591fd9dfeb716cc746d9cff326",
+        "entry": "com/example/ahakey/model/KeyConfig$1.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 500
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 3210,
+        "content_sha256": "9334f1d3b79200e90ee146a8f1a94e874340b6ceb95ca941c82595da5e77467a",
+        "entry": "com/example/ahakey/model/LightBarPreviewState.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 1490
+      },
+      "entry": "com/example/ahakey/model/LightBarPreviewState.class",
+      "current": {
+        "size": 3210,
+        "content_sha256": "9334f1d3b79200e90ee146a8f1a94e874340b6ceb95ca941c82595da5e77467a",
+        "entry": "com/example/ahakey/model/LightBarPreviewState.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1490
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 5789,
+        "content_sha256": "48ee118599665d617cff3a657514db661796c5e0f11f59aa2e35484c13cece1b",
+        "entry": "com/example/ahakey/model/LightEffectStyle.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 2786
+      },
+      "entry": "com/example/ahakey/model/LightEffectStyle.class",
+      "current": {
+        "size": 5789,
+        "content_sha256": "48ee118599665d617cff3a657514db661796c5e0f11f59aa2e35484c13cece1b",
+        "entry": "com/example/ahakey/model/LightEffectStyle.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 2786
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1161,
+        "content_sha256": "7ca741646ce0acb712c7e5dcfe4027752a1030b26a8e610574ae2aa8f624fd61",
+        "entry": "com/example/ahakey/model/LightEffectStyle$1.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 682
+      },
+      "entry": "com/example/ahakey/model/LightEffectStyle$1.class",
+      "current": {
+        "size": 1161,
+        "content_sha256": "7ca741646ce0acb712c7e5dcfe4027752a1030b26a8e610574ae2aa8f624fd61",
+        "entry": "com/example/ahakey/model/LightEffectStyle$1.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 682
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1819,
+        "content_sha256": "bd00ee66a478265e1c50b366499616d78712192250e53892a91f1af1e2255f40",
+        "entry": "com/example/ahakey/model/MacroAction.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 954
+      },
+      "entry": "com/example/ahakey/model/MacroAction.class",
+      "current": {
+        "size": 1819,
+        "content_sha256": "bd00ee66a478265e1c50b366499616d78712192250e53892a91f1af1e2255f40",
+        "entry": "com/example/ahakey/model/MacroAction.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 954
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2500,
+        "content_sha256": "82643e54a81abbf80285822d1679de438b3b51c0c42f5996340b586937a33ef4",
+        "entry": "com/example/ahakey/model/MacroStep.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 1142
+      },
+      "entry": "com/example/ahakey/model/MacroStep.class",
+      "current": {
+        "size": 2500,
+        "content_sha256": "82643e54a81abbf80285822d1679de438b3b51c0c42f5996340b586937a33ef4",
+        "entry": "com/example/ahakey/model/MacroStep.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1142
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2191,
+        "content_sha256": "9f93a7c1ad1039286ba3fd9322080570bc78d60a24f1d4a63a1c9479fd2de335",
+        "entry": "com/example/ahakey/model/ModeSlot.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 1058
+      },
+      "entry": "com/example/ahakey/model/ModeSlot.class",
+      "current": {
+        "size": 2191,
+        "content_sha256": "9f93a7c1ad1039286ba3fd9322080570bc78d60a24f1d4a63a1c9479fd2de335",
+        "entry": "com/example/ahakey/model/ModeSlot.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1058
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2345,
+        "content_sha256": "131b7c070f8cbf4b5a361571121e4eebc39d81cb7dace18e85a437d0a8706868",
+        "entry": "com/example/ahakey/model/OledModeDraft.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 969
+      },
+      "entry": "com/example/ahakey/model/OledModeDraft.class",
+      "current": {
+        "size": 2345,
+        "content_sha256": "131b7c070f8cbf4b5a361571121e4eebc39d81cb7dace18e85a437d0a8706868",
+        "entry": "com/example/ahakey/model/OledModeDraft.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 969
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 7459,
+        "content_sha256": "4bd2399712b3ee9b165579a98f4dbc90b05e9496a416d8d91e0778338318581e",
+        "entry": "com/example/ahakey/model/OledResourceState.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 3274
+      },
+      "entry": "com/example/ahakey/model/OledResourceState.class",
+      "current": {
+        "size": 7459,
+        "content_sha256": "4bd2399712b3ee9b165579a98f4dbc90b05e9496a416d8d91e0778338318581e",
+        "entry": "com/example/ahakey/model/OledResourceState.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 3274
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 969,
+        "content_sha256": "699a08bfb149e2d9f055ac609a1b4b6c68e3bbfb5aeaf81d8470c551766337d5",
+        "entry": "com/example/ahakey/model/OledResourceState$1.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 531
+      },
+      "entry": "com/example/ahakey/model/OledResourceState$1.class",
+      "current": {
+        "size": 969,
+        "content_sha256": "699a08bfb149e2d9f055ac609a1b4b6c68e3bbfb5aeaf81d8470c551766337d5",
+        "entry": "com/example/ahakey/model/OledResourceState$1.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 531
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2654,
+        "content_sha256": "b156cb7a2a20641957cc2701ed0984461f048d8606cdd27bc3fdf9621702fb28",
+        "entry": "com/example/ahakey/model/OledResourceState$Asset.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 1318
+      },
+      "entry": "com/example/ahakey/model/OledResourceState$Asset.class",
+      "current": {
+        "size": 2654,
+        "content_sha256": "b156cb7a2a20641957cc2701ed0984461f048d8606cdd27bc3fdf9621702fb28",
+        "entry": "com/example/ahakey/model/OledResourceState$Asset.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1318
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1411,
+        "content_sha256": "eb644b025a63982845cb6b74fa81a6bd0a578342c8a58d648d56fa36b25cde22",
+        "entry": "com/example/ahakey/model/OledResourceState$LocalStatus.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 659
+      },
+      "entry": "com/example/ahakey/model/OledResourceState$LocalStatus.class",
+      "current": {
+        "size": 1411,
+        "content_sha256": "eb644b025a63982845cb6b74fa81a6bd0a578342c8a58d648d56fa36b25cde22",
+        "entry": "com/example/ahakey/model/OledResourceState$LocalStatus.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 659
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2800,
+        "content_sha256": "70fae055ca7514c93e71086d5d0f085d0ef4d3ae5e064a29e893fa5c46f29db3",
+        "entry": "com/example/ahakey/model/OledResourceState$Metadata.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 1263
+      },
+      "entry": "com/example/ahakey/model/OledResourceState$Metadata.class",
+      "current": {
+        "size": 2800,
+        "content_sha256": "70fae055ca7514c93e71086d5d0f085d0ef4d3ae5e064a29e893fa5c46f29db3",
+        "entry": "com/example/ahakey/model/OledResourceState$Metadata.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1263
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 3203,
+        "content_sha256": "0c5558019bec33ff89cc849cc87845b58bc0886630eed8cc1e2e489c1ae722da",
+        "entry": "com/example/ahakey/model/StudioPart.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 1467
+      },
+      "entry": "com/example/ahakey/model/StudioPart.class",
+      "current": {
+        "size": 3203,
+        "content_sha256": "0c5558019bec33ff89cc849cc87845b58bc0886630eed8cc1e2e489c1ae722da",
+        "entry": "com/example/ahakey/model/StudioPart.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1467
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 28221,
+        "content_sha256": "1d2ccb437dab28221dc0371c7bf144a05adba0239a285f62345aac89197fd2e2",
+        "entry": "com/example/ahakey/model/StudioState.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 10975
+      },
+      "entry": "com/example/ahakey/model/StudioState.class",
+      "current": {
+        "size": 28221,
+        "content_sha256": "1d2ccb437dab28221dc0371c7bf144a05adba0239a285f62345aac89197fd2e2",
+        "entry": "com/example/ahakey/model/StudioState.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 10975
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 846,
+        "content_sha256": "7653c2714ca95e4fcf1e3fe26f78b7c463a4d502e764545089b759b36458eabf",
+        "entry": "com/example/ahakey/model/StudioState$1.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 501
+      },
+      "entry": "com/example/ahakey/model/StudioState$1.class",
+      "current": {
+        "size": 846,
+        "content_sha256": "7653c2714ca95e4fcf1e3fe26f78b7c463a4d502e764545089b759b36458eabf",
+        "entry": "com/example/ahakey/model/StudioState$1.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 501
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1264,
+        "content_sha256": "2097290245fe5bb0c86dc65c7270ed5197308f3723d5ac063553bc142e4b3f48",
+        "entry": "com/example/ahakey/model/StudioState$PersistedDraft.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 611
+      },
+      "entry": "com/example/ahakey/model/StudioState$PersistedDraft.class",
+      "current": {
+        "size": 1264,
+        "content_sha256": "2097290245fe5bb0c86dc65c7270ed5197308f3723d5ac063553bc142e4b3f48",
+        "entry": "com/example/ahakey/model/StudioState$PersistedDraft.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 611
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1285,
+        "content_sha256": "027378fc6d364dc34b492860dc1fe592c99a7987a66d32d7c2cc9f83fec1576e",
+        "entry": "com/example/ahakey/model/StudioState$PersistedDraft$ModeDraft.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 635
+      },
+      "entry": "com/example/ahakey/model/StudioState$PersistedDraft$ModeDraft.class",
+      "current": {
+        "size": 1285,
+        "content_sha256": "027378fc6d364dc34b492860dc1fe592c99a7987a66d32d7c2cc9f83fec1576e",
+        "entry": "com/example/ahakey/model/StudioState$PersistedDraft$ModeDraft.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 635
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2621,
+        "content_sha256": "2cae71e4ebea7a2adba893af84b1aa5d9ac20d43657dec093153d061c0bf7ca7",
+        "entry": "com/example/ahakey/model/VoicePreset.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 1468
+      },
+      "entry": "com/example/ahakey/model/VoicePreset.class",
+      "current": {
+        "size": 2621,
+        "content_sha256": "2cae71e4ebea7a2adba893af84b1aa5d9ac20d43657dec093153d061c0bf7ca7",
+        "entry": "com/example/ahakey/model/VoicePreset.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1468
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 879,
+        "content_sha256": "fbfdbe065a4031b53dd93edcf54744d9495d2ab2686b529e90dec255e5e43c4f",
+        "entry": "com/example/ahakey/model/VoicePreset$1.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 539
+      },
+      "entry": "com/example/ahakey/model/VoicePreset$1.class",
+      "current": {
+        "size": 879,
+        "content_sha256": "fbfdbe065a4031b53dd93edcf54744d9495d2ab2686b529e90dec255e5e43c4f",
+        "entry": "com/example/ahakey/model/VoicePreset$1.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 539
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/platform/",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 0
+      },
+      "entry": "com/example/ahakey/platform/",
+      "current": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/platform/",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 0
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2677,
+        "content_sha256": "d58a1635902022ddc78f8a62d2a722a6a0683cccc1e868e42e7b74921bbdb226",
+        "entry": "com/example/ahakey/platform/VoiceRelayPlatform.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 1006
+      },
+      "entry": "com/example/ahakey/platform/VoiceRelayPlatform.class",
+      "current": {
+        "size": 2677,
+        "content_sha256": "d58a1635902022ddc78f8a62d2a722a6a0683cccc1e868e42e7b74921bbdb226",
+        "entry": "com/example/ahakey/platform/VoiceRelayPlatform.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1006
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/platform/windows/",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 0
+      },
+      "entry": "com/example/ahakey/platform/windows/",
+      "current": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/platform/windows/",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 0
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 20358,
+        "content_sha256": "2abefd9c533e680136829530344b1a2e4ff9fd471a1c4021635bf51b824b5654",
+        "entry": "com/example/ahakey/platform/windows/WindowsVoiceRelayService.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 9332
+      },
+      "entry": "com/example/ahakey/platform/windows/WindowsVoiceRelayService.class",
+      "current": {
+        "size": 20358,
+        "content_sha256": "2abefd9c533e680136829530344b1a2e4ff9fd471a1c4021635bf51b824b5654",
+        "entry": "com/example/ahakey/platform/windows/WindowsVoiceRelayService.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 9332
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 839,
+        "content_sha256": "03cf2c61b6858221a980956fdfe861910d6fe3d38454380a0ef4b0eed8e315e4",
+        "entry": "com/example/ahakey/platform/windows/WindowsVoiceRelayService$1.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 506
+      },
+      "entry": "com/example/ahakey/platform/windows/WindowsVoiceRelayService$1.class",
+      "current": {
+        "size": 839,
+        "content_sha256": "03cf2c61b6858221a980956fdfe861910d6fe3d38454380a0ef4b0eed8e315e4",
+        "entry": "com/example/ahakey/platform/windows/WindowsVoiceRelayService$1.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 506
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2080,
+        "content_sha256": "e77082f9e175e4ac20ffed0ca76b74f2eaa1a07c6c64c432be59fc2ae6a5d137",
+        "entry": "com/example/ahakey/platform/windows/WindowsVoiceRelayService$VoiceRoute.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 824
+      },
+      "entry": "com/example/ahakey/platform/windows/WindowsVoiceRelayService$VoiceRoute.class",
+      "current": {
+        "size": 2080,
+        "content_sha256": "e77082f9e175e4ac20ffed0ca76b74f2eaa1a07c6c64c432be59fc2ae6a5d137",
+        "entry": "com/example/ahakey/platform/windows/WindowsVoiceRelayService$VoiceRoute.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 824
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2552,
+        "content_sha256": "f02e504b718817c91616b9ca5609a23509d0276dd7b26e3acd973f9a2c524d8b",
+        "entry": "com/example/ahakey/platform/windows/WindowsVoiceTyping.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 1209
+      },
+      "entry": "com/example/ahakey/platform/windows/WindowsVoiceTyping.class",
+      "current": {
+        "size": 2552,
+        "content_sha256": "f02e504b718817c91616b9ca5609a23509d0276dd7b26e3acd973f9a2c524d8b",
+        "entry": "com/example/ahakey/platform/windows/WindowsVoiceTyping.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1209
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/protocol/",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 0
+      },
+      "entry": "com/example/ahakey/protocol/",
+      "current": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/protocol/",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 0
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 14239,
+        "content_sha256": "ed4c089e28cb3de42c7b4e1bd88fa1fc402e9b379102a8b41ba6242e7251cc7a",
+        "entry": "com/example/ahakey/protocol/AhaKeyProtocol.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 7153
+      },
+      "entry": "com/example/ahakey/protocol/AhaKeyProtocol.class",
+      "current": {
+        "size": 14239,
+        "content_sha256": "ed4c089e28cb3de42c7b4e1bd88fa1fc402e9b379102a8b41ba6242e7251cc7a",
+        "entry": "com/example/ahakey/protocol/AhaKeyProtocol.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 7153
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 8243,
+        "content_sha256": "ce1b2156cc0ecc8d7e6b42761f602740f7d1a29bbcac0c9d75a0d147bf93022e",
+        "entry": "com/example/ahakey/protocol/AhaKeyResponseParser.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 4178
+      },
+      "entry": "com/example/ahakey/protocol/AhaKeyResponseParser.class",
+      "current": {
+        "size": 8243,
+        "content_sha256": "ce1b2156cc0ecc8d7e6b42761f602740f7d1a29bbcac0c9d75a0d147bf93022e",
+        "entry": "com/example/ahakey/protocol/AhaKeyResponseParser.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 4178
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1913,
+        "content_sha256": "18a2f7f9f3f8eb4e6e116c16158300a0e2008afbb9db67631c808c871861aab8",
+        "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$CommandResponse.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 792
+      },
+      "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$CommandResponse.class",
+      "current": {
+        "size": 1913,
+        "content_sha256": "18a2f7f9f3f8eb4e6e116c16158300a0e2008afbb9db67631c808c871861aab8",
+        "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$CommandResponse.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 792
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2524,
+        "content_sha256": "e1849035da749e41b9b2779eb81b0db8e068e16b6180eab877ba43006fa8eb71",
+        "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$DisplayRead.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 998
+      },
+      "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$DisplayRead.class",
+      "current": {
+        "size": 2524,
+        "content_sha256": "e1849035da749e41b9b2779eb81b0db8e068e16b6180eab877ba43006fa8eb71",
+        "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$DisplayRead.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 998
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2446,
+        "content_sha256": "5cae39341d84ad095379036787451c7c737a1cec5bd8d42aea4327e91d677d70",
+        "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$OrdinaryKeyReadback.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 1034
+      },
+      "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$OrdinaryKeyReadback.class",
+      "current": {
+        "size": 2446,
+        "content_sha256": "5cae39341d84ad095379036787451c7c737a1cec5bd8d42aea4327e91d677d70",
+        "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$OrdinaryKeyReadback.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1034
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2174,
+        "content_sha256": "8abf6b9dde55dc36933db7fc0194e8f1c454ef06b828953652a1f686e8ee7e4f",
+        "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$PictureState.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 879
+      },
+      "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$PictureState.class",
+      "current": {
+        "size": 2174,
+        "content_sha256": "8abf6b9dde55dc36933db7fc0194e8f1c454ef06b828953652a1f686e8ee7e4f",
+        "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$PictureState.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 879
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2332,
+        "content_sha256": "75f3bc448c27e06426f930a1ed8daaef244fe2302304bfcdec3feaef5854deae",
+        "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$SideSwitchConfig.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 831
+      },
+      "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$SideSwitchConfig.class",
+      "current": {
+        "size": 2332,
+        "content_sha256": "75f3bc448c27e06426f930a1ed8daaef244fe2302304bfcdec3feaef5854deae",
+        "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$SideSwitchConfig.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 831
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1979,
+        "content_sha256": "58b957c5e870461e9314bf8d47ad261f5a31bd2fc6bfae0f1e112c334f639fa7",
+        "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$SideSwitchPositionConfig.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 870
+      },
+      "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$SideSwitchPositionConfig.class",
+      "current": {
+        "size": 1979,
+        "content_sha256": "58b957c5e870461e9314bf8d47ad261f5a31bd2fc6bfae0f1e112c334f639fa7",
+        "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$SideSwitchPositionConfig.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 870
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1879,
+        "content_sha256": "38f289cf3f9c65326ee3f0760186bfb678bf39396265ca83877166423da4f73c",
+        "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$SleepWaitTimeResponse.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 759
+      },
+      "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$SleepWaitTimeResponse.class",
+      "current": {
+        "size": 1879,
+        "content_sha256": "38f289cf3f9c65326ee3f0760186bfb678bf39396265ca83877166423da4f73c",
+        "entry": "com/example/ahakey/protocol/AhaKeyResponseParser$SleepWaitTimeResponse.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 759
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1379,
+        "content_sha256": "3d834ed28ae2c23a251219536f60f0346f5369e692287ca5400f187bddeedec7",
+        "entry": "com/example/ahakey/protocol/BleTcpPacket.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 823
+      },
+      "entry": "com/example/ahakey/protocol/BleTcpPacket.class",
+      "current": {
+        "size": 1379,
+        "content_sha256": "3d834ed28ae2c23a251219536f60f0346f5369e692287ca5400f187bddeedec7",
+        "entry": "com/example/ahakey/protocol/BleTcpPacket.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 823
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1708,
+        "content_sha256": "62d048784f984d3317845d8c0b5bd11099b334fe333b7fe061c227cd0d1b9b6b",
+        "entry": "com/example/ahakey/protocol/BleTcpPacket$ParsedPacket.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 731
+      },
+      "entry": "com/example/ahakey/protocol/BleTcpPacket$ParsedPacket.class",
+      "current": {
+        "size": 1708,
+        "content_sha256": "62d048784f984d3317845d8c0b5bd11099b334fe333b7fe061c227cd0d1b9b6b",
+        "entry": "com/example/ahakey/protocol/BleTcpPacket$ParsedPacket.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 731
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/service/",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 0
+      },
+      "entry": "com/example/ahakey/service/",
+      "current": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/service/",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 0
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2912,
+        "content_sha256": "7ba2f1cc97f45651f32c15864d7f04658f4507ea00a443c914ff6918e4b69c07",
+        "entry": "com/example/ahakey/service/AgentManager.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 1187
+      },
+      "entry": "com/example/ahakey/service/AgentManager.class",
+      "current": {
+        "size": 2912,
+        "content_sha256": "7ba2f1cc97f45651f32c15864d7f04658f4507ea00a443c914ff6918e4b69c07",
+        "entry": "com/example/ahakey/service/AgentManager.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1187
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1333,
+        "content_sha256": "ab87436179bff6beaded27f4f1e2061d8298c6d1fc010eeb06ccd3096a8f4e68",
+        "entry": "com/example/ahakey/service/AgentManager$BluetoothOwner.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 639
+      },
+      "entry": "com/example/ahakey/service/AgentManager$BluetoothOwner.class",
+      "current": {
+        "size": 1333,
+        "content_sha256": "ab87436179bff6beaded27f4f1e2061d8298c6d1fc010eeb06ccd3096a8f4e68",
+        "entry": "com/example/ahakey/service/AgentManager$BluetoothOwner.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 639
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 29263,
+        "content_sha256": "95f52529df40bdc1d44bc229d8eefdff5116d95242a912a28a53c6c970bc3f44",
+        "entry": "com/example/ahakey/service/AiRuntimeDisplayService.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 12858
+      },
+      "entry": "com/example/ahakey/service/AiRuntimeDisplayService.class",
+      "current": {
+        "size": 29263,
+        "content_sha256": "95f52529df40bdc1d44bc229d8eefdff5116d95242a912a28a53c6c970bc3f44",
+        "entry": "com/example/ahakey/service/AiRuntimeDisplayService.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 12858
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2766,
+        "content_sha256": "3017653de2dcb212c3ed247b2eacf455b5708ae7ed3ba4b7edb1a7570ffc734b",
+        "entry": "com/example/ahakey/service/AiRuntimeDisplayService$ApplyPlan.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 987
+      },
+      "entry": "com/example/ahakey/service/AiRuntimeDisplayService$ApplyPlan.class",
+      "current": {
+        "size": 2766,
+        "content_sha256": "3017653de2dcb212c3ed247b2eacf455b5708ae7ed3ba4b7edb1a7570ffc734b",
+        "entry": "com/example/ahakey/service/AiRuntimeDisplayService$ApplyPlan.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 987
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1453,
+        "content_sha256": "fee4f154507a335779444dff66a94644e93417899ca179e21b2c9bd0a974c2c7",
+        "entry": "com/example/ahakey/service/AiRuntimeDisplayService$Delivery.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 673
+      },
+      "entry": "com/example/ahakey/service/AiRuntimeDisplayService$Delivery.class",
+      "current": {
+        "size": 1453,
+        "content_sha256": "fee4f154507a335779444dff66a94644e93417899ca179e21b2c9bd0a974c2c7",
+        "entry": "com/example/ahakey/service/AiRuntimeDisplayService$Delivery.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 673
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2256,
+        "content_sha256": "0c0cde5d7e45416473bb7b72086e67b418f385858e9668e91fab827f2fd0f9a1",
+        "entry": "com/example/ahakey/service/AiRuntimeDisplayService$RuntimeFact.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 962
+      },
+      "entry": "com/example/ahakey/service/AiRuntimeDisplayService$RuntimeFact.class",
+      "current": {
+        "size": 2256,
+        "content_sha256": "0c0cde5d7e45416473bb7b72086e67b418f385858e9668e91fab827f2fd0f9a1",
+        "entry": "com/example/ahakey/service/AiRuntimeDisplayService$RuntimeFact.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 962
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1823,
+        "content_sha256": "c377f222598241036a05d2ee86aede91ddb1a972ffc73c723f475333931e7d3e",
+        "entry": "com/example/ahakey/service/AiRuntimeDisplayService$SingleOwner.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 734
+      },
+      "entry": "com/example/ahakey/service/AiRuntimeDisplayService$SingleOwner.class",
+      "current": {
+        "size": 1823,
+        "content_sha256": "c377f222598241036a05d2ee86aede91ddb1a972ffc73c723f475333931e7d3e",
+        "entry": "com/example/ahakey/service/AiRuntimeDisplayService$SingleOwner.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 734
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1830,
+        "content_sha256": "9132a458979e0f49fe8c01fa4a868f77d61dfb3fbe56bd44748d39baeabb01e3",
+        "entry": "com/example/ahakey/service/AiRuntimeDisplayService$UnavailableSlot.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 741
+      },
+      "entry": "com/example/ahakey/service/AiRuntimeDisplayService$UnavailableSlot.class",
+      "current": {
+        "size": 1830,
+        "content_sha256": "9132a458979e0f49fe8c01fa4a868f77d61dfb3fbe56bd44748d39baeabb01e3",
+        "entry": "com/example/ahakey/service/AiRuntimeDisplayService$UnavailableSlot.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 741
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 51923,
+        "content_sha256": "63fe9bf5792553389b3f34160ad4c8e38561b02bf9e878ee9ffc593a73bed851",
+        "entry": "com/example/ahakey/service/BleManager.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 24884
+      },
+      "entry": "com/example/ahakey/service/BleManager.class",
+      "current": {
+        "size": 51923,
+        "content_sha256": "63fe9bf5792553389b3f34160ad4c8e38561b02bf9e878ee9ffc593a73bed851",
+        "entry": "com/example/ahakey/service/BleManager.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 24884
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 414,
+        "content_sha256": "5e67d11ab0408479d681c54b2d20966c9ebc9d89ebcf7ce83abbb27a100bed85",
+        "entry": "com/example/ahakey/service/BleManager$BleCallback.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 269
+      },
+      "entry": "com/example/ahakey/service/BleManager$BleCallback.class",
+      "current": {
+        "size": 414,
+        "content_sha256": "5e67d11ab0408479d681c54b2d20966c9ebc9d89ebcf7ce83abbb27a100bed85",
+        "entry": "com/example/ahakey/service/BleManager$BleCallback.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 269
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1927,
+        "content_sha256": "1e84f2a8a0d5b98847695726d39668fb792542048bdf0c8866fd0c318608629c",
+        "entry": "com/example/ahakey/service/BleManager$DisplayLease.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 1022
+      },
+      "entry": "com/example/ahakey/service/BleManager$DisplayLease.class",
+      "current": {
+        "size": 1927,
+        "content_sha256": "1e84f2a8a0d5b98847695726d39668fb792542048bdf0c8866fd0c318608629c",
+        "entry": "com/example/ahakey/service/BleManager$DisplayLease.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1022
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 528,
+        "content_sha256": "b7b3865c32ad5100c3650149cb91e288dc4b825c8ac3bdf0ff511d38414d0ee3",
+        "entry": "com/example/ahakey/service/BleManager$DisplayReadTask.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 293
+      },
+      "entry": "com/example/ahakey/service/BleManager$DisplayReadTask.class",
+      "current": {
+        "size": 528,
+        "content_sha256": "b7b3865c32ad5100c3650149cb91e288dc4b825c8ac3bdf0ff511d38414d0ee3",
+        "entry": "com/example/ahakey/service/BleManager$DisplayReadTask.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 293
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2305,
+        "content_sha256": "edaaa7df40c7239941d7b3112a0e5a068e670ec312ed9b3ee15540f3de5ac0ed",
+        "entry": "com/example/ahakey/service/BleManager$FirmwareIdentity.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 900
+      },
+      "entry": "com/example/ahakey/service/BleManager$FirmwareIdentity.class",
+      "current": {
+        "size": 2305,
+        "content_sha256": "edaaa7df40c7239941d7b3112a0e5a068e670ec312ed9b3ee15540f3de5ac0ed",
+        "entry": "com/example/ahakey/service/BleManager$FirmwareIdentity.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 900
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 12973,
+        "content_sha256": "a667df9b4293daa486294dea9f5345c33dd1031acb58a41d23edf7c6d31ca163",
+        "entry": "com/example/ahakey/service/CodexSessionDiscoveryService.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 6362
+      },
+      "entry": "com/example/ahakey/service/CodexSessionDiscoveryService.class",
+      "current": {
+        "size": 12973,
+        "content_sha256": "a667df9b4293daa486294dea9f5345c33dd1031acb58a41d23edf7c6d31ca163",
+        "entry": "com/example/ahakey/service/CodexSessionDiscoveryService.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 6362
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1468,
+        "content_sha256": "a49ce1788dce76612f0548509d29a58532e6f63ea9b528ca912d5de6a651747f",
+        "entry": "com/example/ahakey/service/CodexSessionDiscoveryService$EventSource.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 652
+      },
+      "entry": "com/example/ahakey/service/CodexSessionDiscoveryService$EventSource.class",
+      "current": {
+        "size": 1468,
+        "content_sha256": "a49ce1788dce76612f0548509d29a58532e6f63ea9b528ca912d5de6a651747f",
+        "entry": "com/example/ahakey/service/CodexSessionDiscoveryService$EventSource.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 652
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 23687,
+        "content_sha256": "a160e41a20eb219226cb3f29ebe6c0fb3bb00111b22f2eaa283dd48f5b889dbf",
+        "entry": "com/example/ahakey/service/CursorSessionDiscoveryService.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 9968
+      },
+      "entry": "com/example/ahakey/service/CursorSessionDiscoveryService.class",
+      "current": {
+        "size": 23687,
+        "content_sha256": "a160e41a20eb219226cb3f29ebe6c0fb3bb00111b22f2eaa283dd48f5b889dbf",
+        "entry": "com/example/ahakey/service/CursorSessionDiscoveryService.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 9968
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2210,
+        "content_sha256": "d2e86e4466fc95789197e799923ba9246c78a1dfd52bfe132d41db51928f73fa",
+        "entry": "com/example/ahakey/service/CursorSessionDiscoveryService$ComposerTableResult.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 849
+      },
+      "entry": "com/example/ahakey/service/CursorSessionDiscoveryService$ComposerTableResult.class",
+      "current": {
+        "size": 2210,
+        "content_sha256": "d2e86e4466fc95789197e799923ba9246c78a1dfd52bfe132d41db51928f73fa",
+        "entry": "com/example/ahakey/service/CursorSessionDiscoveryService$ComposerTableResult.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 849
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1906,
+        "content_sha256": "7f7932e7e692d914444d42d844b1059eeb3e26cea810cbb25d3c41e537fd449f",
+        "entry": "com/example/ahakey/service/CursorSessionDiscoveryService$TitleRecord.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 757
+      },
+      "entry": "com/example/ahakey/service/CursorSessionDiscoveryService$TitleRecord.class",
+      "current": {
+        "size": 1906,
+        "content_sha256": "7f7932e7e692d914444d42d844b1059eeb3e26cea810cbb25d3c41e537fd449f",
+        "entry": "com/example/ahakey/service/CursorSessionDiscoveryService$TitleRecord.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 757
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1883,
+        "content_sha256": "c7f0b4c548a6bef3eaf4472f03db71c35ee62abb82e9611745755580fe4b49ca",
+        "entry": "com/example/ahakey/service/CursorSessionDiscoveryService$WorkspaceRecord.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 741
+      },
+      "entry": "com/example/ahakey/service/CursorSessionDiscoveryService$WorkspaceRecord.class",
+      "current": {
+        "size": 1883,
+        "content_sha256": "c7f0b4c548a6bef3eaf4472f03db71c35ee62abb82e9611745755580fe4b49ca",
+        "entry": "com/example/ahakey/service/CursorSessionDiscoveryService$WorkspaceRecord.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 741
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 12837,
+        "content_sha256": "4fbab2f5efb215075fa97c0cd240d88ca848bd54d0eb3625e648ca71aedd6510",
+        "entry": "com/example/ahakey/service/DeviceSyncService.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 6069
+      },
+      "entry": "com/example/ahakey/service/DeviceSyncService.class",
+      "current": {
+        "size": 12837,
+        "content_sha256": "4fbab2f5efb215075fa97c0cd240d88ca848bd54d0eb3625e648ca71aedd6510",
+        "entry": "com/example/ahakey/service/DeviceSyncService.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 6069
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1779,
+        "content_sha256": "6a146d4b9a98ea71331c3b558ef52319d375fa39bc1c9700ff641ada13544a43",
+        "entry": "com/example/ahakey/service/DeviceSyncService$LabeledCommand.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 737
+      },
+      "entry": "com/example/ahakey/service/DeviceSyncService$LabeledCommand.class",
+      "current": {
+        "size": 1779,
+        "content_sha256": "6a146d4b9a98ea71331c3b558ef52319d375fa39bc1c9700ff641ada13544a43",
+        "entry": "com/example/ahakey/service/DeviceSyncService$LabeledCommand.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 737
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 36239,
+        "content_sha256": "b2e7e0146964da8ede8e22b0f14173cadd0274ce665a9aa8341937d2e857bc83",
+        "entry": "com/example/ahakey/service/DisplayConfigService.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 14375
+      },
+      "entry": "com/example/ahakey/service/DisplayConfigService.class",
+      "current": {
+        "size": 36239,
+        "content_sha256": "b2e7e0146964da8ede8e22b0f14173cadd0274ce665a9aa8341937d2e857bc83",
+        "entry": "com/example/ahakey/service/DisplayConfigService.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 14375
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 975,
+        "content_sha256": "53f02fc8bfce33c3da2e149363e64bfbf9f449ab82481dda6933f6ddd42f6e9d",
+        "entry": "com/example/ahakey/service/DisplayConfigService$1.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 551
+      },
+      "entry": "com/example/ahakey/service/DisplayConfigService$1.class",
+      "current": {
+        "size": 975,
+        "content_sha256": "53f02fc8bfce33c3da2e149363e64bfbf9f449ab82481dda6933f6ddd42f6e9d",
+        "entry": "com/example/ahakey/service/DisplayConfigService$1.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 551
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1873,
+        "content_sha256": "bb70eea7fe19da85472789905e698cdc0e741ebad61f0fe32a96288865c54f08",
+        "entry": "com/example/ahakey/service/DisplayConfigService$Operation.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 788
+      },
+      "entry": "com/example/ahakey/service/DisplayConfigService$Operation.class",
+      "current": {
+        "size": 1873,
+        "content_sha256": "bb70eea7fe19da85472789905e698cdc0e741ebad61f0fe32a96288865c54f08",
+        "entry": "com/example/ahakey/service/DisplayConfigService$Operation.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 788
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 473,
+        "content_sha256": "aa9bf9f5d7c8fe222652de8856e7a84b566d342a81a2f0a459295804c5a3b71d",
+        "entry": "com/example/ahakey/service/DisplayConfigService$Work.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 246
+      },
+      "entry": "com/example/ahakey/service/DisplayConfigService$Work.class",
+      "current": {
+        "size": 473,
+        "content_sha256": "aa9bf9f5d7c8fe222652de8856e7a84b566d342a81a2f0a459295804c5a3b71d",
+        "entry": "com/example/ahakey/service/DisplayConfigService$Work.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 246
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 4703,
+        "content_sha256": "46de76758d9d9009c716206d929d4001d00fe53f0096d9cdc684677d765f30bd",
+        "entry": "com/example/ahakey/service/FirmwareLightSimulator.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 2769
+      },
+      "entry": "com/example/ahakey/service/FirmwareLightSimulator.class",
+      "current": {
+        "size": 4703,
+        "content_sha256": "46de76758d9d9009c716206d929d4001d00fe53f0096d9cdc684677d765f30bd",
+        "entry": "com/example/ahakey/service/FirmwareLightSimulator.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 2769
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 3966,
+        "content_sha256": "18d2fb2a936b60e25e550e01a75be0c1a6ff2d5baaae4a8337d9a5f584b4c628",
+        "entry": "com/example/ahakey/service/HookClient.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 2104
+      },
+      "entry": "com/example/ahakey/service/HookClient.class",
+      "current": {
+        "size": 3966,
+        "content_sha256": "18d2fb2a936b60e25e550e01a75be0c1a6ff2d5baaae4a8337d9a5f584b4c628",
+        "entry": "com/example/ahakey/service/HookClient.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 2104
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 17408,
+        "content_sha256": "8adadc4e71e9559acefb1ffae92e459998dee1fc1b5dcd52383152d90c579de8",
+        "entry": "com/example/ahakey/service/HookDispatchServer.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 7823
+      },
+      "entry": "com/example/ahakey/service/HookDispatchServer.class",
+      "current": {
+        "size": 17408,
+        "content_sha256": "8adadc4e71e9559acefb1ffae92e459998dee1fc1b5dcd52383152d90c579de8",
+        "entry": "com/example/ahakey/service/HookDispatchServer.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 7823
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 971,
+        "content_sha256": "957c2867763750e0697571f1fd9b36e582c42ed4179c347a070125dfe181a43a",
+        "entry": "com/example/ahakey/service/HookDispatchServer$1.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 534
+      },
+      "entry": "com/example/ahakey/service/HookDispatchServer$1.class",
+      "current": {
+        "size": 971,
+        "content_sha256": "957c2867763750e0697571f1fd9b36e582c42ed4179c347a070125dfe181a43a",
+        "entry": "com/example/ahakey/service/HookDispatchServer$1.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 534
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 423,
+        "content_sha256": "94ffb2edc773794598119224f12d1aeea58d57c138ba22a0984e0ecbd620465d",
+        "entry": "com/example/ahakey/service/HookDispatchServer$ApprovalCallback.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 269
+      },
+      "entry": "com/example/ahakey/service/HookDispatchServer$ApprovalCallback.class",
+      "current": {
+        "size": 423,
+        "content_sha256": "94ffb2edc773794598119224f12d1aeea58d57c138ba22a0984e0ecbd620465d",
+        "entry": "com/example/ahakey/service/HookDispatchServer$ApprovalCallback.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 269
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2085,
+        "content_sha256": "d331c5d00f204d2715f961f4230ba2a30578d5e31603d05c5b117645d26b46de",
+        "entry": "com/example/ahakey/service/HookDispatchServer$EventEntry.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 792
+      },
+      "entry": "com/example/ahakey/service/HookDispatchServer$EventEntry.class",
+      "current": {
+        "size": 2085,
+        "content_sha256": "d331c5d00f204d2715f961f4230ba2a30578d5e31603d05c5b117645d26b46de",
+        "entry": "com/example/ahakey/service/HookDispatchServer$EventEntry.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 792
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1893,
+        "content_sha256": "73bbbdfac2e3f877495eb59355b76f3ee8d69dd823e09a565b0fffcf94e9b06f",
+        "entry": "com/example/ahakey/service/HookDispatchServer$HookPayload.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 770
+      },
+      "entry": "com/example/ahakey/service/HookDispatchServer$HookPayload.class",
+      "current": {
+        "size": 1893,
+        "content_sha256": "73bbbdfac2e3f877495eb59355b76f3ee8d69dd823e09a565b0fffcf94e9b06f",
+        "entry": "com/example/ahakey/service/HookDispatchServer$HookPayload.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 770
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1410,
+        "content_sha256": "35e719aecb5a5921720223ab2064daf91808547271654b0e1cd9bbf5ec01f9d5",
+        "entry": "com/example/ahakey/service/HookDispatchServer$Platform.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 668
+      },
+      "entry": "com/example/ahakey/service/HookDispatchServer$Platform.class",
+      "current": {
+        "size": 1410,
+        "content_sha256": "35e719aecb5a5921720223ab2064daf91808547271654b0e1cd9bbf5ec01f9d5",
+        "entry": "com/example/ahakey/service/HookDispatchServer$Platform.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 668
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 30135,
+        "content_sha256": "fa83046b87b18ebdd4173f3af76cb54d056ea16e368c1e9398813a9c2b9f0b59",
+        "entry": "com/example/ahakey/service/HookInstaller.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 12944
+      },
+      "entry": "com/example/ahakey/service/HookInstaller.class",
+      "current": {
+        "size": 30135,
+        "content_sha256": "fa83046b87b18ebdd4173f3af76cb54d056ea16e368c1e9398813a9c2b9f0b59",
+        "entry": "com/example/ahakey/service/HookInstaller.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 12944
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1504,
+        "content_sha256": "25f8167432e916ab3189f25640cfd03600c8e9261ca1d56e208d7fd9c6aa83ce",
+        "entry": "com/example/ahakey/service/HookInstaller$HookStatus.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 734
+      },
+      "entry": "com/example/ahakey/service/HookInstaller$HookStatus.class",
+      "current": {
+        "size": 1504,
+        "content_sha256": "25f8167432e916ab3189f25640cfd03600c8e9261ca1d56e208d7fd9c6aa83ce",
+        "entry": "com/example/ahakey/service/HookInstaller$HookStatus.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 734
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1762,
+        "content_sha256": "d0229dc6802e0d05222e3b7199cf2f87589a717a4dfc3e1173a1dc5e4ad6fd47",
+        "entry": "com/example/ahakey/service/HookInstaller$HookWriteResult.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 738
+      },
+      "entry": "com/example/ahakey/service/HookInstaller$HookWriteResult.class",
+      "current": {
+        "size": 1762,
+        "content_sha256": "d0229dc6802e0d05222e3b7199cf2f87589a717a4dfc3e1173a1dc5e4ad6fd47",
+        "entry": "com/example/ahakey/service/HookInstaller$HookWriteResult.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 738
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 7137,
+        "content_sha256": "be20e25946aabc858f47190bfb2abf5b36b2ca2ea28a2f455149324fa43bcdc3",
+        "entry": "com/example/ahakey/service/KeyboardInjector.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 3625
+      },
+      "entry": "com/example/ahakey/service/KeyboardInjector.class",
+      "current": {
+        "size": 7137,
+        "content_sha256": "be20e25946aabc858f47190bfb2abf5b36b2ca2ea28a2f455149324fa43bcdc3",
+        "entry": "com/example/ahakey/service/KeyboardInjector.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 3625
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 5924,
+        "content_sha256": "9c573a0c45b4ddcbd4d5010c1b4da6d32dc93193fa6809fb22033a2836538138",
+        "entry": "com/example/ahakey/service/KimiAhaKeyBridge.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 3027
+      },
+      "entry": "com/example/ahakey/service/KimiAhaKeyBridge.class",
+      "current": {
+        "size": 5924,
+        "content_sha256": "9c573a0c45b4ddcbd4d5010c1b4da6d32dc93193fa6809fb22033a2836538138",
+        "entry": "com/example/ahakey/service/KimiAhaKeyBridge.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 3027
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 4989,
+        "content_sha256": "9f17dd0b3be635896a4e395d8401f35f6ffd05eed51252172d0be6f642958dc2",
+        "entry": "com/example/ahakey/service/KimiConfigLeverSync.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 2484
+      },
+      "entry": "com/example/ahakey/service/KimiConfigLeverSync.class",
+      "current": {
+        "size": 4989,
+        "content_sha256": "9f17dd0b3be635896a4e395d8401f35f6ffd05eed51252172d0be6f642958dc2",
+        "entry": "com/example/ahakey/service/KimiConfigLeverSync.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 2484
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 11118,
+        "content_sha256": "c78ed8a4adb6d0cf783477cd8954617e8e460d102969eb4e0cb64c017542b162",
+        "entry": "com/example/ahakey/service/OledResourceStore.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 5227
+      },
+      "entry": "com/example/ahakey/service/OledResourceStore.class",
+      "current": {
+        "size": 11118,
+        "content_sha256": "c78ed8a4adb6d0cf783477cd8954617e8e460d102969eb4e0cb64c017542b162",
+        "entry": "com/example/ahakey/service/OledResourceStore.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 5227
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1122,
+        "content_sha256": "70c3dedd4c290c8e56b681a21ca04dd643f185b4358e79ae5491c8ef18d6bf20",
+        "entry": "com/example/ahakey/service/OledResourceStore$CleanupFailure.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 618
+      },
+      "entry": "com/example/ahakey/service/OledResourceStore$CleanupFailure.class",
+      "current": {
+        "size": 1122,
+        "content_sha256": "70c3dedd4c290c8e56b681a21ca04dd643f185b4358e79ae5491c8ef18d6bf20",
+        "entry": "com/example/ahakey/service/OledResourceStore$CleanupFailure.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 618
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 8014,
+        "content_sha256": "7bff1c16469fe349796ca07f67eedfda631de0e333d9688ea62e7715f0fbb7c6",
+        "entry": "com/example/ahakey/service/OledUploadService.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 3570
+      },
+      "entry": "com/example/ahakey/service/OledUploadService.class",
+      "current": {
+        "size": 8014,
+        "content_sha256": "7bff1c16469fe349796ca07f67eedfda631de0e333d9688ea62e7715f0fbb7c6",
+        "entry": "com/example/ahakey/service/OledUploadService.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 3570
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 416,
+        "content_sha256": "ff3f66b2f5fc199463fcf2aae716dd7e98c3811c959e367b18b2c844bf06bd18",
+        "entry": "com/example/ahakey/service/OledUploadService$BeforeCommit.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 275
+      },
+      "entry": "com/example/ahakey/service/OledUploadService$BeforeCommit.class",
+      "current": {
+        "size": 416,
+        "content_sha256": "ff3f66b2f5fc199463fcf2aae716dd7e98c3811c959e367b18b2c844bf06bd18",
+        "entry": "com/example/ahakey/service/OledUploadService$BeforeCommit.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 275
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 532,
+        "content_sha256": "225118aff8a68baa93e22243f5c54204779ffc99b2969b1f585074b0a40657ab",
+        "entry": "com/example/ahakey/service/OledUploadService$DeviceRejected.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 343
+      },
+      "entry": "com/example/ahakey/service/OledUploadService$DeviceRejected.class",
+      "current": {
+        "size": 532,
+        "content_sha256": "225118aff8a68baa93e22243f5c54204779ffc99b2969b1f585074b0a40657ab",
+        "entry": "com/example/ahakey/service/OledUploadService$DeviceRejected.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 343
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2363,
+        "content_sha256": "e3e0dcc6c652592b130522dec681d7e67e14068c21294773e33e8647edc4ab13",
+        "entry": "com/example/ahakey/service/OledUploadService$Progress.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 1022
+      },
+      "entry": "com/example/ahakey/service/OledUploadService$Progress.class",
+      "current": {
+        "size": 2363,
+        "content_sha256": "e3e0dcc6c652592b130522dec681d7e67e14068c21294773e33e8647edc4ab13",
+        "entry": "com/example/ahakey/service/OledUploadService$Progress.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1022
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 777,
+        "content_sha256": "0f72f8ea8ddb423db835079408f8fcfad94fd7f8e787e1fa9f172836358ff76e",
+        "entry": "com/example/ahakey/service/OledUploadService$UploadFailure.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 424
+      },
+      "entry": "com/example/ahakey/service/OledUploadService$UploadFailure.class",
+      "current": {
+        "size": 777,
+        "content_sha256": "0f72f8ea8ddb423db835079408f8fcfad94fd7f8e787e1fa9f172836358ff76e",
+        "entry": "com/example/ahakey/service/OledUploadService$UploadFailure.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 424
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 11787,
+        "content_sha256": "58f520a238b6d5a8d3dbf9f346d489529102f34b976932a755a0e9fc26c1dafb",
+        "entry": "com/example/ahakey/service/SocketServer.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 5190
+      },
+      "entry": "com/example/ahakey/service/SocketServer.class",
+      "current": {
+        "size": 11787,
+        "content_sha256": "58f520a238b6d5a8d3dbf9f346d489529102f34b976932a755a0e9fc26c1dafb",
+        "entry": "com/example/ahakey/service/SocketServer.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 5190
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 20446,
+        "content_sha256": "992c10eb750651956748089ecca379d0a33e3603072bf6f7150c8f420800a9ee",
+        "entry": "com/example/ahakey/service/SpeechService.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 11056
+      },
+      "entry": "com/example/ahakey/service/SpeechService.class",
+      "current": {
+        "size": 20446,
+        "content_sha256": "992c10eb750651956748089ecca379d0a33e3603072bf6f7150c8f420800a9ee",
+        "entry": "com/example/ahakey/service/SpeechService.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 11056
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 371,
+        "content_sha256": "96e99570bf2398931f00d88660efaa4a8e3ca12ac43d1f90cb0cd84b8fa6f05a",
+        "entry": "com/example/ahakey/service/SpeechService$Consumer.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 229
+      },
+      "entry": "com/example/ahakey/service/SpeechService$Consumer.class",
+      "current": {
+        "size": 371,
+        "content_sha256": "96e99570bf2398931f00d88660efaa4a8e3ca12ac43d1f90cb0cd84b8fa6f05a",
+        "entry": "com/example/ahakey/service/SpeechService$Consumer.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 229
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 13838,
+        "content_sha256": "6601a433b5d677400121b8f07a5d0f17d672c54eab626c539c87057b84172aa0",
+        "entry": "com/example/ahakey/service/UsbHidTransport.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 6885
+      },
+      "entry": "com/example/ahakey/service/UsbHidTransport.class",
+      "current": {
+        "size": 13838,
+        "content_sha256": "6601a433b5d677400121b8f07a5d0f17d672c54eab626c539c87057b84172aa0",
+        "entry": "com/example/ahakey/service/UsbHidTransport.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 6885
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 512,
+        "content_sha256": "30d8b92cfb33afe162fc47c98f300439f641b874de9da9cfdcdedc105283fa48",
+        "entry": "com/example/ahakey/service/UsbHidTransport$Guid.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 296
+      },
+      "entry": "com/example/ahakey/service/UsbHidTransport$Guid.class",
+      "current": {
+        "size": 512,
+        "content_sha256": "30d8b92cfb33afe162fc47c98f300439f641b874de9da9cfdcdedc105283fa48",
+        "entry": "com/example/ahakey/service/UsbHidTransport$Guid.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 296
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 782,
+        "content_sha256": "e83ee415f835926108354c545510c2e3a163b7dde90ead456ea48703192ffd1a",
+        "entry": "com/example/ahakey/service/UsbHidTransport$Guid$GUID.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 446
+      },
+      "entry": "com/example/ahakey/service/UsbHidTransport$Guid$GUID.class",
+      "current": {
+        "size": 782,
+        "content_sha256": "e83ee415f835926108354c545510c2e3a163b7dde90ead456ea48703192ffd1a",
+        "entry": "com/example/ahakey/service/UsbHidTransport$Guid$GUID.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 446
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 899,
+        "content_sha256": "a39f33d3dcb900b372bc6cd2a6690bb34d0d38777880e92e4d9b4cddb9942999",
+        "entry": "com/example/ahakey/service/UsbHidTransport$Hid.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 491
+      },
+      "entry": "com/example/ahakey/service/UsbHidTransport$Hid.class",
+      "current": {
+        "size": 899,
+        "content_sha256": "a39f33d3dcb900b372bc6cd2a6690bb34d0d38777880e92e4d9b4cddb9942999",
+        "entry": "com/example/ahakey/service/UsbHidTransport$Hid.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 491
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 977,
+        "content_sha256": "1cd52877e8d4cb879e06051fc35d6e7fbeba9209ccb26e4267fe431f96b2075a",
+        "entry": "com/example/ahakey/service/UsbHidTransport$Kernel32.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 541
+      },
+      "entry": "com/example/ahakey/service/UsbHidTransport$Kernel32.class",
+      "current": {
+        "size": 977,
+        "content_sha256": "1cd52877e8d4cb879e06051fc35d6e7fbeba9209ccb26e4267fe431f96b2075a",
+        "entry": "com/example/ahakey/service/UsbHidTransport$Kernel32.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 541
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1760,
+        "content_sha256": "647e14b3be2c81be24261aac1b86abcb1cfbc881a3eb116c70b0346c5ba3a571",
+        "entry": "com/example/ahakey/service/UsbHidTransport$SetupApi.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 695
+      },
+      "entry": "com/example/ahakey/service/UsbHidTransport$SetupApi.class",
+      "current": {
+        "size": 1760,
+        "content_sha256": "647e14b3be2c81be24261aac1b86abcb1cfbc881a3eb116c70b0346c5ba3a571",
+        "entry": "com/example/ahakey/service/UsbHidTransport$SetupApi.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 695
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 972,
+        "content_sha256": "d50bded0a1f9af594633039c094f0f91db814ab53423d1704fe925a5d252a104",
+        "entry": "com/example/ahakey/service/UsbHidTransport$SP_DEVICE_INTERFACE_DATA.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 491
+      },
+      "entry": "com/example/ahakey/service/UsbHidTransport$SP_DEVICE_INTERFACE_DATA.class",
+      "current": {
+        "size": 972,
+        "content_sha256": "d50bded0a1f9af594633039c094f0f91db814ab53423d1704fe925a5d252a104",
+        "entry": "com/example/ahakey/service/UsbHidTransport$SP_DEVICE_INTERFACE_DATA.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 491
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 750,
+        "content_sha256": "1500ac1955c387ea8c4d704745433c5ea38df9e46c7f48161c6dad6920e4a778",
+        "entry": "com/example/ahakey/service/UsbHidTransport$SP_DEVICE_INTERFACE_DETAIL_DATA.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 439
+      },
+      "entry": "com/example/ahakey/service/UsbHidTransport$SP_DEVICE_INTERFACE_DETAIL_DATA.class",
+      "current": {
+        "size": 750,
+        "content_sha256": "1500ac1955c387ea8c4d704745433c5ea38df9e46c7f48161c6dad6920e4a778",
+        "entry": "com/example/ahakey/service/UsbHidTransport$SP_DEVICE_INTERFACE_DETAIL_DATA.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 439
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 11185,
+        "content_sha256": "ed9ad9c11f8abac9e4e38ad25ea6c76ea40d5635604b2844534d456b62639664",
+        "entry": "com/example/ahakey/service/VoiceInputManager.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 5224
+      },
+      "entry": "com/example/ahakey/service/VoiceInputManager.class",
+      "current": {
+        "size": 11185,
+        "content_sha256": "ed9ad9c11f8abac9e4e38ad25ea6c76ea40d5635604b2844534d456b62639664",
+        "entry": "com/example/ahakey/service/VoiceInputManager.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 5224
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 383,
+        "content_sha256": "8f9bd26d8a50d58c9b61daa6393810b693b24128830f74ce17ee024179a945d6",
+        "entry": "com/example/ahakey/service/VoiceInputManager$Consumer.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 235
+      },
+      "entry": "com/example/ahakey/service/VoiceInputManager$Consumer.class",
+      "current": {
+        "size": 383,
+        "content_sha256": "8f9bd26d8a50d58c9b61daa6393810b693b24128830f74ce17ee024179a945d6",
+        "entry": "com/example/ahakey/service/VoiceInputManager$Consumer.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 235
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2151,
+        "content_sha256": "a585f97a924f79d3b7ff0c20e164363876370d697caf70716e1458c2ea07da2e",
+        "entry": "com/example/ahakey/service/VoiceInputManager$VoiceStatus.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 1070
+      },
+      "entry": "com/example/ahakey/service/VoiceInputManager$VoiceStatus.class",
+      "current": {
+        "size": 2151,
+        "content_sha256": "a585f97a924f79d3b7ff0c20e164363876370d697caf70716e1458c2ea07da2e",
+        "entry": "com/example/ahakey/service/VoiceInputManager$VoiceStatus.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1070
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/sherpa/",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 0
+      },
+      "entry": "com/example/ahakey/sherpa/",
+      "current": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/sherpa/",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 0
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 3877,
+        "content_sha256": "06ddab0aad8d39e7586d1ac883dc034a0fa7e117a99f15c38d3ea72aa9c39488",
+        "entry": "com/example/ahakey/sherpa/LibraryLoader.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 2062
+      },
+      "entry": "com/example/ahakey/sherpa/LibraryLoader.class",
+      "current": {
+        "size": 3877,
+        "content_sha256": "06ddab0aad8d39e7586d1ac883dc034a0fa7e117a99f15c38d3ea72aa9c39488",
+        "entry": "com/example/ahakey/sherpa/LibraryLoader.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 2062
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 3868,
+        "content_sha256": "8c8b31424097d58851e7a3f10d5bc795b896b6e4da15262835daa9cf9c69dca4",
+        "entry": "com/example/ahakey/SingleInstanceChecker.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 1986
+      },
+      "entry": "com/example/ahakey/SingleInstanceChecker.class",
+      "current": {
+        "size": 3868,
+        "content_sha256": "8c8b31424097d58851e7a3f10d5bc795b896b6e4da15262835daa9cf9c69dca4",
+        "entry": "com/example/ahakey/SingleInstanceChecker.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1986
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/util/",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 0
+      },
+      "entry": "com/example/ahakey/util/",
+      "current": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/util/",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 0
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 3380,
+        "content_sha256": "54d2284624c50ab96c61d9404f333ee9c085a064e12c3d6a16533f7873281740",
+        "entry": "com/example/ahakey/util/AiRuntimeStore.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 1746
+      },
+      "entry": "com/example/ahakey/util/AiRuntimeStore.class",
+      "current": {
+        "size": 3380,
+        "content_sha256": "54d2284624c50ab96c61d9404f333ee9c085a064e12c3d6a16533f7873281740",
+        "entry": "com/example/ahakey/util/AiRuntimeStore.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1746
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1776,
+        "content_sha256": "858aafdd102807456058220c8dbb1ff4ad30bce044cca8d3a694cd741dae8d8a",
+        "entry": "com/example/ahakey/util/AiRuntimeStore$Draft.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 983
+      },
+      "entry": "com/example/ahakey/util/AiRuntimeStore$Draft.class",
+      "current": {
+        "size": 1776,
+        "content_sha256": "858aafdd102807456058220c8dbb1ff4ad30bce044cca8d3a694cd741dae8d8a",
+        "entry": "com/example/ahakey/util/AiRuntimeStore$Draft.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 983
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 3941,
+        "content_sha256": "e915dbb2adf8112a28baabe9855703852dd6423005fddc82298ed7526f199cd5",
+        "entry": "com/example/ahakey/util/ConfigStore.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 1869
+      },
+      "entry": "com/example/ahakey/util/ConfigStore.class",
+      "current": {
+        "size": 3941,
+        "content_sha256": "e915dbb2adf8112a28baabe9855703852dd6423005fddc82298ed7526f199cd5",
+        "entry": "com/example/ahakey/util/ConfigStore.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1869
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 628,
+        "content_sha256": "6e0623066fc64ecf8dc2a105918f5f12080e9f3aa284b3e8e7bc88dd6a12d10d",
+        "entry": "com/example/ahakey/util/ConfigStore$1.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 373
+      },
+      "entry": "com/example/ahakey/util/ConfigStore$1.class",
+      "current": {
+        "size": 628,
+        "content_sha256": "6e0623066fc64ecf8dc2a105918f5f12080e9f3aa284b3e8e7bc88dd6a12d10d",
+        "entry": "com/example/ahakey/util/ConfigStore$1.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 373
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 3612,
+        "content_sha256": "a995d9893e40487b99635708356fc92e3b678691cd0847852a0d77e3b5b2aa07",
+        "entry": "com/example/ahakey/util/Icons.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 1557
+      },
+      "entry": "com/example/ahakey/util/Icons.class",
+      "current": {
+        "size": 3612,
+        "content_sha256": "a995d9893e40487b99635708356fc92e3b678691cd0847852a0d77e3b5b2aa07",
+        "entry": "com/example/ahakey/util/Icons.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1557
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 5761,
+        "content_sha256": "7ac0efd281e53db3d930748cf3f54383df29f81012bca13c155cc88de108f8bb",
+        "entry": "com/example/ahakey/util/LanguageManager.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 2865
+      },
+      "entry": "com/example/ahakey/util/LanguageManager.class",
+      "current": {
+        "size": 5761,
+        "content_sha256": "7ac0efd281e53db3d930748cf3f54383df29f81012bca13c155cc88de108f8bb",
+        "entry": "com/example/ahakey/util/LanguageManager.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 2865
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 312,
+        "content_sha256": "98a08581fdd14dee84af257f1e7184604883f843caa098d8e1a85a83332a1bf8",
+        "entry": "com/example/ahakey/util/LanguageManager$LanguageChangeListener.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 204
+      },
+      "entry": "com/example/ahakey/util/LanguageManager$LanguageChangeListener.class",
+      "current": {
+        "size": 312,
+        "content_sha256": "98a08581fdd14dee84af257f1e7184604883f843caa098d8e1a85a83332a1bf8",
+        "entry": "com/example/ahakey/util/LanguageManager$LanguageChangeListener.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 204
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1552,
+        "content_sha256": "66857b3673f945bf1a66d69e41511d73d91b1c8b38c809c5c3cc8287b66a389d",
+        "entry": "com/example/ahakey/util/LanguageManager$LanguageChangeNotifier.class",
+        "last_write_time": "2026-10-21T10:57:20.0000000+08:00",
+        "compressed_size": 711
+      },
+      "entry": "com/example/ahakey/util/LanguageManager$LanguageChangeNotifier.class",
+      "current": {
+        "size": 1552,
+        "content_sha256": "66857b3673f945bf1a66d69e41511d73d91b1c8b38c809c5c3cc8287b66a389d",
+        "entry": "com/example/ahakey/util/LanguageManager$LanguageChangeNotifier.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 711
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 13132,
+        "content_sha256": "3345ff9119a2d7c7430917cc29ed0bbdd92b58897dd6cfbf590560a3d87ad8ee",
+        "entry": "com/example/ahakey/util/OLEDFrameEncoder.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 6841
+      },
+      "entry": "com/example/ahakey/util/OLEDFrameEncoder.class",
+      "current": {
+        "size": 13132,
+        "content_sha256": "3345ff9119a2d7c7430917cc29ed0bbdd92b58897dd6cfbf590560a3d87ad8ee",
+        "entry": "com/example/ahakey/util/OLEDFrameEncoder.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 6841
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 631,
+        "content_sha256": "54d2d17d8cb50824e826b7a3228cc8c148114ef1571260d851045a3b072898a4",
+        "entry": "com/example/ahakey/util/OLEDFrameEncoder$EncodedFrame.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 387
+      },
+      "entry": "com/example/ahakey/util/OLEDFrameEncoder$EncodedFrame.class",
+      "current": {
+        "size": 631,
+        "content_sha256": "54d2d17d8cb50824e826b7a3228cc8c148114ef1571260d851045a3b072898a4",
+        "entry": "com/example/ahakey/util/OLEDFrameEncoder$EncodedFrame.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 387
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 4302,
+        "content_sha256": "347314dcd213ed707f5ca1fbb80eb68926ade081a88ccd1612fc738fbdd28592",
+        "entry": "com/example/ahakey/util/StudioStore.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 2174
+      },
+      "entry": "com/example/ahakey/util/StudioStore.class",
+      "current": {
+        "size": 4302,
+        "content_sha256": "347314dcd213ed707f5ca1fbb80eb68926ade081a88ccd1612fc738fbdd28592",
+        "entry": "com/example/ahakey/util/StudioStore.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 2174
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/view/",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 0
+      },
+      "entry": "com/example/ahakey/view/",
+      "current": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "com/example/ahakey/view/",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 0
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1528,
+        "content_sha256": "fd4ddb46da63f5192de017d558628470cde22f37e7430f87387245f8e518474a",
+        "entry": "com/example/ahakey/view/AccentColor.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 798
+      },
+      "entry": "com/example/ahakey/view/AccentColor.class",
+      "current": {
+        "size": 1528,
+        "content_sha256": "fd4ddb46da63f5192de017d558628470cde22f37e7430f87387245f8e518474a",
+        "entry": "com/example/ahakey/view/AccentColor.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 798
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 17002,
+        "content_sha256": "08cef40bfcf986f52dfdbc65764208a63deef6488fd4f1793e346c4545a27981",
+        "entry": "com/example/ahakey/view/CanvasController.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 7065
+      },
+      "entry": "com/example/ahakey/view/CanvasController.class",
+      "current": {
+        "size": 17002,
+        "content_sha256": "08cef40bfcf986f52dfdbc65764208a63deef6488fd4f1793e346c4545a27981",
+        "entry": "com/example/ahakey/view/CanvasController.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 7065
+      }
+    },
+    {
+      "status": "changed_content",
+      "preview": {
+        "size": 8527,
+        "content_sha256": "559dca57f32216d1d18b4b706e68b7777d7b6c351233e0ffcfb86d82843eb025",
+        "entry": "com/example/ahakey/view/CanvasPane.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 3841
+      },
+      "entry": "com/example/ahakey/view/CanvasPane.class",
+      "current": {
+        "size": 8527,
+        "content_sha256": "5494a1f3729dd0039566f4c7b88107ed9b407eb40397f58cfd3c279b1cb45353",
+        "entry": "com/example/ahakey/view/CanvasPane.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 3840
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 8157,
+        "content_sha256": "a9ef47e2adca879d529e16f980d1c5b4498f1c028449f3eac80eed1504329dcd",
+        "entry": "com/example/ahakey/view/FloatingVoiceNotification.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 4097
+      },
+      "entry": "com/example/ahakey/view/FloatingVoiceNotification.class",
+      "current": {
+        "size": 8157,
+        "content_sha256": "a9ef47e2adca879d529e16f980d1c5b4498f1c028449f3eac80eed1504329dcd",
+        "entry": "com/example/ahakey/view/FloatingVoiceNotification.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 4097
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2514,
+        "content_sha256": "ff297d93c62f8510f57212b37066122e286bf0b7e36cacadb1673b999e1d2257",
+        "entry": "com/example/ahakey/view/FloatingVoiceNotification$1.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 1131
+      },
+      "entry": "com/example/ahakey/view/FloatingVoiceNotification$1.class",
+      "current": {
+        "size": 2514,
+        "content_sha256": "ff297d93c62f8510f57212b37066122e286bf0b7e36cacadb1673b999e1d2257",
+        "entry": "com/example/ahakey/view/FloatingVoiceNotification$1.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1131
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1902,
+        "content_sha256": "dd55d66d36304214045d4129017ad4162a9b58165bf188e0cbf6c30cf36d5f7d",
+        "entry": "com/example/ahakey/view/FloatingVoiceNotification$AnimationTimer.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 928
+      },
+      "entry": "com/example/ahakey/view/FloatingVoiceNotification$AnimationTimer.class",
+      "current": {
+        "size": 1902,
+        "content_sha256": "dd55d66d36304214045d4129017ad4162a9b58165bf188e0cbf6c30cf36d5f7d",
+        "entry": "com/example/ahakey/view/FloatingVoiceNotification$AnimationTimer.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 928
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 746,
+        "content_sha256": "4c4cb4e6108a2d4adf9bc4047ac3535e061ade5df5d70c101b5e695bf8da2355",
+        "entry": "com/example/ahakey/view/FloatingVoiceNotification$StatusConfig.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 431
+      },
+      "entry": "com/example/ahakey/view/FloatingVoiceNotification$StatusConfig.class",
+      "current": {
+        "size": 746,
+        "content_sha256": "4c4cb4e6108a2d4adf9bc4047ac3535e061ade5df5d70c101b5e695bf8da2355",
+        "entry": "com/example/ahakey/view/FloatingVoiceNotification$StatusConfig.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 431
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 3321,
+        "content_sha256": "03d49c9de3c3948a293b1307b077337f17c70e4d0cab33b91a4ad78d4a32fa98",
+        "entry": "com/example/ahakey/view/InfoPill.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 1379
+      },
+      "entry": "com/example/ahakey/view/InfoPill.class",
+      "current": {
+        "size": 3321,
+        "content_sha256": "03d49c9de3c3948a293b1307b077337f17c70e4d0cab33b91a4ad78d4a32fa98",
+        "entry": "com/example/ahakey/view/InfoPill.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1379
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 98799,
+        "content_sha256": "edef8b344f95355c41ee3b3c1b4e83dd04658743d9f4989fe235c1ec80cce8da",
+        "entry": "com/example/ahakey/view/InspectorPane.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 39990
+      },
+      "entry": "com/example/ahakey/view/InspectorPane.class",
+      "current": {
+        "size": 98799,
+        "content_sha256": "edef8b344f95355c41ee3b3c1b4e83dd04658743d9f4989fe235c1ec80cce8da",
+        "entry": "com/example/ahakey/view/InspectorPane.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 39990
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1811,
+        "content_sha256": "7d469485f42caa17a7dd8fb9ee753933548852e15bf02313716468c3a1695ea4",
+        "entry": "com/example/ahakey/view/InspectorPane$1.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 894
+      },
+      "entry": "com/example/ahakey/view/InspectorPane$1.class",
+      "current": {
+        "size": 1811,
+        "content_sha256": "7d469485f42caa17a7dd8fb9ee753933548852e15bf02313716468c3a1695ea4",
+        "entry": "com/example/ahakey/view/InspectorPane$1.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 894
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2314,
+        "content_sha256": "6a9af762208cf0234d390028fe715167a7c76664b82accbf99545822d0d7a520",
+        "entry": "com/example/ahakey/view/InspectorPane$2.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 1169
+      },
+      "entry": "com/example/ahakey/view/InspectorPane$2.class",
+      "current": {
+        "size": 2314,
+        "content_sha256": "6a9af762208cf0234d390028fe715167a7c76664b82accbf99545822d0d7a520",
+        "entry": "com/example/ahakey/view/InspectorPane$2.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1169
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2036,
+        "content_sha256": "ae595c9b9d66ab69fc5d7afcc0e35c47ee42f981921cd9b513d074702d5d397e",
+        "entry": "com/example/ahakey/view/InspectorPane$3.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 902
+      },
+      "entry": "com/example/ahakey/view/InspectorPane$3.class",
+      "current": {
+        "size": 2036,
+        "content_sha256": "ae595c9b9d66ab69fc5d7afcc0e35c47ee42f981921cd9b513d074702d5d397e",
+        "entry": "com/example/ahakey/view/InspectorPane$3.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 902
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 819,
+        "content_sha256": "5a69beaf16efbd1e612cd48535e457272f0e4cb7edba88594ea9b4c929e24912",
+        "entry": "com/example/ahakey/view/InspectorPane$4.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 517
+      },
+      "entry": "com/example/ahakey/view/InspectorPane$4.class",
+      "current": {
+        "size": 819,
+        "content_sha256": "5a69beaf16efbd1e612cd48535e457272f0e4cb7edba88594ea9b4c929e24912",
+        "entry": "com/example/ahakey/view/InspectorPane$4.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 517
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2221,
+        "content_sha256": "1df503275b649feb3b4ac3b1bfc231537cce94e7b22183525a975ce4ae62643a",
+        "entry": "com/example/ahakey/view/InspectorPane$RuntimeTreeLoad.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 886
+      },
+      "entry": "com/example/ahakey/view/InspectorPane$RuntimeTreeLoad.class",
+      "current": {
+        "size": 2221,
+        "content_sha256": "1df503275b649feb3b4ac3b1bfc231537cce94e7b22183525a975ce4ae62643a",
+        "entry": "com/example/ahakey/view/InspectorPane$RuntimeTreeLoad.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 886
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 4906,
+        "content_sha256": "49d174bcb5c2575ddc44fbe94b34bc314ed8cd7811861614f1398846dc646e27",
+        "entry": "com/example/ahakey/view/StatusBar.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 2108
+      },
+      "entry": "com/example/ahakey/view/StatusBar.class",
+      "current": {
+        "size": 4906,
+        "content_sha256": "49d174bcb5c2575ddc44fbe94b34bc314ed8cd7811861614f1398846dc646e27",
+        "entry": "com/example/ahakey/view/StatusBar.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 2108
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 81684,
+        "content_sha256": "73ad741b0ae4eed61079e01a1b9354a7378e6262b5c18305233d2e77214db61f",
+        "entry": "com/example/ahakey/view/TopBar.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 33716
+      },
+      "entry": "com/example/ahakey/view/TopBar.class",
+      "current": {
+        "size": 81684,
+        "content_sha256": "73ad741b0ae4eed61079e01a1b9354a7378e6262b5c18305233d2e77214db61f",
+        "entry": "com/example/ahakey/view/TopBar.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 33716
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1081,
+        "content_sha256": "64586816ba89e04b48b12b25068963391f8d5df78a7ec4d93c459c161341f335",
+        "entry": "com/example/ahakey/view/TopBar$1.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 615
+      },
+      "entry": "com/example/ahakey/view/TopBar$1.class",
+      "current": {
+        "size": 1081,
+        "content_sha256": "64586816ba89e04b48b12b25068963391f8d5df78a7ec4d93c459c161341f335",
+        "entry": "com/example/ahakey/view/TopBar$1.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 615
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1957,
+        "content_sha256": "3ecf820638287fb5b50909e3d20810374244e3c615049dc6581e0a79869f0a10",
+        "entry": "com/example/ahakey/view/TopBar$SleepWaitTimeControl.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 829
+      },
+      "entry": "com/example/ahakey/view/TopBar$SleepWaitTimeControl.class",
+      "current": {
+        "size": 1957,
+        "content_sha256": "3ecf820638287fb5b50909e3d20810374244e3c615049dc6581e0a79869f0a10",
+        "entry": "com/example/ahakey/view/TopBar$SleepWaitTimeControl.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 829
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1624,
+        "content_sha256": "1ec9ee593f6dd02691c31ed99c12bad1ee25c6a4009a0650e2a8986c79ab7bde",
+        "entry": "com/example/ahakey/view/TopBar$SleepWaitTimeOption.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 720
+      },
+      "entry": "com/example/ahakey/view/TopBar$SleepWaitTimeOption.class",
+      "current": {
+        "size": 1624,
+        "content_sha256": "1ec9ee593f6dd02691c31ed99c12bad1ee25c6a4009a0650e2a8986c79ab7bde",
+        "entry": "com/example/ahakey/view/TopBar$SleepWaitTimeOption.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 720
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 2915,
+        "content_sha256": "382ec792764ba12319d4489d33193a6b9a0a949e2c93837df52681a20a7e2635",
+        "entry": "com/example/ahakey/view/TopBar$VoiceStatusLamp.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 1577
+      },
+      "entry": "com/example/ahakey/view/TopBar$VoiceStatusLamp.class",
+      "current": {
+        "size": 2915,
+        "content_sha256": "382ec792764ba12319d4489d33193a6b9a0a949e2c93837df52681a20a7e2635",
+        "entry": "com/example/ahakey/view/TopBar$VoiceStatusLamp.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 1577
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 1014,
+        "content_sha256": "ccb6cc8e8d0661db18afc55dfd031100b5039f51721565c2d58a360f57b4a562",
+        "entry": "com/example/ahakey/view/TopBar$VoiceStatusLamp$1.class",
+        "last_write_time": "2026-10-21T10:57:22.0000000+08:00",
+        "compressed_size": 520
+      },
+      "entry": "com/example/ahakey/view/TopBar$VoiceStatusLamp$1.class",
+      "current": {
+        "size": 1014,
+        "content_sha256": "ccb6cc8e8d0661db18afc55dfd031100b5039f51721565c2d58a360f57b4a562",
+        "entry": "com/example/ahakey/view/TopBar$VoiceStatusLamp$1.class",
+        "last_write_time": "2026-10-21T10:20:00.0000000+08:00",
+        "compressed_size": 520
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "fxml/",
+        "last_write_time": "2026-10-21T10:57:18.0000000+08:00",
+        "compressed_size": 0
+      },
+      "entry": "fxml/",
+      "current": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "fxml/",
+        "last_write_time": "2026-10-16T10:36:58.0000000+08:00",
+        "compressed_size": 0
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 4709,
+        "content_sha256": "825140d9608cb6582a248f68cd82ea4232918d3e58854d2168a31f90c486e30e",
+        "entry": "fxml/CanvasLayout.fxml",
+        "last_write_time": "2026-10-21T10:49:20.0000000+08:00",
+        "compressed_size": 920
+      },
+      "entry": "fxml/CanvasLayout.fxml",
+      "current": {
+        "size": 4709,
+        "content_sha256": "825140d9608cb6582a248f68cd82ea4232918d3e58854d2168a31f90c486e30e",
+        "entry": "fxml/CanvasLayout.fxml",
+        "last_write_time": "2026-10-16T10:20:28.0000000+08:00",
+        "compressed_size": 920
+      }
+    },
+    {
+      "status": "changed_content",
+      "preview": {
+        "size": 884,
+        "content_sha256": "b6c5f658e60e6c0bfe06bbcaace30db2265e8045d8ac97250e1448ff3b75d291",
+        "entry": "fxml/VoiceInputPanel.fxml",
+        "last_write_time": "2026-10-21T10:49:20.0000000+08:00",
+        "compressed_size": 460
+      },
+      "entry": "fxml/VoiceInputPanel.fxml",
+      "current": {
+        "size": 904,
+        "content_sha256": "e3b3a36fd6e1ee7f19945b86c9ad5cdbfd98726e8809462bfa47f57154cce096",
+        "entry": "fxml/VoiceInputPanel.fxml",
+        "last_write_time": "2026-09-24T15:10:20.0000000+08:00",
+        "compressed_size": 465
+      }
+    },
+    {
+      "status": "changed_content",
+      "preview": {
+        "size": 1413,
+        "content_sha256": "47aef3936b40d7baa595aa77064c8f238bb296989f474dfa6cefc2b35b73e618",
+        "entry": "logback.xml",
+        "last_write_time": "2026-10-21T10:49:20.0000000+08:00",
+        "compressed_size": 586
+      },
+      "entry": "logback.xml",
+      "current": {
+        "size": 1450,
+        "content_sha256": "714a434a5aa5e4b61fd7f83ddcb2d88da3f69295b7cdf93a5bdabea3cca149fa",
+        "entry": "logback.xml",
+        "last_write_time": "2026-09-24T15:10:20.0000000+08:00",
+        "compressed_size": 588
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 12892,
+        "content_sha256": "70275381f6e2d9fa8f8108f3a79ed45297907b140923cbc842fa69808053a22b",
+        "entry": "messages_en.properties",
+        "last_write_time": "2026-10-21T10:49:20.0000000+08:00",
+        "compressed_size": 4361
+      },
+      "entry": "messages_en.properties",
+      "current": {
+        "size": 12892,
+        "content_sha256": "70275381f6e2d9fa8f8108f3a79ed45297907b140923cbc842fa69808053a22b",
+        "entry": "messages_en.properties",
+        "last_write_time": "2026-10-21T10:18:04.0000000+08:00",
+        "compressed_size": 4361
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 12328,
+        "content_sha256": "a40bad173698f9ba490ed6ca956ad72cca53072c24d6dc7422c0012bd34b5138",
+        "entry": "messages_zh.properties",
+        "last_write_time": "2026-10-21T10:49:20.0000000+08:00",
+        "compressed_size": 4794
+      },
+      "entry": "messages_zh.properties",
+      "current": {
+        "size": 12328,
+        "content_sha256": "a40bad173698f9ba490ed6ca956ad72cca53072c24d6dc7422c0012bd34b5138",
+        "entry": "messages_zh.properties",
+        "last_write_time": "2026-10-21T10:18:02.0000000+08:00",
+        "compressed_size": 4794
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "META-INF/",
+        "last_write_time": "2026-10-21T10:57:24.0000000+08:00",
+        "compressed_size": 0
+      },
+      "entry": "META-INF/",
+      "current": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "META-INF/",
+        "last_write_time": "2026-10-22T08:45:36.0000000+08:00",
+        "compressed_size": 0
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 756,
+        "content_sha256": "4be41b7e2a0f103ac0eef25cb38d52665d19f81a9fa0e2fbf4fadd9e76a6da19",
+        "entry": "META-INF/MANIFEST.MF",
+        "last_write_time": "2026-10-21T10:57:24.0000000+08:00",
+        "compressed_size": 334
+      },
+      "entry": "META-INF/MANIFEST.MF",
+      "current": {
+        "size": 756,
+        "content_sha256": "4be41b7e2a0f103ac0eef25cb38d52665d19f81a9fa0e2fbf4fadd9e76a6da19",
+        "entry": "META-INF/MANIFEST.MF",
+        "last_write_time": "2026-10-22T08:45:36.0000000+08:00",
+        "compressed_size": 334
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "META-INF/maven/",
+        "last_write_time": "2026-10-21T10:57:24.0000000+08:00",
+        "compressed_size": 0
+      },
+      "entry": "META-INF/maven/",
+      "current": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "META-INF/maven/",
+        "last_write_time": "2026-10-22T08:45:36.0000000+08:00",
+        "compressed_size": 0
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "META-INF/maven/com.example/",
+        "last_write_time": "2026-10-21T10:57:24.0000000+08:00",
+        "compressed_size": 0
+      },
+      "entry": "META-INF/maven/com.example/",
+      "current": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "META-INF/maven/com.example/",
+        "last_write_time": "2026-10-22T08:45:36.0000000+08:00",
+        "compressed_size": 0
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "META-INF/maven/com.example/ahakey-studio/",
+        "last_write_time": "2026-10-21T10:57:24.0000000+08:00",
+        "compressed_size": 0
+      },
+      "entry": "META-INF/maven/com.example/ahakey-studio/",
+      "current": {
+        "size": 0,
+        "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "entry": "META-INF/maven/com.example/ahakey-studio/",
+        "last_write_time": "2026-10-22T08:45:36.0000000+08:00",
+        "compressed_size": 0
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 62,
+        "content_sha256": "6141c67b67808f8890749048fe4f2e798b95f3dcd31b8a729ce9ef87ac10a8fe",
+        "entry": "META-INF/maven/com.example/ahakey-studio/pom.properties",
+        "last_write_time": "2026-10-21T10:57:24.0000000+08:00",
+        "compressed_size": 63
+      },
+      "entry": "META-INF/maven/com.example/ahakey-studio/pom.properties",
+      "current": {
+        "size": 62,
+        "content_sha256": "6141c67b67808f8890749048fe4f2e798b95f3dcd31b8a729ce9ef87ac10a8fe",
+        "entry": "META-INF/maven/com.example/ahakey-studio/pom.properties",
+        "last_write_time": "2026-10-12T12:18:36.0000000+08:00",
+        "compressed_size": 63
+      }
+    },
+    {
+      "status": "changed_content",
+      "preview": {
+        "size": 6736,
+        "content_sha256": "f74c0152e8e6a584db50bcbf999631976d1a50f5a362ed02480c4d2354615fc3",
+        "entry": "META-INF/maven/com.example/ahakey-studio/pom.xml",
+        "last_write_time": "2026-10-21T10:49:20.0000000+08:00",
+        "compressed_size": 1333
+      },
+      "entry": "META-INF/maven/com.example/ahakey-studio/pom.xml",
+      "current": {
+        "size": 6894,
+        "content_sha256": "499a92b34f4e9047b80d378c0d0e1692818d9c770f533e097a242bd1433f7a24",
+        "entry": "META-INF/maven/com.example/ahakey-studio/pom.xml",
+        "last_write_time": "2026-10-08T11:41:12.0000000+08:00",
+        "compressed_size": 1361
+      }
+    },
+    {
+      "status": "changed_content",
+      "preview": {
+        "size": 29,
+        "content_sha256": "551c776bc15ec07c4b801e9017cff4c8361b47dd01802db5c58ad1ff1be17e6a",
+        "entry": "model_config.properties",
+        "last_write_time": "2026-10-21T10:49:20.0000000+08:00",
+        "compressed_size": 31
+      },
+      "entry": "model_config.properties",
+      "current": {
+        "size": 30,
+        "content_sha256": "a32fc4ef090ce3e4c72634f5888fe74462487bf8781a6494ff9e74741f80cbd5",
+        "entry": "model_config.properties",
+        "last_write_time": "2026-09-24T15:10:20.0000000+08:00",
+        "compressed_size": 32
+      }
+    },
+    {
+      "status": "same_content",
+      "preview": {
+        "size": 18440,
+        "content_sha256": "983a9f0001e8560216f4c445b75c8f4c40ccd993652bfc2e1d72bb291fb23881",
+        "entry": "style.css",
+        "last_write_time": "2026-10-21T10:49:20.0000000+08:00",
+        "compressed_size": 3208
+      },
+      "entry": "style.css",
+      "current": {
+        "size": 18440,
+        "content_sha256": "983a9f0001e8560216f4c445b75c8f4c40ccd993652bfc2e1d72bb291fb23881",
+        "entry": "style.css",
+        "last_write_time": "2026-10-21T09:22:04.0000000+08:00",
+        "compressed_size": 3208
+      }
+    }
+  ],
+  "entry_count_current": 178,
+  "current_jar_sha256": "f63f816586d88f7ee44da2c40be419b408948c6b717bfe26a47e90a719af1f1c",
+  "entry_count_preview": 178
+}

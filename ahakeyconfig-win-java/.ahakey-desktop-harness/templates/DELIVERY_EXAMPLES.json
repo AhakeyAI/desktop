@@ -1,0 +1,174 @@
+{
+  "coverage_existing_evidence": {
+    "disposition": "existing_evidence",
+    "step_ids": [],
+    "reason": "说明实际覆盖为何足够",
+    "evidence": [
+      {
+        "workspace": "windows",
+        "path": ".ahakey-desktop-harness/evidence/actual-log.md",
+        "sha256": "<actual sha256>",
+        "scope": "原验收条目的具体行为",
+        "explanation": "检查是何时如何执行及为何适用于当前版本",
+        "kind": "machine",
+        "result": "<actual pass only if proved>"
+      }
+    ]
+  },
+  "owner_exception": {
+    "disposition": "owner_deferred",
+    "step_ids": [],
+    "reason": "Owner明确后置原因",
+    "owner_exception": {
+      "path": ".ahakey-desktop-harness/evidence/owner-exception.md",
+      "sha256": "<actual>",
+      "item_id": "A001",
+      "quote": "必须逐字来自实际Owner消息",
+      "scope": "本次范围与后续安排"
+    }
+  },
+  "owner_results": {
+    "schema_version": 1,
+    "id": "WD-001",
+    "delivery_packet_sha256": "<canonical delivery packet sha>",
+    "owner_source": {
+      "path": ".ahakey-desktop-harness/evidence/owner-real-feedback.md",
+      "sha256": "<actual>"
+    },
+    "actual_connection": "USB或BLE实际值",
+    "device_confirmation": {
+      "confirmed": false,
+      "hex_sha256": "<actual flashed sha>",
+      "source_quote": "Owner实际确认原话"
+    },
+    "steps": [
+      {
+        "id": "T01",
+        "status": "not_executed",
+        "observation": "尚未执行",
+        "source_quote": ""
+      }
+    ]
+  },
+  "batch_input_manifest": {
+    "schema_version": 1,
+    "model_enabled": false,
+    "model_family": "none",
+    "model_files": [],
+    "files": [
+      {
+        "workspace": "windows",
+        "path": "实际获准文件",
+        "sha256": "<actual>"
+      }
+    ]
+  },
+  "batch_build_report": {
+    "exit_code": null,
+    "command": "<actual executed command>",
+    "logs": [
+      ".ahakey-desktop-harness/evidence/actual-package.log"
+    ],
+    "primary": ".ahakey-desktop-harness/delivery/batches/WB-001/artifacts/lite-no-local-model/AhaKeyStudio-Lite-Setup.exe",
+    "content_evidence": ".ahakey-desktop-harness/delivery/batches/WB-001/variants/lite-no-local-model/CONTENTS.json"
+  },
+  "batch_contents": {
+    "variant": "lite-no-local-model",
+    "primary_sha256": "<actual>",
+    "model_enabled": false,
+    "model_file_hashes": {},
+    "config_observation": "实际包内开关与依据",
+    "runtime_dependency_observation": "实际runtime依赖",
+    "model_observation": "实际模型资源有无",
+    "native_dependency_observation": "原生依赖路径与身份",
+    "inspection_method": "如何解包/检查，不将脚本存在当包内容",
+    "model_family": "none"
+  },
+  "batch_owner_result": {
+    "build_sha256": "<canonical variant BUILD sha>",
+    "owner_source": {
+      "path": ".ahakey-desktop-harness/evidence/owner-package-feedback.md",
+      "sha256": "<actual>"
+    },
+    "tests": {
+      "clean_install": {
+        "status": "not_executed",
+        "observation": "尚未执行",
+        "source_quote": ""
+      }
+    },
+    "owner_packet_sha256": "<canonical OWNER_PACKET.json sha>"
+  },
+  "switch_results": {
+    "builds": {
+      "lite-no-local-model": "<canonical build sha>",
+      "model-bundled": "<canonical build sha>"
+    },
+    "owner_source": {
+      "path": ".ahakey-desktop-harness/evidence/owner-switch-feedback.md",
+      "sha256": "<actual>"
+    },
+    "tests": {
+      "lite_to_model": {
+        "status": "not_executed",
+        "configuration_preservation": "待实际验证",
+        "single_app_identity": "待实际验证",
+        "model_behavior": "待实际验证",
+        "recovery_assessment": "待实际验证",
+        "source_quote": ""
+      },
+      "model_to_lite": {
+        "status": "not_executed",
+        "configuration_preservation": "待实际验证",
+        "single_app_identity": "待实际验证",
+        "model_behavior": "待实际验证",
+        "recovery_assessment": "待实际验证",
+        "source_quote": ""
+      }
+    }
+  },
+  "batch_owner_test_input": {
+    "batch": "WB-001",
+    "preconditions": "由Owner确认环境、旧配置备份和不并行运行两版",
+    "install_target": "按已核对实际安装策略填写",
+    "installed_application_entry": "完整的安装后应用入口",
+    "recovery": "按批准策略保留用户配置并恢复原发行形态，不自动删除配置",
+    "result_return": "Owner实际自然语言、截图与日志，逐项未执行/失败/通过",
+    "per_variant": {
+      "clean_install": {
+        "action": "填写真实可执行步骤，不是仅描述测试名",
+        "expected": "填写可观察结果"
+      },
+      "launch": {
+        "action": "填写真实可执行步骤，不是仅描述测试名",
+        "expected": "填写可观察结果"
+      },
+      "common_configuration": {
+        "action": "填写真实可执行步骤，不是仅描述测试名",
+        "expected": "填写可观察结果"
+      },
+      "variant_ui": {
+        "action": "填写真实可执行步骤，不是仅描述测试名",
+        "expected": "填写可观察结果"
+      },
+      "variant_runtime": {
+        "action": "填写真实可执行步骤，不是仅描述测试名",
+        "expected": "填写可观察结果"
+      },
+      "feature:WD-001": {
+        "action": "填写真实可执行步骤，不是仅描述测试名",
+        "expected": "填写可观察结果"
+      }
+    },
+    "switches": {
+      "lite_to_model": {
+        "action": "填写实际切换与配置核对步骤",
+        "expected": "同一应用二选一、配置保留、模型能力正确且有恢复路径"
+      },
+      "model_to_lite": {
+        "action": "填写实际切换与配置核对步骤",
+        "expected": "同一应用二选一、配置保留、模型能力正确且有恢复路径"
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-21T08:58:36+00:00",
+  "tests": 25,
+  "passed": true,
+  "failures": 0,
+  "errors": 0,
+  "log_sha256": "3e4402395762f52c55eb8678c71f048ed79cf9595d851537ce15d8721493cda4",
+  "scope": "isolated Harness checks + read-only pinned Git blobs; no product tests/device/Git writes"
+}

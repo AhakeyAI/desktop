@@ -1,0 +1,58 @@
+diff --git a/ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java b/ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java
+index 14e3fd2..9e0a36d 100644
+--- a/ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java
++++ b/ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java
+@@ -280,7 +280,9 @@ public class AiRuntimeDisplayService {
+         }
+     }
+     private final Map<String, RuntimeFact> liveFacts = new java.util.concurrent.ConcurrentHashMap<>();
+-    private String singleOwner = "";
++    // Display occupancy is distinct from a stable session identity; anonymous tools remain owners.
++    private record SingleOwner(String provider, String sessionId) {}
++    private SingleOwner singleOwner;
+     private long singleOwnerAt;
+     private long singleOwnerConnection = -1;
+ 
+@@ -303,18 +305,20 @@ public class AiRuntimeDisplayService {
+             } else if (displayMode.get() == AiRuntimeDisplayMode.SINGLE) {
+                 String identity = id.isBlank() ? "" : platform + ":" + id;
+                 boolean terminal = state == IDEState.TASK_COMPLETED || state == IDEState.STOP || state == IDEState.SESSION_END;
++                // A trusted terminal fact must survive even when another session owns SINGLE.
++                if (!id.isBlank()) liveFacts.put(identity,
++                        new RuntimeFact(state, System.nanoTime(), bleManager.connectionGeneration()));
++                SingleOwner eventOwner = new SingleOwner(platform, id);
+                 if (singleOwnerConnection != bleManager.connectionGeneration()
+-                        || System.nanoTime() - singleOwnerAt >= FACT_TTL_NANOS) singleOwner = "";
+-                if (terminal && !singleOwner.isBlank() && !singleOwner.equals(identity)) {
++                        || System.nanoTime() - singleOwnerAt >= FACT_TTL_NANOS) singleOwner = null;
++                if (terminal && singleOwner != null && !singleOwner.equals(eventOwner)) {
+                     result = Delivery.IGNORED;
+                 } else {
+                     if (!terminal) {
+-                        singleOwner = identity;
++                        singleOwner = eventOwner;
+                         singleOwnerAt = System.nanoTime();
+                         singleOwnerConnection = bleManager.connectionGeneration();
+                     }
+-                    if (!id.isBlank()) liveFacts.put(identity,
+-                            new RuntimeFact(state, System.nanoTime(), bleManager.connectionGeneration()));
+                     try {
+                         result = bleManager.sendRuntimeState((byte) state.getCode()) ? Delivery.SENT
+                                 : bleManager.isConnected() ? Delivery.PENDING : Delivery.FAILED;
+diff --git a/ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/BleManager.java b/ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/BleManager.java
+index 61ae813..11a6b21 100644
+--- a/ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/BleManager.java
++++ b/ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/BleManager.java
+@@ -782,7 +782,11 @@ public class BleManager {
+             if (deferredRuntimeState != null && System.nanoTime() - deferredRuntimeAt >= TimeUnit.MINUTES.toNanos(5))
+                 deferredRuntimeState = null;
+             if (displayLease != null || displayWriteUncertain) return;
+-            if (deferredRuntimeState != null && isConnected) sendRuntimeState(deferredRuntimeState);
++            if (deferredRuntimeState != null && isConnected && cachedStatus.isConnected()) {
++                // Retry the original fact; only a newly received event may advance its TTL.
++                sendCommand(AhaKeyProtocol.updateState(deferredRuntimeState));
++                deferredRuntimeState = null;
++            }
+         } catch (IOException e) { logger.debug("Runtime state remains pending: {}", e.getMessage()); }
+         finally { commandLock.unlock(); }
+     }

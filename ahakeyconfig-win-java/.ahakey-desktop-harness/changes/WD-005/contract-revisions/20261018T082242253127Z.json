@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "at": "2026-10-18T08:22:42+00:00",
+  "from_revision": 2,
+  "to_revision": 3,
+  "reason": {
+    "path": ".ahakey-desktop-harness/evidence/20261018-wd005-consolidated-fix-reconcile-reason.md",
+    "sha256": "1fbd4aed875dd0e440c3ad3935fc8a27af76b8a602a01b313ef59b5d56e6321d"
+  },
+  "owner": {
+    "path": ".ahakey-desktop-harness/evidence/20261018-wd005-consolidated-fix-owner-authorization.md",
+    "sha256": "7a501aa3df5dce57194767fcf5aa5151a39703a38e05d20b24c5d0d5be493a7e"
+  },
+  "previous_approval": {
+    "at": "2026-10-17T10:22:01+00:00",
+    "owner_record": ".ahakey-desktop-harness/evidence/20261017-wd005-reference-reconcile-owner-authorization.md",
+    "owner_record_sha256": "88c4a5d87201d3313bf4e96bb933caa743bd6195c27bed4df7a98d4730e07022",
+    "inputs": {
+      "meta_sha256": "7eaad597350287b848421539a15ca4b40dc97bbc9177dcb3cd0d7f53cca3cc63",
+      "assets": {
+        "CONTRACT.md": "6fc54cd021c463396354783602629f036ee6c7a02919ee7408dbb8b20e31a5c5",
+        "REFERENCES.json": "1bb3f96c441a6eaa891be6ec3fdc98b58f3e3a45197ba397c26d16027472636f",
+        "DECISIONS.md": "5d5e82ad0d1543a4c4ac7b90ab43a46d2b9486d82bc44b0d1743b43dd6191bef",
+        "IMPLEMENTATION_SCOPE.md": "12c937826c84fff190028348247e2e4204afde04257788016d3e418978483906",
+        "PROTOCOL_AND_STATE.md": "2f0cff7afc3340109abd02c932c9024cede07995471a458e16d56d563c391be7",
+        "ACCEPTANCE.md": "c6ebf4b485d9671fcb66400dcf350897f322f4439f257a2748c264c36d35ff2c",
+        "DESIGN_REVIEW.md": "6084d6b7d51061508faac80df1241fbb9651c2dcd184bb4a0dc47626f62a4c4d",
+        "REGISTRATION.md": "2f2db582d388cf8481f814d6d87b85ceab98d0b041666a3935f39bc78d21e1cf"
+      },
+      "reference_sha256": "fa5f7f46024beb473a44622e595b701998b1e28108893af969586af3b0ab1f84"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "new_approval": {
+    "at": "2026-10-18T08:22:42+00:00",
+    "owner_record": ".ahakey-desktop-harness/evidence/20261018-wd005-consolidated-fix-owner-authorization.md",
+    "owner_record_sha256": "7a501aa3df5dce57194767fcf5aa5151a39703a38e05d20b24c5d0d5be493a7e",
+    "inputs": {
+      "meta_sha256": "4abeb706606bc518677e22ecb3c1e131180ea6ee70fe23b42a88faee4b045285",
+      "assets": {
+        "CONTRACT.md": "6fc54cd021c463396354783602629f036ee6c7a02919ee7408dbb8b20e31a5c5",
+        "REFERENCES.json": "1bb3f96c441a6eaa891be6ec3fdc98b58f3e3a45197ba397c26d16027472636f",
+        "DECISIONS.md": "5d5e82ad0d1543a4c4ac7b90ab43a46d2b9486d82bc44b0d1743b43dd6191bef",
+        "IMPLEMENTATION_SCOPE.md": "12c937826c84fff190028348247e2e4204afde04257788016d3e418978483906",
+        "PROTOCOL_AND_STATE.md": "2f0cff7afc3340109abd02c932c9024cede07995471a458e16d56d563c391be7",
+        "ACCEPTANCE.md": "c6ebf4b485d9671fcb66400dcf350897f322f4439f257a2748c264c36d35ff2c",
+        "DESIGN_REVIEW.md": "6084d6b7d51061508faac80df1241fbb9651c2dcd184bb4a0dc47626f62a4c4d",
+        "REGISTRATION.md": "2f2db582d388cf8481f814d6d87b85ceab98d0b041666a3935f39bc78d21e1cf",
+        "PREVIEW_FIX_CONTRACT_R3_20261018.md": "3095efebc0f5ec802bd9d5f3edd76278d899681aaf20164d6b38e90b1c9854f8",
+        "CROSS_COMPONENT_WORK_20261018.md": "356f313a3dcb0d603129a441760a4de4d0736c6856b52f8f76ec408a47be63f4"
+      },
+      "reference_sha256": "fa5f7f46024beb473a44622e595b701998b1e28108893af969586af3b0ab1f84"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "origin_repair": null,
+  "changed_paths_since_start": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+    "src/main/java/com/example/ahakey/model/LightEffectStyle.java",
+    "src/main/java/com/example/ahakey/model/OledResourceState.java",
+    "src/main/java/com/example/ahakey/model/StudioState.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+    "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+    "src/main/java/com/example/ahakey/service/FirmwareLightSimulator.java",
+    "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+    "src/main/java/com/example/ahakey/service/OledUploadService.java",
+    "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+    "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+    "src/main/java/com/example/ahakey/view/CanvasController.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java",
+    "src/main/resources/fxml/CanvasLayout.fxml",
+    "src/main/resources/messages_en.properties",
+    "src/main/resources/messages_zh.properties",
+    "src/main/resources/style.css",
+    "src/test/java/com/example/ahakey/displayconfig/DisplayConfigChecks.java",
+    "src/test/java/com/example/ahakey/displayconfig/DisplayConfigFxChecks.java",
+    "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRaceChecks.java"
+  ],
+  "scope_outside_contract": []
+}

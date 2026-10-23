@@ -1,0 +1,49 @@
+[
+  {
+    "name": "java-version",
+    "argv": [
+      "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+      "-version"
+    ],
+    "command": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe -version",
+    "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source",
+    "started": "2026-10-20T06:59:52.220058+00:00",
+    "finished": "2026-10-20T06:59:52.349962+00:00",
+    "exit_code": 0,
+    "JAVA_HOME": "D:\\jdk-17.0.19.10-hotspot",
+    "MAVEN_OPTS": "-Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8"
+  },
+  {
+    "name": "maven-version",
+    "argv": [
+      "C:\\Program Files\\apache-maven-3.9.12\\bin\\mvn.cmd",
+      "-version"
+    ],
+    "command": "\"C:\\Program Files\\apache-maven-3.9.12\\bin\\mvn.cmd\" -version",
+    "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source",
+    "started": "2026-10-20T06:59:52.354993+00:00",
+    "finished": "2026-10-20T06:59:53.138829+00:00",
+    "exit_code": 0,
+    "JAVA_HOME": "D:\\jdk-17.0.19.10-hotspot",
+    "MAVEN_OPTS": "-Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8"
+  },
+  {
+    "name": "package",
+    "argv": [
+      "C:\\Program Files\\apache-maven-3.9.12\\bin\\mvn.cmd",
+      "-o",
+      "-Dmaven.repo.local=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.m2repo",
+      "--batch-mode",
+      "--no-transfer-progress",
+      "package",
+      "-DskipTests"
+    ],
+    "command": "\"C:\\Program Files\\apache-maven-3.9.12\\bin\\mvn.cmd\" -o -Dmaven.repo.local=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.m2repo --batch-mode --no-transfer-progress package -DskipTests",
+    "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261020T065100738948Z-669e97\\source",
+    "started": "2026-10-20T06:59:53.139838+00:00",
+    "finished": "2026-10-20T07:00:04.671595+00:00",
+    "exit_code": 0,
+    "JAVA_HOME": "D:\\jdk-17.0.19.10-hotspot",
+    "MAVEN_OPTS": "-Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8"
+  }
+]

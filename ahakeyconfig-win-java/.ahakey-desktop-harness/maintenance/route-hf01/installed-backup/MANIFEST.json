@@ -1,0 +1,31 @@
+{
+  "files": {
+    ".agents/skills/ahakey-desktop-harness/scripts/guardrails.py": "1845cd850e5ef33e62250ec6d60fef558a16a638175098fc0c578013748126ed",
+    ".ahakey-desktop-harness/GUARD_POLICY_SEAL.json": "aa40e210a4fc6e76d64838675b33fc79b7de7d5c6ca0ae476d272b225f7079b9"
+  },
+  "protected": {
+    ".ahakey-desktop-harness/STATE.json": "67e92d9f9f5672b4a0f6865e390347f4b2c1be235c53a0a70ce53161ce52dbf1",
+    ".ahakey-desktop-harness/changes/WD-001/change.json": "b2a088ce74d3db0de07f5e2cb80072af3add8e4cfb3f247d79d8c158f377fe1e",
+    ".ahakey-desktop-harness/changes/WD-001/CONTRACT.md": "287e8c22b79282130cc7595c96da050f506d9bd3f68f040496941458af038738",
+    ".ahakey-desktop-harness/changes/WD-001/REFERENCES.json": "0304ea829a52e181c8e5192247bec46242e3326b2b13fb4314aeb95a63a25d3f",
+    ".ahakey-desktop-harness/changes/WD-001/start-fingerprint.json": "c67490c5ae62d877cc92d3679fc72ecd903d4abf2c06f39eec831a46d7f52841",
+    ".ahakey-desktop-harness/changes/WD-001/guard-origin.json": "22c85b65ec14d85f9d58f7c9bcffb96b56241524506c0df9ff6c03368a3ebe0e",
+    ".ahakey-desktop-harness/changes/WD-002/change.json": "b2f8c7d682889db31e1933754ffd84966937401a11cc74f5ddd9fe82fbf04739",
+    ".ahakey-desktop-harness/changes/WD-002/CONTRACT.md": "727bbbf6f2b5507614e8af9823f22c2559dfa210da8f80280dded0e7459d6cd0",
+    ".ahakey-desktop-harness/changes/WD-002/REFERENCES.json": "39fed7696d02afa3c19e808f16c375dff267ad6a409fd7e39f574a6ac244b2fe",
+    ".ahakey-desktop-harness/changes/WD-002/start-fingerprint.json": "c8302ff71ea5b5cc1894c2e6121df7f14f76d21075b733c983e40455942c1e10",
+    ".ahakey-desktop-harness/changes/WD-002/guard-origin.json": "d08a566f89c89418c7147f780901585b97002b4ad17b56aada565ad9aa5d6ae9",
+    ".ahakey-desktop-harness/changes/WD-003/change.json": "c8c3f50bb32834c3a6184d3939d683243a3fd87752f147a02fc66fb77e4bd943",
+    ".ahakey-desktop-harness/changes/WD-003/CONTRACT.md": "aa6dc141a75f8ac70e41041d0462949045131ee9942d4ad736b0a3288013feaa",
+    ".ahakey-desktop-harness/changes/WD-003/REFERENCES.json": "c48057bdb3557eaa030a9392668a23ad3b0ab88319a8d8a9218a6869447efe42",
+    ".ahakey-desktop-harness/changes/WD-003/start-fingerprint.json": "d30c1781e84fb8acebd151a5de3f71a9efcc6cbb9523d7985d55517bf07d8d58",
+    ".ahakey-desktop-harness/changes/WD-003/guard-origin.json": "f2f5f555f34725599ea8e89bc7729c0e7d678bddcdb32ddbc3af6f5f02b8149d",
+    ".ahakey-desktop-harness/changes/WD-004/change.json": "06002a8cfc39f5440e250fddebd9ee0b74e8294c563009c624da6399f2e5cb7e",
+    ".ahakey-desktop-harness/changes/WD-004/CONTRACT.md": "6cea7b284060c1417718c6648148419eb59c4c02d8dc3b2ddc1f7769cd6580cd",
+    ".ahakey-desktop-harness/changes/WD-004/REFERENCES.json": "75ecc19291c2e70aff9db65395e04265c586a680caedf38c3bf39341e20c0247",
+    ".ahakey-desktop-harness/changes/WD-004/start-fingerprint.json": "e38bd174fcf1de679b8671c1fc4e89abd690c0278bed824c57a5f9d757dc210d",
+    ".ahakey-desktop-harness/changes/WD-004/guard-origin.json": "3a5a81f56ae1a757d9594b11b2811ac4ed3551bd5218e4f1c34ef201f3df5924"
+  },
+  "source_fingerprint": "dbe02269412763dc5875bd2a4fab416fa63e0946766464100c4e5f999f22d63b",
+  "config_sha256": "14c1886bb4192876644a73b260a4af0338c64ea023b63bc37ee7a768d9622f62"
+}

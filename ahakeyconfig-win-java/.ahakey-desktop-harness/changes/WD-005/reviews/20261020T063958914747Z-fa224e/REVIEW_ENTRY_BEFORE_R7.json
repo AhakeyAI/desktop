@@ -1,0 +1,227 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "pack_sha256": "b62fd48300896041a72ef5874dcdc6927734822f01cf3b8a1daf26428a3b84d0",
+  "reviewer_role": "DLA",
+  "review_session": "Windows 原DLA对话，2026-10-17第三轮无代码重提actual review；非新增独立fresh",
+  "builder_session": "WD-005原DIB实现对话，revision=2 / build_round=3无代码重提",
+  "independence": "separate_dla_conversation",
+  "decision": "pass",
+  "scope_conclusion": "第三轮累计24文件与第二轮ACTUAL_DIFF及各before/after快照字节一致，当前源码匹配；重新复核F1-F3/R1真实调用链、引用协调与证据绑定，无新增阻断问题。仅原DLA actual pass；新pack的formal fresh仍待完成。",
+  "per_file": [
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "purpose": "协调显示配置服务和旧模式/身份/保存入口",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计所有hunk复核；第二轮只改CP1 completion/准入和身份请求先于显示回读，原Mode确认链、输入读回、过滤0x84/85和旧功能保护保持。F1/F2已关闭。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+      "purpose": "分离灯光草稿、设备确认、预览及资源状态",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：新增模型全文及第二轮revision重读；dirty不被旧同值保存清除，ACK起算预览期限；与service设备回调校验共同关闭F3。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/LightEffectStyle.java",
+      "purpose": "保留未知灯效值",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计diff与第一轮逐段比对无实质变化，沿本次调用链复核；fromCodeOrNull新增及原fromCode兼容回退，避免把未知配置静默作OFF保存。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/OledResourceState.java",
+      "purpose": "OLED资源状态与完整性合并",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计diff与第一轮逐段比对无实质变化，沿本次调用链复核；新增全文；19目标映射、容量、草稿/上传/提交未知/应用状态、metadata匹配。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+      "purpose": "接入显示配置模型",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计diff与第一轮逐段比对无实质变化，沿本次调用链复核；新增displayConfig成员/getter，无替换既有输入和模式模型。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+      "purpose": "CP2精确构包",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计diff与第一轮逐段比对无实质变化，沿本次调用链复核；全部新增0x88/89/8A/8B/8C/8E构包、目标/参数范围、分片和CRC，旧命令定义未整体改写。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+      "purpose": "CP2精确响应解析",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计diff与第一轮逐段比对无实质变化，沿本次调用链复核；新增ACK及分型读回精确长度/选择器解析，拒绝失败及不匹配响应。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "purpose": "CP1最新快照延迟补发",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计pending/idle及第二轮ACK后偏好提交、错误completion、snapshotConnection捕获到发送入口；双向模式切换与重连偏好不改绑定/TTL。F2/R1关闭。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "purpose": "共享显示事务租约与连接隔离",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计租约/代次/未知ACK/帧解析及第二轮readDisplayConfig共享monitor、condition等待、monitor外idle；旧typed链monitor->commandLock，reset清SINGLE；0x98/99非零ACK失败与代次检查。F1/F2/R1关闭。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "purpose": "显示配置业务及异步提交",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：新增全文和第二轮差异复核；modeSwitching取消/重新加载，deviceFx/Operation/current连接校验，编辑revision，ACK时间预览，部分保存历史日志/错误隔离；F1/F3关闭。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/FirmwareLightSimulator.java",
+      "purpose": "固件灯效本地模拟",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计diff与第一轮逐段比对无实质变化，沿本次调用链复核；新增全文；17效果与Firmware实际renderer对应，已执行golden只覆盖记录范围，不代替完整物理效果。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+      "purpose": "本地资源库与原子恢复",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计diff与第一轮逐段比对无实质变化，沿本次调用链复核；新增全文；资源/索引原子替换、加载校验、共享资源清理、tombstone及迁移；磁盘故障集成仍缺覆盖。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledUploadService.java",
+      "purpose": "以CP2替换旧OLED写入",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计diff与第一轮逐段比对无实质变化，沿本次调用链复核；全部累计替换；租约覆盖begin/chunk/commit，校验ACK，区分commit未知，移除旧raw上传/预览入口。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "purpose": "USB响应与连接句柄隔离",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计diff与第一轮逐段比对无实质变化，沿本次调用链复核；累计变更；65字节API缓冲与64字节report内容、CP2精确帧、旧session回调隔离、写入不盲重试；保留原native关闭风险不冒充新故障。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+      "purpose": "静图/GIF编码及草稿解码",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计diff与第一轮逐段比对无实质变化，沿本次调用链复核；累计变更；尺寸/帧数、GIF合成处置、RGB565顺序/补零/本地预览。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "purpose": "设备画布与本地预览",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计diff与第一轮逐段比对无实质变化，沿本次调用链复核；累计变更；8灯珠/160x80预览/时间推进/草稿提示/忙时热点；完整窗口布局待测。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "purpose": "OLED/灯光编辑与状态UI",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计UI hunk复核；新增CP1 busy/loading/pending禁用，点击后选中项恢复至已确认值，displayMode监听ACK后rebuild。其余OLED/灯光UI累计实现未变；完整窗口/DPI待Preview。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/fxml/CanvasLayout.fxml",
+      "purpose": "画布布局",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计diff与第一轮逐段比对无实质变化，沿本次调用链复核；累计新增8灯珠及160x80预览/草稿badge；未声称最小窗口与高DPI已实测。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/messages_en.properties",
+      "purpose": "英文文案",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计diff与第一轮逐段比对无实质变化，沿本次调用链复核；全部17新增键与UI引用对应；无改动既有设备功能命令。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/messages_zh.properties",
+      "purpose": "中文文案",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计diff与第一轮逐段比对无实质变化，沿本次调用链复核；全部17新增键与UI引用对应；异常/草稿/设备状态区分。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/style.css",
+      "purpose": "显示配置局部样式",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：累计diff与第一轮逐段比对无实质变化，沿本次调用链复核；全部新增尺寸/资源状态/草稿标记样式；非全局主题替换。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigChecks.java",
+      "purpose": "离线断言",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：与第一轮累计diff相同，复核175项职责；本轮offline-01重新执行且hash匹配，输出确定性导致与旧日志同hash，不当复用旧检查。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigFxChecks.java",
+      "purpose": "隔离JavaFX/服务断言",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：与第一轮累计diff去除段末空白后相同，检查源码/本轮fx-01绑定；36项为隔离服务/Canvas，不是完整Controller/Inspector操作。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRaceChecks.java",
+      "purpose": "新增受控并发和跨连接回归",
+      "reviewed_hunks": "第三轮累计diff及before/after与第二轮逐字节一致，当前文件匹配。第二轮已审同源码分析（非本轮测试重跑）：新增329行全文；真实DisplayConfigService/BleManager/AiRuntimeDisplayService，内存transport、临时user.home、onBleNotify入口；72断言和一次重复，首失败清理日志原样保存，不新增依赖。未实例化App/StudioController，不以服务覆盖冒称完整UI。",
+      "within_contract": true
+    }
+  ],
+  "production_journey": "重新追踪Inspector/Canvas -> StudioController -> DisplayConfigService/资源库/上传 -> BleManager -> transport -> ACK/FX模型。readDisplayConfig与0x9F/97/87/92共用commandTransactionLock；Mode确认期间取消旧ticket，结束再按需刷新；read lease在monitor内释放、idle在monitor外通知。CP1 UI/controller/service冲突准入，0x98 ACK后提交偏好；灯光deviceFx绑定connection/operation，保存再校验编辑revision。全量保存仍过滤0x84/85，新OLED入口不走旧raw/0x82。",
+  "preserved_behavior_assessment": "F1不再用后台读租约直接拒绝旧身份/输入/Mode请求；写事务排他和0x00例外未放开。CP1同连接只补最新事实，SINGLE reset清pending，MULTI代次贯穿idle至实际发送；onDeviceReady继续同步0x98偏好，绑定/TTL/主槽位算法未改。Controller和Inspector接线已静态检查，但283项仅服务/协议/隔离FX覆盖，未声称旧功能完整真机通过。",
+  "baseline_assessment": "HEAD/原起点41c034171e60b2d4962b0adbe8f3cffbf80a0436未变；revision=2 / build_round=3；源码指纹aea60d8c7eb936cb937cc59522fed7224c845ecf7947cedb17e8f029ad1656c8。新旧累计diff SHA均e87420bb8c1c3eb35df105555b40159f437135c7bfe6ff1f2f1213d69185b797；24文件before/after一致且当前文件匹配。冻结基报告保持原文，四项检查直接绑定第二轮报告、检查表及第三轮复用说明。",
+  "protocol_assessment": "仅CP2-ARCH/CP2-EXECUTION引用版本化，改绑固件固定gate及其contract_lock历史文档身份；其余10引用未变。未采用CP1.5新设计，未改协议或代码。上传互斥、未知ACK隔离、旧0x84/85过滤、0x98/99错误与连接代次仍符合当前合同。人工HEX确认仍为当前连接设备安全准入，不是已刷入证明。",
+  "risk_level": "high",
+  "fresh_review_required": true,
+  "risk_rationale": "协议/状态所有权/共享通信集成为high_impact；本对话是原DLA实际审阅，不是新独立fresh会话。代码层审阅通过与formal review门分开，fresh待完成不得填造。",
+  "findings": [
+    {
+      "id": "WD005-F1",
+      "severity": "P1",
+      "issue": "第一轮自动CP2读租约竞争旧身份/输入/Mode流程。",
+      "resolution": "fixed",
+      "evidence": "BleManager.readDisplayConfig统一commandTransactionLock并有限等待legacyWaiters；Monitor -> commandLock顺序与旧typed操作一致，lease.release在monitor内，notifyDisplayIdle在外避免snapshotSendLock倒序。DisplayConfigService监听modeSwitching取消旧批次、确认后刷新；StudioController先身份后安排回读。RaceChecks.identityOrdering双顺序、modeOrdering和races-02/03日志覆盖；真实Controller操作仍未执行。"
+    },
+    {
+      "id": "WD005-F2",
+      "severity": "P2",
+      "issue": "第一轮CP1模式本地先成功，0x98被CP2拒绝。",
+      "resolution": "fixed",
+      "evidence": "InspectorPane:880-891锁busy/loading/pending并恢复已确认选中项；controller:176-181反馈completion；service.setDisplayMode先准入，在线设备0x98 ACK/代次确认后才持久化，失败保持旧偏好。BleManager:756-767校验FAIL且不等待重连。RaceChecks.cp1Admission双向读写冲突、ACK前后、FAIL覆盖。"
+    },
+    {
+      "id": "WD005-F3",
+      "severity": "P2",
+      "issue": "第一轮灯光过期FX成功回调污染新连接草稿/预览。",
+      "resolution": "fixed",
+      "evidence": "DisplayConfigService.deviceFx/current校验operation/connection和真实连接；亮度/逐项灯效/总成功/预览均经过该入口，旧错误过滤，finally只清本操作busy。DisplayConfigState新增编辑revision保留同值新意图；preview以ACK时刻起算。RaceChecks.staleFx六组合、sameValueEdit及实际日志覆盖，ACK历史保留在带连接/操作日志。"
+    },
+    {
+      "id": "WD005-R1",
+      "severity": "risk",
+      "issue": "旧连接待发CP1事实可能被新连接idle回调重放。",
+      "resolution": "fixed",
+      "evidence": "resetDisplaySession在commandLock内清deferredRuntimeState；MULTI snapshotConnection随捕获代次传到sendMultiRuntimeSnapshot实际发送前后检查。onDeviceReady保留0x98偏好同步，不主动重放旧0x99。RaceChecks.pendingGeneration覆盖同连接最新一次、跨连接旧pending不发、新事实可发；物理生命周期仍需后续设备验证。"
+    }
+  ],
+  "baseline_gap_owner_record": null,
+  "fresh_review_record": null,
+  "review_evidence": ".ahakey-desktop-harness/changes/WD-005/DLA_ACTUAL_REVIEW_ROUND_3_20261017.md",
+  "verification_binding": {
+    "build_round": 3,
+    "code_fingerprint": "aea60d8c7eb936cb937cc59522fed7224c845ecf7947cedb17e8f029ad1656c8",
+    "approval_sha256": "0c7004e333198a9c167b49c16ac5933a55b06f61039e24c3c9de5c6724220b71",
+    "submission_sha256": "db42f09dd49cce9b0fa38e083d7fea5436ca5b4c1dff4b9484cb76f60a97f6ce",
+    "round_report_sha256": "47edd5b155d39a65ef8959cfccb3414b9420c3d020a6278b7bb948064cbdf96e",
+    "checks_sha256": "92166a4105ddf0e02a192d3be2a5f5ec46288ee5ec0475c4994a2f72e9b72e10",
+    "reuse_report_sha256": "e9bdba3ea401240777e4804c3944a1fe0931a3a0696b54db1a87dc8f0d4afab3",
+    "formal_review": "pending_current_pack_fresh_actual_review",
+    "preview": "original_dla_pass_owner_isolated_build_authorized"
+  },
+  "review_method": "新旧累计diff与24文件快照逐项哈希比较；重新检查关键调用链及历史审阅适用性。逐文件保留的第二轮分析明确为已验证相同源码的历史分析，不冒称第三轮重跑测试或新独立fresh。",
+  "observations": [
+    {
+      "severity": "nonblocking",
+      "description": "灯光回读失败会保守地将OLED设备事实标记未知；本地资源及历史仍保留。此观察不作为已验证设备故障。"
+    }
+  ],
+  "untested": [
+    "完整应用/UI/DPI与完整A01-A11",
+    "真实USB/BLE与设备生命周期",
+    "实际固件刷入身份、资源掉电及持久化",
+    "完整旧功能回归、Hook/语音和磁盘故障",
+    "Owner Preview及正式UAT"
+  ],
+  "owner_authorization": ".ahakey-desktop-harness/evidence/20261017-wd005-current-review-entry-owner-authorization.md",
+  "historical_root_review": {
+    "path": ".ahakey-desktop-harness/changes/WD-005/contract-revisions/20261017-reference-reconcile-before/REVIEW.json",
+    "sha256": "7308f435fbdbfe8e5e9cfebc036ce37e8cbdad33b7cf74fd12a4cd5a88ffb5c1"
+  }
+}

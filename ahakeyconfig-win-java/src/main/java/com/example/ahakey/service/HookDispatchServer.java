@@ -1,102 +1,107 @@
 package com.example.ahakey.service;
 
 import com.example.ahakey.model.IDEState;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-/**
- * Hook 分发服务器 — 监听固定 TCP 端口，接收来自 Codex/Claude/Cursor/Kimi hook 的事件名，
- * 映射到 BLE 状态码后通过 BleManager 发送到键盘。
- *
- * <p>架构角色：
- * <pre>
- *   Codex/Claude/Cursor/Kimi  →  PowerShell hook  →  TCP:8765  →  HookDispatchServer  →  BleManager  →  BLE-TCP bridge:9000  →  键盘
- * </pre>
- *
- * <p>支持两种输入格式：
- * <ul>
- *   <li>纯文本事件名：{@code SessionStart}、{@code CodexSessionStart}、{@code KimiSessionStart}</li>
- *   <li>JSON：{@code {"cmd":"SessionStart"}}</li>
- * </ul>
- */
 public class HookDispatchServer {
     private static final Logger logger = LoggerFactory.getLogger(HookDispatchServer.class);
-
     public static final int DEFAULT_PORT = 8765;
 
+    @FunctionalInterface
+    public interface ApprovalCallback {
+        boolean requestApproval(String platform, String eventName);
+    }
+
+    enum Platform { CLAUDE, CODEX, KIMI, CURSOR }
+    record EventEntry(Platform platform, IDEState state) {}
+    record HookPayload(String eventName, JsonNode json) {}
+
+    private static final Map<String, EventEntry> EVENT_MAP = new HashMap<>();
+
+    static {
+        for (String[] e : new String[][]{
+            {"SessionStart", "SESSION_START"}, {"SessionEnd", "SESSION_END"},
+            {"PreToolUse", "PRE_TOOL_USE"}, {"PostToolUse", "POST_TOOL_USE"},
+            {"Notification", "NOTIFICATION"}, {"TaskCompleted", "TASK_COMPLETED"},
+            {"Stop", "STOP"}, {"UserPromptSubmit", "USER_PROMPT_SUBMIT"}
+        }) EVENT_MAP.put(e[0], new EventEntry(Platform.CLAUDE, IDEState.valueOf(e[1])));
+        EVENT_MAP.put("PermissionRequest", new EventEntry(Platform.CLAUDE, IDEState.PERMISSION_REQUEST));
+
+        for (String[] e : new String[][]{
+            {"CodexSessionStart", "SESSION_START"}, {"CodexSessionEnd", "SESSION_END"},
+            {"CodexPreToolUse", "PRE_TOOL_USE"}, {"CodexPostToolUse", "POST_TOOL_USE"},
+            {"CodexStop", "STOP"}, {"CodexTaskCompleted", "TASK_COMPLETED"},
+            {"CodexUserPromptSubmit", "USER_PROMPT_SUBMIT"}
+        }) EVENT_MAP.put(e[0], new EventEntry(Platform.CODEX, IDEState.valueOf(e[1])));
+        EVENT_MAP.put("CodexPermissionRequest", new EventEntry(Platform.CODEX, IDEState.PERMISSION_REQUEST));
+
+        for (String[] e : new String[][]{
+            {"KimiNotification", "NOTIFICATION"}, {"KimiSessionStart", "SESSION_START"},
+            {"KimiSessionEnd", "SESSION_END"}, {"KimiPreToolUse", "PRE_TOOL_USE"},
+            {"KimiPostToolUse", "POST_TOOL_USE"}, {"KimiUserPromptSubmit", "USER_PROMPT_SUBMIT"},
+            {"KimiStop", "STOP"}
+        }) EVENT_MAP.put(e[0], new EventEntry(Platform.KIMI, IDEState.valueOf(e[1])));
+
+        for (String[] e : new String[][]{
+            {"sessionStart", "SESSION_START"}, {"sessionEnd", "SESSION_END"},
+            {"preToolUse", "PRE_TOOL_USE"}, {"postToolUse", "POST_TOOL_USE"},
+            {"stop", "STOP"}
+        }) EVENT_MAP.put(e[0], new EventEntry(Platform.CURSOR, IDEState.valueOf(e[1])));
+    }
+
     private final BleManager bleManager;
+    private final AiRuntimeDisplayService runtimeDisplayService;
+    private final ObjectMapper mapper = new ObjectMapper();
     private final int port;
     private ServerSocket serverSocket;
     private ExecutorService executor;
     private volatile boolean running;
-
-    /**
-     * 所有平台 hook 事件名 → IDEState 映射。
-     * 前缀 Codex* / Kimi* 以及无前缀的 Claude/Cursor 事件名均映射到相同的 BLE 状态码。
-     */
-    private static final Map<String, IDEState> EVENT_MAP = new HashMap<>();
-
-    static {
-        // Claude 事件名（PascalCase）
-        EVENT_MAP.put("SessionStart", IDEState.SESSION_START);
-        EVENT_MAP.put("SessionEnd", IDEState.SESSION_END);
-        EVENT_MAP.put("PreToolUse", IDEState.PRE_TOOL_USE);
-        EVENT_MAP.put("PostToolUse", IDEState.POST_TOOL_USE);
-        EVENT_MAP.put("PermissionRequest", IDEState.PERMISSION_REQUEST);
-        EVENT_MAP.put("Notification", IDEState.NOTIFICATION);
-        EVENT_MAP.put("TaskCompleted", IDEState.TASK_COMPLETED);
-        EVENT_MAP.put("Stop", IDEState.STOP);
-        EVENT_MAP.put("UserPromptSubmit", IDEState.USER_PROMPT_SUBMIT);
-
-        // Cursor 事件名（camelCase）
-        EVENT_MAP.put("sessionStart", IDEState.SESSION_START);
-        EVENT_MAP.put("sessionEnd", IDEState.SESSION_END);
-        EVENT_MAP.put("preToolUse", IDEState.PRE_TOOL_USE);
-        EVENT_MAP.put("postToolUse", IDEState.POST_TOOL_USE);
-        EVENT_MAP.put("stop", IDEState.STOP);
-
-        // Codex 事件名（Codex* 前缀）
-        EVENT_MAP.put("CodexSessionStart", IDEState.SESSION_START);
-        EVENT_MAP.put("CodexSessionEnd", IDEState.SESSION_END);
-        EVENT_MAP.put("CodexPreToolUse", IDEState.PRE_TOOL_USE);
-        EVENT_MAP.put("CodexPostToolUse", IDEState.POST_TOOL_USE);
-        EVENT_MAP.put("CodexPermissionRequest", IDEState.PERMISSION_REQUEST);
-        EVENT_MAP.put("CodexStop", IDEState.STOP);
-        EVENT_MAP.put("CodexUserPromptSubmit", IDEState.USER_PROMPT_SUBMIT);
-
-        // Kimi 事件名（Kimi* 前缀）
-        EVENT_MAP.put("KimiNotification", IDEState.NOTIFICATION);
-        EVENT_MAP.put("KimiSessionStart", IDEState.SESSION_START);
-        EVENT_MAP.put("KimiSessionEnd", IDEState.SESSION_END);
-        EVENT_MAP.put("KimiPreToolUse", IDEState.PRE_TOOL_USE);
-        EVENT_MAP.put("KimiPostToolUse", IDEState.POST_TOOL_USE);
-        EVENT_MAP.put("KimiUserPromptSubmit", IDEState.USER_PROMPT_SUBMIT);
-        EVENT_MAP.put("KimiStop", IDEState.STOP);
-    }
+    private ApprovalCallback approvalCallback;
 
     public HookDispatchServer(BleManager bleManager) {
-        this(bleManager, DEFAULT_PORT);
+        this(bleManager, null, DEFAULT_PORT);
     }
 
     public HookDispatchServer(BleManager bleManager, int port) {
+        this(bleManager, null, port);
+    }
+
+    public HookDispatchServer(BleManager bleManager, AiRuntimeDisplayService runtimeDisplayService) {
+        this(bleManager, runtimeDisplayService, DEFAULT_PORT);
+    }
+
+    public HookDispatchServer(BleManager bleManager, AiRuntimeDisplayService runtimeDisplayService, int port) {
         this.bleManager = bleManager;
+        this.runtimeDisplayService = runtimeDisplayService;
         this.port = port;
     }
 
-    /**
-     * 启动服务器。如果端口被占用，会自动递增端口号重试（最多 10 次）。
-     */
+    public void setApprovalCallback(ApprovalCallback callback) {
+        this.approvalCallback = callback;
+    }
+
     public void start() {
-        if (running) return;
+        if (running) {
+            return;
+        }
         executor = Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r, "hook-dispatch");
             t.setDaemon(true);
@@ -111,20 +116,19 @@ public class HookDispatchServer {
                 serverSocket.setReuseAddress(true);
                 serverSocket.bind(new InetSocketAddress("127.0.0.1", tryPort));
                 running = true;
-                logger.info("Hook 分发服务器已启动 - 127.0.0.1:{}", tryPort);
+                logger.info("Hook dispatch server started - 127.0.0.1:{}", tryPort);
                 break;
             } catch (IOException e) {
-                logger.warn("端口 {} 被占用，尝试下一个...", tryPort);
+                logger.warn("Hook dispatch port {} is busy, trying next port", tryPort);
                 tryPort++;
                 attempts++;
             }
         }
 
         if (!running) {
-            logger.error("Hook 分发服务器启动失败，已尝试端口 {}-{}", port, tryPort - 1);
+            logger.error("Hook dispatch server failed to start");
             return;
         }
-
         executor.submit(this::acceptLoop);
     }
 
@@ -143,103 +147,181 @@ public class HookDispatchServer {
                 executor.submit(() -> handleClient(client));
             } catch (IOException e) {
                 if (running) {
-                    logger.warn("Hook 服务器 accept 异常: {}", e.getMessage());
+                    logger.warn("Hook dispatch accept failed: {}", e.getMessage());
                 }
             }
         }
+    }
+
+    private boolean checkAutoApproval(boolean forceRefresh) {
+        if (forceRefresh) {
+            bleManager.queryStatusAndWait(200);
+        }
+        return bleManager.getCachedStatus().isAutoApproval();
     }
 
     private void handleClient(Socket client) {
         try (client;
              BufferedReader reader = new BufferedReader(new InputStreamReader(client.getInputStream()));
              PrintWriter writer = new PrintWriter(client.getOutputStream(), true)) {
-
             String line = reader.readLine();
             if (line == null || line.isBlank()) {
                 writer.println("{\"ok\":false,\"error\":\"empty\"}");
                 return;
             }
 
-            line = line.trim();
-            String eventName = parseEventName(line);
-            logger.debug("Hook 事件: {} (原始: {})", eventName, line);
-
-            IDEState state = EVENT_MAP.get(eventName);
-            if (state == null) {
-                logger.warn("未知 hook 事件: {}", eventName);
-                writer.println("{\"ok\":false,\"error\":\"unknown event: " + eventName + "\"}");
+            HookPayload payload = parsePayload(line.trim());
+            EventEntry entry = EVENT_MAP.get(payload.eventName());
+            if (entry == null) {
+                logger.warn("Unknown hook event rejected; raw input omitted");
+                writer.println("{\"ok\":false,\"error\":\"unknown event\"}");
                 return;
             }
 
-            // 检查 PermissionRequest 事件是否需要自动批准
-            if (state == IDEState.PERMISSION_REQUEST) {
-                boolean isAutoApproval = bleManager.getCachedStatus().isAutoApproval();
-                if (isAutoApproval) {
-                    logger.info("自动批准模式: 跳过 PermissionRequest 事件");
-                    writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":true}");
-                } else {
-                    logger.info("手动批准模式: 返回拒绝决策");
-                    writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":false}");
-                }
-                return;
+            switch (entry.platform()) {
+                case CLAUDE -> handleClaudeEvent(writer, payload.eventName(), entry.state(), payload.json());
+                case CODEX -> handleCodexEvent(writer, payload.eventName(), entry.state(), payload.json());
+                case KIMI -> handleKimiEvent(writer, payload.eventName(), entry.state(), payload.json());
+                case CURSOR -> handleCursorEvent(writer, payload.eventName(), entry.state(), payload.json());
             }
-
-            // Kimi PreToolUse：刷新设备状态后直接返回 Kimi 决策格式，PS1 hook 原样透传
-            if ("KimiPreToolUse".equals(eventName)) {
-                bleManager.queryStatusAndWait(200);
-                boolean isAuto = bleManager.getCachedStatus().isAutoApproval();
-                logger.info("KimiPreToolUse: 拨杆={} (switchState={})",
-                        isAuto ? "自动" : "手动", bleManager.getCachedStatus().getSwitchState());
-                try {
-                    bleManager.updateState((byte) state.getCode());
-                } catch (Exception e) {
-                    logger.warn("BLE 状态更新失败: {}", e.getMessage());
-                }
-                if (isAuto) {
-                    writer.println("{}");
-                } else {
-                    writer.println("{\"hookSpecificOutput\":{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"AhaKey: manual mode, switch dial to auto\"}}");
-                }
-                return;
-            }
-
-            try {
-                bleManager.updateState((byte) state.getCode());
-                logger.info("Hook 分发成功: {} → {} (code={})", eventName, state.name(), state.getCode());
-                writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"state\":" + state.getCode() + "}");
-            } catch (Exception e) {
-                logger.error("BLE 状态更新失败: {}", e.getMessage());
-                writer.println("{\"ok\":false,\"error\":\"BLE update failed\"}");
-            }
-
         } catch (IOException e) {
-            logger.debug("Hook 客户端处理异常: {}", e.getMessage());
+            logger.debug("Hook client handling failed: {}", e.getMessage());
         }
     }
 
-    /**
-     * 从输入行解析事件名。支持 JSON 和纯文本两种格式。
-     */
-    private String parseEventName(String line) {
+    private void handleClaudeEvent(PrintWriter writer, String eventName, IDEState state, JsonNode payload) {
+        if (state == IDEState.PERMISSION_REQUEST) {
+            boolean auto = checkAutoApproval(false);
+            sendRuntimeState("Claude", state, payload);
+            boolean approved = auto || (approvalCallback != null && approvalCallback.requestApproval("Claude", eventName));
+            writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + approved + "}");
+            return;
+        }
+        handleGeneric(writer, eventName, state, "Claude", payload);
+    }
+
+    private void handleCodexEvent(PrintWriter writer, String eventName, IDEState state, JsonNode payload) {
+        boolean needApproval = "CodexPreToolUse".equals(eventName) || state == IDEState.PERMISSION_REQUEST;
+        if (needApproval) {
+            boolean auto = checkAutoApproval(true);
+            sendRuntimeState("Codex", state, payload);
+            boolean approved = auto || (approvalCallback != null && approvalCallback.requestApproval("Codex", eventName));
+            writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + approved + "}");
+            return;
+        }
+        handleGeneric(writer, eventName, state, "Codex", payload);
+    }
+
+    private void handleKimiEvent(PrintWriter writer, String eventName, IDEState state, JsonNode payload) {
+        if ("KimiPreToolUse".equals(eventName)) {
+            boolean auto = checkAutoApproval(true);
+            sendRuntimeState("Kimi", state, payload);
+            if (auto || (approvalCallback != null && approvalCallback.requestApproval("Kimi", eventName))) {
+                writer.println("{}");
+            } else {
+                writer.println("{\"hookSpecificOutput\":{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"当前是手动模式，需要把拨杆切到自动后我才能执行操作\"}}");
+            }
+            return;
+        }
+        handleGeneric(writer, eventName, state, "Kimi", payload);
+    }
+
+    private void handleCursorEvent(PrintWriter writer, String eventName, IDEState state, JsonNode payload) {
+        if ("preToolUse".equals(eventName)) {
+            boolean auto = checkAutoApproval(true);
+            sendRuntimeState("Cursor", state, payload);
+            if (auto) {
+                writer.println("{\"permission\":\"allow\"}");
+            } else {
+                writer.println("{\"ok\":true,\"cursorPermission\":\"defer_to_native\"}");
+            }
+            return;
+        }
+        handleGeneric(writer, eventName, state, "Cursor", payload);
+    }
+
+    private void handleGeneric(PrintWriter writer, String eventName, IDEState state, String platform, JsonNode payload) {
+        AiRuntimeDisplayService.Delivery delivery = runtimeDisplayService == null
+                ? (sendRuntimeState(platform, state, payload) ? AiRuntimeDisplayService.Delivery.SENT : AiRuntimeDisplayService.Delivery.FAILED)
+                : runtimeDisplayService.handleHookEventResult(platform, state, payload);
+        boolean displayUpdated = delivery == AiRuntimeDisplayService.Delivery.SENT;
+        writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"state\":" + state.getCode()
+            + ",\"displayUpdated\":" + displayUpdated + ",\"delivery\":\"" + delivery.name() + "\"}");
+    }
+
+    private boolean sendRuntimeState(String platform, IDEState state, JsonNode payload) {
+        try {
+            if (runtimeDisplayService != null) {
+                return runtimeDisplayService.handleHookEvent(platform, state, payload);
+            }
+            return bleManager.sendRuntimeState((byte) state.getCode());
+        } catch (Exception e) {
+            logger.warn("[{}] runtime state update failed: {}", platform, e.getMessage());
+            return false;
+        }
+    }
+
+    private HookPayload parsePayload(String line) {
         if (line.startsWith("{")) {
-            // JSON 格式: {"cmd":"SessionStart"}
             try {
-                // 简单解析，避免引入额外依赖
-                int cmdIdx = line.indexOf("\"cmd\"");
-                if (cmdIdx >= 0) {
-                    int colonIdx = line.indexOf(':', cmdIdx);
-                    int firstQuote = line.indexOf('"', colonIdx + 1);
-                    int secondQuote = line.indexOf('"', firstQuote + 1);
-                    if (firstQuote >= 0 && secondQuote > firstQuote) {
-                        return line.substring(firstQuote + 1, secondQuote);
-                    }
+                JsonNode node = mapper.readTree(line);
+                String eventName = node.path("cmd").asText("");
+                if (eventName.isBlank()) {
+                    eventName = node.path("hook_event_name").asText("");
+                }
+                if (!eventName.isBlank()) {
+                    return new HookPayload(eventName, node);
                 }
             } catch (Exception e) {
-                logger.debug("JSON 解析失败: {}", line);
+                logger.debug("Hook JSON parse failed: {}", e.getClass().getSimpleName());
+                HookPayload fallback = parseMalformedJsonPayload(line);
+                if (fallback != null && !fallback.eventName().isBlank()) {
+                    return fallback;
+                }
             }
         }
-        // 纯文本格式：直接返回事件名
-        return line;
+        return new HookPayload(line, null);
+    }
+
+    private HookPayload parseMalformedJsonPayload(String line) {
+        ObjectNode node = mapper.createObjectNode();
+        copyJsonStringField(line, node, "cmd");
+        copyJsonStringField(line, node, "hook_event_name");
+        copyJsonStringField(line, node, "conversation_id");
+        copyJsonStringField(line, node, "conversationId");
+        copyJsonStringField(line, node, "session_id");
+        copyJsonStringField(line, node, "sessionId");
+        copyJsonStringField(line, node, "composerId");
+        copyJsonStringField(line, node, "composer_id");
+        copyJsonStringField(line, node, "transcript_path");
+        copyJsonStringField(line, node, "transcriptPath");
+        copyJsonStringField(line, node, "cwd");
+        copyJsonStringField(line, node, "current_working_directory");
+        copyJsonStringField(line, node, "currentWorkingDirectory");
+
+        String eventName = node.path("cmd").asText("");
+        if (eventName.isBlank()) {
+            eventName = node.path("hook_event_name").asText("");
+        }
+        return eventName.isBlank() ? null : new HookPayload(eventName, node);
+    }
+
+    private void copyJsonStringField(String source, ObjectNode target, String fieldName) {
+        Matcher matcher = Pattern.compile("\\\\?\"" + Pattern.quote(fieldName) + "\\\\?\"\\s*:\\s*\\\\?\"([^\"\\\\]*(?:\\\\.[^\"\\\\]*)*)")
+            .matcher(source);
+        if (matcher.find()) {
+            target.put(fieldName, unescapeLooseJsonString(matcher.group(1)));
+        }
+    }
+
+    private String unescapeLooseJsonString(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return value
+            .replace("\\\\", "\\")
+            .replace("\\/", "/")
+            .replace("\\\"", "\"");
     }
 
     public void stop() {
@@ -249,11 +331,11 @@ public class HookDispatchServer {
                 serverSocket.close();
             }
         } catch (IOException e) {
-            logger.warn("关闭 Hook 服务器异常: {}", e.getMessage());
+            logger.warn("Hook dispatch close failed: {}", e.getMessage());
         }
         if (executor != null) {
             executor.shutdownNow();
         }
-        logger.info("Hook 分发服务器已停止");
+        logger.info("Hook dispatch server stopped");
     }
 }

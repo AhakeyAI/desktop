@@ -1,0 +1,74 @@
+{
+  "schema_version": 2,
+  "id": "WD-001",
+  "title": "CP3A 睡眠等待时间 Windows 联调",
+  "revision": 1,
+  "phase": "VERIFY",
+  "status": "CLOSED_BY_OWNER",
+  "build_round": 1,
+  "assignment": {
+    "owner_record": ".ahakey-desktop-harness\\evidence\\owner-task-cp3a-sleep-wait-time.md",
+    "record_sha256": "f63f2a4281cc2dfd6b7a7bf18cd59dab7bf010842f174c816b06a8f2abcd25e7",
+    "at": "2026-09-28T09:09:43+00:00"
+  },
+  "delivery_scope": "internal_integration",
+  "requirements": {
+    "ui_entry_changed": true,
+    "device_related": true,
+    "real_device": true,
+    "owner_uat": true
+  },
+  "allowed_paths": [
+    "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/view/TopBar.java",
+    "src/main/resources/messages_zh.properties",
+    "src/main/resources/messages_en.properties"
+  ],
+  "preserved_behaviors": [
+    "More/Hawk 安装分发工具弹窗保持现有入口、尺寸和原有卡片职责，只在设备信息卡片内增加睡眠等待时间行，不新增卡片、不重排其它功能。",
+    "连接状态、电量、设备名称、拨杆、Hook/驱动安装分发、BLE 驱动控制和日志按钮行为保持不变。",
+    "现有配置保存链路和 0x04 save_config 语义保持不变；睡眠等待时间单项不得发送 0x04。",
+    "USB/BLE transport、状态轮询、断连处理、语音输入、键盘注入、按键配置和 OLED 图片流程保持不变。",
+    "不修改 Firmware、eternal、Harness 规则，不引入新依赖，不做全局 UI 重设计。"
+  ],
+  "approval_assets": [
+    "CONTRACT.md",
+    "REFERENCES.json"
+  ],
+  "ui_mode": "minimal",
+  "ui_note_ref": "CONTRACT.md",
+  "ui_current_refs": [
+    "src/main/java/com/example/ahakey/view/TopBar.java#showDeviceInfoDialog",
+    "src/main/resources/messages_zh.properties",
+    "src/main/resources/messages_en.properties"
+  ],
+  "ui_preview_refs": [],
+  "mock_plan": null,
+  "checkpoints": [
+    "CP3A"
+  ],
+  "approval": {
+    "at": "2026-09-28T09:23:23+00:00",
+    "owner_record": ".ahakey-desktop-harness\\evidence\\owner-approval-WD-001.md",
+    "owner_record_sha256": "f8f31a18c28eb04c21c21932d49de5747d4950ccf35846be6903074899d6d0c6",
+    "inputs": {
+      "meta_sha256": "9b199551e45810145de0302df0b3af2007247261154bb91f3c2c266ee25ca2ea",
+      "assets": {
+        "CONTRACT.md": "287e8c22b79282130cc7595c96da050f506d9bd3f68f040496941458af038738",
+        "REFERENCES.json": "0304ea829a52e181c8e5192247bec46242e3326b2b13fb4314aeb95a63a25d3f"
+      },
+      "reference_sha256": "30836ab7b17d478f47f83c55e73d4d097b1c914264a39190121a07cd5e6c387b"
+    }
+  },
+  "activated_at": "2026-09-28T09:23:23+00:00",
+  "isolation_record": null,
+  "owner_disposition": {
+    "status": "CLOSED_BY_OWNER",
+    "acceptance": "ACCEPTED_AS_IS_FOR_PROGRESS",
+    "recovery": "NO_FURTHER_RECOVERY_REQUIRED",
+    "owner_record": ".ahakey-desktop-harness/evidence/owner-disposition-WD-001-WD-R001-WD-002-20261003.md",
+    "meaning": "Administrative route release only. Historical tests, PASS bindings, T07 not_executed and Firmware gates are preserved."
+  }
+}

@@ -1,0 +1,214 @@
+﻿{
+    "schema_version":  1,
+    "id":  "WD-001",
+    "contract_sha256":  "287e8c22b79282130cc7595c96da050f506d9bd3f68f040496941458af038738",
+    "reviewed_by_dla":  true,
+    "review_note":  "DLA已按v0.5要求核对原Contract验收清单：A001引用DIB机器编译证据，A002/A003引用DIB静态回归证据；A004-A012均保留为Owner planned_owner，未删除非法值、真实睡眠/唤醒、生命周期或持久化要求。未执行产品启动、设备操作、模型加载或UAT。",
+    "rows":  [
+                 {
+                     "id":  "A001",
+                     "line":  109,
+                     "section":  "## 验收与恢复",
+                     "source_text":  "- Java 17 Maven 编译通过。",
+                     "disposition":  "existing_evidence",
+                     "step_ids":  [
+
+                                  ],
+                     "evidence":  [
+                                      {
+                                          "workspace":  "windows",
+                                          "path":  ".ahakey-desktop-harness/evidence/WD-001-machine-compile.md",
+                                          "sha256":  "91ece008f0515dce099dce100ae74028dc1a81576abc694bc660489409540bc4",
+                                          "scope":  "Java 17 Maven compile for WD-001 code fingerprint 9d786663027f229b278368f643696d6cd188a7160230be4060d0c6222427c4e5",
+                                          "explanation":  "DIB在临时JAVA_HOME=D:\\jdk-17.0.19.10-hotspot下执行mvn -q -DskipTests compile，退出码0，无编译错误；不证明运行或设备行为。",
+                                          "kind":  "machine",
+                                          "result":  "pass"
+                                      }
+                                  ],
+                     "reason":  "已有DIB机器编译证据适用于当前code_fingerprint/build_round；本轮未重跑构建。",
+                     "owner_exception":  null
+                 },
+                 {
+                     "id":  "A002",
+                     "line":  110,
+                     "section":  "## 验收与恢复",
+                     "source_text":  "- 静态核对：睡眠等待时间保存路径不发送 `0x04 save_config`。",
+                     "disposition":  "existing_evidence",
+                     "step_ids":  [
+
+                                  ],
+                     "evidence":  [
+                                      {
+                                          "workspace":  "windows",
+                                          "path":  ".ahakey-desktop-harness/evidence/WD-001-static-regression.md",
+                                          "sha256":  "9c348ab6234d2b023a2ff2fb2dbace979603dae1eb90df44462c7e283977fdb5",
+                                          "scope":  "Static no-0x04 check for sleep wait time save path",
+                                          "explanation":  "证据记录AhaKeyProtocol/BleManager新路径使用0x95 set-\u003e0x95 query，并说明新睡眠等待时间方法不调用saveConfig或CMD_SAVE_CONFIG；不替代真机协议抓包。",
+                                          "kind":  "static",
+                                          "result":  "pass"
+                                      }
+                                  ],
+                     "reason":  "已有静态回归证据明确核对睡眠等待时间路径不发送0x04 save_config。",
+                     "owner_exception":  null
+                 },
+                 {
+                     "id":  "A003",
+                     "line":  111,
+                     "section":  "## 验收与恢复",
+                     "source_text":  "- UI 静态核对：入口位于 More 弹窗第一个“设备信息”卡片内，没有新增卡片。",
+                     "disposition":  "existing_evidence",
+                     "step_ids":  [
+
+                                  ],
+                     "evidence":  [
+                                      {
+                                          "workspace":  "windows",
+                                          "path":  ".ahakey-desktop-harness/evidence/WD-001-static-regression.md",
+                                          "sha256":  "9c348ab6234d2b023a2ff2fb2dbace979603dae1eb90df44462c7e283977fdb5",
+                                          "scope":  "Static UI placement check for More/Hawk first device info card",
+                                          "explanation":  "证据记录TopBar.showDeviceInfoDialog中sleepWaitTimeControl加入deviceCard，content卡片结构未新增独立睡眠卡片；不替代Owner UI截图。",
+                                          "kind":  "static",
+                                          "result":  "pass"
+                                      }
+                                  ],
+                     "reason":  "已有静态回归证据核对UI插入位置为More弹窗第一个设备信息卡片且未新增单独卡片。",
+                     "owner_exception":  null
+                 },
+                 {
+                     "id":  "A004",
+                     "line":  114,
+                     "section":  "## 验收与恢复",
+                     "source_text":  "- 烧录指定 CP3A HEX，并确认 SHA256 为 `9AABCE5F015FD44D980FF6818D825B6BAB34F6E4B4F7AC277E942272D700444C`。",
+                     "disposition":  "planned_owner",
+                     "step_ids":  [
+                                      "T02"
+                                  ],
+                     "evidence":  [
+
+                                  ],
+                     "reason":  "按已批准合同保留对应验证；仅计划，未执行。",
+                     "owner_exception":  null
+                 },
+                 {
+                     "id":  "A005",
+                     "line":  115,
+                     "section":  "## 验收与恢复",
+                     "source_text":  "- 上位机查询 `0x95`，记录当前睡眠等待时间。",
+                     "disposition":  "planned_owner",
+                     "step_ids":  [
+                                      "T03"
+                                  ],
+                     "evidence":  [
+
+                                  ],
+                     "reason":  "按已批准合同保留对应验证；仅计划，未执行。",
+                     "owner_exception":  null
+                 },
+                 {
+                     "id":  "A006",
+                     "line":  116,
+                     "section":  "## 验收与恢复",
+                     "source_text":  "- 设置 30，收到 `0x95 OK` 后立刻查询，确认回读是 30。",
+                     "disposition":  "planned_owner",
+                     "step_ids":  [
+                                      "T04"
+                                  ],
+                     "evidence":  [
+
+                                  ],
+                     "reason":  "按已批准合同保留对应验证；仅计划，未执行。",
+                     "owner_exception":  null
+                 },
+                 {
+                     "id":  "A007",
+                     "line":  117,
+                     "section":  "## 验收与恢复",
+                     "source_text":  "- 断电/重启键盘，再查 `0x95`，确认仍是 30。",
+                     "disposition":  "planned_owner",
+                     "step_ids":  [
+                                      "T05"
+                                  ],
+                     "evidence":  [
+
+                                  ],
+                     "reason":  "按已批准合同保留对应验证；仅计划，未执行。",
+                     "owner_exception":  null
+                 },
+                 {
+                     "id":  "A008",
+                     "line":  118,
+                     "section":  "## 验收与恢复",
+                     "source_text":  "- 同样测试 0 / 60 / 120；其中 0 表示永不自动进入 Quiet/Sleep。",
+                     "disposition":  "planned_owner",
+                     "step_ids":  [
+                                      "T06"
+                                  ],
+                     "evidence":  [
+
+                                  ],
+                     "reason":  "按已批准合同保留对应验证；仅计划，未执行。",
+                     "owner_exception":  null
+                 },
+                 {
+                     "id":  "A009",
+                     "line":  119,
+                     "section":  "## 验收与恢复",
+                     "source_text":  "- 发送非法值，确认返回失败，并且原值不变。",
+                     "disposition":  "planned_owner",
+                     "step_ids":  [
+                                      "T07"
+                                  ],
+                     "evidence":  [
+
+                                  ],
+                     "reason":  "按已批准合同保留对应验证；仅计划，未执行。",
+                     "owner_exception":  null
+                 },
+                 {
+                     "id":  "A010",
+                     "line":  120,
+                     "section":  "## 验收与恢复",
+                     "source_text":  "- 确认上位机不需要再发 `0x04 save_config`。",
+                     "disposition":  "planned_owner",
+                     "step_ids":  [
+                                      "T04"
+                                  ],
+                     "evidence":  [
+
+                                  ],
+                     "reason":  "按已批准合同保留对应验证；仅计划，未执行。",
+                     "owner_exception":  null
+                 },
+                 {
+                     "id":  "A011",
+                     "line":  121,
+                     "section":  "## 验收与恢复",
+                     "source_text":  "- 测 Sleep/Wake / real Sleep / display loop：休眠后唤醒，屏幕亮、状态正确、按键/连接恢复，不能出现自动反复醒来或黑屏循环。",
+                     "disposition":  "planned_owner",
+                     "step_ids":  [
+                                      "T08"
+                                  ],
+                     "evidence":  [
+
+                                  ],
+                     "reason":  "按已批准合同保留对应验证；仅计划，未执行。",
+                     "owner_exception":  null
+                 },
+                 {
+                     "id":  "A012",
+                     "line":  122,
+                     "section":  "## 验收与恢复",
+                     "source_text":  "- 快速烟测 WS1 生命周期：Power 短按/长按、Forget guard、USB fake-off、true-off USB 插入、single-host reconnect、USB/Mac wired lifecycle。",
+                     "disposition":  "planned_owner",
+                     "step_ids":  [
+                                      "T09"
+                                  ],
+                     "evidence":  [
+
+                                  ],
+                     "reason":  "按已批准合同保留对应验证；仅计划，未执行。",
+                     "owner_exception":  null
+                 }
+             ],
+    "meaning":  "Mapping draft. Original Contract unchanged. No test results are inferred."
+}

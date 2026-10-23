@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "WD-005 第2轮已提交，VERIFY / DLA_REVIEW",
+    "conclusion": "本轮编译和283项断言通过，已正式submit，交原DLA实际审阅；尚不能交真机验收。"
+  },
+  "completed": [
+    "F1-F3修复及R1隔离处理已提交；175项离线、36项隔离FX、72项时序断言通过。时序入口重复运行也通过，首次夹具失败及修正日志保留。"
+  ],
+  "remaining": [
+    "尚需原DLA实际审阅，之后按Harness决定Preview；正式配对另需fresh独立审阅、Git候选、实际包和Firmware identity。未打包、启动正式应用、做Git写入或访问设备。"
+  ],
+  "owner": {
+    "decision": {"required": false, "action": "本轮窄授权已使用，无需重新确认产品设计。"},
+    "operation": {"required": true, "action": "把下方完整提示词发送给原DLA对话。"},
+    "test": {"required": false, "action": "现在不操作键盘，也不使用旧target包测试本轮。"}
+  },
+  "next": {
+    "role": "DLA",
+    "destination": "原 DLA 对话",
+    "mode": "DLA_REVIEW",
+    "task": "WD-005 第2轮 F1-F3及R1实际差异复审",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "action": "检查累计实际diff和本轮证据，不沿用旧review；通过后按Harness决定Owner Preview。",
+    "facts": [
+      "已正式submit，build_round=2，VERIFY/DLA_REVIEW，next_actor=DLA；实现指纹aea60d8c7eb936cb937cc59522fed7224c845ecf7947cedb17e8f029ad1656c8。",
+      "HEAD/原起点41c034171e60b2d4962b0adbe8f3cffbf80a0436；本轮编译、175离线、36隔离FX、72时序断言退出0，不代表完整应用或真机通过。",
+      "旧EXECUTION_REPORT保持冻结；submit的report_sha仍指历史基报告。本轮报告和检查表由verification四项evidence直接绑定，不得将旧报告冒称本轮结果。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005\\EXECUTION_REPORT_FIX_ROUND_2.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005\\IMPLEMENTATION_CHECKS_ROUND_2.json"
+    ],
+    "authorization": "仅沿原批准与DIB→DLA流程实际审阅和保存记录；不新增生产修改、构建、应用启动、Git写入或设备授权。",
+    "goal": "确认F1-F3修复及R1处理是否正确且保留原行为，明确剩余验证边界。",
+    "allowed": [
+      "读取STATE/local、Journey、firmware-sync、WD-005合同/批准/起点/旧REVIEW与本轮receipt、verification、实际日志。运行python .agents/skills/ahakey-desktop-harness/scripts/desktop.py review-pack --id WD-005 --role DLA。重点检查回读与旧事务串行化及锁顺序、CP1确认后提交、FX连接/操作/编辑身份、旧pending隔离与原重连同步；核对报告绑定。发现问题按正式流程退修。"
+    ],
+    "forbidden": [
+      "不修改生产或固件代码，不重写冻结报告/批准/起点，不降低门禁。固件仅只读C:\\Users\\20825\\Desktop\\vibe-code。不自动构建、Git写入、设备操作或烧录；不将机器覆盖缺口直接宣称故障，不把本轮测试代替fresh review、Preview或真机验收。"
+    ]
+  }
+}

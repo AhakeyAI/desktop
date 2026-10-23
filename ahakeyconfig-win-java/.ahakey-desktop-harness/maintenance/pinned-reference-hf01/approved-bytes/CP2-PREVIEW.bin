@@ -1,0 +1,72 @@
+#include "display_preview.h"
+
+#include "main.h"
+
+typedef struct
+{
+    uint8_t active;
+    uint8_t seconds;
+    uint8_t effect, brightness;
+} display_preview_state_s;
+
+static display_preview_state_s s_preview;
+
+static uint8_t display_preview_brightness_valid(uint8_t brightness)
+{
+    return brightness >= 1 && brightness <= 100;
+}
+
+uint8_t display_preview_start_light(uint8_t effect, uint8_t brightness)
+{
+    if (effect == WS2812_OFF || effect > WS2812_APPROVAL_WAIT || !display_preview_brightness_valid(brightness))
+        return 0;
+
+    s_preview.active                  = 1;
+    s_preview.seconds                 = DISPLAY_PREVIEW_SECONDS;
+    s_preview.effect = effect;
+    s_preview.brightness = brightness;
+    return 1;
+}
+
+uint8_t display_preview_start_brightness(uint8_t brightness)
+{
+    enum ws2812_mode_e effect = WS2812_SINGLE_MOVE;
+
+    if (!display_preview_brightness_valid(brightness))
+        return 0;
+    if (effect == WS2812_OFF || effect > WS2812_APPROVAL_WAIT)
+        effect = WS2812_SINGLE_MOVE;
+    return display_preview_start_light((uint8_t) effect, brightness);
+}
+
+void display_preview_stop(void)
+{
+    if (!s_preview.active)
+        return;
+    s_preview.active                     = 0;
+    s_preview.seconds                    = 0;
+    ws2812_state.global_light = key_bund.ws2812_brightness;
+    tmos_set_event(mTaskID, MCT_WS2812_MODE);
+}
+
+void display_preview_tick_one_second(void)
+{
+    if (!s_preview.active || s_preview.seconds == 0)
+        return;
+    s_preview.seconds--;
+    if (s_preview.seconds == 0)
+        display_preview_stop();
+}
+
+uint8_t display_preview_active(void)
+{
+    return s_preview.active;
+}
+
+uint8_t display_preview_render(void)
+{
+    if (!s_preview.active) return 0;
+    ws2812_state.global_light = s_preview.brightness;
+    ws2812_display((enum ws2812_mode_e)s_preview.effect, 0x102080);
+    return 1;
+}

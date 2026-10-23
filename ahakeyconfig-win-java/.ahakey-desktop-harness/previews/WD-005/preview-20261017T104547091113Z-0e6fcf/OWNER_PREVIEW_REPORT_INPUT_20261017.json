@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "WD-005／VERIFY；Preview已就绪，全局仍DLA_REVIEW。",
+    "conclusion": "可以开始离线UI和有线USB预览测试。已核对包和配对固件，你也确认了实际刷入；我没有启动软件或操作设备。"
+  },
+  "completed": [
+    "19个运行文件、绑定日志和源码快照校验一致。JAR SHA256：e8bbe9ee0dc3da54733d057c4bc2ab6ee8d12fa9bdc333290b4947f055e752e5。"
+  ],
+  "remaining": [
+    "当前包尚未运行验证；formal fresh、Git候选、完整A01–A11及正式UAT仍待完成。283项是历史限定断言复用，不是本轮重跑。"
+  ],
+  "owner": {
+    "decision": {
+      "required": false,
+      "action": "本次测试键盘的配对固件确认已记录，不需重复搬运仓库资料。"
+    },
+    "operation": {
+      "required": true,
+      "action": "退出旧实例并备份数据，再按下面命令启动；不用切换到DIB。"
+    },
+    "test": {
+      "required": true,
+      "action": "先离线，再有线；首次失败即可回报，不必强行做完。",
+      "prerequisites": [
+        "通过托盘Exit退出旧AhaKey，关闭窗口可能只是隐藏。退出会结束同机BLE_tcp_driver.exe，先确认其他工作不依赖它；暂停AI自动工作流。启动会监听语音键和Hook端口8765–8774，USB连接后还会使用9000；冲突不要随意杀进程。",
+        "退出后将整个 C:\\Users\\20825\\.ahakey 复制到新的带日期备份目录，包含草稿、偏好、任务槽和已有oled-resources。此包不隔离用户数据，启动可能迁移旧草稿；也不附JRE、BLE桥接/配置或本地语音模型。",
+        "固件来自WS3 CP2正式Gate（20261015T185611，PASS）：C:\\Users\\20825\\Desktop\\vibe-code\\.ahakey-harness\\evidence\\builds\\ws3-cp2-resource-display-config\\HID_Keyboard_582m_vibe_coding.hex；SHA256：D7D10510482228B74A2978BD8272F6A4E32668CF6B4F31F491A8503B0DC11E2E。你已确认刷入，但每次重连仍须在UI确认。"
+      ],
+      "steps": [
+        {
+          "action": "先拔键盘USB，不点连接。PowerShell依次执行：`$env:AHAKEY_STUDIO_SIMULATE_BLE = 'false'`；`Set-Location -LiteralPath 'C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261017T104547091113Z-0e6fcf\\runtime-jar-classpath'`；`& 'D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe' '-Dfile.encoding=UTF-8' '-cp' 'ahakey-studio-1.0.0.jar;lib/*' 'com.example.ahakey.Main'`。不要用java -jar。",
+          "expected": "出现未连接主窗口；无窗口、JavaFX或端口错误先回报。"
+        },
+        {
+          "action": "离线点击OLED：轮看四Mode的默认/SINGLE三态及全局MULTI三态；用测试副本导入静图、透明图和GIF，试超限/坏文件、缩小窗口和长名称。",
+          "expected": "共19目标，MULTI不随Mode另存；左侧160×80黑底成品、草稿标记及帧数正确。默认最多8帧、状态最多12帧，错误不丢旧资源、不截帧；离线不能上传/设备预览。"
+        },
+        {
+          "action": "退出后改名测试源图副本，再用同命令重开；清除一个测试格。",
+          "expected": "成品仍可恢复；清除仅影响本地该格，不删源图、其他配置或设备资源。"
+        },
+        {
+          "action": "插USB、点连接，确认日志走USB HID而非BLE。查看更多中的设备信息/睡眠设置；在OLED或灯光点“确认配对固件”，核对SHA后刷新。",
+          "expected": "旧设备信息可读；当前配置按需同步，草稿不被覆盖。“设备已有”与未知区分。连接会同步原CP1展示偏好，不是纯只读操作。"
+        },
+        {
+          "action": "选择允许覆盖的OLED测试格，保留原成品后点“上传并应用”；核对弹窗Mode/目标，观察进度和锁定，再刷新。",
+          "expected": "提交确认后才显示已应用；其他竞争写被阻止。固件决定实际播放时机，不保证立即播放；设备原图不能下载备份，无原成品则不能保证恢复。"
+        },
+        {
+          "action": "灯光页先记录原值，改亮度/灯效但不保存；点预览并离开面板；再分别保存亮度和当前Mode九项灯效。",
+          "expected": "编辑仅改本地；设备预览约10秒后回真实状态，离开不立即停止。OFF可保存不可预览；两类保存独立，部分失败不能报全部成功。"
+        },
+        {
+          "action": "写入完成后正常断连重连、重新确认固件；真正断电重启键盘再回读。回查普通键/侧拨、设备信息、双向Mode、已有系统语音和已有Hook的SINGLE/MULTI。",
+          "expected": "已保存配置保留，本地草稿不丢，旧功能不回归。BLE、本地模型、完整DPI/故障注入未测就记未测；首轮不在上传中故意拔线，不安装Hook。"
+        }
+      ],
+      "stop_recovery": "错误后停止写入，留截图和日志；未知ACK不要连续重试。手动重连、确认固件、刷新对账后再决定重传。需要恢复电脑数据时先退出，保留当前.ahakey故障副本，再恢复完整备份；这不能撤销键盘Flash写入。不要恢复出厂或自行刷机。",
+      "feedback": "在当前对话报步骤号、通过/失败/未测、USB路径、Mode/目标、现象和时间；附截图及运行目录 logs\\ahakey-studio.log。"
+    }
+  },
+  "next": {
+    "role": "DLA",
+    "destination": "当前对话",
+    "mode": "OWNER_PREVIEW_FEEDBACK",
+    "task": "WD-005 接收本轮Preview反馈",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "action": "你测试后直接回复这里；以下提示词仅供恢复上下文，不必现在重发。",
+    "authorization": "仅记录真实反馈及缺陷分类；不自动修代码或操作设备。",
+    "goal": "区分合同内Bug、产品语义变化和协议范围变化；合同内Bug按Preview流程交DIB。",
+    "facts": [
+      "当前预览令牌preview-20261017T104547091113Z-0e6fcf；Owner已确认配对HEX，尚无运行反馈或UAT通过。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261017T104547091113Z-0e6fcf\\OWNER_PREVIEW_BRIEF_20261017.md"
+    ],
+    "allowed": [
+      "读取同令牌目录的产物核验、固件确认和验收映射，按实际反馈记录；未测不豁免，发现合同内Bug按正式Preview退修。"
+    ],
+    "forbidden": [
+      "不覆盖冻结记录、源码或产物，不改规则，不自动构建、启动、Git写、安装Hook、写设备、烧录或发布；Preview不冒称正式UAT。"
+    ]
+  },
+  "evidence": []
+}
