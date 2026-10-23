@@ -5,7 +5,7 @@
   "permissionWrites": 0,
   "sameThread": true,
   "date": "2026-10-23",
-  "scope": "App/Agent candidate wiring; installed build371 still uses old consent path",
+  "scope": "Historical read-only bridge and source-wiring evidence before the controlled original-desktop mutation test",
   "bundledCLIVersion": "0.163.0-alpha.11",
   "sharedDaemonVersion": "0.164.0",
   "isolatedNativePolicyProof": {
@@ -91,5 +91,6 @@
     "normal termination drain",
     "pending native leases prevent false revoke success",
     "bounded retry and no stable desktop snapshot polling"
-  ]
+  ],
+  "subsequentControlledMutationReceipt": "native-session-original-desktop-2026-10-23.json"
 }
