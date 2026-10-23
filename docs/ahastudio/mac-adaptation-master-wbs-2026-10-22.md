@@ -177,3 +177,5 @@ Claude 2.1.299同一常驻进程的替换路径/移除已真实通过，保留�
 现场发现标准BAS历史低值覆盖实时电量。d826a51已修复来源优先级，11项局部/604项全量及两轴复核通过，签名build364已安装。同一路径两次只读交接未再观察到66%的历史值覆盖，原草稿/CLI配置保持、后台自动状态恢复；见battery-source-2026-10-23.json。固件BAS仅下降的问题仍保留，不声称电池校准或长期电量验证完成。
 
 H02/Q01另发现Claude PermissionRequest在手动时返回不受支持的ask；已改无决策交回原生流程，605项完整回归及两轴复核通过，合同见claude-permission-pass-through-2026-10-23.md。2103343的Developer ID build365已安装、签名通过，后台恢复实时自动档。已安装生产Hook经真实socket/BLE的六项自动档输出通过；覆盖Claude两个事件、Cursor Shell、Codex PermissionRequest及旧bypass/原生两条PreToolUse。未调用模型、未执行测试命令，未伪造会话任务。原有Voice草稿保留、临时素材草稿0；已请用户切实体手动档进入最终集中验收。不把输出函数、CLI生命周期和这六项输出检查冒充真实Claude/Cursor审批框验收。详见claude-permission-output-2026-10-23.json。
+
+集中实体验收续：实体手动档已真实阻止当前Codex旧bypass会话的三次工具调用，日志确认实时手动状态；核验脚本与界面读取未执行，不计Claude/Cursor六项手动矩阵通过，也不称为原生审批框通过。用户切回自动后六项真实BLE输出复测与界面自动状态恢复通过。5c55e4f的完整CI已绿，与安装源码2103343仅文档差异。当前等待短/长按语音反馈，正常重启/Coffee随后核对；其余范围不缩减。证据physical-lever-2026-10-23.json。

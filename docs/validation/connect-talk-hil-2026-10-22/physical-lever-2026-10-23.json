@@ -1,0 +1,124 @@
+{
+  "date": "2026-10-23",
+  "sourceCommit": "2103343cd19a60cdde2fd7317d286edac049f9a3",
+  "candidate": "0.2.3 build365",
+  "physicalManualConfirmedByUser": true,
+  "actualManualEvidence": {
+    "toolsDenied": [
+      "exec_command",
+      "mcp__cua_repl__js",
+      "request_user_input_async"
+    ],
+    "toolsExecuted": false,
+    "productionLogLastThree": [
+      {
+        "event": "CodexPreToolUse",
+        "hookEvent": "PreToolUse",
+        "switchState": 1,
+        "agentReply": true,
+        "permissionMode": "bypassPermissions",
+        "decision": "blocked_stale_bypass"
+      },
+      {
+        "event": "CodexPreToolUse",
+        "hookEvent": "PreToolUse",
+        "switchState": 1,
+        "agentReply": true,
+        "permissionMode": "bypassPermissions",
+        "decision": "blocked_stale_bypass"
+      },
+      {
+        "event": "CodexPreToolUse",
+        "hookEvent": "PreToolUse",
+        "switchState": 1,
+        "agentReply": true,
+        "permissionMode": "bypassPermissions",
+        "decision": "blocked_stale_bypass"
+      }
+    ],
+    "meaning": "Old bypass/unknown Codex session blocked; not a native approval prompt"
+  },
+  "manualProbeScriptExecuted": false,
+  "claudeCursorManualOutputs": "not verified on physical manual state in this round; regression tests only",
+  "physicalAutomaticRestoredByUser": true,
+  "realAutomaticAfterRestore": {
+    "sourceCommit": "2103343cd19a60cdde2fd7317d286edac049f9a3",
+    "phase": "auto",
+    "physicalState": 0,
+    "freshApprovalBefore": {
+      "physicalSwitchState": 0,
+      "switchState": 0,
+      "approvalAutoVerified": true
+    },
+    "probes": [
+      {
+        "event": "PreToolUse",
+        "output": {
+          "hookSpecificOutput": {
+            "permissionDecision": "allow",
+            "hookEventName": "PreToolUse"
+          }
+        },
+        "passed": true
+      },
+      {
+        "event": "PermissionRequest",
+        "output": {
+          "hookSpecificOutput": {
+            "hookEventName": "PermissionRequest",
+            "decision": {
+              "behavior": "allow"
+            }
+          }
+        },
+        "passed": true
+      },
+      {
+        "event": "beforeShellExecution",
+        "output": {
+          "permission": "allow"
+        },
+        "passed": true
+      },
+      {
+        "event": "CodexPermissionRequest",
+        "output": {
+          "hookSpecificOutput": {
+            "decision": {
+              "behavior": "allow"
+            },
+            "hookEventName": "PermissionRequest"
+          }
+        },
+        "passed": true
+      },
+      {
+        "event": "CodexPreToolUse",
+        "output": {},
+        "passed": true
+      },
+      {
+        "event": "CodexPreToolUse",
+        "output": {},
+        "passed": true
+      }
+    ],
+    "restoredRuntimeState": 3,
+    "scope": "Installed production Hook -> actual Unix socket -> fresh real BLE; no model call, tool execution, configuration save to keyboard or fabricated session metadata; Cursor existing owned CLI policy follows physical state",
+    "limits": [
+      "Not evidence of a real Claude/Cursor approval UI",
+      "Kimi native2.x approval unsupported and not tested"
+    ]
+  },
+  "CI": {
+    "run": 39892687424,
+    "commit": "5c55e4f80eb0b7db9a0c0708fe8ac9f1e3800cec",
+    "conclusion": "success",
+    "scope": "documentation successor to installed2103343; no production source diff"
+  },
+  "limits": [
+    "No claim of actual Claude/Cursor manual approval UI",
+    "Voice and normal reboot not yet completed in this round",
+    "No Kimi native2.x real-time approval acceptance"
+  ]
+}
