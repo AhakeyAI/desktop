@@ -64,16 +64,10 @@ final class CodexDesktopLeverAgent: @unchecked Sendable {
             DispatchQueue.main.async { [weak self] in
                 guard let self, !self.stopping, self.publication == publication else { return }
                 let state = try? CodexDesktopLeverState().snapshot()
-                let phase: String
-                if self.capacityLimited { phase = "notSynchronized" }
-                else if busy { phase = "working" }
-                else if outcomes.values.contains(.notSynchronized) { phase = "notSynchronized" }
-                else if state?.managementEnabled != true || hint == .unmanaged { phase = "notManaged" }
-                else if outcomes.values.contains(.unmanaged) || outcomes.values.contains(.restored) { phase = "notSynchronized" }
-                else if outcomes.isEmpty { phase = "waiting" }
-                else if outcomes.values.contains(.externalChange) { phase = "externalChange" }
-                else { phase = "synchronized" }
-                self.report = ["phase": phase, "pendingRecovery": state?.leases.filter { !$0.acknowledged }.count ?? 0,
+                let phase = CodexDesktopLeverStatus.resolvePhase(working: busy, capacityLimited: self.capacityLimited,
+                    managementEnabled: state?.managementEnabled == true, controlEnabled: ApprovalAutomationControl.isEnabled(.codex),
+                    hint: hint, outcomes: Array(outcomes.values))
+                self.report = ["phase": phase.rawValue, "pendingRecovery": state?.leases.filter { !$0.acknowledged }.count ?? 0,
                     "managedSessions": state?.leases.count ?? 0, "appliesTo": "nextTurn"]
             }
         }
