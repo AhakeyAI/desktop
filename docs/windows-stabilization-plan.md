@@ -1540,3 +1540,24 @@ F18 相同的路由。
 新固件的完整支持在阶段三从 `win-zxy-harness` 移植。验证：`mvn clean package` 386 tests、0 failures、
 1 skipped，`RELEASE_ARTIFACT_CONTENTS=OK`；新增 `BleManagerFirmwareGenerationTest` 用假 USB 设备覆盖
 新固件（两种帧格式）与旧固件两种情况。
+
+## 44. Real keyboard check over USB, older firmware (2026-10-23)
+
+Keyboard connected over USB; its firmware does not answer `0x9F` (like official v1.1.0) and rejects
+`0x98`/`0x99` (no task lights). Found and fixed on `win-java-unified`:
+
+- **Wrong HID interface.** Windows listed `mi_00&col02` (consumer control) before `mi_01`; the client opened
+  it and every write failed. Only `mi_01` is used now (same as `win-zxy-harness`).
+- **Reconnect loop.** The status reply sometimes arrived before the HID write call returned and was rejected as
+  older than the query; the poll timed out and the client rebuilt the connection 8 times in 2.5 minutes.
+  The query time is now taken when the write starts. After the fix: 0 recoveries in 150 s.
+- **Task lights.** A `0x98` rejection turns task lights off for the connection with one notice instead of
+  retrying every tick; finished tasks no longer send `0x99` while task lights are off.
+- **`0x9F` timeouts.** One 15 s probe per connection. Standby, version read and update check answer at once
+  afterwards: "当前固件不支持安全待机协议，请先更新固件" and "固件较早，读不到版本号…".
+- Because the version is unknown, desktop F18 routing (needs ≥ 1.4.8) stays off on this firmware, so the
+  physical K1 does whatever the firmware does by itself.
+
+Verification: `mvn clean package` 391 tests, 0 failures, 1 skipped, `RELEASE_ARTIFACT_CONTENTS=OK`; on the
+keyboard: connect, status (USB power, lever auto-approve), device dialog, Hook status, standby and version pages.
+No configuration was written to the keyboard.
