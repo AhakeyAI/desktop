@@ -278,13 +278,18 @@ final class AgentManager: ObservableObject {
 
     /// Explicit user action only. It is not called by refresh, reconnect or a
     /// saved preference. The Agent owns capability checks and serial BLE IO.
-    func applyPresentationMode(_ mode: WS3PresentationMode) async throws -> WS3TaskOverview {
+    func applyPresentationMode(_ mode: WS3PresentationMode, expectedDeviceID: String? = nil,
+                               expectedGeneration: UInt64? = nil) async throws -> WS3TaskOverview {
         guard bluetoothConnectionOwner == .agentDaemon, isRunning else { throw WS3PresentationError.unavailable }
         let ownership = ownershipTransitionGeneration, publication = connectionPublicationGeneration
         let path = socketPath
+        var parameters: [String: Any] = ["mode": Int(mode.rawValue)]
+        if let expectedDeviceID { parameters["deviceID"] = expectedDeviceID }
+        if let expectedGeneration { parameters["generation"] = expectedGeneration }
+        parameters["cmd"] = "presentation_mode"
+        guard let requestData = try? JSONSerialization.data(withJSONObject: parameters) else { throw WS3PresentationError.invalidReply }
         let data = await Task.detached(priority: .utility) {
-            Self.querySocketData(socketPath: path, command: "presentation_mode",
-                                 parameters: ["mode": Int(mode.rawValue)], timeoutSeconds: 25)
+            Self.querySocketData(socketPath: path, requestData: requestData, timeoutSeconds: 25)
         }.value
         guard ownershipTransitionGeneration == ownership, connectionPublicationGeneration == publication,
               bluetoothConnectionOwner == .agentDaemon, isRunning else { throw WS3PresentationError.connectionChanged }
@@ -316,6 +321,13 @@ final class AgentManager: ObservableObject {
     /// status buffer, and a stream read may return only part of a message.
     nonisolated static func querySocketData(socketPath: String, command: String,
                                            parameters: [String: Int] = [:], timeoutSeconds: Int = 2) -> Data? {
+        var request: [String: Any] = ["cmd": command]
+        for (key, value) in parameters where key != "cmd" { request[key] = value }
+        guard let payload = try? JSONSerialization.data(withJSONObject: request) else { return nil }
+        return querySocketData(socketPath: socketPath, requestData: payload, timeoutSeconds: timeoutSeconds)
+    }
+
+    nonisolated static func querySocketData(socketPath: String, requestData: Data, timeoutSeconds: Int = 2) -> Data? {
         var addr = sockaddr_un()
         guard socketPath.utf8.count < MemoryLayout.size(ofValue: addr.sun_path) else { return nil }
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
@@ -338,9 +350,8 @@ final class AgentManager: ObservableObject {
                 connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
             }
         }
-        var request: [String: Any] = ["cmd": command]
-        for (key, value) in parameters where key != "cmd" { request[key] = value }
-        guard ok == 0, var payload = try? JSONSerialization.data(withJSONObject: request) else { return nil }
+        guard ok == 0 else { return nil }
+        var payload = requestData
         payload.append(0x0A)
         let deadline = ProcessInfo.processInfo.systemUptime + Double(timeout)
         var offset = 0
@@ -1168,15 +1179,10 @@ final class AgentManager: ObservableObject {
                 log.error("installCodexHooks: 写入后校验失败 \(self.codexConfigPath)")
                 return "Codex Hooks：已尝试写入 \(codexConfigPath)，但校验时未发现 AhaKey 标记块。请确认对「用户主目录 /.codex」有写权限，或关闭占用该文件的其它程序。"
             }
-            switch CodexConfigLeverSync.prepareHookManagedSession() {
-            case .alreadyDesired, .replaced, .inserted: break
-            default:
-                return "Codex Hooks 已写入，但原生审批配置未确认。请检查自定义策略后重新安装；已有会话请重开。"
-            }
             guard ApprovalAutomationControl.resume(.codex) else { return "无法恢复 Codex 审批管理权限。" }
             log.info("Codex hooks 已写入 ~/.codex/config.toml")
             let cliRepair = repairCodexCliPathIfNeeded()
-            let note = "Codex Hooks 已安装。自动档按每次请求放行，手动档保留原生审批；已有会话请启用 Codex 原生审批，或新建使用原生审批的会话。"
+            let note = "Codex Hooks 已安装，保留当前权限设置。如需体验拨杆自动批准，可在提示中选择请求批准；完全访问仍按 Codex 原有方式执行。"
             return cliRepair.isEmpty ? note : note + "\n\n" + cliRepair
         } catch {
             log.error("installCodexHooks: \(error.localizedDescription)")

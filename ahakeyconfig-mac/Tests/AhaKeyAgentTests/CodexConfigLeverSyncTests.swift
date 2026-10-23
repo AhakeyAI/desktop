@@ -562,10 +562,10 @@ final class CodexConfigLeverSyncTests: XCTestCase {
         body(recorder)
     }
 
-    func testCodexSessionStartPreparesNativePolicy() {
+    func testCodexSessionStartDoesNotPreparePolicy() {
         withFakeHookDependencies(reply: { _ in 0 }) { recorder in
             CodexHookHandler.handleState(stateValue: 4)   // CodexSessionStart
-            XCTAssertEqual(recorder.calls, 1, "SessionStart prepares a native policy regardless of dial state")
+            XCTAssertEqual(recorder.calls, 0, "Hook events must not change the user policy")
         }
     }
 
@@ -583,25 +583,25 @@ final class CodexConfigLeverSyncTests: XCTestCase {
         withFakeHookDependencies(reply: { _ in 0 }) { recorder in
             CodexHookHandler.handleState(stateValue: 4)
             CodexHookHandler.handlePermissionRequest()
-            XCTAssertEqual(recorder.calls, 2)
+            XCTAssertEqual(recorder.calls, 0, "Hook events must not change the user policy")
         }
     }
 
     func testCodexPermissionRequestRoutesLeverThroughSharedPolicySeam() {
         withFakeHookDependencies(reply: { _ in 1 }) { recorder in
             CodexHookHandler.handlePermissionRequest()
-            XCTAssertEqual(recorder.calls, 1)
+            XCTAssertEqual(recorder.calls, 0, "Hook events must not change the user policy")
         }
     }
 
-    func testBothHookEventsPrepareNativePolicyRegardlessOfLever() {
+    func testBothHookEventsPreservePolicyRegardlessOfLever() {
         // The policy preparation is identical for automatic and manual replies.
         withFakeHookDependencies(reply: { request in
             (request["cmd"] as? String) == "approval_status" ? 0 : 1
         }) { recorder in
             CodexHookHandler.handleState(stateValue: 4)   // CodexSessionStart
             CodexHookHandler.handlePermissionRequest()    // CodexPermissionRequest
-            XCTAssertEqual(recorder.calls, 2, "Both paths prepare a native policy without persisting auto grants")
+            XCTAssertEqual(recorder.calls, 0, "Hook events must not change the user policy")
         }
     }
 
@@ -609,11 +609,11 @@ final class CodexConfigLeverSyncTests: XCTestCase {
         withFakeHookDependencies(reply: { _ in nil }) { recorder in
             CodexHookHandler.handleState(stateValue: 4)
             CodexHookHandler.handlePermissionRequest()
-            XCTAssertEqual(recorder.calls, 2, "Unverified callers still prepare native approval")
+            XCTAssertEqual(recorder.calls, 0, "Hook events must not change the user policy")
         }
     }
 
-    func testPermissionHookUpdatesFixturePolicyAndOnlyAllowsAutomaticLever() throws {
+    func testPermissionHookPreservesFixturePolicyAndOnlyAllowsAutomaticLever() throws {
         let original = CodexHookHandler.dependencies
         defer { CodexHookHandler.dependencies = original }
         for state: Int? in [0, 1, nil] {
@@ -633,7 +633,7 @@ final class CodexConfigLeverSyncTests: XCTestCase {
         }
     }
 
-    func testSessionStartPreparesNativePolicyThroughProductionWriter() throws {
+    func testSessionStartNeverInvokesProductionWriter() throws {
         let original = CodexHookHandler.dependencies
         defer { CodexHookHandler.dependencies = original }
         for state in [0, 1] {
@@ -642,7 +642,7 @@ final class CodexConfigLeverSyncTests: XCTestCase {
             dependencies.preparePolicy = { _ = CodexConfigLeverSync.prepareHookManagedSession(configURL: url) }
             CodexHookHandler.dependencies = dependencies
             CodexHookHandler.handleState(stateValue: 4)
-            let policy = "on-request"
+            let policy = "untrusted"
             XCTAssertEqual(try text(of: url), "approval_policy = \"\(policy)\" # keep\n")
         }
     }

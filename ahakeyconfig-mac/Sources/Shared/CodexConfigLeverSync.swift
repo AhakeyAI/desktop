@@ -1,6 +1,6 @@
 import Foundation
 
-/// Prepare the native on-request baseline for hook-managed sessions. Codex
+/// Explicit user-consented setup of an on-request default. Codex
 /// snapshots approval_policy: a persistent never policy cannot be revoked by
 /// changing this file after the thread starts. Automatic approval now comes
 /// only from a verified PermissionRequest, not a persistent policy override.
@@ -51,9 +51,9 @@ public enum CodexConfigLeverSync {
             .appendingPathComponent(".codex/config.toml", isDirectory: false)
     }
 
-    /// Production hooks never create a persistent bypass policy.
+    /// Called only after the user accepts Studio’s setup offer, never from a Hook.
     @discardableResult
-    public static func prepareHookManagedSession() -> Outcome {
+    public static func configureRequestedApproval() -> Outcome {
         prepareHookManagedSession(configURL: productionConfigURL,
             controlDirectory: ApprovalAutomationControl.productionDirectory)
     }

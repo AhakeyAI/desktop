@@ -1907,6 +1907,41 @@ TRANSLATIONS.update({'在键盘上预览 %@': 'Preview %@ on the keyboard', '读
  '已发送预览，约 10 秒后结束。': 'Preview sent. It ends in about 10 seconds.',
  '已读取全部灯效。': 'All lighting settings read.'})
 
+# Unified screen inspector
+TRANSLATIONS.update({'屏幕画面': 'Screen display', '图片与动图': 'Images & GIFs', '单任务画面': 'Single-task artwork', '多任务画面': 'Multi-task artwork', '画面范围': 'Artwork scope', '本次连接': 'This connection', '断线后需重新应用展示方式。': 'Reapply the display mode after reconnecting.', '显示最新任务状态': 'Show the latest task status', '同时追踪多个会话': 'Track multiple sessions', '识别 Terminal 或 iTerm 当前窗口与标签；无法唯一匹配会话时不突出显示。': 'Uses the selected Terminal or iTerm window and tab. Ambiguous sessions are not highlighted.', '优先显示当前聚焦的会话': 'Prioritize the currently focused session', '写入后启用跟随': 'Following starts after applying', '授权': 'Authorize', '需要辅助功能权限': 'Accessibility permission required', '需要终端读取权限': 'Terminal access required', '切换到 Terminal 或 iTerm 后跟随': 'Switch to Terminal or iTerm to follow', '暂未识别到当前会话': 'Current session not identified', '当前任务': 'Current tasks', '刷新任务（只读）': 'Refresh tasks (read-only)', '%@ · 会话 %d': '%1$@ · Session %2$d', '当前': 'Current', '部分任务未纳入显示': 'Some tasks are not shown', '暂无任务，可刷新查看': 'No tasks yet. Refresh to check.', '未能读取当前连接，请刷新后重试。': 'Could not read the current connection. Refresh and try again.', '键盘连接已改变，请重新读取后写入。': 'The keyboard connection changed. Read again before applying.', '画面尚未确认，请处理素材区的提示后重试。': 'Artwork is not confirmed. Resolve the message in the artwork section and try again.', '请更新并重启后台后重试。': 'Update and restart the background service, then try again.', '屏幕设置已更新，请在键盘上确认效果。': 'Screen settings updated. Check the result on the keyboard.', '已完成：%@。其余改动仍保留，请核对后重试。': 'Completed: %@. Other changes are retained. Check and retry.', '操作已停止，已发出的改动可能生效，请刷新核对。': 'Stopped. Changes already sent may have taken effect. Refresh to check.', '多任务画面为所有模式共用': 'Multi-task artwork is shared by all keyboard modes', '使用默认素材': 'Use default artwork', '选择默认素材，写入后生效。': 'Choose the default artwork; applying makes it effective.', '待恢复默认': 'Default pending', '已选择默认素材，写入后生效。': 'Default artwork selected. Apply to use it.', '默认素材（待写入）': 'Default artwork (pending)', '键盘：自定义素材 · %d 帧': 'Keyboard: custom artwork · %d frames', '键盘：默认素材': 'Keyboard: default artwork', '键盘素材暂不可用': 'Keyboard artwork unavailable', '此画面已恢复默认，请在键盘上确认效果。': 'Default artwork restored. Check the result on the keyboard.', '画面已写入，请在键盘上确认效果。': 'Artwork applied. Check the result on the keyboard.', '写入屏幕设置？': 'Apply screen settings?', '确认写入': 'Apply changes', '开始后可能覆盖原素材；失败或取消不保证恢复。其他模式草稿保留。': 'Starting may overwrite existing artwork. Failure or cancellation does not guarantee recovery. Drafts in other modes are retained.'})
+
+# Optional Codex setup; no Hook policy override
+TRANSLATIONS.update({'撤销默认素材选择': 'Undo default artwork selection',
+ '体验 Codex 自动批准？': 'Try automatic approval in Codex?',
+ '将默认权限设为请求批准。当前会话需在 Codex 中切换权限或新建会话；保留完全访问仍可正常执行。': 'Set the default to request approval. Change '
+                                                      'permissions in Codex or start a new session to use '
+                                                      'it. Keeping Full Access preserves normal execution.',
+ '保留当前权限': 'Keep current permissions',
+ '设置请求批准': 'Set request approval',
+ '已设置默认请求批准': 'Default set to request approval',
+ '当前会话请在 Codex 切换权限或新建会话': 'Change permissions in Codex or start a new session',
+ '未能修改 Codex 默认权限': 'Could not change Codex default permissions',
+ '原有权限保留，可在 Codex 中手动设置': 'Permissions unchanged. You can change them in Codex.',
+ 'Codex：设置请求批准…': 'Codex: Set request approval…',
+ 'Claude／Cursor 自动批准需要后台与 Hook。Codex 仅接管请求批准，完全访问保持原有执行方式；Kimi 原生版审批由自身管理。': 'Claude/Cursor automatic '
+                                                                             'approval requires the agent '
+                                                                             'and hooks. Codex only grants '
+                                                                             'native approval requests; Full '
+                                                                             'Access and native Kimi retain '
+                                                                             'their own behavior.',
+ '实体拨杆对 Claude／Cursor 与 Codex 的原生审批请求生效，与键盘 Mode 无关。Codex 完全访问和 Kimi 原生版仍由自身管理。': 'The physical switch '
+                                                                                  'applies to Claude/Cursor '
+                                                                                  'and native Codex approval '
+                                                                                  'requests, regardless of '
+                                                                                  'keyboard mode. Codex Full '
+                                                                                  'Access and native Kimi '
+                                                                                  'remain self-managed.',
+ 'Claude／Cursor 及 Codex 原生审批请求可随实体拨杆批准；Codex 完全访问及 Kimi 原生版保持原有行为。': 'The physical switch can grant '
+                                                                     'Claude/Cursor and native Codex '
+                                                                     'approval requests. Codex Full Access '
+                                                                     'and native Kimi keep their original '
+                                                                     'behavior.'})
+
 def escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 

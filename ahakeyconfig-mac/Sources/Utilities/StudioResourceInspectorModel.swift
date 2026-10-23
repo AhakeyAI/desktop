@@ -29,6 +29,7 @@ final class StudioResourceInspectorModel: ObservableObject {
     }
     @Published var entry: UInt8 = 0
     @Published private(set) var drafts: [UInt8: Draft] = [:]
+    @Published private(set) var defaultDrafts: Set<UInt8> = []
     @Published private(set) var display: WS3DisplaySnapshot?
     @Published private(set) var deviceID: String?
     @Published private(set) var isBusy = false
@@ -43,14 +44,19 @@ final class StudioResourceInspectorModel: ObservableObject {
     private var preparation: Task<Void, Never>?
     var draft: Draft? { drafts[entry] }
     var selected: WS3ResourceReadback? { display?.resources.first { $0.id == entry } }
-    var canWrite: Bool { !isBusy && !isPreparing && draft != nil && selected != nil && selected?.writeState != .writing }
+    var canWrite: Bool { !isBusy && !isPreparing && (draft != nil || defaultDrafts.contains(entry)) && selected != nil && selected?.writeState != .writing }
     var dirtyEntries: Set<UInt8> {
         Set(drafts.compactMap { id, draft in
             guard let actual = display?.resources.first(where: { $0.id == id }),
                   WS3ResourceMetadataComparison(payload: draft.payload, resource: actual) == .matches,
                   !unconfirmed.contains(id) else { return id }
             return nil
-        })
+        }).union(defaultDrafts)
+    }
+
+    static func pendingEntries(mode: Int, dirty: Set<UInt8>) -> [UInt8] {
+        guard (0..<4).contains(mode) else { return [] }
+        return dirty.filter { $0 < 16 ? Int($0 / 4) == mode : (16..<19).contains($0) }.sorted()
     }
 
     func select(mode: AhaKeyModeSlot) {
@@ -68,12 +74,19 @@ final class StudioResourceInspectorModel: ObservableObject {
     func discardSelection() {
         guard !isBusy, !isPreparing else { return }
         drafts[entry] = nil
+        defaultDrafts.remove(entry)
         message = nil; conflict = nil; confirmsUpload = false
     }
 
-    func read(ble: AhaKeyBLEManager, session: StudioInspectorSession, verifying: Bool = false) {
+    func chooseDefault() {
+        guard !isBusy, !isPreparing, let selected, !WS3ResourceRestoreCommand.reportsDefault(selected) else { return }
+        drafts[entry] = nil; defaultDrafts.insert(entry); message = nil
+    }
+
+    func read(ble: AhaKeyBLEManager, session: StudioInspectorSession, verifying: Bool = false,
+              completion: ((Bool) -> Void)? = nil) {
         let target = entry, payload = draft?.payload
-        perform(session: session) {
+        perform(session: session, completion: completion) {
             let result = try await session.withConnection { context in
                 (context.deviceID, try await ble.readWS3DisplayForEditing())
             }
@@ -93,6 +106,7 @@ final class StudioResourceInspectorModel: ObservableObject {
         guard !isBusy else { return }
         preparation?.cancel()
         let target = entry
+        defaultDrafts.remove(target)
         drafts[target] = nil; isPreparing = true; message = nil
         preparation = Task { @MainActor in
             defer { isPreparing = false }
@@ -112,13 +126,15 @@ final class StudioResourceInspectorModel: ObservableObject {
         }
     }
 
-    func write(ble: AhaKeyBLEManager, session: StudioInspectorSession, restoring: Bool = false) {
+    func write(ble: AhaKeyBLEManager, session: StudioInspectorSession, restoring: Bool = false,
+               completion: ((Bool) -> Void)? = nil) {
         let target = entry
-        guard let baseline = selected, let deviceID, restoring || canWrite else { return }
+        guard let baseline = selected, let deviceID, restoring || canWrite else { completion?(false); return }
         let payload = draft?.payload
-        guard restoring || payload?.entryID == target else { return }
+        guard restoring || payload?.entryID == target else { completion?(false); return }
         confirmsRestore = false; confirmsUpload = false; conflict = nil
-        perform(session: session) {
+        var confirmed = false
+        perform(session: session, completion: { completion?($0 && confirmed) }) {
             let result: (snapshot: WS3DisplaySnapshot, changed: Bool) = try await session.withConnection(expectedDeviceID: deviceID) { _ in
                 // Every lease obtains the complete CP2 proof; cached facts never authorize a write.
                 let fresh = try await ble.readWS3DisplayForEditing()
@@ -143,9 +159,10 @@ final class StudioResourceInspectorModel: ObservableObject {
                 return
             }
             self.display = result.snapshot; self.unconfirmed.remove(target)
-            if restoring { self.drafts[target] = nil }
-            self.message = NSLocalizedString(restoring ? "此位置已恢复默认显示，空素材标记读回一致；请在键盘确认实际显示。" :
-                "素材上传完成，帧数、长度和 CRC 元数据已核对一致；请在键盘确认画面并验证重启保持。", comment: "")
+            if restoring { self.drafts[target] = nil; self.defaultDrafts.remove(target) }
+            confirmed = true
+            self.message = NSLocalizedString(restoring ? "此画面已恢复默认，请在键盘上确认效果。" :
+                "画面已写入，请在键盘上确认效果。", comment: "")
             self.writeCompleted.send(.init(succeeded: true, message: Self.title(target) + "\n" + (self.message ?? "")))
         }
     }
@@ -153,16 +170,18 @@ final class StudioResourceInspectorModel: ObservableObject {
     func adopt(_ value: Conflict, discardDraft: Bool) {
         guard !isBusy else { return }
         display = value.snapshot
-        if discardDraft { drafts[value.entry] = nil }
+        if discardDraft { drafts[value.entry] = nil; defaultDrafts.remove(value.entry) }
         conflict = nil
     }
 
-    private func perform(session: StudioInspectorSession, action: @escaping @MainActor () async throws -> Void) {
-        guard !isBusy, !session.isBusy, !isPreparing else { return }
+    private func perform(session: StudioInspectorSession, completion: ((Bool) -> Void)? = nil,
+                         action: @escaping @MainActor () async throws -> Void) {
+        guard !isBusy, !session.isBusy, !isPreparing else { completion?(false); return }
         isBusy = true; message = nil
         operation = Task { @MainActor in
-            defer { isBusy = false; operation = nil }
-            do { try await action() }
+            var succeeded = false
+            defer { isBusy = false; operation = nil; completion?(succeeded) }
+            do { try await action(); succeeded = true }
             catch {
                 message = KeyboardSettingsFeedback.message(for: error)
                 if !unconfirmed.isEmpty {

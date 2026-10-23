@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify native Codex per-request grants and old-session bypass protection.
+"""Verify native Codex per-request grants and user-selected Full Access pass-through.
 
 Only local marker files run. --legacy-bypass simulates an already-open old
 session. Lever facts are synthetic; physical BLE and real Agent IPC are not
@@ -46,14 +46,8 @@ if operation == "setup" {
     let flag = try String(contentsOf: root.appendingPathComponent("lever"), encoding: .utf8)
     let verified = flag == "auto" && ApprovalAutomationControl.isEnabled(.codex, directory: control)
     var output: [String: Any] = [:]
-    if event == "CodexSessionStart" {
-        _ = CodexConfigLeverSync.prepareHookManagedSession(configURL: url, controlDirectory: control)
-    } else if event == "CodexPermissionRequest" {
-        _ = CodexConfigLeverSync.prepareHookManagedSession(configURL: url, controlDirectory: control)
+    if event == "CodexPermissionRequest" {
         output = CodexHookApproval.permissionRequestOutput(verifiedAuto: verified)
-    } else if event == "CodexPreToolUse", CodexHookApproval.requiresPreToolVerification(permissionMode: input["permission_mode"] as? String) {
-        _ = CodexConfigLeverSync.prepareHookManagedSession(configURL: url, controlDirectory: control)
-        output = CodexHookApproval.bypassPreToolOutput(verifiedAuto: verified) ?? [:]
     }
     print(String(decoding: try JSONSerialization.data(withJSONObject: output), as: UTF8.self))
 } else {
@@ -222,13 +216,13 @@ def verify(cli, root, workspace, fixture):
                 assert pre_tool and all(event["mode"] == ("bypassPermissions" if fixture.legacy else "default") for event in pre_tool), events
                 automatic = stage in ("auto", "restored")
                 marker = (workspace / ("marker-" + stage)).exists()
-                assert marker == automatic, (stage, "unexpected tool execution", events)
+                assert marker == (automatic or fixture.legacy), (stage, "unexpected tool execution", events)
                 if fixture.legacy:
-                    assert not approvals, "Old bypass protection denies; it cannot display a native prompt"
+                    assert not approvals, "Full Access preserves native execution without an approval prompt"
                 else:
                     assert any(event["event"] == "CodexPermissionRequest" for event in events), events
                     assert bool(approvals) == (not automatic), (stage, approvals)
-                assert 'approval_policy = "on-request"' in (root / "config.toml").read_text()
+                assert ('approval_policy = "never"' if fixture.legacy else 'approval_policy = "on-request"') in (root / "config.toml").read_text()
                 results[stage] = {"markerExecuted": marker, "nativeApprovals": approvals, "permissionMode": pre_tool[-1]["mode"]}
             return results
         finally:

@@ -1,21 +1,11 @@
 import Foundation
 
-/// Codex snapshots a thread's approval policy. Keep new sessions native and
-/// grant only the current PermissionRequest; never persist a bypass for a dial.
+/// Hooks only add a verified per-request grant. Absence of a grant always
+/// preserves Codex's own permission policy, including the user's Full Access.
 public enum CodexHookApproval {
-    public static func requiresPreToolVerification(permissionMode: String?) -> Bool {
-        permissionMode != "default"
-    }
-
-    /// Only called for an old bypass session or an unknown permission mode.
-    /// Native PreToolUse cannot request an approval dialog; deny is supported.
-    public static func bypassPreToolOutput(verifiedAuto: Bool) -> [String: Any]? {
-        guard !verifiedAuto else { return nil }
-        return ["hookSpecificOutput": [
-            "hookEventName": "PreToolUse", "permissionDecision": "deny",
-            "permissionDecisionReason": "Enable native approvals in Codex, or start a session with native approvals. AhaKey did not authorize this tool.",
-        ]]
-    }
+    // Compatibility for older local verification callers; PreToolUse is status-only.
+    public static func requiresPreToolVerification(permissionMode: String?) -> Bool { false }
+    public static func bypassPreToolOutput(verifiedAuto: Bool) -> [String: Any]? { nil }
 
     public static func permissionRequestOutput(verifiedAuto: Bool) -> [String: Any] {
         var output: [String: Any] = ["hookEventName": "PermissionRequest"]

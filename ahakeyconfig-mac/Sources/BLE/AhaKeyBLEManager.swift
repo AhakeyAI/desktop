@@ -2236,16 +2236,19 @@ final class SwitchStateNotifier: ObservableObject {
         let switchedToManual = (previous == 0 && newState != 0)
 
         if switchedToAuto {
+            if AgentManager.shared.codexHooksInstalled {
+                CodexApprovalSetupController.shared.requestOffer()
+            }
             postNotification(
                 title: "拨杆 → 自动批准",
-                body: "Kimi：若已安装 AhaKey Kimi Hooks，自动档会直接接管当前会话批准；若刚装完或刚升级 kimi-cli，请先重开一次 kimi。Claude/Cursor/Codex 仍走各自钩子。",
+                body: "Claude／Cursor 与 Codex 原生审批请求可由 Hook 自动批准。Codex 完全访问保持原有执行方式；Kimi 原生终端审批由自身管理。",
                 identifier: "lab.jawa.ahakey.switch.auto",
                 isCritical: true
             )
         } else if switchedToManual {
             postNotification(
                 title: "拨杆 → 手动批准",
-                body: "Claude / Cursor / Codex：按各自确认链。Kimi：若已安装 AhaKey Kimi Hooks，手动档会直接把当前会话拉回手动批准。",
+                body: "AhaKey 停止自动批准，交回各客户端原有审批流程；不会修改完全访问或拒绝正常操作。",
                 identifier: "lab.jawa.ahakey.switch.manual",
                 isCritical: false
             )
@@ -2288,12 +2291,9 @@ final class SwitchStateNotifier: ObservableObject {
     }
 
     private func fallbackAlert(title: String, body: String) {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = body
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "知道了")
-        alert.runModal()
+        // A denied notification permission must not interrupt the user's work.
+        // The optional Codex offer is already delivered by the bottom capsule.
+
     }
 }
 

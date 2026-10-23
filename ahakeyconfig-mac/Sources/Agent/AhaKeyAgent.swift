@@ -528,11 +528,17 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             guard let mode = Self.parsePresentationMode(obj["mode"]) else {
                 Self.replyAndClose(clientFd, ["error": WS3PresentationError.invalidReply.rawValue]); return
             }
+            guard WS3PresentationRequestTarget.matches(obj, deviceID: peripheral?.identifier, generation: connectionGeneration) else {
+                Self.replyAndClose(clientFd, ["error": WS3PresentationError.connectionChanged.rawValue]); return
+            }
             guard approvalRequestID == nil, pendingApprovalRead == nil else {
                 Self.replyAndClose(clientFd, ["error": WS3PresentationError.busy.rawValue]); return
             }
             Task { @MainActor [weak self] in
                 guard let self else { close(clientFd); return }
+                guard WS3PresentationRequestTarget.matches(obj, deviceID: self.peripheral?.identifier, generation: self.connectionGeneration) else {
+                    Self.replyAndClose(clientFd, ["error": WS3PresentationError.connectionChanged.rawValue]); return
+                }
                 guard self.approvalRequestID == nil, self.pendingApprovalRead == nil else {
                     Self.replyAndClose(clientFd, ["error": WS3PresentationError.busy.rawValue]); return
                 }
@@ -678,7 +684,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     private func replyWithPresentationOverview(_ fd: Int32) {
-        if let data = try? JSONEncoder().encode(presentationSession.overview()),
+        if let data = try? JSONEncoder().encode(presentationSession.overview().supportingTargetedModeWrites()),
            let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
             Self.replyAndClose(fd, body)
         } else { Self.replyAndClose(fd, ["error": WS3PresentationError.invalidReply.rawValue]) }

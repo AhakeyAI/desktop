@@ -99,7 +99,7 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
         case .lightBar:
             NSLocalizedString("灯条", comment: "")
         case .oledDisplay:
-            NSLocalizedString("LCD 屏幕", comment: "")
+            NSLocalizedString("屏幕画面", comment: "")
         case .key1:
             "Key 1"
         case .key2:

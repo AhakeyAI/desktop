@@ -7,6 +7,7 @@ struct StudioResourceInspectorView: View {
     @ObservedObject var ble: AhaKeyBLEManager
     @ObservedObject var session: StudioInspectorSession
     let mode: AhaKeyModeSlot
+    var onWrite: (() -> Void)? = nil
     @State private var choosingFile = false
 
     private var busy: Bool { model.isBusy || model.isPreparing || session.isBusy }
@@ -17,13 +18,17 @@ struct StudioResourceInspectorView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker(NSLocalizedString("画面类型", comment: ""), selection: Binding(get: { multitask }, set: { value in
+            Picker(NSLocalizedString("画面范围", comment: ""), selection: Binding(get: { multitask }, set: { value in
                 model.selectEntry(value ? 16 : UInt8(mode.rawValue * 4))
             })) {
-                Text(mode.name).tag(false)
-                Text(NSLocalizedString("多任务", comment: "")).tag(true)
+                Text(NSLocalizedString("单任务画面", comment: "")).tag(false)
+                Text(NSLocalizedString("多任务画面", comment: "")).tag(true)
             }
             .pickerStyle(.segmented).disabled(busy)
+
+            if multitask {
+                Text(NSLocalizedString("多任务画面为所有模式共用", comment: "")).font(.caption).foregroundStyle(.secondary)
+            }
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: multitask ? 3 : 2), spacing: 8) {
                 ForEach(entries, id: \.self) { resourceCard($0) }
@@ -35,10 +40,10 @@ struct StudioResourceInspectorView: View {
                 Button { model.read(ble: ble, session: session) } label: { Image(systemName: "arrow.clockwise") }
                     .buttonStyle(.borderless).help(NSLocalizedString("读取显示信息（只读）", comment: ""))
                     .disabled(busy)
-                Button(role: .destructive) { model.confirmsRestore = true } label: { Image(systemName: "arrow.uturn.backward") }
+                Button { model.chooseDefault() } label: { Image(systemName: "arrow.uturn.backward") }
                     .buttonStyle(.borderless)
-                    .accessibilityLabel(NSLocalizedString("恢复此位置的默认显示…", comment: ""))
-                    .help(NSLocalizedString("恢复此位置的默认显示…", comment: ""))
+                    .accessibilityLabel(NSLocalizedString("使用默认素材", comment: ""))
+                    .help(NSLocalizedString("选择默认素材，写入后生效。", comment: ""))
                     .disabled(busy || model.selected.map { WS3ResourceRestoreCommand.reportsDefault($0) || $0.writeState == .writing } != false)
             }
 
@@ -62,14 +67,17 @@ struct StudioResourceInspectorView: View {
                     Label(summary, systemImage: "wand.and.stars").font(.caption).foregroundStyle(.secondary)
                 }
             }
+            if model.defaultDrafts.contains(model.entry) {
+                Button("撤销默认素材选择") { model.discardSelection() }
+                    .buttonStyle(.link).font(.caption).disabled(busy)
+            }
             Text(String(format: NSLocalizedString("最多 %d 帧 · 10 FPS", comment: ""),
                 Int(WS3ResourceReadback.maximumFrames(model.entry))))
                 .font(.caption).foregroundStyle(.secondary)
 
             operationFeedback
 
-            Text(String(format: NSLocalizedString("只写入“%@”画面，其他状态不变。", comment: ""), stateTitle(model.entry)))
-                .font(.caption).foregroundStyle(.secondary)
+
         }
         .fileImporter(isPresented: $choosingFile, allowedContentTypes: [.gif, .png, .jpeg, .bmp, .tiff]) { result in
             switch result {
@@ -77,21 +85,12 @@ struct StudioResourceInspectorView: View {
             case .failure(let error): model.message = error.localizedDescription
             }
         }
-        .confirmationDialog(NSLocalizedString("上传到这个素材位置？", comment: ""), isPresented: $model.confirmsUpload, titleVisibility: .visible) {
-            Button(NSLocalizedString("写入键盘", comment: ""), role: .destructive) { model.write(ble: ble, session: session) }
-            Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
-        } message: { Text(uploadConfirmationText) }
-        .confirmationDialog(NSLocalizedString("恢复这个位置的默认显示？", comment: ""), isPresented: $model.confirmsRestore, titleVisibility: .visible) {
-            Button(NSLocalizedString("确认恢复此位置", comment: ""), role: .destructive) { model.write(ble: ble, session: session, restoring: true) }
-            Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
-        } message: {
-            Text(StudioResourceInspectorModel.title(model.entry) + "\n" + NSLocalizedString("此位置的自定义图片将不再使用；失败不保证回滚。其他素材、按键和语音不变。", comment: ""))
-        }
         .alert(NSLocalizedString("键盘当前素材已变化", comment: ""), isPresented: Binding(get: { model.conflict != nil }, set: { if !$0 { model.conflict = nil } }), presenting: model.conflict) { conflict in
             Button(NSLocalizedString("采用键盘当前值", comment: ""), role: .cancel) { model.adopt(conflict, discardDraft: true) }
             Button(NSLocalizedString("确认修改", comment: "")) {
                 model.adopt(conflict, discardDraft: false)
-                model.write(ble: ble, session: session, restoring: conflict.restoring)
+                if let onWrite { onWrite() }
+                else { model.write(ble: ble, session: session, restoring: conflict.restoring) }
             }
         } message: { conflict in Text(conflictDescription(conflict)) }
     }
@@ -133,6 +132,11 @@ struct StudioResourceInspectorView: View {
                 RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .textBackgroundColor))
                 if let image = model.draft?.thumbnail {
                     Image(nsImage: image).resizable().scaledToFit().padding(8)
+                } else if model.defaultDrafts.contains(model.entry) {
+                    VStack(spacing: 8) {
+                        Image(systemName: "photo").font(.system(size: 25, weight: .light)).foregroundStyle(.secondary)
+                        Text(NSLocalizedString("默认素材（待写入）", comment: "")).font(.caption)
+                    }
                 } else {
                     VStack(spacing: 10) {
                         Image(systemName: "photo.badge.plus").font(.system(size: 25, weight: .light)).foregroundStyle(.secondary)
@@ -175,12 +179,13 @@ struct StudioResourceInspectorView: View {
     }
 
     private var currentStatus: String {
+        if model.defaultDrafts.contains(model.entry) { return NSLocalizedString("已选择默认素材，写入后生效。", comment: "") }
         guard let selected = model.selected else { return NSLocalizedString("未读取", comment: "") }
         if model.unconfirmed.contains(model.entry) { return NSLocalizedString("待核对", comment: "") }
         if selected.reportsValidUserResource {
-            return String(format: NSLocalizedString("键盘当前：自定义素材，%d 帧。", comment: ""), Int(selected.frames))
+            return String(format: NSLocalizedString("键盘：自定义素材 · %d 帧", comment: ""), Int(selected.frames))
         }
-        return NSLocalizedString(WS3ResourceRestoreCommand.reportsDefault(selected) ? "键盘当前：默认显示（无自定义素材）。" : "键盘当前：自定义素材不可用，按固件规则回退显示。", comment: "")
+        return NSLocalizedString(WS3ResourceRestoreCommand.reportsDefault(selected) ? "键盘：默认素材" : "键盘素材暂不可用", comment: "")
     }
     private func stateTitle(_ entry: UInt8) -> String {
         let index = entry >= 16 ? Int(entry - 15) : Int(entry % 4)
@@ -191,6 +196,7 @@ struct StudioResourceInspectorView: View {
         return ["photo", "arrow.triangle.2.circlepath", "pause.circle", "checkmark.circle"][index]
     }
     private func cardStatus(_ entry: UInt8) -> String {
+        if model.defaultDrafts.contains(entry) { return NSLocalizedString("待恢复默认", comment: "") }
         if model.unconfirmed.contains(entry) { return NSLocalizedString("待核对", comment: "") }
         if model.dirtyEntries.contains(entry) { return NSLocalizedString("未写入", comment: "") }
         if let actual = model.display?.resources.first(where: { $0.id == entry }) {
@@ -202,15 +208,11 @@ struct StudioResourceInspectorView: View {
     }
     private var feedback: String? {
         guard let message = model.message else { return nil }
-        let routine = ["已读取键盘素材信息。", "素材上传完成，帧数、长度和 CRC 元数据已核对一致；请在键盘确认画面并验证重启保持。", "此位置已恢复默认显示，空素材标记读回一致；请在键盘确认实际显示。"].map { NSLocalizedString($0, comment: "") }
+        let routine = ["已读取键盘素材信息。", "素材上传完成，帧数、长度和 CRC 元数据已核对一致；请在键盘确认画面并验证重启保持。", "此位置已恢复默认显示，空素材标记读回一致；请在键盘确认实际显示。", "此画面已恢复默认，请在键盘上确认效果。", "画面已写入，请在键盘上确认效果。"].map { NSLocalizedString($0, comment: "") }
         if routine.contains(message) { return nil }
         if message == NSLocalizedString("所选文件与最近读回的素材元数据一致；实际画面仍需在键盘确认。", comment: "") { return NSLocalizedString("素材与键盘一致", comment: "") }
         if message == NSLocalizedString("所选文件与最近读回的素材元数据不同；本次核对未更改键盘。", comment: "") { return NSLocalizedString("素材不同，尚未写入键盘", comment: "") }
         return message
-    }
-    private var uploadConfirmationText: String {
-        [StudioResourceInspectorModel.title(model.entry), model.draft?.filename ?? "",
-         NSLocalizedString("开始上传后可能覆盖原素材；失败或取消不保证回滚。其他素材和键位不变。", comment: "")].joined(separator: "\n")
     }
     private func conflictDescription(_ conflict: StudioResourceInspectorModel.Conflict) -> String {
         let actual = conflict.snapshot.resources.first { $0.id == conflict.entry }

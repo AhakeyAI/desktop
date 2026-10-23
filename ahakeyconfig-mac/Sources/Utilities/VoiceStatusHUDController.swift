@@ -8,6 +8,33 @@ final class VoiceStatusHUDController {
     private var panel: NSPanel?
     private var hostingView: NSHostingView<VoiceStatusHUDView>?
     private var hideWorkItem: DispatchWorkItem?
+    private var pendingOffer: ((Bool) -> Void)?
+    private var voiceVisible = false
+    private var hideGeneration = UUID()
+
+    /// Voice always takes priority. Offers wait until recording/processing ends.
+    func offerCodexApproval(_ completion: @escaping (Bool) -> Void) {
+        guard pendingOffer == nil else { return }
+        pendingOffer = completion
+        if !voiceVisible { displayOffer() }
+    }
+
+    private func displayOffer() {
+        guard pendingOffer != nil, !voiceVisible else { return }
+        hideWorkItem?.cancel()
+        let panel = ensurePanel()
+        panel.ignoresMouseEvents = false
+        panel.contentView = NSHostingView(rootView: CodexApprovalOfferView { [weak self] accept in
+            guard let self else { return }
+            let action = self.pendingOffer
+            self.pendingOffer = nil
+            self.panel?.orderOut(nil)
+            action?(accept)
+        })
+        panel.setContentSize(NSSize(width: 390, height: 150))
+        position(panel)
+        panel.orderFrontRegardless()
+    }
 
     private init() {}
 
@@ -16,27 +43,31 @@ final class VoiceStatusHUDController {
     func prepare() {
         guard hostingView == nil else { return }
         let host = NSHostingView(rootView: VoiceStatusHUDView(state: .done))
-        host.frame = NSRect(x: 0, y: 0, width: 260, height: 58)
+        host.frame = NSRect(x: 0, y: 0, width: 360, height: 58)
         hostingView = host
         ensurePanel().contentView = host
     }
 
     func show(_ state: VoiceStatusHUDState, autoHideAfter delay: TimeInterval? = nil) {
         hideWorkItem?.cancel()
+        hideGeneration = UUID()
+        voiceVisible = true
         prepare()
         hostingView?.rootView = VoiceStatusHUDView(state: state)
 
         let panel = ensurePanel()
-        if let hostingView, hostingView.superview == nil {
-            panel.contentView = hostingView
-        }
+        panel.contentView = hostingView
+        panel.ignoresMouseEvents = true
+        panel.setContentSize(NSSize(width: 360, height: 58))
         position(panel)
         panel.orderFrontRegardless()
 
         if let delay {
+            let generation = hideGeneration
             let workItem = DispatchWorkItem { [weak self] in
                 Task { @MainActor in
-                    self?.hide()
+                    guard let self, self.hideGeneration == generation else { return }
+                    self.hide()
                 }
             }
             hideWorkItem = workItem
@@ -47,14 +78,17 @@ final class VoiceStatusHUDController {
     func hide() {
         hideWorkItem?.cancel()
         hideWorkItem = nil
+        hideGeneration = UUID()
+        voiceVisible = false
         panel?.orderOut(nil)
+        displayOffer()
     }
 
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
 
         let panel = NonActivatingVoiceHUDPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 260, height: 58),
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 58),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -127,7 +161,7 @@ private struct VoiceStatusHUDView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
-        .frame(width: 260, height: 58)
+        .frame(width: 360, height: 58)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(Color(nsColor: .windowBackgroundColor).opacity(0.92))
@@ -161,5 +195,26 @@ private struct VoiceStatusHUDView: View {
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundColor(.orange)
         }
+    }
+}
+
+
+private struct CodexApprovalOfferView: View {
+    let resolve: (Bool) -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("体验 Codex 自动批准？", systemImage: "checkmark.shield")
+                .font(.system(size: 14, weight: .semibold))
+            Text("将默认权限设为请求批准。当前会话需在 Codex 中切换权限或新建会话；保留完全访问仍可正常执行。")
+                .font(.system(size: 12)).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Button("保留当前权限") { resolve(false) }
+                Spacer()
+                Button("设置请求批准") { resolve(true) }.buttonStyle(.borderedProminent)
+            }.controlSize(.small)
+        }
+        .padding(16).frame(width: 390, height: 150)
+        .background(RoundedRectangle(cornerRadius: 22).fill(Color(nsColor: .windowBackgroundColor)))
     }
 }

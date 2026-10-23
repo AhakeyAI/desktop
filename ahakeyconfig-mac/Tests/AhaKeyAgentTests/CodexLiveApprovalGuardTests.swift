@@ -46,32 +46,34 @@ final class CodexLiveApprovalGuardTests: XCTestCase {
             XCTAssertTrue(output.isEmpty)
         }
     }
-    func testOldBypassOnlyProceedsWithLiveVerifiedAuto() throws {
+    func testFullAccessRemainsPassThroughWithVerifiedAuto() throws {
         try run(mode: "bypassPermissions", reply: verified(0)) { requests, preparations, output in
-            XCTAssertEqual(requests.last?["cmd"] as? String, "approval_status")
-            XCTAssertEqual(preparations, 1)
+            XCTAssertEqual(requests.count, 1)
+                XCTAssertEqual(requests[0]["cmd"] as? String, "state")
+            XCTAssertEqual(preparations, 0)
             XCTAssertTrue(output.isEmpty)
         }
     }
-    func testManualOfflineMalformedAndPausedBypassNeverExecute() throws {
+    func testManualOfflineMalformedAndPausedFullAccessUseOriginalPolicy() throws {
         let cases: [([String: Any]?, Bool)] = [(verified(1), false), (nil, false), (["switchState": 0], false), (verified(0), true)]
         for (reply, paused) in cases {
             try run(mode: "bypassPermissions", reply: reply, paused: paused) { requests, preparations, output in
-                XCTAssertEqual(requests.last?["cmd"] as? String, "approval_status")
-                XCTAssertEqual(preparations, 1)
-                XCTAssertEqual((output["hookSpecificOutput"] as? [String: String])?["permissionDecision"], "deny")
+                XCTAssertEqual(requests.count, 1)
+                XCTAssertEqual(requests[0]["cmd"] as? String, "state")
+                XCTAssertEqual(preparations, 0)
+                XCTAssertTrue(output.isEmpty)
             }
         }
     }
-    func testUnknownModeDoesNotAssumeNativeManualSafety() throws {
+    func testUnknownModeUsesOriginalPolicy() throws {
         try run(mode: nil, reply: nil) { _, _, output in
-            XCTAssertEqual((output["hookSpecificOutput"] as? [String: String])?["permissionDecision"], "deny")
+            XCTAssertTrue(output.isEmpty)
         }
     }
-    func testSessionStartPreparesNativePolicyWithoutLeverRead() throws {
+    func testSessionStartDoesNotChangeTheUsersPolicy() throws {
         try run(mode: "bypassPermissions", reply: verified(0), state: 4) { requests, preparations, output in
             XCTAssertEqual(requests.count, 1)
-            XCTAssertEqual(preparations, 1)
+            XCTAssertEqual(preparations, 0)
             XCTAssertTrue(output.isEmpty)
         }
     }

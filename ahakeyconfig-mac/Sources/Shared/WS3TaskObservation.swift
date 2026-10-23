@@ -69,18 +69,29 @@ public struct WS3TaskOverview: Codable, Equatable, Sendable {
     public let presentationBusy: Bool?
     public let connectionGeneration: UInt64?
     public let presentationRevision: UInt64?
+    public let targetedModeWrites: Bool?
 
     public init(connected: Bool, tasks: [WS3ObservedTask], unrepresentedEvents: Int,
                 requestedMode: WS3PresentationMode? = nil, presentationBusy: Bool? = nil,
-                connectionGeneration: UInt64? = nil, presentationRevision: UInt64? = nil) {
+                connectionGeneration: UInt64? = nil, presentationRevision: UInt64? = nil,
+                targetedModeWrites: Bool? = nil) {
         self.connected = connected; self.tasks = tasks; self.unrepresentedEvents = unrepresentedEvents
         self.requestedMode = requestedMode; self.presentationBusy = presentationBusy
         self.connectionGeneration = connectionGeneration; self.presentationRevision = presentationRevision
+        self.targetedModeWrites = targetedModeWrites
     }
 
     public func reportingPresentation(mode: WS3PresentationMode?, busy: Bool, generation: UInt64? = nil, revision: UInt64? = nil) -> Self {
         Self(connected: connected, tasks: tasks, unrepresentedEvents: unrepresentedEvents,
-             requestedMode: mode, presentationBusy: busy, connectionGeneration: generation, presentationRevision: revision)
+             requestedMode: mode, presentationBusy: busy, connectionGeneration: generation, presentationRevision: revision,
+             targetedModeWrites: targetedModeWrites)
+    }
+
+    public func supportingTargetedModeWrites() -> Self {
+        Self(connected: connected, tasks: tasks, unrepresentedEvents: unrepresentedEvents,
+             requestedMode: requestedMode, presentationBusy: presentationBusy,
+             connectionGeneration: connectionGeneration, presentationRevision: presentationRevision,
+             targetedModeWrites: true)
     }
 
     public static func decode(_ data: Data) -> Self? {

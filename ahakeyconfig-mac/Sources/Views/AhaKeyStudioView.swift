@@ -42,6 +42,9 @@ struct AhaKeyStudioView: View {
     @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
     @StateObject private var lightInspectorModel = StudioLightInspectorModel()
     @StateObject private var resourceInspectorModel = StudioResourceInspectorModel()
+    @StateObject private var lcdInspectorModel = StudioLCDInspectorModel()
+    @State private var confirmsLCDWrite = false
+    @State private var lcdSubmittedEntry: UInt8?
     @StateObject private var deviceInspectorModel = StudioDeviceInspectorModel()
     @StateObject private var inspectorSession: StudioInspectorSession
     @State private var inlineKeyTarget: StudioInlineKeyTarget?
@@ -157,7 +160,17 @@ struct AhaKeyStudioView: View {
         .onReceive(lightInspectorModel.writeCompleted) { result in
             writeOutcome = .init(succeeded: true, message: result.message, wrote: result.wrote)
         }
-        .onReceive(resourceInspectorModel.writeCompleted) { writeOutcome = $0 }
+        .onReceive(resourceInspectorModel.writeCompleted) { if !lcdInspectorModel.isWriting { writeOutcome = $0 } }
+        .onReceive(lcdInspectorModel.writeCompleted) { result in
+            if result.succeeded, let entry = lcdSubmittedEntry { resourceInspectorModel.selectEntry(entry) }
+            lcdSubmittedEntry = nil
+            writeOutcome = result
+        }
+        .onChange(of: agentManager.bluetoothOwnershipRevision) { revision in lcdInspectorModel.invalidateFacts(ownershipRevision: revision) }
+        .onChange(of: agentManager.isAgentBLEConnected) { connected in if !connected { lcdInspectorModel.invalidateConnectionFacts() } }
+        .onChange(of: bleManager.configurationSnapshot.generation) { _ in
+            if agentManager.bluetoothConnectionOwner == .ahaKeyStudio { lcdInspectorModel.invalidateFacts() }
+        }
         .onReceive(deviceInspectorModel.writeCompleted) { writeOutcome = $0 }
         .onReceive(deviceInspectorModel.$message.compactMap { $0 }) { syncStatusMessage = $0 }
         .onReceive(NotificationCenter.default.publisher(for: .ahaKeyHardwareEditingFinished)) { _ in
@@ -489,7 +502,7 @@ struct AhaKeyStudioView: View {
             [.lightBar, .oledDisplay, .toggleSwitch, .modeButton].contains(selectedPart)
     }
     private var componentBusy: Bool {
-        inspectorSession.isBusy || resourceInspectorModel.isBusy || resourceInspectorModel.isPreparing || deviceInspectorModel.isBusy
+        inspectorSession.isBusy || resourceInspectorModel.isBusy || resourceInspectorModel.isPreparing || deviceInspectorModel.isBusy || lcdInspectorModel.isReading || lcdInspectorModel.isWriting
     }
 
     private var canvasModeDraft: AhaKeyModeDraft {
@@ -712,6 +725,7 @@ struct AhaKeyStudioView: View {
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             clearInlineKeyEditing()
+                            lcdInspectorModel.cancelRead()
                             isEditingInspector = false
                             returnToKeyboardControl()
                         }
@@ -731,7 +745,9 @@ struct AhaKeyStudioView: View {
                         }
                     }
                     if resourceInspectorModel.isBusy || resourceInspectorModel.isPreparing {
-                        Button(NSLocalizedString("取消当前操作", comment: "")) { resourceInspectorModel.cancel(ble: bleManager) }
+                        Button(NSLocalizedString("取消当前操作", comment: "")) { resourceInspectorModel.cancel(ble: bleManager); lcdInspectorModel.cancelWrite() }
+                    } else if lcdInspectorModel.isReading || lcdInspectorModel.isWriting {
+                        Button(NSLocalizedString("取消当前操作", comment: "")) { lcdInspectorModel.cancelRead(); lcdInspectorModel.cancelWrite() }
                     } else if deviceInspectorModel.isBusy {
                         Button(NSLocalizedString("取消当前操作", comment: "")) { deviceInspectorModel.cancel(ble: bleManager) }
                     }
@@ -753,11 +769,11 @@ struct AhaKeyStudioView: View {
                                                     bleManager: bleManager, mode: selectedMode)
                     } else if usesInlineHardwareEditor {
                         Button(NSLocalizedString(componentBusy ? "处理中…" : "写入键盘", comment: "")) {
-                            if selectedPart == .oledDisplay { resourceInspectorModel.confirmsUpload = true }
+                            if selectedPart == .oledDisplay { requestLCDWrite() }
                             else { deviceInspectorModel.write(lever: selectedPart == .toggleSwitch, ble: bleManager, session: inspectorSession) }
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(componentBusy || (selectedPart == .oledDisplay ? !resourceInspectorModel.canWrite :
+                        .disabled(componentBusy || (selectedPart == .oledDisplay ? !canWriteLCD :
                             (selectedPart == .toggleSwitch ? !deviceInspectorModel.canWriteLever : deviceInspectorModel.standbyDraft == nil)))
                     } else {
                         Button {
@@ -1653,10 +1669,68 @@ struct AhaKeyStudioView: View {
 
     @ViewBuilder private var oledInspector: some View {
         if bleManager.firmwareCapabilityProfile?.identity != .legacy {
-            StudioResourceInspectorView(model: resourceInspectorModel, ble: bleManager, session: inspectorSession, mode: selectedMode)
-            Divider().padding(.vertical, 8)
-            WS3TaskOverviewView(bleManager: bleManager)
+            VStack(alignment: .leading, spacing: 14) {
+                StudioLCDDisplayEditor(model: lcdInspectorModel)
+                StudioInspectorSection("图片与动图") {
+                    StudioResourceInspectorView(model: resourceInspectorModel, ble: bleManager, session: inspectorSession,
+                        mode: selectedMode, onWrite: { writeLCDSettings() })
+                }
+                StudioLCDTaskList(model: lcdInspectorModel) { lcdInspectorModel.read(using: .production(ble: bleManager)) }
+                if let message = lcdInspectorModel.message {
+                    Text(message).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                }
+            }
+            .disabled(lcdInspectorModel.isWriting)
+            .confirmationDialog(NSLocalizedString("写入屏幕设置？", comment: ""), isPresented: $confirmsLCDWrite, titleVisibility: .visible) {
+                Button(NSLocalizedString("确认写入", comment: ""), role: .destructive) { writeLCDSettings() }
+                Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
+            } message: { Text(lcdWriteSummary) }
         } else { legacyOLEDInspector }
+    }
+
+    private var lcdArtworkEntries: [UInt8] {
+        StudioResourceInspectorModel.pendingEntries(mode: selectedMode.rawValue, dirty: resourceInspectorModel.dirtyEntries)
+    }
+    private var canWriteLCD: Bool {
+        (!lcdArtworkEntries.isEmpty || lcdInspectorModel.hasSettingsDraft) &&
+            (lcdInspectorModel.modeDraft == nil || resourceInspectorModel.deviceID != nil)
+    }
+    private var lcdWriteSummary: String {
+        var lines = lcdArtworkEntries.map(lcdArtworkTitle)
+        if let mode = lcdInspectorModel.modeDraft {
+            lines.append(NSLocalizedString("展示方式", comment: "") + "：" + NSLocalizedString(mode == .multi ? "多任务" : "单任务", comment: ""))
+        }
+        if lcdInspectorModel.followDraft != nil { lines.append(NSLocalizedString("跟随当前终端", comment: "")) }
+        if !lcdArtworkEntries.isEmpty {
+            lines.append(NSLocalizedString("开始后可能覆盖原素材；失败或取消不保证恢复。其他模式草稿保留。", comment: ""))
+        }
+        return lines.joined(separator: "\n")
+    }
+    private func lcdArtworkTitle(_ entry: UInt8) -> String {
+        let names = ["默认画面", "进行中", "等待处理", "已完成"]
+        let index = entry >= 16 ? Int(entry - 15) : Int(entry % 4)
+        return NSLocalizedString(entry >= 16 ? "多任务画面" : "单任务画面", comment: "") + " · " + NSLocalizedString(names[index], comment: "")
+    }
+    private func requestLCDWrite() {
+        guard canWriteLCD else { return }
+        if lcdArtworkEntries.isEmpty { writeLCDSettings() }
+        else { confirmsLCDWrite = true }
+    }
+    private func writeLCDSettings() {
+        lcdSubmittedEntry = resourceInspectorModel.entry
+        let actions = lcdArtworkEntries.map { entry in
+            let restoring = resourceInspectorModel.defaultDrafts.contains(entry)
+            return StudioLCDInspectorModel.ArtworkAction(title: lcdArtworkTitle(entry)) {
+                resourceInspectorModel.selectEntry(entry)
+                let confirmed = await withCheckedContinuation { continuation in
+                    resourceInspectorModel.write(ble: bleManager, session: inspectorSession, restoring: restoring) {
+                        continuation.resume(returning: $0)
+                    }
+                }
+                guard confirmed else { throw StudioLCDInspectorModel.Failure.artworkNeedsAttention }
+            }
+        }
+        lcdInspectorModel.write(artwork: actions, deviceID: resourceInspectorModel.deviceID, using: .production(ble: bleManager))
     }
 
     private var legacyOLEDInspector: some View {
@@ -1880,7 +1954,10 @@ struct AhaKeyStudioView: View {
                         Label("自动批准依赖 Agent 与 Hook，且须蓝牙由 Agent 占用", systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
                             .font(.callout.weight(.semibold))
-                        Text(LocalizedStringKey(agentManager.kimiUsesNativeCLI ? "Claude、Cursor、Codex 需要后台与 Hook 保持连接。Kimi 原生版当前仅同步任务状态，审批仍由 Kimi 自身管理。" : "Claude Code：PreToolUse allow，PermissionRequest 兜底（桌面版须使用 Code 本地会话，Chat 不支持本地 Hook）。Cursor：preToolUse 等与 cli-config。Codex：PermissionRequest allow。Kimi：安装过 AhaKey Kimi Hooks 后，**拨杆会直接接管当前会话的自动批准**；若刚装完或刚升级 kimi-cli，请**完全关闭并重新打开一次 kimi**。钩子 stdout 只对 **`permissionDecision: deny`** 有特殊拦截语义。Agent 须在跑且蓝牙由其占用。"))
+                        Button("Codex：设置请求批准…") {
+                            CodexApprovalSetupController.shared.requestOffer(force: true)
+                        }
+                        Text(LocalizedStringKey(agentManager.kimiUsesNativeCLI ? "Claude／Cursor 自动批准需要后台与 Hook。Codex 仅接管请求批准，完全访问保持原有执行方式；Kimi 原生版审批由自身管理。" : "Claude Code：PreToolUse allow，PermissionRequest 兜底（桌面版须使用 Code 本地会话，Chat 不支持本地 Hook）。Cursor：preToolUse 等与 cli-config。Codex：PermissionRequest allow。Kimi：安装过 AhaKey Kimi Hooks 后，**拨杆会直接接管当前会话的自动批准**；若刚装完或刚升级 kimi-cli，请**完全关闭并重新打开一次 kimi**。钩子 stdout 只对 **`permissionDecision: deny`** 有特殊拦截语义。Agent 须在跑且蓝牙由其占用。"))
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
@@ -1889,9 +1966,9 @@ struct AhaKeyStudioView: View {
 
             StudioInspectorSection(NSLocalizedString("如何理解这个部件", comment: "")) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(LocalizedStringKey(agentManager.kimiUsesNativeCLI ? "实体拨杆对 Claude、Cursor、Codex 的审批生效，与键盘 Mode 无关。Kimi 原生版当前仅同步任务状态，审批仍由 Kimi 自身管理。" : "拨杆对 Claude / Cursor / Codex / Kimi **同时生效**，与键盘当前所在 Mode 无关。Agent 后台同时监听所有 IDE 的 Hook，拨杆拨动后四个 IDE 的批准行为立即切换。"))
+                    Text(LocalizedStringKey(agentManager.kimiUsesNativeCLI ? "实体拨杆对 Claude／Cursor 与 Codex 的原生审批请求生效，与键盘 Mode 无关。Codex 完全访问和 Kimi 原生版仍由自身管理。" : "拨杆对 Claude / Cursor / Codex / Kimi **同时生效**，与键盘当前所在 Mode 无关。Agent 后台同时监听所有 IDE 的 Hook，拨杆拨动后四个 IDE 的批准行为立即切换。"))
                     Divider()
-                    Text(LocalizedStringKey(agentManager.kimiUsesNativeCLI ? "Claude、Cursor、Codex 需要后台与 Hook 保持连接。Kimi 原生版当前仅同步任务状态，审批仍由 Kimi 自身管理。" : "自动批准：**Claude Code PreToolUse**（PermissionRequest 兜底；桌面版仅 Code 本地会话）、**Codex PermissionRequest**、**Cursor preToolUse**（含 cli-config）。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管**当前会话**的自动批准；刚装完或刚升级 kimi-cli 时，重开一次 kimi 即可。"))
+                    Text(LocalizedStringKey(agentManager.kimiUsesNativeCLI ? "Claude／Cursor 自动批准需要后台与 Hook。Codex 仅接管请求批准，完全访问保持原有执行方式；Kimi 原生版审批由自身管理。" : "自动批准：**Claude Code PreToolUse**（PermissionRequest 兜底；桌面版仅 Code 本地会话）、**Codex PermissionRequest**、**Cursor preToolUse**（含 cli-config）。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管**当前会话**的自动批准；刚装完或刚升级 kimi-cli 时，重开一次 kimi 即可。"))
                     Text(NSLocalizedString("手动批准：会交回用户/终端确认。若 Cursor、Codex 或 Kimi 仍弹窗，请看 diagnostics 里的 ide 与 diagnostic 字段。", comment: ""))
                     Text(NSLocalizedString("若仍出现手动：在「设备信息」里打开「工具批准诊断」查看 permission-request.log（含 ide、hookEvent、diagnostic 等）。", comment: ""))
                 }
@@ -1911,7 +1988,7 @@ struct AhaKeyStudioView: View {
                     Image(systemName: agentReady ? "checkmark.seal.fill" : "exclamationmark.circle.fill")
                         .foregroundStyle(agentReady ? .green : .orange)
                     Text(LocalizedStringKey(agentReady
-                         ? (agentManager.kimiUsesNativeCLI ? "Claude、Cursor、Codex 可随实体拨杆审批。Kimi 原生版当前仅同步任务状态，审批仍由 Kimi 自身管理。" : "Agent 就绪时 Claude/Cursor/Codex 可随拨杆走批准。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管当前会话；若刚装完或刚升级 kimi-cli，重开一次 kimi 即可。")
+                         ? (agentManager.kimiUsesNativeCLI ? "Claude／Cursor 及 Codex 原生审批请求可随实体拨杆批准；Codex 完全访问及 Kimi 原生版保持原有行为。" : "Agent 就绪时 Claude/Cursor/Codex 可随拨杆走批准。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管当前会话；若刚装完或刚升级 kimi-cli，重开一次 kimi 即可。")
                          : "拨杆在 IDE 中生效需先安装 Agent 与 Hook，并把蓝牙交给 Agent；否则仅为状态显示。"))
                         .font(.callout)
                 }
@@ -2209,7 +2286,7 @@ struct AhaKeyStudioView: View {
                 count += 1
             }
         } + (bleManager.firmwareCapabilityProfile?.identity == .legacy ? 0 :
-            resourceInspectorModel.dirtyEntries.count + (deviceInspectorModel.standbyDirty ? 1 : 0) + (deviceInspectorModel.leverDirty ? 1 : 0))
+            resourceInspectorModel.dirtyEntries.count + (lcdInspectorModel.hasSettingsDraft ? 1 : 0) + (deviceInspectorModel.standbyDirty ? 1 : 0) + (deviceInspectorModel.leverDirty ? 1 : 0))
     }
 
     private func restoreCurrentModeDefaults() {
@@ -2350,7 +2427,7 @@ struct AhaKeyStudioView: View {
             return current.key(for: role) != baseline.key(for: role)
         case .oledDisplay:
             if bleManager.firmwareCapabilityProfile?.identity != .legacy {
-                return resourceInspectorModel.dirtyEntries.contains { $0 / 4 == UInt8(selectedMode.rawValue) || $0 >= 16 }
+                return lcdInspectorModel.hasSettingsDraft || resourceInspectorModel.dirtyEntries.contains { $0 / 4 == UInt8(selectedMode.rawValue) || $0 >= 16 }
             }
             return current.oled != baseline.oled
         case .lightBar:
@@ -2410,7 +2487,9 @@ struct AhaKeyStudioView: View {
             switch selectedPart {
             case .oledDisplay:
                 resourceInspectorModel.select(mode: selectedMode)
-                resourceInspectorModel.read(ble: bleManager, session: inspectorSession)
+                resourceInspectorModel.read(ble: bleManager, session: inspectorSession) { succeeded in
+                    if succeeded, isEditingInspector { lcdInspectorModel.read(using: .production(ble: bleManager)) }
+                }
             case .toggleSwitch, .modeButton:
                 deviceInspectorModel.read(lever: selectedPart == .toggleSwitch, ble: bleManager, session: inspectorSession)
             default: break

@@ -3,19 +3,15 @@ import XCTest
 @testable import AhaKeyConfigShared
 
 final class CodexHookApprovalTests: XCTestCase {
-    func testOnlyExplicitNativeModeSkipsAdditionalVerification() {
-        XCTAssertFalse(CodexHookApproval.requiresPreToolVerification(permissionMode: "default"))
-        for mode in ["bypassPermissions", "future", "", nil] as [String?] {
-            XCTAssertTrue(CodexHookApproval.requiresPreToolVerification(permissionMode: mode))
+    func testPreToolNeverOverridesTheUsersOwnPermissionMode() {
+        for mode in ["default", "bypassPermissions", "future", "", nil] as [String?] {
+            XCTAssertFalse(CodexHookApproval.requiresPreToolVerification(permissionMode: mode))
         }
     }
-    func testUnverifiedBypassIsDeniedRatherThanUnsupportedAsk() throws {
-        XCTAssertNil(CodexHookApproval.bypassPreToolOutput(verifiedAuto: true))
-        let output = try XCTUnwrap(CodexHookApproval.bypassPreToolOutput(verifiedAuto: false))
-        let hook = try XCTUnwrap(output["hookSpecificOutput"] as? [String: String])
-        XCTAssertEqual(hook["hookEventName"], "PreToolUse")
-        XCTAssertEqual(hook["permissionDecision"], "deny")
-        XCTAssertTrue(hook["permissionDecisionReason"]?.contains("native approvals") == true)
+    func testFullAccessIsNotDeniedWhenKeyboardIsManualOfflineOrPaused() {
+        for verified in [false, true] {
+            XCTAssertNil(CodexHookApproval.bypassPreToolOutput(verifiedAuto: verified))
+        }
     }
     func testNativePermissionRequestsOnlyGrantVerifiedAuto() throws {
         for verified in [false, true] {

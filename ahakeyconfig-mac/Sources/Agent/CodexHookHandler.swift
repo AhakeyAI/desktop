@@ -4,7 +4,7 @@ import AhaKeyConfigShared
 enum CodexHookHandler {
     /// 事件级依赖（测试注入点）。生产默认全部转发 `HookSupport`；测试可替换为 fake/recording
     /// 实现，从而真实驱动 `CodexSessionStart` 与 `CodexPermissionRequest` 两条事件路径，
-    /// 而不触碰用户 socket、诊断日志或真实配置。旧免审批会话另经 PreToolUse 实时校验。
+    /// 而不触碰用户 socket、诊断日志或真实配置。PreToolUse 仅同步任务状态，不改动用户审批链路。
     struct Dependencies {
         var readStdin: () -> Data
         var parseContext: (Data, String) -> [String: Any]
@@ -15,7 +15,7 @@ enum CodexHookHandler {
             String, String, [String: Any], [String: Any]?, Int?, Bool, String?, String?, [String: Any]?, String?, [String: Any]?
         ) -> Void
         var writeStdout: (String) -> Void
-        /// Prepare the conservative native baseline independently of a per-tool grant.
+        /// Regression seam: Hook events must never invoke a policy writer.
         var preparePolicy: () -> Void
         var approvalControlDirectory: URL = ApprovalAutomationControl.productionDirectory
 
@@ -42,7 +42,7 @@ enum CodexHookHandler {
                 )
             },
             writeStdout: { print($0) },
-            preparePolicy: { _ = CodexConfigLeverSync.prepareHookManagedSession() }
+            preparePolicy: {}
         )
     }
 
@@ -66,23 +66,11 @@ enum CodexHookHandler {
         request = WS3TaskMetadata.enrich(request, client: .codex,
             event: codexAgentEventName(forStateValue: stateValue), stdin: stdinData)
         let reply = dependencies.sendRequest(request, HookSupport.stateRequestTimeout)
-        var switchState = HookSupport.intValue(reply?["switchState"])
+        let switchState = HookSupport.intValue(reply?["switchState"])
 
-        var output: [String: Any] = [:]
-        var decision: String?
-        if stateValue == 4 {
-            dependencies.preparePolicy()
-        } else if stateValue == 3, CodexHookApproval.requiresPreToolVerification(permissionMode: ctx["permission_mode"] as? String) {
-            // A previously opened bypass session cannot be changed by a file
-            // write. Verify every tool there, or block until it is reopened.
-            dependencies.preparePolicy()
-            let status = dependencies.sendRequest(["cmd": "approval_status"], HookSupport.stateRequestTimeout)
-            switchState = HookSupport.approvalSwitchState(status, client: .codex,
-                controlDirectory: dependencies.approvalControlDirectory)
-            if let blocked = CodexHookApproval.bypassPreToolOutput(verifiedAuto: switchState == 0) {
-                output = blocked; decision = "blocked_stale_bypass"
-            }
-        }
+        let output: [String: Any] = [:]
+        // A missing AhaKey grant is not a denial. Codex retains its original
+        // approval policy; only a real PermissionRequest can receive our grant.
 
         dependencies.appendHookLog(
             ctx["hook_event_name"] as? String,
@@ -91,7 +79,7 @@ enum CodexHookHandler {
             ctx,
             reply,
             switchState,
-            decision
+            "pass_through"
         )
         if let data = try? JSONSerialization.data(withJSONObject: output),
            let json = String(data: data, encoding: .utf8) {
@@ -107,8 +95,6 @@ enum CodexHookHandler {
         let reply = dependencies.sendRequest(request, HookSupport.permissionRequestTimeout)
         let switchState = HookSupport.approvalSwitchState(reply, client: .codex, controlDirectory: dependencies.approvalControlDirectory)
         let isAuto = switchState == 0
-
-        dependencies.preparePolicy()
 
         if !isAuto {
             dependencies.emitPermissionStderr("Codex", "PermissionRequest", reply, switchState)
