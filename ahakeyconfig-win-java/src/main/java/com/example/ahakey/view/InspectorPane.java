@@ -42,6 +42,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
 
@@ -58,6 +59,8 @@ public class InspectorPane extends ScrollPane {
     private final VBox header = new VBox(8);
     private final VBox body = new VBox(16);
     private Runnable taskModeRefresh = () -> {};
+    /** 编辑配置 / 保存配置（写入键盘），位于每个模块标题行右侧。 */
+    private Button configModeButton;
 
     public InspectorPane(StudioController controller) {
         this.controller = controller;
@@ -78,6 +81,20 @@ public class InspectorPane extends ScrollPane {
 
         content.setPadding(new Insets(24));
         content.getChildren().addAll(header, body);
+        configModeButton = createConfigModeButton();
+        // Keep the header (and its edit/save button) inside what is visible. On a
+        // 1280 px screen at 125 % the window is about 1030 px wide, narrower than the
+        // workspace, so the right part of this pane sits outside the window until
+        // the user scrolls; some editors are also wider than the pane itself.
+        Runnable fitHeader = this::fitHeaderToVisibleWidth;
+        viewportBoundsProperty().addListener((obs, oldValue, newValue) -> fitHeader.run());
+        localToSceneTransformProperty().addListener((obs, oldValue, newValue) -> fitHeader.run());
+        javafx.beans.value.ChangeListener<Number> sceneWidth = (obs, oldValue, newValue) -> fitHeader.run();
+        sceneProperty().addListener((obs, oldScene, newScene) -> {
+            if (oldScene != null) oldScene.widthProperty().removeListener(sceneWidth);
+            if (newScene != null) newScene.widthProperty().addListener(sceneWidth);
+            fitHeader.run();
+        });
         setContent(content);
 
         studioState.selectedPartProperty().addListener((obs, oldValue, newValue) -> rebuild());
@@ -114,7 +131,9 @@ public class InspectorPane extends ScrollPane {
         Label title = new Label(part.getDisplayTitle());
         title.getStyleClass().add("inspector-title");
 
-        titleRow.getChildren().addAll(icon, new Label("   "), title);
+        Region titleSpacer = new Region();
+        HBox.setHgrow(titleSpacer, Priority.ALWAYS);
+        titleRow.getChildren().addAll(icon, new Label("   "), title, titleSpacer, configModeButton);
 
         Label subtitle = new Label(mode.getTitle() + " · " + mode.getGuidance());
         subtitle.getStyleClass().add("inspector-subtitle");
@@ -1168,6 +1187,33 @@ public class InspectorPane extends ScrollPane {
             box.getChildren().addAll(new HBox(4, autoButton, manualButton), note);
             return box;
         });
+    }
+
+    private void fitHeaderToVisibleWidth() {
+        double width = getViewportBounds().getWidth();
+        if (getScene() != null) {
+            double left = localToScene(0, 0).getX();
+            width = Math.min(width, getScene().getWidth() - left);
+        }
+        header.setMaxWidth(Math.max(0, width
+            - content.getPadding().getLeft() - content.getPadding().getRight()));
+    }
+
+    /** Moved here from the top bar: edit or write the configuration next to what is being edited. */
+    private Button createConfigModeButton() {
+        Button button = new Button();
+        button.getStyleClass().add("button-prominent");
+        button.setMinWidth(Region.USE_PREF_SIZE);
+        button.textProperty().bind(Bindings.createStringBinding(controller::configurationModeButtonTitle,
+            studioState.syncingProperty(),
+            agentManager.bluetoothOwnerProperty()));
+        button.disableProperty().bind(Bindings.createBooleanBinding(
+            () -> studioState.syncingProperty().get() || agentManager.operationInProgressProperty().get(),
+            studioState.syncingProperty(),
+            agentManager.operationInProgressProperty()
+        ));
+        button.setOnAction(event -> controller.handleConfigurationModeButton());
+        return button;
     }
 
     private VBox createGroupBox(String title, Supplier<VBox> contentProvider) {

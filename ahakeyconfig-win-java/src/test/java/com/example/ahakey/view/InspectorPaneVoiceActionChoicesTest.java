@@ -63,6 +63,14 @@ class InspectorPaneVoiceActionChoicesTest {
     }
 
     @Test
+    void editAndSaveButtonSitsInEveryInspectorModuleTitleRow() throws IOException {
+        String source = Files.readString(Path.of(
+            "src/main/java/com/example/ahakey/view/InspectorPane.java"));
+        assertTrue(source.contains("title, titleSpacer, configModeButton"));
+        assertTrue(source.contains("controller.handleConfigurationModeButton()"));
+    }
+
+    @Test
     void mainAhaTypeAndVoiceControlsRemainDiscoverableWithoutModelFlag() throws IOException {
         String source = Files.readString(Path.of(
             "src/main/java/com/example/ahakey/view/TopBar.java"));
@@ -71,7 +79,9 @@ class InspectorPaneVoiceActionChoicesTest {
         // driver opens from the connection block instead of its own button.
         String flat = source.replaceAll("\\s+", " ");
         assertTrue(flat.contains("titleBox, infoPills, spacer, actionButtons, "
-            + "ahaTypeControls, rightSpacer, configStatus, configModeButton, menuBar"));
+            + "ahaTypeControls, rightSpacer, configStatus, menuBar"));
+        assertFalse(source.contains("configModeButton"),
+            "edit/save lives in the inspector, not in the top bar");
         assertTrue(source.contains("ahaTypeSwitch = createSwitch()"));
         assertTrue(source.contains("setupBleButtonLongPress(connectionPill)"));
         assertFalse(source.contains("\"button-ble\""));

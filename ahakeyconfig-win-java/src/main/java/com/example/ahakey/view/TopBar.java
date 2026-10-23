@@ -437,17 +437,7 @@ public class TopBar extends VBox {
             )
         );
 
-        Button configModeButton = new Button();
-        configModeButton.getStyleClass().add("button-prominent");
-        configModeButton.textProperty().bind(Bindings.createStringBinding(controller::configurationModeButtonTitle,
-            studioState.syncingProperty(),
-            agentManager.bluetoothOwnerProperty()));
-        configModeButton.disableProperty().bind(Bindings.createBooleanBinding(
-            () -> studioState.syncingProperty().get() || agentManager.operationInProgressProperty().get(),
-            studioState.syncingProperty(),
-            agentManager.operationInProgressProperty()
-        ));
-        configModeButton.setOnAction(event -> controller.handleConfigurationModeButton());
+        // 编辑配置 / 保存配置按钮在右侧编辑区每个模块的标题行（InspectorPane），顶栏只显示状态。
 
         Menu moreMenu = new Menu(languageManager.getString("menu.more"));
         Text moreIcon = Icons.moreHorizontal("16");
@@ -530,7 +520,7 @@ public class TopBar extends VBox {
         mainRow.setPadding(new Insets(6, 16, 6, 16));
         mainRow.setMinWidth(Region.USE_PREF_SIZE); // 保持首选宽度，不缩小
         mainRow.getChildren().addAll(titleBox, infoPills, spacer, actionButtons,
-            ahaTypeControls, rightSpacer, configStatus, configModeButton, menuBar);
+            ahaTypeControls, rightSpacer, configStatus, menuBar);
 
         // 包裹在水平 ScrollPane 中：宽屏时不显示滚动条，分屏窄时可水平滚动
         ScrollPane scrollWrapper = new ScrollPane(mainRow);
