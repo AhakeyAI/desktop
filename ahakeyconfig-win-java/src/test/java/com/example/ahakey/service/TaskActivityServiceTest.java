@@ -63,6 +63,14 @@ class TaskActivityServiceTest {
             assertEquals(1, ble.modeQueries.get(), "0x98 rejection stops the retries");
             assertEquals(0, ble.heartbeats.get());
             assertEquals(null, ble.reported.get(), "no device error is shown for missing task lights");
+
+            // A finished task must not try to clear a hardware slot either.
+            service.accept("codex", 2, "thread-a", "A", IDEState.TASK_COMPLETED);
+            service.awaitIdleForTest();
+            service.reconcileAtForTest(System.currentTimeMillis()
+                + TaskActivityService.COMPLETED_VISIBLE_MILLIS);
+            assertEquals(0, ble.slotUpdates.get());
+            assertEquals(null, ble.reported.get());
         }
     }
 
@@ -71,6 +79,8 @@ class TaskActivityServiceTest {
         private final java.util.concurrent.atomic.AtomicInteger modeQueries =
             new java.util.concurrent.atomic.AtomicInteger();
         private final java.util.concurrent.atomic.AtomicInteger heartbeats =
+            new java.util.concurrent.atomic.AtomicInteger();
+        private final java.util.concurrent.atomic.AtomicInteger slotUpdates =
             new java.util.concurrent.atomic.AtomicInteger();
         private final AtomicReference<String> reported = new AtomicReference<>();
 
@@ -91,6 +101,12 @@ class TaskActivityServiceTest {
                 com.example.ahakey.protocol.AhaKeyProtocol.CMD_TASK_LIGHT_MODE, 1, "rejected");
         }
         @Override public void sendTaskHeartbeat() { heartbeats.incrementAndGet(); }
+        @Override public void updateTaskSlot(int slot, int profile, int state, boolean foreground)
+                throws Exception {
+            slotUpdates.incrementAndGet();
+            throw new DeviceCommandException(
+                com.example.ahakey.protocol.AhaKeyProtocol.CMD_TASK_SLOT_UPDATE, 1, "rejected");
+        }
         @Override void reportDeviceError(String message) { reported.set(message); }
     }
 

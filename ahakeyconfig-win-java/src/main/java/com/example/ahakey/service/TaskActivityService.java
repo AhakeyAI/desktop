@@ -164,7 +164,9 @@ public final class TaskActivityService implements AutoCloseable {
     private void release(MutableTask task) {
         if (task.slot < 0) return;
         int old = task.slot; task.slot = -1;
-        try { if (ble.getCachedStatus().isConnected()) ble.updateTaskSlot(old, task.profile, 0, false); }
+        // Slots are only used on the keyboard while task lights are confirmed on.
+        if (!confirmedMultiMode || !ble.getCachedStatus().isConnected()) return;
+        try { ble.updateTaskSlot(old, task.profile, 0, false); }
         catch (Exception failure) { reportSyncFailure(text("task.slot.clear"), failure); }
     }
     private void send(MutableTask task) {
