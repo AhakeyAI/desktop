@@ -51,7 +51,7 @@ final class StudioLCDInspectorModel: ObservableObject {
 
     func chooseMode(_ value: WS3PresentationMode) {
         guard !isWriting else { return }
-        modeDraft = value; message = nil
+        modeDraft = value == overview?.requestedMode ? nil : value; message = nil
     }
     func chooseFollow(_ value: Bool) {
         guard !isWriting else { return }

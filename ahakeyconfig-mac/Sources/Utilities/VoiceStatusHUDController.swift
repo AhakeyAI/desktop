@@ -6,6 +6,7 @@ final class VoiceStatusHUDController {
     static let shared = VoiceStatusHUDController()
 
     private var panel: NSPanel?
+    private let makePanel: @MainActor () -> NSPanel
     private var hostingView: NSHostingView<VoiceStatusHUDView>?
     private var hideWorkItem: DispatchWorkItem?
     private var pendingOffer: ((Bool) -> Void)?
@@ -14,8 +15,11 @@ final class VoiceStatusHUDController {
 
     /// Voice always takes priority. Offers wait until recording/processing ends.
     func offerCodexApproval(_ completion: @escaping (Bool) -> Void) {
-        guard pendingOffer == nil else { return }
-        pendingOffer = completion
+        if pendingOffer == nil { pendingOffer = completion }
+        refreshPendingOffer()
+    }
+
+    func refreshPendingOffer() {
         if !voiceVisible { displayOffer() }
     }
 
@@ -24,7 +28,8 @@ final class VoiceStatusHUDController {
         hideWorkItem?.cancel()
         let panel = ensurePanel()
         panel.ignoresMouseEvents = false
-        panel.contentView = NSHostingView(rootView: CodexApprovalOfferView { [weak self] accept in
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        panel.contentView = InteractiveHUDHostingView(rootView: CodexApprovalOfferView { [weak self] accept in
             guard let self else { return }
             let action = self.pendingOffer
             self.pendingOffer = nil
@@ -36,7 +41,11 @@ final class VoiceStatusHUDController {
         panel.orderFrontRegardless()
     }
 
-    private init() {}
+    init(makePanel: @escaping @MainActor () -> NSPanel = {
+        NonActivatingVoiceHUDPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 360, height: 58),
+            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+    }) { self.makePanel = makePanel }
 
     /// Build the hidden UI at app startup, without opening the microphone or
     /// stealing focus on the user's first physical press.
@@ -57,6 +66,7 @@ final class VoiceStatusHUDController {
 
         let panel = ensurePanel()
         panel.contentView = hostingView
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         panel.ignoresMouseEvents = true
         panel.setContentSize(NSSize(width: 360, height: 58))
         position(panel)
@@ -87,12 +97,7 @@ final class VoiceStatusHUDController {
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
 
-        let panel = NonActivatingVoiceHUDPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 360, height: 58),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false
-        )
+        let panel = makePanel()
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
@@ -117,6 +122,12 @@ final class VoiceStatusHUDController {
 final class NonActivatingVoiceHUDPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+}
+
+/// The prompt must accept a click while another app remains active. It never
+/// becomes key, so choosing an option does not move the user's text focus.
+private final class InteractiveHUDHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 struct VoiceStatusHUDState: Equatable {

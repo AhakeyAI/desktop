@@ -45,6 +45,20 @@ final class StudioLCDInspectorTests: XCTestCase {
         XCTAssertNotNil(model.overview, "A fresh explicit read still works")
     }
 
+    func testChoosingTheReadBackModeDiscardsOnlyTheModeDraft() async throws {
+        let model = StudioLCDInspectorModel()
+        model.read(using: access(read: { self.report(.single) }))
+        try await finish(model)
+        model.chooseMode(.single)
+        XCTAssertNil(model.modeDraft, "Clicking the current mode is not an edit")
+        model.chooseMode(.multi)
+        model.chooseFollow(true)
+        XCTAssertEqual(model.modeDraft, .multi)
+        model.chooseMode(.single)
+        XCTAssertNil(model.modeDraft, "Returning to the current mode undoes the mode draft")
+        XCTAssertEqual(model.followDraft, true, "Unrelated following draft is retained")
+    }
+
     func testRefreshAndDraftSelectionNeverWriteOrEnableFollowing() async throws {
         var writes = 0, following = 0
         let model = StudioLCDInspectorModel()

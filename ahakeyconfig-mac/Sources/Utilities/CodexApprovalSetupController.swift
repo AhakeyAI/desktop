@@ -38,8 +38,7 @@ final class CodexApprovalSetupModel {
 
 @MainActor
 final class CodexApprovalSetupController {
-    static let shared = CodexApprovalSetupController()
-    private let model = CodexApprovalSetupModel(
+    static let shared = CodexApprovalSetupController(model: CodexApprovalSetupModel(
         readChoice: { CodexApprovalSetupModel.Choice(rawValue: UserDefaults.standard.string(forKey: "codexApprovalSetupChoice") ?? "") ?? .undecided },
         saveChoice: { UserDefaults.standard.set($0.rawValue, forKey: "codexApprovalSetupChoice") },
         configure: {
@@ -47,20 +46,30 @@ final class CodexApprovalSetupController {
             case .alreadyDesired, .replaced, .inserted: return true
             default: return false
             }
-        })
+        }), hud: .shared)
+    private let model: CodexApprovalSetupModel
+    private let hud: VoiceStatusHUDController
+
+    init(model: CodexApprovalSetupModel, hud: VoiceStatusHUDController) {
+        self.model = model; self.hud = hud
+    }
 
     func requestOffer(force: Bool = false) {
+        if model.isPresenting {
+            if force { hud.refreshPendingOffer() }
+            return
+        }
         guard model.offer(force: force) else { return }
-        VoiceStatusHUDController.shared.offerCodexApproval { [weak self] accept in
+        hud.offerCodexApproval { [weak self] accept in
             guard let self else { return }
             switch self.model.resolve(useRequestedApproval: accept) {
             case .keptCurrent: break
             case .configured:
-                VoiceStatusHUDController.shared.show(.init(kind: .success,
+                self.hud.show(.init(kind: .success,
                     title: NSLocalizedString("已设置默认请求批准", comment: ""),
                     subtitle: NSLocalizedString("当前会话请在 Codex 切换权限或新建会话", comment: "")), autoHideAfter: 6)
             case .failed:
-                VoiceStatusHUDController.shared.show(.init(kind: .warning,
+                self.hud.show(.init(kind: .warning,
                     title: NSLocalizedString("未能修改 Codex 默认权限", comment: ""),
                     subtitle: NSLocalizedString("原有权限保留，可在 Codex 中手动设置", comment: "")), autoHideAfter: 6)
             }
