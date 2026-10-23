@@ -1,0 +1,112 @@
+{
+  "date": "2026-10-23",
+  "source": "fb006ca3c3f4f4120fdfd123dc157ec3a24c8e06",
+  "installed": {
+    "version": "0.2.3",
+    "build": 370,
+    "signature": "Developer ID P2VFVRZK7P; deep strict valid",
+    "notarized": false
+  },
+  "swiftTests": {
+    "count": 639,
+    "failures": 0
+  },
+  "reviews": {
+    "spec": "passed",
+    "standards": "delayed LCD read finding fixed and re-reviewed"
+  },
+  "nativeCLI": {
+    "cli": "codex-cli 0.162.1",
+    "legacyBypass": false,
+    "outcomes": {
+      "auto": {
+        "markerExecuted": true,
+        "nativeApprovals": [],
+        "permissionMode": "default"
+      },
+      "manual": {
+        "markerExecuted": false,
+        "nativeApprovals": [
+          "item/commandExecution/requestApproval"
+        ],
+        "permissionMode": "default"
+      },
+      "offline": {
+        "markerExecuted": false,
+        "nativeApprovals": [
+          "item/commandExecution/requestApproval"
+        ],
+        "permissionMode": "default"
+      },
+      "paused": {
+        "markerExecuted": false,
+        "nativeApprovals": [
+          "item/commandExecution/requestApproval"
+        ],
+        "permissionMode": "default"
+      },
+      "restored": {
+        "markerExecuted": true,
+        "nativeApprovals": [],
+        "permissionMode": "default"
+      }
+    },
+    "localProviderRequests": 10,
+    "scope": "Production policy/output builders and native CLI; synthetic lever facts, no physical BLE or real provider"
+  },
+  "fullAccessCLI": {
+    "cli": "codex-cli 0.162.1",
+    "legacyBypass": true,
+    "outcomes": {
+      "auto": {
+        "markerExecuted": true,
+        "nativeApprovals": [],
+        "permissionMode": "bypassPermissions"
+      },
+      "manual": {
+        "markerExecuted": true,
+        "nativeApprovals": [],
+        "permissionMode": "bypassPermissions"
+      },
+      "offline": {
+        "markerExecuted": true,
+        "nativeApprovals": [],
+        "permissionMode": "bypassPermissions"
+      },
+      "paused": {
+        "markerExecuted": true,
+        "nativeApprovals": [],
+        "permissionMode": "bypassPermissions"
+      },
+      "restored": {
+        "markerExecuted": true,
+        "nativeApprovals": [],
+        "permissionMode": "bypassPermissions"
+      }
+    },
+    "localProviderRequests": 10,
+    "scope": "Production policy/output builders and native CLI; synthetic lever facts, no physical BLE or real provider"
+  },
+  "installedHook": {
+    "CodexPreToolUse": {},
+    "CodexStop": {},
+    "realCodexConfigBytesUnchanged": true
+  },
+  "liveReadOnly": {
+    "physicalLever": 0,
+    "approvalAutoVerified": true,
+    "localDraftCountBefore": 2,
+    "localDraftCountAfter": 2,
+    "capsuleWindowSize": [
+      390,
+      150
+    ]
+  },
+  "boundaries": [
+    "CLI fixture uses synthetic lever facts and loopback provider; no physical fallback matrix claimed",
+    "Capsule window appeared in native window inventory; full accept/decline and voice-priority UI matrix still pending; consent logic covered by unit tests",
+    "No real user permission change accepted during validation",
+    "No keyboard configuration or artwork written",
+    "LCD unified multi-artwork hardware submission pending; current real user drafts retained"
+  ]
+}
