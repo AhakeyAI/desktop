@@ -1,0 +1,519 @@
+
+### src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java
+--- start/src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java
++++ current/src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java
+@@ -17,10 +17,11 @@
+     public static final byte CMD_UPDATE_PIC = (byte) 0x82;
+     public static final byte CMD_READ_PIC_STATE = (byte) 0x83;
+     public static final byte CMD_SET_AI_LIGHT_CONFIG = (byte) 0x84;
+-    public static final byte CMD_SET_LIGHT_BRIGHTNESS = (byte) 0x85;
+-    public static final byte CMD_UPDATE_STATE = (byte) 0x90;
+-    public static final byte CMD_SET_LIGHT_EFFECT = (byte) 0x91;
+-    public static final byte CMD_SET_WORK_MODE = (byte) 0x92;
++    public static final byte CMD_SET_LIGHT_BRIGHTNESS = (byte) 0x85;
++    public static final byte CMD_UPDATE_STATE = (byte) 0x90;
++    public static final byte CMD_SET_LIGHT_EFFECT = (byte) 0x91;
++    public static final byte CMD_SET_WORK_MODE = (byte) 0x92;
++    public static final byte CMD_SLEEP_WAIT_TIME = (byte) 0x95;
+     
+     // 按键子类型
+     public static final byte SUB_SHORTCUT = 0x73;
+@@ -73,11 +74,29 @@
+         return buildFrame(CMD_SET_LIGHT_BRIGHTNESS, new byte[]{(byte) value});
+     }
+ 
+-    public static byte[] setWorkMode(int mode) {
+-        return buildFrame(CMD_SET_WORK_MODE, new byte[]{(byte) Math.max(0, Math.min(3, mode))});
+-    }
+-
+-    public static byte[] setAiLightConfig(int mode, byte[] effectCodes) {
++    public static byte[] setWorkMode(int mode) {
++        return buildFrame(CMD_SET_WORK_MODE, new byte[]{(byte) Math.max(0, Math.min(3, mode))});
++    }
++
++    public static byte[] querySleepWaitTime() {
++        return buildFrame(CMD_SLEEP_WAIT_TIME, new byte[0]);
++    }
++
++    public static byte[] setSleepWaitTime(int minutes) {
++        if (!isSupportedSleepWaitTime(minutes)) {
++            throw new IllegalArgumentException("Unsupported sleep wait time: " + minutes);
++        }
++        byte[] payload = new byte[2];
++        payload[0] = (byte) (minutes & 0xFF);
++        payload[1] = (byte) ((minutes >> 8) & 0xFF);
++        return buildFrame(CMD_SLEEP_WAIT_TIME, payload);
++    }
++
++    public static boolean isSupportedSleepWaitTime(int minutes) {
++        return minutes == 0 || minutes == 30 || minutes == 60 || minutes == 120;
++    }
++
++    public static byte[] setAiLightConfig(int mode, byte[] effectCodes) {
+         byte[] payload = new byte[1 + effectCodes.length];
+         payload[0] = (byte) mode;
+         System.arraycopy(effectCodes, 0, payload, 1, effectCodes.length);
+
+### src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java
+--- start/src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java
++++ current/src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java
+@@ -4,14 +4,17 @@
+     public record CommandResponse(byte cmd, byte status, byte[] payload) {
+     }
+ 
+-    public record PictureState(
+-        int mode,
+-        int startIndex,
+-        int picLength,
+-        int frameInterval,
+-        int allModeMaxPic
+-    ) {
+-    }
++    public record PictureState(
++        int mode,
++        int startIndex,
++        int picLength,
++        int frameInterval,
++        int allModeMaxPic
++    ) {
++    }
++
++    public record SleepWaitTimeResponse(byte status, Integer minutes) {
++    }
+ 
+     private AhaKeyResponseParser() {
+     }
+@@ -30,10 +33,10 @@
+         return new CommandResponse(cmd, status, payload);
+     }
+ 
+-    public static PictureState parsePictureState(byte[] payload) {
+-        if (payload == null || payload.length < 9) {
+-            return null;
+-        }
++    public static PictureState parsePictureState(byte[] payload) {
++        if (payload == null || payload.length < 9) {
++            return null;
++        }
+         int offset = payload[0] == 0 ? 1 : 0;
+         if (payload.length < offset + 9) {
+             return null;
+@@ -42,7 +45,20 @@
+         int startIndex = (payload[offset + 1] & 0xFF) | ((payload[offset + 2] & 0xFF) << 8);
+         int picLength = (payload[offset + 3] & 0xFF) | ((payload[offset + 4] & 0xFF) << 8);
+         int frameInterval = (payload[offset + 5] & 0xFF) | ((payload[offset + 6] & 0xFF) << 8);
+-        int allModeMaxPic = (payload[offset + 7] & 0xFF) | ((payload[offset + 8] & 0xFF) << 8);
+-        return new PictureState(mode, startIndex, picLength, frameInterval, allModeMaxPic);
+-    }
+-}
++        int allModeMaxPic = (payload[offset + 7] & 0xFF) | ((payload[offset + 8] & 0xFF) << 8);
++        return new PictureState(mode, startIndex, picLength, frameInterval, allModeMaxPic);
++    }
++
++    public static SleepWaitTimeResponse parseSleepWaitTime(byte[] frame) {
++        CommandResponse response = parseCommandResponse(frame);
++        if (response == null || response.cmd() != AhaKeyProtocol.CMD_SLEEP_WAIT_TIME) {
++            return null;
++        }
++        Integer minutes = null;
++        byte[] payload = response.payload();
++        if (response.status() == 0 && payload.length >= 2) {
++            minutes = (payload[0] & 0xFF) | ((payload[1] & 0xFF) << 8);
++        }
++        return new SleepWaitTimeResponse(response.status(), minutes);
++    }
++}
+
+### src/main/java/com/example/ahakey/service/BleManager.java
+--- start/src/main/java/com/example/ahakey/service/BleManager.java
++++ current/src/main/java/com/example/ahakey/service/BleManager.java
+@@ -243,16 +243,62 @@
+         }
+     }
+ 
+-    public void sendCommandExpecting(byte[] command, byte expectedCmd) throws Exception {
+-        commandLock.lock();
+-        try {
+-            pendingNotifyFrame = null;
+-            sendCommand(command);
++    public void sendCommandExpecting(byte[] command, byte expectedCmd) throws Exception {
++        commandLock.lock();
++        try {
++            pendingNotifyFrame = null;
++            sendCommand(command);
+             waitForResponse(expectedCmd);
+         } finally {
+-            commandLock.unlock();
+-        }
+-    }
++            commandLock.unlock();
++        }
++    }
++
++    public int readSleepWaitTimeMinutes() throws Exception {
++        commandLock.lock();
++        try {
++            pendingNotifyFrame = null;
++            sendCommand(AhaKeyProtocol.querySleepWaitTime());
++            byte[] frame = waitForResponse(AhaKeyProtocol.CMD_SLEEP_WAIT_TIME);
++            AhaKeyResponseParser.SleepWaitTimeResponse parsed = AhaKeyResponseParser.parseSleepWaitTime(frame);
++            if (parsed == null || parsed.minutes() == null) {
++                throw new IOException("无法解析睡眠等待时间响应");
++            }
++            return parsed.minutes();
++        } finally {
++            commandLock.unlock();
++        }
++    }
++
++    public int setSleepWaitTimeMinutesAndVerify(int minutes) throws Exception {
++        commandLock.lock();
++        try {
++            pendingNotifyFrame = null;
++            sendCommand(AhaKeyProtocol.setSleepWaitTime(minutes));
++            byte[] setFrame = waitForResponseFrame(AhaKeyProtocol.CMD_SLEEP_WAIT_TIME, false);
++            AhaKeyResponseParser.CommandResponse setResponse = AhaKeyResponseParser.parseCommandResponse(setFrame);
++            if (setResponse == null) {
++                throw new IOException("无法解析睡眠等待时间保存响应");
++            }
++            if (setResponse.status() != 0) {
++                throw new IOException("睡眠等待时间保存失败: " + sleepWaitTimeStatusMessage(setResponse.status()));
++            }
++
++            pendingNotifyFrame = null;
++            sendCommand(AhaKeyProtocol.querySleepWaitTime());
++            byte[] queryFrame = waitForResponse(AhaKeyProtocol.CMD_SLEEP_WAIT_TIME);
++            AhaKeyResponseParser.SleepWaitTimeResponse parsed = AhaKeyResponseParser.parseSleepWaitTime(queryFrame);
++            if (parsed == null || parsed.minutes() == null) {
++                throw new IOException("无法解析睡眠等待时间回读响应");
++            }
++            if (parsed.minutes() != minutes) {
++                throw new IOException("睡眠等待时间回读不匹配: 期望 " + minutes + "，实际 " + parsed.minutes());
++            }
++            return parsed.minutes();
++        } finally {
++            commandLock.unlock();
++        }
++    }
+ 
+     public void writeData(byte[] chunk) throws IOException {
+         logger.debug("发送数据块: {} 字节", chunk.length);
+@@ -495,9 +541,13 @@
+ 
+     private static final long RECONNECT_WAIT_MS = 30000;  // 重连等待时间30秒
+ 
+-    private byte[] waitForResponse(byte expectedCmd) throws Exception {
+-        logger.debug("开始等待响应 0x{}", Integer.toHexString(expectedCmd & 0xFF));
+-        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RESPONSE_TIMEOUT_MS);
++    private byte[] waitForResponse(byte expectedCmd) throws Exception {
++        return waitForResponseFrame(expectedCmd, true);
++    }
++
++    private byte[] waitForResponseFrame(byte expectedCmd, boolean throwOnDeviceError) throws Exception {
++        logger.debug("开始等待响应 0x{}", Integer.toHexString(expectedCmd & 0xFF));
++        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RESPONSE_TIMEOUT_MS);
+         
+         while (true) {
+             // 检查连接状态，如果断开则等待重连
+@@ -529,20 +579,29 @@
+                 if (parsed == null) {
+                     throw new IOException("无法解析设备响应帧");
+                 }
+-                if (parsed.cmd() == expectedCmd) {
+-                    logger.debug("收到期望的响应 0x{}", Integer.toHexString(expectedCmd & 0xFF));
+-                    if (parsed.status() != 0) {
+-                        throw new IOException("设备返回错误码 " + parsed.status());
+-                    }
+-                    return frame;
++                if (parsed.cmd() == expectedCmd) {
++                    logger.debug("收到期望的响应 0x{}", Integer.toHexString(expectedCmd & 0xFF));
++                    if (throwOnDeviceError && parsed.status() != 0) {
++                        throw new IOException("设备返回错误码 " + parsed.status());
++                    }
++                    return frame;
+                 }
+                 logger.debug("收到不匹配的响应 0x{}，期望 0x{}，继续等待", 
+                     Integer.toHexString(parsed.cmd() & 0xFF),
+                     Integer.toHexString(expectedCmd & 0xFF));
+             }
+-            responseReady.awaitNanos(remaining);
+-        }
+-    }
++            responseReady.awaitNanos(remaining);
++        }
++    }
++
++    private String sleepWaitTimeStatusMessage(byte status) {
++        return switch (status) {
++            case 1 -> "非法值";
++            case 2 -> "固化失败";
++            case 3 -> "数据长度错误";
++            default -> "设备返回错误码 " + status;
++        };
++    }
+ 
+     private void startReader() {
+         logger.info("[BLE] startReader 开始创建读取线程");
+
+### src/main/java/com/example/ahakey/view/TopBar.java
+--- start/src/main/java/com/example/ahakey/view/TopBar.java
++++ current/src/main/java/com/example/ahakey/view/TopBar.java
+@@ -9,12 +9,15 @@
+ import com.example.ahakey.service.VoiceInputManager;
+ import com.example.ahakey.util.Icons;
+ import com.example.ahakey.util.LanguageManager;
+-import javafx.application.Platform;
+-import javafx.beans.binding.Bindings;
+-import javafx.geometry.Insets;
+-import javafx.geometry.Pos;
+-import javafx.scene.control.Button;
+-import javafx.scene.control.Label;
++import javafx.application.Platform;
++import javafx.beans.binding.Bindings;
++import javafx.beans.property.BooleanProperty;
++import javafx.beans.property.SimpleBooleanProperty;
++import javafx.geometry.Insets;
++import javafx.geometry.Pos;
++import javafx.scene.control.Button;
++import javafx.scene.control.ComboBox;
++import javafx.scene.control.Label;
+ import javafx.scene.control.Menu;
+ import javafx.scene.control.MenuBar;
+ import javafx.scene.control.MenuItem;
+@@ -989,10 +992,12 @@
+         switchState.textProperty().bind(Bindings.createStringBinding(() ->
+             languageManager.getString("status.switch") + ": " + this.deviceStatus.getSwitchTitle(),
+             this.deviceStatus.switchStateProperty()
+-        ));
+-        deviceRow2.getChildren().addAll(deviceName, switchState);
+-
+-        deviceCard.getChildren().addAll(deviceTitle, deviceRow1, deviceRow2);
++        ));
++        deviceRow2.getChildren().addAll(deviceName, switchState);
++
++        VBox sleepWaitTimeControl = createSleepWaitTimeControl();
++
++        deviceCard.getChildren().addAll(deviceTitle, deviceRow1, deviceRow2, sleepWaitTimeControl);
+ 
+         // 日志区域（提前创建以记录检测过程）
+         logArea = new TextArea();
+@@ -1106,10 +1111,137 @@
+                 boolean finalInstalled = installed;
+                 Platform.runLater(() -> updateHookCardStatus(hookCards[finalI], name, finalInstalled));
+             }
+-        }, "hook-detection").start();
+-    }
+-    
+-    private void updateHookCardStatus(VBox card, String hookName, boolean isInstalled) {
++        }, "hook-detection").start();
++    }
++
++    private VBox createSleepWaitTimeControl() {
++        VBox box = new VBox(6);
++
++        Label title = new Label(languageManager.getString("sleep-wait-time.title"));
++        title.getStyleClass().add("dialog-text");
++
++        ComboBox<SleepWaitTimeOption> options = new ComboBox<>();
++        options.getItems().addAll(
++            new SleepWaitTimeOption(0, languageManager.getString("sleep-wait-time.never")),
++            new SleepWaitTimeOption(30, languageManager.getString("sleep-wait-time.30")),
++            new SleepWaitTimeOption(60, languageManager.getString("sleep-wait-time.60")),
++            new SleepWaitTimeOption(120, languageManager.getString("sleep-wait-time.120"))
++        );
++        options.setPrefWidth(140);
++
++        Label status = new Label();
++        status.getStyleClass().add("dialog-text");
++        status.setWrapText(true);
++
++        Label description = new Label(languageManager.getString("sleep-wait-time.description"));
++        description.getStyleClass().add("dialog-text");
++        description.setWrapText(true);
++
++        Button saveButton = new Button(languageManager.getString("sleep-wait-time.save"));
++        BooleanProperty busy = new SimpleBooleanProperty(false);
++        options.disableProperty().bind(Bindings.createBooleanBinding(
++            () -> !controller.isEffectivelyConnected() || busy.get(),
++            this.deviceStatus.isConnectedProperty(),
++            busy
++        ));
++        saveButton.disableProperty().bind(Bindings.createBooleanBinding(
++            () -> !controller.isEffectivelyConnected() || busy.get() || options.getSelectionModel().getSelectedItem() == null,
++            this.deviceStatus.isConnectedProperty(),
++            busy,
++            options.getSelectionModel().selectedItemProperty()
++        ));
++
++        HBox row = new HBox(8);
++        row.setAlignment(Pos.CENTER_LEFT);
++        row.getChildren().addAll(title, options, saveButton);
++
++        saveButton.setOnAction(event -> saveSleepWaitTime(options, status, busy));
++        loadSleepWaitTime(options, status, busy);
++
++        box.getChildren().addAll(row, description, status);
++        return box;
++    }
++
++    private void loadSleepWaitTime(ComboBox<SleepWaitTimeOption> options, Label status, BooleanProperty busy) {
++        if (!controller.isEffectivelyConnected()) {
++            status.setText(languageManager.getString("sleep-wait-time.not-connected"));
++            return;
++        }
++        busy.set(true);
++        status.setText(languageManager.getString("sleep-wait-time.reading"));
++        Thread thread = new Thread(() -> {
++            try {
++                int minutes = controller.getBleManager().readSleepWaitTimeMinutes();
++                Platform.runLater(() -> {
++                    SleepWaitTimeOption option = findSleepWaitTimeOption(options, minutes);
++                    if (option == null) {
++                        options.getSelectionModel().clearSelection();
++                        status.setText(languageManager.getString("sleep-wait-time.invalid-current"));
++                    } else {
++                        options.getSelectionModel().select(option);
++                        status.setText(String.format(languageManager.getString("sleep-wait-time.current"), option.label()));
++                    }
++                });
++            } catch (Exception e) {
++                Platform.runLater(() -> status.setText(languageManager.getString("sleep-wait-time.read-failed") + e.getMessage()));
++            } finally {
++                Platform.runLater(() -> busy.set(false));
++            }
++        }, "sleep-wait-time-read");
++        thread.setDaemon(true);
++        thread.start();
++    }
++
++    private void saveSleepWaitTime(ComboBox<SleepWaitTimeOption> options, Label status, BooleanProperty busy) {
++        SleepWaitTimeOption selected = options.getSelectionModel().getSelectedItem();
++        if (selected == null) {
++            return;
++        }
++        if (!controller.isEffectivelyConnected()) {
++            status.setText(languageManager.getString("sleep-wait-time.not-connected"));
++            return;
++        }
++        busy.set(true);
++        status.setText(languageManager.getString("sleep-wait-time.saving"));
++        Thread thread = new Thread(() -> {
++            try {
++                int readback = controller.getBleManager().setSleepWaitTimeMinutesAndVerify(selected.minutes());
++                Platform.runLater(() -> {
++                    SleepWaitTimeOption option = findSleepWaitTimeOption(options, readback);
++                    if (option != null) {
++                        options.getSelectionModel().select(option);
++                        status.setText(String.format(languageManager.getString("sleep-wait-time.saved"), option.label()));
++                    } else {
++                        status.setText(languageManager.getString("sleep-wait-time.invalid-current"));
++                    }
++                });
++            } catch (Exception e) {
++                Platform.runLater(() -> status.setText(languageManager.getString("sleep-wait-time.save-failed") + e.getMessage()));
++            } finally {
++                Platform.runLater(() -> busy.set(false));
++            }
++        }, "sleep-wait-time-save");
++        thread.setDaemon(true);
++        thread.start();
++    }
++
++    private SleepWaitTimeOption findSleepWaitTimeOption(ComboBox<SleepWaitTimeOption> options, int minutes) {
++        for (SleepWaitTimeOption option : options.getItems()) {
++            if (option.minutes() == minutes) {
++                return option;
++            }
++        }
++        return null;
++    }
++
++    private record SleepWaitTimeOption(int minutes, String label) {
++        @Override
++        public String toString() {
++            return label;
++        }
++    }
++    
++    private void updateHookCardStatus(VBox card, String hookName, boolean isInstalled) {
+         for (var child : card.getChildren()) {
+             if (child instanceof Button button) {
+                 if (isInstalled) {
+
+### src/main/resources/messages_en.properties
+--- start/src/main/resources/messages_en.properties
++++ current/src/main/resources/messages_en.properties
+@@ -46,10 +46,25 @@
+ dialog.device-info=Device Info
+ dialog.log=Log
+ dialog.close=Close
+-dialog.clear-log=Clear Log
+-dialog.connection=Connection
+-dialog.device-name=Device Name
+-hook.detection=[Detection]
++dialog.clear-log=Clear Log
++dialog.connection=Connection
++dialog.device-name=Device Name
++sleep-wait-time.title=Sleep Wait Time
++sleep-wait-time.description=The keyboard enters sleep after this time with no key presses and no lighting, display, or configuration commands from the desktop app.
++sleep-wait-time.never=Never
++sleep-wait-time.30=30 min
++sleep-wait-time.60=60 min
++sleep-wait-time.120=120 min
++sleep-wait-time.save=Save
++sleep-wait-time.not-connected=Connect the keyboard first
++sleep-wait-time.reading=Reading current sleep wait time...
++sleep-wait-time.current=Current: %s
++sleep-wait-time.invalid-current=Current value is invalid. Please save again.
++sleep-wait-time.saving=Saving...
++sleep-wait-time.saved=Saved: %s
++sleep-wait-time.read-failed=Read failed: 
++sleep-wait-time.save-failed=Save failed: 
++hook.detection=[Detection]
+ hook.check-path=Checking path
+ hook.file-exists=File exists
+ hook.file-size=File size
+@@ -225,4 +240,4 @@
+ light-bar-preview.stopped=Stopped
+ light-bar-preview.stopped-detail=Defaults to solid red.
+ light-bar-preview.task-completed=Task Completed
+-light-bar-preview.task-completed-detail=Indicates current execution round is complete.+light-bar-preview.task-completed-detail=Indicates current execution round is complete.
+
+### src/main/resources/messages_zh.properties
+--- start/src/main/resources/messages_zh.properties
++++ current/src/main/resources/messages_zh.properties
+@@ -46,10 +46,25 @@
+ dialog.device-info=设备信息
+ dialog.log=日志
+ dialog.close=关闭
+-dialog.clear-log=清空日志
+-dialog.connection=连接状态
+-dialog.device-name=设备名称
+-hook.detection=[检测]
++dialog.clear-log=清空日志
++dialog.connection=连接状态
++dialog.device-name=设备名称
++sleep-wait-time.title=睡眠等待时间
++sleep-wait-time.description=键盘无按键操作，且未收到上位机灯效、显示或配置指令达到设定时间后，将进入睡眠。
++sleep-wait-time.never=永不
++sleep-wait-time.30=30 分钟
++sleep-wait-time.60=60 分钟
++sleep-wait-time.120=120 分钟
++sleep-wait-time.save=保存
++sleep-wait-time.not-connected=请先连接键盘
++sleep-wait-time.reading=正在读取当前睡眠等待时间…
++sleep-wait-time.current=当前值：%s
++sleep-wait-time.invalid-current=当前值异常，请重新保存
++sleep-wait-time.saving=正在保存…
++sleep-wait-time.saved=已保存：%s
++sleep-wait-time.read-failed=读取失败：
++sleep-wait-time.save-failed=保存失败：
++hook.detection=[检测]
+ hook.check-path=检查路径
+ hook.file-exists=文件存在
+ hook.file-size=文件大小
+@@ -225,4 +240,4 @@
+ light-bar-preview.stopped=已停止
+ light-bar-preview.stopped-detail=默认用红色常亮停住。
+ light-bar-preview.task-completed=任务完成
+-light-bar-preview.task-completed-detail=表示本轮执行已经完成。+light-bar-preview.task-completed-detail=表示本轮执行已经完成。

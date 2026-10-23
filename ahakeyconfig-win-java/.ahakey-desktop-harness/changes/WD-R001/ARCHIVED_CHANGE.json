@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "record_type": "recovery_change_identity",
+  "timestamp": "2026-10-03T01:49:12Z",
+  "actor": "DLA",
+  "harness_version": "1.0.1",
+  "workflow": "V1_CHANGE_IMPLEMENT_VERIFY_RELEASE",
+  "id": "WD-R001",
+  "title": "Windows Device Info / Session Stability Recovery",
+  "kind": "recovery_change",
+  "phase": "CHANGE",
+  "status": "ABANDONED_BY_OWNER",
+  "scope_approval_state": "INHERITED_FROM_OWNER_CONFIRMED_RECOVERY_CONTRACT",
+  "identity_correction_only": true,
+  "no_new_product_scope_approval_required": true,
+  "parent_related_historical_task": {
+    "id": "WD-001",
+    "preserve_original_identity": true,
+    "original_identity": "CP3A sleep wait time Windows integration",
+    "do_not_rewrite_or_redefine_old_pass": true
+  },
+  "bindings": {
+    "approved_scope_source": ".ahakey-desktop-harness/changes/WD-001/recovery/RECOVERY_CONTRACT_20261003T011312Z.md",
+    "approved_scope_source_json": ".ahakey-desktop-harness/changes/WD-001/recovery/RECOVERY_CONTRACT_20261003T011312Z.json",
+    "owner_confirmation_source": ".ahakey-desktop-harness/changes/WD-001/recovery/OWNER_CONFIRMATION_RECOVERY_CONTRACT_20261003T012836Z.md",
+    "owner_confirmation_source_json": ".ahakey-desktop-harness/changes/WD-001/recovery/OWNER_CONFIRMATION_RECOVERY_CONTRACT_20261003T012836Z.json",
+    "device_info_firmware_identity_stage_closure": ".ahakey-desktop-harness/v1/stage-closures/WD-001-device-info-firmware-identity-integration-20261002.md"
+  },
+  "journey_binding": {
+    "id": "J001",
+    "name": "CP3A sleep wait time Windows integration",
+    "recovery_focus": "Device Info, Firmware Identity and request/session stability"
+  },
+  "change_classification": {
+    "bug_fix": true,
+    "scope_expansion": true,
+    "architecture_change": true,
+    "protocol_change": true,
+    "high_impact": true,
+    "high_impact_reason": "shared response ownership, BLE notify reassembly, device/request/dialog lifecycle, timeout/stale handling, and bounded 0x9F firmware identity parsing"
+  },
+  "future_lifecycle_owner": {
+    "implementation": "WD-R001",
+    "review": "WD-R001",
+    "candidate": "WD-R001",
+    "build": "WD-R001",
+    "owner_uat": "WD-R001"
+  },
+  "wd002": {
+    "status": "PLANNED_CHANGE_ONLY",
+    "may_activate": false,
+    "may_implement_under_wdr001": false
+  },
+  "owner_disposition": {
+    "status": "ABANDONED_BY_OWNER",
+    "implementation": "NO_IMPLEMENTATION_REQUIRED",
+    "supersession": "SUPERSEDED_BY_OWNER_ACCEPTANCE",
+    "owner_record": ".ahakey-desktop-harness/evidence/owner-disposition-WD-001-WD-R001-WD-002-20261003.md",
+    "meaning": "Existing WD-R001 Contract / Approval records are preserved as archive, but Owner decided this recovery implementation will not be executed."
+  },
+  "next_legal_stage": {
+    "phase": "NONE",
+    "mode": "NO_IMPLEMENTATION_REQUIRED",
+    "change": "WD-R001",
+    "superseded_by": "Owner acceptance of historical WD-001 state for progression"
+  },
+  "state_file_note": "STATE.json still contains the legacy WD-001 active_change because Harness v1.0.1 helpers do not provide first-class recovery change identity reassignment with parent/related historical task binding. Do not use that legacy active_change to route this recovery implementation back into WD-001."
+}

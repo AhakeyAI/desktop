@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "task": "WD-005",
+  "build_round": 2,
+  "role": "DIB",
+  "head": "41c034171e60b2d4962b0adbe8f3cffbf80a0436",
+  "report": ".ahakey-desktop-harness/changes/WD-005/EXECUTION_REPORT_FIX_ROUND_2.md",
+  "authorization": ".ahakey-desktop-harness/evidence/20261016-wd005-round2-test-authorization.md",
+  "unique_assertions": 283,
+  "meaning": "仅本轮实际编译和离线/隔离FX/受控时序测试，不代表完整A01-A11、整应用或设备验收",
+  "executions": [
+    {"log": ".ahakey-desktop-harness/evidence/20261016-wd005-round2-compile-01.log", "exit_code": 0, "sha256": "ED10670395DCC2FB835267F368DD8D5C02504E9F70409173BF8D48C47DD42B77"},
+    {"log": ".ahakey-desktop-harness/evidence/20261016-wd005-round2-races-01.log", "exit_code": 1, "sha256": "4D6C094B5CAB338BAFDF34E39A4EE0A45F9B2ABAE2EB20F65337A4FD2C5C04A8", "meaning": "夹具与清理失败，原证据保留，不计通过"},
+    {"log": ".ahakey-desktop-harness/evidence/20261016-wd005-round2-compile-02.log", "exit_code": 0, "sha256": "17767341ED3808DD8A0E14A74399E4E54985DED2A25C94211B835D37ADB17878"},
+    {"log": ".ahakey-desktop-harness/evidence/20261016-wd005-round2-races-02.log", "exit_code": 0, "assertions": 72, "sha256": "0D92456E623C24648A133205D571E994ADAE0771D222ABCB41E8C08E0893E18F"},
+    {"log": ".ahakey-desktop-harness/evidence/20261016-wd005-round2-offline-01.log", "exit_code": 0, "assertions": 175, "sha256": "C804F7C17D56A1EB13589FD36B73ADEFBC8999E1905A628E676106E3EB856DA2"},
+    {"log": ".ahakey-desktop-harness/evidence/20261016-wd005-round2-fx-01.log", "exit_code": 0, "assertions": 36, "sha256": "689798B6712F045661E9DF9E44FF48497302F18C19A40D081BB0A2FC6DECE372"},
+    {"log": ".ahakey-desktop-harness/evidence/20261016-wd005-round2-races-03.log", "exit_code": 0, "assertions": 72, "repeat_not_additional": true, "sha256": "CE61296387F74D58B807ABEE00BF0200300551DA09702AEC92DF3F90CB3AFD64"}
+  ],
+  "check_scopes": {
+    "machine": "test-compile和三个真实Java断言入口exit0，另含diff格式和preflight；不是打包/运行正式应用",
+    "core_regression": "原A10离线覆盖加F1身份/输入/Mode、F2 CP1模式及R1同/跨连接事实；无真实Hook/语音",
+    "special_regression": "原执行报告A01-A09已执行列重新运行，加F3 FX回调/草稿版本/预览期限；未扩为整体验收",
+    "mock": "内存传输走真实服务/协议：原上传/超时/部分保存与本轮72时序断言；不是实体USB/BLE"
+  },
+  "not_executed": ["完整应用与Controller实例/实际Inspector操作", "真实USB/BLE与Flash断电", "Hook/语音/物理生命周期", "完整窗口和100/150/200% DPI", "全部磁盘故障/迁移/灯效时相", "DLA/fresh审阅及Owner Preview", "Git候选、真实包、固件配对和UAT"]
+}

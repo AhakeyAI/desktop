@@ -1,0 +1,180 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "revision": 5,
+  "build_round": 9,
+  "role": "DIB",
+  "status": "EXECUTED_PENDING_FORMAL_SUBMIT",
+  "head": "f595262207796dbf325cb9951ed3dc02b4887362",
+  "approval_sha256": "5ca53dc27d3bb53b05e7b48932f7a39b8db387fb730f112fa6e6c031e69ec6cf",
+  "source_fingerprint": "98fe4428d5187e7f900a30df99b2432c7a540fcc02f7707a7aa1ac659d2213b9",
+  "starting_source_fingerprint": "3c1e7cf6a1180291d396d2ad288f44a9b57b5a7e74b27b6334d3299b801b7c3c",
+  "actual_checks": {
+    "rerun_assertions": 608,
+    "total_assertions": 656,
+    "new_assertions": 48
+  },
+  "compile": {
+    "log": ".ahakey-desktop-harness/evidence/20261021-wd005-r9/compile-01.log",
+    "java_home": "D:\\jdk-17.0.19.10-hotspot",
+    "exit_code": 0,
+    "command": [
+      "C:\\Program Files\\apache-maven-3.9.12\\bin\\mvn.cmd",
+      "-o",
+      "-Dmaven.repo.local=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.m2repo",
+      "--batch-mode",
+      "--no-transfer-progress",
+      "test-compile",
+      "-DskipTests"
+    ]
+  },
+  "execution": [
+    {
+      "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+      "test": "DisplayConfigCapabilityChecks",
+      "argv": [
+        "-Dfile.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8",
+        "-Dsun.stderr.encoding=UTF-8",
+        "-cp",
+        "target/test-classes;target/classes;target/lib/*",
+        "com.example.ahakey.displayconfig.DisplayConfigCapabilityChecks"
+      ],
+      "log": ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigCapabilityChecks-01.log",
+      "exit_code": 0,
+      "assertions": 149
+    },
+    {
+      "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+      "test": "DisplayConfigIsolationChecks",
+      "argv": [
+        "-Dfile.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8",
+        "-Dsun.stderr.encoding=UTF-8",
+        "-cp",
+        "target/test-classes;target/classes;target/lib/*",
+        "com.example.ahakey.displayconfig.DisplayConfigIsolationChecks"
+      ],
+      "log": ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigIsolationChecks-01.log",
+      "exit_code": 0,
+      "assertions": 64
+    },
+    {
+      "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+      "test": "DisplayConfigChecks",
+      "argv": [
+        "-Dfile.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8",
+        "-Dsun.stderr.encoding=UTF-8",
+        "-cp",
+        "target/test-classes;target/classes;target/lib/*",
+        "com.example.ahakey.displayconfig.DisplayConfigChecks"
+      ],
+      "log": ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigChecks-01.log",
+      "exit_code": 0,
+      "assertions": 175
+    },
+    {
+      "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+      "test": "DisplayConfigFxChecks",
+      "argv": [
+        "-Dfile.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8",
+        "-Dsun.stderr.encoding=UTF-8",
+        "-cp",
+        "target/test-classes;target/classes;target/lib/*",
+        "com.example.ahakey.displayconfig.DisplayConfigFxChecks"
+      ],
+      "log": ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigFxChecks-01.log",
+      "exit_code": 0,
+      "assertions": 36
+    },
+    {
+      "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+      "test": "DisplayConfigRaceChecks",
+      "argv": [
+        "-Dfile.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8",
+        "-Dsun.stderr.encoding=UTF-8",
+        "-cp",
+        "target/test-classes;target/classes;target/lib/*",
+        "com.example.ahakey.displayconfig.DisplayConfigRaceChecks"
+      ],
+      "log": ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigRaceChecks-01.log",
+      "exit_code": 0,
+      "assertions": 72
+    },
+    {
+      "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+      "test": "DisplayConfigRevision3Checks",
+      "argv": [
+        "-Dfile.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8",
+        "-Dsun.stderr.encoding=UTF-8",
+        "-cp",
+        "target/test-classes;target/classes;target/lib/*",
+        "com.example.ahakey.displayconfig.DisplayConfigRevision3Checks"
+      ],
+      "log": ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigRevision3Checks-01.log",
+      "exit_code": 0,
+      "assertions": 72
+    },
+    {
+      "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+      "test": "DisplayConfigRound5Checks",
+      "argv": [
+        "-Dfile.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8",
+        "-Dsun.stderr.encoding=UTF-8",
+        "-cp",
+        "target/test-classes;target/classes;target/lib/*",
+        "com.example.ahakey.displayconfig.DisplayConfigRound5Checks"
+      ],
+      "log": ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigRound5Checks-01.log",
+      "exit_code": 0,
+      "assertions": 46
+    },
+    {
+      "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+      "test": "DisplayConfigRevision3UiChecks",
+      "argv": [
+        "-Dfile.encoding=UTF-8",
+        "-Dsun.stdout.encoding=UTF-8",
+        "-Dsun.stderr.encoding=UTF-8",
+        "-cp",
+        "target/test-classes;target/classes;target/lib/*",
+        "com.example.ahakey.displayconfig.DisplayConfigRevision3UiChecks",
+        ".ahakey-desktop-harness/evidence/20261021-wd005-r9/ui-01.png"
+      ],
+      "log": ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigRevision3UiChecks-01.log",
+      "exit_code": 0,
+      "assertions": 42
+    }
+  ],
+  "evidence_hashes": {
+    ".ahakey-desktop-harness/evidence/20261021-wd005-r9/after.json": "49786fdf9a7e365fa83513e1c9e04a0b3f023b61547d9c7af478630a61bec919",
+    ".ahakey-desktop-harness/evidence/20261021-wd005-r9/before.json": "129e632b0f15e5c2503876b6fb2af2e7e01ded24b109c8faa3f50ff61391a487",
+    ".ahakey-desktop-harness/evidence/20261021-wd005-r9/compile-01.json": "7b85ff0d8efd2e519a829c872e3c67a82078d5802570b695b928785e849b745c",
+    ".ahakey-desktop-harness/evidence/20261021-wd005-r9/compile-01.log": "47352ee5a23f2c6c48a9e9cdd269967830e0b36fb38fbcb21556bc37e186634b",
+    ".ahakey-desktop-harness/evidence/20261021-wd005-r9/diff-check.log": "0704bd5ab935f60715c3ebd372c62d40b0687b508923225667dea42e1c4acccc",
+    ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigCapabilityChecks-01.log": "49bc52b2a9161bc7eecebcb6ee6a6cce8f214c14e4b3354b9166acf24fb371d0",
+    ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigChecks-01.log": "f5c52a50b2eb634f77b83edd124a7d47f7c863c7f0821bb7ca2180eafc8085a0",
+    ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigFxChecks-01.log": "31d699cf4bf5cc99a8b1054fc9e6573e22842fc0cdc1bd5ba12e98011e78333a",
+    ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigIsolationChecks-01.log": "861b155902af347ea74628094016ed8efb75607162ce9f6d49a0ee7990cc5593",
+    ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigRaceChecks-01.log": "44e82905aeef944e05807d1c10fcc7f98cb97f734672d556495a6e684eb6d3f5",
+    ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigRevision3Checks-01.log": "1c01caf1d591cb51b7206023b648f4360267b970201b4e74df912bf83a7d57f8",
+    ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigRevision3UiChecks-01.log": "180c4bfb1168f32e9c9816516e3a3a7822aada55feb880452915457971e4b7b3",
+    ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigRound5Checks-01.log": "4fc57d0fd70d5e9b2d989d9a1a4b1dca170c608e9ca8d5409812a04a6fc4b886",
+    ".ahakey-desktop-harness/evidence/20261021-wd005-r9/source-delta.json": "a14669ef0cd321fb4a48c0825229f6bce3a654249c6bb8bb03d7ead2eeff3645",
+    ".ahakey-desktop-harness/evidence/20261021-wd005-r9/tested-input.json": "49786fdf9a7e365fa83513e1c9e04a0b3f023b61547d9c7af478630a61bec919",
+    ".ahakey-desktop-harness/evidence/20261021-wd005-r9/tests-01.json": "e55efbbd4f393e2da6210810d887c4758c149540fc2c373c4a83f65288af9087",
+    ".ahakey-desktop-harness/evidence/20261021-wd005-r9/ui-01.png": "b9590c373619fe26426e78ce790a953a778984407cb8bf821430b64769898568",
+    ".ahakey-desktop-harness/changes/WD-005/EXECUTION_REPORT_REVISION_5_ROUND_9_20261021.md": "d6085b122f7213ce5141627145f79ef87d24475f13022e2276272cbbe4f94ea3",
+    ".ahakey-desktop-harness/changes/WD-005/STATIC_IO_ISOLATION_R9_20261021.md": "607ce864f3619340f3f4dd7ae580f4ca7a7432f7f3e6f0f60357669bafe53283"
+  },
+  "limits": [
+    "仅隔离组件及内存USB/TCP，不是完整应用或硬件验收",
+    "UP-01/02、来源缺失事件、RT-03、BLE性能、完整应用缺口保留",
+    "原DLA实际复审、fresh、candidate、新包、配对身份及OwnerUAT待完成"
+  ]
+}

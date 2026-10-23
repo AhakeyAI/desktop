@@ -1,0 +1,107 @@
+[
+  {
+    "exit_code": 0,
+    "test": "DisplayConfigCapabilityChecks",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigCapabilityChecks"
+    ],
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe"
+  },
+  {
+    "exit_code": 0,
+    "test": "DisplayConfigIsolationChecks",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigIsolationChecks"
+    ],
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe"
+  },
+  {
+    "exit_code": 0,
+    "test": "DisplayConfigChecks",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigChecks"
+    ],
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe"
+  },
+  {
+    "exit_code": 0,
+    "test": "DisplayConfigFxChecks",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigFxChecks"
+    ],
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe"
+  },
+  {
+    "exit_code": 0,
+    "test": "DisplayConfigRaceChecks",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigRaceChecks"
+    ],
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe"
+  },
+  {
+    "exit_code": 0,
+    "test": "DisplayConfigRevision3Checks",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigRevision3Checks"
+    ],
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe"
+  },
+  {
+    "exit_code": 0,
+    "test": "DisplayConfigRound5Checks",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigRound5Checks"
+    ],
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe"
+  },
+  {
+    "exit_code": 0,
+    "test": "DisplayConfigRevision3UiChecks",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigRevision3UiChecks",
+      ".ahakey-desktop-harness/evidence/20261021-wd005-r8/ui-05.png"
+    ],
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe"
+  }
+]

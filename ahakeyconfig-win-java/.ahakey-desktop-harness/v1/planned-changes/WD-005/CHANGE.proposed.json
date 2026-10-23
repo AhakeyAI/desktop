@@ -1,0 +1,33 @@
+{
+  "record_type": "change_proposal_not_runtime_change",
+  "id": "WD-005",
+  "status": "DESIGN_DRAFT_NOT_APPROVED",
+  "phase": "CHANGE",
+  "ui_mode": "existing",
+  "registration": "BLOCKED_BY_EXISTING_ASSIGNMENT",
+  "classifications": [
+    "scope_expansion",
+    "architecture_change",
+    "protocol_change"
+  ],
+  "review_policy": "high_impact",
+  "journeys_proposed": [
+    "J005",
+    "J006"
+  ],
+  "owner_implementation_approval": null,
+  "production_edit_authorized": false,
+  "build_authorized": false,
+  "device_write_authorized": false,
+  "git_write_authorized": false,
+  "formal_state_modified": false,
+  "contract": "CONTRACT.md",
+  "scope": "IMPLEMENTATION_SCOPE.md",
+  "acceptance": "ACCEPTANCE.md",
+  "decisions": "DECISIONS.md",
+  "protocol_and_state": "PROTOCOL_AND_STATE.md",
+  "references": "REFERENCES.json",
+  "governance_blocker": "GOVERNANCE_BLOCKERS.md",
+  "firmware_evidence_revision": "FIRMWARE_EVIDENCE_REVISION_02.json",
+  "next": "独立设计审阅后只请求一次最终范围确认；正式登记与合法路由就绪前不得派DIB。"
+}

@@ -1,0 +1,43 @@
+{
+  "id": "WD-003",
+  "token": "20261008T005913928548Z-cecb3e",
+  "at": "2026-10-08T00:59:13+00:00",
+  "code_fingerprint": "a6dec812a6e11de5016e01b241c0e081d44350762dae206639e31ef6ddf3e58d",
+  "approval_sha256": "2368ab728f549a292367ffee6676f23c316f24dbb4414cd50728ec31ce1f4461",
+  "build_round": 9,
+  "finished_at": "2026-10-08T01:04:25+00:00",
+  "artifact_roots": [
+    ".ahakey-desktop-harness\\builds\\WD-003\\20261008T005913928548Z-cecb3e\\runtime\\ahakey-studio-1.0.0.jar",
+    ".ahakey-desktop-harness\\builds\\WD-003\\20261008T005913928548Z-cecb3e\\runtime\\lib"
+  ],
+  "files": {
+    ".ahakey-desktop-harness\\builds\\WD-003\\20261008T005913928548Z-cecb3e\\runtime\\ahakey-studio-1.0.0.jar": "52a79397c28529203c777b594555947bdba4822e004d6179d4b9ead03c59a43b",
+    ".ahakey-desktop-harness/builds/WD-003/20261008T005913928548Z-cecb3e/runtime/lib/jackson-annotations-2.16.0.jar": "c4b90ea0c0074da17efdc3aa23973525f25d6f34725692169748f529547334a6",
+    ".ahakey-desktop-harness/builds/WD-003/20261008T005913928548Z-cecb3e/runtime/lib/jackson-core-2.16.0.jar": "66e2cde4cc7e565d5fce2a2998b64e991777bf9fad4d220735c525fd8d01c31a",
+    ".ahakey-desktop-harness/builds/WD-003/20261008T005913928548Z-cecb3e/runtime/lib/jackson-databind-2.16.0.jar": "8aaf1753823be70b798290e5826ab5bfe015d35b3a36a5d3c2ec9f57d4b0138b",
+    ".ahakey-desktop-harness/builds/WD-003/20261008T005913928548Z-cecb3e/runtime/lib/javafx-base-17.0.10-win.jar": "79487133c4c27e9db9d47ec9221ef322eb3695c50aacefe2dcac924ae368b2b6",
+    ".ahakey-desktop-harness/builds/WD-003/20261008T005913928548Z-cecb3e/runtime/lib/javafx-base-17.0.10.jar": "9aff54b645962383d0167610a2e734d644bc9616445b9435604afa9c2ec38a96",
+    ".ahakey-desktop-harness/builds/WD-003/20261008T005913928548Z-cecb3e/runtime/lib/javafx-controls-17.0.10-win.jar": "0e60640b3217275b44418fc908e4320fbc4e4511096240141e213e7a8abea6fe",
+    ".ahakey-desktop-harness/builds/WD-003/20261008T005913928548Z-cecb3e/runtime/lib/javafx-controls-17.0.10.jar": "e315426bb3ce3211f6b9ce63107f4bdd6aa078f0d266636d418cd00909d57c88",
+    ".ahakey-desktop-harness/builds/WD-003/20261008T005913928548Z-cecb3e/runtime/lib/javafx-fxml-17.0.10-win.jar": "a97363c188a3a238e7b9adadc0c00617110f479fed6b8ac9898dcce13c6924db",
+    ".ahakey-desktop-harness/builds/WD-003/20261008T005913928548Z-cecb3e/runtime/lib/javafx-fxml-17.0.10.jar": "4704658510b80759bbf46d3a77351821b5942ac355ae5f8a86af30037b56dd25",
+    ".ahakey-desktop-harness/builds/WD-003/20261008T005913928548Z-cecb3e/runtime/lib/javafx-graphics-17.0.10-win.jar": "4c987a834e9ad0f6a0e5991d36d1940ae7b74be302c2a098ee8c20676fe0e2da",
+    ".ahakey-desktop-harness/builds/WD-003/20261008T005913928548Z-cecb3e/runtime/lib/javafx-graphics-17.0.10.jar": "ce23db5a755c5713451698e7b8e0ccca4bbc6f2fb8fb673576f86a613753d2d1",
+    ".ahakey-desktop-harness/builds/WD-003/20261008T005913928548Z-cecb3e/runtime/lib/jna-5.14.0.jar": "34ed1e1f27fa896bca50dbc4e99cf3732967cec387a7a0d5e3486c09673fe8c6",
+    ".ahakey-desktop-harness/builds/WD-003/20261008T005913928548Z-cecb3e/runtime/lib/jna-platform-5.14.0.jar": "ae4caceb3840730c2537f9b7fb55a01baba580286b4122951488bcee558c2449",
+    ".ahakey-desktop-harness/builds/WD-003/20261008T005913928548Z-cecb3e/runtime/lib/logback-classic-1.4.11.jar": "05850fca185dfa652969ed1e3864e365c0d724737a0f4ec68574baad1d855a0e",
+    ".ahakey-desktop-harness/builds/WD-003/20261008T005913928548Z-cecb3e/runtime/lib/logback-core-1.4.11.jar": "37ee7367bd24ca87ef77430119a1cb814a76b240afab5c17f802ea383f58aca1",
+    ".ahakey-desktop-harness/builds/WD-003/20261008T005913928548Z-cecb3e/runtime/lib/onnxruntime-1.16.3.jar": "a1722f61d5d99e8ba1c3bdcadbd47c91678888359f50e90c0b2126579f5a3850",
+    ".ahakey-desktop-harness/builds/WD-003/20261008T005913928548Z-cecb3e/runtime/lib/slf4j-api-2.0.9.jar": "0818930dc8d7debb403204611691da58e49d42c50b6ffcfdce02dadb7c3c2b6c"
+  },
+  "logs": {
+    ".ahakey-desktop-harness\\evidence\\20261008T0100_wd003_formal_build_package_20261008T005913928548Z-cecb3e.log": "0fd478ae65d2f532f0c31314144e33de24bbbd148b6fc06aa735eb4d45ebb5f1"
+  },
+  "candidate_commit": "23a898d97481cdc4b08ec4a50159d22f27c3619b",
+  "command": "git archive 23a898d97481cdc4b08ec4a50159d22f27c3619b; JAVA_HOME=D:\\jdk-17.0.19.10-hotspot; mvn -B -DskipTests package; copy target\\ahakey-studio-1.0.0.jar and target\\lib into the token runtime directory",
+  "entrypoint": "Set-Location -LiteralPath 'C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\builds\\WD-003\\20261008T005913928548Z-cecb3e\\runtime'; & 'D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe' -cp 'ahakey-studio-1.0.0.jar;lib\\*' com.example.ahakey.Main",
+  "runtime_kind": "jar_classpath",
+  "limits": "Binds declared candidate/build logs/outputs; does not prove launch, UI, Firmware, or UAT.",
+  "build_report": ".ahakey-desktop-harness/changes/WD-003/builds/20261008T005913928548Z-cecb3e/BUILD_REPORT.md",
+  "build_report_sha256": "a594a61a3f3bdb095b0a68217dfc69d5b4de9f88187938c8e4acdad67c4da7a1"
+}

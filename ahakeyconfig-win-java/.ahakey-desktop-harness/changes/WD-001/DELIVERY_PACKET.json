@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "WD-001",
+  "at": "2026-09-29T08:03:28+00:00",
+  "build_round": 1,
+  "scope": "exact_current_form_internal_integration_not_release",
+  "legacy_packet": {
+    "path": ".ahakey-desktop-harness/changes/WD-001/test_packet.json",
+    "sha256": "36366a993bcf035802385a31853bd96b862639070396c38b40359702a792694b"
+  },
+  "supplements": {
+    "DELIVERY_PROFILE.json": "4a58b1fc6fbdf8173f16946267ff87feb869fdca37457062a9a1a1b0df6cdd7a",
+    "OWNER_BRIEF_INPUT.json": "a6fe33f8e8f1e736a2dfb6a08a0a6729dd03806b52a9cb319dc788aa3ef4f2d7",
+    "ACCEPTANCE_COVERAGE.json": "9a37eace522129ad2aa1e44a4c38ac5a96b65bb9b04c621b15a0cc862cef084c",
+    "OWNER_BRIEF.md": "865620aafa4f6c054650413e60a5a4ad3a36f254742a35cd3bc161cf9d5cc3aa",
+    "FORMAL_FIRMWARE_GATE.json": "28341a4c8633a6c73586932fd0ba218e9cd701c94b4e7a61e6b06fd1740e142a"
+  },
+  "source_fingerprint": "9d786663027f229b278368f643696d6cd188a7160230be4060d0c6222427c4e5",
+  "tests_executed_by_publish": false
+}

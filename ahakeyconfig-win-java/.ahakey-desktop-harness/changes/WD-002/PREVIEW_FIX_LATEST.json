@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "id": "WD-002",
+  "token": "preview-fix-20261004T035221230624Z-6ec59b",
+  "round": 3,
+  "at": "2026-10-04T03:53:30+00:00",
+  "status": "review_pass",
+  "approval_sha256": "a34f0f05a0daee947b6ebddd45a22762a6316d6c41c2304928c2814fc57aeaed",
+  "code_fingerprint": "e2aaf8d2b0fc2ba31b9567029aa5cfc56c789189294ad1bd8f87f0ec641e392b",
+  "changed_paths": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/view/CanvasPane.java"
+  ],
+  "request_sha256": "73871f14727973743d69d2fff14b07c64036d3c38c40dde4d5573c8bebcfc11b",
+  "report": {
+    "path": ".ahakey-desktop-harness\\changes\\WD-002\\PREVIEW_FIX_REPORT_20261004_UI_BOUNCE_LOG_ROOT_CAUSE.md",
+    "sha256": "e0690ba2d2559b598f486ac8f46d419b237b5043d8f4e7b1a9b36489a29fd565"
+  },
+  "evidence": [
+    {
+      "path": ".ahakey-desktop-harness\\evidence\\owner-preview-feedback-WD-002-log-diagnosis-20261004.md",
+      "sha256": "d0cfce739e4547102009980b9fd21366656055d9f4734ffd765eda3af6442f13"
+    }
+  ],
+  "meaning": "Preview-only fix submission. Not formal builder_submission/candidate/UAT.",
+  "review_record": ".ahakey-desktop-harness\\changes\\WD-002\\PREVIEW_FIX_REVIEW_20261004_UI_BOUNCE_LOG_ROOT_CAUSE.md",
+  "review_sha256": "90586653937835f2a5c2b65ed982aba6f6ea9d561b7ae326e8eac0550d682398",
+  "review_receipt": ".ahakey-desktop-harness/previews/WD-002/fixes/preview-fix-20261004T035221230624Z-6ec59b/REVIEW.json"
+}

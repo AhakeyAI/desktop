@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "DIB / WD-005 / IMPLEMENT-FIX / 第2轮退修",
+    "conclusion": "F1-F3 修复代码及 R1 隔离处理、受控时序用例已写入，但尚未编译运行，不能宣告修复通过。"
+  },
+  "completed": [
+    "已协调后台回读与身份/模式流程，补 CP1 确认后提交及灯光旧回调隔离；preflight 和已跟踪源码差异格式检查通过。四项本轮检查正式记为 pending，旧冻结报告未改。"
+  ],
+  "remaining": [
+    "本轮编译和三个离线测试入口未执行、未 submit；正式提交前还需核清新轮报告绑定方式。未构建交测包、做 Git 写入或访问设备，未通过 DLA/fresh review、Preview 或真机验收。"
+  ],
+  "owner": {
+    "decision": {"required": true, "action": "请确认上一轮的窄授权继续适用于本轮：仅本地编译与离线/隔离 JavaFX 测试，不打包、不启动正式应用、不访问设备、不做 Git 写入。无需重新确认产品设计。"},
+    "operation": {"required": false, "action": "直接在当前对话回复授权即可，不需要切换窗口或复制提示词。"},
+    "test": {"required": false, "action": "现在不要求你操作键盘；目前没有本轮可交测包。"}
+  },
+  "next": {
+    "role": "DIB",
+    "destination": "当前对话",
+    "mode": "IMPLEMENT / FIX",
+    "task": "WD-005 第2轮 F1-F3 与 R1 验证接续",
+    "action": "取得明确运行授权后继续实际验证，修复真实失败，保存新证据并按合法流程提交原 DLA。",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "facts": [
+      "当前第2轮 IMPLEMENT/FIX，F1-F3 与 R1 源码及 DisplayConfigRaceChecks 已写，四项检查 pending；尚未编译运行或 submit，不沿用旧211项结果。",
+      "HEAD仍为41c034171e60b2d4962b0adbe8f3cffbf80a0436；原冻结报告/批准/起点、历史dirty及BLE配置保留。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005\\FIX_ROUND2_PROGRESS_20261016.md"
+    ],
+    "authorization": "原正式批准和 request-fix 仅授权合同内修复；编译/测试须先核实 Owner 本轮明确答复，本提示词自身不新增运行授权。",
+    "goal": "完成新轮真实编译/离线回归与证据绑定，合法 submit 后交原 DLA 实际审阅，不自审通过。",
+    "allowed": [
+      "读取 STATE/local、任务合同/批准/审阅/记录并运行 DIB preflight；核对现有七个修复文件。在授权后运行本地 test-compile、DisplayConfigChecks、DisplayConfigFxChecks、DisplayConfigRaceChecks，保存新日志、独立轮次报告及适用 record-check；核清 submit 固定读取旧 EXECUTION_REPORT 的绑定问题，必要时回 DLA，不能冒称旧报告为本轮报告。"
+    ],
+    "forbidden": [
+      "不扩大 allowed_paths/语义，不改固件 C:\\Users\\20825\\Desktop\\vibe-code、Harness 核心/规则/seal、旧批准/起点/冻结报告；不自动 Git 写入、打包、启动正式应用、访问设备、安装 Hook、烧录或发布；不自批 Preview/fresh review/真机通过。"
+    ]
+  }
+}

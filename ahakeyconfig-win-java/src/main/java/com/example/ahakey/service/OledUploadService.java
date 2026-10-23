@@ -1,211 +1,91 @@
 package com.example.ahakey.service;
 
-import com.example.ahakey.model.ModeSlot;
 import com.example.ahakey.protocol.AhaKeyProtocol;
 import com.example.ahakey.protocol.AhaKeyResponseParser;
-import com.example.ahakey.util.OLEDFrameEncoder;
 
-import java.nio.file.Path;
-import java.util.List;
 import java.util.function.Consumer;
 
 public final class OledUploadService {
-    private static final int USER_MODE_COUNT = 4;
-    private static final int FALLBACK_TOTAL_FRAME_SLOTS = AhaKeyProtocol.OLED_MAX_FRAMES;
-    private static final int FACTORY_RESERVED_FRAME_SLOTS = 10;
-
-    public record UploadProgress(int completedFrames, int totalFrames, String detail) {
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(OledUploadService.class);
+    private static final java.util.concurrent.atomic.AtomicLong IDS = new java.util.concurrent.atomic.AtomicLong();
+    @FunctionalInterface public interface BeforeCommit { void persist() throws java.io.IOException; }
+    public static final class UploadFailure extends Exception {
+        private final boolean commitUncertain;
+        public UploadFailure(String message, Throwable cause, boolean commitUncertain) {
+            super(message, cause);
+            this.commitUncertain = commitUncertain;
+        }
+        public boolean commitUncertain() { return commitUncertain; }
     }
 
-    public record UploadPlan(int startIndex, int frameCount, int perModeCapacity, int totalCapacity) {
-        public long encodedBytes() {
-            return (long) frameCount * AhaKeyProtocol.OLED_FRAME_BYTES;
+    public static void uploadResource(BleManager ble, long generation, int entry,
+            com.example.ahakey.model.OledResourceState.Asset asset,
+            Consumer<Integer> acknowledgedPercent, BeforeCommit beforeCommit) throws Exception {
+        uploadResource(ble, generation, entry, asset, acknowledgedPercent, beforeCommit, detail -> {});
+    }
+
+    public record Progress(int acknowledgedBytes, int totalBytes, long elapsedMillis) {
+        public String text() {
+            long rate = elapsedMillis > 0 ? acknowledgedBytes * 1000L / elapsedMillis : 0;
+            return (acknowledgedBytes * 100 / totalBytes) + "% · " + (elapsedMillis / 1000) + " 秒 · " + rate + " B/s";
         }
     }
 
-    private OledUploadService() {
-    }
-
-    public static int fallbackTotalFrameSlots() {
-        return FALLBACK_TOTAL_FRAME_SLOTS;
-    }
-
-    public static int factoryReservedFrameSlots() {
-        return FACTORY_RESERVED_FRAME_SLOTS;
-    }
-
-    public static int perModeCapacity(int totalCapacity) {
-        int managedCapacity = Math.min(totalCapacity, AhaKeyProtocol.OLED_MAX_FRAMES);
-        int userCapacity = Math.max(0, managedCapacity - FACTORY_RESERVED_FRAME_SLOTS);
-        return userCapacity / USER_MODE_COUNT;
-    }
-
-    public static int fixedStartIndex(ModeSlot mode, int totalCapacity) {
-        return FACTORY_RESERVED_FRAME_SLOTS + mode.getIndex() * perModeCapacity(totalCapacity);
-    }
-
-    public static UploadPlan validateUploadPlan(BleManager ble, ModeSlot mode, int frameCount) throws Exception {
-        if (frameCount <= 0) {
-            throw new IllegalStateException("没有可上传的 OLED 帧。");
-        }
-
-        AhaKeyResponseParser.PictureState state = ble.readPictureState(mode.getIndex());
-        int reportedCapacity = state != null && state.allModeMaxPic() > 0
-            ? state.allModeMaxPic()
-            : FALLBACK_TOTAL_FRAME_SLOTS;
-        int totalCapacity = Math.min(reportedCapacity, AhaKeyProtocol.OLED_MAX_FRAMES);
-        if (totalCapacity <= FACTORY_RESERVED_FRAME_SLOTS) {
-            throw new IllegalStateException("设备 Flash 图片分区容量异常，已取消上传。");
-        }
-
-        int perMode = perModeCapacity(totalCapacity);
-        if (perMode <= 0) {
-            throw new IllegalStateException("设备 Flash 图片分区容量异常，无法上传。");
-        }
-        if (frameCount > perMode) {
-            throw new IllegalStateException(
-                "当前 GIF 有 " + frameCount + " 帧，超过本模式上限 " + perMode + " 帧。请减少帧数、缩短 GIF 或改用静态图片。"
-            );
-        }
-
-        int startIndex = fixedStartIndex(mode, totalCapacity);
-        int endIndexExclusive = startIndex + frameCount;
-        int modeEndExclusive = startIndex + perMode;
-        if (startIndex < FACTORY_RESERVED_FRAME_SLOTS ||
-            endIndexExclusive > modeEndExclusive ||
-            endIndexExclusive > totalCapacity) {
-            throw new IllegalStateException("上传内容超过本模式可用空间，已取消上传。");
-        }
-
-        long encodedBytes = (long) frameCount * AhaKeyProtocol.OLED_FRAME_BYTES;
-        long slotBytes = (long) frameCount * AhaKeyProtocol.OLED_FRAME_SLOT_SIZE;
-        long modeBytes = (long) perMode * AhaKeyProtocol.OLED_FRAME_SLOT_SIZE;
-        long endAddressExclusive = (long) endIndexExclusive * AhaKeyProtocol.OLED_FRAME_SLOT_SIZE;
-        long flashBytes = (long) totalCapacity * AhaKeyProtocol.OLED_FRAME_SLOT_SIZE;
-        if (encodedBytes <= 0 || slotBytes > modeBytes || endAddressExclusive > flashBytes) {
-            throw new IllegalStateException("上传内容超过当前模式 Flash 分区。");
-        }
-        return new UploadPlan(startIndex, frameCount, perMode, totalCapacity);
-    }
-
-    public static void uploadGif(
-        BleManager ble,
-        ModeSlot mode,
-        Path gifPath,
-        int fps,
-        Consumer<UploadProgress> onProgress,
-        Consumer<String> onComplete,
-        Consumer<String> onError
-    ) {
-        new Thread(() -> {
+    public static void uploadResource(BleManager ble, long generation, int entry,
+            com.example.ahakey.model.OledResourceState.Asset asset,
+            Consumer<Integer> acknowledgedPercent, BeforeCommit beforeCommit, Consumer<Progress> progress) throws Exception {
+        if (asset.frames() > AhaKeyProtocol.resourceCapacity(entry)) throw new IllegalArgumentException("frames");
+        byte[] bytes = asset.bytes();
+        boolean commitSent = false;
+        long transaction = IDS.incrementAndGet();
+        long start = System.nanoTime();
+        String phase = "BEGIN";
+        int acknowledged = 0;
+        logger.info("OLED upload start txn={} connection={} entry={} bytes={} transport={}", transaction, generation, entry, bytes.length,
+                ble.isUsbTransportOpen() ? "USB" : "BLE");
+        try (BleManager.DisplayLease lease = ble.openDisplayLease(true, generation)) {
             try {
-                int frameCount = OLEDFrameEncoder.frameCount(gifPath);
-                UploadPlan plan = validateUploadPlan(ble, mode, frameCount);
-                List<OLEDFrameEncoder.EncodedFrame> frames = OLEDFrameEncoder.framesFromGif(gifPath, plan.frameCount());
-                int startIndex = plan.startIndex();
-                int delayMs = Math.max(1, 1000 / Math.max(1, fps));
-                int total = frames.size();
-
-                for (int i = 0; i < total; i++) {
-                    long address = (long) (startIndex + i) * AhaKeyProtocol.OLED_FRAME_SLOT_SIZE;
-                    if (onProgress != null) {
-                        onProgress.accept(new UploadProgress(i, total, "写入帧 " + (i + 1) + "/" + total));
-                    }
-                    ble.writeLargeData(address, frames.get(i).rgb565);
-                    Thread.sleep(100);
+                requireAck(ble.exchangeDisplay(lease, AhaKeyProtocol.resourceBegin(entry, asset.frames(), asset.crc())), AhaKeyProtocol.CMD_RESOURCE_BEGIN);
+                for (int offset = 0; offset < bytes.length; ) {
+                    phase = "CHUNK";
+                    int length = Math.min(AhaKeyProtocol.RESOURCE_CHUNK_BYTES, bytes.length - offset);
+                    requireAck(ble.exchangeDisplay(lease, AhaKeyProtocol.resourceChunk(entry, offset,
+                            java.util.Arrays.copyOfRange(bytes, offset, offset + length))), AhaKeyProtocol.CMD_RESOURCE_CHUNK);
+                    offset += length;
+                    acknowledged = offset;
+                    acknowledgedPercent.accept(offset * 100 / bytes.length);
+                    progress.accept(new Progress(offset, bytes.length, (System.nanoTime() - start) / 1_000_000));
                 }
-
-                ble.sendCommandExpecting(
-                    AhaKeyProtocol.updatePicture(mode.getIndex(), startIndex, total, delayMs),
-                    AhaKeyProtocol.CMD_UPDATE_PIC
-                );
-
-                if (onComplete != null) {
-                    onComplete.accept(mode.getTitle() + " OLED GIF 上传完成：" + total + " 帧");
-                }
+                phase = "LOCAL_COMMIT_RECORD";
+                beforeCommit.persist();
+                phase = "COMMIT";
+                commitSent = true;
+                requireAck(ble.exchangeDisplay(lease, AhaKeyProtocol.resourceCommit(entry)), AhaKeyProtocol.CMD_RESOURCE_COMMIT);
             } catch (Exception e) {
-                String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-                if (onError != null) {
-                    onError.accept(errorMsg);
-                }
+                // Quarantine before close can flush deferred writers while an upload may still be active.
+                if (!(e instanceof DeviceRejected)) ble.requireDisplayRecovery(generation);
+                throw e;
             }
-        }, "oled-upload").start();
+        } catch (Exception e) {
+            logger.warn("OLED upload incomplete txn={} connection={} entry={} phase={} acknowledged={} elapsedMs={} failure={} recoveryRequired={}",
+                    transaction, generation, entry, phase, acknowledged, (System.nanoTime() - start) / 1_000_000,
+                    e.getClass().getSimpleName(), ble.isDisplayWriteUncertain());
+            throw new UploadFailure("上传并应用未完成（" + phase + "，已确认 " + acknowledged + "/" + bytes.length + " 字节）："
+                    + e.getMessage() + " 键盘资源有效性需重新同步确认。"
+                    + (ble.isDisplayWriteUncertain() ? " AI 状态发送已暂停；请断开并重新连接键盘后同步，本地资源已保留。" : ""), e,
+                    commitSent && !(e instanceof DeviceRejected));
+        }
+        logger.info("OLED upload committed txn={} connection={} entry={} bytes={} elapsedMs={}",
+                transaction, generation, entry, bytes.length, (System.nanoTime() - start) / 1_000_000);
     }
 
-    public static void uploadStaticImage(
-        BleManager ble,
-        ModeSlot mode,
-        Path imagePath,
-        Consumer<UploadProgress> onProgress,
-        Consumer<String> onComplete,
-        Consumer<String> onError
-    ) {
-        new Thread(() -> {
-            try {
-                UploadPlan plan = validateUploadPlan(ble, mode, 1);
-                OLEDFrameEncoder.EncodedFrame frame = OLEDFrameEncoder.frameFromSingleImage(imagePath);
-                int startIndex = plan.startIndex();
-
-                long address = (long) startIndex * AhaKeyProtocol.OLED_FRAME_SLOT_SIZE;
-                if (onProgress != null) {
-                    onProgress.accept(new UploadProgress(0, 1, "写入静态图片"));
-                }
-                ble.writeLargeData(address, frame.rgb565);
-
-                ble.sendCommandExpecting(
-                    AhaKeyProtocol.updatePicture(mode.getIndex(), startIndex, 1, 0),
-                    AhaKeyProtocol.CMD_UPDATE_PIC
-                );
-
-                if (onComplete != null) {
-                    onComplete.accept(mode.getTitle() + " OLED 图片上传完成");
-                }
-            } catch (Exception e) {
-                String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-                if (onError != null) {
-                    onError.accept(errorMsg);
-                }
-            }
-        }, "oled-upload").start();
+    public static final class DeviceRejected extends java.io.IOException {
+        public DeviceRejected() { super("键盘返回 FAIL。"); }
     }
 
-    public static void previewGif(
-        BleManager ble,
-        Path gifPath,
-        int fps,
-        Consumer<String> onComplete,
-        Consumer<String> onError
-    ) {
-        new Thread(() -> {
-            try {
-                int maxFrames = perModeCapacity(FALLBACK_TOTAL_FRAME_SLOTS);
-                int frameCount = OLEDFrameEncoder.frameCount(gifPath);
-                if (frameCount > maxFrames) {
-                    throw new IllegalStateException("预览 GIF 帧数过多，请减少到 " + maxFrames + " 帧以内。");
-                }
-                List<OLEDFrameEncoder.EncodedFrame> frames = OLEDFrameEncoder.framesFromGif(gifPath, frameCount);
-                int delayMs = Math.max(1, 1000 / Math.max(1, fps));
-                int total = frames.size();
-                int startIndex = FACTORY_RESERVED_FRAME_SLOTS;
-
-                for (int i = 0; i < total; i++) {
-                    ble.writeLargeData((long) (startIndex + i) * AhaKeyProtocol.OLED_FRAME_SLOT_SIZE, frames.get(i).rgb565);
-                }
-
-                ble.sendCommandExpecting(
-                    AhaKeyProtocol.updatePicture(0, startIndex, total, delayMs),
-                    AhaKeyProtocol.CMD_UPDATE_PIC
-                );
-
-                if (onComplete != null) {
-                    onComplete.accept("OLED 预览已发送：" + total + " 帧");
-                }
-            } catch (Exception e) {
-                String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-                if (onError != null) {
-                    onError.accept("预览失败：" + errorMsg);
-                }
-            }
-        }, "oled-preview").start();
+    public static void requireAck(byte[] reply, byte opcode) throws java.io.IOException {
+        if (!AhaKeyResponseParser.isDisplayAck(reply, opcode)) throw new java.io.IOException("设备响应格式无效。");
+        if (reply[3] != 0) throw new DeviceRejected();
     }
+    private OledUploadService() { }
 }

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "WD-002",
+  "token": "preview-fix-20261004T030215684843Z-22777f",
+  "round": 1,
+  "at": "2026-10-04T03:02:15+00:00",
+  "kind": "implementation_bug",
+  "owner_record": ".ahakey-desktop-harness\\evidence\\owner-preview-feedback-WD-002-usb-ble-mode-sync-20261004.md",
+  "owner_sha256": "fefa9d68a6645a1c863940669023202d059e3021b5e83c0a003f866366f32ee0",
+  "source_preview": null,
+  "code_fingerprint_before": "937d716d93f20e7fb13e3b994f834b0b002a65fff424acb48cef0855f5981e41",
+  "changed_paths_before": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/view/CanvasPane.java"
+  ],
+  "meaning": "Owner Preview in-contract implementation defect. Fast lane: no Product Grill/Contract revision/fresh review/formal candidate required before re-preview."
+}

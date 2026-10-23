@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "id": "WD-003",
+  "pack_sha256": "1a6960d6678bd0cb973d5680209e209d56b5b6352b2ad3efe3286c7a56b79de2",
+  "reviewer_role": "DLA",
+  "review_session": "TODO separate DLA conversation identifier",
+  "builder_session": "TODO DIB conversation identifier",
+  "independence": "separate_dla_conversation",
+  "decision": "pending",
+  "scope_conclusion": "TODO explain actual diff scope",
+  "per_file": [
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    }
+  ],
+  "production_journey": "TODO real entry to service to protocol/transport to UI response; old writer handling",
+  "preserved_behavior_assessment": "TODO name relevant old behaviors and evidence/remaining tests",
+  "baseline_assessment": "TODO last verified version vs task start; state unknown honestly",
+  "protocol_assessment": "TODO cite current approved protocol or explain not applicable",
+  "risk_level": "normal",
+  "fresh_review_required": false,
+  "risk_rationale": "TODO justify risk classification",
+  "findings": [],
+  "baseline_gap_owner_record": null,
+  "fresh_review_record": null
+}

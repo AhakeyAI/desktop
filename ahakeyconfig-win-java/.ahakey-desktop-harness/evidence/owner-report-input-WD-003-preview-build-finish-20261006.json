@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "WD-003 已完成用户预览构建记录，当前仍处在验证审阅阶段。",
+    "conclusion": "预览构建已成功完成并写入预览收据；这只表示可以交给审阅方准备用户预览说明，不代表正式候选、正式构建、真机通过或用户验收通过。"
+  },
+  "completed": [
+    "已按要求读取项目规则、构建角色规则、公共 Harness 规则、当前状态、合同、审阅记录和预览开始记录。",
+    "常规 DIB preflight 已执行但被门禁拦截，原因是当前状态仍是 VERIFY / DLA_REVIEW；本轮随后只使用 preview-open 授权的隔离预览构建通道。",
+    "已在预览源码快照内显式使用十七版 Java 运行 Maven package，构建退出码为零。",
+    "已整理最小预览运行目录，只包含主 JAR 和 lib 依赖，没有绑定整个 target 目录。",
+    "已执行 preview-finish，生成 PREVIEW_RECEIPT.json，预览状态为 ready_for_owner_preview。"
+  ],
+  "remaining": [
+    "还需要 DLA 根据预览收据输出 Owner Preview 的中文操作说明；DIB 不直接宣布 Owner 可以开始测试。",
+    "正式审阅检查仍不是通过，因为高影响独立复审还没有绑定。",
+    "还没有 Git 候选、正式构建收据、正式测试包、正式固件准入、验收覆盖映射、真机测试或用户验收。",
+    "本轮没有修改生产代码，没有执行 Git 写入，没有安装、连接设备、写入设备、烧录或运行应用。"
+  ],
+  "owner": {
+    "decision": {
+      "required": false,
+      "action": "不需要新的产品或范围决策；当前仍在 WD-003 原合同和用户预览通道内。"
+    },
+    "operation": {
+      "required": true,
+      "action": "请把下方完整提示词复制到原 DLA 对话，让审阅方基于预览收据发布用户预览说明，并继续处理独立复审和正式交付缺口。"
+    },
+    "test": {
+      "required": false,
+      "action": "现在先不要自行测试；需要 DLA 先给出明确的预览启动方式、测试步骤、预期和反馈格式。"
+    }
+  },
+  "next": {
+    "role": "DLA",
+    "destination": "原 DLA 对话",
+    "mode": "PREVIEW_HANDOFF / DLA_REVIEW_CONTINUE",
+    "task": "WD-003 用户预览交接：基于 PREVIEW_RECEIPT 输出 Owner Preview 说明",
+    "action": "读取预览收据、构建日志和当前门禁状态，核对预览产物身份后，向 Owner 输出可执行的预览启动和测试说明；同时明确这不是正式用户验收，并继续保留高影响独立复审、Git 候选、正式构建和正式测试包缺口。",
+    "authorization": "DIB 已基于 DLA preview-open 授权完成 preview-finish；DLA 可以发布 Owner Preview 说明，但不能把预览结果冒充正式候选、正式构建、真机通过、用户验收或发布。",
+    "goal": "让 Owner 获得清晰的预览测试入口和反馈方式，同时保持正式交付治理链不被跳过。",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "facts": [
+      "当前任务是 WD-003，预览令牌为 preview-20261006T020818762431Z-95879e。",
+      "preview-status 显示状态为 ready_for_owner_preview。",
+      "预览收据路径为 C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-003\\preview-20261006T020818762431Z-95879e\\PREVIEW_RECEIPT.json。",
+      "预览运行目录为 C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-003\\preview-20261006T020818762431Z-95879e\\runtime。",
+      "主 JAR 为 runtime\\ahakey-studio-1.0.0.jar，收据内记录的哈希为 c172303eff6d972199904631c511cf5f8820ebf9c527921abfe94d3a7b0e320f。",
+      "构建日志为 .ahakey-desktop-harness\\evidence\\WD-003-preview-build-20261006T0218.log，日志显示 Maven package 退出码为零。",
+      "预览启动入口记录为 D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe -jar C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-003\\preview-20261006T020818762431Z-95879e\\runtime\\ahakey-studio-1.0.0.jar。",
+      "常规 DIB preflight 被 VERIFY / DLA_REVIEW 门禁拦截；本轮只使用 preview-open 授权的 Preview 构建通道。",
+      "guard-status 仍显示正式审阅、Git 候选、正式构建收据、正式测试包、正式固件准入、验收覆盖和正式 Owner UAT 缺口。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\AGENTS.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-lead\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-harness\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\STATE.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\change.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\CONTRACT.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\REVIEW.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\verification.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-003\\preview-20261006T020818762431Z-95879e\\START.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-003\\preview-20261006T020818762431Z-95879e\\PREVIEW_RECEIPT.json"
+    ],
+    "allowed": [
+      "执行 preview-status 和 guard-status 进行只读核对。",
+      "基于 PREVIEW_RECEIPT 输出 Owner Preview 的中文启动步骤、测试重点、预期结果、停止恢复和反馈格式。",
+      "明确 Owner Preview 只记录预览结果，不冒充正式 Owner UAT。",
+      "并行安排或提示后续高影响独立复审、Git 候选、正式构建、固件身份和正式测试包收口。"
+    ],
+    "forbidden": [
+      "不得把预览构建、预览收据或 Owner Preview 称为正式候选、正式构建、正式验收、真机通过、发布或 release。",
+      "不得自动 Git add、commit、push、reset、clean 或 stash。",
+      "不得自动构建安装包、安装程序、kill 进程、连接设备、写入设备或烧录。",
+      "不得修改生产 Java、合同、协议语义或 Harness 规则。",
+      "不得绕过高影响独立复审、Git 候选、正式构建收据、固件身份和正式测试包缺口。"
+    ]
+  },
+  "evidence": [
+    ".ahakey-desktop-harness/previews/WD-003/preview-20261006T020818762431Z-95879e/PREVIEW_RECEIPT.json",
+    ".ahakey-desktop-harness/evidence/WD-003-preview-build-20261006T0218.log",
+    ".ahakey-desktop-harness/previews/WD-003/preview-20261006T020818762431Z-95879e/START.json",
+    ".ahakey-desktop-harness/changes/WD-003/REVIEW.json",
+    ".ahakey-desktop-harness/changes/WD-003/verification.json"
+  ]
+}

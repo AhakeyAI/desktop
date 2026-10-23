@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "decision": "pass",
+  "pack_sha256": "2e7ab919025f1b0ca1ae339d01eb3d9fffeb8825c35a938adec008f0110f8ab0",
+  "code_fingerprint": "aea60d8c7eb936cb937cc59522fed7224c845ecf7947cedb17e8f029ad1656c8",
+  "build_round": 2,
+  "base_commit": "41c034171e60b2d4962b0adbe8f3cffbf80a0436",
+  "review_session_id": "a2ff1e32-d619-4803-bd54-bc94917d329f",
+  "review_session_id_kind": "independent audit-run UUID generated for this fresh review; not represented as a Codex thread UUID",
+  "reviewer_role": "independent DLA fresh actual reviewer",
+  "independence": "separate review run; did not rely solely on the original DLA conclusion",
+  "scope_conclusion": "PASS for the cumulative 24-file implementation against WD-005 contract with respect to source-level actual review and the second-round evidence inspected. No P0/P1 finding. This is not a complete A01-A11 pass, full-application UI verification, Owner Preview/UAT, physical USB/BLE or firmware-flash acceptance, candidate, or release approval.",
+  "identity_checks": {
+    "head": "41c034171e60b2d4962b0adbe8f3cffbf80a0436",
+    "tree": "8618ec2f2b70743dba74c595f89af7f6d49aa647",
+    "pack_canonical_sha256_recomputed": true,
+    "actual_diff_sha256": "e87420bb8c1c3eb35df105555b40159f437135c7bfe6ff1f2f1213d69185b797",
+    "code_fingerprint_recomputed": "aea60d8c7eb936cb937cc59522fed7224c845ecf7947cedb17e8f029ad1656c8",
+    "firmware_root": "C:\\Users\\20825\\Desktop\\vibe-code",
+    "firmware_changes": "none; references were treated as read-only"
+  },
+  "contract_review": {
+    "F1": {
+      "decision": "pass",
+      "analysis": "Independently traced DisplayConfigService.refresh -> BleManager.readDisplayConfig -> DisplayLease/exchangeDisplay -> transport notify parser -> FX commit. Background read holds commandTransactionLock for the batch, waits boundedly for legacyWaiters, validates connection generation and transport, and releases the lease before invoking the CP1 idle callback outside the transaction monitor. Existing typed identity, sleep, side-switch, ordinary-key, mode and runtime snapshot paths use the same transaction monitor. Mode switching increments the read ticket and prevents stale results from committing; mode completion triggers a current-mode refresh. The inspected controlled-order tests and logs support these paths, but do not constitute full Controller or hardware verification.",
+      "evidence": [
+        "src/main/java/com/example/ahakey/service/BleManager.java:138-160, 467-619, 752-785",
+        "src/main/java/com/example/ahakey/service/DisplayConfigService.java:152-211",
+        "src/main/java/com/example/ahakey/app/StudioController.java:88-120, 419-426, 517-555",
+        ".ahakey-desktop-harness/evidence/20261016-wd005-round2-races-02.log"
+      ]
+    },
+    "F2": {
+      "decision": "pass",
+      "analysis": "The actual UI disables CP1 selection while display work, reads, or mode-change acknowledgement is pending. The service rejects conflicting display transactions before changing the preference; on an admitted device connection it persists the new mode only after a successful 0x98 acknowledgement and a still-current connection generation. A negative or uncertain response leaves the previous preference in force. Offline preference behavior remains local. This review found no premature UI success or write-around in the inspected call chain.",
+      "evidence": [
+        "src/main/java/com/example/ahakey/view/InspectorPane.java:870-895",
+        "src/main/java/com/example/ahakey/app/StudioController.java:174-183",
+        "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java:160-199",
+        "src/main/java/com/example/ahakey/service/BleManager.java:752-770",
+        ".ahakey-desktop-harness/evidence/20261016-wd005-round2-races-02.log"
+      ]
+    },
+    "F3": {
+      "decision": "pass",
+      "analysis": "Device-originated FX commits pass through operation and connection-generation checks and recheck live connection state. Per-field edit revisions prevent an ACK for an earlier value from clearing a newer same-value edit; preview duration begins at ACK time. Failure paths retain the local asset/configuration while marking device facts unconfirmed, and stale device callbacks do not overwrite the new connection state. The controlled FX tests cover their stated six stale-result combinations and same-value edit case; this is not an operating-system scheduling proof.",
+      "evidence": [
+        "src/main/java/com/example/ahakey/service/DisplayConfigService.java:213-266, 268-303",
+        "src/main/java/com/example/ahakey/model/DisplayConfigState.java:34-82",
+        "src/main/java/com/example/ahakey/model/OledResourceState.java:68-107",
+        ".ahakey-desktop-harness/evidence/20261016-wd005-round2-fx-01.log",
+        ".ahakey-desktop-harness/evidence/20261016-wd005-round2-races-02.log"
+      ]
+    },
+    "R1": {
+      "decision": "pass",
+      "analysis": "Disconnect/session reset clears deferred SINGLE runtime state under commandLock. MULTI snapshots retain the generation at capture and verify it at the actual send entry/exit; stale pending state is not replayed by a new connection's idle callback. Existing current-connection preference application remains present. No mutation to slot-binding or TTL semantics was found in the reviewed diff. Physical reconnect lifecycle remains unverified.",
+      "evidence": [
+        "src/main/java/com/example/ahakey/service/BleManager.java:99-127, 724-785",
+        "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java:45-60, 594-618",
+        ".ahakey-desktop-harness/evidence/20261016-wd005-round2-races-02.log"
+      ]
+    }
+  },
+  "per_file": [
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "analysis": "Traced service wiring, shutdown, mode/sync guards, removal of legacy OLED/raw upload UI, target freezing before upload/clear, exact firmware-confirmation entry, and connection-change invalidation. Existing keyboard mode selection and old mode/light saves are gated around CP2 work; no bypass found."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+      "analysis": "Reviewed mutable FX state, resource map, brightness/effect dirty revisions, same-value edit protection, and ACK-timed 10-second preview state. State mutations are designed for FX-thread commits; no device IO is embedded."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/LightEffectStyle.java",
+      "analysis": "Unknown codes have a nullable lookup distinct from legacy OFF fallback; UI save path can retain unknown values instead of silently writing OFF. Existing IDs/codes are unchanged in cumulative diff."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/OledResourceState.java",
+      "analysis": "Checked 19-entry capacities, asset frame/byte/CRC/padding invariants, local-vs-device fact separation, unknown state preservation, mismatch downgrade, and applied/uncertain transitions. Historical metadata and local asset are retained when current device fact becomes unknown."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+      "analysis": "Adds a DisplayConfigState accessor while preserving prior StudioState fields; no replacement of key, voice, or mode state observed."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+      "analysis": "Reviewed CP2 opcodes, argument bounds, 19-entry capacity mapping, little-endian resource begin/chunk encoding, and CRC/frame sizing. No old protocol constants were removed by this hunk."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+      "analysis": "Reviewed exact CP2 frame lengths, echoed selector checks, status/metadata consistency and reply-length scanner used by USB/BLE parsing. Mismatched or malformed responses fail closed rather than updating the selected resource."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "analysis": "Reviewed CP1 mode acknowledgement, snapshot-pending retry after display idle, captured connection generation and runtime state dispatch. Existing applied-slot source remains authoritative; no slot-binding/TTL contract change found."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "analysis": "Reviewed connection generations, display admission and leases, uncertainty quarantine, legacy transaction ordering, response routing, disconnect reset, 0x00 status exception, deferred runtime state and USB/BLE transport pinning. Actual typed legacy callers that share commandTransactionLock serialize with display reads; controlled tests cover the identified orderings. No overlapping CP2/legacy response path found in reviewed call graph."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "analysis": "Reviewed import/migration, target snapshot, worker serialization, connection and operation checks, on-demand reads, dirty-value merge, preview/save ACK paths, partial nine-item saves, upload persistence and stale callback filtering. No P0/P1 issue found. A failed light-bar refresh conservatively marks OLED current device facts unknown too; local assets and historical metadata remain intact, so this is not treated as a blocking data-loss defect."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/FirmwareLightSimulator.java",
+      "analysis": "Compared the simulator's 17 effect cases and eight-pixel model against the referenced firmware renderer lineage as recorded in the fixed evidence. Static/golden evidence is scoped; no claim of physical photometric equivalence."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+      "analysis": "Reviewed bounded index load, version/status validation, constrained non-symlink asset paths, immutable asset writes, atomic index replacement, tombstones and shared-file cleanup. Device facts are deliberately reloaded as unknown. Disk fault/migration lifecycle coverage remains incomplete."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledUploadService.java",
+      "analysis": "Confirmed the new path uses one admitted lease for begin/chunks/commit, sequential acknowledged chunks, pre-commit local persistence and explicit commit uncertainty. Unknown writes quarantine before releasing the lease; no call to the retired raw-write/0x82 uploader remains."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "analysis": "Reviewed CP2 report framing, exact response extraction and per-reader-session callback isolation. No retry of a potentially ambiguous CP2 command was found. Real USB device behavior was not exercised."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+      "analysis": "Reviewed source-size/frame limits, full GIF compositing/disposal path, 160x80 RGB565 output, frame-slot padding and preview output. Assertions cover only listed vectors; full image corpus and visual rendering were not run in this review."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "analysis": "Reviewed integration of the shared canvas with eight-light simulation and OLED prepared-frame preview, plus busy/hotspot and draft indicators. No separate competing device-write path was introduced; real layout/DPI remains unverified."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "analysis": "Reviewed existing inspector entry points, per-target OLED actions, confirmation and disabled states, light save/preview controls, unknown effect handling, and CP1 mode pending guard. Source-level wiring is coherent; no full JavaFX application interaction was performed."
+    },
+    {
+      "path": "src/main/resources/fxml/CanvasLayout.fxml",
+      "analysis": "Cumulative layout changes add the intended canvas/light/OLED overlay nodes without replacing the application shell. Source inspection only; no rendered-window acceptance."
+    },
+    {
+      "path": "src/main/resources/messages_en.properties",
+      "analysis": "New display labels/status keys are scoped to the feature; no existing protocol or device labels were removed in the reviewed hunk."
+    },
+    {
+      "path": "src/main/resources/messages_zh.properties",
+      "analysis": "Chinese display labels distinguish local draft, device-known/unknown, apply, preview, and failure states; no claim of device playback on upload ACK."
+    },
+    {
+      "path": "src/main/resources/style.css",
+      "analysis": "Styles are feature-scoped additions for the display panel/canvas indicators; no global theme replacement or unrelated UI restyle identified."
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigChecks.java",
+      "analysis": "Inspected offline assertions and directly bound round-two log: 175 assertions exit 0 for the report's stated scope. Not treated as product/UAT coverage."
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigFxChecks.java",
+      "analysis": "Inspected isolated JavaFX/service checks and directly bound 36-assertion log. It does not instantiate the full app/Controller workflow."
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRaceChecks.java",
+      "analysis": "Reviewed F1 ordering, F2 admission/ACK, F3 stale FX/edit revision, and R1 generation cases; directly bound 72-assertion round-two log exits 0, with a repeat log recorded separately. Initial failed fixture run remains preserved and is not counted as a pass."
+    }
+  ],
+  "findings": [],
+  "non_blocking_observations": [
+    "A failed refresh from either display-config panel currently marks all cached OLED device facts unknown, including when only light-bar reads were in progress (DisplayConfigService.java:198-200). This preserves local assets and metadata and fails conservatively; scoped invalidation by refreshed panel would make status more precise, but no data loss or unsafe write was identified. Not a P0/P1 blocker for this review."
+  ],
+  "evidence_binding": {
+    "second_round_report": ".ahakey-desktop-harness/changes/WD-005/EXECUTION_REPORT_FIX_ROUND_2.md",
+    "checks": ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_2.json",
+    "offline_log": ".ahakey-desktop-harness/evidence/20261016-wd005-round2-offline-01.log",
+    "fx_log": ".ahakey-desktop-harness/evidence/20261016-wd005-round2-fx-01.log",
+    "race_log": ".ahakey-desktop-harness/evidence/20261016-wd005-round2-races-02.log",
+    "repeat_race_log": ".ahakey-desktop-harness/evidence/20261016-wd005-round2-races-03.log",
+    "assertions_claimed": 283,
+    "assertions_scope": "175 offline + 36 isolated JavaFX/service + 72 controlled-race assertions; race repeat is not additive. No full app, real USB/BLE, firmware flash, full DPI, or Owner UAT claim."
+  },
+  "preserved_behavior_assessment": "Reviewed retained input/key/side-switch/mode, voice, identity, USB/BLE and CP1 call paths within source scope. CP2 work is serialized/quarantined; full behavior protection is not proven without application and physical-device tests.",
+  "protocol_assessment": "The implementation's CP2 opcodes and target mapping were reviewed against the fixed protocol/state and firmware reference records. The firmware workspace remained read-only. Referenced firmware identity is not evidence that the corresponding HEX is installed on a physical keyboard.",
+  "remaining_verification": [
+    "Owner Preview with the actual packaged application and real Inspector/Canvas interaction.",
+    "Physical USB and BLE behavior, including upload ACK loss, reconnect, persistence after power cycle, and display/light output.",
+    "Full window sizing and 100/150/200-percent DPI checks.",
+    "Full A01-A11 acceptance and Owner UAT; not completed by the source review or the 283 scoped assertions.",
+    "Git candidate, artifact identity, Windows firmware admission and physical firmware identity are still separate downstream gates."
+  ],
+  "formal_review_note": "This is a fresh independent actual-review record bound to the existing pack only. It does not overwrite REVIEW.json, change verification.json, authorize a build, create a candidate, or close WD-005. The original DLA must perform the authorized formal record backfill/routing.",
+  "session": "a2ff1e32-d619-4803-bd54-bc94917d329f",
+  "analysis": "{\"scope_conclusion\":\"PASS for the cumulative 24-file implementation against WD-005 contract with respect to source-level actual review and the second-round evidence inspected. No P0/P1 finding. This is not a complete A01-A11 pass, full-application UI verification, Owner Preview/UAT, physical USB/BLE or firmware-flash acceptance, candidate, or release approval.\",\"contract_review\":{\"F1\":{\"decision\":\"pass\",\"analysis\":\"Independently traced DisplayConfigService.refresh -> BleManager.readDisplayConfig -> DisplayLease/exchangeDisplay -> transport notify parser -> FX commit. Background read holds commandTransactionLock for the batch, waits boundedly for legacyWaiters, validates connection generation and transport, and releases the lease before invoking the CP1 idle callback outside the transaction monitor. Existing typed identity, sleep, side-switch, ordinary-key, mode and runtime snapshot paths use the same transaction monitor. Mode switching increments the read ticket and prevents stale results from committing; mode completion triggers a current-mode refresh. The inspected controlled-order tests and logs support these paths, but do not constitute full Controller or hardware verification.\",\"evidence\":[\"src/main/java/com/example/ahakey/service/BleManager.java:138-160, 467-619, 752-785\",\"src/main/java/com/example/ahakey/service/DisplayConfigService.java:152-211\",\"src/main/java/com/example/ahakey/app/StudioController.java:88-120, 419-426, 517-555\",\".ahakey-desktop-harness/evidence/20261016-wd005-round2-races-02.log\"]},\"F2\":{\"decision\":\"pass\",\"analysis\":\"The actual UI disables CP1 selection while display work, reads, or mode-change acknowledgement is pending. The service rejects conflicting display transactions before changing the preference; on an admitted device connection it persists the new mode only after a successful 0x98 acknowledgement and a still-current connection generation. A negative or uncertain response leaves the previous preference in force. Offline preference behavior remains local. This review found no premature UI success or write-around in the inspected call chain.\",\"evidence\":[\"src/main/java/com/example/ahakey/view/InspectorPane.java:870-895\",\"src/main/java/com/example/ahakey/app/StudioController.java:174-183\",\"src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java:160-199\",\"src/main/java/com/example/ahakey/service/BleManager.java:752-770\",\".ahakey-desktop-harness/evidence/20261016-wd005-round2-races-02.log\"]},\"F3\":{\"decision\":\"pass\",\"analysis\":\"Device-originated FX commits pass through operation and connection-generation checks and recheck live connection state. Per-field edit revisions prevent an ACK for an earlier value from clearing a newer same-value edit; preview duration begins at ACK time. Failure paths retain the local asset/configuration while marking device facts unconfirmed, and stale device callbacks do not overwrite the new connection state. The controlled FX tests cover their stated six stale-result combinations and same-value edit case; this is not an operating-system scheduling proof.\",\"evidence\":[\"src/main/java/com/example/ahakey/service/DisplayConfigService.java:213-266, 268-303\",\"src/main/java/com/example/ahakey/model/DisplayConfigState.java:34-82\",\"src/main/java/com/example/ahakey/model/OledResourceState.java:68-107\",\".ahakey-desktop-harness/evidence/20261016-wd005-round2-fx-01.log\",\".ahakey-desktop-harness/evidence/20261016-wd005-round2-races-02.log\"]},\"R1\":{\"decision\":\"pass\",\"analysis\":\"Disconnect/session reset clears deferred SINGLE runtime state under commandLock. MULTI snapshots retain the generation at capture and verify it at the actual send entry/exit; stale pending state is not replayed by a new connection's idle callback. Existing current-connection preference application remains present. No mutation to slot-binding or TTL semantics was found in the reviewed diff. Physical reconnect lifecycle remains unverified.\",\"evidence\":[\"src/main/java/com/example/ahakey/service/BleManager.java:99-127, 724-785\",\"src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java:45-60, 594-618\",\".ahakey-desktop-harness/evidence/20261016-wd005-round2-races-02.log\"]}},\"per_file\":[{\"path\":\"src/main/java/com/example/ahakey/app/StudioController.java\",\"analysis\":\"Traced service wiring, shutdown, mode/sync guards, removal of legacy OLED/raw upload UI, target freezing before upload/clear, exact firmware-confirmation entry, and connection-change invalidation. Existing keyboard mode selection and old mode/light saves are gated around CP2 work; no bypass found.\"},{\"path\":\"src/main/java/com/example/ahakey/model/DisplayConfigState.java\",\"analysis\":\"Reviewed mutable FX state, resource map, brightness/effect dirty revisions, same-value edit protection, and ACK-timed 10-second preview state. State mutations are designed for FX-thread commits; no device IO is embedded.\"},{\"path\":\"src/main/java/com/example/ahakey/model/LightEffectStyle.java\",\"analysis\":\"Unknown codes have a nullable lookup distinct from legacy OFF fallback; UI save path can retain unknown values instead of silently writing OFF. Existing IDs/codes are unchanged in cumulative diff.\"},{\"path\":\"src/main/java/com/example/ahakey/model/OledResourceState.java\",\"analysis\":\"Checked 19-entry capacities, asset frame/byte/CRC/padding invariants, local-vs-device fact separation, unknown state preservation, mismatch downgrade, and applied/uncertain transitions. Historical metadata and local asset are retained when current device fact becomes unknown.\"},{\"path\":\"src/main/java/com/example/ahakey/model/StudioState.java\",\"analysis\":\"Adds a DisplayConfigState accessor while preserving prior StudioState fields; no replacement of key, voice, or mode state observed.\"},{\"path\":\"src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java\",\"analysis\":\"Reviewed CP2 opcodes, argument bounds, 19-entry capacity mapping, little-endian resource begin/chunk encoding, and CRC/frame sizing. No old protocol constants were removed by this hunk.\"},{\"path\":\"src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java\",\"analysis\":\"Reviewed exact CP2 frame lengths, echoed selector checks, status/metadata consistency and reply-length scanner used by USB/BLE parsing. Mismatched or malformed responses fail closed rather than updating the selected resource.\"},{\"path\":\"src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java\",\"analysis\":\"Reviewed CP1 mode acknowledgement, snapshot-pending retry after display idle, captured connection generation and runtime state dispatch. Existing applied-slot source remains authoritative; no slot-binding/TTL contract change found.\"},{\"path\":\"src/main/java/com/example/ahakey/service/BleManager.java\",\"analysis\":\"Reviewed connection generations, display admission and leases, uncertainty quarantine, legacy transaction ordering, response routing, disconnect reset, 0x00 status exception, deferred runtime state and USB/BLE transport pinning. Actual typed legacy callers that share commandTransactionLock serialize with display reads; controlled tests cover the identified orderings. No overlapping CP2/legacy response path found in reviewed call graph.\"},{\"path\":\"src/main/java/com/example/ahakey/service/DisplayConfigService.java\",\"analysis\":\"Reviewed import/migration, target snapshot, worker serialization, connection and operation checks, on-demand reads, dirty-value merge, preview/save ACK paths, partial nine-item saves, upload persistence and stale callback filtering. No P0/P1 issue found. A failed light-bar refresh conservatively marks OLED current device facts unknown too; local assets and historical metadata remain intact, so this is not treated as a blocking data-loss defect.\"},{\"path\":\"src/main/java/com/example/ahakey/service/FirmwareLightSimulator.java\",\"analysis\":\"Compared the simulator's 17 effect cases and eight-pixel model against the referenced firmware renderer lineage as recorded in the fixed evidence. Static/golden evidence is scoped; no claim of physical photometric equivalence.\"},{\"path\":\"src/main/java/com/example/ahakey/service/OledResourceStore.java\",\"analysis\":\"Reviewed bounded index load, version/status validation, constrained non-symlink asset paths, immutable asset writes, atomic index replacement, tombstones and shared-file cleanup. Device facts are deliberately reloaded as unknown. Disk fault/migration lifecycle coverage remains incomplete.\"},{\"path\":\"src/main/java/com/example/ahakey/service/OledUploadService.java\",\"analysis\":\"Confirmed the new path uses one admitted lease for begin/chunks/commit, sequential acknowledged chunks, pre-commit local persistence and explicit commit uncertainty. Unknown writes quarantine before releasing the lease; no call to the retired raw-write/0x82 uploader remains.\"},{\"path\":\"src/main/java/com/example/ahakey/service/UsbHidTransport.java\",\"analysis\":\"Reviewed CP2 report framing, exact response extraction and per-reader-session callback isolation. No retry of a potentially ambiguous CP2 command was found. Real USB device behavior was not exercised.\"},{\"path\":\"src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java\",\"analysis\":\"Reviewed source-size/frame limits, full GIF compositing/disposal path, 160x80 RGB565 output, frame-slot padding and preview output. Assertions cover only listed vectors; full image corpus and visual rendering were not run in this review.\"},{\"path\":\"src/main/java/com/example/ahakey/view/CanvasController.java\",\"analysis\":\"Reviewed integration of the shared canvas with eight-light simulation and OLED prepared-frame preview, plus busy/hotspot and draft indicators. No separate competing device-write path was introduced; real layout/DPI remains unverified.\"},{\"path\":\"src/main/java/com/example/ahakey/view/InspectorPane.java\",\"analysis\":\"Reviewed existing inspector entry points, per-target OLED actions, confirmation and disabled states, light save/preview controls, unknown effect handling, and CP1 mode pending guard. Source-level wiring is coherent; no full JavaFX application interaction was performed.\"},{\"path\":\"src/main/resources/fxml/CanvasLayout.fxml\",\"analysis\":\"Cumulative layout changes add the intended canvas/light/OLED overlay nodes without replacing the application shell. Source inspection only; no rendered-window acceptance.\"},{\"path\":\"src/main/resources/messages_en.properties\",\"analysis\":\"New display labels/status keys are scoped to the feature; no existing protocol or device labels were removed in the reviewed hunk.\"},{\"path\":\"src/main/resources/messages_zh.properties\",\"analysis\":\"Chinese display labels distinguish local draft, device-known/unknown, apply, preview, and failure states; no claim of device playback on upload ACK.\"},{\"path\":\"src/main/resources/style.css\",\"analysis\":\"Styles are feature-scoped additions for the display panel/canvas indicators; no global theme replacement or unrelated UI restyle identified.\"},{\"path\":\"src/test/java/com/example/ahakey/displayconfig/DisplayConfigChecks.java\",\"analysis\":\"Inspected offline assertions and directly bound round-two log: 175 assertions exit 0 for the report's stated scope. Not treated as product/UAT coverage.\"},{\"path\":\"src/test/java/com/example/ahakey/displayconfig/DisplayConfigFxChecks.java\",\"analysis\":\"Inspected isolated JavaFX/service checks and directly bound 36-assertion log. It does not instantiate the full app/Controller workflow.\"},{\"path\":\"src/test/java/com/example/ahakey/displayconfig/DisplayConfigRaceChecks.java\",\"analysis\":\"Reviewed F1 ordering, F2 admission/ACK, F3 stale FX/edit revision, and R1 generation cases; directly bound 72-assertion round-two log exits 0, with a repeat log recorded separately. Initial failed fixture run remains preserved and is not counted as a pass.\"}],\"non_blocking_observations\":[\"A failed refresh from either display-config panel currently marks all cached OLED device facts unknown, including when only light-bar reads were in progress (DisplayConfigService.java:198-200). This preserves local assets and metadata and fails conservatively; scoped invalidation by refreshed panel would make status more precise, but no data loss or unsafe write was identified. Not a P0/P1 blocker for this review.\"],\"remaining_verification\":[\"Owner Preview with the actual packaged application and real Inspector/Canvas interaction.\",\"Physical USB and BLE behavior, including upload ACK loss, reconnect, persistence after power cycle, and display/light output.\",\"Full window sizing and 100/150/200-percent DPI checks.\",\"Full A01-A11 acceptance and Owner UAT; not completed by the source review or the 283 scoped assertions.\",\"Git candidate, artifact identity, Windows firmware admission and physical firmware identity are still separate downstream gates.\"]}",
+  "record_mapping": {
+    "source": ".ahakey-desktop-harness/changes/WD-005/reviews/20261016T081132690299Z-1be30b/FRESH_INDEPENDENT_REVIEW_ROUND_2_20261016.json",
+    "source_sha256": "701b045782d43962a5a37a270a480dfd5f3e586c47060fc1e7ec767f302e2458",
+    "session_field": "review_session_id",
+    "analysis_fields": [
+      "scope_conclusion",
+      "contract_review",
+      "per_file",
+      "non_blocking_observations",
+      "remaining_verification"
+    ],
+    "meaning": "原DLA仅作字段映射；完整保留独立审阅内容，不新造独立审阅，不将audit-run UUID称为Codex thread UUID。原fresh JSON不变。"
+  }
+}

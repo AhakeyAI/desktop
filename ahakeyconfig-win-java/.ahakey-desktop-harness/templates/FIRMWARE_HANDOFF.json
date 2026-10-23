@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "meaning": "Windows-side Firmware intake binding template; observed evidence is not approval or Firmware PASS.",
+  "windows_change": "WD-XXX",
+  "firmware_gate": {
+    "path": "",
+    "sha256": ""
+  },
+  "firmware_artifacts": [],
+  "protocol_evidence": [],
+  "implementation_evidence": [],
+  "test_evidence": [],
+  "journey_or_module": [],
+  "product_ambiguities_for_owner": [],
+  "owner_manual_transcription_required": false
+}

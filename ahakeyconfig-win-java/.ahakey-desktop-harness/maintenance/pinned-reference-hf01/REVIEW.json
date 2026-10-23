@@ -1,0 +1,60 @@
+{
+  "result": "PASS",
+  "independent_agent": "01a15daf-a2dc-77f2-acd2-7702fda66b45",
+  "identity_source": "本次独立审阅进程的 CODEX_THREAD_ID；不是维护实现者的身份，也不是自行生成的标识。",
+  "reviewed_on": "2026-10-21",
+  "role": "独立 Harness 窄维护审阅者，非产品 DIB",
+  "scope": "pinned-reference-hf01 候选维护包；不认证产品 UAT，不授权新协议，不执行安装。",
+  "findings": [],
+  "analysis": [
+    {
+      "area": "授权与精确差异",
+      "conclusion": "Owner 授权允许固定已批准引用的独立窄维护，禁止改变原批准和产品范围。候选 desktop.py 与现运行版本的完整字节比较确认仅有 reference_inputs 中两个差异块：引入 resolved_ids，以及对已解析的精确 ID 跳过工作区文件 SHA 检查；不存在其他字节变化。运行 helper 与 BASELINE.old_desktop_sha256 一致。"
+    },
+    {
+      "area": "固定版本身份链与换行等价",
+      "conclusion": "独立使用只读 Git 命令逐项核对全部九个引用：完整 commit 08dd24a6e8ce3526fef36661f5c97940add98a25、literal path、普通 blob 类型及 mode、OID、Git blob SHA256 均匹配清单。九份 approved-bytes 的 SHA256 均精确等于原 REFERENCES 的 SHA，且逐字节仅做 CRLF 到 LF 替换后均与固定 blob 相同。没有解码、编码转换、空白修剪或接纳新协议内容。CP2-COMMAND-HEADER 的混合换行副本明确标为重建字节，未当作历史备份。prepare.py 虽从当前 header 删除两行生成候选副本，仍必须同时通过原批准 SHA 与固定 blob 等价校验，不构成内容放宽。"
+    },
+    {
+      "area": "任务隔离与失败关闭",
+      "conclusion": "非 WD-005 任务返回空映射，继续执行原有严格引用校验。WD-005 要求 revision、approval canonical SHA、原 REFERENCES 文件 SHA、Owner 证据 SHA 及九条完整映射全部匹配。实际 revision 为 5，批准与原引用哈希均已独立核对。CP2-ARCH、CP2-EXECUTION、CP2-GATE 三项未映射引用仍执行原路径与原始 SHA 检查；重复 ID、原字段完整性、SHA 格式、device_related 的协议要求保持。缺清单、缺副本、缺对象或身份变化均不能回退至变化中的工作区。"
+    },
+    {
+      "area": "seal 与路径保护",
+      "conclusion": "resolved_ids 在使用 WD-005 清单前调用 policy_ok。新增 Python helper 与 JSON 清单位于现有 governance_snapshot 覆盖的 .agents 树内；安装器要求新快照差异路径集合精确等于三个运行目标。approved-bytes 位于维护目录，不直接进入 seal，但其原始字节 SHA 经受 seal 保护的清单 reference.sha256 间接固定，并在每次解析时重新核对。child 拒绝路径穿越、符号链接和 reparse 路径，Git tree 模式也排除链接与子模块。当前 seal 的 54 个既有条目哈希与实际文件全部一致，seal 自身 SHA 与 BASELINE 一致。"
+    },
+    {
+      "area": "安装边界与回滚",
+      "conclusion": "安装器先绑定 REVIEW 精确文件哈希、Owner 授权、旧 helper 和旧 seal，检查三个固定目标集合及两个新增目标不存在，校验生产指纹与保护文件。获取原正式写锁后再次检查这些前置条件，保存旧 helper/seal 原始字节与备份清单，然后以同目录临时文件和 os.replace 逐文件原子替换。新 seal 只允许预期治理路径差异，随后重新校验 policy 和保护文件；try 内异常通过原字节恢复 helper/seal，并移除新增目标。该机制是正式写锁下的逐文件原子写入和异常回滚，不声称断电或强制终止时具备跨文件事务原子性。已保留备份且存在安装尝试时拒绝直接重试，需人工检查恢复。未执行 install，包括 dry-run。"
+    },
+    {
+      "area": "范围与只读边界",
+      "conclusion": "BASELINE 的 5086 项保护路径仅覆盖 STATE、local 和 WD-005 原任务树，逐项哈希核对全部匹配。按现运行 source_fingerprint 规则独立计算的 94 项生产输入指纹为 98fe4428d5187e7f900a30df99b2432c7a540fcc02f7707a7aa1ac659d2213b9，与基线一致。两个新增运行目标仍不存在，helper 尚未安装。候选解析器只执行 rev-parse、ls-tree、cat-file，不调用过滤器、hooks、checkout、fetch；禁用 optional locks、replace objects、lazy fetch 与终端提示。当前 Git 为 2.54.0.windows.1；本轮独立读取额外禁用了所有传输协议。没有执行生产构建、应用、桥接、设备操作、固件写入或 Git 写入。"
+    },
+    {
+      "area": "测试证据及审阅限制",
+      "conclusion": "只读审查 test_pinned_references.py 和现有 TEST_RESULTS.json/log。记录显示 25 项通过、0 failures、0 errors；日志 SHA256 独立核对为 3e4402395762f52c55eb8678c71f048ed79cf9595d851537ce15d8721493cda4。用例覆盖解析拒绝路径、非映射 gate、其他任务、安装前置拒绝、成功安装及安装后故障回滚。解析测试隔离时 mock policy/Git 读取，安装测试 mock artifacts；因此不将这些用例宣称为真实安装或故障全覆盖。本轮没有重跑测试，也没有改写当前日志或两次 sandbox 权限失败的既有历史；没有独立复核范围外的历史日志。"
+    }
+  ],
+  "files": {
+    "desktop.py": "0f50072cf35b7cd540bebe0f2fb4a2d3b4ef48d80ee49f4455f6ab3ccaa624d3",
+    "pinned_references.py": "57f524dd7dde1a38696396a050c000382720b0050d285896fbebb4643a1242ed",
+    "pinned_reference_wd005.json": "32dde938024969fc9368241e6bb6c6ee7ff543eb05a282a5c096b701fa7bc380",
+    "BASELINE.json": "a9bb480577444c7e70713bfd762a2bd12898f88cb7b92260a0616b2658cdc685",
+    "PLAN.md": "6c8c820044fcaa7948fcf2ab3c14e7229d442ec2d9b570e473fc90b8f31afce6",
+    "prepare.py": "931b2c2fcf9f63e25f7bf36c0ad60e63d5a6880fa35c6c518870512531c3dc89",
+    "install_reviewed.py": "104a98c17da2a77c19c70789a4d4d47468a38e66f6596a367dcda04dfb3b2b9b",
+    "test_pinned_references.py": "169554fdd27ceb565c4aa9d8eb9befc88f6a214ab37fa035cca463fe6e843fc8",
+    "TEST_RESULTS.json": "c1fa10fd1d93a59cce54ef0d9f5594e950fd6d922ea4813bae172dc92b909c42",
+    "TEST_RESULTS.log": "3e4402395762f52c55eb8678c71f048ed79cf9595d851537ce15d8721493cda4",
+    "approved-bytes/CP2-COMMAND-HEADER.bin": "d60fb7a5d6732eff46f4229cb7d09f5d3c4afe73f550efe0ac238c8443cd39eb",
+    "approved-bytes/CP2-CONFIG.bin": "46b462bc5530a105f73fa2aaca785b28403336dc2eab3c22230ef76d1c3ff0ce",
+    "approved-bytes/CP2-LIGHTS-HEADER.bin": "c0f476bfbdfef615a9835fba293848f468e9d8ae323d38c980e36051b0698ad7",
+    "approved-bytes/CP2-LIGHTS.bin": "6f0b767c74f410380cdcd04c23351683041b90ff352de0b4ad039d5bf48beb5e",
+    "approved-bytes/CP2-MAP-IMPL.bin": "72926d0e053b6ebca33ec8992d26ea6109b3aba7afbe18d653626315b134bdb1",
+    "approved-bytes/CP2-PREVIEW.bin": "cdbd40137aa3065d50e80300ccfc3a68565ff6a7ef7a9b872fc75a21e8599100",
+    "approved-bytes/CP2-PROTOCOL.bin": "968a72e823343a00ed2d82739d0faba4f1a72ac66322e5cb416b17c97c5d9dc0",
+    "approved-bytes/CP2-RESOURCE-MAP.bin": "8e1983f31575165202606cb98135e8a0bdcb6a6445448956030ddb14d09f2f00",
+    "approved-bytes/CP2-UPLOAD.bin": "3707922380c827fd0160185935faa4b8d4b0539959fb71b11a9d0763c54d6887"
+  }
+}

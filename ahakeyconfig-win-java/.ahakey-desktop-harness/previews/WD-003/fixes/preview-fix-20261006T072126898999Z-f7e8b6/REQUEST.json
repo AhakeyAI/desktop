@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "id": "WD-003",
+  "token": "preview-fix-20261006T072126898999Z-f7e8b6",
+  "round": 2,
+  "at": "2026-10-06T07:21:26+00:00",
+  "kind": "implementation_bug",
+  "owner_record": ".ahakey-desktop-harness\\evidence\\20261006T1518_wd003_owner_cp4c_short_action_ui_scope.md",
+  "owner_sha256": "d81782d9fe561df0abee7118bbb6c9475d45595e23d9cdc8d80187ee9000e6b1",
+  "source_preview": {
+    "schema_version": 1,
+    "id": "WD-003",
+    "token": "preview-20261006T033312012647Z-3272d5",
+    "at": "2026-10-06T04:34:13+00:00",
+    "status": "fail",
+    "owner_record": ".ahakey-desktop-harness\\evidence\\20261006_wd003_owner_preview_mi01_fail_0x97_timeout.md",
+    "owner_sha256": "0a784f28a93dca8edbbc8e3702d26ed67f3ddbcd32965e07ba5e5ee154f9090d",
+    "preview_receipt_sha256": "3131c85184b0d72632c48fffab16f56bb9a7f78b6246f4bebc7a4575c5f43186",
+    "snapshot_fingerprint": "5883b29c6bba5f2e010389a5523ff20ba07d64055e0a51d38cfcdea49e6b50d0",
+    "scope": "OWNER_PREVIEW_RESULT_ONLY_NOT_OWNER_UAT"
+  },
+  "code_fingerprint_before": "94b87d74ea1eb1ef3695a2186e5e07e08da1d86f48d6992f091f6035f0d39a0e",
+  "changed_paths_before": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/model/StudioState.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+    "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java"
+  ],
+  "meaning": "Owner Preview in-contract implementation defect. Fast lane: no Product Grill/Contract revision/fresh review/formal candidate required before re-preview."
+}

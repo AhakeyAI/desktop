@@ -1,0 +1,22 @@
+{
+  "id": "WD-001",
+  "at": "2026-09-29T03:36:06+00:00",
+  "build_round": 1,
+  "code_fingerprint": "9d786663027f229b278368f643696d6cd188a7160230be4060d0c6222427c4e5",
+  "approval_sha256": "e3e98aaa2d079f24e24d34b4db5936ad9391500eebd4b20a888d4b3cf6d9909c",
+  "windows_artifact": {
+    "path": ".ahakey-desktop-harness/changes/WD-001/BUILD_RECEIPT.json",
+    "sha256": "4bff770d9efae5a87326513aa6596871796c2e1e5487b5f897591b2c82c394ea"
+  },
+  "firmware_identity": {
+    "path": ".ahakey-desktop-harness/changes/WD-001/FIRMWARE_IDENTITY.json",
+    "sha256": "0c5ea20b0573a25a130224785d9685a865213c56fda67835cc2b482d4526bd8b"
+  },
+  "brief": {
+    "path": ".ahakey-desktop-harness/changes/WD-001/OWNER_TEST.md",
+    "sha256": "1a2ed32fbf70012c661d44a7b02e70bcd7e602a65bc8ad895624e2b271bbb624"
+  },
+  "guard_candidate_sha256": "6148e098218e82be702964b14cacc91a49c5769211a7d16a611c8575c51fdb49",
+  "guard_build_sha256": "c3834c89ae4b18c676a3db00c1f6a823590f4448ce300637dc3c13851d4f2bde",
+  "guard_brief_sha256": "c7770753a4827052b0db6f573357a00b46907e5ee91299ef28c6b97d65c75f79"
+}

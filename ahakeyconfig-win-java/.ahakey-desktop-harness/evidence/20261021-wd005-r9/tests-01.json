@@ -1,0 +1,115 @@
+[
+  {
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+    "test": "DisplayConfigCapabilityChecks",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigCapabilityChecks"
+    ],
+    "log": ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigCapabilityChecks-01.log",
+    "exit_code": 0
+  },
+  {
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+    "test": "DisplayConfigIsolationChecks",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigIsolationChecks"
+    ],
+    "log": ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigIsolationChecks-01.log",
+    "exit_code": 0
+  },
+  {
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+    "test": "DisplayConfigChecks",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigChecks"
+    ],
+    "log": ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigChecks-01.log",
+    "exit_code": 0
+  },
+  {
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+    "test": "DisplayConfigFxChecks",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigFxChecks"
+    ],
+    "log": ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigFxChecks-01.log",
+    "exit_code": 0
+  },
+  {
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+    "test": "DisplayConfigRaceChecks",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigRaceChecks"
+    ],
+    "log": ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigRaceChecks-01.log",
+    "exit_code": 0
+  },
+  {
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+    "test": "DisplayConfigRevision3Checks",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigRevision3Checks"
+    ],
+    "log": ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigRevision3Checks-01.log",
+    "exit_code": 0
+  },
+  {
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+    "test": "DisplayConfigRound5Checks",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigRound5Checks"
+    ],
+    "log": ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigRound5Checks-01.log",
+    "exit_code": 0
+  },
+  {
+    "java": "D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe",
+    "test": "DisplayConfigRevision3UiChecks",
+    "argv": [
+      "-Dfile.encoding=UTF-8",
+      "-Dsun.stdout.encoding=UTF-8",
+      "-Dsun.stderr.encoding=UTF-8",
+      "-cp",
+      "target/test-classes;target/classes;target/lib/*",
+      "com.example.ahakey.displayconfig.DisplayConfigRevision3UiChecks",
+      ".ahakey-desktop-harness/evidence/20261021-wd005-r9/ui-01.png"
+    ],
+    "log": ".ahakey-desktop-harness/evidence/20261021-wd005-r9/DisplayConfigRevision3UiChecks-01.log",
+    "exit_code": 0
+  }
+]

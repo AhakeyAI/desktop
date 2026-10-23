@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "record_type": "recovery_identity_binding",
+  "timestamp": "2026-10-03T01:49:12Z",
+  "actor": "DLA",
+  "recovery_change": "WD-R001",
+  "title": "Windows Device Info / Session Stability Recovery",
+  "identity_correction": {
+    "reason": "Owner corrected that the new recovery implementation must not continue under original WD-001 task identity.",
+    "product_scope_reopened": false,
+    "new_owner_product_decision_required": false
+  },
+  "historical_task": {
+    "id": "WD-001",
+    "identity": "CP3A sleep wait time historical feature task",
+    "preserved": true,
+    "history_rewritten": false,
+    "old_pass_redefined": false,
+    "old_pass_transferred_to_current_source_or_artifact": false
+  },
+  "related_records": {
+    "device_info_firmware_identity_stage_closure": ".ahakey-desktop-harness/v1/stage-closures/WD-001-device-info-firmware-identity-integration-20261002.md",
+    "recovery_contract_source": ".ahakey-desktop-harness/changes/WD-001/recovery/RECOVERY_CONTRACT_20261003T011312Z.md",
+    "owner_confirmation_source": ".ahakey-desktop-harness/changes/WD-001/recovery/OWNER_CONFIRMATION_RECOVERY_CONTRACT_20261003T012836Z.md"
+  },
+  "approved_recovery_scope_owner": "WD-R001",
+  "future_lifecycle_owner": {
+    "implementation": "WD-R001",
+    "review": "WD-R001",
+    "candidate": "WD-R001",
+    "build": "WD-R001",
+    "owner_uat": "WD-R001"
+  },
+  "inactive_changes": {
+    "WD-002": "PLANNED_CHANGE_ONLY"
+  },
+  "do_not_route_recovery_back_to": [
+    "WD-001"
+  ]
+}

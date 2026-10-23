@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "WD-004",
+  "reviewed_by_dla": false,
+  "review_note": "",
+  "test_goal": "WS3 CP1 AI runtime presentation Windows adapter",
+  "ui_entry": "",
+  "java_executable": "",
+  "connection": "",
+  "preconditions": "",
+  "recovery": "",
+  "result_return": "",
+  "deliberately_unchanged": "",
+  "steps": []
+}

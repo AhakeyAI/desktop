@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "id": "WD-003",
+  "at": "2026-10-06T07:21:06+00:00",
+  "from_revision": 5,
+  "to_revision": 6,
+  "reason": {
+    "path": ".ahakey-desktop-harness\\evidence\\20261006T1518_wd003_cp4c_0x97_save_encoding_reconcile_reason.md",
+    "sha256": "1a1bf50aff7826111e19db624579d306ebd3fece82fe1fd73916dc8a9fd2af1f"
+  },
+  "owner": {
+    "path": ".ahakey-desktop-harness\\evidence\\20261006T1518_wd003_owner_cp4c_short_action_ui_scope.md",
+    "sha256": "d81782d9fe561df0abee7118bbb6c9475d45595e23d9cdc8d80187ee9000e6b1"
+  },
+  "previous_approval": {
+    "at": "2026-10-06T03:09:53+00:00",
+    "owner_record": ".ahakey-desktop-harness\\evidence\\20261006T110555_wd003_usbhidtransport_scope_owner_approval.md",
+    "owner_record_sha256": "ea783e7ebda4751cbbe467bfda179f6740acfe5c5330932b1ab1023774e325ca",
+    "inputs": {
+      "meta_sha256": "8d6d16a396cd5a39e25acd1a66b47ba1fd0aac133e4acbd0949eec60b9e33812",
+      "assets": {
+        "CONTRACT.md": "296d1722456e349a509b28dc4377e441ba4798cb5e032cfefb371a6cc8196cb5",
+        "REFERENCES.json": "ec217850f4b774bfa2ec994edb63195ff63a9680365f375e8fec068fe5f86ee1"
+      },
+      "reference_sha256": "0b3d680303677b4e9965c4cbfe817b806f5fc832409560347f64c6db07aae912"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "new_approval": {
+    "at": "2026-10-06T07:21:06+00:00",
+    "owner_record": ".ahakey-desktop-harness\\evidence\\20261006T1518_wd003_owner_cp4c_short_action_ui_scope.md",
+    "owner_record_sha256": "d81782d9fe561df0abee7118bbb6c9475d45595e23d9cdc8d80187ee9000e6b1",
+    "inputs": {
+      "meta_sha256": "2e45137dda6d8466aebcc28ae3f8b27a291da8fb71b53943dfc66a4f2966acff",
+      "assets": {
+        "CONTRACT.md": "a25e0bac25a57fb26cec9ac1dd72f3296ac3f0ffdf35d9fd24ef226705495ce9",
+        "REFERENCES.json": "8fda3cea969c35fdc2b0da77df0a2efee4aa8f73a28b470016e035979865e97f"
+      },
+      "reference_sha256": "74b8a24fea795018fcffc71287642277dc646b5460f7da5b42b3476f392cff55"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "origin_repair": null,
+  "changed_paths_since_start": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/model/StudioState.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+    "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java"
+  ],
+  "scope_outside_contract": []
+}

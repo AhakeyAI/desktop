@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "harness_extension": "1.2.0",
+  "owner_dispatched": true,
+  "install_relationship": "exclusive_switchable",
+  "variants": [
+    "lite-no-local-model",
+    "model-bundled"
+  ],
+  "shared_voice_note": "Lite retains existing Windows system voice/Win+H; local model capability is disabled, not all voice.",
+  "task_default": "scoped_jar_integration",
+  "batch_default": "two_installer_variants_with_bidirectional_switch_tests",
+  "release_authorized_by_test": false,
+  "firmware_producer": "firmware_harness_readonly_reference",
+  "generation_rules": {
+    "direct_chinese_steps": true,
+    "absolute_paths": true,
+    "hash_does_not_prove_device_flashed": true,
+    "readiness_is_not_final_gate": true
+  },
+  "facts_level": "Runtime identity and record checks only; not human-authentication or execution proof.",
+  "release_batch_reminder_threshold": 5,
+  "variant_selection": "owner_selects_lite_model_or_both"
+}

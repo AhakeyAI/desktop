@@ -1,0 +1,48 @@
+﻿WD-003 build_round 9 revalidate checks (corrected side-switch write anchor)
+timestamp=2026-10-07T17:29:27.5849514+08:00
+workdir=C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java
+java=D:\jdk-17.0.19.10-hotspot\bin\java.exe
+JAVA_VERSION: openjdk version "17.0.19" 2026-04-21 LTS
+JAVA_VERSION: OpenJDK Runtime Environment Microsoft-13877129 (build 17.0.19+10-LTS)
+JAVA_VERSION: OpenJDK 64-Bit Server VM Microsoft-13877129 (build 17.0.19+10-LTS, mixed mode, sharing)
+CHECK: JDK17 Maven compile (skip tests)
+RESULT compile_exit=0
+CHECK: static no 0x98 ordinary-key readback misuse
+RESULT no_0x98_hits=PASS
+CHECK: static no USB mi_00 or col02 config-channel fallback
+RESULT no_mi00_col02_fallback=PASS
+CHECK: static CP4D/CP4C anchors present
+ANCHOR_OK: CMD_ORDINARY_KEY_READBACK
+ANCHOR_OK: parseOrdinaryKeyReadback
+ANCHOR_OK: readOrdinaryKeyConfig
+ANCHOR_OK: readSideSwitchConfig
+ANCHOR_OK: writeSideSwitchConfig
+ANCHOR_OK: ORDINARY_KEY_READBACK_FRAME_MAX
+RESULT anchors=PASS
+CHECK: git diff names read-only snapshot
+GIT_DIFF_NAME: warning: in the working copy of 'ahakeyconfig-win-java/.ahakey-desktop-harness/STATE.json', LF will be replaced by CRLF the next time Git touches it
+GIT_DIFF_NAME: warning: in the working copy of 'ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-002/change.json', LF will be replaced by CRLF the next time Git touches it
+GIT_DIFF_NAME: warning: in the working copy of 'ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/HARNESS_FEEDBACK.md', LF will be replaced by CRLF the next time Git touches it
+GIT_DIFF_NAME: warning: in the working copy of 'ahakeyconfig-win-java/.ahakey-desktop-harness/journeys/REGISTRY.json', LF will be replaced by CRLF the next time Git touches it
+GIT_DIFF_NAME: warning: in the working copy of 'ahakeyconfig-win-java/src/main/java/com/example/ahakey/app/StudioController.java', LF will be replaced by CRLF the next time Git touches it
+GIT_DIFF_NAME: warning: in the working copy of 'ahakeyconfig-win-java/src/main/java/com/example/ahakey/model/StudioState.java', LF will be replaced by CRLF the next time Git touches it
+GIT_DIFF_NAME: warning: in the working copy of 'ahakeyconfig-win-java/src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java', LF will be replaced by CRLF the next time Git touches it
+GIT_DIFF_NAME: warning: in the working copy of 'ahakeyconfig-win-java/src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java', LF will be replaced by CRLF the next time Git touches it
+GIT_DIFF_NAME: warning: in the working copy of 'ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/BleManager.java', LF will be replaced by CRLF the next time Git touches it
+GIT_DIFF_NAME: warning: in the working copy of 'ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/DeviceSyncService.java', LF will be replaced by CRLF the next time Git touches it
+GIT_DIFF_NAME: warning: in the working copy of 'ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/UsbHidTransport.java', LF will be replaced by CRLF the next time Git touches it
+GIT_DIFF_NAME: warning: in the working copy of 'ahakeyconfig-win-java/src/main/java/com/example/ahakey/view/InspectorPane.java', LF will be replaced by CRLF the next time Git touches it
+GIT_DIFF_NAME: ahakeyconfig-win-java/.ahakey-desktop-harness/STATE.json
+GIT_DIFF_NAME: ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-002/change.json
+GIT_DIFF_NAME: ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/HARNESS_FEEDBACK.md
+GIT_DIFF_NAME: ahakeyconfig-win-java/.ahakey-desktop-harness/journeys/REGISTRY.json
+GIT_DIFF_NAME: ahakeyconfig-win-java/META-INF/MANIFEST.MF
+GIT_DIFF_NAME: ahakeyconfig-win-java/config_server.json
+GIT_DIFF_NAME: ahakeyconfig-win-java/src/main/java/com/example/ahakey/app/StudioController.java
+GIT_DIFF_NAME: ahakeyconfig-win-java/src/main/java/com/example/ahakey/model/StudioState.java
+GIT_DIFF_NAME: ahakeyconfig-win-java/src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java
+GIT_DIFF_NAME: ahakeyconfig-win-java/src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java
+GIT_DIFF_NAME: ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/BleManager.java
+GIT_DIFF_NAME: ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/DeviceSyncService.java
+GIT_DIFF_NAME: ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/UsbHidTransport.java
+GIT_DIFF_NAME: ahakeyconfig-win-java/src/main/java/com/example/ahakey/view/InspectorPane.java

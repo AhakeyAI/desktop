@@ -1,0 +1,271 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "pack_sha256": "df63e71fe522d61a2b5af477d72e973c6961e45527c87ae54983cd39f4343d39",
+  "reviewer_role": "DLA",
+  "review_session": "原DLA对话，2026-10-21 round8实际复审",
+  "builder_session": "已有DIB实现对话，revision5/round8 submit 2026-10-21T01:44:05+00:00",
+  "independence": "separate_dla_conversation",
+  "decision": "fail",
+  "scope_conclusion": "累计35文件当前字节与固定pack一致；相对R7快照20文件逐字节不变，承接历史同字节分析并复核新准入接入影响；15文件即11生产+4测试本轮增量核对。范围符合合同，但R8-F1明确UI身份说明仍误判，需原合同内窄修；R8-F2低风险测试初始化失败清理问题一并修复。不是重新设计或判定608项失败。",
+  "per_file": [
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "purpose": "显示配置入口、上传确认、模式准入和旧写入收口",
+      "reviewed_hunks": "逐hunk核对连接/断开/状态FX票据、自动0x9F去重与重试、处理成功后capabilityChanged/CP1偏好/输入回读；确认人工HEX入口删除。重读applyBleStatus与全量保存旧0x84/85过滤，未发现本轮确定回归；完整生命周期未动态覆盖。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DeviceStatus.java",
+      "purpose": "固件身份展示状态",
+      "reviewed_hunks": "完整新增IdentityState属性和clear语义；原主次版本/display回退保留，不把可写UI属性当权限源。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+      "purpose": "显示草稿和设备事实模型",
+      "reviewed_hunks": "新增capabilityReady和disabledReasonKey仅为可观察展示状态，原草稿、revision及资源模型不改。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/LightEffectStyle.java",
+      "purpose": "未知灯效保留",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：第七轮after与第五轮固定包after逐字节一致，当前工作区也匹配；承接同字节已审分析并复核接口替换不改变此文件调用契约。第五轮分析：本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：累计diff；新增nullable解析，不改变旧API默认行为。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/OledResourceState.java",
+      "purpose": "资源身份和状态转换",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：第七轮after与第五轮固定包after逐字节一致，当前工作区也匹配；承接同字节已审分析并复核接口替换不改变此文件调用契约。第五轮分析：本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：完整模型；防御性复制、容量/CRC、上传未知和本地草稿分离。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+      "purpose": "接入显示配置状态",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：第七轮after与第五轮固定包after逐字节一致，当前工作区也匹配；承接同字节已审分析并复核接口替换不改变此文件调用契约。第五轮分析：本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：累计diff；仅新增显示配置模型入口。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+      "purpose": "CP2构包",
+      "reviewed_hunks": "精确原字节r001判定、可选状态零与尾部NUL，未使用宽松显示解析结果授予权限；对照固件command_solve.c的0x9F响应。累计CP2构包保持原审阅行为。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+      "purpose": "CP2定长解帧和语义检查",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：第七轮after与第五轮固定包after逐字节一致，当前工作区也匹配；承接同字节已审分析并复核接口替换不改变此文件调用契约。第五轮分析：本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：读回selector、索引、长度、资源valid/write_state/CRC；非零错误拒绝。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "purpose": "运行态身份、事实和补发",
+      "reviewed_hunks": "准入由缓存字符串改为BleManager可信身份；不支持时MULTI不改变偏好，legacy SINGLE保留；复核onDeviceReady与hook/TTL/应用入口无额外事实修改。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "purpose": "显示事务与传输互斥",
+      "reviewed_hunks": "逐hunk及真实调用链：私有发布身份、对象票据/代次校验、0x9F活动lease等待/排队去重、原始响应授权、异常发布、reset与USB切换、收包锁、CP1发送前后复核、CP2强制lease/exchange、0x90保留及未知ACK不被识别清除。无确定新增数据写入阻断；同名历史开发固件不可区分是合同已知限制。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CodexSessionDiscoveryService.java",
+      "purpose": "会话来源分类",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：第七轮after与第五轮固定包after逐字节一致，当前工作区也匹配；承接同字节已审分析并复核接口替换不改变此文件调用契约。第五轮分析：本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：累计diff及来源查询；有限元信息、UNKNOWN不当作BACKGROUND，不读取聊天正文。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "purpose": "显示配置业务和FX提交",
+      "reviewed_hunks": "人工confirm替换为capabilityChanged；connectionChanged/updateWriteReady/refresh保持草稿分离、按需回读及操作连接校验。自动身份不清writeUncertain，不自动上传保存。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/FirmwareLightSimulator.java",
+      "purpose": "本地八灯预览",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：第七轮after与第五轮固定包after逐字节一致，当前工作区也匹配；承接同字节已审分析并复核接口替换不改变此文件调用契约。第五轮分析：本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：全部效果并对照绑定固件；整数运算、运动顺序和亮度。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookDispatchServer.java",
+      "purpose": "真实运行态反馈",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：第七轮after与第五轮固定包after逐字节一致，当前工作区也匹配；承接同字节已审分析并复核接口替换不改变此文件调用契约。第五轮分析：本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：累计diff；分发返回SENT/PENDING/IGNORED/FAILED，未修改权限策略；匿名Kimi入口可达R4-F2。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+      "purpose": "本地成品库",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：第七轮after与第五轮固定包after逐字节一致，当前工作区也匹配；承接同字节已审分析并复核接口替换不改变此文件调用契约。第五轮分析：本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：完整加载/原子保存/清除；历史未引用资源保留符合合同。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledUploadService.java",
+      "purpose": "Begin/chunk/Commit上传事务",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：第七轮after与第五轮固定包after逐字节一致，当前工作区也匹配；承接同字节已审分析并复核接口替换不改变此文件调用契约。第五轮分析：本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：完整服务；单lease、逐ACK、offset进度、失败不盲重试、Commit未知和关闭前恢复隔离。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "purpose": "USB会话和CP2写入",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：第七轮after与第五轮固定包after逐字节一致，当前工作区也匹配；承接同字节已审分析并复核接口替换不改变此文件调用契约。第五轮分析：本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：累计diff；旧线程句柄/回调隔离，CP2短写不再二次写，定长提帧。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/AiRuntimeStore.java",
+      "purpose": "绑定与运行事实分离",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：第七轮after与第五轮固定包after逐字节一致，当前工作区也匹配；承接同字节已审分析并复核接口替换不改变此文件调用契约。第五轮分析：本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：累计diff；加载清除历史lastIdeState、保留用户绑定。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+      "purpose": "资源转换",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：第七轮after与第五轮固定包after逐字节一致，当前工作区也匹配；承接同字节已审分析并复核接口替换不改变此文件调用契约。第五轮分析：本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：完整转换流程；尺寸、GIF合成/disposal、RGB565成品及补齐。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "purpose": "成品与八灯画布",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：第七轮after与第五轮固定包after逐字节一致，当前工作区也匹配；承接同字节已审分析并复核接口替换不改变此文件调用契约。第五轮分析：本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：累计diff及调用链；预览、动画生命周期、热点锁；完整窗口行为未运行验证。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "purpose": "OLED/灯光编辑界面",
+      "reviewed_hunks": "逐hunk核对四分区、装饰函数与真实调用、模式/身份/忙锁、亮度独立和OLED设备按钮。确认R8-F1：任务槽support仍用静态二值文案，将未识别误称不支持，与动态原因冲突。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/fxml/CanvasLayout.fxml",
+      "purpose": "八灯与OLED布局",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：第七轮after与第五轮固定包after逐字节一致，当前工作区也匹配；承接同字节已审分析并复核接口替换不改变此文件调用契约。第五轮分析：本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：完整布局及diff；节点数量、OLED尺寸、草稿提示。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/messages_en.properties",
+      "purpose": "英文提示",
+      "reviewed_hunks": "新增身份/禁用原因及分区标题，移除人工确认key；英文含义与中文对应，遗留support硬编码未接入，见R8-F1。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/messages_zh.properties",
+      "purpose": "中文提示",
+      "reviewed_hunks": "新增四分区和不同身份/忙/模式状态文案，旧confirm key移除；说明文字本身可区分未知和不支持，但真实support入口遗漏。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/style.css",
+      "purpose": "局部对比度与禁用样式",
+      "reviewed_hunks": "仅新增display-disabled-reason文字样式；标题/原因不位于新禁用operations容器，原OLED禁用文字规则不变。实际高DPI/交互未执行。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigCapabilityChecks.java",
+      "purpose": "自动能力准入和隔离验证",
+      "reviewed_hunks": "辅助Standards核对加主DLA复核：101项真实内存准入/代次/租约/失败及合成FX断言；未覆写发送以绕过。R8-F2为startup在try外的失败清理遗漏。FX票据谓词/合成控件不能代替实际控制器与面板全链测试。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigChecks.java",
+      "purpose": "限定范围检查",
+      "reviewed_hunks": "共享FakeSession改为内存0x9F响应真实准入，可选择未准入构造；原断言未放宽，USB/TCP生产发送路径保留。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigEncodingProbe.java",
+      "purpose": "限定范围检查",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：第七轮after与第五轮固定包after逐字节一致，当前工作区也匹配；承接同字节已审分析并复核接口替换不改变此文件调用契约。第五轮分析：本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：stdout/stderr/JUL/文件编码探针；不等于产品运行。只读审查源码和既有日志，本DLA未执行测试。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigFxChecks.java",
+      "purpose": "限定范围检查",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：第七轮after与第五轮固定包after逐字节一致，当前工作区也匹配；承接同字节已审分析并复核接口替换不改变此文件调用契约。第五轮分析：本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：隔离FX、成品像素、热点与服务断言。只读审查源码和既有日志，本DLA未执行测试。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigIsolationChecks.java",
+      "purpose": "新增64项隔离及匿名终态补发检查",
+      "reviewed_hunks": "构造隔离断言移到身份读取前以适配共享夹具真实0x9F；没有将假USB常开替换BLE覆盖，reset/lease/补发隔离保持。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRaceChecks.java",
+      "purpose": "限定范围检查",
+      "reviewed_hunks": "手动模拟身份成功后的capabilityChanged通知以恢复按需读取；局部服务竞态仍有效，但不证明完整控制器接线。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3Checks.java",
+      "purpose": "限定范围检查",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：本轮全部hunk：USB选择通过useUsb，BLE仍关闭USB/内存TCP；移除不完整USB替身，基类反射适配。上传故障、查询节流及运行态断言未绕开。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3UiChecks.java",
+      "purpose": "限定范围检查",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：第七轮after与第五轮固定包after逐字节一致，当前工作区也匹配；承接同字节已审分析并复核接口替换不改变此文件调用契约。第五轮分析：本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：真实CSS与绑定helper共42项；未创建完整Inspector。只读审查源码和既有日志，本DLA未执行测试。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRound5Checks.java",
+      "purpose": "三项缺陷46项组合回归",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：本轮全部hunk和完整组合用例：反射字段定位BleManager，发送路径经共用安全夹具；TCP IOException不被USB截走，pending原时间/最新替换/过期/未知隔离测试仍走真实生产逻辑。R5-F1已修复。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/OfflineBleManager.java",
+      "purpose": "测试专用I/O封闭入口",
+      "reviewed_hunks": "当前字节与R7已审快照相同，核对累计影响后承接既有分析，不冒称本轮重新运行。历史分析：完整final夹具：构造失败不返回；反射替换USB，受保护发现只读内存，connect在建线程/Socket前失败。MemoryUsb覆盖全部五个可达实例方法不调用super；不覆写send/exchange/flush/reset。未模拟onFrame接收链，明确为覆盖限制。",
+      "within_contract": true
+    }
+  ],
+  "production_journey": "当前连接0x9F→同事务队列等待lease→精确响应/票据→BleManager可信身份→Controller受代次保护的FX提交→DisplayConfigService/CP1→Inspector设备按钮与底层准入。旧0x84/85全量写入过滤及0x90保留。任务槽残留support文案未走新身份状态，见F1。",
+  "preserved_behavior_assessment": "隔离接口、事务锁/lease、ACK未知、TTL/终态补发、草稿与设备事实分离、旧输入/模式/版本路径静态保留；608仅离线限定断言。上传首传、来源缺失、RT03、BLE性能、整应用仍未完成。",
+  "baseline_assessment": "原起点41c034171e60b2d4962b0adbe8f3cffbf80a0436；HEAD f595262207796dbf325cb9951ed3dc02b4887362只是源码存档。R7 Preview不是本轮包；未生成本轮候选或正式UAT。",
+  "protocol_assessment": "遵守R5自动能力合同；固件0x9F当前含status0+r001；产品两代判断不声称能分辨同名中间HEX。CP2 wire布局未改；实际固件身份须在交测时另核对。",
+  "risk_level": "high",
+  "fresh_review_required": true,
+  "risk_rationale": "准入权限和跨连接状态涉及CP1/CP2共享写入，沿用high_impact；辅助reader不构成formal fresh。",
+  "findings": [
+    {
+      "id": "R8-F1",
+      "severity": "P2",
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "line": 964,
+      "resolution": "fix_required",
+      "summary": "任务槽support把读取中/失败/未知身份误称为固件不支持，且构造时取值没有绑定身份变化。",
+      "reproduction": "设备已连接、尚未成功0x9F或读取失败时进入灯光页：isDeviceSupported=false，静态support显示当前固件不支持，同时上方动态原因显示读取中/失败/未识别。",
+      "requested_fix": "保留本地绑定说明；支持说明改为中性恒定文字或复用统一身份状态绑定，不能以!supported证明unsupported。补覆盖实际该说明构造/更新的隔离测试，无需构造启动真实Controller。"
+    },
+    {
+      "id": "R8-F2",
+      "severity": "P3",
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigCapabilityChecks.java",
+      "line": 51,
+      "resolution": "fix_required",
+      "summary": "Platform.startup在try/finally之外，初始化异常时无法恢复user.home及执行约定清理。",
+      "reproduction": "startup抛异常或初始化失败，finally不进入；本次成功日志不覆盖该失败路径。",
+      "requested_fix": "将初始化纳入异常安全边界，保证属性恢复和尽力清理；保留Windows已加载JavaFX缓存的现有处理，不触及用户缓存。单独不构成设备安全或生产阻断。"
+    }
+  ],
+  "baseline_gap_owner_record": null,
+  "fresh_review_record": null,
+  "revision": 5,
+  "build_round": 8,
+  "code_fingerprint": "3c1e7cf6a1180291d396d2ad288f44a9b57b5a7e74b27b6334d3299b801b7c3c",
+  "coverage_limits": [
+    "完整Controller/Inspector、鼠标键盘和高DPI未执行；合成控件不能证明真实全部绑定。",
+    "FX票据谓词检查不等同于生产FX提交竞态验证。",
+    "UI草稿TextField断言不是持久资源库/绑定迁移完整证明。",
+    "辅助审阅非formal fresh；DLA未编译/测试/启动应用/操作设备。"
+  ],
+  "evidence_verification": {
+    "evidence_hashes": 48,
+    "all_matched": true,
+    "final_test_processes": 8,
+    "final_assertions": 608,
+    "qualifying_log_suffix": "-05",
+    "reexecuted_by_dla": false
+  }
+}

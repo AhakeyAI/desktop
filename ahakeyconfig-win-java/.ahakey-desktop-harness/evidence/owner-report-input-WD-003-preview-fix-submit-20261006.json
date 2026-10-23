@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "WD-003 现在在 VERIFY / PREVIEW_FIX_REVIEW，下一角色是 DLA。",
+    "conclusion": "本轮已修复 Windows 侧 0x97 Custom action 保存编码和侧拨组合快捷键 UI，并已通过机器检查后提交给 DLA 轻量审阅；这不是正式 UAT、正式候选或发布。"
+  },
+  "completed": [
+    "已将侧拨 Custom 保存从裸 HID keycode 改为固件要求的 0x73/0x74 + len + payload 动作包。",
+    "已让侧拨 Custom Shortcut UI 支持添加和删除修饰键组合，例如 Left Ctrl + V。",
+    "已加入 0x97 两侧 Custom action 总长度 52 字节预算提示和发送前校验，超长宏不会被静默截断。",
+    "已运行 JDK17 Maven compile，退出码为 0，并记录静态检查和编码样本。",
+    "已执行 preview-fix-submit，token 为 preview-fix-20261006T072126898999Z-f7e8b6。"
+  ],
+  "remaining": [
+    "DLA 还需要做本轮 Preview Fix 的实际 diff 审阅。",
+    "审阅通过后仍需要重新打开并构建下一轮 Owner Preview，才能让 Owner 继续真机预览。",
+    "正式高影响 fresh review、Git candidate、正式构建收据、正式 Owner UAT 和发布仍未完成。"
+  ],
+  "owner": {
+    "decision": {
+      "required": false,
+      "action": "本轮不需要新的产品范围决策；当前实现按你已确认的单键、组合快捷键和短宏范围推进。"
+    },
+    "operation": {
+      "required": true,
+      "action": "请把下面完整提示词复制到原 DLA 对话，让 DLA 做 preview-fix-review。"
+    },
+    "test": {
+      "required": false,
+      "action": "现在还没有新的可运行 Preview 包给你测试；需要 DLA 审阅通过并重新构建 Preview 后再测。"
+    }
+  },
+  "next": {
+    "role": "DLA",
+    "destination": "原 DLA 对话",
+    "mode": "PREVIEW_FIX_REVIEW",
+    "task": "WD-003 Preview Fix 审阅：CP4C 0x97 action envelope 与侧拨组合快捷键 UI",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "action": "DLA 只审本轮 Preview Fix 的实际差异和机器证据；若通过，可直接重新开启 Preview 构建路线。",
+    "authorization": "DIB 已在 IMPLEMENT / PREVIEW_FIX 模式按 WD-003 revision 6 合同完成实现并 preview-fix-submit；DLA 只做本轮 Preview Fix review，不把编译或提交称为 Owner UAT、真机 PASS、正式候选或发布。",
+    "goal": "确认 0x97 Custom action 不再发送裸 HID keycode，而是保存为 0x73/0x74 + len + payload；确认侧拨 Custom Shortcut UI 支持组合快捷键，长宏不会被静默截断；通过则进入下一轮 Owner Preview 构建。",
+    "facts": [
+      "当前 STATE 为 VERIFY / PREVIEW_FIX_REVIEW，active_change=WD-003，next_actor=DLA。",
+      "Preview Fix token 为 preview-fix-20261006T072126898999Z-f7e8b6，SUBMISSION.json 状态为 submitted_for_preview_review。",
+      "本轮 code_fingerprint 为 38490c39d4194633b237bccbee9138df249b109eebb18b7d4f23b9c3a658e038。",
+      "本轮 DIB 实际修改的生产文件为 AhaKeyProtocol.java、DeviceSyncService.java、StudioState.java、InspectorPane.java。",
+      "修复后 Backspace 编码样本为 73012A，Enter 为 730128，Ctrl+V 为 7302E019。",
+      "修复后双 Custom Backspace/Enter 的 0x97 保存帧样本为 AABB9701030373012A0303730128CCDD。",
+      "JDK17 Maven compile 退出码为 0；静态 grep 未发现 forbidden 0x98 普通键 readback，也未发现 col02 配置通道回退。",
+      "本轮没有 Git add、commit、push、reset、clean、stash，没有构建安装包，没有安装，没有连接设备、写入设备或烧录。",
+      "这不是正式高影响 fresh review、Git candidate、正式构建、Owner UAT、真机 PASS 或 release。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\AGENTS.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-lead\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-harness\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\STATE.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\change.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\CONTRACT.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\REFERENCES.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-003\\fixes\\preview-fix-20261006T072126898999Z-f7e8b6\\REQUEST.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-003\\fixes\\preview-fix-20261006T072126898999Z-f7e8b6\\SUBMISSION.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-003\\fixes\\preview-fix-20261006T072126898999Z-f7e8b6\\PREVIEW_FIX_REPORT.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\evidence\\20261006T1535_wd003_preview_fix_cp4c_action_machine_checks.log"
+    ],
+    "allowed": [
+      "可执行 preview-fix-review 所需的只读状态、diff 和证据核对。",
+      "重点审阅 0x97 Custom action 是否始终使用 0x73/0x74 + len + payload，不再发送裸 HID keycode。",
+      "重点审阅 Ctrl+V 等组合快捷键 UI 是否复用普通快捷键语义，并确认短宏不会被静默截断。",
+      "可核对 JDK17 Maven compile 和静态 grep 证据，但不能把这些当真机或 Owner UAT。",
+      "若 review pass，可按 Preview fast lane 重新 preview-open，再交 DIB 做 Owner Preview Build。"
+    ],
+    "forbidden": [
+      "不得修改生产 Java、合同、协议语义或 Harness 规则。",
+      "不得 Git add、commit、push、reset、clean 或 stash。",
+      "不得构建安装包、安装程序、kill 进程、连接设备、写入设备或烧录。",
+      "不得把 preview-fix-submit、compile 或 DLA review 称为正式候选、正式构建、Owner UAT、真机 PASS、发布或 release。",
+      "不得引入 0x98 普通键 readback；不得扩大到灯光、OLED/GIF/图片、Voice、Power、Restore Factory、CP5、完整 Host Protocol、固件升级/恢复或 HID descriptor。"
+    ]
+  },
+  "evidence": [
+    "SUBMISSION.json: .ahakey-desktop-harness/previews/WD-003/fixes/preview-fix-20261006T072126898999Z-f7e8b6/SUBMISSION.json",
+    "Preview Fix report: .ahakey-desktop-harness/previews/WD-003/fixes/preview-fix-20261006T072126898999Z-f7e8b6/PREVIEW_FIX_REPORT.md",
+    "Machine log: .ahakey-desktop-harness/evidence/20261006T1535_wd003_preview_fix_cp4c_action_machine_checks.log"
+  ]
+}

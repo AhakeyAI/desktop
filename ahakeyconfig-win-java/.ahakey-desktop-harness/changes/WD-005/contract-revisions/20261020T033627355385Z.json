@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "at": "2026-10-20T03:36:27+00:00",
+  "from_revision": 3,
+  "to_revision": 4,
+  "reason": {
+    "path": ".ahakey-desktop-harness/evidence/20261020-wd005-isolation-interface-reconcile-reason.md",
+    "sha256": "4735e9db77ac3f0c1f499934175b5527e4446a231cbaa43472cc55343e14eb14"
+  },
+  "owner": {
+    "path": ".ahakey-desktop-harness/evidence/20261020-wd005-isolation-interface-owner-authorization.md",
+    "sha256": "eea14374602179d89fee11ac9457475809ca4fa950f8860dffced6f9bce58b44"
+  },
+  "previous_approval": {
+    "at": "2026-10-18T08:22:42+00:00",
+    "owner_record": ".ahakey-desktop-harness/evidence/20261018-wd005-consolidated-fix-owner-authorization.md",
+    "owner_record_sha256": "7a501aa3df5dce57194767fcf5aa5151a39703a38e05d20b24c5d0d5be493a7e",
+    "inputs": {
+      "meta_sha256": "4abeb706606bc518677e22ecb3c1e131180ea6ee70fe23b42a88faee4b045285",
+      "assets": {
+        "CONTRACT.md": "6fc54cd021c463396354783602629f036ee6c7a02919ee7408dbb8b20e31a5c5",
+        "REFERENCES.json": "1bb3f96c441a6eaa891be6ec3fdc98b58f3e3a45197ba397c26d16027472636f",
+        "DECISIONS.md": "5d5e82ad0d1543a4c4ac7b90ab43a46d2b9486d82bc44b0d1743b43dd6191bef",
+        "IMPLEMENTATION_SCOPE.md": "12c937826c84fff190028348247e2e4204afde04257788016d3e418978483906",
+        "PROTOCOL_AND_STATE.md": "2f0cff7afc3340109abd02c932c9024cede07995471a458e16d56d563c391be7",
+        "ACCEPTANCE.md": "c6ebf4b485d9671fcb66400dcf350897f322f4439f257a2748c264c36d35ff2c",
+        "DESIGN_REVIEW.md": "6084d6b7d51061508faac80df1241fbb9651c2dcd184bb4a0dc47626f62a4c4d",
+        "REGISTRATION.md": "2f2db582d388cf8481f814d6d87b85ceab98d0b041666a3935f39bc78d21e1cf",
+        "PREVIEW_FIX_CONTRACT_R3_20261018.md": "3095efebc0f5ec802bd9d5f3edd76278d899681aaf20164d6b38e90b1c9854f8",
+        "CROSS_COMPONENT_WORK_20261018.md": "356f313a3dcb0d603129a441760a4de4d0736c6856b52f8f76ec408a47be63f4"
+      },
+      "reference_sha256": "fa5f7f46024beb473a44622e595b701998b1e28108893af969586af3b0ab1f84"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "new_approval": {
+    "at": "2026-10-20T03:36:27+00:00",
+    "owner_record": ".ahakey-desktop-harness/evidence/20261020-wd005-isolation-interface-owner-authorization.md",
+    "owner_record_sha256": "eea14374602179d89fee11ac9457475809ca4fa950f8860dffced6f9bce58b44",
+    "inputs": {
+      "meta_sha256": "ff9af39310eee6dc90642b0cfbeb9036699c190b01a352ce963d5189dd0697e0",
+      "assets": {
+        "CONTRACT.md": "6fc54cd021c463396354783602629f036ee6c7a02919ee7408dbb8b20e31a5c5",
+        "REFERENCES.json": "1bb3f96c441a6eaa891be6ec3fdc98b58f3e3a45197ba397c26d16027472636f",
+        "DECISIONS.md": "5d5e82ad0d1543a4c4ac7b90ab43a46d2b9486d82bc44b0d1743b43dd6191bef",
+        "IMPLEMENTATION_SCOPE.md": "12c937826c84fff190028348247e2e4204afde04257788016d3e418978483906",
+        "PROTOCOL_AND_STATE.md": "2f0cff7afc3340109abd02c932c9024cede07995471a458e16d56d563c391be7",
+        "ACCEPTANCE.md": "c6ebf4b485d9671fcb66400dcf350897f322f4439f257a2748c264c36d35ff2c",
+        "DESIGN_REVIEW.md": "6084d6b7d51061508faac80df1241fbb9651c2dcd184bb4a0dc47626f62a4c4d",
+        "REGISTRATION.md": "2f2db582d388cf8481f814d6d87b85ceab98d0b041666a3935f39bc78d21e1cf",
+        "PREVIEW_FIX_CONTRACT_R3_20261018.md": "3095efebc0f5ec802bd9d5f3edd76278d899681aaf20164d6b38e90b1c9854f8",
+        "CROSS_COMPONENT_WORK_20261018.md": "356f313a3dcb0d603129a441760a4de4d0736c6856b52f8f76ec408a47be63f4",
+        "R6_ISOLATION_INTERFACE_PROPOSAL_20261020.md": "0dcc0723de173234d6cdfd4019421fbd91244041cc60eac1b73bf9be5a2bec01"
+      },
+      "reference_sha256": "fa5f7f46024beb473a44622e595b701998b1e28108893af969586af3b0ab1f84"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "origin_repair": null,
+  "changed_paths_since_start": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+    "src/main/java/com/example/ahakey/model/LightEffectStyle.java",
+    "src/main/java/com/example/ahakey/model/OledResourceState.java",
+    "src/main/java/com/example/ahakey/model/StudioState.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+    "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/CodexSessionDiscoveryService.java",
+    "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+    "src/main/java/com/example/ahakey/service/FirmwareLightSimulator.java",
+    "src/main/java/com/example/ahakey/service/HookDispatchServer.java",
+    "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+    "src/main/java/com/example/ahakey/service/OledUploadService.java",
+    "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+    "src/main/java/com/example/ahakey/util/AiRuntimeStore.java",
+    "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+    "src/main/java/com/example/ahakey/view/CanvasController.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java",
+    "src/main/resources/fxml/CanvasLayout.fxml",
+    "src/main/resources/messages_en.properties",
+    "src/main/resources/messages_zh.properties",
+    "src/main/resources/style.css",
+    "src/test/java/com/example/ahakey/displayconfig/DisplayConfigChecks.java",
+    "src/test/java/com/example/ahakey/displayconfig/DisplayConfigEncodingProbe.java",
+    "src/test/java/com/example/ahakey/displayconfig/DisplayConfigFxChecks.java",
+    "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRaceChecks.java",
+    "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3Checks.java",
+    "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3UiChecks.java",
+    "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRound5Checks.java"
+  ],
+  "scope_outside_contract": []
+}

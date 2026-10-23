@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "id": "WD-001",
+  "launch_command": "cd \"C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\"; $env:JAVA_HOME=\"D:\\jdk-17.0.19.10-hotspot\"; $env:Path=\"$env:JAVA_HOME\\bin;$env:Path\"; java -jar \".\\target\\ahakey-studio-1.0.0.jar\"",
+  "working_directory": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+  "connection": "Owner uses the normal AhaKey Studio connection path for the X1 / CP3A test keyboard. If BLE bridge/driver is required, Owner starts the already available test setup; this packet does not install or start drivers automatically.",
+  "preconditions": "Windows artifact target/ahakey-studio-1.0.0.jar SHA256 C16F5BAD0F518FB8FEA00F7DEE7F97CAAF7AC6DC3865092442A2BEE260217886 with target/lib dependencies present. Owner must confirm the physical keyboard is the intended X1 / CP3A unit flashed with firmware HEX SHA256 9AABCE5F015FD44D980FF6818D825B6BAB34F6E4B4F7AC277E942272D700444C, or report the actual installed firmware identity before judging device behavior.",
+  "recovery": "Record the initial sleep wait time before changes and restore it after testing if needed. If launch, connect, read, save, mismatch, disconnect, or persistence fails, stop that subtest and return the PowerShell output, screenshot, and logs/ahakey-studio.log. Do not treat readback before power-cycle as persistence.",
+  "deliberately_unchanged": "No changes are expected to key mappings, OLED data, lighting, voice input, Hook installation, BLE driver installation, unrelated save_config behavior, or Firmware. Windows must not send 0x04 save_config for this sleep wait time setting.",
+  "result_return": "Return physical firmware confirmation, connection path, pass/fail/not-executed for every numbered step in OWNER_TEST.md, screenshots for the More/device info card and any failure, and logs/ahakey-studio.log for failures.",
+  "device_writes": true,
+  "steps": [
+    {
+      "action": "Launch AhaKey Studio from the working directory with temporary JDK 17 and the recorded jar.",
+      "expected": "The app opens normally; Java reports 17.0.19 from D:\\jdk-17.0.19.10-hotspot; launch alone does not write device settings."
+    },
+    {
+      "action": "Connect the intended X1 / CP3A keyboard through the normal test connection path.",
+      "expected": "The app shows the keyboard connected. If connection fails, testing stops and Owner returns the visible error and log."
+    },
+    {
+      "action": "Open More -> Hawk 安装分发工具 -> first 设备信息 card.",
+      "expected": "The existing device info remains visible and a 睡眠等待时间 row appears in that first card; no extra card or settings page is introduced."
+    },
+    {
+      "action": "Observe the initial sleep wait time value.",
+      "expected": "A legal value is selected, or an unsupported current value is clearly reported while allowing selection of legal values."
+    },
+    {
+      "action": "Select 30 分钟 and save.",
+      "expected": "The app reports success only after 0x95 OK and a follow-up 0x95 query reads back 30; no 0x04 save_config is required for this setting."
+    },
+    {
+      "action": "Power-cycle or reboot the keyboard, reconnect, and query the same setting again.",
+      "expected": "The setting still reads back as 30, confirming persistence for this value."
+    },
+    {
+      "action": "Repeat set/save/readback for 永不, 60 分钟, and 120 分钟.",
+      "expected": "Each legal value saves successfully and reads back exactly the selected value."
+    },
+    {
+      "action": "Check the preserved fields and controls in the same dialog.",
+      "expected": "Connection status, battery/device name/lever fields, Hook/driver/log areas, and existing More dialog behavior remain usable."
+    },
+    {
+      "action": "Disconnect the keyboard or test with no keyboard connected.",
+      "expected": "The sleep wait time control is disabled or reports that the keyboard must be connected; it must not claim save success while disconnected."
+    },
+    {
+      "action": "Optional: if Owner already has the normal firmware/protocol test tool, send an illegal 0x95 value outside the UI.",
+      "expected": "Firmware returns a nonzero error and the previous sleep wait time remains unchanged. This is optional because the normal UI intentionally exposes only legal values."
+    }
+  ]
+}

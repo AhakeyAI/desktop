@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "WD-005第三轮Preview构建完成；全局保持VERIFY/DLA_REVIEW，下一角色DLA。",
+    "conclusion": "隔离Preview已打包并生成正式回执；未启动应用，不代表UI、设备或UAT通过。"
+  },
+  "completed": ["离线Maven构建退出0；已核对主JAR、18个依赖JAR、Windows JavaFX与八项资源，回执哈希全部匹配，源码指纹未变。"],
+  "remaining": ["DLA需核对启动与固件身份、给出中文Preview测试步骤；包不含JRE、BLE桥接工具或本地模型，完整运行与真机尚未验证。formal fresh、candidate及UAT仍另行完成。"],
+  "owner": {
+    "decision": {"required": false, "action": "无需重新确认产品设计。"},
+    "operation": {"required": true, "action": "将下面完整提示词复制到原DLA对话。"},
+    "test": {"required": false, "action": "先由DLA补齐启动/数据备份和设备前置，不直接执行本轮仅交接的启动配方。"}
+  },
+  "next": {
+    "role": "DLA",
+    "destination": "原 DLA 对话",
+    "mode": "OWNER_PREVIEW_PREP",
+    "task": "WD-005 第三轮Preview产物核验与中文交测准备",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "action": "核对Preview产物、运行前置与固件身份，向Owner提供具体操作、预期、恢复和反馈清单。",
+    "facts": [
+      "构建令牌preview-20261017T104547091113Z-0e6fcf已正式preview-finish，状态ready_for_owner_preview，scope=OWNER_PREVIEW_ONLY_NOT_FORMAL_UAT；revision=2/build_round=3，全局路由未改。",
+      "工作区指纹aea60d8c7eb936cb937cc59522fed7224c845ecf7947cedb17e8f029ad1656c8；隔离快照06dd1f39c426590e8e43ee717aa5069345670e550924747a6a7b91a348b1a194，构建前后均未变。",
+      "主JAR为ahakey-studio-1.0.0.jar，SHA256=e8bbe9ee0dc3da54733d057c4bc2ab6ee8d12fa9bdc333290b4947f055e752e5；共19个运行文件。回执SHA256=a60899a40bf0d341f4bd8fcb793a18fca350e683d8ad86f6fe73066d7da0d18c。",
+      "本轮仅Maven离线package -DskipTests，实际退出0，测试编译但未运行。283项仍为第二轮复用；formal fresh仍待当前pack，未执行Git写入、应用启动、Hook、设备或烧录。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261017T104547091113Z-0e6fcf\\PREVIEW_RECEIPT.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261017T104547091113Z-0e6fcf\\BUILD_REPORT.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261017T104547091113Z-0e6fcf\\ARTIFACT_MANIFEST.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005"
+    ],
+    "authorization": "沿用已批准设计及Preview流程，本次DLA核验产物并准备Owner测试说明；不把已有构建授权扩成自动启动、Git或设备写授权。固件只读来源C:\\Users\\20825\\Desktop\\vibe-code。",
+    "goal": "确认包与安全前置后交付完整中文Preview简报，Owner实际反馈仅登记Preview结果，不冒充正式UAT。",
+    "allowed": [
+      "读取适用规则、STATE/local、当前批准和实际审阅、START、回执、清单、BUILD_REPORT、BUILD_MAVEN_01.log与PACKAGE_INSPECTION_01.log；自行从固件正式证据核对HEX/门禁/身份，不让Owner搬运仓库已有信息。",
+      "运行目录为上述令牌目录下runtime-jar-classpath；仅交接的PowerShell配方为先Set-Location到该绝对目录，再执行 & 'D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe' '-Dfile.encoding=UTF-8' '-cp' 'ahakey-studio-1.0.0.jar;lib/*' 'com.example.ahakey.Main'。完整绝对路径及环境在BUILD_REPORT，未实测启动。",
+      "明确包不含JRE、BLE_tcp_driver.exe及配套配置、本地模型；现有默认model.enabled=false未改。包不是数据沙箱，仍用用户.ahakey草稿/成品；启动涉及真实服务，退出有停止BLE桥接的既有行为。先说明旧实例、备份/恢复、连接和设备写边界，再提供逐项操作及预期。",
+      "区分离线UI、准入后的设备Preview与formal配对；Preview失败先按原合同做缺陷分类，不先要求补齐formal candidate；下一次接力完整显示提示词。"
+    ],
+    "forbidden": ["不修改冻结源码、产物、报告、旧批准/起点/审阅或Harness门禁；不扩CP1.5、不自动启动/构建/Git写入/安装Hook/设备写入/烧录/发布，不把打包或静态核验宣称真机通过。"]
+  }
+}

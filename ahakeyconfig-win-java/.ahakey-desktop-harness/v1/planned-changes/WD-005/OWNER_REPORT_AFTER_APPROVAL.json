@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "Windows DLA / CHANGE；产品范围已批准，正式登记待路由恢复。",
+    "conclusion": "你的确认已记录，不再重复Grill。已推进Journey登记，但当前还不能合法派DIB开工。"
+  },
+  "completed": [
+    "已保存Owner批准，并绑定六份设计文件哈希，原设计和历史记录未重写。",
+    "J005（OLED）、J006（灯光）已正式登记；DIB IMPLEMENT交接内容已准备，但未派发。"
+  ],
+  "remaining": [
+    "正式new仍被历史WD-002 ACTIVE拒绝。需要窄范围治理处理，不能靠改STATE或重做旧任务验收绕过。",
+    "生产实现、构建、Git候选、实际diff审阅和真机测试均未开始。"
+  ],
+  "owner": {
+    "decision": {
+      "required": true,
+      "action": "这里只需单独授权：按正式维护流程处理历史任务路由，保留旧合同/批准/起点，不修改产品代码或降低门禁。不是再次批准UI范围。"
+    },
+    "operation": {
+      "required": false,
+      "action": "可在当前对话继续；不用复制文件或搬运固件资料。"
+    },
+    "test": {
+      "required": false,
+      "action": "尚无新包，无需刷机或测试。"
+    }
+  },
+  "next": {
+    "role": "DLA",
+    "destination": "当前对话",
+    "mode": "GOVERNANCE_DIAGNOSIS",
+    "task": "恢复WD-005正式登记前的历史路由",
+    "action": "先完成获准的窄治理处理；合法登记及preflight前置就绪后，在正文交付独立DIB完整IMPLEMENT提示词。",
+    "repo": "C:/Users/20825/Desktop/windows软件代码/desktop/ahakeyconfig-win-java",
+    "facts": [
+      "WD-005整体范围及六项补充已获Owner批准，J005/J006已登记，不重开Grill。",
+      "根STATE仍指WD-002，WD-004已关闭；new实际失败，未派DIB。"
+    ],
+    "read": [
+      "C:/Users/20825/Desktop/windows软件代码/desktop/ahakeyconfig-win-java/.ahakey-desktop-harness/v1/planned-changes/WD-005/REGISTRATION_PROGRESS.json",
+      "C:/Users/20825/Desktop/windows软件代码/desktop/ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/20261015-wd005-owner-scope-approval.json"
+    ],
+    "authorization": "此为待确认的治理接续提示词；取得Owner窄治理授权后执行，不以产品范围批准替代。",
+    "goal": "核对历史暂停/关闭证据，使用受支持流程恢复单活跃路由，再登记WD-005；不制造旧任务PASS。",
+    "allowed": [
+      "只读诊断正式STATE、历史暂停/关闭、现有helper；获授权后走正式维护流程，需改Harness核心时先提出窄修复及独立审阅。"
+    ],
+    "forbidden": [
+      "不手改STATE绕过、不重写旧批准/start、不降低规则；不生产编辑、构建、Git写入、设备写入、烧录或发布。"
+    ]
+  },
+  "evidence": []
+}

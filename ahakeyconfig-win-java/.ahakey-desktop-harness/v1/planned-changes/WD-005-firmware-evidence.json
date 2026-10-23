@@ -1,0 +1,120 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "status": "PLANNED_FIRMWARE_EVIDENCE",
+  "created_at": "2026-10-15T11:06:45+00:00",
+  "title": "WS3 CP2 OLED与灯光设计证据绑定，FAIL不是准入",
+  "firmware_root": "C:\\Users\\20825\\Desktop\\vibe-code",
+  "gate": {
+    "path": ".ahakey-harness/evidence/checkpoints/X1-AI-WORKFLOW-PRESENTATION/CP2/20261015T183923/gate-receipt.json",
+    "sha256": "e4337ee17a9f1f0ad6eac31aca9767aecb2c5119cdd9ae3a692346519a9190da",
+    "sort_time": "20261015T181331",
+    "formal_hint": true,
+    "status_fields": [
+      {
+        "field": "result",
+        "value": "FAIL"
+      }
+    ],
+    "identity_fields": [
+      {
+        "field": "checkpoint",
+        "value": "CP2"
+      },
+      {
+        "field": "checkpoint_start_commit",
+        "value": "833791de76ff058a1298b7c465f5714b02f7b04c"
+      },
+      {
+        "field": "contract_lock.checkpoint",
+        "value": "CP2"
+      }
+    ],
+    "commit_fields": [
+      {
+        "field": "checkpoint_start_commit",
+        "value": "833791de76ff058a1298b7c465f5714b02f7b04c"
+      },
+      {
+        "field": "candidate_commit",
+        "value": "08dd24a6e8ce3526fef36661f5c97940add98a25"
+      },
+      {
+        "field": "contract_lock.start_commit",
+        "value": "833791de76ff058a1298b7c465f5714b02f7b04c"
+      }
+    ],
+    "sha_fields": [
+      {
+        "field": "contract_lock.architecture_sha256",
+        "value": "9b087f5ac11b706c3a4c7096868dbe307daca87651b3d0db00218c21239a1e16"
+      },
+      {
+        "field": "contract_lock.execution_sha256",
+        "value": "b76711f91bef4b716023a6082a1bfc42e4711233a50b243119f51d8d0fd8783a"
+      },
+      {
+        "field": "contract_lock.parent.sha256",
+        "value": "09c1e5dc8cfff99202e36b883093c4a41f574fb177f90278a6ad88d3f586b01f"
+      },
+      {
+        "field": "contract_lock.prd_sha256",
+        "value": "b96383eecfc2cd62e7a5c3b5accebe8d6b691b6444baffa3ed9fbe2d03422576"
+      },
+      {
+        "field": "contract_lock.transition.from.architecture_sha256",
+        "value": "9b087f5ac11b706c3a4c7096868dbe307daca87651b3d0db00218c21239a1e16"
+      },
+      {
+        "field": "contract_lock.transition.from.execution_sha256",
+        "value": "7309132f4fee79de251b89eac00fa2ad622b069eeed6165ee39ca4cdaf007ab2"
+      },
+      {
+        "field": "contract_lock.transition.from.prd_sha256",
+        "value": "b96383eecfc2cd62e7a5c3b5accebe8d6b691b6444baffa3ed9fbe2d03422576"
+      },
+      {
+        "field": "contract_lock.transition.to.architecture_sha256",
+        "value": "9b087f5ac11b706c3a4c7096868dbe307daca87651b3d0db00218c21239a1e16"
+      },
+      {
+        "field": "contract_lock.transition.to.execution_sha256",
+        "value": "b76711f91bef4b716023a6082a1bfc42e4711233a50b243119f51d8d0fd8783a"
+      },
+      {
+        "field": "contract_lock.transition.to.prd_sha256",
+        "value": "b96383eecfc2cd62e7a5c3b5accebe8d6b691b6444baffa3ed9fbe2d03422576"
+      },
+      {
+        "field": "current_contract_hashes.prd_sha256",
+        "value": "b96383eecfc2cd62e7a5c3b5accebe8d6b691b6444baffa3ed9fbe2d03422576"
+      },
+      {
+        "field": "current_contract_hashes.architecture_sha256",
+        "value": "9b087f5ac11b706c3a4c7096868dbe307daca87651b3d0db00218c21239a1e16"
+      },
+      {
+        "field": "current_contract_hashes.execution_sha256",
+        "value": "b76711f91bef4b716023a6082a1bfc42e4711233a50b243119f51d8d0fd8783a"
+      },
+      {
+        "field": "artifact.sha256",
+        "value": "d7d10510482228b74a2978bd8272f6a4e32668cf6b4f31f491a8503b0dc11e2e"
+      }
+    ],
+    "hex_artifacts": [
+      {
+        "path": ".ahakey-harness/evidence/builds/ws3-cp2-resource-display-config/HID_Keyboard_582m_vibe_coding.hex",
+        "sha256": "d7d10510482228b74a2978bd8272f6a4e32668cf6b4f31f491a8503b0dc11e2e"
+      }
+    ]
+  },
+  "windows_state_at_intake": {
+    "phase": "VERIFY",
+    "mode": "PREVIEW_REBUILD",
+    "active_change": "WD-002",
+    "current_assignment": "WD-002"
+  },
+  "meaning": "Evidence binding only. Does not create changes/WD-005, approve a Contract, activate DIB, transfer old PASS, or modify Firmware.",
+  "owner_burden": "Owner is not required to transcribe local gate/HEX/SHA/protocol facts. DLA reads Firmware evidence; Owner resolves priority/product ambiguity only."
+}

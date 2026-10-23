@@ -10,6 +10,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
 import javafx.scene.control.ToggleButton;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
@@ -66,6 +67,8 @@ public class CanvasPane extends VBox {
             button.getStyleClass().add("mode-toggle");
             button.setUserData(slot);
             button.setSelected(slot == studioState.getSelectedMode());
+            button.setTooltip(new Tooltip("离线时只浏览本地草稿；连接后切换键盘当前模式。"));
+            button.disableProperty().bind(studioState.modeSwitchingProperty());
             button.setOnAction(event -> {
                 for (var node : picker.getChildren()) {
                     if (node instanceof ToggleButton tb && tb.getUserData() instanceof ModeSlot s) {

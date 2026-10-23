@@ -1,0 +1,178 @@
+#include "display_config_store.h"
+
+#include "main.h"
+#include "command_solve.h"
+
+#include <stddef.h>
+#include <string.h>
+
+#define DISPLAY_CONFIG_PREVIEW_MIN_BRIGHTNESS 1
+#define DISPLAY_CONFIG_PREVIEW_MAX_BRIGHTNESS 100
+#define DISPLAY_RESOURCE_FRAME_INTERVAL_MS 100
+
+static uint8_t display_config_resource_state_valid(const display_resource_metadata_s *metadata)
+{
+    if (metadata->user_resource_valid > 1)
+        return 0;
+    if (metadata->write_state > DISPLAY_RESOURCE_WRITE_INVALID)
+        return 0;
+    if (metadata->write_state != DISPLAY_RESOURCE_WRITE_VALID && metadata->user_resource_valid)
+        return 0;
+    return 1;
+}
+
+static uint8_t display_config_single_entry_for(uint8_t mode, uint8_t ai_state, uint8_t *entry_id)
+{
+    if (mode >= USER_MODE_COUNT || ai_state <= AI_OLED_IDLE || ai_state >= AI_OLED_STATE_COUNT || !entry_id)
+        return 0;
+    *entry_id = (uint8_t) (mode * 4 + ai_state);
+    return display_resource_entry_valid(*entry_id);
+}
+
+uint8_t display_config_store_sanitize_resources(void)
+{
+    command_boot_sanitize();
+    return 0; /* Recovery owner persists each pending entry on the task tick. */
+}
+
+void display_config_store_filter_pending(void)
+{
+    for (uint8_t i = 0; i < DISPLAY_RESOURCE_ENTRY_COUNT; ++i)
+        if (command_resource_pending(i)) {
+            memset(&key_bund.display_resource_metadata[i], 0, sizeof(display_resource_metadata_s));
+            key_bund.display_resource_metadata[i].write_state = DISPLAY_RESOURCE_WRITE_INVALID;
+        }
+}
+
+uint8_t display_config_store_get_metadata(uint8_t entry_id, display_resource_metadata_s *out)
+{
+    if (!display_resource_entry_valid(entry_id) || !out)
+        return 0;
+    *out = key_bund.display_resource_metadata[entry_id];
+    if (command_resource_unavailable(entry_id)) {
+        memset(out, 0, sizeof(*out));
+        out->write_state = DISPLAY_RESOURCE_WRITE_INVALID;
+    }
+    return 1;
+}
+
+uint8_t display_config_store_set_metadata(uint8_t entry_id, const display_resource_metadata_s *metadata)
+{
+    display_resource_metadata_s previous;
+
+    if (!display_resource_entry_valid(entry_id) || !metadata || !display_config_resource_state_valid(metadata))
+        return 0;
+    previous = key_bund.display_resource_metadata[entry_id];
+    key_bund.display_resource_metadata[entry_id] = *metadata;
+    display_config_store_filter_pending();
+    task_resource_selection_dirty();
+    running_data.have_update_custom_data         = 1;
+    if (!save_key_bound_data_checked()) {
+        key_bund.display_resource_metadata[entry_id] = previous;
+        display_config_store_filter_pending();
+        return 0;
+    }
+    return 1;
+}
+
+display_source_s display_config_store_select(uint8_t mode, uint8_t active, uint8_t state, uint8_t multi)
+{
+    display_source_s source = { DISPLAY_SOURCE_MCU, mode, 0, 1, 100 };
+    uint16_t cfg[3];
+    if (mode >= USER_MODE_COUNT) mode = 0;
+    source.mode = mode;
+    if (display_config_store_resolve_oled_config(mode, active, state, multi, cfg) ||
+        (active && display_config_store_resolve_oled_config(mode, 0, 0, 0, cfg))) {
+        source.kind = DISPLAY_SOURCE_EXTERNAL;
+        source.start_frame = cfg[0];
+        source.frame_count = cfg[1];
+        source.interval_ms = cfg[2];
+    } else if (mode == 0) source.frame_count = 8;
+    else if (mode == 1) source.start_frame = 8;
+    else if (mode == 2) source.start_frame = 9;
+    else { source.kind = DISPLAY_SOURCE_NORMAL; source.frame_count = 0; }
+    return source;
+}
+
+uint8_t display_config_store_clear_resource(uint8_t entry_id)
+{
+    display_resource_metadata_s metadata;
+
+    if (!display_resource_entry_valid(entry_id))
+        return 0;
+    memset(&metadata, 0, sizeof(metadata));
+    return display_config_store_set_metadata(entry_id, &metadata);
+}
+
+uint8_t display_config_store_save_brightness(uint8_t brightness)
+{
+    uint8_t previous_brightness = key_bund.ws2812_brightness;
+    uint8_t previous_global_light = ws2812_state.global_light;
+
+    if (brightness < DISPLAY_CONFIG_PREVIEW_MIN_BRIGHTNESS || brightness > DISPLAY_CONFIG_PREVIEW_MAX_BRIGHTNESS)
+        return 0;
+    key_bund.ws2812_brightness = brightness;
+    ws2812_state.global_light  = key_bund.ws2812_brightness;
+    running_data.have_update_custom_data = 1;
+    if (!save_key_bound_data_checked()) {
+        key_bund.ws2812_brightness = previous_brightness;
+        ws2812_state.global_light  = previous_global_light;
+        return 0;
+    }
+    return 1;
+}
+
+uint8_t display_config_store_save_single_light(uint8_t mode, uint8_t ai_state, uint8_t effect)
+{
+    uint8_t previous_effect;
+
+    if (mode >= USER_MODE_COUNT || ai_state >= CL_STATE_COUNT || effect > WS2812_APPROVAL_WAIT)
+        return 0;
+    previous_effect = key_bund.ai_light_mode[mode][ai_state];
+    key_bund.ai_light_mode[mode][ai_state] = effect;
+    running_data.have_update_custom_data   = 1;
+    if (!save_key_bound_data_checked()) {
+        key_bund.ai_light_mode[mode][ai_state] = previous_effect;
+        return 0;
+    }
+    return 1;
+}
+
+uint8_t display_config_store_resolve_oled_config(uint8_t mode,
+                                                 uint8_t ai_active,
+                                                 uint8_t ai_state,
+                                                 uint8_t is_multi,
+                                                 uint16_t out_config[3])
+{
+    uint8_t entry_id = 0xff;
+    display_resource_entry_s entry;
+    display_resource_metadata_s metadata;
+
+    if (!out_config || mode >= USER_MODE_COUNT)
+        return 0;
+
+    if (ai_active) {
+        if (is_multi) {
+            if (ai_state < AI_OLED_WORKING || ai_state > AI_OLED_DONE)
+                return 0;
+            entry_id = (uint8_t) (15 + ai_state);
+        } else if (!display_config_single_entry_for(mode, ai_state, &entry_id)) {
+            return 0;
+        }
+    } else {
+        entry_id = (uint8_t) (mode * 4);
+    }
+
+    if (!display_resource_entry_get(entry_id, &entry))
+        return 0;
+    if (!display_config_store_get_metadata(entry_id, &metadata))
+        return 0;
+    if (metadata.user_resource_valid != 1 || metadata.write_state != DISPLAY_RESOURCE_WRITE_VALID ||
+        metadata.frame_count == 0 || metadata.frame_count > entry.max_frames)
+        return 0;
+
+    out_config[0] = entry.start_frame;
+    out_config[1] = metadata.frame_count;
+    out_config[2] = DISPLAY_RESOURCE_FRAME_INTERVAL_MS;
+    return 1;
+}

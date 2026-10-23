@@ -1,0 +1,75 @@
+{
+  "change_id": "WD-005",
+  "checks": {
+    "machine": {
+      "status": "pass",
+      "reason": "仅第二轮报告已执行范围：本地编译、175离线、36隔离FX、72时序断言退出0；不代表整应用、完整A01-A11或设备通过。旧冻结报告不改，新轮报告直接绑定为证据。",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-005/EXECUTION_REPORT_FIX_ROUND_2.md": "47edd5b155d39a65ef8959cfccb3414b9420c3d020a6278b7bb948064cbdf96e",
+        ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_2.json": "92166a4105ddf0e02a192d3be2a5f5ec46288ee5ec0475c4994a2f72e9b72e10"
+      },
+      "role": "DIB",
+      "at": "2026-10-16T08:05:41+00:00",
+      "code_fingerprint": "aea60d8c7eb936cb937cc59522fed7224c845ecf7947cedb17e8f029ad1656c8",
+      "build_round": 2,
+      "approval_sha256": "3230e5e67a73b99b165e9f984d97bf405dc733e003c13ea1fb300e49838b7c16"
+    },
+    "core_regression": {
+      "status": "pass",
+      "reason": "仅第二轮报告已执行范围：本地编译、175离线、36隔离FX、72时序断言退出0；不代表整应用、完整A01-A11或设备通过。旧冻结报告不改，新轮报告直接绑定为证据。",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-005/EXECUTION_REPORT_FIX_ROUND_2.md": "47edd5b155d39a65ef8959cfccb3414b9420c3d020a6278b7bb948064cbdf96e",
+        ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_2.json": "92166a4105ddf0e02a192d3be2a5f5ec46288ee5ec0475c4994a2f72e9b72e10"
+      },
+      "role": "DIB",
+      "at": "2026-10-16T08:05:54+00:00",
+      "code_fingerprint": "aea60d8c7eb936cb937cc59522fed7224c845ecf7947cedb17e8f029ad1656c8",
+      "build_round": 2,
+      "approval_sha256": "3230e5e67a73b99b165e9f984d97bf405dc733e003c13ea1fb300e49838b7c16"
+    },
+    "special_regression": {
+      "status": "pass",
+      "reason": "仅第二轮报告已执行范围：本地编译、175离线、36隔离FX、72时序断言退出0；不代表整应用、完整A01-A11或设备通过。旧冻结报告不改，新轮报告直接绑定为证据。",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-005/EXECUTION_REPORT_FIX_ROUND_2.md": "47edd5b155d39a65ef8959cfccb3414b9420c3d020a6278b7bb948064cbdf96e",
+        ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_2.json": "92166a4105ddf0e02a192d3be2a5f5ec46288ee5ec0475c4994a2f72e9b72e10"
+      },
+      "role": "DIB",
+      "at": "2026-10-16T08:06:07+00:00",
+      "code_fingerprint": "aea60d8c7eb936cb937cc59522fed7224c845ecf7947cedb17e8f029ad1656c8",
+      "build_round": 2,
+      "approval_sha256": "3230e5e67a73b99b165e9f984d97bf405dc733e003c13ea1fb300e49838b7c16"
+    },
+    "mock": {
+      "status": "pass",
+      "reason": "仅第二轮报告已执行范围：本地编译、175离线、36隔离FX、72时序断言退出0；不代表整应用、完整A01-A11或设备通过。旧冻结报告不改，新轮报告直接绑定为证据。",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-005/EXECUTION_REPORT_FIX_ROUND_2.md": "47edd5b155d39a65ef8959cfccb3414b9420c3d020a6278b7bb948064cbdf96e",
+        ".ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_2.json": "92166a4105ddf0e02a192d3be2a5f5ec46288ee5ec0475c4994a2f72e9b72e10"
+      },
+      "role": "DIB",
+      "at": "2026-10-16T08:06:19+00:00",
+      "code_fingerprint": "aea60d8c7eb936cb937cc59522fed7224c845ecf7947cedb17e8f029ad1656c8",
+      "build_round": 2,
+      "approval_sha256": "3230e5e67a73b99b165e9f984d97bf405dc733e003c13ea1fb300e49838b7c16"
+    },
+    "real_device": {
+      "status": "pending"
+    },
+    "owner_uat": {
+      "status": "pending"
+    },
+    "review": {
+      "status": "pass",
+      "reason": "原DLA核验独立fresh记录与第二轮固定pack、当前指纹及24文件分析一致；补充正式记录保留原REVIEW和fresh原字节，字段映射不伪造独立会话，audit-run UUID非thread UUID。F1-F3/R1审阅通过；保守未知状态观察保留。只完成源码审阅门，283项限已执行范围；候选、构建、完整UI、固件身份和真机/UAT仍待办。",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-005/FORMAL_REVIEW_ROUND_2_20261017.json": "22febdb448c0bb6fe7de9e613520e3ce4c9f94f1a00550473a51efc3cb711a60"
+      },
+      "role": "DLA",
+      "at": "2026-10-17T10:05:22+00:00",
+      "code_fingerprint": "aea60d8c7eb936cb937cc59522fed7224c845ecf7947cedb17e8f029ad1656c8",
+      "build_round": 2,
+      "approval_sha256": "3230e5e67a73b99b165e9f984d97bf405dc733e003c13ea1fb300e49838b7c16"
+    }
+  }
+}

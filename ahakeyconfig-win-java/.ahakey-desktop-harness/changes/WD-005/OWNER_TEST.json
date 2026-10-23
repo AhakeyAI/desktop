@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "launch_command": "& 'D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe' '-Dfile.encoding=UTF-8' '-Dsun.stdout.encoding=UTF-8' '-Dsun.stderr.encoding=UTF-8' '-cp' 'ahakey-studio-1.0.0.jar;lib/*' 'com.example.ahakey.Main'",
+  "working_directory": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-005\\builds\\20261022T004444327311Z-731fe2\\runtime-jar-classpath",
+  "connection": "历史实测USB；BLE及新正式包实际运行未执行",
+  "preconditions": "本轮不要求重新启动或操作设备。若后续另行补测：先退出旧Studio实例（勿并开占用服务端口），关闭前保存必要草稿；应用Exit会停止现场BLE桥接，注意其他客户端。退出后备份整个用户目录下.ahakey，再启动；源码/产物隔离不隔离用户数据。包不含JRE、BLE包/配置、本地模型。设备操作前核对实际HEX为FFB920修复版，不能只凭同名r001；已有确认属于20261021历史测试，不推定设备永远未变。",
+  "recovery": "本轮不改数据或设备。后续故障立即停止写入，保存日志/目标Mode/步骤/时间；退出新实例再恢复备份.ahakey，勿覆盖唯一备份。可回原已测Preview；退出可能停止桥接，按需由Owner恢复。上传结果未知时不要反复点击重试或自动补发，不自动刷机。",
+  "deliberately_unchanged": "不修改源码、Hook、固件、桥接或原批准；不新增EXE/安装包，不发布，不操作Git。WS001-004原功能、本地草稿/资源/任务绑定保留；不宣称全量重验。",
+  "result_return": "本轮采用20261022限定验收决定及20261021真实反馈；后置项将来以步骤ID、USB/BLE、固件/桥接身份、现象/预期、时间和日志反馈。未执行保持未执行。",
+  "device_writes": true,
+  "device_writes_scope": "T04/T07等原Preview步骤曾包含Owner设备写入；此记录不授权Agent或本轮自动执行。",
+  "steps": [
+    {
+      "id": "T01",
+      "group": "离线界面与草稿",
+      "action": "在OLED检查卡片文字、资源名、帧数、中文日志；在允许本地操作处选图片/GIF，检查预览和原绑定。",
+      "expected": "文字可读、元信息与成品预览正常，本地草稿/资源/绑定保留。",
+      "device_step": false,
+      "execution_basis": "20261021已执行Preview步骤1；本轮引用，不要求重复执行，不声称新JAR已运行"
+    },
+    {
+      "id": "T02",
+      "group": "USB自动能力准入",
+      "action": "有线连接已确认FFB920修复固件，查看设备版本并进入OLED上传入口。",
+      "expected": "成功读到精确r001自动开放新功能，不需要人工HEX确认。",
+      "device_step": true,
+      "execution_basis": "20261021已执行Preview步骤2；本轮引用，不要求重复执行，不声称新JAR已运行"
+    },
+    {
+      "id": "T03",
+      "group": "灯光分区",
+      "action": "检查运行展示模式、亮度、单任务灯效、多任务任务槽的顺序；切换SINGLE/MULTI。",
+      "expected": "分区清楚，非当前模式禁用并可见原因；亮度独立。",
+      "device_step": false,
+      "execution_basis": "20261021已执行Preview步骤3；本轮引用，不要求重复执行，不声称新JAR已运行"
+    },
+    {
+      "id": "T04",
+      "group": "默认资源上传",
+      "action": "当前Mode默认屏幕选择易辨图片及短GIF，逐项上传并等待结果。",
+      "expected": "成功反馈后设备显示对应资源；不含8/12帧极限或中途故障测试。",
+      "device_step": true,
+      "execution_basis": "20261021已执行Preview步骤4；本轮引用，不要求重复执行，不声称新JAR已运行"
+    },
+    {
+      "id": "T05",
+      "group": "SINGLE普通状态",
+      "action": "切SINGLE，运行并结束已配置的会话，观察工作/完成图片和灯光。",
+      "expected": "工作和完成对应资源正常；等待态未安排实测。",
+      "device_step": true,
+      "execution_basis": "20261021已执行Preview步骤5；本轮引用，不要求重复执行，不声称新JAR已运行"
+    },
+    {
+      "id": "T06",
+      "group": "MULTI普通状态",
+      "action": "绑定两个会话，设置可用主槽位，应用后分别运行/结束会话。",
+      "expected": "槽位及主槽普通路径对应；不证明RT-03回退或所有来源竞争已闭环。",
+      "device_step": true,
+      "execution_basis": "20261021已执行Preview步骤6；本轮引用，不要求重复执行，不声称新JAR已运行"
+    },
+    {
+      "id": "T07",
+      "group": "分别保存灯光",
+      "action": "分别调整亮度和一项当前Mode SINGLE灯效，保存并读取。",
+      "expected": "分别保存/回读正常，不代表断电持久化或全部灯效实测。",
+      "device_step": true,
+      "execution_basis": "20261021已执行Preview步骤7；本轮引用，不要求重复执行，不声称新JAR已运行"
+    },
+    {
+      "id": "T08",
+      "group": "空闲USB重连",
+      "action": "没有上传时拔插USB，重新识别并查看草稿与能力状态。",
+      "expected": "正常恢复，旧状态不误开放新写入；不替代上传中断线测试。",
+      "device_step": true,
+      "execution_basis": "20261021已执行Preview步骤8；本轮引用，不要求重复执行，不声称新JAR已运行"
+    },
+    {
+      "id": "T09",
+      "group": "既有入口普通回归",
+      "action": "查看设备版本/睡眠时间、普通键/侧拨/Voice配置读回及Mode同步。",
+      "expected": "旧入口正常，不等于实际语音输入及全部WS001-004功能重验。",
+      "device_step": true,
+      "execution_basis": "20261021已执行Preview步骤9；本轮引用，不要求重复执行，不声称新JAR已运行"
+    },
+    {
+      "id": "T10",
+      "group": "后置：D01",
+      "action": "本次不执行：全19目标/全Mode人工巡检、图片边界及错误弹窗、设备已有/不一致实景。后续另行授权后补相应测试或调查。",
+      "expected": "记录NOT_EXECUTED/DEFERRED；不以正常路径或离线断言代替。",
+      "device_step": true,
+      "deferred_id": "D01"
+    },
+    {
+      "id": "T11",
+      "group": "后置：D02",
+      "action": "本次不执行：实际用户库重启、删除源图、写满、只读和迁移异常。后续另行授权后补相应测试或调查。",
+      "expected": "记录NOT_EXECUTED/DEFERRED；不以正常路径或离线断言代替。",
+      "device_step": false,
+      "deferred_id": "D02"
+    },
+    {
+      "id": "T12",
+      "group": "后置：D03",
+      "action": "本次不执行：真机8/12帧、上传中断线/ACK丢失/物理Mode变化/并发输入及恢复重试。后续另行授权后补相应测试或调查。",
+      "expected": "记录NOT_EXECUTED/DEFERRED；不以正常路径或离线断言代替。",
+      "device_step": true,
+      "deferred_id": "D03"
+    },
+    {
+      "id": "T13",
+      "group": "后置：D04",
+      "action": "本次不执行：断电持久化、真机10秒预览与AI竞争、OFF及批量部分失败。后续另行授权后补相应测试或调查。",
+      "expected": "记录NOT_EXECUTED/DEFERRED；不以正常路径或离线断言代替。",
+      "device_step": true,
+      "deferred_id": "D04"
+    },
+    {
+      "id": "T14",
+      "group": "后置：D05",
+      "action": "本次不执行：最小窗口、100/150/200%高DPI和长文案完整检查。后续另行授权后补相应测试或调查。",
+      "expected": "记录NOT_EXECUTED/DEFERRED；不以正常路径或离线断言代替。",
+      "device_step": false,
+      "deferred_id": "D05"
+    },
+    {
+      "id": "T15",
+      "group": "后置：D06",
+      "action": "本次不执行：BLE实链路/性能、桥接修复源码到EXE绑定部署、USB-BLE切换与共存。后续另行授权后补相应测试或调查。",
+      "expected": "记录NOT_EXECUTED/DEFERRED；不以正常路径或离线断言代替。",
+      "device_step": true,
+      "deferred_id": "D06"
+    },
+    {
+      "id": "T16",
+      "group": "后置：D07",
+      "action": "本次不执行：来源缺失全部竞争组合、RT-03固件主槽回退、UP-01/02历史上传根因。后续另行授权后补相应测试或调查。",
+      "expected": "记录NOT_EXECUTED/DEFERRED；不以正常路径或离线断言代替。",
+      "device_step": true,
+      "deferred_id": "D07"
+    },
+    {
+      "id": "T17",
+      "group": "后置：D08",
+      "action": "本次不执行：旧固件实机、完整系统/本地语音及长时休眠回归。后续另行授权后补相应测试或调查。",
+      "expected": "记录NOT_EXECUTED/DEFERRED；不以正常路径或离线断言代替。",
+      "device_step": true,
+      "deferred_id": "D08"
+    },
+    {
+      "id": "T18",
+      "group": "后置：D09",
+      "action": "本次不执行：新正式JAR实际启动运行，当前仅静态对比和历史Preview正常路径结果。后续另行授权后补相应测试或调查。",
+      "expected": "记录NOT_EXECUTED/DEFERRED；不以正常路径或离线断言代替。",
+      "device_step": false,
+      "deferred_id": "D09"
+    },
+    {
+      "id": "T19",
+      "group": "后置：D10",
+      "action": "本次不执行：等待态实际触发与完整应用/设备组合。后续另行授权后补相应测试或调查。",
+      "expected": "记录NOT_EXECUTED/DEFERRED；不以正常路径或离线断言代替。",
+      "device_step": true,
+      "deferred_id": "D10"
+    }
+  ],
+  "acceptance_scope": "limited_historical_windows_usb_normal_paths_with_explicit_deferred_remainders"
+}

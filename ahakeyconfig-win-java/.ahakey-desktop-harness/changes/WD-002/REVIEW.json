@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "id": "WD-002",
+  "pack_sha256": "c6a35df927f705125e0e17e1a93205a97d3b712b5479351c042aee54722f9d8d",
+  "reviewer_role": "DLA",
+  "review_session": "original-dla-dialog-WD-002-review-20261003T102347Z",
+  "builder_session": "dib-builder-submission-WD-002-build-round-3-20261003T101127Z",
+  "independence": "separate_dla_conversation",
+  "decision": "pass",
+  "scope_conclusion": "Current DLA actual-diff review pack 20261003T102347709569Z-c2970c is bound to build_round 3, code fingerprint 937d716d93f20e7fb13e3b994f834b0b002a65fff424acb48cef0855f5981e41, submission SHA256 63dd75975a42c3d1297ef36f3a191d2ce981b961ff767a33042bbf7c889df85c, and the effective Q7 contract revision. The pack reports changed_paths for StudioController.java, BleManager.java and CanvasPane.java, all inside WD-002 allowed_paths. The structured per_file review now covers each actual changed file exactly once, with BleManager.java reviewed as the build_round 3 fix target for the previous DLA blocker.",
+  "per_file": [
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "purpose": "Owns the WD-002 product journey from mode selection and Edit Configuration entry through BLE status application, disconnected browse behavior, and connected write guards.",
+      "reviewed_hunks": "Reviewed selectKeyboardMode, enterEditingConfiguration, activateConfigurationEditing, finishEditingConfiguration, syncAllModes, userConnect/userDisconnect, onConnected/onDisconnected/onError handling, modeSwitchInProgress handling, and applyBleStatus. Offline mode selection only changes selectedMode and status text for local browsing. Edit Configuration sets enterEditingAfterConnect and calls userConnect when disconnected, while actual editing is only activated after onConnected or when already connected/simulated. Disconnect/error clears the pending edit flag. Save/apply/write paths still require connected state or simulateBle.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "purpose": "Owns WD-002 device-facing command sequencing for 0x92 mode set, 0x00 status readback, response queueing, USB/BLE transport parity, and adjacent 0x95/0x9F protocol surfaces.",
+      "reviewed_hunks": "Reviewed setWorkModeAndVerify, queryDeviceStatusSnapshot, waitForResponseFrame, processNotifyFrame and enqueueNotifyFrame. The path sends AhaKeyProtocol.setWorkMode (0x92), requires a parsed OK command response, then sends AhaKeyProtocol.queryDeviceStatus (0x00) and validates the returned status frame with AhaKeyProtocol.parseDeviceStatus before comparing workMode. Valid 0x00 status frames now update cachedStatus/UI and are also enqueued for the waiting command path. CMD_QUERY_STATUS no longer uses the generic CommandResponse.status byte. readSleepWaitTimeMinutes/setSleepWaitTimeMinutesAndVerify and readFirmwareCatalogKey remain on their existing 0x95/0x9F parser paths.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasPane.java",
+      "purpose": "Provides the visible mode picker and local preview surface for WD-002 mode browsing/switching.",
+      "reviewed_hunks": "Reviewed mode picker construction, ToggleButton action, selectedMode listener and preview refresh. Buttons call controller.selectKeyboardMode(slot), are disabled only while modeSwitchingProperty is true, and the tooltip states offline browse semantics. This keeps offline browsing available while leaving connected mode-switch authority in StudioController and BleManager.",
+      "within_contract": true
+    }
+  ],
+  "production_journey": "User selects a mode in CanvasPane, which calls StudioController.selectKeyboardMode. If disconnected and not simulated, StudioController only selects the local draft mode and displays an offline-browse message; no 0x92 is sent. If connected, StudioController sets a switching flag and calls BleManager.setWorkModeAndVerify on a background thread. BleManager serializes the command transaction, sends AhaKeyProtocol.setWorkMode (0x92), waits for the 0x92 command response, then calls queryDeviceStatusSnapshot. queryDeviceStatusSnapshot sends AhaKeyProtocol.queryDeviceStatus (0x00), waits for CMD_QUERY_STATUS, parses the returned frame with AhaKeyProtocol.parseDeviceStatus, updates cachedStatus, lastStatusUpdateTime and callback.onStatusReceived, and returns the status for mode equality confirmation. Separately, processNotifyFrame now also enqueues valid 0x00 status frames after updating cache/UI, so the waiting confirmation logic can observe the same readback that updates UI state.",
+  "preserved_behavior_assessment": "Q7 semantics are preserved: offline is browse-only, Edit Configuration is connect-first, and a failed/disconnected connect path does not enter keyboard configuration editing. Device write paths remain guarded by deviceStatus.isConnected or simulateBle. WD-001 adjacent behavior was checked: 0x95 sleep wait time still uses CMD_SLEEP_WAIT_TIME, readSleepWaitTimeMinutes, setSleepWaitTimeMinutesAndVerify and parseSleepWaitTime; 0x9F firmware catalog key still uses CMD_FIRMWARE_CATALOG_KEY, queryFirmwareCatalogKey, readFirmwareCatalogKey and parseFirmwareCatalogKey. DIB machine checks passed under temporary JDK 17, but there is no real-device proof, Owner UAT, BUILD_RECEIPT, test_packet or Git candidate yet.",
+  "baseline_assessment": "The review pack reports missing original bytes for StudioController.java, BleManager.java and CanvasPane.java due the earlier v1.0.1 start-fingerprint / guard-origin repair history. This DLA review therefore does not claim a byte-perfect pre-task baseline. It reviews current source, generated actual diff, pack identity, DIB execution report, effective WD-002 revision 2 contract and adjacent protocol call chains. Owner-approved route repair and Q7 alignment evidence are used only as governance/baseline-gap context, not as product UAT.",
+  "protocol_assessment": "The effective WD-002 contract authorizes no new Firmware opcode: Windows must use existing 0x92 for Desktop-to-keyboard mode set and existing 0x00 for keyboard-authoritative status readback. The current BleManager path matches that: setWorkModeAndVerify requires 0x92 OK plus a follow-up 0x00 readback whose workMode equals the target. The prior blocker is fixed because CMD_QUERY_STATUS is now special-cased in waitForResponseFrame and validated with AhaKeyProtocol.parseDeviceStatus instead of AhaKeyResponseParser.CommandResponse.status, so the 0x00 payload battery byte is no longer misread as a command error code.",
+  "risk_level": "high",
+  "fresh_review_required": true,
+  "risk_rationale": "WD-002 is explicitly classified as protocol_change, architecture_change and scope_expansion with review_policy high_impact, and it changes device-facing sequencing around 0x92 and 0x00 plus offline editing semantics. This DLA review found no remaining blocking source issue, but v1.1 requires a fresh independent DLA review bound to the same pack before review pass can be formally recorded and before candidate/build/test-packet preparation proceeds.",
+  "findings": [],
+  "baseline_gap_owner_record": ".ahakey-desktop-harness/evidence/owner-approval-WD-002-q7-route-repair-20261003.md",
+  "fresh_review_record": ".ahakey-desktop-harness/changes/WD-002/reviews/20261003T102347709569Z-c2970c/FRESH_REVIEW_DLA_INDEPENDENT_20261003T1848.json"
+}

@@ -1,0 +1,101 @@
+{
+  "schema_version": 3,
+  "id": "WD-004",
+  "title": "WS3 CP1 AI runtime presentation Windows adapter",
+  "revision": 4,
+  "phase": "VERIFY",
+  "status": "CLOSED",
+  "build_round": 5,
+  "assignment": {
+    "owner_record": ".ahakey-desktop-harness\\evidence\\20261008T_ai_runtime_multi_codex_owner_record.md",
+    "record_sha256": "ce9ea8e83d00fbaf30699421af3cac2a63b5363b74150fa3762d7387c3dfbaa9",
+    "at": "2026-10-08T02:38:29+00:00"
+  },
+  "delivery_scope": "internal_integration",
+  "requirements": {
+    "ui_entry_changed": false,
+    "device_related": true,
+    "real_device": true,
+    "owner_uat": true
+  },
+  "allowed_paths": [
+    "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/HookDispatchServer.java",
+    "src/main/java/com/example/ahakey/service/HookInstaller.java",
+    "src/main/java/com/example/ahakey/service/HookClient.java",
+    "src/main/java/com/example/ahakey/service",
+    "src/main/java/com/example/ahakey/model",
+    "src/main/java/com/example/ahakey/model/IDEState.java",
+    "src/main/java/com/example/ahakey/model/StudioState.java",
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/view/TopBar.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java",
+    "src/main/java/com/example/ahakey/util",
+    "src/main/resources",
+    "pom.xml"
+  ],
+  "preserved_behaviors": [
+    "0x90 legacy SINGLE AI state remains available in SINGLE mode",
+    "0x87 ordinary key readback unchanged",
+    "0x97 side switch configuration unchanged",
+    "0x96 Voice unchanged",
+    "0x95 sleep wait time unchanged",
+    "0x9F firmware capability unchanged",
+    "0x92 mode sync unchanged",
+    "0x00 status query unchanged",
+    "Light configuration save remains persistent-effect only",
+    "No resource upload or persistent keyboard storage for AI runtime slots"
+  ],
+  "approval_assets": [
+    "CONTRACT.md",
+    "REFERENCES.json"
+  ],
+  "ui_mode": "existing",
+  "ui_note_ref": "CONTRACT.md",
+  "ui_current_refs": [],
+  "ui_preview_refs": [],
+  "mock_plan": null,
+  "checkpoints": [],
+  "approval": {
+    "at": "2026-10-09T03:07:10+00:00",
+    "owner_record": ".ahakey-desktop-harness\\evidence\\20261009T_wd004_topbar_allowed_path_owner_scope.md",
+    "owner_record_sha256": "21cf257ab71d6aba9e06e7e60a981e0b9c276054f1dee735b7ac21abee7ec8e9",
+    "inputs": {
+      "meta_sha256": "dcfb9c909bf5ecf93db5e28c96b09c0bc768da8171ae0c9021bc2973f41e521a",
+      "assets": {
+        "CONTRACT.md": "6cea7b284060c1417718c6648148419eb59c4c02d8dc3b2ddc1f7769cd6580cd",
+        "REFERENCES.json": "75ecc19291c2e70aff9db65395e04265c586a680caedf38c3bf39341e20c0247"
+      },
+      "reference_sha256": "e017ac9f7241d31b99ffc5590c2b6b6e837a3c5fcab8e71f2405978647dd7a13"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "change_classification": [
+    "architecture_change",
+    "protocol_change",
+    "scope_expansion"
+  ],
+  "journey_ids": [
+    "J004"
+  ],
+  "review_policy": "high_impact",
+  "activated_at": "2026-10-08T03:35:58+00:00",
+  "isolation_record": ".ahakey-desktop-harness\\evidence\\20261008T_wd004_isolation_from_existing_work.md",
+  "contract_revision": {
+    "at": "2026-10-09T03:07:10+00:00",
+    "reason_record": ".ahakey-desktop-harness\\evidence\\20261009T_wd004_topbar_allowed_path_reconcile_reason.md",
+    "reason_sha256": "f54bd762ffe45970fd3f93bc34f1c49cef34ca0d30623ec81f731173ccd40345",
+    "owner_record": ".ahakey-desktop-harness\\evidence\\20261009T_wd004_topbar_allowed_path_owner_scope.md",
+    "owner_sha256": "21cf257ab71d6aba9e06e7e60a981e0b9c276054f1dee735b7ac21abee7ec8e9",
+    "previous_revision": 3
+  },
+  "fix_request": {
+    "at": "2026-10-09T03:21:13+00:00",
+    "record": ".ahakey-desktop-harness\\changes\\WD-004\\REVIEW.json",
+    "sha256": "be5ae0bbca212ec614709b7699d7d0ec4d9ec1bb7678b71a3e570a2ad2dd9904"
+  },
+  "closed_at": "2026-10-12T15:45:46+08:00",
+  "closure_scope": "internal_integration_jar_candidate_only_not_release",
+  "closure_record": ".ahakey-desktop-harness\\changes\\WD-004\\CLOSE_RECEIPT.json"
+}

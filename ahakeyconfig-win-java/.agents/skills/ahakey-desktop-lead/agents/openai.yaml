@@ -1,0 +1,6 @@
+interface:
+  display_name: "AhaKey Lead v1.3"
+  short_description: "产品Grill、Contract、审阅、候选与Owner交接"
+  default_prompt: "使用 $ahakey-desktop-lead，先读取当前规则、VERSION.json 与 STATE；所有面向 Owner 的自然语言用中文。"
+policy:
+  allow_implicit_invocation: false

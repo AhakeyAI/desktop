@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "id": "WD-003",
+  "launch_command": "Set-Location -LiteralPath 'C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\builds\\WD-003\\20261008T005913928548Z-cecb3e\\runtime'; & 'D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe' -cp 'ahakey-studio-1.0.0.jar;lib\\*' com.example.ahakey.Main",
+  "working_directory": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\builds\\WD-003\\20261008T005913928548Z-cecb3e\\runtime",
+  "connection": "Owner uses the normal AhaKey Studio USB or BLE connection path and records the actual path used. This packet does not install drivers, kill processes, connect devices automatically, write firmware, or flash firmware.",
+  "preconditions": "Use the exact formal runtime JAR SHA256 52a79397c28529203c777b594555947bdba4822e004d6179d4b9ead03c59a43b with its recorded runtime lib directory. Before device steps, Owner must confirm the physical keyboard is the intended X1 unit flashed with CP4D HEX SHA256 6f9759eb912ec067564c4e63558589ab9732126344d52c2d2a278383119516be. Owner Preview PASS is not formal UAT.",
+  "recovery": "Before changing ordinary keys or side-switch slots, record the current visible configuration. If launch, connection, readback, save, mismatch, disconnect, or log collection fails, stop the affected subtest, preserve screenshots and logs/ahakey-studio.log, and do not infer success from UI state alone. Restore edited keys or side-switch slots after testing if needed.",
+  "deliberately_unchanged": "This test does not validate lite EXE, model-bundled EXE, installer switching, release packaging, full product regression, firmware release, CP5, light/OLED/GIF/image, voice, power, Restore Factory, HID descriptor changes, or firmware upgrade/recovery.",
+  "result_return": "Return the actual connection path, firmware identity confirmation, and pass/fail/not-executed for every numbered step. Include screenshots for side-switch and K1-K4 readback, and logs/ahakey-studio.log plus terminal output for any failure.",
+  "device_writes": true,
+  "steps": [
+    {
+      "action": "Launch the exact WD-003 formal runtime JAR from the recorded runtime directory using JDK17.",
+      "expected": "The app opens normally. Launch alone does not prove device behavior or formal UAT pass."
+    },
+    {
+      "action": "Connect the intended X1 keyboard through the normal USB or BLE path and confirm it is flashed with the CP4D HEX named in FIRMWARE_IDENTITY.json.",
+      "expected": "The device connects, and Owner explicitly confirms the physical device/HEX identity before any write-like step."
+    },
+    {
+      "action": "Confirm firmware capability gating through 0x9F after connection.",
+      "expected": "A CP4C/CP4D-capable catalog key is read and accepted. If 0x9F is missing, fails, or returns a non-allowlisted key, Windows keeps legacy behavior and does not use 0x87 or editable 0x97."
+    },
+    {
+      "action": "Open the existing sleep wait time area and read the preserved 0x95 sleep wait time value.",
+      "expected": "The existing 0x95 sleep wait time read still works and shows a legal value or a clear read failure without regressing WD-001 behavior."
+    },
+    {
+      "action": "Open the side-switch part on the keyboard canvas and inspect the right-side side-switch configuration.",
+      "expected": "Current side-switch up/down configuration is read from 0x97, physical position remains visible, and existing Auto/Manual/Disabled labels remain coherent."
+    },
+    {
+      "action": "Observe ordinary K1-K4 in the current mode immediately after connection/readback.",
+      "expected": "K1-K4 display the device baseline from 0x87, including default or empty configurations, and their default readback is not broken."
+    },
+    {
+      "action": "Switch through the remaining modes and wait for background ordinary-key readback to complete.",
+      "expected": "All four modes x four ordinary keys are read through 0x87; mode switching does not show stale local defaults, and already-read modes display immediately."
+    },
+    {
+      "action": "Configure one side-switch position as Custom single-key shortcut, for example Backspace, save, then re-read.",
+      "expected": "Windows writes via 0x97, reads back 0x97, and reports success only after the single-key shortcut readback matches."
+    },
+    {
+      "action": "Configure one side-switch position as Custom combination shortcut, for example Ctrl+V, save, then re-read.",
+      "expected": "The combination is stored as shortcut payload bytes, reads back exactly, and does not become bare HID keycodes."
+    },
+    {
+      "action": "Configure a short side-switch Custom macro, save, then re-read; optionally try an oversized macro only if safe to do so.",
+      "expected": "The short macro saves and reads back. Oversized macros are blocked, disabled, or clearly reported before success is claimed; no silent truncation."
+    },
+    {
+      "action": "Edit an ordinary key such as K1 in the current mode, save through the existing flow, and re-read the affected key through 0x87.",
+      "expected": "Ordinary-key save success is reported only after the affected 0x87 readback matches the saved draft. The existing 0x73/0x04 write path remains the write path."
+    },
+    {
+      "action": "Check readback failure, mismatch, or disconnect behavior by disconnecting before a read/save or by observing any naturally occurring mismatch.",
+      "expected": "Windows shows a lightweight failure or disabled state, preserves unverified local draft parts, avoids false save success, and logs catalogKey/cmd/mode/keyIndex/phase/reason where applicable."
+    },
+    {
+      "action": "If a legacy or non-CP4C firmware device is available, connect it and inspect ordinary keys and side-switch behavior.",
+      "expected": "Legacy firmware keeps ordinary-key local Windows behavior, hides editable 0x97 side-switch form, and does not call 0x87. If no legacy device is available, this step is recorded as not executed rather than passed."
+    }
+  ]
+}

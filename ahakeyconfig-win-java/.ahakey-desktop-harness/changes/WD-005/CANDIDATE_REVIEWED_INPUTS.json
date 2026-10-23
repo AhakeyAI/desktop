@@ -1,0 +1,224 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "revision": 5,
+  "build_round": 9,
+  "expected_head": "f595262207796dbf325cb9951ed3dc02b4887362",
+  "code_fingerprint": "98fe4428d5187e7f900a30df99b2432c7a540fcc02f7707a7aa1ac659d2213b9",
+  "base_plan": ".ahakey-desktop-harness/changes/WD-005/CANDIDATE_GIT_PLAN.ps1",
+  "note": "原正式计划44项加9项当前批准/验证/固定pack和审阅依赖。只生成，不执行Git写入；治理维护包留待结果归档单独保存，不提交桥接、本机配置或旧备份。",
+  "files": [
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/ACCEPTANCE.md",
+      "sha256": "c6ebf4b485d9671fcb66400dcf350897f322f4439f257a2748c264c36d35ff2c"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/AUTO_CAPABILITY_UI_CONTRACT_R5_20261021.md",
+      "sha256": "4df299b3b87a9799c181ee9d9ed0f9ef4868f430d7979c6b9aff0732b66febc5"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/CONTRACT.md",
+      "sha256": "6fc54cd021c463396354783602629f036ee6c7a02919ee7408dbb8b20e31a5c5"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/CROSS_COMPONENT_WORK_20261018.md",
+      "sha256": "356f313a3dcb0d603129a441760a4de4d0736c6856b52f8f76ec408a47be63f4"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/DECISIONS.md",
+      "sha256": "5d5e82ad0d1543a4c4ac7b90ab43a46d2b9486d82bc44b0d1743b43dd6191bef"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/DESIGN_REVIEW.md",
+      "sha256": "6084d6b7d51061508faac80df1241fbb9651c2dcd184bb4a0dc47626f62a4c4d"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/DLA_ACTUAL_REVIEW_R9_20261021.json",
+      "sha256": "a1339d8053265571edebe3339be38722504adf20f948227dded610ea7ad6c41c"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/DLA_ACTUAL_REVIEW_R9_20261021.md",
+      "sha256": "39464ac4b51cec22056effe2ea0c194f938dda6d898db9e7eff2e5c7aa9a6785"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/EXECUTION_REPORT.md",
+      "sha256": "749264589c44656848f062fcf3b4ecf35784bef80f7356dc1f204834d69a19a2"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/EXECUTION_REPORT_REVISION_5_ROUND_9_20261021.md",
+      "sha256": "d6085b122f7213ce5141627145f79ef87d24475f13022e2276272cbbe4f94ea3"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/FORMAL_REVIEW_R9_20261021.json",
+      "sha256": "77f8b6efcb00badba83f3df0b8dbd200db671de1f9bd1955ba3f4335cea32049"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_CHECKS_ROUND_9_20261021.json",
+      "sha256": "85ccfb0608223c429c5f432596cc6a1c3b7c6a792e5dab81e6c072be66f633f4"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_RECEIPT.json",
+      "sha256": "24c2f57b59409f2b74292b6fee7875bedb23855dfe3750158472621a1f0f9344"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/IMPLEMENTATION_SCOPE.md",
+      "sha256": "12c937826c84fff190028348247e2e4204afde04257788016d3e418978483906"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/PREVIEW_FIX_CONTRACT_R3_20261018.md",
+      "sha256": "3095efebc0f5ec802bd9d5f3edd76278d899681aaf20164d6b38e90b1c9854f8"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/PROTOCOL_AND_STATE.md",
+      "sha256": "2f0cff7afc3340109abd02c932c9024cede07995471a458e16d56d563c391be7"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/R6_ISOLATION_INTERFACE_PROPOSAL_20261020.md",
+      "sha256": "0dcc0723de173234d6cdfd4019421fbd91244041cc60eac1b73bf9be5a2bec01"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/REFERENCES.json",
+      "sha256": "1bb3f96c441a6eaa891be6ec3fdc98b58f3e3a45197ba397c26d16027472636f"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/REGISTRATION.md",
+      "sha256": "2f2db582d388cf8481f814d6d87b85ceab98d0b041666a3935f39bc78d21e1cf"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/REVIEW.json",
+      "sha256": "a1339d8053265571edebe3339be38722504adf20f948227dded610ea7ad6c41c"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/STATIC_IO_ISOLATION_R9_20261021.md",
+      "sha256": "607ce864f3619340f3f4dd7ae580f4ca7a7432f7f3e6f0f60357669bafe53283"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/builder_submission.json",
+      "sha256": "b5ef2e1c9e11a9c43739220fa717a87b14a1442e4124668020a8e13a89949f7a"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/change.json",
+      "sha256": "f1796bef244f6bbdec507d67306282e521596dd1c3dcc26667e23ac558ff7857"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/foreign_acceptance.json",
+      "sha256": "70518dd3fde56fade1c263ca30d7542110d729c2cdc233804d21aaa11e16211d"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/guard-origin.json",
+      "sha256": "14ae1345c35c61e66ef55c03971cb623de04f9bde0f4d1219fff4bf2ec5316da"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/preserved_foreign_inputs.json",
+      "sha256": "9fd1ec213310dbe263f0b9a2bc5be96f0c8105eff2feaccc5827d7e70d79df8d"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/review_pack.json",
+      "sha256": "870e82c4af6147da9589298495a5f31e8a882b114bb57b7cbfa71f5848c45754"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/reviews/20261021T023808688339Z-41baa7/ACTUAL_DIFF.txt",
+      "sha256": "5bdf26aff58dcf1539dbc99018e244b7567bcffbdbe16016d12342371d56a6c7"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/reviews/20261021T023808688339Z-41baa7/FRESH_ACTUAL_REVIEW_R9_20261021_661dbf42.json",
+      "sha256": "211f858fd4bee2a52f86ae48e043fa1bab54ce16b0c24c7fd2512d87aba9c676"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/reviews/20261021T023808688339Z-41baa7/FRESH_ACTUAL_REVIEW_R9_20261021_661dbf42.md",
+      "sha256": "e923354fa5827f9bee27b962a0db7a6eb9b1c7bba332eaf362b209c3b44d7a35"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/reviews/20261021T023808688339Z-41baa7/PACK.json",
+      "sha256": "870e82c4af6147da9589298495a5f31e8a882b114bb57b7cbfa71f5848c45754"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/start-fingerprint.json",
+      "sha256": "849598f1b9d53bf9ff8e804459a1b053e6ce946d8c9b7db75c039cb07a1e1fc0"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-005/verification.json",
+      "sha256": "084786f4b1e6bdf04ccdffe80e191e26839eeb645b5e12a2d38b9896f228e391"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/20261015-wd005-owner-scope-approval.json",
+      "sha256": "04879c694266ab63023e2e90c8b8a74247f010b70069d3a7c8767063ddab0359"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/20261021-wd005-capability-ui-owner-authorization.md",
+      "sha256": "99a84fd0a13c877bea33261ec50dc1bb43907198ce4be15b684b55d7a3cf5987"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/app/StudioController.java",
+      "sha256": "c12d4279cf2f070f8d4a88e3f57c05a4964144ac7cd5e5a86fcef9a479e54f80"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/model/DeviceStatus.java",
+      "sha256": "ea9cf896738e39b8128f044a63f365d365b91dfe2bf11f231dbbba2a4a98124d"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+      "sha256": "b7f0ef25d78138cf4555a310f092017013cc7d4cf66735341b4a9336707a6fe5"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+      "sha256": "b1309d9462f20baca91b610fadc3256f913c334e37ec7f5f51e84da1706b93f7"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "sha256": "835535bf0c31930473869a2a05bf0f7a454548d865bf02f90c9e942bf1fb08bc"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/BleManager.java",
+      "sha256": "18ad17fa2a77da56f02536c7a331cf4010c310c5707997598d90650f1ecaa82c"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "sha256": "56af7456cf1e1fb578a799d8a11d0cf4b8dbfd97fa89bd99ee88f6ac8a550f12"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "sha256": "45bad529a669fcf6a0afe3c07e3e2f75fd98f7e694d9c1890ff563142143e4c5"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/resources/messages_en.properties",
+      "sha256": "70275381f6e2d9fa8f8108f3a79ed45297907b140923cbc842fa69808053a22b"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/resources/messages_zh.properties",
+      "sha256": "a40bad173698f9ba490ed6ca956ad72cca53072c24d6dc7422c0012bd34b5138"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/resources/style.css",
+      "sha256": "983a9f0001e8560216f4c445b75c8f4c40ccd993652bfc2e1d72bb291fb23881"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/displayconfig/DisplayConfigCapabilityChecks.java",
+      "sha256": "fdb4c9404f55b7573b23c9cc0471f1f83eef7483b0a46d44793157a076060801"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/displayconfig/DisplayConfigChecks.java",
+      "sha256": "585455f0ec2364ab412d1a1a202c2d119aad19108b82a2ce1ad6bfefaa9adc8c"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/displayconfig/DisplayConfigIsolationChecks.java",
+      "sha256": "20ffaef9af18d9a03d31f4f159b4ea9e4dd3d6eb8e151a1b94892089aee4a116"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/displayconfig/DisplayConfigRaceChecks.java",
+      "sha256": "16a00f57a1d1da89b69436b006ba7944f4fd7573fcfe375701ad590badf3925c"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3Checks.java",
+      "sha256": "bf1a88ba7a7769eb36874be7401956fe3c6bb8ee681ee93d6a3335e823dd4c49"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/displayconfig/DisplayConfigRound5Checks.java",
+      "sha256": "369aee701b6be648f1e2b83b7cdf64ccc146d48cf54838e0c9bad6b996364e60"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/displayconfig/OfflineBleManager.java",
+      "sha256": "ea6f8220f2dcacee0e185cdf359b336d4233a88a336cc7e45f5b6f7c7716a1a2"
+    }
+  ]
+}

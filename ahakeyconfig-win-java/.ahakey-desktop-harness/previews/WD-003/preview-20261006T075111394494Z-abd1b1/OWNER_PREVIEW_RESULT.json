@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "WD-003",
+  "token": "preview-20261006T075111394494Z-abd1b1",
+  "at": "2026-10-06T08:31:33+00:00",
+  "status": "pass",
+  "owner_record": ".ahakey-desktop-harness\\evidence\\20261006T_owner_preview_wd003_cp4c_wired_pass_ble_blocked.md",
+  "owner_sha256": "00b34b73a6ee42134ad8dfd4cdcc1ecd50923ce53cd0c0aa5d5dfcec3ab4274f",
+  "preview_receipt_sha256": "8ad6a03127721e93349b42a17fd68bced5145b29506b893457d47caad9374d97",
+  "snapshot_fingerprint": "9bd726189e9e1e0b9aeb1a1519ff6ab804640e8e6eafd8b0bed7b48a4bea04b2",
+  "scope": "OWNER_PREVIEW_RESULT_ONLY_NOT_OWNER_UAT"
+}

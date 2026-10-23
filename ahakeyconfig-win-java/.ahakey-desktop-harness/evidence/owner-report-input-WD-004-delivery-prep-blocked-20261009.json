@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "当前在交付准备阶段。",
+    "conclusion": "上位机候选提交和可运行构建已经过关，但完整测试包被固件正式门的精确配对挡住，暂时不能交给你做正式测试。"
+  },
+  "completed": [
+    "已核对候选提交、构建回执、主程序包和运行依赖目录。",
+    "已生成交付草案，并确认当前交付形态是程序包加依赖目录，不是安装包。",
+    "已发现匹配的固件正式门，但正式门记录的固件文件指纹和当前本地固件文件指纹不一致。",
+    "已记录阻塞证据。"
+  ],
+  "remaining": [
+    "正式固件准入记录未能生成。",
+    "完整测试包、测试步骤包和发布给你的正式测试说明还不能生成。",
+    "还没有启动软件、安装钩子、连接设备、写设备或做正式用户验收。"
+  ],
+  "owner": {
+    "decision": {
+      "required": false,
+      "action": "现在不需要新的产品范围决策。"
+    },
+    "operation": {
+      "required": true,
+      "action": "需要先让固件侧恢复对应固件文件，或重新生成一个与当前固件文件字节完全一致的正式通过门。"
+    },
+    "test": {
+      "required": false,
+      "action": "当前先不要开始这个任务的正式测试；测试包还没合法发布。"
+    }
+  },
+  "next": {
+    "role": "DLA",
+    "destination": "原 DLA 对话",
+    "mode": "交付准备",
+    "task": "固件正式门修复后继续发布测试包",
+    "action": "重新绑定固件正式门，随后生成完整测试包和给你的测试说明。",
+    "authorization": "只做只读核对和交付记录写入。",
+    "goal": "把本任务推进到可以交给你真实测试的状态。",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "facts": [
+      "当前阻塞是固件正式门记录的固件文件指纹和当前同路径固件文件指纹不一致。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\STATE.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-004\\BUILD_RECEIPT.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-004\\DELIVERY_PROFILE.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-004\\FIRMWARE_IDENTITY.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\evidence\\20261009T_wd004_firmware_gate_artifact_mismatch.md"
+    ],
+    "allowed": [
+      "只读核对和交付记录写入"
+    ],
+    "forbidden": [
+      "不要构建、不要写设备、不要执行任何版本库写操作"
+    ]
+  },
+  "evidence": [
+    ".ahakey-desktop-harness/evidence/20261009T_wd004_firmware_gate_artifact_mismatch.md"
+  ]
+}

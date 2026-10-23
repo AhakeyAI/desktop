@@ -1,0 +1,53 @@
+{
+  "id": "WD-003",
+  "at": "2026-10-08T01:43:16+00:00",
+  "scope": "exact_tested_form_only",
+  "delivery_profile": {
+    "schema_version": 1,
+    "id": "WD-003",
+    "created_at": "2026-10-08T01:16:46+00:00",
+    "build_receipt": {
+      "path": ".ahakey-desktop-harness/changes/WD-003/BUILD_RECEIPT.json",
+      "sha256": "28f1f4c82feee6dda36b9a91cd4a6a50a8d123ad420160fba26e40723a8ddbed"
+    },
+    "code_fingerprint": "a6dec812a6e11de5016e01b241c0e081d44350762dae206639e31ef6ddf3e58d",
+    "build_round": 9,
+    "delivery_form": "jar_classpath",
+    "product_variant": "shared-source",
+    "primary": {
+      "path": ".ahakey-desktop-harness\\builds\\WD-003\\20261008T005913928548Z-cecb3e\\runtime\\ahakey-studio-1.0.0.jar",
+      "sha256": "52a79397c28529203c777b594555947bdba4822e004d6179d4b9ead03c59a43b"
+    },
+    "observation": {
+      "kind": "shared-source",
+      "model_enabled": false,
+      "configuration_entry": "model_config.properties",
+      "configuration_sha256": "a32fc4ef090ce3e4c72634f5888fe74462487bf8781a6494ff9e74741f80cbd5",
+      "configuration_text": "status.poll.period.seconds=5\r\n",
+      "default_source": {
+        "path": "src/main/java/com/example/ahakey/config/ModelConfig.java",
+        "sha256": "80d6b270957ab1205f23a23160521c0fc9a2881bc49bdef18f0946904fe417d0"
+      },
+      "embedded_model_files": [],
+      "external_model_files": {},
+      "onnx_dependencies": [
+        ".ahakey-desktop-harness/builds/WD-003/20261008T005913928548Z-cecb3e/runtime/lib/onnxruntime-1.16.3.jar"
+      ],
+      "manifest_text": "Manifest-Version: 1.0\r\nCreated-By: Maven JAR Plugin 3.3.0\r\nBuild-Jdk-Spec: 17\r\nClass-Path: lib/javafx-controls-17.0.10.jar lib/javafx-controls-17.0.10-\r\n win.jar lib/javafx-fxml-17.0.10.jar lib/javafx-fxml-17.0.10-win.jar lib\r\n /javafx-graphics-17.0.10.jar lib/javafx-graphics-17.0.10-win.jar lib/ja\r\n vafx-base-17.0.10.jar lib/javafx-base-17.0.10-win.jar lib/jackson-datab\r\n ind-2.16.0.jar lib/jackson-annotations-2.16.0.jar lib/jackson-core-2.16\r\n .0.jar lib/jna-5.14.0.jar lib/jna-platform-5.14.0.jar lib/slf4j-api-2.0\r\n .9.jar lib/logback-classic-1.4.11.jar lib/logback-core-1.4.11.jar lib/o\r\n nnxruntime-1.16.3.jar\r\nImplementation-Title: ahakey-studio\r\nImplementation-Version: 1.0.0\r\nMain-Class: com.example.ahakey.App\r\n\r\n",
+      "classification": "shared JAR / local model disabled",
+      "limits": "Byte/source observation only. Not light installer, model installer, model-load or runtime PASS."
+    },
+    "entrypoint": "Set-Location -LiteralPath 'C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\builds\\WD-003\\20261008T005913928548Z-cecb3e\\runtime'; & 'D:\\jdk-17.0.19.10-hotspot\\bin\\java.exe' -cp 'ahakey-studio-1.0.0.jar;lib\\*' com.example.ahakey.Main",
+    "runtime_roots": [
+      ".ahakey-desktop-harness\\builds\\WD-003\\20261008T005913928548Z-cecb3e\\runtime\\ahakey-studio-1.0.0.jar",
+      ".ahakey-desktop-harness\\builds\\WD-003\\20261008T005913928548Z-cecb3e\\runtime\\lib"
+    ],
+    "claim_scope": "This exact JAR/configuration only; both installer variants NOT tested."
+  },
+  "packet_sha256": "045221aeb87e09f02f690cbe4f3ea01658b88dc05df506da2fb7cbca77d7ebcd",
+  "results_sha256": "e3a6bf277083dff80a2c6a2ed6cf27794f629085bcb2d16f0502b51a4aef2c08",
+  "installer_coverage": {
+    "lite-no-local-model": "not_covered_by_this_jar_task",
+    "model-bundled": "not_covered_by_this_jar_task"
+  }
+}

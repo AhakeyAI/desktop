@@ -1,0 +1,31 @@
+#include "resource_map.h"
+
+#include <stddef.h>
+
+/* Same reviewed 19-entry map, stored without redundant per-entry derived fields. */
+static const uint8_t k_resource_start_frames[DISPLAY_RESOURCE_ENTRY_COUNT] = {
+    0, 8, 20, 32, 44, 52, 64, 76, 88, 96, 108, 120, 132, 140, 152, 164, 176, 188, 200
+};
+
+uint8_t display_resource_entry_get(uint8_t entry_id, display_resource_entry_s *out)
+{
+    if (entry_id >= DISPLAY_RESOURCE_ENTRY_COUNT || out == NULL)
+        return 0;
+
+    out->entry_id = entry_id;
+    out->start_frame = k_resource_start_frames[entry_id];
+    out->state = entry_id < 16 ? entry_id % 4 : entry_id - 15;
+    out->mode = entry_id < 16 ? entry_id / 4 : 0xff;
+    out->role = entry_id >= 16 ? DISPLAY_RESOURCE_ROLE_MULTI_STATE :
+                 out->state ? DISPLAY_RESOURCE_ROLE_SINGLE_STATE : DISPLAY_RESOURCE_ROLE_MODE_DEFAULT;
+    out->max_frames = out->role == DISPLAY_RESOURCE_ROLE_MODE_DEFAULT ?
+                       DISPLAY_RESOURCE_DEFAULT_MAX_FRAMES : DISPLAY_RESOURCE_STATE_MAX_FRAMES;
+    out->start_address = (uint32_t) out->start_frame * DISPLAY_RESOURCE_FRAME_BYTES;
+    out->max_bytes     = (uint32_t) out->max_frames * DISPLAY_RESOURCE_FRAME_BYTES;
+    return 1;
+}
+
+uint8_t display_resource_entry_valid(uint8_t entry_id)
+{
+    return entry_id < DISPLAY_RESOURCE_ENTRY_COUNT;
+}

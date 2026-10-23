@@ -1,0 +1,55 @@
+{
+  "logs": [
+    {
+      "path": "java-identity.stderr.log",
+      "sha256": "d2f5345bf5ae4a93c3a3518c08feb9153852660880193d078cb9f86f0bacb855",
+      "size": 202
+    },
+    {
+      "path": "java-identity.stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "maven-identity-02.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "maven-identity-02.stdout.log",
+      "sha256": "5abb3d9a04839dbc02f26acdd2a001b35aa8832fc5c6a0120f9bc10e8b4e31c9",
+      "size": 313
+    },
+    {
+      "path": "maven-identity.stderr.log",
+      "sha256": "01f53dd17ffeba0ff1dc02d24b2bc3bf11c3b53adc26f8b2c4ba0633fc3dcbcc",
+      "size": 12
+    },
+    {
+      "path": "maven-identity.stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "package-02.stderr.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "package-02.stdout.log",
+      "sha256": "1cfcbfcb635fb9a11cda24097022884e651169c3599ed6016c499fb8c6b8ef65",
+      "size": 6681
+    },
+    {
+      "path": "package.stderr.log",
+      "sha256": "01f53dd17ffeba0ff1dc02d24b2bc3bf11c3b53adc26f8b2c4ba0633fc3dcbcc",
+      "size": 12
+    },
+    {
+      "path": "package.stdout.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    }
+  ],
+  "capture": "stdout/stderr raw byte streams; empty logs retained"
+}

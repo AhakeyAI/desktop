@@ -1,0 +1,61 @@
+{
+  "record_type": "route_maintenance_and_registration_result",
+  "id": "WD-005",
+  "status": "COMPLETED",
+  "maintenance": "route-hf01",
+  "independent_review": ".ahakey-desktop-harness/maintenance/route-hf01/REVIEW.json",
+  "install_receipt": ".ahakey-desktop-harness/maintenance/route-hf01/INSTALL_RECEIPT.json",
+  "tests": {
+    "guard_isolation": 16,
+    "installer_isolation": 3,
+    "all_pass": true,
+    "product_tests_executed": false
+  },
+  "official_commands": [
+    {
+      "command": "suspend WD-002",
+      "result": "PAUSED",
+      "exit_code": 0
+    },
+    {
+      "command": "new WD-005",
+      "result": "DRAFT",
+      "exit_code": 0
+    },
+    {
+      "command": "baseline-start WD-005",
+      "result": "RECOVERABLE_START_RECORDED",
+      "exit_code": 0
+    },
+    {
+      "command": "approve WD-005",
+      "result": "ACTIVE_IMPLEMENT_DIB",
+      "exit_code": 0
+    },
+    {
+      "command": "preflight WD-005 DIB",
+      "result": "PASS",
+      "exit_code": 0
+    }
+  ],
+  "final_route": {
+    "active_change": "WD-005",
+    "phase": "IMPLEMENT",
+    "mode": "IMPLEMENT",
+    "next_actor": "DIB"
+  },
+  "old_task": {
+    "id": "WD-002",
+    "status": "PAUSED",
+    "approval_unchanged_sha256": "a34f0f05a0daee947b6ebddd45a22762a6316d6c41c2304928c2814fc57aeaed",
+    "start_unchanged_sha256": "c8302ff71ea5b5cc1894c2e6121df7f14f76d21075b733c983e40455942c1e10",
+    "contract_unchanged_sha256": "727bbbf6f2b5507614e8af9823f22c2559dfa210da8f80280dded0e7459d6cd0"
+  },
+  "approved_design_documents_unchanged": 6,
+  "firmware_source_references_unchanged": 11,
+  "production_unchanged": true,
+  "git_writes": false,
+  "product_builds": false,
+  "device_commands": false,
+  "meaning": "治理修复与新任务登记完成；不是WD-005功能实现/产品测试或旧任务验收PASS。"
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "WD-002",
+  "token": "preview-fix-20261004T035221230624Z-6ec59b",
+  "round": 3,
+  "at": "2026-10-04T03:52:21+00:00",
+  "kind": "implementation_bug",
+  "owner_record": ".ahakey-desktop-harness\\evidence\\owner-preview-feedback-WD-002-log-diagnosis-20261004.md",
+  "owner_sha256": "d0cfce739e4547102009980b9fd21366656055d9f4734ffd765eda3af6442f13",
+  "source_preview": {
+    "schema_version": 1,
+    "id": "WD-002",
+    "token": "preview-20261004T031045322075Z-f81ce2",
+    "at": "2026-10-04T03:30:41+00:00",
+    "status": "fail",
+    "owner_record": ".ahakey-desktop-harness\\evidence\\owner-preview-feedback-WD-002-ui-bounce-still-fails-20261004.md",
+    "owner_sha256": "b6c6bc8801b48a4ddcd02470fdab4675d97090286704d80b1c376484d879d59e",
+    "preview_receipt_sha256": "c6047f510608a3acdb65dafdbf6e7cd600d40f42bc376fff632f26867a4837d1",
+    "snapshot_fingerprint": "9586870473bf5c2efa4455cd5f7ab2b3bb51fff8c68eced1d664ca2b35a6c339",
+    "scope": "OWNER_PREVIEW_RESULT_ONLY_NOT_OWNER_UAT"
+  },
+  "code_fingerprint_before": "e2aaf8d2b0fc2ba31b9567029aa5cfc56c789189294ad1bd8f87f0ec641e392b",
+  "changed_paths_before": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/view/CanvasPane.java"
+  ],
+  "meaning": "Owner Preview in-contract implementation defect. Fast lane: no Product Grill/Contract revision/fresh review/formal candidate required before re-preview."
+}

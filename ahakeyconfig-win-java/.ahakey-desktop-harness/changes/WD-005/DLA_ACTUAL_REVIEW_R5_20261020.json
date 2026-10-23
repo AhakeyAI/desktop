@@ -1,0 +1,271 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "revision": 3,
+  "build_round": 5,
+  "pack_sha256": "4718a62c2fc00519aefe2c6388f57df88fb74f6b080afcd1f0c51dd19bf763c6",
+  "code_fingerprint": "1fca9345199cd1166acd8b4df7125d3e17f1cad4032c7736dc1060361a2d3ccf",
+  "reviewer_role": "DLA",
+  "review_session": "原Windows DLA对话，2026-10-20第五轮实际复审",
+  "builder_session": "原DIB实现对话，revision3/round5，submit 2026-10-20T02:24:23+00:00",
+  "independence": "separate_dla_conversation",
+  "decision": "fail",
+  "scope_conclusion": "累计31文件；28份与第四轮已审after字节一致，两处生产修复加一份新测试。原三项生产缺陷已修复，但新增测试仍能自动发现打开并写真实USB，违反测试隔离边界，R5-F1需退修。",
+  "per_file": [
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "purpose": "显示配置入口、上传确认、模式准入和旧写入收口",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：累计所有hunk；追踪选择/上传/清除、CP1 completion、设备身份/Mode同步和全量保存过滤0x84/85。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+      "purpose": "显示草稿和设备事实模型",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：完整模型；同值再编辑版本、dirty合并、预览期限、选择与忙碌状态。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/LightEffectStyle.java",
+      "purpose": "未知灯效保留",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：累计diff；新增nullable解析，不改变旧API默认行为。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/OledResourceState.java",
+      "purpose": "资源身份和状态转换",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：完整模型；防御性复制、容量/CRC、上传未知和本地草稿分离。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+      "purpose": "接入显示配置状态",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：累计diff；仅新增显示配置模型入口。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+      "purpose": "CP2构包",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：全部新增构包；19分区、28672字节帧、48字节chunk、LE字段、预览/保存范围。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+      "purpose": "CP2定长解帧和语义检查",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：读回selector、索引、长度、资源valid/write_state/CRC；非零错误拒绝。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "purpose": "运行态身份、事实和补发",
+      "reviewed_hunks": "完整第五轮修复与累计调用链：可信事实先记录，再仲裁SINGLE显示；SingleOwner区分无占用与匿名工具占用；R4-F1/F2关闭。精确匹配、TTL、连接代次、MULTI序列化和持久绑定语义保留。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "purpose": "显示事务与传输互斥",
+      "reviewed_hunks": "补发直接发送旧事实不更新deferredRuntimeAt，IOException保留原时间，R4-F3关闭。复核lease关闭/未知隔离/reset代次；发现新增测试调用真实ensureUsbConnected路径，见R5-F1，非新增生产故障。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CodexSessionDiscoveryService.java",
+      "purpose": "会话来源分类",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：累计diff及来源查询；有限元信息、UNKNOWN不当作BACKGROUND，不读取聊天正文。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "purpose": "显示配置业务和FX提交",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：完整服务；单worker、读取批次取消、操作/连接/编辑身份、上传本地持久化、部分保存、预览期限。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/FirmwareLightSimulator.java",
+      "purpose": "本地八灯预览",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：全部效果并对照绑定固件；整数运算、运动顺序和亮度。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookDispatchServer.java",
+      "purpose": "真实运行态反馈",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：累计diff；分发返回SENT/PENDING/IGNORED/FAILED，未修改权限策略；匿名Kimi入口可达R4-F2。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+      "purpose": "本地成品库",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：完整加载/原子保存/清除；历史未引用资源保留符合合同。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledUploadService.java",
+      "purpose": "Begin/chunk/Commit上传事务",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：完整服务；单lease、逐ACK、offset进度、失败不盲重试、Commit未知和关闭前恢复隔离。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "purpose": "USB会话和CP2写入",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：累计diff；旧线程句柄/回调隔离，CP2短写不再二次写，定长提帧。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/AiRuntimeStore.java",
+      "purpose": "绑定与运行事实分离",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：累计diff；加载清除历史lastIdeState、保留用户绑定。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+      "purpose": "资源转换",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：完整转换流程；尺寸、GIF合成/disposal、RGB565成品及补齐。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "purpose": "成品与八灯画布",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：累计diff及调用链；预览、动画生命周期、热点锁；完整窗口行为未运行验证。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "purpose": "OLED/灯光编辑界面",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：累计所有hunk；模式ACK后生效、全局亮度、SINGLE/MULTI禁用与草稿保留、OLED资源操作/上传锁/入口提示。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/fxml/CanvasLayout.fxml",
+      "purpose": "八灯与OLED布局",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：完整布局及diff；节点数量、OLED尺寸、草稿提示。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/messages_en.properties",
+      "purpose": "英文提示",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：新增键与中文配对，无无关翻译变更。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/messages_zh.properties",
+      "purpose": "中文提示",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：新增模式关系与资源指引，未全局替换。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/style.css",
+      "purpose": "局部对比度与禁用样式",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：目标区域样式及隔离FX证据；不全局修改label，不取消实际禁用。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigChecks.java",
+      "purpose": "限定范围检查",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：编码/协议/状态/资源库/模拟器及内存传输断言。只读审查源码和既有日志，本DLA未执行测试。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigEncodingProbe.java",
+      "purpose": "限定范围检查",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：stdout/stderr/JUL/文件编码探针；不等于产品运行。只读审查源码和既有日志，本DLA未执行测试。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigFxChecks.java",
+      "purpose": "限定范围检查",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：隔离FX、成品像素、热点与服务断言。只读审查源码和既有日志，本DLA未执行测试。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRaceChecks.java",
+      "purpose": "限定范围检查",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：F1串行化、F2模式ACK、F3延迟FX、R1跨连接pending与重连偏好。只读审查源码和既有日志，本DLA未执行测试。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3Checks.java",
+      "purpose": "限定范围检查",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：身份冲突/来源/TTL/交错/上传诊断/查询调度；缺本报告三项组合路径。只读审查源码和既有日志，本DLA未执行测试。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3UiChecks.java",
+      "purpose": "限定范围检查",
+      "reviewed_hunks": "本轮after与第四轮已审字节一致，当前工作区也匹配；本轮核对累计适用性。第四轮具体审阅：真实CSS与绑定helper共42项；未创建完整Inspector。只读审查源码和既有日志，本DLA未执行测试。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRound5Checks.java",
+      "purpose": "三项缺陷46项组合回归",
+      "reviewed_hunks": "完整新增文件、FakeSession真实调用链和红/绿日志。功能断言覆盖主要修复，但未阻断USB自动发现/真实HID写入，确认R5-F1，测试隔离未满足合同。",
+      "within_contract": false
+    }
+  ],
+  "production_journey": "Inspector/StudioController→显示配置服务→上传事务/USB/TCP累计链保持；HookDispatchServer→运行态仲裁/事实→0x90/0x99。新增测试真实调用该链但只截获TCP，未隔离自动USB发现，故不放行。",
+  "preserved_behavior_assessment": "旧0x00/92/87/97/95/96/9F路径保留，后台88读串行化、全量保存过滤84/85；Hook管理和权限策略未扩展。静态未发现其他确定回归，不等于完整旧功能真机回归。",
+  "baseline_assessment": "从保留原起点41c034171e60b2d4962b0adbe8f3cffbf80a0436累计审至f595262207796dbf325cb9951ed3dc02b4887362和工作区。PACK无missing_start_bytes。HEAD仅未审源码存档。",
+  "protocol_assessment": "对照当前批准PROTOCOL_AND_STATE和R3增量；只读核对固件command_solve 88/89/8A/8B/8C/8E格式一致；display_presentation仍存在无有效主槽时非主槽回退，RT-03未关闭；未刷入/测试当前固件。",
+  "risk_level": "high",
+  "fresh_review_required": true,
+  "risk_rationale": "资源持久写入、共享传输互斥和运行态生命周期均属高影响；辅助子审不是formal fresh。",
+  "findings": [
+    {
+      "id": "R4-F1",
+      "severity": "P2",
+      "path": "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "line": 308,
+      "issue": "SINGLE忽略其他会话终态时也丢弃其最新事实；A开始、B开始、A完成后切MULTI应用A，五分钟内A仍被缓存为RUNNING。",
+      "resolution": "fixed",
+      "evidence": "本轮生产修复与DisplayConfigRound5Checks、对应红/绿及continuation日志支持关闭；具体分析见DLA_ACTUAL_REVIEW_R5_20261020.md。"
+    },
+    {
+      "id": "R4-F2",
+      "severity": "P2",
+      "path": "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "line": 312,
+      "issue": "无session_id的兼容工具非终态将singleOwner置空，使其他有ID会话迟到终态绕过保护，覆盖当前显示或待补发事件。",
+      "resolution": "fixed",
+      "evidence": "本轮生产修复与DisplayConfigRound5Checks、对应红/绿及continuation日志支持关闭；具体分析见DLA_ACTUAL_REVIEW_R5_20261020.md。"
+    },
+    {
+      "id": "R4-F3",
+      "severity": "P2",
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "line": 785,
+      "issue": "flushDeferredRuntimeState经sendRuntimeState补发会重置原事件时间；写异常后保留pending但TTL已续期，超过事件原五分钟仍可重放。",
+      "resolution": "fixed",
+      "evidence": "本轮生产修复与DisplayConfigRound5Checks、对应红/绿及continuation日志支持关闭；具体分析见DLA_ACTUAL_REVIEW_R5_20261020.md。"
+    },
+    {
+      "id": "R5-F1",
+      "severity": "P1",
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRound5Checks.java",
+      "line": 32,
+      "issue": "仅替换TCP输出的FakeSession仍持有真实USB传输；测试发送/lease关闭可自动发现打开匹配键盘并发0x90等，违反禁止测试触及硬件的隔离约束。",
+      "resolution": "unresolved",
+      "evidence": "wire/interleave/retryTtl -> BleManager.sendCommand:462 -> ensureUsbConnected:1017 -> UsbHidTransport.isPresent/open/CreateFile。原DLA静态复核；未断言历史已经写设备。"
+    }
+  ],
+  "baseline_gap_owner_record": null,
+  "fresh_review_record": null,
+  "auxiliary_reviews": [
+    {
+      "agent": "01a14e75-ef5f-75a1-8863-7d384e79a074",
+      "axis": "Spec",
+      "qualification": "R4-F1/F2成立，无新增确定产品缺陷；非formal fresh"
+    },
+    {
+      "agent": "01a14e76-0c70-7b80-bbf5-eec7bc4e5713",
+      "axis": "Standards",
+      "qualification": "R5-F1测试硬件隔离违规经原DLA独立复核；非formal fresh"
+    }
+  ],
+  "evidence_assessment": "第五轮verification与检查表所列哈希全部匹配；397重跑+46新增=443，接续复跑不重复累计。根report_sha仍历史基报告。DLA未运行测试；上述执行日志不能证明fixture物理I/O隔离。",
+  "remaining": [
+    "R5-F1测试夹具硬件隔离及受影响用例重新验证",
+    "UP-01/UP-02真实设备根因与恢复",
+    "缺来源元数据的后台事件",
+    "RT-03固件主槽回退",
+    "BLE性能A/B及桥接功能审阅/新EXE身份",
+    "完整应用、高DPI和真实USB/BLE",
+    "当前轮formal fresh、candidate、新包、Firmware identity、Owner UAT"
+  ]
+}

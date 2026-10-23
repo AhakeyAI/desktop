@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "WD-002",
+  "token": "preview-20261004T031045322075Z-f81ce2",
+  "at": "2026-10-04T03:10:46+00:00",
+  "status": "build_authorized",
+  "preview_only": true,
+  "build_round": 3,
+  "approval_sha256": "a34f0f05a0daee947b6ebddd45a22762a6316d6c41c2304928c2814fc57aeaed",
+  "basis_kind": "preview_fix_review",
+  "basis_submission_sha256": "37f6db5772f49ddea461bcc54a2dfeb59adaa97fc539f1d1a39f89610bec5ae8",
+  "basis_review_sha256": "f2cd4268a21fcc0906ecea19b6870bb9dd3dc807898739f3a971be7e917e9d2e",
+  "working_code_fingerprint": "d8a2a7008bdf0273784a779ffcf22a451e5f460fca8844703a1b30d4696a2c88",
+  "snapshot_path": ".ahakey-desktop-harness/previews/WD-002/preview-20261004T031045322075Z-f81ce2/source",
+  "snapshot_fingerprint": "9586870473bf5c2efa4455cd5f7ab2b3bb51fff8c68eced1d664ca2b35a6c339",
+  "preserved_foreign": {
+    "pom.xml": "a163f73c11f38e4a2cd395a3f6a9322e6446e741732fe4abf34cc5bab889f734"
+  },
+  "meaning": "OWNER_PREVIEW only. May iterate via PREVIEW_FIX before formal candidate; never implies candidate/release/UAT PASS."
+}

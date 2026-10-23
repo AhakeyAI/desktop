@@ -1,0 +1,48 @@
+﻿# Machine-readable protocol snapshot derived from current Java baseline.
+# code_evidenced != firmware_verified. Unknowns must remain explicit.
+version: "0.1-baseline"
+framing:
+  header: [0xAA, 0xBB]
+  trailer: [0xCC, 0xDD]
+  response_shape: "cmd/status/payload"
+  success_status: 0
+transports:
+  usb_hid:
+    vid: 0x413C
+    pid: 0x2107
+    command_report_type: 0xA1
+    data_report_type: 0xA2
+    evidence: code_evidenced
+  ble_tcp_bridge:
+    host: "127.0.0.1"
+    port: 9000
+    outer_packet: "[type][length_le][data]"
+    gatt_contract: UNKNOWN
+    evidence: partial_code_evidence
+defaults:
+  command_timeout_ms: 15000
+  oled_block_max_attempts: 3
+commands:
+  "0x00": {name: QUERY_STATUS, evidence: code_evidenced}
+  "0x73": {name: KEY_MAPPING_MACRO_DESCRIPTION, evidence: code_evidenced}
+  "0x84": {name: SET_AI_LIGHT_CONFIG, evidence: code_evidenced}
+  "0x85": {name: SET_LIGHT_BRIGHTNESS, evidence: code_evidenced}
+  "0x90": {name: UPDATE_STATE, risk: semantic_overlap, evidence: code_evidenced}
+  "0x91": {name: SET_LIGHT_EFFECT, evidence: code_evidenced}
+  "0x92": {name: SET_WORK_MODE, evidence: code_evidenced}
+  "0x93": {name: SET_AI_OLED_CONFIG, evidence: code_evidenced}
+  "0x94": {name: READ_AI_OLED_CONFIG, evidence: code_evidenced}
+  "0x95": {name: STANDBY_TIMEOUT, evidence: code_evidenced}
+  "0x96": {name: FACTORY_RESET, evidence: code_evidenced}
+  "0x97": {name: VOICE_KEY_CONFIG, evidence: code_evidenced}
+  "0x98": {name: TASK_LIGHT_MODE, evidence: code_evidenced}
+  "0x99": {name: TASK_SLOT_UPDATE, evidence: code_evidenced}
+  "0x9A": {name: TASK_HEARTBEAT, evidence: code_evidenced}
+  "0x9B": {name: MODE_SYNC, evidence: code_evidenced}
+  "0x9C": {name: GIF_LAYOUT, evidence: code_evidenced}
+  "0x9D": {name: BOUNDED_CONFIG_READ, evidence: golden_fixture_partial}
+  "0x9F": {name: QUERY_CAPABILITIES, evidence: golden_fixture_partial}
+unknowns:
+  - "BLE_tcp_driver.exe actual GATT service/characteristic/scan/reconnect behavior"
+  - "Firmware internal storage/implementation for most commands"
+  - "0x01/0x02 legacy use status"

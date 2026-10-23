@@ -1,0 +1,81 @@
+﻿WD-003 formal BUILD_ONLY package log
+token=20261008T005913928548Z-cecb3e
+commit=23a898d97481cdc4b08ec4a50159d22f27c3619b
+repoRoot=C:/Users/20825/Desktop/windows软件代码/desktop
+buildRoot=C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e
+command=git archive --format=zip --output <archive> 23a898d97481cdc4b08ec4a50159d22f27c3619b -- ahakeyconfig-win-java
+--- retry source export without path prefix ---
+command=git archive --format=zip --output <archive> 23a898d97481cdc4b08ec4a50159d22f27c3619b
+snapshot=C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full
+--- java -version ---
+--- continue after java stderr logging issue ---
+--- java -version ---
+openjdk version "17.0.19" 2026-04-21 LTS
+OpenJDK Runtime Environment Microsoft-13877129 (build 17.0.19+10-LTS)
+OpenJDK 64-Bit Server VM Microsoft-13877129 (build 17.0.19+10-LTS, mixed mode, sharing)
+--- mvn -version with JAVA_HOME override ---
+Apache Maven 3.9.12 (848fbb4bf2d427b72bdb2471c22fced7ebd9a7a1)
+Maven home: C:\Program Files\apache-maven-3.9.12
+Java version: 17.0.19, vendor: Microsoft, runtime: D:\jdk-17.0.19.10-hotspot
+Default locale: zh_CN, platform encoding: GBK
+OS name: "windows 11", version: "10.0", arch: "amd64", family: "windows"
+--- mvn -B -DskipTests package ---
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ---------------------< com.example:ahakey-studio >----------------------
+[INFO] Building ahakey-studio 1.0.0
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[WARNING] 6 problems were encountered while building the effective model for org.openjfx:javafx-controls:jar:17.0.10 during dependency collection step for project (use -X to see details)
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ ahakey-studio ---
+[INFO] Copying 8 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- resources:3.3.1:copy-resources (copy-resources) @ ahakey-studio ---
+[INFO] Copying 8 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.11.0:compile (default-compile) @ ahakey-studio ---
+[INFO] Changes detected - recompiling the module! :source
+[INFO] Compiling 51 source files with javac [debug target 17] to target\classes
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ ahakey-studio ---
+[INFO] skip non existing resourceDirectory C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.11.0:testCompile (default-testCompile) @ ahakey-studio ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] --- surefire:3.2.5:test (default-test) @ ahakey-studio ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- jar:3.3.0:jar (default-jar) @ ahakey-studio ---
+[INFO] Building jar: C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\target\ahakey-studio-1.0.0.jar
+[INFO] 
+[INFO] --- dependency:3.6.0:copy-dependencies (copy-dependencies) @ ahakey-studio ---
+[INFO] Copying javafx-controls-17.0.10.jar to C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\target\lib\javafx-controls-17.0.10.jar
+[INFO] Copying javafx-controls-17.0.10-win.jar to C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\target\lib\javafx-controls-17.0.10-win.jar
+[INFO] Copying javafx-fxml-17.0.10.jar to C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\target\lib\javafx-fxml-17.0.10.jar
+[INFO] Copying javafx-fxml-17.0.10-win.jar to C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\target\lib\javafx-fxml-17.0.10-win.jar
+[INFO] Copying javafx-graphics-17.0.10.jar to C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\target\lib\javafx-graphics-17.0.10.jar
+[INFO] Copying javafx-graphics-17.0.10-win.jar to C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\target\lib\javafx-graphics-17.0.10-win.jar
+[INFO] Copying javafx-base-17.0.10.jar to C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\target\lib\javafx-base-17.0.10.jar
+[INFO] Copying javafx-base-17.0.10-win.jar to C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\target\lib\javafx-base-17.0.10-win.jar
+[INFO] Copying jackson-databind-2.16.0.jar to C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\target\lib\jackson-databind-2.16.0.jar
+[INFO] Copying jackson-annotations-2.16.0.jar to C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\target\lib\jackson-annotations-2.16.0.jar
+[INFO] Copying jackson-core-2.16.0.jar to C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\target\lib\jackson-core-2.16.0.jar
+[INFO] Copying jna-5.14.0.jar to C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\target\lib\jna-5.14.0.jar
+[INFO] Copying jna-platform-5.14.0.jar to C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\target\lib\jna-platform-5.14.0.jar
+[INFO] Copying slf4j-api-2.0.9.jar to C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\target\lib\slf4j-api-2.0.9.jar
+[INFO] Copying logback-classic-1.4.11.jar to C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\target\lib\logback-classic-1.4.11.jar
+[INFO] Copying logback-core-1.4.11.jar to C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\target\lib\logback-core-1.4.11.jar
+[INFO] Copying onnxruntime-1.16.3.jar to C:\Users\20825\Desktop\windows�������\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\source-full\target\lib\onnxruntime-1.16.3.jar
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  7.451 s
+[INFO] Finished at: 2026-10-08T09:03:13+08:00
+[INFO] ------------------------------------------------------------------------
+maven_exit_code=0
+runtimeJar=C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\runtime\ahakey-studio-1.0.0.jar
+runtimeJar_sha256=52a79397c28529203c777b594555947bdba4822e004d6179d4b9ead03c59a43b
+runtimeLib=C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\.ahakey-desktop-harness\builds\WD-003\20261008T005913928548Z-cecb3e\runtime\lib
+runtimeLib_file_count=17

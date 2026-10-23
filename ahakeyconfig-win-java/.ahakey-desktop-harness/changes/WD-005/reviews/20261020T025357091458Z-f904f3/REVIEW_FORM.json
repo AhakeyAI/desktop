@@ -1,0 +1,209 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "pack_sha256": "4718a62c2fc00519aefe2c6388f57df88fb74f6b080afcd1f0c51dd19bf763c6",
+  "reviewer_role": "DLA",
+  "review_session": "TODO separate DLA conversation identifier",
+  "builder_session": "TODO DIB conversation identifier",
+  "independence": "separate_dla_conversation",
+  "decision": "pending",
+  "scope_conclusion": "TODO explain actual diff scope",
+  "per_file": [
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/LightEffectStyle.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/OledResourceState.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CodexSessionDiscoveryService.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/FirmwareLightSimulator.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookDispatchServer.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledUploadService.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/AiRuntimeStore.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/resources/fxml/CanvasLayout.fxml",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/resources/messages_en.properties",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/resources/messages_zh.properties",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/main/resources/style.css",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigChecks.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigEncodingProbe.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigFxChecks.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRaceChecks.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3Checks.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3UiChecks.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRound5Checks.java",
+      "purpose": "TODO",
+      "reviewed_hunks": "TODO",
+      "within_contract": false
+    }
+  ],
+  "production_journey": "TODO real entry to service to protocol/transport to UI response; old writer handling",
+  "preserved_behavior_assessment": "TODO name relevant old behaviors and evidence/remaining tests",
+  "baseline_assessment": "TODO last verified version vs task start; state unknown honestly",
+  "protocol_assessment": "TODO cite current approved protocol or explain not applicable",
+  "risk_level": "normal",
+  "fresh_review_required": false,
+  "risk_rationale": "TODO justify risk classification",
+  "findings": [],
+  "baseline_gap_owner_record": null,
+  "fresh_review_record": null
+}

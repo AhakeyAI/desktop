@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-29",
+  "source_bundle_sha256": "ea6a8c7a8e14e46c343c10a72c36eb005980dbb9370362c094c7740f8e74f3e4",
+  "observed_model_resources": "Receiver models folder absent at audit; real model build UNKNOWN, not auto disable.",
+  "recipes": [
+    {
+      "id": "receiver-app-image",
+      "workspace": "windows",
+      "script": "build-exe.ps1",
+      "script_sha256": "06be328d1048219fe2b5e9f28bad8a1901f81533233206b5a6b2af43a3b06af3",
+      "form": "app_image",
+      "output": "target/installer/AhaKeyStudio",
+      "evidence_status": "static_observed_not_executed",
+      "model_recipe": "receiver SenseVoice model_q8.onnx + tokens.txt; default disabled",
+      "risk_note": ".ps1/.bat may rebuild, delete output, change packaging input or stop AhaKeyStudio. Read exact script and isolate before explicit Owner build authorization.",
+      "automatic_execution": false
+    },
+    {
+      "id": "receiver-installer",
+      "workspace": "windows",
+      "script": "build-installer.ps1",
+      "script_sha256": "13112b3d52d06f9e8b4ca73c349ce8757685fcbe0739d75112f98bf0aec7517d",
+      "form": "installer_exe",
+      "output": "installer/AhaKeyStudio-<timestamp>.exe",
+      "evidence_status": "static_observed_not_executed",
+      "model_recipe": "receiver SenseVoice model_q8.onnx + tokens.txt; default disabled",
+      "risk_note": ".ps1/.bat may rebuild, delete output, change packaging input or stop AhaKeyStudio. Read exact script and isolate before explicit Owner build authorization.",
+      "automatic_execution": false
+    },
+    {
+      "id": "receiver-legacy-bat",
+      "workspace": "windows",
+      "script": "build-exe.bat",
+      "script_sha256": "c0e94c710fee239af3af859271a44d9c9a75f169dab56bf560eec8536f05e112",
+      "form": "installer_exe",
+      "output": "target/installer/AhaKeyStudio-1.0.0.exe",
+      "evidence_status": "static_observed_not_executed",
+      "model_recipe": "receiver SenseVoice model_q8.onnx + tokens.txt; default disabled",
+      "risk_note": ".ps1/.bat may rebuild, delete output, change packaging input or stop AhaKeyStudio. Read exact script and isolate before explicit Owner build authorization.",
+      "automatic_execution": false
+    },
+    {
+      "id": "source-release-reference",
+      "workspace": "source",
+      "script": "build-release-installer.ps1",
+      "script_sha256": "4625bd71b9a27fd3bafcd76fc7c91ec0298039d8fa1a4af6034ed968a5d6bd50",
+      "form": "installer_exe",
+      "output": "installer/AhaKey-Studio-<version>-Setup.exe",
+      "evidence_status": "static_observed_not_executed",
+      "model_recipe": "reference only: Sherpa streaming Paraformer multi-file; do not merge blindly",
+      "risk_note": ".ps1/.bat may rebuild, delete output, change packaging input or stop AhaKeyStudio. Read exact script and isolate before explicit Owner build authorization.",
+      "automatic_execution": false
+    }
+  ]
+}

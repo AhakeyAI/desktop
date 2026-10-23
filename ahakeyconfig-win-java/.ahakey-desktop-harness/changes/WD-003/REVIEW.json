@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "id": "WD-003",
+  "build_round": 9,
+  "pack_sha256": "1a6960d6678bd0cb973d5680209e209d56b5b6352b2ad3efe3286c7a56b79de2",
+  "review_pack": ".ahakey-desktop-harness/changes/WD-003/reviews/20261007T093900372181Z-fc2e84/PACK.json",
+  "actual_diff": ".ahakey-desktop-harness/changes/WD-003/reviews/20261007T093900372181Z-fc2e84/ACTUAL_DIFF.txt",
+  "actual_diff_sha256": "62bd54b1e759401a254eeb60d52fc6611d8e3cf74133828fc7e5d49d83a7ab80",
+  "reviewer_role": "DLA",
+  "review_session": "current-dialog-WD-003-build-round-9-actual-diff-review-20261007T1745+0800",
+  "builder_session": "dib-builder-submission-WD-003-build-round-9-20261007T1734+0800",
+  "independence": "separate_dla_conversation",
+  "decision": "pass",
+  "scope_conclusion": "DLA reviewed the build_round 9 review pack created after Contract/reference reconcile. The pack is bound to code_fingerprint a6dec812a6e11de5016e01b241c0e081d44350762dae206639e31ef6ddf3e58d, approval SHA256 2368ab728f549a292367ffee6676f23c316f24dbb4414cd50728ec31ce1f4461, and implementation receipt builder_submission_sha256 98d73c41bd7a5718c59a44fbb9b43fa3f2f5e339ec7b1db947c0a9cc10536f49. DIB build_round 9 did not change production Java or Firmware; this review revalidates the current implementation identity against the reconciled Contract/reference record. This is DLA actual diff review pass only; it is not independent high-impact fresh review, formal Owner UAT, true-device formal PASS, Git candidate, formal build, release, or publication.",
+  "per_file": [
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+      "purpose": "Protocol constants and command frame builders.",
+      "reviewed_hunks": "Reviewed 0x87 and adjacent CP4C/CP4D protocol definitions. CMD_ORDINARY_KEY_READBACK remains 0x87, CMD_SIDE_SWITCH_CONFIG remains 0x97, CMD_SLEEP_WAIT_TIME remains 0x95, and CMD_FIRMWARE_CATALOG_KEY remains 0x9F. readOrdinaryKeyConfig emits one request for mode + key_index and clamps both to 0..3. The single-packet limits remain ORDINARY_KEY_READBACK_FRAME_MAX 64 and action+description budget 53. Side-switch write still enforces Custom action envelopes and the 52 byte 0x97 readback budget.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+      "purpose": "Response parsing for 0x95, 0x9F, 0x97, and 0x87.",
+      "reviewed_hunks": "Reviewed parseOrdinaryKeyReadback. It rejects null or >64 byte frames, requires cmd 0x87 with status 0, requires payload shape mode/key_index/action_type/action_len/action_payload/desc_len/desc_payload, restricts mode and key_index to 0..3, accepts only empty 0x00, shortcut 0x73, and macro 0x74 action types, requires exact desc_len consumption, and rejects action_len + desc_len over 53. Malformed or unsupported frames fail closed rather than being guessed or truncated.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "purpose": "Command transaction serialization over USB HID or BLE bridge.",
+      "reviewed_hunks": "Reviewed 0x9F catalog key read, 0x97 side-switch read/write, 0x87 ordinary-key readback, and response waiting. readOrdinaryKeyConfig waits with throwOnDeviceError=false so explicit firmware statuses are preserved; status 3 is surfaced as a too-large single-packet readback failure. 0x97 read/write remains on CMD_SIDE_SWITCH_CONFIG. Command locking and pending-frame clearing remain consistent with existing transaction flow.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+      "purpose": "Encode/decode key actions and compare firmware readback to Windows state.",
+      "reviewed_hunks": "Reviewed shortcut/macro payload encoding, side-switch Custom envelope wrapping, ordinary-key readback decode, and matchesReadback. 0x73 shortcut and 0x74 macro payloads are compared exactly; an empty firmware action 0x00 is accepted only for an expected empty shortcut. Description comparison uses the same ASCII 20-byte sanitized form as the write path.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+      "purpose": "Maintain Studio draft state and CP4C/CP4D readback baselines.",
+      "reviewed_hunks": "Reviewed cp4cInputConfigEnabled, inputBaselineRevision, applyOrdinaryKeyReadback, applySideSwitchReadback, and side-switch Custom mutation. Passive readback changes update inputBaselineRevision rather than user draft revision, and ordinary-key readback does not overwrite a mode that has an unsaved draft. Side-switch edits still mark TOGGLE_SWITCH dirty and use the approved Custom/Disabled complement behavior.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "purpose": "Coordinate firmware capability discovery, readback, save, and verification.",
+      "reviewed_hunks": "Reviewed 0x9F catalog handling, connect-time CP4C input readback, per-mode/per-key 0x87 reads, save completion behavior, and save-after-readback verification. 0x97 side-switch readback is applied independently before ordinary-key reads. 0x87 failures are logged per cmd/mode/keyIndex/phase and do not erase a successful side-switch baseline. Save verification reads back 0x97 first, then all 0x87 ordinary keys, and reports failure without clearing dirty draft state.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "purpose": "Select the Windows USB HID configuration interface.",
+      "reviewed_hunks": "Reviewed findDevicePath and related USB transport behavior as a regression check. The selector requires VID 413c, PID 2107, and mi_01. Static search found no mi_00 or col02 fallback restored for configuration traffic.",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "purpose": "Expose CP4C side-switch Custom editing and readback status.",
+      "reviewed_hunks": "Reviewed CP4C toggle group rebuild triggers and Custom shortcut/macro editors. The pane observes cp4cInputConfigEnabled and inputBaselineRevision, exposes single-key/combination shortcut/short macro editing, and keeps save responsibility in the top-level unified save flow.",
+      "within_contract": true
+    }
+  ],
+  "production_journey": "The current WD-003 journey remains: 0x9F identifies CP4C-capable firmware, 0x95 sleep-wait reading remains unchanged, 0x97 reads/writes side-switch configuration, and 0x87 reads ordinary-key configuration one mode/key at a time. CP4D ordinary-key readback expects one complete <=64 byte success frame: AA BB 87 00 mode key_index action_type action_len action_payload desc_len desc_payload CC DD. Too-large status 3 and malformed success frames fail closed.",
+  "preserved_behavior_assessment": "The review found no 0x98 ordinary-key readback path and no USB mi_00/col02 configuration-channel fallback. The previously preview-passed Windows implementation fingerprint is unchanged by build_round 9. CP4C side-switch Custom action envelope behavior is preserved, and ordinary-key K1-K4 readback remains isolated to the 0x87 single-key path.",
+  "baseline_assessment": "review-pack recovered original bytes for all changed paths; missing_start_bytes is empty. DIB build_round 9 machine evidence is limited to JDK17 Maven compile and static source checks. That evidence supports implementation identity but is not true-device, formal Owner UAT, formal build, or release evidence.",
+  "protocol_assessment": "0x87 handling matches the reconciled CP4D single-packet contract. 0x97, 0x95, and 0x9F meanings were not changed by build_round 9. Firmware identity is represented by formal CP4D gate/HEX references in REFERENCES.json, not by mutable firmware source pins.",
+  "risk_level": "high",
+  "fresh_review_required": true,
+  "risk_rationale": "WD-003 remains protocol-facing/high-impact. Independent high-impact fresh review is now bound through fresh_review_record, but Git candidate, formal artifact identity, Firmware identity records, formal Owner UAT, and remaining delivery receipts are still required before closure.",
+  "findings": [],
+  "known_gaps": [
+    "Independent high-impact fresh review has been completed and bound to this review pack; later formal delivery gates remain separate.",
+    "No Git candidate has been created.",
+    "No formal BUILD_RECEIPT, test_packet, DELIVERY_PROFILE, FORMAL_FIRMWARE_GATE, ACCEPTANCE_COVERAGE, or published Owner brief exists yet.",
+    "Owner Preview PASS remains preview-only and is not formal Owner UAT.",
+    "DIB build_round 9 did not run true-device USB/BLE testing."
+  ],
+  "machine_evidence_reviewed": [
+    ".ahakey-desktop-harness/evidence/20261007T1732_wd003_build_round9_revalidate_checks.log",
+    ".ahakey-desktop-harness/changes/WD-003/EXECUTION_REPORT_BUILD_ROUND_9.md",
+    ".ahakey-desktop-harness/changes/WD-003/builder_submission.json",
+    ".ahakey-desktop-harness/changes/WD-003/IMPLEMENTATION_RECEIPT.json",
+    ".ahakey-desktop-harness/changes/WD-003/REFERENCES.json"
+  ],
+  "owner_preview_scope": "preview-20261007T043528705385Z-bd644d is recorded as OWNER_PREVIEW_RESULT_ONLY_NOT_OWNER_UAT and was not used as formal Owner UAT evidence.",
+  "baseline_gap_owner_record": null,
+  "fresh_review_record": ".ahakey-desktop-harness/changes/WD-003/FRESH_REVIEW_BUILD_ROUND_9.json"
+}

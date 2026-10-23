@@ -1,0 +1,78 @@
+﻿{
+  "schema_version": 1,
+  "progress": {
+    "position": "当前任务处在审阅后的预览构建准备阶段；审阅方已经完成本轮传输层修复的实际差异审阅，并已重新开启用户预览构建通道。",
+    "conclusion": "本轮 USB HID 接口选择修复的实际差异审阅结论为通过，可以进入隔离预览构建；这仍不是正式候选、真机通过、用户验收或发布。"
+  },
+  "completed": [
+    "已生成并读取第六轮实际差异审阅包，缺失原始字节为空，代码指纹与实现收据匹配。",
+    "已实际审阅 UsbHidTransport.findDevicePath()：现在目标设备路径必须同时包含 VID 413c、PID 2107 和 mi_01；不再接受 col02，也不再退回任意同 VID/PID 的 HID collection。",
+    "已确认本轮没有修改目录键、睡眠等待时间、侧拨配置、普通键回读这些协议语义，也没有引入禁用的普通键回读命令。",
+    "已重写 REVIEW.json，绑定第六轮审阅包，结论为通过；同时明确这只是原审阅方实际差异审阅通过，不是正式高影响闭环。",
+    "已执行 preview-open，生成新的用户预览构建令牌和隔离源码快照。"
+  ],
+  "remaining": [
+    "正式高影响审阅检查仍不能登记为通过，因为后续 formal delivery 还需要独立 fresh review；这是治理缺口，不是本轮传输层修复失败。",
+    "还没有新的预览构建产物；需要 DIB 在隔离源码快照内构建并用 preview-finish 绑定真实日志和产物。",
+    "还没有 Git 候选、正式构建收据、正式测试包、正式固件身份、真实设备测试或用户验收。",
+    "本轮没有执行 Git 写入，没有构建安装包、安装、关闭进程、设备写入或烧录。"
+  ],
+  "owner": {
+    "decision": {"required": false, "action": "不需要新的产品或范围决策；当前仍在已批准的接口选择修复范围内。"},
+    "operation": {"required": true, "action": "请把下方完整提示词复制到 DIB 对话，让构建实现方基于新的预览源码快照生成可运行预览文件。"},
+    "test": {"required": false, "action": "现在还不能做用户真机预览测试；需要 DIB 先完成预览构建，并由审阅方后续输出可操作的预览测试说明。"}
+  },
+  "next": {
+    "role": "DIB",
+    "destination": "DIB 对话",
+    "mode": "BUILD_ONLY / OWNER_PREVIEW_BUILD",
+    "task": "WD-003 用户预览重构建：USB HID mi_01 修复后的可运行预览文件",
+    "action": "读取新的预览开始记录和审阅记录，在隔离源码快照内执行十七版 Java 预览构建，保存真实构建日志和产物，然后用 preview-finish 绑定令牌、产物、日志、实际命令、启动入口和运行形态。",
+    "authorization": "原审阅方已经完成第六轮实际差异审阅并写入 REVIEW.json，preview-open 已授权令牌 preview-20261006T033312012647Z-3272d5；这只授权用户预览构建，不授权生产代码修改、正式候选、正式验收、发布或安装包构建。",
+    "goal": "产出一个可供后续审阅方发布用户预览说明的可运行预览文件，用于让 Owner 验证配置命令是否不再写到 mi_00&col02，而是通过预期 mi_01 vendor/config interface 正常读取 0x9F、0x95 并进入 CP4C 侧拨表单。",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "facts": [
+      "当前任务仍是 WD-003，DLA 已完成第六轮实际差异审阅，REVIEW.json 的 decision 为 pass。",
+      "正式高影响审阅检查尚未完成独立 fresh review，所以不能把当前状态说成 formal review check pass、正式候选或用户验收。",
+      "预览令牌为 preview-20261006T033312012647Z-3272d5。",
+      "预览源码快照路径为 C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-003\\preview-20261006T033312012647Z-3272d5\\source。",
+      "预览源码快照指纹为 5883b29c6bba5f2e010389a5523ff20ba07d64055e0a51d38cfcdea49e6b50d0。",
+      "本轮修复只改变 USB HID 配置接口选择：要求 VID 413c、PID 2107 和 mi_01；不再接受 col02 或任意同 VID/PID fallback。",
+      "DIB 之前的机器检查显示十七版 Java Maven compile 退出码为零；本轮 DLA 没有重新运行编译、构建或设备测试。",
+      "本轮没有执行 Git 写入、安装、设备写入、烧录或用户测试。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\AGENTS.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-builder\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-harness\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\STATE.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\change.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\CONTRACT.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\REVIEW.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\review_pack.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\IMPLEMENTATION_RECEIPT.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-003\\preview-20261006T033312012647Z-3272d5\\START.json"
+    ],
+    "allowed": [
+      "只在预览源码快照内做预览构建所需的构建动作和日志记录。",
+      "可使用十七版 Java 环境运行 Maven 预览构建；如需设置 JAVA_HOME，可使用 D:\\jdk-17.0.19.10-hotspot。",
+      "保存真实构建日志到 .ahakey-desktop-harness/evidence 下的新文件。",
+      "构建成功后运行 preview-finish，绑定令牌、实际产物、日志、实际命令、启动入口和运行形态。",
+      "如构建失败，保存失败日志并在当前聊天正文给出下一步接力提示词；不要伪造产物。"
+    ],
+    "forbidden": [
+      "不得修改生产 Java、合同、协议语义或 Harness 规则。",
+      "不得执行 Git add、commit、push、reset、clean 或 stash。",
+      "不得构建安装包、安装程序、kill 进程、连接设备、写入设备或烧录。",
+      "不得把预览构建、编译或 preview-finish 称为正式候选、正式验收、真机通过、发布或 release。",
+      "不得绕过高影响独立复审、Git 候选、正式构建收据、固件身份和正式测试包缺口。"
+    ]
+  },
+  "evidence": [
+    ".ahakey-desktop-harness/changes/WD-003/REVIEW.json",
+    ".ahakey-desktop-harness/changes/WD-003/review_pack.json",
+    ".ahakey-desktop-harness/changes/WD-003/reviews/20261006T032853129545Z-ef93fd/ACTUAL_DIFF.txt",
+    ".ahakey-desktop-harness/previews/WD-003/preview-20261006T033312012647Z-3272d5/START.json",
+    ".ahakey-desktop-harness/changes/WD-003/verification.json"
+  ]
+}

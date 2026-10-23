@@ -1,0 +1,36 @@
+{
+  "schema_version": 2,
+  "id": "WD-005",
+  "at": "2026-10-21T08:25:12+00:00",
+  "owner_record": ".ahakey-desktop-harness/evidence/20261015-wd005-route-maintenance-owner-authorization.md",
+  "owner_sha256": "9d225bd4fa28b894a231f445d2585e8d0a060b1b507660dd2e57fef90fb7a59b",
+  "inputs": {
+    ".rollback-backups/20261010T084508/status-before.txt": {
+      "sha256": "59e0a06546116d9f601d64817e19468564343e1ac497b2452dc9732fb8a887c3"
+    },
+    ".rollback-backups/20261010T084508/tracked-worktree.patch": {
+      "sha256": "8262ee3d01a6883b76cc037244d65317b5afbd4caace826ae03cdcd5478a43e1"
+    },
+    ".rollback-backups/20261010T084508/untracked-before.txt": {
+      "sha256": "6f6a3b1b99ff7a5ce2c0fe6d348bdcf074ca7f86fc85669f493f9ba490900640"
+    }
+  },
+  "newly_accepted": [
+    {
+      "path": ".rollback-backups/20261010T084508/status-before.txt",
+      "sha256": "59e0a06546116d9f601d64817e19468564343e1ac497b2452dc9732fb8a887c3",
+      "start_sha256": "59e0a06546116d9f601d64817e19468564343e1ac497b2452dc9732fb8a887c3"
+    },
+    {
+      "path": ".rollback-backups/20261010T084508/tracked-worktree.patch",
+      "sha256": "8262ee3d01a6883b76cc037244d65317b5afbd4caace826ae03cdcd5478a43e1",
+      "start_sha256": "8262ee3d01a6883b76cc037244d65317b5afbd4caace826ae03cdcd5478a43e1"
+    },
+    {
+      "path": ".rollback-backups/20261010T084508/untracked-before.txt",
+      "sha256": "6f6a3b1b99ff7a5ce2c0fe6d348bdcf074ca7f86fc85669f493f9ba490900640",
+      "start_sha256": "6f6a3b1b99ff7a5ce2c0fe6d348bdcf074ca7f86fc85669f493f9ba490900640"
+    }
+  ],
+  "meaning": "Owner-bound pre-existing in-repo dirty inputs. Preserved unchanged, excluded from this task candidate, never auto-restored/stashed/committed."
+}

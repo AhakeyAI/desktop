@@ -1,0 +1,25 @@
+{
+  "kind": "route-hf01-recovery-evidence",
+  "owner_record": {
+    "path": ".ahakey-desktop-harness/evidence/20261015-wd005-route-maintenance-owner-authorization.md",
+    "sha256": "9d225bd4fa28b894a231f445d2585e8d0a060b1b507660dd2e57fef90fb7a59b"
+  },
+  "classification": "三份历史恢复资料，精确绑定并保留完整副本；不豁免任何生产源码或未知备份。",
+  "files": [
+    {
+      "path": ".rollback-backups/20261010T084508/status-before.txt",
+      "sha256": "59e0a06546116d9f601d64817e19468564343e1ac497b2452dc9732fb8a887c3",
+      "content_copy": ".ahakey-desktop-harness/maintenance/route-hf01/content/status-before.txt"
+    },
+    {
+      "path": ".rollback-backups/20261010T084508/tracked-worktree.patch",
+      "sha256": "8262ee3d01a6883b76cc037244d65317b5afbd4caace826ae03cdcd5478a43e1",
+      "content_copy": ".ahakey-desktop-harness/maintenance/route-hf01/content/tracked-worktree.patch"
+    },
+    {
+      "path": ".rollback-backups/20261010T084508/untracked-before.txt",
+      "sha256": "6f6a3b1b99ff7a5ce2c0fe6d348bdcf074ca7f86fc85669f493f9ba490900640",
+      "content_copy": ".ahakey-desktop-harness/maintenance/route-hf01/content/untracked-before.txt"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "hardware_model": "X1 / WS3 CP1 AI runtime presentation capable keyboard; physical unit identity must be confirmed by Owner before executing device steps",
+  "firmware_version": "WS3 CP1 AI runtime presentation candidate at firmware commit 3d3e6e677068c305cfb022a4c12f213cf1a1da1d",
+  "candidate_id": "ws3-cp1-ai-presentation / CP1 formal PASS gate / candidate_commit 3d3e6e677068c305cfb022a4c12f213cf1a1da1d",
+  "connection": "Use the normal AhaKey Studio USB or BLE test connection. Windows does not install drivers, connect devices, write devices, or flash firmware as part of this record.",
+  "installed_device_confirmation": "Pending Owner confirmation: this record identifies the HEX eligible for WD-004 formal testing, but does not claim the physical keyboard is already flashed with it.",
+  "eligible_for_owner_test": true,
+  "artifact": {
+    "path": ".ahakey-harness/evidence/builds/ws3-cp1-ai-presentation/HID_Keyboard_582m_vibe_coding.hex",
+    "sha256": "0b606bc4eecfe3621eaddafb301a38b06db070750359bfbfa8cd2c0819e011b9"
+  },
+  "gate_evidence": {
+    "path": ".ahakey-harness/evidence/checkpoints/X1-AI-WORKFLOW-PRESENTATION/CP1/20261006T143035/gate-receipt.json",
+    "sha256": "491fec8b21cfab0bb4d0568efac9444cbd77f23f6f0d01048ff30583d13efa2f"
+  },
+  "protocol_decision": {
+    "path": ".ahakey-desktop-harness/changes/WD-004/CONTRACT.md",
+    "sha256": "6cea7b284060c1417718c6648148419eb59c4c02d8dc3b2ddc1f7769cd6580cd"
+  }
+}

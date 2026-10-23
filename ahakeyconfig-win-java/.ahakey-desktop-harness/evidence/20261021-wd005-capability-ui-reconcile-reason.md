@@ -1,0 +1,12 @@
+# WD-005 自动准入与禁用反馈正式修订理由
+
+2026-10-21，DLA。Owner已通过当前直接指派确认范围，见同日capability-ui-owner-authorization.md。
+
+本轮仍属WD-005/J005/J006。人工确认HEX变为当前连接r001自动能力准入是产品准入契约变化，不能伪装成原合同内简单删除按钮，也不需要新建任务。灯光区禁用可理解性修正一并纳入；不重做产品Grill。
+
+新增批准资产 AUTO_CAPABILITY_UI_CONTRACT_R5_20261021.md；它仅覆盖本轮准入和UI变化部分，旧资产不修改。累计allowed_paths只增加 src/main/java/com/example/ahakey/model/DeviceStatus.java，且以新合同文件内职责收紧本轮可写范围。保留high_impact，不减门禁。
+
+协调前revision4/round7，生产指纹e10b4d65ad9b3f62221b7790b659c09429243a96a43a169db575dce6b4c18e8a，approval指纹24063e69998760c474b5c3ab426fd1999f40f3724a891337fe2c4dd8b4ffc781。原start与guard-origin不改。
+修改前change/STATE原字节已保存于changes/WD-005/contract-revisions/20261021-capability-before/；SHA256分别为0992BFDB78D7BA1DBA29F03ECAA7CCD7665263ABA625F584D9248EC74A9FF99F、B8D21BD133C5963855390E1026F5A37C8324F933D959BB2679A7C9A6EACEAD9F。
+
+使用正式contract-reconcile生成有效批准/路由/轮次，不使用repair-origin、不手写seal或STATE。既有review/receipt/Preview不覆盖，新实现需新绑定。这里只新增治理记录，无生产/测试修改或构建执行。

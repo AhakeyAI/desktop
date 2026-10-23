@@ -1,0 +1,16 @@
+{
+  "status": "APPLIED",
+  "at": "2026-10-21T09:11:27+00:00",
+  "review_sha256": "c741a581b3d7ba4566d0bec91a853690d9d203b83e206c37f0ec22fd506bc3e6",
+  "baseline_sha256": "a9bb480577444c7e70713bfd762a2bd12898f88cb7b92260a0616b2658cdc685",
+  "changed_paths": [
+    ".agents/skills/ahakey-desktop-harness/scripts/desktop.py",
+    ".agents/skills/ahakey-desktop-harness/scripts/pinned_reference_wd005.json",
+    ".agents/skills/ahakey-desktop-harness/scripts/pinned_references.py",
+    ".ahakey-desktop-harness/GUARD_POLICY_SEAL.json"
+  ],
+  "source_fingerprint": "98fe4428d5187e7f900a30df99b2432c7a540fcc02f7707a7aa1ac659d2213b9",
+  "protected_file_count": 5086,
+  "task_history_unchanged": true,
+  "meaning": "Reviewed reference resolver installed. No product PASS, task routing, Git or firmware writes."
+}

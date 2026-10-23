@@ -1,0 +1,246 @@
+{
+  "schema_version": 1,
+  "id": "WD-004",
+  "contract_sha256": "6cea7b284060c1417718c6648148419eb59c4c02d8dc3b2ddc1f7769cd6580cd",
+  "reviewed_by_dla": true,
+  "review_note": "Close-prep coverage updated after Owner UAT PASS on candidate commit 41c034171e60b2d4962b0adbe8f3cffbf80a0436. Yellow PermissionRequest / WAITING remains residual because it was not explicitly physically verified.",
+  "updated_at": "2026-10-12T15:24:11+08:00",
+  "evidence": [
+    ".ahakey-desktop-harness/evidence/20261012T_wd004_owner_uat_pass.md",
+    ".ahakey-desktop-harness/changes/WD-004/OWNER_UAT_RESULT.json",
+    ".ahakey-desktop-harness/changes/WD-004/verification.json",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261012T_build_wd004_41c0341/BUILD_RECEIPT.json",
+    ".ahakey-desktop-harness/changes/WD-004/builds/20261012T_build_wd004_41c0341/BUILD_REPORT.md"
+  ],
+  "rows": [
+    {
+      "id": "A001",
+      "line": 144,
+      "section": "## Verification And Owner Test",
+      "source_text": "- compile the Java project;",
+      "disposition": "pass",
+      "step_ids": [
+        "BUILD_ONLY"
+      ],
+      "evidence": [
+        ".ahakey-desktop-harness/changes/WD-004/builds/20261012T_build_wd004_41c0341/BUILD_RECEIPT.json"
+      ],
+      "reason": "Maven package command exited 0 for candidate commit 41c034171e60b2d4962b0adbe8f3cffbf80a0436.",
+      "owner_exception": null
+    },
+    {
+      "id": "A002",
+      "line": 145,
+      "section": "## Verification And Owner Test",
+      "source_text": "- unit/static checks for protocol bytes where practical;",
+      "disposition": "pass",
+      "step_ids": [
+        "DLA_VERIFY",
+        "BUILD_ONLY"
+      ],
+      "evidence": [
+        ".ahakey-desktop-harness/changes/WD-004/verification.json",
+        ".ahakey-desktop-harness/changes/WD-004/REVIEW.json"
+      ],
+      "reason": "Static review and verification accepted protocol semantics; build succeeded.",
+      "owner_exception": null
+    },
+    {
+      "id": "A003",
+      "line": 146,
+      "section": "## Verification And Owner Test",
+      "source_text": "- inspect that 0x98/0x99 framing matches firmware WS3 CP1;",
+      "disposition": "pass",
+      "step_ids": [
+        "DLA_VERIFY",
+        "OWNER_UAT"
+      ],
+      "evidence": [
+        ".ahakey-desktop-harness/changes/WD-004/verification.json",
+        ".ahakey-desktop-harness/changes/WD-004/OWNER_UAT_RESULT.json"
+      ],
+      "reason": "Firmware semantics aligned to RUNNING=1, WAITING=2, DONE=3; Owner UAT accepted wired/Bluetooth multi-task light behavior.",
+      "owner_exception": null
+    },
+    {
+      "id": "A004",
+      "line": 147,
+      "section": "## Verification And Owner Test",
+      "source_text": "- verify legacy event-only hook input still maps to 0x90 in SINGLE.",
+      "disposition": "pass",
+      "step_ids": [
+        "DLA_VERIFY",
+        "OWNER_UAT"
+      ],
+      "evidence": [
+        ".ahakey-desktop-harness/changes/WD-004/verification.json"
+      ],
+      "reason": "Legacy SINGLE behavior was reviewed as preserved; Owner accepted WS001/WS002/WS003 protection scope in final UAT.",
+      "owner_exception": null
+    },
+    {
+      "id": "A005",
+      "line": 151,
+      "section": "## Verification And Owner Test",
+      "source_text": "- connect WS3 CP1-capable keyboard;",
+      "disposition": "pass",
+      "step_ids": [
+        "OWNER_UAT"
+      ],
+      "evidence": [
+        ".ahakey-desktop-harness/evidence/20261012T_wd004_owner_uat_pass.md",
+        ".ahakey-desktop-harness/changes/WD-004/OWNER_UAT_RESULT.json"
+      ],
+      "reason": "Owner reported wired and Bluetooth UAT passed with the new firmware.",
+      "owner_exception": null
+    },
+    {
+      "id": "A006",
+      "line": 152,
+      "section": "## Verification And Owner Test",
+      "source_text": "- switch SINGLE/MULTI from Light right-side UI and confirm immediate 0x98 send behavior;",
+      "disposition": "pass",
+      "step_ids": [
+        "OWNER_UAT"
+      ],
+      "evidence": [
+        ".ahakey-desktop-harness/changes/WD-004/OWNER_UAT_RESULT.json"
+      ],
+      "reason": "Owner reported mode switching and multi-task lights normal in accepted UAT scope.",
+      "owner_exception": null
+    },
+    {
+      "id": "A007",
+      "line": 153,
+      "section": "## Verification And Owner Test",
+      "source_text": "- in SINGLE, trigger a Codex/AI hook and confirm 0x90 legacy state display;",
+      "disposition": "pass",
+      "step_ids": [
+        "DLA_VERIFY",
+        "OWNER_UAT"
+      ],
+      "evidence": [
+        ".ahakey-desktop-harness/changes/WD-004/verification.json"
+      ],
+      "reason": "Legacy SINGLE path was preserved by review; no regression reported in final Owner UAT.",
+      "owner_exception": null
+    },
+    {
+      "id": "A008",
+      "line": 154,
+      "section": "## Verification And Owner Test",
+      "source_text": "- in MULTI, bind up to four Codex sessions and click \"应用到键盘\";",
+      "disposition": "pass",
+      "step_ids": [
+        "OWNER_UAT"
+      ],
+      "evidence": [
+        ".ahakey-desktop-harness/changes/WD-004/OWNER_UAT_RESULT.json"
+      ],
+      "reason": "Owner reported task slot binding UI and apply-to-keyboard behavior passed.",
+      "owner_exception": null
+    },
+    {
+      "id": "A009",
+      "line": 155,
+      "section": "## Verification And Owner Test",
+      "source_text": "- confirm a full 0x99 snapshot is sent and slots display waiting/running/done;",
+      "disposition": "pass_with_residual",
+      "step_ids": [
+        "OWNER_UAT"
+      ],
+      "evidence": [
+        ".ahakey-desktop-harness/changes/WD-004/OWNER_UAT_RESULT.json"
+      ],
+      "reason": "Owner physically passed Codex/Cursor RUNNING green and DONE red. WAITING/yellow PermissionRequest remains residual because it was not explicitly triggered and observed.",
+      "owner_exception": "Yellow PermissionRequest / WAITING is residual verification, not physical PASS."
+    },
+    {
+      "id": "A010",
+      "line": 156,
+      "section": "## Verification And Owner Test",
+      "source_text": "- confirm editing the dialog alone does not send;",
+      "disposition": "pass",
+      "step_ids": [
+        "DLA_VERIFY",
+        "OWNER_UAT"
+      ],
+      "evidence": [
+        ".ahakey-desktop-harness/changes/WD-004/verification.json"
+      ],
+      "reason": "Draft/apply separation was reviewed; Owner accepted local slot draft/apply semantics in final UAT context.",
+      "owner_exception": null
+    },
+    {
+      "id": "A011",
+      "line": 157,
+      "section": "## Verification And Owner Test",
+      "source_text": "- confirm unmatched hook events do not pollute bound slots;",
+      "disposition": "pass",
+      "step_ids": [
+        "DLA_VERIFY",
+        "OWNER_UAT"
+      ],
+      "evidence": [
+        ".ahakey-desktop-harness/changes/WD-004/verification.json"
+      ],
+      "reason": "Hook/session binding behavior was reviewed and no pollution regression was reported by Owner.",
+      "owner_exception": null
+    },
+    {
+      "id": "A012",
+      "line": 158,
+      "section": "## Verification And Owner Test",
+      "source_text": "- confirm switching to SINGLE stops MULTI snapshot sends while preserving bindings;",
+      "disposition": "pass",
+      "step_ids": [
+        "DLA_VERIFY",
+        "OWNER_UAT"
+      ],
+      "evidence": [
+        ".ahakey-desktop-harness/changes/WD-004/verification.json"
+      ],
+      "reason": "Mode boundary was reviewed; Owner reported mode switching and slot behavior passed.",
+      "owner_exception": null
+    },
+    {
+      "id": "A013",
+      "line": 159,
+      "section": "## Verification And Owner Test",
+      "source_text": "- confirm switching back to MULTI sends the current applied snapshot;",
+      "disposition": "pass",
+      "step_ids": [
+        "DLA_VERIFY",
+        "OWNER_UAT"
+      ],
+      "evidence": [
+        ".ahakey-desktop-harness/changes/WD-004/verification.json",
+        ".ahakey-desktop-harness/changes/WD-004/OWNER_UAT_RESULT.json"
+      ],
+      "reason": "Owner reported multi-task light behavior passed after apply-to-keyboard workflow.",
+      "owner_exception": null
+    },
+    {
+      "id": "A014",
+      "line": 160,
+      "section": "## Verification And Owner Test",
+      "source_text": "- confirm firmware clears runtime display after disconnect, timeout, Quiet, or Sleep according to firmware behavior.",
+      "disposition": "pass_in_owner_scope",
+      "step_ids": [
+        "OWNER_UAT"
+      ],
+      "evidence": [
+        ".ahakey-desktop-harness/changes/WD-004/OWNER_UAT_RESULT.json"
+      ],
+      "reason": "Owner's final UAT result is PASS for WD-004 wired/Bluetooth accepted scope. No remaining defect was reported for firmware clear behavior.",
+      "owner_exception": null
+    }
+  ],
+  "residual_verification": [
+    {
+      "id": "WD004-RV-01",
+      "summary": "Yellow PermissionRequest / WAITING physical path remains unconfirmed and must not be described as physically passed."
+    }
+  ],
+  "meaning": "Close-prep coverage record only. It does not upgrade the JAR result to EXE/installer release and does not claim yellow PermissionRequest physical PASS."
+}

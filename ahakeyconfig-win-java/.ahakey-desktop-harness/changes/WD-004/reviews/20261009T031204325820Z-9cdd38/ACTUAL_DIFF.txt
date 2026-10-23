@@ -1,0 +1,3627 @@
+
+### pom.xml
+--- start/pom.xml
++++ current/pom.xml
+@@ -36,13 +36,18 @@
+         </dependency>
+ 
+         <!-- JSON -->
+-        <dependency>
+-            <groupId>com.fasterxml.jackson.core</groupId>
+-            <artifactId>jackson-databind</artifactId>
+-            <version>2.16.0</version>
+-        </dependency>
+-
+-        <!-- Windows: Win+H 语音 + 低级别键盘钩子 -->
++        <dependency>
++            <groupId>com.fasterxml.jackson.core</groupId>
++            <artifactId>jackson-databind</artifactId>
++            <version>2.16.0</version>
++        </dependency>
++        <dependency>
++            <groupId>org.xerial</groupId>
++            <artifactId>sqlite-jdbc</artifactId>
++            <version>3.46.1.0</version>
++        </dependency>
++
++        <!-- Windows: Win+H 语音 + 低级别键盘钩子 -->
+         <dependency>
+             <groupId>net.java.dev.jna</groupId>
+             <artifactId>jna</artifactId>
+
+### src/main/java/com/example/ahakey/app/StudioController.java
+--- start/src/main/java/com/example/ahakey/app/StudioController.java
++++ current/src/main/java/com/example/ahakey/app/StudioController.java
+@@ -5,10 +5,12 @@
+ import com.example.ahakey.platform.VoiceRelayPlatform;
+ import com.example.ahakey.protocol.AhaKeyProtocol;
+ import com.example.ahakey.protocol.AhaKeyResponseParser;
+-import com.example.ahakey.service.AgentManager;
+-import com.example.ahakey.service.BleManager;
+-import com.example.ahakey.service.DeviceSyncService;
+-import com.example.ahakey.service.HookDispatchServer;
++import com.example.ahakey.service.AgentManager;
++import com.example.ahakey.service.AiRuntimeDisplayService;
++import com.example.ahakey.service.BleManager;
++import com.example.ahakey.service.DeviceSyncService;
++import com.example.ahakey.service.HookDispatchServer;
++import com.example.ahakey.service.HookInstaller;
+ import com.example.ahakey.service.OledUploadService;
+ import com.example.ahakey.util.OLEDFrameEncoder;
+ import com.example.ahakey.util.StudioStore;
+@@ -35,11 +37,14 @@
+     private final DeviceStatus deviceStatus = new DeviceStatus();
+     private final StudioState studioState = new StudioState();
+     private final AgentManager agentManager = new AgentManager();
+-    private final VoiceRelayPlatform voiceRelay = new VoiceRelayPlatform();
+-    private final BleManager bleManager;
+-    private final boolean simulateBle;
+-    private final HookDispatchServer hookDispatchServer;
+-    private final com.example.ahakey.service.KimiAhaKeyBridge kimiAhaKeyBridge;
++    private final VoiceRelayPlatform voiceRelay = new VoiceRelayPlatform();
++    private final BleManager bleManager;
++    private final AiRuntimeDisplayService aiRuntimeDisplayService;
++    private final HookInstaller aiRuntimeHookInstaller;
++    private final boolean simulateBle;
++    private final HookDispatchServer hookDispatchServer;
++    private final com.example.ahakey.service.KimiAhaKeyBridge kimiAhaKeyBridge;
++    private Runnable hookManagerOpener;
+ 
+     private int lastSyncedRevision = -1;
+     
+@@ -124,7 +129,9 @@
+         studioState.selectedModeProperty().addListener((o, a, b) -> onDraftChange.run());
+ 
+         // 启动 Hook 分发服务器（接收 Codex/Claude/Cursor/Kimi hook 事件 → BLE 状态码）
+-        hookDispatchServer = new HookDispatchServer(bleManager);
++        aiRuntimeDisplayService = new AiRuntimeDisplayService(bleManager);
++        hookDispatchServer = new HookDispatchServer(bleManager, aiRuntimeDisplayService);
++        aiRuntimeHookInstaller = new HookInstaller(hookDispatchServer::getActualPort, msg -> logger.info("{}", msg));
+         hookDispatchServer.setApprovalCallback(this::showApprovalDialog);
+         hookDispatchServer.start();
+ 
+@@ -148,13 +155,129 @@
+         return studioState;
+     }
+ 
+-    public AgentManager getAgentManager() {
+-        return agentManager;
+-    }
+-
+-    public int getHookDispatchPort() {
+-        return hookDispatchServer.getActualPort();
+-    }
++    public AgentManager getAgentManager() {
++        return agentManager;
++    }
++
++    public AiRuntimeDisplayService getAiRuntimeDisplayService() {
++        return aiRuntimeDisplayService;
++    }
++
++    public int getHookDispatchPort() {
++        return hookDispatchServer.getActualPort();
++    }
++
++    public void setHookManagerOpener(Runnable hookManagerOpener) {
++        this.hookManagerOpener = hookManagerOpener;
++    }
++
++    public void setAiRuntimeDisplayMode(AiRuntimeDisplayMode mode) {
++        aiRuntimeDisplayService.setDisplayMode(mode);
++        if (mode == AiRuntimeDisplayMode.MULTI && isAiRuntimeHookLatest()
++            && !simulateBle && deviceStatus.isConnected() && aiRuntimeDisplayService.isDeviceSupported()) {
++            new Thread(() -> {
++                try {
++                    aiRuntimeDisplayService.applyToKeyboard();
++                } catch (Exception e) {
++                    logger.warn("Auto apply MULTI runtime snapshot failed: {}", e.getMessage());
++                }
++            }, "ai-runtime-mode-auto-apply").start();
++        }
++        studioState.syncStatusProperty().set("AI 运行展示已切换为：" + mode.getTitle());
++    }
++
++    private boolean isAiRuntimeHookLatest() {
++        return aiRuntimeHookInstaller.getHookStatus("Codex") == HookInstaller.HookStatus.LATEST
++            && aiRuntimeHookInstaller.getHookStatus("Cursor") == HookInstaller.HookStatus.LATEST;
++    }
++
++    public HookInstaller.HookStatus getAiRuntimeHookStatus(String platform) {
++        return aiRuntimeHookInstaller.getHookStatus(platform);
++    }
++
++    public void openHookManager() {
++        if (hookManagerOpener != null) {
++            hookManagerOpener.run();
++        }
++    }
++
++    public void applyAiRuntimeToKeyboard(javafx.stage.Window owner) {
++        boolean applyingMulti = aiRuntimeDisplayService.getDisplayMode() == AiRuntimeDisplayMode.MULTI;
++        HookInstaller.HookStatus codexStatus = applyingMulti ? aiRuntimeHookInstaller.getHookStatus("Codex") : HookInstaller.HookStatus.LATEST;
++        HookInstaller.HookStatus cursorStatus = applyingMulti ? aiRuntimeHookInstaller.getHookStatus("Cursor") : HookInstaller.HookStatus.LATEST;
++        if (applyingMulti && (codexStatus != HookInstaller.HookStatus.LATEST || cursorStatus != HookInstaller.HookStatus.LATEST)) {
++            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
++            alert.initOwner(owner);
++            alert.setTitle("AhaKey Hook 管理");
++            alert.setHeaderText(null);
++            alert.setContentText("多任务灯光需要先在 Hook 管理中安装或更新 Codex / Cursor Hook。");
++            javafx.scene.control.ButtonType update = new javafx.scene.control.ButtonType("去 Hook 管理");
++            javafx.scene.control.ButtonType cancel = new javafx.scene.control.ButtonType("取消", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
++            alert.getButtonTypes().setAll(update, cancel);
++            java.util.Optional<javafx.scene.control.ButtonType> result = alert.showAndWait();
++            if (result.isPresent() && result.get() == update) {
++                if (hookManagerOpener != null) {
++                    hookManagerOpener.run();
++                }
++            }
++            return;
++        }
++        if (applyingMulti) {
++            AiRuntimeDisplayService.ApplyPlan plan = aiRuntimeDisplayService.prepareApply(
++                codexStatus == HookInstaller.HookStatus.LATEST,
++                cursorStatus == HookInstaller.HookStatus.LATEST
++            );
++            if (plan.usableCount() == 0) {
++                javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.WARNING);
++                alert.initOwner(owner);
++                alert.setTitle("任务槽不可用");
++                alert.setHeaderText(null);
++                alert.setContentText("当前没有可应用到键盘的任务槽。请检查 Hook 状态或重新选择会话。");
++                alert.showAndWait();
++                return;
++            }
++            if (!plan.unavailableSlots().isEmpty()) {
++                StringBuilder message = new StringBuilder("以下任务槽当前不可用，将不会显示到键盘：");
++                for (AiRuntimeDisplayService.UnavailableSlot slot : plan.unavailableSlots()) {
++                    message.append("\n槽位 ").append(slot.slotIndex() + 1).append("：").append(slot.reason());
++                }
++                javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.INFORMATION);
++                alert.initOwner(owner);
++                alert.setTitle("任务槽不可用");
++                alert.setHeaderText(null);
++                alert.setContentText(message.toString());
++                alert.getButtonTypes().setAll(new javafx.scene.control.ButtonType("知道了"));
++                alert.showAndWait();
++            }
++        }
++        if (!simulateBle && !deviceStatus.isConnected()) {
++            studioState.syncStatusProperty().set("已保存本地槽位；连接键盘后可应用。");
++            return;
++        }
++        if (!simulateBle && !aiRuntimeDisplayService.isDeviceSupported()) {
++            studioState.syncStatusProperty().set("当前固件不支持 WS3 CP1 多任务运行展示，已保留本地绑定。");
++            return;
++        }
++        if (simulateBle) {
++            aiRuntimeDisplayService.markDraftApplied(
++                codexStatus == HookInstaller.HookStatus.LATEST,
++                cursorStatus == HookInstaller.HookStatus.LATEST
++            );
++            studioState.syncStatusProperty().set("模拟模式：已标记为应用到键盘。");
++            return;
++        }
++        new Thread(() -> {
++            try {
++                aiRuntimeDisplayService.applyToKeyboard(
++                    codexStatus == HookInstaller.HookStatus.LATEST,
++                    cursorStatus == HookInstaller.HookStatus.LATEST
++                );
++                Platform.runLater(() -> studioState.syncStatusProperty().set("已应用到键盘。"));
++            } catch (Exception e) {
++                Platform.runLater(() -> studioState.syncStatusProperty().set("应用到键盘失败：" + e.getMessage()));
++            }
++        }, "ai-runtime-apply").start();
++    }
+ 
+     public boolean isEffectivelyConnected() {
+         return deviceStatus.isConnected();
+@@ -885,6 +1008,16 @@
+             studioState.setCp4cInputConfigEnabled(true);
+             studioState.setInputReadbackStatus("已识别 CP4C 固件，正在读取输入配置...");
+         });
++        aiRuntimeDisplayService.onDeviceReady();
++        if (aiRuntimeDisplayService.getDisplayMode() == AiRuntimeDisplayMode.MULTI && isAiRuntimeHookLatest()) {
++            new Thread(() -> {
++                try {
++                    aiRuntimeDisplayService.applyToKeyboard();
++                } catch (Exception e) {
++                    logger.warn("Apply MULTI runtime snapshot after firmware identity failed: {}", e.getMessage());
++                }
++            }, "ai-runtime-connect-snapshot").start();
++        }
+         startCp4cInputReadback(catalogKey);
+     }
+ 
+
+### src/main/java/com/example/ahakey/model/AiRuntimeDisplayMode.java
+--- start/src/main/java/com/example/ahakey/model/AiRuntimeDisplayMode.java
++++ current/src/main/java/com/example/ahakey/model/AiRuntimeDisplayMode.java
+@@ -0,0 +1,33 @@
++package com.example.ahakey.model;
++
++public enum AiRuntimeDisplayMode {
++    SINGLE(0, "单任务"),
++    MULTI(1, "多任务");
++
++    private final int protocolValue;
++    private final String title;
++
++    AiRuntimeDisplayMode(int protocolValue, String title) {
++        this.protocolValue = protocolValue;
++        this.title = title;
++    }
++
++    public int getProtocolValue() {
++        return protocolValue;
++    }
++
++    public String getTitle() {
++        return title;
++    }
++
++    public static AiRuntimeDisplayMode fromName(String name) {
++        if (name != null) {
++            for (AiRuntimeDisplayMode mode : values()) {
++                if (mode.name().equalsIgnoreCase(name)) {
++                    return mode;
++                }
++            }
++        }
++        return SINGLE;
++    }
++}
+
+### src/main/java/com/example/ahakey/model/AiRuntimeSession.java
+--- start/src/main/java/com/example/ahakey/model/AiRuntimeSession.java
++++ current/src/main/java/com/example/ahakey/model/AiRuntimeSession.java
+@@ -0,0 +1,57 @@
++package com.example.ahakey.model;
++
++import java.nio.file.Path;
++import java.time.Instant;
++
++public record AiRuntimeSession(
++    String provider,
++    String id,
++    String title,
++    String projectName,
++    String cwd,
++    String transcriptPath,
++    Instant updatedAt
++) {
++    public AiRuntimeSlotBinding toBinding(int slotIndex) {
++        AiRuntimeSlotBinding binding = new AiRuntimeSlotBinding(slotIndex);
++        binding.setProvider(provider);
++        binding.setStableId(id);
++        binding.setTranscriptPath(transcriptPath);
++        binding.setCwd(cwd);
++        binding.setProjectName(projectName);
++        binding.setSessionTitle(title);
++        binding.setUpdatedAtMillis(updatedAt == null ? 0L : updatedAt.toEpochMilli());
++        return binding;
++    }
++
++    public String displayTitle() {
++        return title == null || title.isBlank() ? "未命名会话" : title;
++    }
++
++    public String timeLabel() {
++        if (updatedAt == null || updatedAt.equals(Instant.EPOCH)) {
++            return "";
++        }
++        long minutes = Math.max(0, (Instant.now().toEpochMilli() - updatedAt.toEpochMilli()) / 60000);
++        if (minutes < 60) {
++            return minutes + " 分";
++        }
++        long hours = minutes / 60;
++        if (hours < 24) {
++            return hours + " 小时";
++        }
++        return (hours / 24) + " 天";
++    }
++
++    public static String projectFromCwd(String cwd) {
++        if (cwd == null || cwd.isBlank()) {
++            return "未归类";
++        }
++        try {
++            Path name = Path.of(cwd).getFileName();
++            return name == null ? cwd : name.toString();
++        } catch (Exception e) {
++            return cwd;
++        }
++    }
++}
+
+### src/main/java/com/example/ahakey/model/AiRuntimeSlotBinding.java
+--- start/src/main/java/com/example/ahakey/model/AiRuntimeSlotBinding.java
++++ current/src/main/java/com/example/ahakey/model/AiRuntimeSlotBinding.java
+@@ -0,0 +1,71 @@
++package com.example.ahakey.model;
++
++public class AiRuntimeSlotBinding {
++    private int slotIndex;
++    private String provider = "Codex";
++    private String stableId = "";
++    private String transcriptPath = "";
++    private String cwd = "";
++    private String projectName = "";
++    private String sessionTitle = "";
++    private String lastIdeState = "";
++    private long updatedAtMillis;
++    private boolean foreground;
++
++    public AiRuntimeSlotBinding() {
++    }
++
++    public AiRuntimeSlotBinding(int slotIndex) {
++        this.slotIndex = slotIndex;
++    }
++
++    public boolean isBound() {
++        return stableId != null && !stableId.isBlank();
++    }
++
++    public AiRuntimeSlotState runtimeState() {
++        if (!isBound() || lastIdeState == null || lastIdeState.isBlank()) {
++            return AiRuntimeSlotState.EMPTY;
++        }
++        try {
++            return AiRuntimeSlotState.fromIdeState(IDEState.valueOf(lastIdeState));
++        } catch (IllegalArgumentException e) {
++            return AiRuntimeSlotState.EMPTY;
++        }
++    }
++
++    public String displayTitle() {
++        if (!isBound()) {
++            return "未绑定";
++        }
++        if (sessionTitle != null && !sessionTitle.isBlank()) {
++            return sessionTitle;
++        }
++        return "未命名会话";
++    }
++
++    public String displayProjectName() {
++        return projectName == null || projectName.isBlank() ? "未归类" : projectName;
++    }
++
++    public int getSlotIndex() { return slotIndex; }
++    public void setSlotIndex(int slotIndex) { this.slotIndex = slotIndex; }
++    public String getProvider() { return provider; }
++    public void setProvider(String provider) { this.provider = provider; }
++    public String getStableId() { return stableId; }
++    public void setStableId(String stableId) { this.stableId = stableId == null ? "" : stableId; }
++    public String getTranscriptPath() { return transcriptPath; }
++    public void setTranscriptPath(String transcriptPath) { this.transcriptPath = transcriptPath == null ? "" : transcriptPath; }
++    public String getCwd() { return cwd; }
++    public void setCwd(String cwd) { this.cwd = cwd == null ? "" : cwd; }
++    public String getProjectName() { return projectName; }
++    public void setProjectName(String projectName) { this.projectName = projectName == null ? "" : projectName; }
++    public String getSessionTitle() { return sessionTitle; }
++    public void setSessionTitle(String sessionTitle) { this.sessionTitle = sessionTitle == null ? "" : sessionTitle; }
++    public String getLastIdeState() { return lastIdeState; }
++    public void setLastIdeState(String lastIdeState) { this.lastIdeState = lastIdeState == null ? "" : lastIdeState; }
++    public long getUpdatedAtMillis() { return updatedAtMillis; }
++    public void setUpdatedAtMillis(long updatedAtMillis) { this.updatedAtMillis = updatedAtMillis; }
++    public boolean isForeground() { return foreground; }
++    public void setForeground(boolean foreground) { this.foreground = foreground; }
++}
+
+### src/main/java/com/example/ahakey/model/AiRuntimeSlotState.java
+--- start/src/main/java/com/example/ahakey/model/AiRuntimeSlotState.java
++++ current/src/main/java/com/example/ahakey/model/AiRuntimeSlotState.java
+@@ -0,0 +1,35 @@
++package com.example.ahakey.model;
++
++public enum AiRuntimeSlotState {
++    EMPTY(0, "空"),
++    RUNNING(1, "处理中"),
++    WAITING(2, "等待"),
++    DONE(3, "完成");
++
++    private final int protocolValue;
++    private final String title;
++
++    AiRuntimeSlotState(int protocolValue, String title) {
++        this.protocolValue = protocolValue;
++        this.title = title;
++    }
++
++    public int getProtocolValue() {
++        return protocolValue;
++    }
++
++    public String getTitle() {
++        return title;
++    }
++
++    public static AiRuntimeSlotState fromIdeState(IDEState state) {
++        if (state == null) {
++            return EMPTY;
++        }
++        return switch (state) {
++            case NOTIFICATION, PERMISSION_REQUEST -> WAITING;
++            case SESSION_START, USER_PROMPT_SUBMIT, PRE_TOOL_USE, POST_TOOL_USE -> RUNNING;
++            case TASK_COMPLETED, STOP, SESSION_END -> DONE;
++        };
++    }
++}
+
+### src/main/java/com/example/ahakey/model/CodexSession.java
+--- start/src/main/java/com/example/ahakey/model/CodexSession.java
++++ current/src/main/java/com/example/ahakey/model/CodexSession.java
+@@ -0,0 +1,28 @@
++package com.example.ahakey.model;
++
++import java.time.Instant;
++
++public record CodexSession(
++    String id,
++    String title,
++    String projectName,
++    String cwd,
++    String transcriptPath,
++    Instant updatedAt
++) {
++    public AiRuntimeSlotBinding toBinding(int slotIndex) {
++        return toAiRuntimeSession().toBinding(slotIndex);
++    }
++
++    public String timeLabel() {
++        return toAiRuntimeSession().timeLabel();
++    }
++
++    public AiRuntimeSession toAiRuntimeSession() {
++        return new AiRuntimeSession("Codex", id, title, projectName, cwd, transcriptPath, updatedAt);
++    }
++
++    public static String projectFromCwd(String cwd) {
++        return AiRuntimeSession.projectFromCwd(cwd);
++    }
++}
+
+### src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java
+--- start/src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java
++++ current/src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java
+@@ -1,6 +1,9 @@
+ package com.example.ahakey.protocol;
+ 
+-import com.example.ahakey.model.DeviceStatus;
++import com.example.ahakey.model.DeviceStatus;
++import com.example.ahakey.model.AiRuntimeDisplayMode;
++import com.example.ahakey.model.AiRuntimeSlotBinding;
++import com.example.ahakey.model.AiRuntimeSlotState;
+ 
+ public class AhaKeyProtocol {
+     private static final byte[] HEADER = {(byte) 0xAA, (byte) 0xBB};
+@@ -24,6 +27,9 @@
+     public static final byte CMD_SET_WORK_MODE = (byte) 0x92;
+     public static final byte CMD_SLEEP_WAIT_TIME = (byte) 0x95;
+     public static final byte CMD_SIDE_SWITCH_CONFIG = (byte) 0x97;
++    public static final byte CMD_RUNTIME_DISPLAY_MODE = (byte) 0x98;
++    public static final byte CMD_MULTI_RUNTIME_SNAPSHOT = (byte) 0x99;
++    public static final byte CMD_RUNTIME_COMPAT_ACK = (byte) 0x9A;
+     public static final byte CMD_FIRMWARE_CATALOG_KEY = (byte) 0x9F;
+     public static final int STATUS_OK = 0;
+     public static final int STATUS_INVALID_PAYLOAD = 1;
+@@ -41,6 +47,7 @@
+     public static final int SIDE_SWITCH_ACTION_BIND_LEN = 100;
+     public static final int SIDE_SWITCH_READBACK_ACTION_TOTAL_MAX = 52;
+     private static final String CP4C_CATALOG_KEY = "x1-c582-hw1-p1-1.0.0-r001";
++    public static final int MULTI_RUNTIME_SNAPSHOT_VERSION = 1;
+     
+     // 按键子类型
+     public static final byte SUB_SHORTCUT = 0x73;
+@@ -107,6 +114,33 @@
+ 
+     public static boolean isCp4cCatalogKey(String catalogKey) {
+         return CP4C_CATALOG_KEY.equals(catalogKey);
++    }
++
++    public static boolean isWs3Cp1RuntimeDisplaySupported(String catalogKey) {
++        return CP4C_CATALOG_KEY.equals(catalogKey);
++    }
++
++    public static byte[] setRuntimeDisplayMode(AiRuntimeDisplayMode mode) {
++        AiRuntimeDisplayMode safeMode = mode == null ? AiRuntimeDisplayMode.SINGLE : mode;
++        return buildFrame(CMD_RUNTIME_DISPLAY_MODE, new byte[]{(byte) safeMode.getProtocolValue()});
++    }
++
++    public static byte[] multiRuntimeSnapshot(AiRuntimeSlotBinding[] slots) {
++        byte[] payload = new byte[1 + 4 * 3];
++        payload[0] = (byte) MULTI_RUNTIME_SNAPSHOT_VERSION;
++        for (int i = 0; i < 4; i++) {
++            AiRuntimeSlotBinding slot = slots != null && i < slots.length ? slots[i] : null;
++            boolean valid = slot != null && slot.isBound();
++            AiRuntimeSlotState state = valid ? slot.runtimeState() : AiRuntimeSlotState.EMPTY;
++            if (state == AiRuntimeSlotState.EMPTY) {
++                valid = false;
++            }
++            int offset = 1 + i * 3;
++            payload[offset] = (byte) (valid ? 1 : 0);
++            payload[offset + 1] = (byte) state.getProtocolValue();
++            payload[offset + 2] = (byte) (slot != null && slot.isForeground() ? 1 : 0);
++        }
++        return buildFrame(CMD_MULTI_RUNTIME_SNAPSHOT, payload);
+     }
+ 
+     public static byte[] readOrdinaryKeyConfig(int mode, int keyIndex) {
+
+### src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java
+--- start/src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java
++++ current/src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java
+@@ -0,0 +1,476 @@
++package com.example.ahakey.service;
++
++import com.example.ahakey.model.AiRuntimeDisplayMode;
++import com.example.ahakey.model.AiRuntimeSession;
++import com.example.ahakey.model.AiRuntimeSlotBinding;
++import com.example.ahakey.model.IDEState;
++import com.example.ahakey.protocol.AhaKeyProtocol;
++import com.example.ahakey.util.AiRuntimeStore;
++import com.fasterxml.jackson.databind.JsonNode;
++import javafx.beans.property.ObjectProperty;
++import javafx.beans.property.SimpleObjectProperty;
++import javafx.collections.FXCollections;
++import javafx.collections.ObservableList;
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.util.ArrayList;
++import java.util.Arrays;
++import java.util.HashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Objects;
++
++public class AiRuntimeDisplayService {
++    private static final Logger logger = LoggerFactory.getLogger(AiRuntimeDisplayService.class);
++
++    private final BleManager bleManager;
++    private final CodexSessionDiscoveryService codexDiscovery = new CodexSessionDiscoveryService();
++    private final CursorSessionDiscoveryService cursorDiscovery = new CursorSessionDiscoveryService();
++    private final ObjectProperty<AiRuntimeDisplayMode> displayMode =
++        new SimpleObjectProperty<>(AiRuntimeDisplayMode.SINGLE);
++    private final ObservableList<AiRuntimeSlotBinding> slots = FXCollections.observableArrayList();
++    private AiRuntimeSlotBinding[] appliedSlots = new AiRuntimeSlotBinding[4];
++    private String codexDataDir;
++    private String cursorDataDir;
++    private int primarySlotIndex = -1;
++
++    public AiRuntimeDisplayService(BleManager bleManager) {
++        this.bleManager = bleManager;
++        AiRuntimeStore.Draft draft = AiRuntimeStore.loadOrDefault();
++        displayMode.set(AiRuntimeDisplayMode.fromName(draft.displayMode));
++        codexDataDir = draft.codexDataDir;
++        cursorDataDir = draft.cursorDataDir;
++        primarySlotIndex = draft.primarySlotIndex;
++        for (int i = 0; i < 4; i++) {
++            AiRuntimeSlotBinding binding = draft.slots != null && i < draft.slots.length && draft.slots[i] != null
++                ? draft.slots[i]
++                : new AiRuntimeSlotBinding(i);
++            binding.setSlotIndex(i);
++            slots.add(binding);
++            appliedSlots[i] = copy(binding);
++        }
++        repairPrimarySlot(true, true);
++    }
++
++    public ObjectProperty<AiRuntimeDisplayMode> displayModeProperty() {
++        return displayMode;
++    }
++
++    public AiRuntimeDisplayMode getDisplayMode() {
++        return displayMode.get();
++    }
++
++    public String getCodexDataDir() {
++        return codexDataDir;
++    }
++
++    public void setCodexDataDir(String codexDataDir) {
++        this.codexDataDir = codexDataDir == null || codexDataDir.isBlank()
++            ? Path.of(System.getProperty("user.home"), ".codex").toString()
++            : codexDataDir;
++        persist();
++    }
++
++    public String getCursorDataDir() {
++        return cursorDataDir;
++    }
++
++    public void setCursorDataDir(String cursorDataDir) {
++        this.cursorDataDir = cursorDataDir == null || cursorDataDir.isBlank()
++            ? AiRuntimeStore.Draft.defaultCursorDataDir()
++            : cursorDataDir;
++        persist();
++    }
++
++    public int getPrimarySlotIndex() {
++        return primarySlotIndex;
++    }
++
++    public void setPrimarySlotIndex(int slotIndex) {
++        if (slotIndex < 0 || slotIndex >= slots.size() || !slots.get(slotIndex).isBound()) {
++            return;
++        }
++        primarySlotIndex = slotIndex;
++        persist();
++    }
++
++    public ObservableList<AiRuntimeSlotBinding> getSlots() {
++        return slots;
++    }
++
++    public List<AiRuntimeSession> discoverCodexSessions() {
++        return codexDiscovery.discover(Path.of(codexDataDir));
++    }
++
++    public List<AiRuntimeSession> discoverCursorSessions() {
++        return cursorDiscovery.discover(Path.of(cursorDataDir));
++    }
++
++    public List<AiRuntimeSession> discoverSessions(String provider) {
++        if ("Cursor".equals(provider)) {
++            return discoverCursorSessions();
++        }
++        return discoverCodexSessions();
++    }
++
++    public boolean isDataDirValid(String provider) {
++        String path = "Cursor".equals(provider) ? cursorDataDir : codexDataDir;
++        return path != null && !path.isBlank() && Files.isDirectory(Path.of(path));
++    }
++
++    public boolean isDeviceSupported() {
++        if (bleManager.getCachedStatus() == null) {
++            return false;
++        }
++        return AhaKeyProtocol.isWs3Cp1RuntimeDisplaySupported(bleManager.getCachedStatus().getFirmwareCatalogKey());
++    }
++
++    public void setDisplayMode(AiRuntimeDisplayMode mode) {
++        AiRuntimeDisplayMode safe = mode == null ? AiRuntimeDisplayMode.SINGLE : mode;
++        if (safe == displayMode.get()) {
++            return;
++        }
++        displayMode.set(safe);
++        persist();
++        if (isDeviceSupported()) {
++            new Thread(() -> {
++                try {
++                    bleManager.setRuntimeDisplayMode(safe);
++                } catch (Exception e) {
++                    logger.warn("Set runtime display mode failed: {}", e.getMessage());
++                }
++            }, "ai-runtime-mode-send").start();
++        }
++    }
++
++    public void onDeviceReady() {
++        if (!isDeviceSupported()) {
++            return;
++        }
++        new Thread(() -> {
++            try {
++                bleManager.setRuntimeDisplayMode(displayMode.get());
++            } catch (Exception e) {
++                logger.warn("Apply runtime display preference on connect failed: {}", e.getMessage());
++            }
++        }, "ai-runtime-connect-apply").start();
++    }
++
++    public void bindSlot(int slotIndex, AiRuntimeSession session) {
++        if (slotIndex < 0 || slotIndex >= slots.size() || session == null) {
++            return;
++        }
++        if (findBoundSlot(session.provider(), session.id()) >= 0) {
++            return;
++        }
++        slots.set(slotIndex, session.toBinding(slotIndex));
++        if (primarySlotIndex < 0) {
++            primarySlotIndex = slotIndex;
++        }
++        persist();
++    }
++
++    public void clearSlot(int slotIndex) {
++        if (slotIndex < 0 || slotIndex >= slots.size()) {
++            return;
++        }
++        boolean wasPrimary = primarySlotIndex == slotIndex;
++        slots.set(slotIndex, new AiRuntimeSlotBinding(slotIndex));
++        if (wasPrimary) {
++            primarySlotIndex = firstBoundSlot();
++        }
++        persist();
++    }
++
++    public void markDraftApplied() {
++        markDraftApplied(true, true);
++    }
++
++    public void markDraftApplied(boolean codexHookLatest, boolean cursorHookLatest) {
++        ApplyPlan plan = prepareApply(codexHookLatest, cursorHookLatest);
++        appliedSlots = Arrays.stream(plan.slots()).map(this::copy).toArray(AiRuntimeSlotBinding[]::new);
++    }
++
++    public void applyToKeyboard() throws Exception {
++        applyToKeyboard(true, true);
++    }
++
++    public void applyToKeyboard(boolean codexHookLatest, boolean cursorHookLatest) throws Exception {
++        if (!isDeviceSupported()) {
++            throw new IllegalStateException("当前固件不支持 WS3 CP1 运行态展示");
++        }
++        ApplyPlan plan = prepareApply(codexHookLatest, cursorHookLatest);
++        if (displayMode.get() == AiRuntimeDisplayMode.MULTI && plan.usableCount() == 0) {
++            throw new IllegalStateException("当前没有可应用到键盘的任务槽。请检查 Hook 状态或重新选择会话。");
++        }
++        bleManager.setRuntimeDisplayMode(displayMode.get());
++        appliedSlots = Arrays.stream(plan.slots()).map(this::copy).toArray(AiRuntimeSlotBinding[]::new);
++        if (displayMode.get() == AiRuntimeDisplayMode.MULTI) {
++            sendAppliedSnapshot();
++        }
++        persist();
++    }
++
++    public boolean handleHookEvent(String platform, IDEState state, JsonNode payload) {
++        if (displayMode.get() == AiRuntimeDisplayMode.SINGLE) {
++            try {
++                bleManager.updateState((byte) state.getCode());
++                return true;
++            } catch (Exception e) {
++                logger.warn("SINGLE runtime update failed: {}", e.getMessage());
++                return false;
++            }
++        }
++        if (displayMode.get() != AiRuntimeDisplayMode.MULTI
++            || (!"Codex".equals(platform) && !"Cursor".equals(platform))
++            || !isDeviceSupported()) {
++            return false;
++        }
++        String stableId = "Cursor".equals(platform)
++            ? firstNonBlank(
++                text(payload, "conversation_id"),
++                text(payload, "session_id"),
++                text(payload, "composerId"),
++                text(payload, "composer_id"),
++                text(payload, "conversationId"),
++                text(payload, "conversation_id")
++            )
++            : firstNonBlank(text(payload, "session_id"), text(payload, "sessionId"));
++        String transcriptPath = "Codex".equals(platform)
++            ? firstNonBlank(text(payload, "transcript_path"), text(payload, "transcriptPath"))
++            : "";
++        if (stableId.isBlank() && transcriptPath.isBlank()) {
++            logger.info("MULTI runtime event ignored without session identity: platform={}", platform);
++            return false;
++        }
++        for (int i = 0; i < appliedSlots.length; i++) {
++            AiRuntimeSlotBinding slot = appliedSlots[i];
++            if (!matches(slot, platform, stableId, transcriptPath)) {
++                continue;
++            }
++            if (Objects.equals(slot.getLastIdeState(), state.name())) {
++                return true;
++            }
++            slot.setLastIdeState(state.name());
++            slots.get(i).setLastIdeState(state.name());
++            persist();
++            try {
++                sendAppliedSnapshot();
++                return true;
++            } catch (Exception e) {
++                logger.warn("MULTI runtime snapshot failed: {}", e.getMessage());
++                return false;
++            }
++        }
++        return false;
++    }
++
++    public ApplyPlan prepareApply(boolean codexHookLatest, boolean cursorHookLatest) {
++        Map<String, Map<String, AiRuntimeSession>> indexes = new HashMap<>();
++        indexes.put("Codex", indexById(codexHookLatest ? discoverCodexSessions() : List.of()));
++        indexes.put("Cursor", indexById(cursorHookLatest ? discoverCursorSessions() : List.of()));
++        AiRuntimeSlotBinding[] prepared = new AiRuntimeSlotBinding[4];
++        List<UnavailableSlot> unavailable = new ArrayList<>();
++        int usable = 0;
++        int firstUsable = -1;
++        boolean currentPrimaryUsable = false;
++        String[] reasons = new String[4];
++        for (int i = 0; i < 4; i++) {
++            AiRuntimeSlotBinding source = slots.get(i);
++            String reason = unavailableReason(source, codexHookLatest, cursorHookLatest, indexes);
++            reasons[i] = reason;
++            if (reason == null) {
++                if (firstUsable < 0) {
++                    firstUsable = i;
++                }
++                if (i == primarySlotIndex) {
++                    currentPrimaryUsable = true;
++                }
++            }
++        }
++        int desiredPrimary = currentPrimaryUsable ? primarySlotIndex : firstUsable;
++        if (primarySlotIndex != desiredPrimary) {
++            primarySlotIndex = desiredPrimary;
++            persist();
++        }
++        for (int i = 0; i < 4; i++) {
++            AiRuntimeSlotBinding source = slots.get(i);
++            String reason = reasons[i];
++            if (reason == null) {
++                AiRuntimeSlotBinding copy = copy(source);
++                copy.setForeground(i == desiredPrimary);
++                prepared[i] = copy;
++                usable++;
++            } else {
++                prepared[i] = new AiRuntimeSlotBinding(i);
++                if (source.isBound()) {
++                    unavailable.add(new UnavailableSlot(i, reason));
++                }
++            }
++        }
++        return new ApplyPlan(prepared, unavailable, usable, desiredPrimary);
++    }
++
++    public String slotUnavailableReason(AiRuntimeSlotBinding slot, boolean codexHookLatest, boolean cursorHookLatest) {
++        Map<String, Map<String, AiRuntimeSession>> indexes = new HashMap<>();
++        indexes.put("Codex", indexById(codexHookLatest ? discoverCodexSessions() : List.of()));
++        indexes.put("Cursor", indexById(cursorHookLatest ? discoverCursorSessions() : List.of()));
++        return unavailableReason(slot, codexHookLatest, cursorHookLatest, indexes);
++    }
++
++    public int findBoundSlot(String provider, String stableId) {
++        if (provider == null || stableId == null || stableId.isBlank()) {
++            return -1;
++        }
++        for (int i = 0; i < slots.size(); i++) {
++            AiRuntimeSlotBinding slot = slots.get(i);
++            if (provider.equals(slot.getProvider()) && stableId.equals(slot.getStableId())) {
++                return i;
++            }
++        }
++        return -1;
++    }
++
++    private String unavailableReason(
++        AiRuntimeSlotBinding slot,
++        boolean codexHookLatest,
++        boolean cursorHookLatest,
++        Map<String, Map<String, AiRuntimeSession>> indexes
++    ) {
++        if (slot == null || !slot.isBound()) {
++            return "未绑定会话";
++        }
++        boolean hookLatest = "Cursor".equals(slot.getProvider()) ? cursorHookLatest : codexHookLatest;
++        if (!hookLatest) {
++            return "需安装/更新 Hook";
++        }
++        Map<String, AiRuntimeSession> sourceIndex = indexes.getOrDefault(slot.getProvider(), Map.of());
++        if (!sourceIndex.containsKey(slot.getStableId())) {
++            return "会话记录已不可用";
++        }
++        return null;
++    }
++
++    private int repairPrimarySlot(boolean codexHookLatest, boolean cursorHookLatest) {
++        int firstUsable = -1;
++        for (int i = 0; i < slots.size(); i++) {
++            AiRuntimeSlotBinding slot = slots.get(i);
++            if (slot.isBound() && ("Cursor".equals(slot.getProvider()) ? cursorHookLatest : codexHookLatest)) {
++                if (firstUsable < 0) {
++                    firstUsable = i;
++                }
++                if (i == primarySlotIndex) {
++                    return primarySlotIndex;
++                }
++            }
++        }
++        if (primarySlotIndex != firstUsable) {
++            primarySlotIndex = firstUsable;
++            persist();
++        }
++        return primarySlotIndex;
++    }
++
++    private int firstBoundSlot() {
++        for (int i = 0; i < slots.size(); i++) {
++            if (slots.get(i).isBound()) {
++                return i;
++            }
++        }
++        return -1;
++    }
++
++    private Map<String, AiRuntimeSession> indexById(List<AiRuntimeSession> sessions) {
++        Map<String, AiRuntimeSession> index = new HashMap<>();
++        for (AiRuntimeSession session : sessions) {
++            if (session.id() != null && !session.id().isBlank()) {
++                index.put(session.id(), session);
++            }
++        }
++        return index;
++    }
++
++    private boolean matches(AiRuntimeSlotBinding slot, String platform, String stableId, String transcriptPath) {
++        if (slot == null || !slot.isBound()) {
++            return false;
++        }
++        if (!platform.equals(slot.getProvider())) {
++            return false;
++        }
++        if (!stableId.isBlank() && stableId.equals(slot.getStableId())) {
++            return true;
++        }
++        if (!transcriptPath.isBlank() && transcriptPath.equalsIgnoreCase(slot.getTranscriptPath())) {
++            return true;
++        }
++        return false;
++    }
++
++    private void sendAppliedSnapshot() throws Exception {
++        boolean anyUsable = Arrays.stream(appliedSlots).anyMatch(slot -> slot != null && slot.isBound());
++        if (!anyUsable) {
++            logger.info("Skip 0x99 snapshot because no usable runtime slot is available");
++            return;
++        }
++        bleManager.sendMultiRuntimeSnapshot(Arrays.stream(appliedSlots).map(this::copy).toArray(AiRuntimeSlotBinding[]::new));
++    }
++
++    private String text(JsonNode node, String field) {
++        JsonNode value = node == null ? null : node.get(field);
++        if (value == null || value.isNull()) {
++            JsonNode hookInput = node == null ? null : node.get("hookInput");
++            value = hookInput == null ? null : hookInput.get(field);
++        }
++        return value == null || value.isNull() ? "" : value.asText("");
++    }
++
++    private String firstNonBlank(String... values) {
++        if (values != null) {
++            for (String value : values) {
++                if (value != null && !value.isBlank()) {
++                    return value;
++                }
++            }
++        }
++        return "";
++    }
++
++    private AiRuntimeSlotBinding copy(AiRuntimeSlotBinding source) {
++        AiRuntimeSlotBinding target = new AiRuntimeSlotBinding(source == null ? 0 : source.getSlotIndex());
++        if (source == null) {
++            return target;
++        }
++        target.setProvider(source.getProvider());
++        target.setStableId(source.getStableId());
++        target.setTranscriptPath(source.getTranscriptPath());
++        target.setCwd(source.getCwd());
++        target.setProjectName(source.getProjectName());
++        target.setSessionTitle(source.getSessionTitle());
++        target.setLastIdeState(source.getLastIdeState());
++        target.setUpdatedAtMillis(source.getUpdatedAtMillis());
++        target.setForeground(source.isForeground());
++        return target;
++    }
++
++    private void persist() {
++        AiRuntimeStore.Draft draft = new AiRuntimeStore.Draft();
++        draft.displayMode = displayMode.get().name();
++        draft.codexDataDir = codexDataDir;
++        draft.cursorDataDir = cursorDataDir;
++        draft.primarySlotIndex = primarySlotIndex;
++        draft.slots = slots.toArray(new AiRuntimeSlotBinding[0]);
++        AiRuntimeStore.save(draft);
++    }
++
++    public record ApplyPlan(
++        AiRuntimeSlotBinding[] slots,
++        List<UnavailableSlot> unavailableSlots,
++        int usableCount,
++        int primarySlotIndex
++    ) {}
++
++    public record UnavailableSlot(int slotIndex, String reason) {}
++}
+
+### src/main/java/com/example/ahakey/service/BleManager.java
+--- start/src/main/java/com/example/ahakey/service/BleManager.java
++++ current/src/main/java/com/example/ahakey/service/BleManager.java
+@@ -540,7 +540,33 @@
+         }
+     }
+ 
+-    public void setLightEffect(byte effectCode) {
++    public void setRuntimeDisplayMode(com.example.ahakey.model.AiRuntimeDisplayMode mode) throws Exception {
++        synchronized (commandTransactionLock) {
++            commandLock.lock();
++            try {
++                pendingNotifyFramesByCommand.clear();
++                sendCommand(AhaKeyProtocol.setRuntimeDisplayMode(mode));
++                waitForResponseFrame(AhaKeyProtocol.CMD_RUNTIME_DISPLAY_MODE, false);
++            } finally {
++                commandLock.unlock();
++            }
++        }
++    }
++
++    public void sendMultiRuntimeSnapshot(com.example.ahakey.model.AiRuntimeSlotBinding[] slots) throws Exception {
++        synchronized (commandTransactionLock) {
++            commandLock.lock();
++            try {
++                pendingNotifyFramesByCommand.clear();
++                sendCommand(AhaKeyProtocol.multiRuntimeSnapshot(slots));
++                waitForResponseFrame(AhaKeyProtocol.CMD_MULTI_RUNTIME_SNAPSHOT, false);
++            } finally {
++                commandLock.unlock();
++            }
++        }
++    }
++
++    public void setLightEffect(byte effectCode) {
+         try {
+             sendCommand(AhaKeyProtocol.setLightEffect(effectCode));
+         } catch (IOException e) {
+
+### src/main/java/com/example/ahakey/service/CodexSessionDiscoveryService.java
+--- start/src/main/java/com/example/ahakey/service/CodexSessionDiscoveryService.java
++++ current/src/main/java/com/example/ahakey/service/CodexSessionDiscoveryService.java
+@@ -0,0 +1,153 @@
++package com.example.ahakey.service;
++
++import com.example.ahakey.model.AiRuntimeSession;
++import com.fasterxml.jackson.databind.JsonNode;
++import com.fasterxml.jackson.databind.ObjectMapper;
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++
++import java.io.BufferedReader;
++import java.nio.charset.StandardCharsets;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.sql.Connection;
++import java.sql.DriverManager;
++import java.sql.ResultSet;
++import java.sql.Statement;
++import java.time.Instant;
++import java.util.ArrayList;
++import java.util.Comparator;
++import java.util.List;
++
++public class CodexSessionDiscoveryService {
++    private static final Logger logger = LoggerFactory.getLogger(CodexSessionDiscoveryService.class);
++    private final ObjectMapper mapper = new ObjectMapper();
++
++    public List<AiRuntimeSession> discover(Path dataDir) {
++        if (dataDir == null || !Files.isDirectory(dataDir)) {
++            return List.of();
++        }
++        List<AiRuntimeSession> fromDb = discoverFromSqlite(dataDir.resolve("state_5.sqlite"));
++        if (!fromDb.isEmpty()) {
++            return fromDb;
++        }
++        return discoverFromSessionIndex(dataDir.resolve("session_index.jsonl"));
++    }
++
++    private List<AiRuntimeSession> discoverFromSqlite(Path db) {
++        if (!Files.isRegularFile(db)) {
++            return List.of();
++        }
++        List<AiRuntimeSession> sessions = new ArrayList<>();
++        try {
++            Class.forName("org.sqlite.JDBC");
++            String url = "jdbc:sqlite:" + db.toAbsolutePath();
++            try (Connection connection = DriverManager.getConnection(url);
++                 Statement statement = connection.createStatement()) {
++                statement.setQueryTimeout(2);
++                String sql = """
++                    select id, rollout_path, cwd, title, first_user_message, preview, updated_at_ms, recency_at_ms
++                    from threads
++                    order by coalesce(recency_at_ms, updated_at_ms, 0) desc
++                    limit 400
++                    """;
++                try (ResultSet rs = statement.executeQuery(sql)) {
++                    while (rs.next()) {
++                        String id = value(rs.getString("id"));
++                        String cwd = value(rs.getString("cwd"));
++                        String title = firstNonBlank(
++                            rs.getString("title"),
++                            rs.getString("first_user_message"),
++                            rs.getString("preview"),
++                            id
++                        );
++                        long timestamp = Math.max(rs.getLong("recency_at_ms"), rs.getLong("updated_at_ms"));
++                        sessions.add(new AiRuntimeSession(
++                            "Codex",
++                            id,
++                            title,
++                            AiRuntimeSession.projectFromCwd(cwd),
++                            cwd,
++                            value(rs.getString("rollout_path")),
++                            toInstant(timestamp)
++                        ));
++                    }
++                }
++            }
++        } catch (Exception e) {
++            logger.info("Codex sqlite discovery skipped: {}", e.getMessage());
++        }
++        return sort(sessions);
++    }
++
++    private List<AiRuntimeSession> discoverFromSessionIndex(Path index) {
++        if (!Files.isRegularFile(index)) {
++            return List.of();
++        }
++        List<AiRuntimeSession> sessions = new ArrayList<>();
++        try (BufferedReader reader = Files.newBufferedReader(index, StandardCharsets.UTF_8)) {
++            String line;
++            while ((line = reader.readLine()) != null && sessions.size() < 400) {
++                if (line.isBlank()) {
++                    continue;
++                }
++                JsonNode node = mapper.readTree(line);
++                String id = text(node, "id");
++                String title = firstNonBlank(text(node, "thread_name"), text(node, "title"), id);
++                long updatedAt = longValue(node, "updated_at");
++                sessions.add(new AiRuntimeSession(
++                    "Codex",
++                    id,
++                    title,
++                    "未归类",
++                    "",
++                    "",
++                    toInstant(updatedAt)
++                ));
++            }
++        } catch (Exception e) {
++            logger.info("Codex session_index discovery skipped: {}", e.getMessage());
++        }
++        return sort(sessions);
++    }
++
++    private List<AiRuntimeSession> sort(List<AiRuntimeSession> sessions) {
++        sessions.sort(Comparator.comparing(
++            AiRuntimeSession::updatedAt,
++            Comparator.nullsLast(Comparator.reverseOrder())
++        ));
++        return sessions;
++    }
++
++    private Instant toInstant(long value) {
++        if (value <= 0) {
++            return Instant.EPOCH;
++        }
++        return value > 10_000_000_000L ? Instant.ofEpochMilli(value) : Instant.ofEpochSecond(value);
++    }
++
++    private String text(JsonNode node, String field) {
++        JsonNode value = node == null ? null : node.get(field);
++        return value == null || value.isNull() ? "" : value.asText("");
++    }
++
++    private long longValue(JsonNode node, String field) {
++        JsonNode value = node == null ? null : node.get(field);
++        return value == null || !value.canConvertToLong() ? 0L : value.asLong();
++    }
++
++    private String value(String input) {
++        return input == null ? "" : input;
++    }
++
++    private String firstNonBlank(String... values) {
++        if (values != null) {
++            for (String value : values) {
++                if (value != null && !value.isBlank()) {
++                    return value.strip();
++                }
++            }
++        }
++        return "未命名会话";
++    }
++}
+
+### src/main/java/com/example/ahakey/service/CursorSessionDiscoveryService.java
+--- start/src/main/java/com/example/ahakey/service/CursorSessionDiscoveryService.java
++++ current/src/main/java/com/example/ahakey/service/CursorSessionDiscoveryService.java
+@@ -0,0 +1,296 @@
++package com.example.ahakey.service;
++
++import com.example.ahakey.model.AiRuntimeSession;
++import com.fasterxml.jackson.databind.JsonNode;
++import com.fasterxml.jackson.databind.ObjectMapper;
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++
++import java.nio.charset.StandardCharsets;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.sql.Connection;
++import java.sql.DriverManager;
++import java.sql.ResultSet;
++import java.sql.ResultSetMetaData;
++import java.sql.Statement;
++import java.time.Instant;
++import java.util.ArrayList;
++import java.util.Comparator;
++import java.util.HashMap;
++import java.util.HashSet;
++import java.util.List;
++import java.util.Locale;
++import java.util.Map;
++import java.util.Set;
++import java.util.stream.Stream;
++
++public class CursorSessionDiscoveryService {
++    private static final Logger logger = LoggerFactory.getLogger(CursorSessionDiscoveryService.class);
++    private static final int MAX_SCAN_FILES = 80;
++    private final ObjectMapper mapper = new ObjectMapper();
++
++    public List<AiRuntimeSession> discover(Path dataDir) {
++        if (dataDir == null || !Files.isDirectory(dataDir)) {
++            return List.of();
++        }
++        Map<String, TitleRecord> titles = readConversationTitles(dataDir);
++        Map<String, WorkspaceRecord> workspaces = readWorkspaceRecords(dataDir.resolve("workspaceStorage"));
++        List<AiRuntimeSession> sessions = readComposerHeaders(dataDir, titles, workspaces);
++        sessions.sort(Comparator.comparing(
++            AiRuntimeSession::updatedAt,
++            Comparator.nullsLast(Comparator.reverseOrder())
++        ));
++        return sessions;
++    }
++
++    private Map<String, TitleRecord> readConversationTitles(Path dataDir) {
++        Map<String, TitleRecord> titles = new HashMap<>();
++        for (Path db : findFiles(dataDir, "conversation-search.db", 6)) {
++            try {
++                Class.forName("org.sqlite.JDBC");
++                try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + db.toAbsolutePath());
++                     Statement statement = connection.createStatement();
++                     ResultSet rs = statement.executeQuery("select * from conversations limit 1000")) {
++                    statement.setQueryTimeout(2);
++                    ResultSetMetaData meta = rs.getMetaData();
++                    Set<String> columns = columns(meta);
++                    while (rs.next()) {
++                        String id = firstColumn(rs, columns, "id", "conversation_id", "conversationId", "composerId", "composer_id");
++                        if (id.isBlank()) {
++                            continue;
++                        }
++                        String title = firstColumn(rs, columns, "title", "name", "summary");
++                        long updated = longColumn(rs, columns, "lastUpdatedAt", "updated_at", "updatedAt", "timestamp", "createdAt");
++                        titles.put(id, new TitleRecord(title, toInstant(updated)));
++                    }
++                }
++            } catch (Exception e) {
++                logger.info("Cursor conversation title discovery skipped for {}: {}", db, e.getMessage());
++            }
++        }
++        return titles;
++    }
++
++    private Map<String, WorkspaceRecord> readWorkspaceRecords(Path workspaceStorage) {
++        Map<String, WorkspaceRecord> records = new HashMap<>();
++        if (!Files.isDirectory(workspaceStorage)) {
++            return records;
++        }
++        try (Stream<Path> stream = Files.list(workspaceStorage)) {
++            stream.filter(Files::isDirectory).forEach(dir -> {
++                Path workspaceJson = dir.resolve("workspace.json");
++                if (!Files.isRegularFile(workspaceJson)) {
++                    return;
++                }
++                try {
++                    JsonNode node = mapper.readTree(Files.readString(workspaceJson, StandardCharsets.UTF_8));
++                    String folder = firstNonBlank(
++                        text(node, "folder"),
++                        text(node, "workspace"),
++                        text(node, "workspaceFolder"),
++                        text(node, "path"),
++                        text(node.path("configuration"), "folder")
++                    );
++                    String project = AiRuntimeSession.projectFromCwd(folder);
++                    records.put(dir.getFileName().toString(), new WorkspaceRecord(project, folder));
++                } catch (Exception e) {
++                    logger.info("Cursor workspace mapping skipped for {}: {}", workspaceJson, e.getMessage());
++                }
++            });
++        } catch (Exception e) {
++            logger.info("Cursor workspaceStorage discovery skipped: {}", e.getMessage());
++        }
++        return records;
++    }
++
++    private List<AiRuntimeSession> readComposerHeaders(
++        Path dataDir,
++        Map<String, TitleRecord> titles,
++        Map<String, WorkspaceRecord> workspaces
++    ) {
++        Map<String, AiRuntimeSession> sessions = new HashMap<>();
++        for (Path db : findFiles(dataDir, "state.vscdb", 5)) {
++            try {
++                Class.forName("org.sqlite.JDBC");
++                try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + db.toAbsolutePath());
++                     Statement statement = connection.createStatement();
++                     ResultSet rs = statement.executeQuery("select key, value from ItemTable")) {
++                    statement.setQueryTimeout(2);
++                    int read = 0;
++                    while (rs.next() && read++ < 1200) {
++                        String key = rs.getString("key");
++                        if (key == null || !key.toLowerCase(Locale.ROOT).contains("composer")) {
++                            continue;
++                        }
++                        String value = rs.getString("value");
++                        if (value == null || !value.contains("composerHeaders")) {
++                            continue;
++                        }
++                        collectComposerHeaders(mapper.readTree(value), titles, workspaces, sessions);
++                    }
++                }
++            } catch (Exception e) {
++                logger.info("Cursor composer metadata skipped for {}: {}", db, e.getMessage());
++            }
++        }
++        return new ArrayList<>(sessions.values());
++    }
++
++    private void collectComposerHeaders(
++        JsonNode node,
++        Map<String, TitleRecord> titles,
++        Map<String, WorkspaceRecord> workspaces,
++        Map<String, AiRuntimeSession> sessions
++    ) {
++        if (node == null || node.isNull()) {
++            return;
++        }
++        JsonNode headers = node.get("composerHeaders");
++        if (headers != null && headers.isObject()) {
++            addHeader(headers, titles, workspaces, sessions);
++        } else if (headers != null && headers.isArray()) {
++            for (JsonNode header : headers) {
++                addHeader(header, titles, workspaces, sessions);
++            }
++        }
++        if (node.isObject()) {
++            node.fields().forEachRemaining(entry -> {
++                String key = entry.getKey().toLowerCase(Locale.ROOT);
++                if (!"messages".equals(key) && !"conversation".equals(key) && !"chat".equals(key)) {
++                    collectComposerHeaders(entry.getValue(), titles, workspaces, sessions);
++                }
++            });
++        } else if (node.isArray()) {
++            for (JsonNode item : node) {
++                collectComposerHeaders(item, titles, workspaces, sessions);
++            }
++        }
++    }
++
++    private void addHeader(
++        JsonNode header,
++        Map<String, TitleRecord> titles,
++        Map<String, WorkspaceRecord> workspaces,
++        Map<String, AiRuntimeSession> sessions
++    ) {
++        String id = firstNonBlank(text(header, "composerId"), text(header, "composer_id"));
++        if (id.isBlank() || booleanValue(header, "isArchived") || booleanValue(header, "archived") || booleanValue(header, "isSubAgent")) {
++            return;
++        }
++        String kind = firstNonBlank(text(header, "type"), text(header, "composerType"));
++        if (kind.toLowerCase(Locale.ROOT).contains("subagent")) {
++            return;
++        }
++        String workspaceId = firstNonBlank(text(header, "workspaceId"), text(header, "workspace_id"));
++        WorkspaceRecord workspace = workspaces.getOrDefault(workspaceId, new WorkspaceRecord("未归类", ""));
++        TitleRecord title = titles.getOrDefault(id, new TitleRecord("", Instant.EPOCH));
++        String displayTitle = firstNonBlank(title.title(), text(header, "title"), text(header, "name"), "未命名会话");
++        Instant updatedAt = maxInstant(
++            title.updatedAt(),
++            toInstant(longValue(header, "lastUpdatedAt")),
++            toInstant(longValue(header, "updated_at")),
++            toInstant(longValue(header, "updatedAt"))
++        );
++        sessions.put(id, new AiRuntimeSession(
++            "Cursor",
++            id,
++            displayTitle,
++            workspace.projectName(),
++            workspace.cwd(),
++            "",
++            updatedAt
++        ));
++    }
++
++    private List<Path> findFiles(Path root, String fileName, int maxDepth) {
++        List<Path> files = new ArrayList<>();
++        try (Stream<Path> stream = Files.walk(root, maxDepth)) {
++            stream.filter(Files::isRegularFile)
++                .filter(path -> fileName.equalsIgnoreCase(path.getFileName().toString()))
++                .limit(MAX_SCAN_FILES)
++                .forEach(files::add);
++        } catch (Exception e) {
++            logger.info("Cursor file scan skipped: {}", e.getMessage());
++        }
++        return files;
++    }
++
++    private Set<String> columns(ResultSetMetaData meta) throws Exception {
++        Set<String> columns = new HashSet<>();
++        for (int i = 1; i <= meta.getColumnCount(); i++) {
++            columns.add(meta.getColumnName(i));
++        }
++        return columns;
++    }
++
++    private String firstColumn(ResultSet rs, Set<String> columns, String... names) throws Exception {
++        for (String name : names) {
++            if (columns.contains(name)) {
++                String value = rs.getString(name);
++                if (value != null && !value.isBlank()) {
++                    return value.strip();
++                }
++            }
++        }
++        return "";
++    }
++
++    private long longColumn(ResultSet rs, Set<String> columns, String... names) throws Exception {
++        for (String name : names) {
++            if (columns.contains(name)) {
++                long value = rs.getLong(name);
++                if (value > 0) {
++                    return value;
++                }
++            }
++        }
++        return 0L;
++    }
++
++    private String text(JsonNode node, String field) {
++        JsonNode value = node == null ? null : node.get(field);
++        return value == null || value.isNull() ? "" : value.asText("");
++    }
++
++    private boolean booleanValue(JsonNode node, String field) {
++        JsonNode value = node == null ? null : node.get(field);
++        return value != null && value.asBoolean(false);
++    }
++
++    private long longValue(JsonNode node, String field) {
++        JsonNode value = node == null ? null : node.get(field);
++        return value == null || !value.canConvertToLong() ? 0L : value.asLong();
++    }
++
++    private Instant toInstant(long value) {
++        if (value <= 0) {
++            return Instant.EPOCH;
++        }
++        return value > 10_000_000_000L ? Instant.ofEpochMilli(value) : Instant.ofEpochSecond(value);
++    }
++
++    private Instant maxInstant(Instant... values) {
++        Instant result = Instant.EPOCH;
++        for (Instant value : values) {
++            if (value != null && value.isAfter(result)) {
++                result = value;
++            }
++        }
++        return result;
++    }
++
++    private String firstNonBlank(String... values) {
++        if (values != null) {
++            for (String value : values) {
++                if (value != null && !value.isBlank()) {
++                    return value.strip();
++                }
++            }
++        }
++        return "";
++    }
++
++    private record TitleRecord(String title, Instant updatedAt) {}
++    private record WorkspaceRecord(String projectName, String cwd) {}
++}
+
+### src/main/java/com/example/ahakey/service/HookDispatchServer.java
+--- start/src/main/java/com/example/ahakey/service/HookDispatchServer.java
++++ current/src/main/java/com/example/ahakey/service/HookDispatchServer.java
+@@ -1,344 +1,290 @@
+-package com.example.ahakey.service;
+-
+-import com.example.ahakey.model.IDEState;
+-import org.slf4j.Logger;
+-import org.slf4j.LoggerFactory;
+-
+-import java.io.*;
+-import java.net.ServerSocket;
+-import java.net.Socket;
+-import java.net.InetSocketAddress;
+-import java.util.HashMap;
+-import java.util.Map;
+-import java.util.concurrent.ExecutorService;
+-import java.util.concurrent.Executors;
+-
+-/**
+- * Hook 分发服务器 — 监听固定 TCP 端口，接收来自 Codex/Claude/Cursor/Kimi hook 的事件名，
+- * 映射到 BLE 状态码后通过 BleManager 发送到键盘。
+- *
+- * <p>架构角色：
+- * <pre>
+- *   Codex/Claude/Cursor/Kimi  →  PowerShell hook  →  TCP:8765  →  HookDispatchServer  →  BleManager  →  BLE-TCP bridge:9000  →  键盘
+- * </pre>
+- *
+- * <p>支持两种输入格式：
+- * <ul>
+- *   <li>纯文本事件名：{@code SessionStart}、{@code CodexSessionStart}、{@code KimiSessionStart}</li>
+- *   <li>JSON：{@code {"cmd":"SessionStart"}}</li>
+- * </ul>
+- */
+-public class HookDispatchServer {
+-    private static final Logger logger = LoggerFactory.getLogger(HookDispatchServer.class);
+-
+-    public static final int DEFAULT_PORT = 8765;
+-
+-    /**
+-     * 手动批准确认回调 - 用于在手动模式下请求用户确认
+-     */
+-    @FunctionalInterface
+-    public interface ApprovalCallback {
+-        /**
+-         * 请求用户确认操作
+-         * @param platform 平台名称
+-         * @param eventName 事件名称
+-         * @return true 表示用户确认，false 表示用户拒绝
+-         */
+-        boolean requestApproval(String platform, String eventName);
+-    }
+-
+-    private final BleManager bleManager;
+-    private final int port;
+-    private ServerSocket serverSocket;
+-    private ExecutorService executor;
+-    private volatile boolean running;
+-    private ApprovalCallback approvalCallback;
+-
+-    enum Platform { CLAUDE, CODEX, KIMI, CURSOR }
+-
+-    record EventEntry(Platform platform, IDEState state) {}
+-
+-    /** 事件名 → (Platform, IDEState)，每个事件名唯一归属一个平台，无命名冲突风险。 */
+-    private static final Map<String, EventEntry> EVENT_MAP = new HashMap<>();
+-
+-    static {
+-        // Claude（PascalCase）
+-        for (String[] e : new String[][]{
+-            {"SessionStart", "SESSION_START"}, {"SessionEnd", "SESSION_END"},
+-            {"PreToolUse", "PRE_TOOL_USE"}, {"PostToolUse", "POST_TOOL_USE"},
+-            {"Notification", "NOTIFICATION"}, {"TaskCompleted", "TASK_COMPLETED"},
+-            {"Stop", "STOP"}, {"UserPromptSubmit", "USER_PROMPT_SUBMIT"}
+-        }) EVENT_MAP.put(e[0], new EventEntry(Platform.CLAUDE, IDEState.valueOf(e[1])));
+-        EVENT_MAP.put("PermissionRequest", new EventEntry(Platform.CLAUDE, IDEState.PERMISSION_REQUEST));
+-
+-        // Codex（Codex* 前缀）
+-        for (String[] e : new String[][]{
+-            {"CodexSessionStart", "SESSION_START"}, {"CodexSessionEnd", "SESSION_END"},
+-            {"CodexPreToolUse", "PRE_TOOL_USE"}, {"CodexPostToolUse", "POST_TOOL_USE"},
+-            {"CodexStop", "STOP"}, {"CodexUserPromptSubmit", "USER_PROMPT_SUBMIT"}
+-        }) EVENT_MAP.put(e[0], new EventEntry(Platform.CODEX, IDEState.valueOf(e[1])));
+-        EVENT_MAP.put("CodexPermissionRequest", new EventEntry(Platform.CODEX, IDEState.PERMISSION_REQUEST));
+-
+-        // Kimi（Kimi* 前缀）
+-        for (String[] e : new String[][]{
+-            {"KimiNotification", "NOTIFICATION"}, {"KimiSessionStart", "SESSION_START"},
+-            {"KimiSessionEnd", "SESSION_END"}, {"KimiPreToolUse", "PRE_TOOL_USE"},
+-            {"KimiPostToolUse", "POST_TOOL_USE"}, {"KimiUserPromptSubmit", "USER_PROMPT_SUBMIT"},
+-            {"KimiStop", "STOP"}
+-        }) EVENT_MAP.put(e[0], new EventEntry(Platform.KIMI, IDEState.valueOf(e[1])));
+-
+-        // Cursor（camelCase）
+-        for (String[] e : new String[][]{
+-            {"sessionStart", "SESSION_START"}, {"sessionEnd", "SESSION_END"},
+-            {"preToolUse", "PRE_TOOL_USE"}, {"postToolUse", "POST_TOOL_USE"},
+-            {"stop", "STOP"}
+-        }) EVENT_MAP.put(e[0], new EventEntry(Platform.CURSOR, IDEState.valueOf(e[1])));
+-    }
+-
+-    public HookDispatchServer(BleManager bleManager) {
+-        this(bleManager, DEFAULT_PORT);
+-    }
+-
+-    public HookDispatchServer(BleManager bleManager, int port) {
+-        this.bleManager = bleManager;
+-        this.port = port;
+-    }
+-
+-    /**
+-     * 设置手动批准确认回调
+-     */
+-    public void setApprovalCallback(ApprovalCallback callback) {
+-        this.approvalCallback = callback;
+-    }
+-
+-    /**
+-     * 启动服务器。如果端口被占用，会自动递增端口号重试（最多 10 次）。
+-     */
+-    public void start() {
+-        if (running) return;
+-        executor = Executors.newCachedThreadPool(r -> {
+-            Thread t = new Thread(r, "hook-dispatch");
+-            t.setDaemon(true);
+-            return t;
+-        });
+-
+-        int attempts = 0;
+-        int tryPort = port;
+-        while (attempts < 10) {
+-            try {
+-                serverSocket = new ServerSocket();
+-                serverSocket.setReuseAddress(true);
+-                serverSocket.bind(new InetSocketAddress("127.0.0.1", tryPort));
+-                running = true;
+-                logger.info("Hook 分发服务器已启动 - 127.0.0.1:{}", tryPort);
+-                break;
+-            } catch (IOException e) {
+-                logger.warn("端口 {} 被占用，尝试下一个...", tryPort);
+-                tryPort++;
+-                attempts++;
+-            }
+-        }
+-
+-        if (!running) {
+-            logger.error("Hook 分发服务器启动失败，已尝试端口 {}-{}", port, tryPort - 1);
+-            return;
+-        }
+-
+-        executor.submit(this::acceptLoop);
+-    }
+-
+-    public int getActualPort() {
+-        return serverSocket != null ? serverSocket.getLocalPort() : -1;
+-    }
+-
+-    public boolean isRunning() {
+-        return running;
+-    }
+-
+-    private void acceptLoop() {
+-        while (running && !serverSocket.isClosed()) {
+-            try {
+-                Socket client = serverSocket.accept();
+-                executor.submit(() -> handleClient(client));
+-            } catch (IOException e) {
+-                if (running) {
+-                    logger.warn("Hook 服务器 accept 异常: {}", e.getMessage());
+-                }
+-            }
+-        }
+-    }
+-
+-    /**
+-     * 检查自动批准状态。
+-     * @param forceRefresh 是否强制刷新设备状态（通过 BLE 查询）
+-     * @return true 表示自动批准模式，false 表示手动批准模式
+-     */
+-    private boolean checkAutoApproval(boolean forceRefresh) {
+-        if (forceRefresh) {
+-            bleManager.queryStatusAndWait(200);
+-        }
+-        return bleManager.getCachedStatus().isAutoApproval();
+-    }
+-
+-    private void handleClient(Socket client) {
+-        try (client;
+-             BufferedReader reader = new BufferedReader(new InputStreamReader(client.getInputStream()));
+-             PrintWriter writer = new PrintWriter(client.getOutputStream(), true)) {
+-
+-            String line = reader.readLine();
+-            if (line == null || line.isBlank()) {
+-                writer.println("{\"ok\":false,\"error\":\"empty\"}");
+-                return;
+-            }
+-
+-            line = line.trim();
+-            String eventName = parseEventName(line);
+-
+-            EventEntry entry = EVENT_MAP.get(eventName);
+-            if (entry == null) {
+-                logger.warn("未知 hook 事件: {} (原始: {})", eventName, line);
+-                writer.println("{\"ok\":false,\"error\":\"unknown event: " + eventName + "\"}");
+-                return;
+-            }
+-            logger.debug("[{}] 收到事件: {} (原始: {})", entry.platform(), eventName, line);
+-
+-            switch (entry.platform()) {
+-                case CLAUDE -> handleClaudeEvent(writer, eventName, entry.state());
+-                case CODEX  -> handleCodexEvent(writer, eventName, entry.state());
+-                case KIMI   -> handleKimiEvent(writer, eventName, entry.state());
+-                case CURSOR -> handleCursorEvent(writer, eventName, entry.state());
+-            }
+-
+-        } catch (IOException e) {
+-            logger.debug("Hook 客户端处理异常: {}", e.getMessage());
+-        }
+-    }
+-
+-    private void handleClaudeEvent(PrintWriter writer, String eventName, IDEState state) {
+-        if (state == IDEState.PERMISSION_REQUEST) {
+-            boolean auto = checkAutoApproval(false);
+-            logger.info("[Claude] {} 拨杆={}", eventName, auto ? "自动" : "手动");
+-            if (!auto && approvalCallback != null) {
+-                boolean approved = approvalCallback.requestApproval("Claude", eventName);
+-                logger.info("[Claude] {} 用户操作={}", eventName, approved ? "允许" : "拒绝");
+-                writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + approved + "}");
+-            } else {
+-                writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + auto + "}");
+-            }
+-            return;
+-        }
+-        handleGeneric(writer, eventName, state, "Claude");
+-    }
+-
+-    private void handleCodexEvent(PrintWriter writer, String eventName, IDEState state) {
+-        boolean needApproval = "CodexPreToolUse".equals(eventName) || state == IDEState.PERMISSION_REQUEST;
+-        if (needApproval) {
+-            boolean auto = checkAutoApproval(true);
+-            logger.info("[Codex] {} 拨杆={} switchState={}", eventName, auto ? "自动" : "手动", bleManager.getCachedStatus().getSwitchState());
+-            try { bleManager.updateState((byte) state.getCode()); }
+-            catch (Exception e) { logger.warn("[Codex] BLE 状态更新失败: {}", e.getMessage()); }
+-
+-            boolean approved = auto || (approvalCallback != null && approvalCallback.requestApproval("Codex", eventName));
+-            logger.info("[Codex] {} 用户操作={}", eventName, approved ? "允许" : "拒绝");
+-            writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + approved + "}");
+-            return;
+-        }
+-        handleGeneric(writer, eventName, state, "Codex");
+-    }
+-
+-    private void handleKimiEvent(PrintWriter writer, String eventName, IDEState state) {
+-        if ("KimiPreToolUse".equals(eventName)) {
+-            boolean auto = checkAutoApproval(true);
+-            logger.info("[Kimi] {} 拨杆={} switchState={}", eventName, auto ? "自动" : "手动", bleManager.getCachedStatus().getSwitchState());
+-            try { bleManager.updateState((byte) state.getCode()); }
+-            catch (Exception e) { logger.warn("[Kimi] BLE 状态更新失败: {}", e.getMessage()); }
+-            
+-            if (auto) {
+-                writer.println("{}");
+-            } else if (approvalCallback != null && approvalCallback.requestApproval("Kimi", eventName)) {
+-                writer.println("{}");
+-                logger.info("[Kimi] {} 用户操作=允许", eventName);
+-            } else {
+-                writer.println("{\"hookSpecificOutput\":{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"当前是手动模式，需要把拨杆切到自动后我才能执行操作\"}}");
+-                logger.info("[Kimi] {} 用户操作=拒绝", eventName);
+-            }
+-            return;
+-        }
+-        handleGeneric(writer, eventName, state, "Kimi");
+-    }
+-
+-    private void handleCursorEvent(PrintWriter writer, String eventName, IDEState state) {
+-        if ("preToolUse".equals(eventName)) {
+-            int switchState = bleManager.getCachedStatus().getSwitchState();
+-            boolean auto = checkAutoApproval(true);
+-            logger.info("[Cursor] {} 拨杆={} switchState={} callback={}", eventName, auto ? "自动" : "手动", switchState, approvalCallback != null);
+-            try { bleManager.updateState((byte) state.getCode()); }
+-            catch (Exception e) { logger.warn("[Cursor] BLE 状态更新失败: {}", e.getMessage()); }
+-            
+-            if (auto) {
+-                logger.info("[Cursor] {} 自动放行", eventName);
+-                writer.println("{\"permission\":\"allow\"}");
+-            } else if (approvalCallback != null && approvalCallback.requestApproval("Cursor", eventName)) {
+-                logger.info("[Cursor] {} 用户操作=允许", eventName);
+-                writer.println("{\"permission\":\"allow\"}");
+-            } else {
+-                String reason = approvalCallback == null ? "回调未注册" : "用户拒绝";
+-                logger.info("[Cursor] {} 用户操作=拒绝({})", eventName, reason);
+-                writer.println("{\"permission\":\"deny\",\"user_message\":\"手动模式，" + reason + "\"}");
+-            }
+-            return;
+-        }
+-        handleGeneric(writer, eventName, state, "Cursor");
+-    }
+-
+-    private void handleGeneric(PrintWriter writer, String eventName, IDEState state, String platform) {
+-        try {
+-            bleManager.updateState((byte) state.getCode());
+-            logger.info("[{}] {} → {} (code={})", platform, eventName, state.name(), state.getCode());
+-            writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"state\":" + state.getCode() + "}");
+-        } catch (Exception e) {
+-            logger.error("[{}] BLE 状态更新失败: {}", platform, e.getMessage());
+-            writer.println("{\"ok\":false,\"error\":\"BLE update failed\"}");
+-        }
+-    }
+-
+-    /**
+-     * 从输入行解析事件名。支持 JSON 和纯文本两种格式。
+-     */
+-    private String parseEventName(String line) {
+-        if (line.startsWith("{")) {
+-            // JSON 格式: {"cmd":"SessionStart"}
+-            try {
+-                // 简单解析，避免引入额外依赖
+-                int cmdIdx = line.indexOf("\"cmd\"");
+-                if (cmdIdx >= 0) {
+-                    int colonIdx = line.indexOf(':', cmdIdx);
+-                    int firstQuote = line.indexOf('"', colonIdx + 1);
+-                    int secondQuote = line.indexOf('"', firstQuote + 1);
+-                    if (firstQuote >= 0 && secondQuote > firstQuote) {
+-                        return line.substring(firstQuote + 1, secondQuote);
+-                    }
+-                }
+-            } catch (Exception e) {
+-                logger.debug("JSON 解析失败: {}", line);
+-            }
+-        }
+-        // 纯文本格式：直接返回事件名
+-        return line;
+-    }
+-
+-    public void stop() {
+-        running = false;
+-        try {
+-            if (serverSocket != null && !serverSocket.isClosed()) {
+-                serverSocket.close();
+-            }
+-        } catch (IOException e) {
+-            logger.warn("关闭 Hook 服务器异常: {}", e.getMessage());
+-        }
+-        if (executor != null) {
+-            executor.shutdownNow();
+-        }
+-        logger.info("Hook 分发服务器已停止");
+-    }
+-}
++package com.example.ahakey.service;
++
++import com.example.ahakey.model.IDEState;
++import com.fasterxml.jackson.databind.JsonNode;
++import com.fasterxml.jackson.databind.ObjectMapper;
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++
++import java.io.BufferedReader;
++import java.io.IOException;
++import java.io.InputStreamReader;
++import java.io.PrintWriter;
++import java.net.InetSocketAddress;
++import java.net.ServerSocket;
++import java.net.Socket;
++import java.util.HashMap;
++import java.util.Map;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++
++public class HookDispatchServer {
++    private static final Logger logger = LoggerFactory.getLogger(HookDispatchServer.class);
++    public static final int DEFAULT_PORT = 8765;
++
++    @FunctionalInterface
++    public interface ApprovalCallback {
++        boolean requestApproval(String platform, String eventName);
++    }
++
++    enum Platform { CLAUDE, CODEX, KIMI, CURSOR }
++    record EventEntry(Platform platform, IDEState state) {}
++    record HookPayload(String eventName, JsonNode json) {}
++
++    private static final Map<String, EventEntry> EVENT_MAP = new HashMap<>();
++
++    static {
++        for (String[] e : new String[][]{
++            {"SessionStart", "SESSION_START"}, {"SessionEnd", "SESSION_END"},
++            {"PreToolUse", "PRE_TOOL_USE"}, {"PostToolUse", "POST_TOOL_USE"},
++            {"Notification", "NOTIFICATION"}, {"TaskCompleted", "TASK_COMPLETED"},
++            {"Stop", "STOP"}, {"UserPromptSubmit", "USER_PROMPT_SUBMIT"}
++        }) EVENT_MAP.put(e[0], new EventEntry(Platform.CLAUDE, IDEState.valueOf(e[1])));
++        EVENT_MAP.put("PermissionRequest", new EventEntry(Platform.CLAUDE, IDEState.PERMISSION_REQUEST));
++
++        for (String[] e : new String[][]{
++            {"CodexSessionStart", "SESSION_START"}, {"CodexSessionEnd", "SESSION_END"},
++            {"CodexPreToolUse", "PRE_TOOL_USE"}, {"CodexPostToolUse", "POST_TOOL_USE"},
++            {"CodexStop", "STOP"}, {"CodexUserPromptSubmit", "USER_PROMPT_SUBMIT"}
++        }) EVENT_MAP.put(e[0], new EventEntry(Platform.CODEX, IDEState.valueOf(e[1])));
++        EVENT_MAP.put("CodexPermissionRequest", new EventEntry(Platform.CODEX, IDEState.PERMISSION_REQUEST));
++
++        for (String[] e : new String[][]{
++            {"KimiNotification", "NOTIFICATION"}, {"KimiSessionStart", "SESSION_START"},
++            {"KimiSessionEnd", "SESSION_END"}, {"KimiPreToolUse", "PRE_TOOL_USE"},
++            {"KimiPostToolUse", "POST_TOOL_USE"}, {"KimiUserPromptSubmit", "USER_PROMPT_SUBMIT"},
++            {"KimiStop", "STOP"}
++        }) EVENT_MAP.put(e[0], new EventEntry(Platform.KIMI, IDEState.valueOf(e[1])));
++
++        for (String[] e : new String[][]{
++            {"sessionStart", "SESSION_START"}, {"sessionEnd", "SESSION_END"},
++            {"preToolUse", "PRE_TOOL_USE"}, {"postToolUse", "POST_TOOL_USE"},
++            {"stop", "STOP"}
++        }) EVENT_MAP.put(e[0], new EventEntry(Platform.CURSOR, IDEState.valueOf(e[1])));
++    }
++
++    private final BleManager bleManager;
++    private final AiRuntimeDisplayService runtimeDisplayService;
++    private final ObjectMapper mapper = new ObjectMapper();
++    private final int port;
++    private ServerSocket serverSocket;
++    private ExecutorService executor;
++    private volatile boolean running;
++    private ApprovalCallback approvalCallback;
++
++    public HookDispatchServer(BleManager bleManager) {
++        this(bleManager, null, DEFAULT_PORT);
++    }
++
++    public HookDispatchServer(BleManager bleManager, int port) {
++        this(bleManager, null, port);
++    }
++
++    public HookDispatchServer(BleManager bleManager, AiRuntimeDisplayService runtimeDisplayService) {
++        this(bleManager, runtimeDisplayService, DEFAULT_PORT);
++    }
++
++    public HookDispatchServer(BleManager bleManager, AiRuntimeDisplayService runtimeDisplayService, int port) {
++        this.bleManager = bleManager;
++        this.runtimeDisplayService = runtimeDisplayService;
++        this.port = port;
++    }
++
++    public void setApprovalCallback(ApprovalCallback callback) {
++        this.approvalCallback = callback;
++    }
++
++    public void start() {
++        if (running) {
++            return;
++        }
++        executor = Executors.newCachedThreadPool(r -> {
++            Thread t = new Thread(r, "hook-dispatch");
++            t.setDaemon(true);
++            return t;
++        });
++
++        int attempts = 0;
++        int tryPort = port;
++        while (attempts < 10) {
++            try {
++                serverSocket = new ServerSocket();
++                serverSocket.setReuseAddress(true);
++                serverSocket.bind(new InetSocketAddress("127.0.0.1", tryPort));
++                running = true;
++                logger.info("Hook dispatch server started - 127.0.0.1:{}", tryPort);
++                break;
++            } catch (IOException e) {
++                logger.warn("Hook dispatch port {} is busy, trying next port", tryPort);
++                tryPort++;
++                attempts++;
++            }
++        }
++
++        if (!running) {
++            logger.error("Hook dispatch server failed to start");
++            return;
++        }
++        executor.submit(this::acceptLoop);
++    }
++
++    public int getActualPort() {
++        return serverSocket != null ? serverSocket.getLocalPort() : -1;
++    }
++
++    public boolean isRunning() {
++        return running;
++    }
++
++    private void acceptLoop() {
++        while (running && !serverSocket.isClosed()) {
++            try {
++                Socket client = serverSocket.accept();
++                executor.submit(() -> handleClient(client));
++            } catch (IOException e) {
++                if (running) {
++                    logger.warn("Hook dispatch accept failed: {}", e.getMessage());
++                }
++            }
++        }
++    }
++
++    private boolean checkAutoApproval(boolean forceRefresh) {
++        if (forceRefresh) {
++            bleManager.queryStatusAndWait(200);
++        }
++        return bleManager.getCachedStatus().isAutoApproval();
++    }
++
++    private void handleClient(Socket client) {
++        try (client;
++             BufferedReader reader = new BufferedReader(new InputStreamReader(client.getInputStream()));
++             PrintWriter writer = new PrintWriter(client.getOutputStream(), true)) {
++            String line = reader.readLine();
++            if (line == null || line.isBlank()) {
++                writer.println("{\"ok\":false,\"error\":\"empty\"}");
++                return;
++            }
++
++            HookPayload payload = parsePayload(line.trim());
++            EventEntry entry = EVENT_MAP.get(payload.eventName());
++            if (entry == null) {
++                logger.warn("Unknown hook event: {} raw={}", payload.eventName(), line);
++                writer.println("{\"ok\":false,\"error\":\"unknown event: " + payload.eventName() + "\"}");
++                return;
++            }
++
++            switch (entry.platform()) {
++                case CLAUDE -> handleClaudeEvent(writer, payload.eventName(), entry.state(), payload.json());
++                case CODEX -> handleCodexEvent(writer, payload.eventName(), entry.state(), payload.json());
++                case KIMI -> handleKimiEvent(writer, payload.eventName(), entry.state(), payload.json());
++                case CURSOR -> handleCursorEvent(writer, payload.eventName(), entry.state(), payload.json());
++            }
++        } catch (IOException e) {
++            logger.debug("Hook client handling failed: {}", e.getMessage());
++        }
++    }
++
++    private void handleClaudeEvent(PrintWriter writer, String eventName, IDEState state, JsonNode payload) {
++        if (state == IDEState.PERMISSION_REQUEST) {
++            boolean auto = checkAutoApproval(false);
++            sendRuntimeState("Claude", state, payload);
++            boolean approved = auto || (approvalCallback != null && approvalCallback.requestApproval("Claude", eventName));
++            writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + approved + "}");
++            return;
++        }
++        handleGeneric(writer, eventName, state, "Claude", payload);
++    }
++
++    private void handleCodexEvent(PrintWriter writer, String eventName, IDEState state, JsonNode payload) {
++        boolean needApproval = "CodexPreToolUse".equals(eventName) || state == IDEState.PERMISSION_REQUEST;
++        if (needApproval) {
++            boolean auto = checkAutoApproval(true);
++            sendRuntimeState("Codex", state, payload);
++            boolean approved = auto || (approvalCallback != null && approvalCallback.requestApproval("Codex", eventName));
++            writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + approved + "}");
++            return;
++        }
++        handleGeneric(writer, eventName, state, "Codex", payload);
++    }
++
++    private void handleKimiEvent(PrintWriter writer, String eventName, IDEState state, JsonNode payload) {
++        if ("KimiPreToolUse".equals(eventName)) {
++            boolean auto = checkAutoApproval(true);
++            sendRuntimeState("Kimi", state, payload);
++            if (auto || (approvalCallback != null && approvalCallback.requestApproval("Kimi", eventName))) {
++                writer.println("{}");
++            } else {
++                writer.println("{\"hookSpecificOutput\":{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"当前是手动模式，需要把拨杆切到自动后我才能执行操作\"}}");
++            }
++            return;
++        }
++        handleGeneric(writer, eventName, state, "Kimi", payload);
++    }
++
++    private void handleCursorEvent(PrintWriter writer, String eventName, IDEState state, JsonNode payload) {
++        if ("preToolUse".equals(eventName)) {
++            boolean auto = checkAutoApproval(true);
++            sendRuntimeState("Cursor", state, payload);
++            if (auto) {
++                writer.println("{\"permission\":\"allow\"}");
++            } else {
++                writer.println("{\"ok\":true,\"cursorPermission\":\"defer_to_native\"}");
++            }
++            return;
++        }
++        handleGeneric(writer, eventName, state, "Cursor", payload);
++    }
++
++    private void handleGeneric(PrintWriter writer, String eventName, IDEState state, String platform, JsonNode payload) {
++        boolean displayUpdated = sendRuntimeState(platform, state, payload);
++        writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"state\":" + state.getCode()
++            + ",\"displayUpdated\":" + displayUpdated + "}");
++    }
++
++    private boolean sendRuntimeState(String platform, IDEState state, JsonNode payload) {
++        try {
++            if (runtimeDisplayService != null) {
++                return runtimeDisplayService.handleHookEvent(platform, state, payload);
++            }
++            bleManager.updateState((byte) state.getCode());
++            return true;
++        } catch (Exception e) {
++            logger.warn("[{}] runtime state update failed: {}", platform, e.getMessage());
++            return false;
++        }
++    }
++
++    private HookPayload parsePayload(String line) {
++        if (line.startsWith("{")) {
++            try {
++                JsonNode node = mapper.readTree(line);
++                String eventName = node.path("cmd").asText("");
++                if (eventName.isBlank()) {
++                    eventName = node.path("hook_event_name").asText("");
++                }
++                if (!eventName.isBlank()) {
++                    return new HookPayload(eventName, node);
++                }
++            } catch (Exception e) {
++                logger.debug("Hook JSON parse failed: {}", e.getMessage());
++            }
++        }
++        return new HookPayload(line, null);
++    }
++
++    public void stop() {
++        running = false;
++        try {
++            if (serverSocket != null && !serverSocket.isClosed()) {
++                serverSocket.close();
++            }
++        } catch (IOException e) {
++            logger.warn("Hook dispatch close failed: {}", e.getMessage());
++        }
++        if (executor != null) {
++            executor.shutdownNow();
++        }
++        logger.info("Hook dispatch server stopped");
++    }
++}
+
+### src/main/java/com/example/ahakey/service/HookInstaller.java
+--- start/src/main/java/com/example/ahakey/service/HookInstaller.java
++++ current/src/main/java/com/example/ahakey/service/HookInstaller.java
+@@ -5,9 +5,10 @@
+ import com.fasterxml.jackson.databind.node.ArrayNode;
+ import com.fasterxml.jackson.databind.node.ObjectNode;
+ 
+-import java.nio.file.Files;
+-import java.nio.file.Path;
+-import java.nio.file.Paths;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.nio.file.Paths;
++import java.nio.file.StandardCopyOption;
+ import java.util.Arrays;
+ import java.util.Map;
+ import java.util.function.Consumer;
+@@ -31,7 +32,10 @@
+     private static final String CURSOR_SCRIPT_NAME = "ahakey-cursor.ps1";
+ 
+     // Hook 配置路径常量
+-    public static final String CODEX_SIDECAR_NAME = ".ahakey_codex_hooks_v1";
++    public static final String CODEX_SIDECAR_NAME = ".ahakey_codex_hooks_v1";
++    public static final String AHAKEY_HOOK_VERSION = "ws3-cp1-v1";
++    public enum HookStatus { DETECTING, APP_NOT_FOUND, NOT_INSTALLED, OUTDATED, LATEST, ERROR }
++    public record HookWriteResult(boolean success, String reason) {}
+     public static final String CODEX_HOOK_BLOCK_START = "# BEGIN AhaKey Codex Hooks";
+     public static final String CODEX_HOOK_BLOCK_END = "# END AhaKey Codex Hooks";
+     public static final String KIMI_HOOK_BLOCK_START = "# BEGIN AhaKey Kimi Hooks";
+@@ -89,11 +93,11 @@
+     /**
+      * 生成所有 Hook 脚本（core + 各平台专属）
+      */
+-    public void generateAllScripts() {
+-        String home = System.getProperty("user.home");
+-        Path hooksDir = Paths.get(home, ".ahakey", "hooks");
+-        try {
+-            Files.createDirectories(hooksDir);
++    public void generateAllScripts() {
++        String home = System.getProperty("user.home");
++        Path hooksDir = Paths.get(home, ".ahakey", "hooks");
++        try {
++            Files.createDirectories(hooksDir);
+             generateCoreScript(hooksDir);
+             generateClaudeScript(hooksDir);
+             generateCodexScript(hooksDir);
+@@ -101,24 +105,47 @@
+             generateCursorScript(hooksDir);
+             log("[安装] 已生成所有 Hook 脚本");
+         } catch (Exception e) {
+-            log("[警告] 生成 Hook 脚本失败: " + e.getMessage());
+-        }
+-    }
+-
+-    /**
+-     * 安装指定平台的 Hook
+-     */
+-    public void install(String platform) {
+-        log("[安装] 开始安装 " + platform + " Hook...");
+-        generateAllScripts();
+-        switch (platform) {
+-            case "Claude": installClaudeHooks(); break;
+-            case "Cursor": installCursorHooks(); break;
+-            case "Codex": installCodexHooks(); break;
+-            case "Kimi": installKimiHooks(); break;
+-            default: log("[错误] 未知 Hook 类型: " + platform);
+-        }
+-    }
++            log("[警告] 生成 Hook 脚本失败: " + e.getMessage());
++        }
++    }
++
++    private void generateAllScriptsStrict() throws Exception {
++        String home = System.getProperty("user.home");
++        Path hooksDir = Paths.get(home, ".ahakey", "hooks");
++        Files.createDirectories(hooksDir);
++        generateCoreScript(hooksDir);
++        generateClaudeScript(hooksDir);
++        generateCodexScript(hooksDir);
++        generateKimiScript(hooksDir);
++        generateCursorScript(hooksDir);
++        log("[安装] 已生成所有 Hook 脚本");
++    }
++
++    /**
++     * 安装指定平台的 Hook
++     */
++    public void install(String platform) {
++        installOrUpdate(platform);
++    }
++
++    public HookWriteResult installOrUpdate(String platform) {
++        log("[安装] 开始安装 " + platform + " Hook...");
++        try {
++            generateAllScriptsStrict();
++            switch (platform) {
++                case "Claude": installClaudeHooks(); break;
++                case "Cursor": installCursorHooks(); break;
++                case "Codex": installCodexHooks(); break;
++                case "Kimi": installKimiHooks(); break;
++                default: throw new IllegalArgumentException("未知 Hook 类型: " + platform);
++            }
++            return new HookWriteResult(true, "");
++        } catch (Exception e) {
++            String reason = classifyFailure(e);
++            log("[错误] " + platform + " 安装失败: " + reason + " - " + e.getMessage());
++            return new HookWriteResult(false, reason);
++        }
++    }
+ 
+     /**
+      * 卸载指定平台的 Hook
+@@ -136,9 +163,9 @@
+     /**
+      * 检查指定平台的 Hook 是否已安装
+      */
+-    public boolean isInstalled(String platform) {
+-        try {
+-            Path path = getHookConfigPath(platform);
++    public boolean isInstalled(String platform) {
++        try {
++            Path path = getHookConfigPath(platform);
+             if (!path.toFile().exists()) return false;
+             String content = new String(Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
+             switch (platform) {
+@@ -153,25 +180,72 @@
+             }
+         } catch (Exception e) {
+             log("[错误] 检查 " + platform + " Hook 状态失败: " + e.getMessage());
+-            return false;
+-        }
+-    }
++            return false;
++        }
++    }
++
++    public HookStatus getHookStatus(String platform) {
++        try {
++            if (!isAppDetected(platform)) {
++                return HookStatus.APP_NOT_FOUND;
++            }
++            Path script = Paths.get(System.getProperty("user.home"), ".ahakey", "hooks", switch (platform) {
++                case "Codex" -> CODEX_SCRIPT_NAME;
++                case "Cursor" -> CURSOR_SCRIPT_NAME;
++                case "Claude" -> CLAUDE_SCRIPT_NAME;
++                case "Kimi" -> KIMI_SCRIPT_NAME;
++                default -> "";
++            });
++            if (!isInstalled(platform)) {
++                return HookStatus.NOT_INSTALLED;
++            }
++            if (!Files.exists(script)) {
++                return HookStatus.OUTDATED;
++            }
++            String scriptContent = Files.readString(script, java.nio.charset.StandardCharsets.UTF_8);
++            if (!scriptContent.contains(AHAKEY_HOOK_VERSION)) {
++                return HookStatus.OUTDATED;
++            }
++            if ("Codex".equals(platform)) {
++                Path sidecar = Paths.get(System.getProperty("user.home"), ".codex", CODEX_SIDECAR_NAME);
++                String sidecarContent = Files.exists(sidecar)
++                    ? Files.readString(sidecar, java.nio.charset.StandardCharsets.UTF_8)
++                    : "";
++                return sidecarContent.contains(AHAKEY_HOOK_VERSION) ? HookStatus.LATEST : HookStatus.OUTDATED;
++            }
++            if ("Cursor".equals(platform)) {
++                String config = Files.readString(getHookConfigPath("Cursor"), java.nio.charset.StandardCharsets.UTF_8);
++                return config.contains(CURSOR_SCRIPT_NAME) ? HookStatus.LATEST : HookStatus.OUTDATED;
++            }
++            return HookStatus.LATEST;
++        } catch (Exception e) {
++            log("[错误] 检查 " + platform + " Hook 状态失败: " + e.getMessage());
++            return HookStatus.ERROR;
++        }
++    }
+ 
+     // ==================== 脚本生成 ====================
+ 
+-    private void generateCoreScript(Path hooksDir) throws Exception {
+-        Path scriptPath = hooksDir.resolve(CORE_SCRIPT_NAME);
+-        String content =
+-            "# AhaKey Core - Auto-generated, do not edit\n" +
+-            "# Contains TCP connection logic, to be dot-sourced by platform-specific scripts\n" +
+-            "try {\n" +
+-            "    if ([Console]::IsInputRedirected) { $null = [Console]::In.ReadToEnd() }\n" +
+-            "} catch { }\n" +
+-            "try {\n" +
+-            "    $tcp = New-Object System.Net.Sockets.TcpClient\n" +
+-            "    $tcp.Connect('127.0.0.1', " + currentPort() + ")\n" +
+-            "    $writer = New-Object System.IO.StreamWriter($tcp.GetStream())\n" +
+-            "    $writer.WriteLine($EventName)\n" +
++    private void generateCoreScript(Path hooksDir) throws Exception {
++        Path scriptPath = hooksDir.resolve(CORE_SCRIPT_NAME);
++        String content =
++            "# AhaKey Core - Auto-generated, do not edit\n" +
++            "# ahakey-hook-version: " + AHAKEY_HOOK_VERSION + "\n" +
++            "# Contains TCP connection logic, to be dot-sourced by platform-specific scripts\n" +
++            "try {\n" +
++            "    $stdinText = $null\n" +
++            "    if ([Console]::IsInputRedirected) { $stdinText = [Console]::In.ReadToEnd() }\n" +
++            "} catch { }\n" +
++            "$payload = [ordered]@{ cmd = $EventName; ahakeyHookVersion = '" + AHAKEY_HOOK_VERSION + "' }\n" +
++            "if ($stdinText -and $stdinText.Trim().Length -gt 0) {\n" +
++            "    try { $payload.hookInput = ($stdinText | ConvertFrom-Json) } catch { $payload.hookInputRaw = $stdinText }\n" +
++            "}\n" +
++            "$jsonLine = ($payload | ConvertTo-Json -Depth 20 -Compress)\n" +
++            "try {\n" +
++            "    $tcp = New-Object System.Net.Sockets.TcpClient\n" +
++            "    $tcp.Connect('127.0.0.1', " + currentPort() + ")\n" +
++            "    $writer = New-Object System.IO.StreamWriter($tcp.GetStream())\n" +
++            "    $writer.WriteLine($jsonLine)\n" +
+             "    $writer.Flush()\n" +
+             "    $reader = New-Object System.IO.StreamReader($tcp.GetStream())\n" +
+             "    $response = $reader.ReadLine()\n" +
+@@ -206,9 +280,10 @@
+ 
+     private void generateCodexScript(Path hooksDir) throws Exception {
+         Path scriptPath = hooksDir.resolve(CODEX_SCRIPT_NAME);
+-        String content =
+-            "# AhaKey Codex Hook - Auto-generated, do not edit\n" +
+-            "param([Parameter(Position=0)][string]$EventName)\n" +
++        String content =
++            "# AhaKey Codex Hook - Auto-generated, do not edit\n" +
++            "# ahakey-hook-version: " + AHAKEY_HOOK_VERSION + "\n" +
++            "param([Parameter(Position=0)][string]$EventName)\n" +
+             ". (Join-Path $env:USERPROFILE '.ahakey\\hooks\\ahakey-core.ps1')\n" +
+             "# Codex PreToolUse: 拨杆手动模式 → ask 用户确认\n" +
+             "if ($EventName -eq 'CodexPreToolUse') {\n" +
+@@ -248,18 +323,16 @@
+ 
+     private void generateCursorScript(Path hooksDir) throws Exception {
+         Path scriptPath = hooksDir.resolve(CURSOR_SCRIPT_NAME);
+-        String content =
+-            "# AhaKey Cursor Hook - Auto-generated, do not edit\n" +
+-            "param([Parameter(Position=0)][string]$EventName)\n" +
+-            ". (Join-Path $env:USERPROFILE '.ahakey\\hooks\\ahakey-core.ps1')\n" +
+-            "# Cursor: output response and exit with non-zero when denied\n" +
+-            "if ($response) {\n" +
+-            "    [Console]::WriteLine($response)\n" +
+-            "    if ($response -match '\"permission\"\\s*:\\s*\"deny\"') { exit 1 } else { exit 0 }\n" +
+-            "} else {\n" +
+-            "    [Console]::WriteLine('{\"permission\":\"allow\"}')\n" +
+-            "    exit 0\n" +
+-            "}\n";
++        String content =
++            "# AhaKey Cursor Hook - Auto-generated, do not edit\n" +
++            "# ahakey-hook-version: " + AHAKEY_HOOK_VERSION + "\n" +
++            "param([Parameter(Position=0)][string]$EventName)\n" +
++            ". (Join-Path $env:USERPROFILE '.ahakey\\hooks\\ahakey-core.ps1')\n" +
++            "# Cursor: only explicit auto-approval outputs allow; otherwise Cursor keeps native behavior\n" +
++            "if ($response -and $response -match '\"permission\"\\s*:\\s*\"allow\"') {\n" +
++            "    [Console]::WriteLine('{\"permission\":\"allow\"}')\n" +
++            "}\n" +
++            "exit 0\n";
+         Files.write(scriptPath, content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+     }
+ 
+@@ -270,27 +343,31 @@
+         try {
+             Files.createDirectories(path.getParent());
+             backupFile(path);
+-            ObjectNode settings = loadJsonSettings(path);
+-            ObjectNode hooks = mapper.createObjectNode();
+-            for (String[] ev : CLAUDE_EVENTS) {
+-                ObjectNode cmd = mapper.createObjectNode();
+-                cmd.put("type", "command");
+-                cmd.put("command", buildHookCommand(CLAUDE_SCRIPT_NAME, ev[0]));
+-                cmd.put("timeout", Integer.parseInt(ev[1]));
++            ObjectNode settings = loadJsonSettings(path);
++            ObjectNode hooks = settings.has("hooks") && settings.get("hooks").isObject()
++                ? (ObjectNode) settings.get("hooks")
++                : mapper.createObjectNode();
++            for (String[] ev : CLAUDE_EVENTS) {
++                ObjectNode cmd = mapper.createObjectNode();
++                cmd.put("type", "command");
++                cmd.put("command", buildHookCommand(CLAUDE_SCRIPT_NAME, ev[0]));
++                cmd.put("timeout", Integer.parseInt(ev[1]));
+                 ArrayNode inner = mapper.createArrayNode();
+                 inner.add(cmd);
+                 ObjectNode wrapper = mapper.createObjectNode();
+                 wrapper.put("matcher", "");
+-                wrapper.set("hooks", inner);
+-                ArrayNode outer = mapper.createArrayNode();
+-                outer.add(wrapper);
+-                hooks.set(ev[0], outer);
+-            }
++                wrapper.set("hooks", inner);
++                ArrayNode outer = hooks.has(ev[0]) && hooks.get(ev[0]).isArray()
++                    ? keepNonAhaKeyClaudeEntries((ArrayNode) hooks.get(ev[0]), CLAUDE_SCRIPT_NAME)
++                    : mapper.createArrayNode();
++                outer.add(wrapper);
++                hooks.set(ev[0], outer);
++            }
+             settings.set("hooks", hooks);
+             mapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), settings);
+             log("[成功] 已注册 " + CLAUDE_EVENTS.length + " 个 Claude hook 事件");
+             log("[成功] 配置文件: " + path);
+-        } catch (Exception e) { log("[错误] Claude 安装失败: " + e.getMessage()); }
++        } catch (Exception e) { log("[错误] Claude 安装失败: " + e.getMessage()); throw new RuntimeException(e); }
+     }
+ 
+     private void installCursorHooks() {
+@@ -298,22 +375,24 @@
+         try {
+             Files.createDirectories(path.getParent());
+             backupFile(path);
+-            ObjectNode settings = loadJsonSettings(path);
+-            ObjectNode existingHooks = settings.has("hooks") ? (ObjectNode) settings.get("hooks") : mapper.createObjectNode();
+-            for (String[] ev : CURSOR_EVENTS) {
+-                ObjectNode entry = mapper.createObjectNode();
+-                entry.put("command", buildHookCommand(CURSOR_SCRIPT_NAME, ev[0]));
+-                entry.put("timeout", Integer.parseInt(ev[1]));
+-                ArrayNode arr = mapper.createArrayNode();
+-                arr.add(entry);
+-                existingHooks.set(ev[0], arr);
+-            }
++            ObjectNode settings = loadJsonSettings(path);
++            ObjectNode existingHooks = settings.has("hooks") ? (ObjectNode) settings.get("hooks") : mapper.createObjectNode();
++            for (String[] ev : CURSOR_EVENTS) {
++                ObjectNode entry = mapper.createObjectNode();
++                entry.put("command", buildHookCommand(CURSOR_SCRIPT_NAME, ev[0]));
++                entry.put("timeout", Integer.parseInt(ev[1]));
++                ArrayNode arr = existingHooks.has(ev[0]) && existingHooks.get(ev[0]).isArray()
++                    ? keepNonAhaKeyEntries((ArrayNode) existingHooks.get(ev[0]), CURSOR_SCRIPT_NAME)
++                    : mapper.createArrayNode();
++                arr.add(entry);
++                existingHooks.set(ev[0], arr);
++            }
+             settings.set("hooks", existingHooks);
+             settings.put("version", 1);
+             mapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), settings);
+             log("[成功] 已注册 " + CURSOR_EVENTS.length + " 个 Cursor hook 事件");
+             log("[成功] 配置文件: " + path);
+-        } catch (Exception e) { log("[错误] Cursor 安装失败: " + e.getMessage()); }
++        } catch (Exception e) { log("[错误] Cursor 安装失败: " + e.getMessage()); throw new RuntimeException(e); }
+     }
+ 
+     private void installCodexHooks() {
+@@ -324,7 +403,10 @@
+         try {
+             Files.createDirectories(hooksJson.getParent());
+             backupFile(hooksJson);
+-            ObjectNode hooks = mapper.createObjectNode();
++            ObjectNode root = loadJsonSettings(hooksJson);
++            ObjectNode hooks = root.has("hooks") && root.get("hooks").isObject()
++                ? (ObjectNode) root.get("hooks")
++                : mapper.createObjectNode();
+             for (String[] ev : CODEX_EVENTS) {
+                 ObjectNode cmd = mapper.createObjectNode();
+                 cmd.put("type", "command");
+@@ -341,15 +423,16 @@
+                     entry.put("matcher", "*");
+                 }
+                 entry.set("hooks", innerArr);
+-                ArrayNode outerArr = mapper.createArrayNode();
++                ArrayNode outerArr = hooks.has(ev[0]) && hooks.get(ev[0]).isArray()
++                    ? keepNonAhaKeyCodexEntries((ArrayNode) hooks.get(ev[0]), CODEX_SCRIPT_NAME)
++                    : mapper.createArrayNode();
+                 outerArr.add(entry);
+                 hooks.set(ev[0], outerArr);
+             }
+-            ObjectNode root = mapper.createObjectNode();
+-            root.set("hooks", hooks);
++            root.set("hooks", hooks);
+             mapper.writerWithDefaultPrettyPrinter().writeValue(hooksJson.toFile(), root);
+             log("[成功] 已写入 " + hooksJson);
+-            Files.write(sidecar, java.time.LocalDateTime.now().toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
++            Files.write(sidecar, (AHAKEY_HOOK_VERSION + "\n" + java.time.LocalDateTime.now()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+             backupFile(configToml);
+             String toml = configToml.toFile().exists()
+                 ? new String(Files.readAllBytes(configToml), java.nio.charset.StandardCharsets.UTF_8)
+@@ -362,7 +445,7 @@
+             Files.write(configToml, toml.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+             log("[成功] 已更新 " + configToml + "（[features].hooks = true）");
+             log("[成功] 已注册 " + CODEX_EVENTS.length + " 个 Codex hook 事件");
+-        } catch (Exception e) { log("[错误] Codex 安装失败: " + e.getMessage()); }
++        } catch (Exception e) { log("[错误] Codex 安装失败: " + e.getMessage()); throw new RuntimeException(e); }
+     }
+ 
+     private void installKimiHooks() {
+@@ -379,7 +462,7 @@
+             Files.write(path, result.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+             log("[成功] 已注册 " + KIMI_EVENTS.length + " 个 Kimi hook 事件");
+             log("[成功] 配置文件: " + path);
+-        } catch (Exception e) { log("[错误] Kimi 安装失败: " + e.getMessage()); }
++        } catch (Exception e) { log("[错误] Kimi 安装失败: " + e.getMessage()); throw new RuntimeException(e); }
+     }
+ 
+     // ==================== 卸载方法 ====================
+@@ -469,34 +552,124 @@
+         return "powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File \"" + ps + "\" " + agentEvent;
+     }
+ 
+-    public Path getHookConfigPath(String hookName) {
+-        String home = System.getProperty("user.home");
+-        return switch (hookName) {
++    public Path getHookConfigPath(String hookName) {
++        String home = System.getProperty("user.home");
++        return switch (hookName) {
+             case "Claude" -> Paths.get(home, ".claude", "hooks", CLAUDE_SCRIPT_NAME);
+             case "Cursor" -> Paths.get(home, ".cursor", "hooks.json");
+             case "Codex" -> Paths.get(home, ".codex", CODEX_SIDECAR_NAME);
+             case "Kimi" -> Paths.get(home, ".config", "kimi-cli", "hooks.json");
+-            default -> Paths.get(home, ".ahakey", "hooks", "ahakey-" + hookName.toLowerCase() + ".ps1");
+-        };
+-    }
+-
+-    private ObjectNode loadJsonSettings(Path path) throws Exception {
+-        if (!path.toFile().exists()) {
+-            return mapper.createObjectNode();
+-        }
++            default -> Paths.get(home, ".ahakey", "hooks", "ahakey-" + hookName.toLowerCase() + ".ps1");
++        };
++    }
++
++    public boolean isAppDetected(String hookName) {
++        String home = System.getProperty("user.home");
++        return switch (hookName) {
++            case "Claude" -> Files.isDirectory(Paths.get(home, ".claude"));
++            case "Cursor" -> Files.isDirectory(defaultCursorUserDir()) || Files.isDirectory(Paths.get(home, ".cursor"));
++            case "Codex" -> Files.isDirectory(Paths.get(home, ".codex"));
++            case "Kimi" -> Files.isDirectory(Paths.get(home, ".config", "kimi-cli"));
++            default -> false;
++        };
++    }
++
++    private Path defaultCursorUserDir() {
++        String appData = System.getenv("APPDATA");
++        if (appData == null || appData.isBlank()) {
++            return Paths.get(System.getProperty("user.home"), "AppData", "Roaming", "Cursor", "User");
++        }
++        return Paths.get(appData, "Cursor", "User");
++    }
++
++    private ObjectNode loadJsonSettings(Path path) throws Exception {
++        if (!path.toFile().exists()) {
++            return mapper.createObjectNode();
++        }
+         JsonNode node = mapper.readTree(path.toFile());
+         if (node instanceof ObjectNode) {
+             return (ObjectNode) node;
+-        }
+-        return mapper.createObjectNode();
+-    }
+-
+-    private void backupFile(Path path) throws Exception {
+-        if (path.toFile().exists()) {
+-            Path backup = path.resolveSibling(path.getFileName() + ".bak");
+-            Files.copy(path, backup, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+-        }
+-    }
++        }
++        return mapper.createObjectNode();
++    }
++
++    private ArrayNode keepNonAhaKeyEntries(ArrayNode source, String scriptName) {
++        ArrayNode result = mapper.createArrayNode();
++        for (JsonNode entry : source) {
++            String command = entry.path("command").asText("");
++            if (!command.contains(scriptName) && !command.contains("ahakey-")) {
++                result.add(entry);
++            }
++        }
++        return result;
++    }
++
++    private ArrayNode keepNonAhaKeyCodexEntries(ArrayNode source, String scriptName) {
++        ArrayNode result = mapper.createArrayNode();
++        for (JsonNode entry : source) {
++            boolean hasAhaKeyCommand = false;
++            JsonNode hooks = entry.path("hooks");
++            if (hooks.isArray()) {
++                for (JsonNode hook : hooks) {
++                    String command = hook.path("command").asText("");
++                    if (command.contains(scriptName) || command.contains("ahakey-")) {
++                        hasAhaKeyCommand = true;
++                        break;
++                    }
++                }
++            }
++            if (!hasAhaKeyCommand) {
++                result.add(entry);
++            }
++        }
++        return result;
++    }
++
++    private ArrayNode keepNonAhaKeyClaudeEntries(ArrayNode source, String scriptName) {
++        ArrayNode result = mapper.createArrayNode();
++        for (JsonNode entry : source) {
++            boolean hasAhaKeyCommand = false;
++            JsonNode hooks = entry.path("hooks");
++            if (hooks.isArray()) {
++                for (JsonNode hook : hooks) {
++                    String command = hook.path("command").asText("");
++                    if (command.contains(scriptName) || command.contains("ahakey-")) {
++                        hasAhaKeyCommand = true;
++                        break;
++                    }
++                }
++            }
++            if (!hasAhaKeyCommand) {
++                result.add(entry);
++            }
++        }
++        return result;
++    }
++
++    private void backupFile(Path path) throws Exception {
++        if (path.toFile().exists()) {
++            Path backup = path.resolveSibling(path.getFileName() + ".bak");
++            Files.copy(path, backup, StandardCopyOption.REPLACE_EXISTING);
++        }
++    }
++
++    private String classifyFailure(Exception e) {
++        Throwable root = e;
++        while (root.getCause() != null) {
++            root = root.getCause();
++        }
++        String message = root.getMessage() == null ? "" : root.getMessage();
++        if (root instanceof java.nio.file.AccessDeniedException || message.contains("being used by another process")) {
++            return "文件不可写";
++        }
++        if (root instanceof com.fasterxml.jackson.core.JsonProcessingException) {
++            return "配置无法读取";
++        }
++        if (message.contains(".bak") || message.contains("copy")) {
++            return "备份失败";
++        }
++        return "未知错误";
++    }
+ 
+     private String buildKimiHookBlock() {
+         StringBuilder sb = new StringBuilder();
+
+### src/main/java/com/example/ahakey/util/AiRuntimeStore.java
+--- start/src/main/java/com/example/ahakey/util/AiRuntimeStore.java
++++ current/src/main/java/com/example/ahakey/util/AiRuntimeStore.java
+@@ -0,0 +1,90 @@
++package com.example.ahakey.util;
++
++import com.example.ahakey.model.AiRuntimeDisplayMode;
++import com.example.ahakey.model.AiRuntimeSlotBinding;
++import com.fasterxml.jackson.databind.ObjectMapper;
++import com.fasterxml.jackson.databind.SerializationFeature;
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++
++import java.io.File;
++import java.io.IOException;
++import java.nio.file.Files;
++import java.nio.file.Path;
++
++public final class AiRuntimeStore {
++    private static final Logger logger = LoggerFactory.getLogger(AiRuntimeStore.class);
++    private static final ObjectMapper MAPPER = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
++    private static final Path STORE_PATH = Path.of(System.getProperty("user.home"), ".ahakey", "ai-runtime.json");
++
++    private AiRuntimeStore() {
++    }
++
++    public static Draft loadOrDefault() {
++        File file = STORE_PATH.toFile();
++        if (!file.exists()) {
++            return Draft.defaults();
++        }
++        try {
++            Draft saved = MAPPER.readValue(file, Draft.class);
++            Draft defaults = Draft.defaults();
++            if (saved.displayMode != null) {
++                defaults.displayMode = saved.displayMode;
++            }
++            if (saved.codexDataDir != null && !saved.codexDataDir.isBlank()) {
++                defaults.codexDataDir = saved.codexDataDir;
++            }
++            if (saved.cursorDataDir != null && !saved.cursorDataDir.isBlank()) {
++                defaults.cursorDataDir = saved.cursorDataDir;
++            }
++            if (saved.primarySlotIndex >= 0 && saved.primarySlotIndex < 4) {
++                defaults.primarySlotIndex = saved.primarySlotIndex;
++            }
++            if (saved.slots != null) {
++                for (int i = 0; i < Math.min(saved.slots.length, defaults.slots.length); i++) {
++                    if (saved.slots[i] != null) {
++                        saved.slots[i].setSlotIndex(i);
++                        defaults.slots[i] = saved.slots[i];
++                    }
++                }
++            }
++            return defaults;
++        } catch (IOException e) {
++            logger.warn("AiRuntimeStore.load failed, returning defaults: {}", e.getMessage());
++            return Draft.defaults();
++        }
++    }
++
++    public static void save(Draft draft) {
++        try {
++            Files.createDirectories(STORE_PATH.getParent());
++            MAPPER.writeValue(STORE_PATH.toFile(), draft);
++        } catch (IOException e) {
++            logger.warn("AiRuntimeStore.save failed: {}", e.getMessage());
++        }
++    }
++
++    public static class Draft {
++        public String displayMode = AiRuntimeDisplayMode.SINGLE.name();
++        public String codexDataDir = Path.of(System.getProperty("user.home"), ".codex").toString();
++        public String cursorDataDir = defaultCursorDataDir();
++        public int primarySlotIndex = -1;
++        public AiRuntimeSlotBinding[] slots = new AiRuntimeSlotBinding[4];
++
++        public static Draft defaults() {
++            Draft draft = new Draft();
++            for (int i = 0; i < draft.slots.length; i++) {
++                draft.slots[i] = new AiRuntimeSlotBinding(i);
++            }
++            return draft;
++        }
++
++        public static String defaultCursorDataDir() {
++            String appData = System.getenv("APPDATA");
++            if (appData == null || appData.isBlank()) {
++                return Path.of(System.getProperty("user.home"), "AppData", "Roaming", "Cursor", "User").toString();
++            }
++            return Path.of(appData, "Cursor", "User").toString();
++        }
++    }
++}
+
+### src/main/java/com/example/ahakey/view/InspectorPane.java
+--- start/src/main/java/com/example/ahakey/view/InspectorPane.java
++++ current/src/main/java/com/example/ahakey/view/InspectorPane.java
+@@ -1,8 +1,11 @@
+ package com.example.ahakey.view;
+ 
+ import com.example.ahakey.app.StudioController;
+-import com.example.ahakey.model.DeviceStatus;
+-import com.example.ahakey.model.KeyConfig;
++import com.example.ahakey.model.DeviceStatus;
++import com.example.ahakey.model.AiRuntimeDisplayMode;
++import com.example.ahakey.model.AiRuntimeSession;
++import com.example.ahakey.model.AiRuntimeSlotBinding;
++import com.example.ahakey.model.KeyConfig;
+ import com.example.ahakey.model.IDEState;
+ import com.example.ahakey.model.LightBarPreviewState;
+ import com.example.ahakey.model.LightEffectStyle;
+@@ -15,13 +18,15 @@
+ import com.example.ahakey.util.LanguageManager;
+ import javafx.scene.control.Spinner;
+ import javafx.stage.Window;
+-import com.example.ahakey.service.AgentManager;
++import com.example.ahakey.service.AgentManager;
++import com.example.ahakey.service.HookInstaller;
+ import javafx.beans.binding.Bindings;
+ import javafx.geometry.Insets;
+ import javafx.geometry.Pos;
+ import javafx.scene.control.Button;
+ import javafx.scene.control.ComboBox;
+-import javafx.scene.control.Label;
++import javafx.scene.control.Label;
++import javafx.scene.control.RadioButton;
+ import javafx.scene.control.ScrollPane;
+ import javafx.scene.control.Separator;
+ import javafx.scene.control.TextField;
+@@ -40,7 +45,9 @@
+ 
+ import java.util.ArrayList;
+ import java.util.List;
+-import java.util.function.Supplier;
++import java.util.LinkedHashMap;
++import java.util.Map;
++import java.util.function.Supplier;
+ 
+ public class InspectorPane extends ScrollPane {
+     private final StudioController controller;
+@@ -78,6 +85,8 @@
+         studioState.lightBarPreviewProperty().addListener((obs, oldValue, newValue) -> rebuild());
+         studioState.cp4cInputConfigEnabledProperty().addListener((obs, oldValue, newValue) -> rebuild());
+         studioState.inputBaselineRevisionProperty().addListener((obs, oldValue, newValue) -> rebuild());
++        controller.getAiRuntimeDisplayService().displayModeProperty().addListener((obs, oldValue, newValue) -> rebuild());
++        controller.getAiRuntimeDisplayService().getSlots().addListener((javafx.collections.ListChangeListener<AiRuntimeSlotBinding>) change -> rebuild());
+         agentManager.bluetoothOwnerProperty().addListener((obs, oldValue, newValue) -> rebuild());
+         rebuild();
+     }
+@@ -815,10 +824,268 @@
+             return box;
+         });
+ 
+-        root.getChildren().addAll(brightnessBox, statesBox);
+-        return root;
+-    }
+-    private Label caption(String text) {
++        root.getChildren().addAll(createAiRuntimeGroup(), brightnessBox, statesBox);
++        return root;
++    }
++
++    private VBox createAiRuntimeGroup() {
++        return createGroupBox("AI 运行展示", () -> {
++            VBox box = new VBox(12);
++            var service = controller.getAiRuntimeDisplayService();
++
++            ToggleGroup modeGroup = new ToggleGroup();
++            ToggleButton single = new ToggleButton("单任务");
++            ToggleButton multi = new ToggleButton("多任务");
++            single.setToggleGroup(modeGroup);
++            multi.setToggleGroup(modeGroup);
++            single.setSelected(service.getDisplayMode() == AiRuntimeDisplayMode.SINGLE);
++            multi.setSelected(service.getDisplayMode() == AiRuntimeDisplayMode.MULTI);
++            single.setOnAction(e -> controller.setAiRuntimeDisplayMode(AiRuntimeDisplayMode.SINGLE));
++            multi.setOnAction(e -> controller.setAiRuntimeDisplayMode(AiRuntimeDisplayMode.MULTI));
++            HBox modeRow = new HBox(8, new Label("展示模式"), single, multi);
++            modeRow.setAlignment(Pos.CENTER_LEFT);
++
++            VBox slotBox = new VBox(6);
++            for (AiRuntimeSlotBinding slot : service.getSlots()) {
++                Label label = new Label(slotSummary(slot) + " / " + slot.runtimeState().getTitle());
++                label.getStyleClass().add("group-note");
++                label.setWrapText(true);
++                slotBox.getChildren().add(label);
++            }
++
++            HBox actions = new HBox(8);
++            Button manage = new Button("管理关注任务槽");
++            manage.setOnAction(e -> showAiRuntimeSlotDialog());
++            Button apply = new Button("应用到键盘");
++            apply.getStyleClass().add("button-prominent");
++            apply.setOnAction(e -> controller.applyAiRuntimeToKeyboard(getScene() == null ? null : getScene().getWindow()));
++            actions.getChildren().addAll(manage, apply);
++
++            Label support = new Label(service.isDeviceSupported() || !deviceStatus.isConnected()
++                ? "槽位绑定保存在本机；连接支持 WS3 CP1 的键盘后可应用。"
++                : "当前固件不支持多任务运行展示，本地绑定不受影响。");
++            support.getStyleClass().add("group-note");
++            support.setWrapText(true);
++
++            box.getChildren().addAll(modeRow, slotBox, actions, support);
++            return box;
++        });
++    }
++
++    private void showAiRuntimeSlotDialog() {
++        var service = controller.getAiRuntimeDisplayService();
++        javafx.scene.control.Dialog<Void> dialog = new javafx.scene.control.Dialog<>();
++        dialog.setTitle("管理关注任务槽");
++        dialog.initOwner(getScene() == null ? null : getScene().getWindow());
++        dialog.getDialogPane().getButtonTypes().add(javafx.scene.control.ButtonType.CLOSE);
++
++        VBox root = new VBox(12);
++        root.setPadding(new Insets(14));
++        root.setPrefWidth(620);
++        root.setPrefHeight(560);
++
++        Label primaryNote = caption("主槽位代表屏幕上展示 GIF 的具体会话。");
++
++        javafx.scene.control.TreeView<Object> tree = new javafx.scene.control.TreeView<>();
++        tree.setShowRoot(false);
++        tree.setPrefHeight(300);
++        HookInstaller.HookStatus codexStatus = controller.getAiRuntimeHookStatus("Codex");
++        HookInstaller.HookStatus cursorStatus = controller.getAiRuntimeHookStatus("Cursor");
++        tree.setRoot(buildRuntimeSessionTree(codexStatus, cursorStatus));
++        tree.setCellFactory(view -> new javafx.scene.control.TreeCell<>() {
++            @Override
++            protected void updateItem(Object item, boolean empty) {
++                super.updateItem(item, empty);
++                if (empty || item == null) {
++                    setText(null);
++                    setDisable(false);
++                } else if (item instanceof AiRuntimeSession session) {
++                    int bound = service.findBoundSlot(session.provider(), session.id());
++                    setText(session.displayTitle() + "   " + session.timeLabel() + (bound >= 0 ? "   已绑定 槽位 " + (bound + 1) : ""));
++                    setDisable(bound >= 0);
++                } else {
++                    setText(item.toString());
++                    setDisable(false);
++                }
++            }
++        });
++
++        VBox slotsBox = new VBox(8);
++        ToggleGroup primaryGroup = new ToggleGroup();
++        for (int i = 0; i < 4; i++) {
++            final int slotIndex = i;
++            AiRuntimeSlotBinding slot = service.getSlots().get(i);
++            HBox row = new HBox(8);
++            row.setAlignment(Pos.CENTER_LEFT);
++            RadioButton primary = new RadioButton("主槽位");
++            primary.setToggleGroup(primaryGroup);
++            primary.setSelected(service.getPrimarySlotIndex() == slotIndex);
++            primary.setDisable(!slot.isBound());
++            primary.setOnAction(e -> service.setPrimarySlotIndex(slotIndex));
++            Label summary = new Label(slotSummary(slot) + "｜" + slotAvailabilityText(slot, codexStatus, cursorStatus));
++            summary.getStyleClass().add("group-note");
++            summary.setWrapText(true);
++            Button bind = new Button("绑定到槽位 " + (i + 1));
++            bind.setOnAction(e -> {
++                Object selected = tree.getSelectionModel().getSelectedItem() == null
++                    ? null
++                    : tree.getSelectionModel().getSelectedItem().getValue();
++                if (selected instanceof AiRuntimeSession session) {
++                    service.bindSlot(slotIndex, session);
++                    rebuild();
++                }
++            });
++            Button clear = new Button("解绑");
++            clear.setOnAction(e -> {
++                service.clearSlot(slotIndex);
++                rebuild();
++            });
++            row.getChildren().addAll(primary, summary, bind, clear);
++            HBox.setHgrow(summary, Priority.ALWAYS);
++            slotsBox.getChildren().add(row);
++        }
++
++        VBox dirBox = new VBox(8);
++        dirBox.getChildren().add(createDataDirRow("Codex 数据目录", service.getCodexDataDir(), value -> service.setCodexDataDir(value), dialog));
++        dirBox.getChildren().add(createDataDirRow("Cursor 数据目录", service.getCursorDataDir(), value -> service.setCursorDataDir(value), dialog));
++
++        Button apply = new Button("应用到键盘");
++        apply.getStyleClass().add("button-prominent");
++        apply.setOnAction(e -> controller.applyAiRuntimeToKeyboard(dialog.getDialogPane().getScene().getWindow()));
++
++        Button hookManager = new Button("去 Hook 管理");
++        hookManager.setOnAction(e -> controller.openHookManager());
++
++        Label note = new Label("只显示 Codex / Cursor 会话摘要和元信息，不展示完整聊天内容。");
++        note.getStyleClass().add("group-note");
++        note.setWrapText(true);
++        HBox actionRow = new HBox(8, apply, hookManager);
++        root.getChildren().addAll(primaryNote, dirBox, tree, slotsBox, actionRow, note);
++        dialog.getDialogPane().setContent(root);
++        dialog.showAndWait();
++    }
++
++    private HBox createDataDirRow(
++        String labelText,
++        String value,
++        java.util.function.Consumer<String> save,
++        javafx.scene.control.Dialog<Void> dialog
++    ) {
++        TextField field = new TextField(value);
++        HBox.setHgrow(field, Priority.ALWAYS);
++        Button saveButton = new Button("保存");
++        saveButton.setOnAction(e -> {
++            save.accept(field.getText());
++            dialog.close();
++            showAiRuntimeSlotDialog();
++        });
++        Button choose = new Button("选择");
++        choose.setOnAction(e -> {
++            javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
++            chooser.setTitle("选择" + labelText);
++            java.io.File selected = chooser.showDialog(dialog.getDialogPane().getScene().getWindow());
++            if (selected != null) {
++                save.accept(selected.getAbsolutePath());
++                dialog.close();
++                showAiRuntimeSlotDialog();
++            }
++        });
++        HBox row = new HBox(8, new Label(labelText), field, saveButton, choose);
++        row.setAlignment(Pos.CENTER_LEFT);
++        return row;
++    }
++
++    private javafx.scene.control.TreeItem<Object> buildRuntimeSessionTree(
++        HookInstaller.HookStatus codexStatus,
++        HookInstaller.HookStatus cursorStatus
++    ) {
++        javafx.scene.control.TreeItem<Object> root = new javafx.scene.control.TreeItem<>("root");
++        root.getChildren().add(buildProviderTree("Codex", codexStatus));
++        root.getChildren().add(buildProviderTree("Cursor", cursorStatus));
++        return root;
++    }
++
++    private javafx.scene.control.TreeItem<Object> buildProviderTree(String provider, HookInstaller.HookStatus status) {
++        javafx.scene.control.TreeItem<Object> providerItem = new javafx.scene.control.TreeItem<>(provider);
++        providerItem.setExpanded(true);
++        var service = controller.getAiRuntimeDisplayService();
++        if (status != HookInstaller.HookStatus.LATEST) {
++            providerItem.getChildren().add(new javafx.scene.control.TreeItem<>("需安装/更新 Hook"));
++            providerItem.getChildren().add(new javafx.scene.control.TreeItem<>("去 Hook 管理"));
++            return providerItem;
++        }
++        if (!service.isDataDirValid(provider)) {
++            providerItem.getChildren().add(new javafx.scene.control.TreeItem<>("数据目录无效，请重新选择目录"));
++            return providerItem;
++        }
++        List<AiRuntimeSession> sessions = service.discoverSessions(provider);
++        if (sessions.isEmpty()) {
++            providerItem.getChildren().add(new javafx.scene.control.TreeItem<>("暂无可绑定任务"));
++            return providerItem;
++        }
++        Map<String, List<AiRuntimeSession>> byProject = new LinkedHashMap<>();
++        for (AiRuntimeSession session : sessions) {
++            byProject.computeIfAbsent(session.projectName(), key -> new ArrayList<>()).add(session);
++        }
++        byProject.entrySet().stream()
++            .sorted((a, b) -> Long.compare(sessionMillis(b.getValue().get(0)), sessionMillis(a.getValue().get(0))))
++            .forEach(entry -> {
++                javafx.scene.control.TreeItem<Object> project = new javafx.scene.control.TreeItem<>(entry.getKey());
++                for (AiRuntimeSession session : entry.getValue()) {
++                    project.getChildren().add(new javafx.scene.control.TreeItem<>(session));
++                }
++                project.setExpanded(true);
++                providerItem.getChildren().add(project);
++            });
++        return providerItem;
++    }
++
++    private long sessionMillis(AiRuntimeSession session) {
++        return session.updatedAt() == null ? 0L : session.updatedAt().toEpochMilli();
++    }
++
++    private String slotAvailabilityText(
++        AiRuntimeSlotBinding slot,
++        HookInstaller.HookStatus codexStatus,
++        HookInstaller.HookStatus cursorStatus
++    ) {
++        if (!slot.isBound()) {
++            return "未绑定";
++        }
++        String reason = controller.getAiRuntimeDisplayService().slotUnavailableReason(
++            slot,
++            codexStatus == HookInstaller.HookStatus.LATEST,
++            cursorStatus == HookInstaller.HookStatus.LATEST
++        );
++        return reason == null ? "可用" : reason;
++    }
++
++    private String slotSummary(AiRuntimeSlotBinding slot) {
++        if (slot == null || !slot.isBound()) {
++            return "槽位 " + (slot == null ? "" : slot.getSlotIndex() + 1) + "｜未绑定";
++        }
++        return "槽位 " + (slot.getSlotIndex() + 1)
++            + "｜" + slot.getProvider()
++            + "｜" + slot.displayProjectName()
++            + "｜" + slot.displayTitle()
++            + "｜" + slotTimeLabel(slot.getUpdatedAtMillis());
++    }
++
++    private String slotTimeLabel(long updatedAtMillis) {
++        if (updatedAtMillis <= 0) {
++            return "最近时间未知";
++        }
++        long minutes = Math.max(0, (System.currentTimeMillis() - updatedAtMillis) / 60000);
++        if (minutes < 60) {
++            return minutes + " 分前";
++        }
++        long hours = minutes / 60;
++        if (hours < 24) {
++            return hours + " 小时前";
++        }
++        return (hours / 24) + " 天前";
++    }
++    private Label caption(String text) {
+         Label label = new Label(text);
+         label.getStyleClass().add("group-note");
+         label.setWrapText(true);
+
+### src/main/java/com/example/ahakey/view/TopBar.java
+--- start/src/main/java/com/example/ahakey/view/TopBar.java
++++ current/src/main/java/com/example/ahakey/view/TopBar.java
+@@ -43,6 +43,10 @@
+ import java.nio.file.Path;
+ import java.nio.file.Paths;
+ import java.io.File;
++import java.util.ArrayList;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
+ import java.util.concurrent.atomic.AtomicInteger;
+ import javafx.scene.canvas.Canvas;
+ import javafx.scene.canvas.GraphicsContext;
+@@ -58,9 +62,10 @@
+     private final AgentManager agentManager;
+     private VoiceInputManager voiceInputManager;
+     private TextArea logArea;
+-    private final HookInstaller hookInstaller;
+-    private final LanguageManager languageManager;
+-    private MenuItem languageMenuItem;
++    private final HookInstaller hookInstaller;
++    private final LanguageManager languageManager;
++    private MenuItem languageMenuItem;
++    private boolean hookUpdateSummaryShown;
+     
+     // 语音相关UI组件
+     private Button voiceRecordButton;
+@@ -82,9 +87,10 @@
+         this.deviceStatus = deviceStatus;
+         this.studioState = studioState;
+         this.agentManager = agentManager;
+-        this.hookInstaller = new HookInstaller(
+-            () -> controller.getHookDispatchPort(), this::addLog);
+-        this.languageManager = LanguageManager.getInstance();
++        this.hookInstaller = new HookInstaller(
++            () -> controller.getHookDispatchPort(), this::addLog);
++        this.controller.setHookManagerOpener(this::showDeviceInfoDialog);
++        this.languageManager = LanguageManager.getInstance();
+         setSpacing(0);
+         setPadding(new Insets(0));
+         getStyleClass().add("top-bar");
+@@ -258,7 +264,7 @@
+         MenuItem clearOled = new MenuItem(languageManager.getString("menu.clear-oled"));
+         clearOled.setOnAction(event -> studioState.clearOledPreview());
+         SeparatorMenuItem divider1 = new SeparatorMenuItem();
+-        MenuItem deviceInfo = new MenuItem(languageManager.getString("menu.device-info"));
++        MenuItem deviceInfo = new MenuItem("Hook 管理");
+         deviceInfo.setOnAction(event -> showDeviceInfoDialog());
+         MenuItem versionInfo = new MenuItem(languageManager.getString("menu.version-info"));
+         versionInfo.setOnAction(event -> showVersionDialog());
+@@ -958,216 +964,240 @@
+         return box;
+     }
+ 
+-    private void showDeviceInfoDialog() {
+-        Stage dialog = new Stage();
+-        dialog.initOwner(getScene().getWindow());
+-        dialog.setTitle(languageManager.getString("dialog.hook-title"));
+-        dialog.setWidth(550);
+-        dialog.setHeight(650);
+-
+-        ScrollPane scrollPane = new ScrollPane();
+-        scrollPane.setFitToWidth(true);
+-
+-        VBox content = new VBox(12);
+-        content.setPadding(new Insets(12));
+-
+-        // 设备信息摘要
+-        VBox deviceCard = new VBox(8);
+-        deviceCard.getStyleClass().add("dialog-card");
+-        deviceCard.setPadding(new Insets(12));
+-
+-        Label deviceTitle = new Label(languageManager.getString("dialog.device-info"));
+-        deviceTitle.getStyleClass().add("dialog-card-title");
+-
+-        HBox deviceRow1 = new HBox(16);
+-        Label connStatus = new Label();
+-        connStatus.getStyleClass().add("dialog-text");
+-        connStatus.textProperty().bind(Bindings.createStringBinding(() ->
+-            languageManager.getString("dialog.connection") + ": " + (this.deviceStatus.isConnected() ? languageManager.getString("status.connected") : languageManager.getString("status.disconnected")),
+-            this.deviceStatus.isConnectedProperty()
+-        ));
+-        Label batteryStatus = new Label();
+-        batteryStatus.getStyleClass().add("dialog-text");
+-        batteryStatus.textProperty().bind(Bindings.createStringBinding(() ->
+-            languageManager.getString("status.battery") + ": " + this.deviceStatus.getBatteryLevel() + "%",
+-            this.deviceStatus.batteryLevelProperty()
+-        ));
+-        deviceRow1.getChildren().addAll(connStatus, batteryStatus);
+-
+-        HBox deviceRow2 = new HBox(16);
+-        Label deviceName = new Label(languageManager.getString("dialog.device-name") + ": " + this.deviceStatus.getDisplayDeviceName());
+-        deviceName.getStyleClass().add("dialog-text");
+-        Label switchState = new Label();
+-        switchState.getStyleClass().add("dialog-text");
+-        switchState.textProperty().bind(Bindings.createStringBinding(() ->
+-            languageManager.getString("status.switch") + ": " + this.deviceStatus.getSwitchTitle(),
+-            this.deviceStatus.switchStateProperty()
+-        ));
+-        deviceRow2.getChildren().addAll(deviceName, switchState);
+-
+-        HBox versionRow = new HBox(16);
+-        Label appVersion = new Label("上位机版本: " + getVersion());
+-        appVersion.getStyleClass().add("dialog-text");
+-        Label keyboardFirmware = new Label();
+-        keyboardFirmware.getStyleClass().add("dialog-text");
+-        keyboardFirmware.textProperty().bind(Bindings.createStringBinding(() ->
+-            "键盘固件版本: " + this.deviceStatus.getDisplayFirmwareVersion(),
+-            this.deviceStatus.firmwareCatalogKeyProperty(),
+-            this.deviceStatus.firmwareMainProperty(),
+-            this.deviceStatus.firmwareSubProperty()
+-        ));
+-        versionRow.getChildren().addAll(appVersion, keyboardFirmware);
+-
+-        SleepWaitTimeControl sleepWaitTimeControl = createSleepWaitTimeControl();
+-        Button refreshDeviceInfoButton = new Button(languageManager.getString("dialog.refresh-device-info"));
+-        BooleanProperty deviceInfoRefreshBusy = new SimpleBooleanProperty(false);
+-        refreshDeviceInfoButton.setGraphic(Icons.refresh("14"));
+-        refreshDeviceInfoButton.setTooltip(new Tooltip(languageManager.getString("dialog.refresh-device-info")));
+-        refreshDeviceInfoButton.disableProperty().bind(Bindings.createBooleanBinding(
+-            () -> !controller.isEffectivelyConnected() || deviceInfoRefreshBusy.get(),
+-            this.deviceStatus.isConnectedProperty(),
+-            deviceInfoRefreshBusy
+-        ));
+-        refreshDeviceInfoButton.setOnAction(event -> {
+-            if (deviceInfoRefreshBusy.get()) {
+-                return;
++    private void showDeviceInfoDialog() {
++        Stage dialog = new Stage();
++        dialog.initOwner(getScene().getWindow());
++        dialog.setTitle("AhaKey Hook 管理");
++        dialog.setWidth(560);
++        dialog.setHeight(620);
++
++        ScrollPane scrollPane = new ScrollPane();
++        scrollPane.setFitToWidth(true);
++
++        VBox content = new VBox(12);
++        content.setPadding(new Insets(12));
++        Map<String, VBox> cards = new LinkedHashMap<>();
++        Map<String, HookInstaller.HookStatus> statuses = new LinkedHashMap<>();
++        VBox list = new VBox(10);
++        for (String name : List.of("Claude", "Cursor", "Codex", "Kimi")) {
++            VBox card = createHookManagerCard(name, HookInstaller.HookStatus.DETECTING, statuses, null);
++            cards.put(name, card);
++            list.getChildren().add(card);
++        }
++
++        Button refresh = new Button("重新检测");
++        refresh.setGraphic(Icons.refresh("14"));
++        Runnable[] rescan = new Runnable[1];
++        rescan[0] = () -> {
++            refresh.setDisable(true);
++            for (Map.Entry<String, VBox> entry : cards.entrySet()) {
++                updateHookManagerCard(entry.getValue(), entry.getKey(), HookInstaller.HookStatus.DETECTING, statuses, rescan[0]);
+             }
+-            deviceInfoRefreshBusy.set(true);
+-            controller.clearDeviceInfoDetailsForRefresh();
+             Thread thread = new Thread(() -> {
+-                try {
+-                    controller.readFirmwareCatalogKeyForDeviceInfo();
+-                    controller.refreshDeviceStatusSnapshot();
+-                    Platform.runLater(sleepWaitTimeControl::refresh);
+-                } finally {
+-                    Platform.runLater(() -> deviceInfoRefreshBusy.set(false));
++                Map<String, HookInstaller.HookStatus> scanned = new LinkedHashMap<>();
++                for (String name : cards.keySet()) {
++                    scanned.put(name, hookInstaller.getHookStatus(name));
+                 }
+-            }, "device-info-manual-refresh");
++                Platform.runLater(() -> {
++                    statuses.clear();
++                    statuses.putAll(scanned);
++                    for (Map.Entry<String, HookInstaller.HookStatus> entry : scanned.entrySet()) {
++                        updateHookManagerCard(cards.get(entry.getKey()), entry.getKey(), entry.getValue(), statuses, rescan[0]);
++                    }
++                    refresh.setDisable(false);
++                    List<String> outdated = scanned.entrySet().stream()
++                        .filter(entry -> entry.getValue() == HookInstaller.HookStatus.OUTDATED)
++                        .map(Map.Entry::getKey)
++                        .toList();
++                    if (!outdated.isEmpty() && !hookUpdateSummaryShown) {
++                        hookUpdateSummaryShown = true;
++                        showHookUpdateSummary(outdated, rescan[0]);
++                    }
++                });
++            }, "hook-manager-scan");
++            thread.setDaemon(true);
++            thread.start();
++        };
++        refresh.setOnAction(event -> rescan[0].run());
++
++        Label note1 = hookNote("安装或更新时，AhaKey 只会添加/替换自己的 Hook，不会删除你原本配置的其他 Hook。");
++        Label note2 = hookNote("当前多任务灯光支持 Codex / Cursor。");
++        HBox bottom = new HBox(10);
++        bottom.setAlignment(Pos.CENTER_RIGHT);
++        Button closeBtn = new Button("关闭");
++        closeBtn.setOnAction(event -> dialog.close());
++        bottom.getChildren().addAll(refresh, closeBtn);
++
++        content.getChildren().addAll(list, note1, note2, bottom);
++        scrollPane.setContent(content);
++
++        Scene scene = new Scene(scrollPane);
++        scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
++        dialog.setScene(scene);
++        dialog.show();
++        rescan[0].run();
++    }
++
++    private Label hookNote(String text) {
++        Label label = new Label(text);
++        label.getStyleClass().add("group-note");
++        label.setWrapText(true);
++        return label;
++    }
++
++    private VBox createHookManagerCard(
++        String hookName,
++        HookInstaller.HookStatus status,
++        Map<String, HookInstaller.HookStatus> statuses,
++        Runnable rescan
++    ) {
++        VBox card = new VBox(8);
++        card.getStyleClass().add("dialog-card");
++        card.setPadding(new Insets(12));
++        updateHookManagerCard(card, hookName, status, statuses, rescan);
++        return card;
++    }
++
++    private void updateHookManagerCard(
++        VBox card,
++        String hookName,
++        HookInstaller.HookStatus status,
++        Map<String, HookInstaller.HookStatus> statuses,
++        Runnable rescan
++    ) {
++        card.getChildren().clear();
++        statuses.put(hookName, status);
++
++        HBox titleRow = new HBox(8);
++        titleRow.setAlignment(Pos.CENTER_LEFT);
++        Label title = new Label(hookName);
++        title.getStyleClass().add("dialog-card-title");
++        Region spacer = new Region();
++        HBox.setHgrow(spacer, Priority.ALWAYS);
++        Label statusLabel = new Label(hookStatusText(status));
++        statusLabel.getStyleClass().add(status == HookInstaller.HookStatus.LATEST ? "dialog-status-installed" : "dialog-status-uninstalled");
++        titleRow.getChildren().addAll(title, spacer, statusLabel);
++
++        Label description = hookNote(hookDescription(status));
++        Button action = new Button(hookActionText(status));
++        action.setDisable(status != HookInstaller.HookStatus.NOT_INSTALLED && status != HookInstaller.HookStatus.OUTDATED);
++        if (status == HookInstaller.HookStatus.NOT_INSTALLED || status == HookInstaller.HookStatus.OUTDATED) {
++            action.getStyleClass().add("button-install");
++            action.setOnAction(event -> runSingleHookWrite(hookName, action, rescan));
++        }
++
++        card.getChildren().addAll(titleRow, description, action);
++    }
++
++    private void runSingleHookWrite(String hookName, Button action, Runnable rescan) {
++        action.setDisable(true);
++        action.setText("处理中");
++        Thread thread = new Thread(() -> {
++            HookInstaller.HookWriteResult result = hookInstaller.installOrUpdate(hookName);
++            Platform.runLater(() -> {
++                if (result.success()) {
++                    if (rescan != null) {
++                        rescan.run();
++                    }
++                } else {
++                    Alert alert = new Alert(Alert.AlertType.ERROR);
++                    alert.initOwner(getScene() == null ? null : getScene().getWindow());
++                    alert.setTitle("AhaKey Hook 管理");
++                    alert.setHeaderText(null);
++                    alert.setContentText(result.reason() + "，请联系管理员");
++                    alert.showAndWait();
++                    if (rescan != null) {
++                        rescan.run();
++                    }
++                }
++            });
++        }, "hook-manager-write-" + hookName);
++        thread.setDaemon(true);
++        thread.start();
++    }
++
++    private void showHookUpdateSummary(List<String> outdated, Runnable rescan) {
++        javafx.scene.control.Dialog<Void> dialog = new javafx.scene.control.Dialog<>();
++        dialog.initOwner(getScene() == null ? null : getScene().getWindow());
++        dialog.setTitle("AhaKey Hook 管理");
++        ButtonType update = new ButtonType("一键更新");
++        ButtonType cancel = new ButtonType("取消", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
++        dialog.getDialogPane().getButtonTypes().setAll(update, cancel);
++        Label message = hookNote("以下工具需要更新 Hook：" + String.join("、", outdated)
++            + "\n更新会先备份原 Hook 文件，并且只替换 AhaKey Hook。");
++        dialog.getDialogPane().setContent(message);
++        Button updateButton = (Button) dialog.getDialogPane().lookupButton(update);
++        Button cancelButton = (Button) dialog.getDialogPane().lookupButton(cancel);
++        updateButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
++            event.consume();
++            updateButton.setDisable(true);
++            cancelButton.setDisable(true);
++            Thread thread = new Thread(() -> {
++                List<String> failed = new ArrayList<>();
++                for (String name : outdated) {
++                    String currentName = name;
++                    Platform.runLater(() -> message.setText("正在更新：" + currentName));
++                    HookInstaller.HookWriteResult result = hookInstaller.installOrUpdate(currentName);
++                    if (!result.success()) {
++                        failed.add(currentName + "：" + result.reason());
++                    }
++                }
++                Platform.runLater(() -> {
++                    if (failed.isEmpty()) {
++                        dialog.close();
++                        if (rescan != null) {
++                            rescan.run();
++                        }
++                    } else {
++                        message.setText("以下工具更新失败：\n" + String.join("\n", failed));
++                        ButtonType know = new ButtonType("知道了", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
++                        dialog.getDialogPane().getButtonTypes().setAll(know);
++                        Button knowButton = (Button) dialog.getDialogPane().lookupButton(know);
++                        knowButton.addEventFilter(javafx.event.ActionEvent.ACTION, e -> {
++                            if (rescan != null) {
++                                rescan.run();
++                            }
++                        });
++                    }
++                });
++            }, "hook-manager-update-all");
+             thread.setDaemon(true);
+             thread.start();
+         });
+-
+-        HBox deviceHeader = new HBox(10);
+-        deviceHeader.setAlignment(Pos.CENTER_LEFT);
+-        Region deviceHeaderSpacer = new Region();
+-        HBox.setHgrow(deviceHeaderSpacer, Priority.ALWAYS);
+-        deviceHeader.getChildren().addAll(deviceTitle, deviceHeaderSpacer, refreshDeviceInfoButton);
+-
+-        deviceCard.getChildren().addAll(deviceHeader, deviceRow1, deviceRow2, versionRow, sleepWaitTimeControl.node());
+-
+-        // 日志区域（提前创建以记录检测过程）
+-        logArea = new TextArea();
+-        logArea.getStyleClass().add("dialog-log-area");
+-        logArea.setEditable(false);
+-        logArea.setPrefHeight(150);
+-        logArea.setWrapText(true);
+-        logArea.setText("[System] Hook installation tool started\n");
+-        
+-        String homeDir = System.getProperty("user.home");
+-        addLog("[System] User Directory: " + homeDir);
+-        addLog("[System] OS: " + System.getProperty("os.name"));
+-        addLog("[System] Java Version: " + System.getProperty("java.version"));
+-        addLog("");
+-
+-        // Hook 安装卡片（先用空状态创建，后面异步更新）
+-        VBox claudeCard = createHookCard("Claude", false);
+-        VBox cursorCard = createHookCard("Cursor", false);
+-        VBox codexCard = createHookCard("Codex", false);
+-        VBox kimiCard = createHookCard("Kimi", false);
+-
+-        // 日志卡片
+-        VBox logCard = new VBox(8);
+-        logCard.getStyleClass().add("dialog-card");
+-        logCard.setPadding(new Insets(12));
+-
+-        Label logTitle = new Label(languageManager.getString("dialog.log"));
+-        logTitle.getStyleClass().add("dialog-log-title");
+-        logCard.getChildren().addAll(logTitle, logArea);
+-
+-        // 操作按钮
+-        HBox actionButtons = new HBox(10);
+-        Button connectBtn = new Button(languageManager.getString("button.connect"));
+-        connectBtn.getStyleClass().add("button-connect");
+-        connectBtn.disableProperty().bind(this.deviceStatus.isConnectedProperty());
+-        connectBtn.setOnAction(event -> controller.userConnect());
+-
+-        Button disconnectBtn = new Button(languageManager.getString("button.disconnect"));
+-        disconnectBtn.getStyleClass().add("button-disconnect");
+-        disconnectBtn.disableProperty().bind(this.deviceStatus.isConnectedProperty().not());
+-        disconnectBtn.setOnAction(event -> controller.userDisconnect());
+-
+-        Button clearLogBtn = new Button(languageManager.getString("dialog.clear-log"));
+-        clearLogBtn.setOnAction(event -> logArea.setText("[System] Log cleared\n"));
+-
+-        Button closeBtn = new Button(languageManager.getString("dialog.close"));
+-        closeBtn.setOnAction(event -> dialog.close());
+-
+-        actionButtons.getChildren().addAll(connectBtn, disconnectBtn, clearLogBtn, closeBtn);
+-        actionButtons.setAlignment(Pos.CENTER_RIGHT);
+-
+-        content.getChildren().addAll(deviceCard, claudeCard, cursorCard, codexCard, kimiCard, logCard, actionButtons);
+-        scrollPane.setContent(content);
+-
+-        Scene scene = new Scene(scrollPane);
+-        scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+-        dialog.setScene(scene);
+-        
+-        // 先显示对话框，然后在后台线程中进行 Hook 检测
+-        dialog.show();
+-        
+-        // 在后台线程中检测 Hook 状态
+-        new Thread(() -> {
+-            String[] hookNames = {"Claude", "Cursor", "Codex", "Kimi"};
+-            boolean[] hookInstalled = new boolean[4];
+-            VBox[] hookCards = {claudeCard, cursorCard, codexCard, kimiCard};
+-            
+-            for (int i = 0; i < hookNames.length; i++) {
+-                String name = hookNames[i];
+-                Path path = hookInstaller.getHookConfigPath(name);
+-                File file = path.toFile();
+-                
+-                boolean installed = isHookInstalled(name);
+-                hookInstalled[i] = installed;
+-                
+-                String detectionPrefix = languageManager.getString("hook.detection");
+-                addLog(detectionPrefix + " === " + name + " Hook ===");
+-                addLog(detectionPrefix + " " + languageManager.getString("hook.check-path") + ": " + path);
+-                addLog(detectionPrefix + " " + languageManager.getString("hook.file-exists") + ": " + file.exists());
+-                
+-                if (file.exists()) {
+-                    try {
+-                        String fileContent = new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
+-                        addLog(detectionPrefix + " " + languageManager.getString("hook.file-size") + ": " + fileContent.length() + " chars");
+-                        
+-                        if ("Claude".equals(name)) {
+-                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " hooks: " + fileContent.contains("\"hooks\""));
+-                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " SessionStart: " + fileContent.contains("SessionStart"));
+-                        } else if ("Cursor".equals(name)) {
+-                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " hooks: " + fileContent.contains("\"hooks\""));
+-                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " sessionStart: " + fileContent.contains("sessionStart"));
+-                        } else if ("Codex".equals(name)) {
+-                            String home = System.getProperty("user.home");
+-                            Path sidecar = Paths.get(home, ".codex", HookInstaller.CODEX_SIDECAR_NAME);
+-                            addLog(detectionPrefix + " sidecar " + languageManager.getString("hook.file-exists") + ": " + sidecar.toFile().exists());
+-                            addLog(detectionPrefix + " hooks.json content length: " + fileContent.length());
+-                        } else if ("Kimi".equals(name)) {
+-                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " BEGIN marker: " + fileContent.contains(HookInstaller.KIMI_HOOK_BLOCK_START));
+-                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " END marker: " + fileContent.contains(HookInstaller.KIMI_HOOK_BLOCK_END));
+-                        }
+-                    } catch (Exception e) {
+-                        addLog(detectionPrefix + " " + languageManager.getString("hook.read-failed") + ": " + e.getMessage());
+-                    }
+-                }
+-                
+-                addLog(detectionPrefix + " " + languageManager.getString("hook.final-status") + ": " + (installed ? "Installed" : "Not Installed"));
+-                addLog("");
+-                
+-                // 更新卡片状态
+-                int finalI = i;
+-                boolean finalInstalled = installed;
+-                Platform.runLater(() -> updateHookCardStatus(hookCards[finalI], name, finalInstalled));
+-            }
+-        }, "hook-detection").start();
++        dialog.show();
++    }
++
++    private String hookStatusText(HookInstaller.HookStatus status) {
++        return switch (status) {
++            case DETECTING -> "检测中";
++            case APP_NOT_FOUND -> "未检测到应用";
++            case NOT_INSTALLED -> "未安装";
++            case OUTDATED -> "待更新";
++            case LATEST -> "最新";
++            case ERROR -> "异常";
++        };
++    }
++
++    private String hookActionText(HookInstaller.HookStatus status) {
++        return switch (status) {
++            case APP_NOT_FOUND -> "不可安装";
++            case NOT_INSTALLED -> "安装 Hook";
++            case OUTDATED -> "更新 Hook";
++            case LATEST -> "已是最新";
++            case ERROR -> "异常";
++            case DETECTING -> "检测中";
++        };
++    }
++
++    private String hookDescription(HookInstaller.HookStatus status) {
++        return switch (status) {
++            case APP_NOT_FOUND -> "未检测到对应应用，暂不可安装 Hook";
++            case NOT_INSTALLED -> "未安装 Hook，安装后可支持 AhaKey 功能";
++            case OUTDATED -> "当前 Hook 需要更新，更新后可支持多任务灯光状态，并优化 Cursor 权限流程";
++            case LATEST -> "已是最新版，支持多任务灯光状态";
++            case ERROR -> "检测异常，请联系管理员";
++            case DETECTING -> "正在检测 Hook 状态";
++        };
+     }
+ 
+     private SleepWaitTimeControl createSleepWaitTimeControl() {

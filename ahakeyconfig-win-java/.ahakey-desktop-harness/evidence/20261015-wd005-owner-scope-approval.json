@@ -1,0 +1,49 @@
+{
+  "record_type": "owner_scope_approval",
+  "id": "WD-005",
+  "date": "2026-10-15",
+  "owner_statement": "以上都确认，可以往下继续了",
+  "scope_decision": "APPROVED",
+  "formal_runtime_approval": "PENDING_REGISTRATION_AND_ROUTE",
+  "approved_documents": [
+    {
+      "path": ".ahakey-desktop-harness/v1/planned-changes/WD-005/CONTRACT.md",
+      "sha256": "6FC54CD021C463396354783602629F036EE6C7A02919EE7408DBB8B20E31A5C5"
+    },
+    {
+      "path": ".ahakey-desktop-harness/v1/planned-changes/WD-005/DECISIONS.md",
+      "sha256": "5D5E82AD0D1543A4C4AC7B90AB43A46D2B9486D82BC44B0D1743B43DD6191BEF"
+    },
+    {
+      "path": ".ahakey-desktop-harness/v1/planned-changes/WD-005/IMPLEMENTATION_SCOPE.md",
+      "sha256": "12C937826C84FFF190028348247E2E4204AFDE04257788016D3E418978483906"
+    },
+    {
+      "path": ".ahakey-desktop-harness/v1/planned-changes/WD-005/PROTOCOL_AND_STATE.md",
+      "sha256": "2F0CFF7AFC3340109ABD02C932C9024CEDE07995471A458E16D56D563C391BE7"
+    },
+    {
+      "path": ".ahakey-desktop-harness/v1/planned-changes/WD-005/ACCEPTANCE.md",
+      "sha256": "C6EBF4B485D9671FCB66400DCF350897F322F4439F257A2748C264C36D35FF2C"
+    },
+    {
+      "path": ".ahakey-desktop-harness/v1/planned-changes/WD-005/DESIGN_REVIEW.md",
+      "sha256": "6084D6B7D51061508FAAC80DF1241FBB9651C2DCD184BB4A0DC47626F62A4C4D"
+    }
+  ],
+  "approved_additions": [
+    "~/.ahakey/oled-resources/v1，仅显式清除不自动清理",
+    "固定10fps，移除旧FPS输入",
+    "切Mode保留分组/状态，首次默认",
+    "源文件2MiB限额",
+    "九项灯效逐项保存，部分成功如实显示",
+    "ACK结果未知隔离写入，必要时重连对账"
+  ],
+  "meaning": "Owner已批准设计与实现范围，不必重新Grill；DLA可继续登记准备。未正式登记/路由/preflight前不允许DIB编辑生产代码。",
+  "not_authorized": [
+    "手工修改STATE/旧批准/起点以绕过门禁",
+    "修改Harness规则或保护印章",
+    "自动Git写入",
+    "构建/设备写入/烧录/安装/发布"
+  ]
+}

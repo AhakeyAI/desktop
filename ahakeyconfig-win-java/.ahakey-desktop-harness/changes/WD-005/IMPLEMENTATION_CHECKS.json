@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "task": "WD-005",
+  "date": "2026-10-16",
+  "role": "DIB",
+  "meaning": "仅已执行机器/离线/隔离FX检查；不是整条验收、完整UI或真实设备通过证明",
+  "head": "41c034171e60b2d4962b0adbe8f3cffbf80a0436",
+  "compile": {
+    "exit_code": 0,
+    "log": ".ahakey-desktop-harness/evidence/20261016-wd005-machine-compile-06.log",
+    "sha256": "C8C8E7D8397076A3C8BF4A26BA950773C54C305CB30B405B1708D69A7FD6BF8F"
+  },
+  "offline": {
+    "entry": "com.example.ahakey.displayconfig.DisplayConfigChecks",
+    "exit_code": 0,
+    "explicit_assertions": 175,
+    "log": ".ahakey-desktop-harness/evidence/20261016-wd005-offline-05.log",
+    "sha256": "C804F7C17D56A1EB13589FD36B73ADEFBC8999E1905A628E676106E3EB856DA2"
+  },
+  "isolated_fx": {
+    "entry": "com.example.ahakey.displayconfig.DisplayConfigFxChecks",
+    "exit_code": 0,
+    "explicit_assertions": 36,
+    "log": ".ahakey-desktop-harness/evidence/20261016-wd005-fx-02.log",
+    "sha256": "47095D1487108D8C466B7C19A3B161713BE3B5C849EAEB6C0E1A3D9602558BB2"
+  },
+  "snapshot": {
+    "path": ".ahakey-desktop-harness/evidence/20261016-wd005-canvas-component-02.png",
+    "sha256": "3B1EFBB075D40FF7BD6B6601B0C2C1FE19E0F8DC73C657ADDEF9CB9E6F8701C8",
+    "meaning": "已查看800x600隔离Canvas，不是完整窗口/高DPI验收"
+  },
+  "check_scopes": {
+    "machine": "本地test-compile和两实际测试入口exit0；diff --check和preflight通过",
+    "core_regression": "A10旧协议/ACK、按键草稿、竞争写与最新runtime；不含真实语音/Hook/物理连接",
+    "special_regression": "A01-A09已执行列；不含完整窗口、高DPI、磁盘故障穷举",
+    "mock": "真实上传/DisplayConfigService，内存transport；完整1/8/12帧、超时/代次、按需读取、部分保存、预览期限"
+  },
+  "not_executed": [
+    "DLA实际差异审阅和高影响fresh独立审阅",
+    "完整应用、最小窗口和100/150/200% DPI、Owner Preview",
+    "真实USB/BLE、语音/Hook、断电/Flash/烧录和状态触发验收",
+    "真实磁盘只读/写满/进程中断、迁移全流程、共享引用清理专项",
+    "正式候选、交测包、安装包、Release和Owner UAT"
+  ],
+  "coverage_reference": ".ahakey-desktop-harness/changes/WD-005/EXECUTION_REPORT.md"
+}

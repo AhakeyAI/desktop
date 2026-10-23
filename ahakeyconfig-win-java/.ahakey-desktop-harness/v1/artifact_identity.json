@@ -1,0 +1,996 @@
+{
+  "current_candidate_validation": "NOT_ESTABLISHED_BY_THIS_TOOL",
+  "current_jar_content": {
+    "config_sha256": "a32fc4ef090ce3e4c72634f5888fe74462487bf8781a6494ff9e74741f80cbd5",
+    "inspection": "ZIP_CONTENT_READ_ONLY",
+    "manifest_selected_fields": [
+      "Implementation-Version: 1.0.0",
+      "Main-Class: com.example.ahakey.App"
+    ],
+    "model_enabled": "UNSPECIFIED_IN_JAR",
+    "model_weight_entries": [],
+    "not_a_runtime_test": true
+  },
+  "current_primary": {
+    "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\ahakey-studio-1.0.0.jar",
+    "expected_sha256": "c16f5bad0f518fb8fea00f7dee7f97caaf7ac6dc3865092442a2bee260217886",
+    "observed_sha256": "b9723cdc1f5b5f7eccb4f0a3ff14b87a7668c9cf7a6c307c377c404e8a68be43",
+    "path": "target/ahakey-studio-1.0.0.jar",
+    "status": "MISMATCH"
+  },
+  "current_runtime_uat": "NOT_ESTABLISHED_BY_THIS_TOOL",
+  "delivery_form": "jar_classpath",
+  "external_receipt": "C:\\Users\\20825\\Desktop\\AhaKey-Harness-Safety-Backups\\index-20261002T041603Z-8c6dce02\\RECEIPT.json",
+  "findings": [
+    "CURRENT_JAR_DIFFERS_FROM_OR_IS_MISSING_FROM_LEGACY_RECEIPT",
+    "ONE_OR_MORE_LEGACY_RUNTIME_FILES_DIFFER_OR_MISSING",
+    "TRACKED_WORKTREE_DIFFERS_FROM_REPORTED_CANDIDATE"
+  ],
+  "git_observation": {
+    "branch": {
+      "ok": true,
+      "text": "main-anpx"
+    },
+    "candidate_object": {
+      "ok": true,
+      "text": "commit"
+    },
+    "head": {
+      "ok": true,
+      "text": "666494c358fd5373b27b6213e9f4a35a424dd2c6"
+    },
+    "reported_candidate": "666494c358fd5373b27b6213e9f4a35a424dd2c6",
+    "root": {
+      "ok": true,
+      "text": "C:/Users/20825/Desktop/windows软件代码/desktop"
+    },
+    "status": {
+      "ok": true,
+      "text": "M ahakeyconfig-win-java/AGENTS.md\n M ahakeyconfig-win-java/pom.xml\n M ahakeyconfig-win-java/src/main/java/com/example/ahakey/app/StudioController.java\n M ahakeyconfig-win-java/src/main/java/com/example/ahakey/model/DeviceStatus.java\n M ahakeyconfig-win-java/src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java\n M ahakeyconfig-win-java/src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java\n M ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/BleManager.java\n M ahakeyconfig-win-java/src/main/java/com/example/ahakey/view/TopBar.java\n M ahakeyconfig-win-java/src/main/resources/messages_en.properties\n M ahakeyconfig-win-java/src/main/resources/messages_zh.properties\n?? BLE_tcp_driver_package/\n?? ahakeyconfig-win-java/.agents/\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/CHANGELOG.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/DECISIONS.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/DEFERRED.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/DISPATCH_LOG.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/DISTRIBUTION_DELIVERY.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/GUARDED_DELIVERY.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/GUIDE.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/OPERATING_MODE.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/RULES.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/STATE.json\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/baseline/\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/README.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/ACCEPTANCE_COVERAGE.json\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/BUILD_RECEIPT.json\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/CANDIDATE_GIT_PLAN.ps1\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/DELIVERY_PACKET.json\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/DELIVERY_PROFILE.json\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/FIRMWARE_IDENTITY.json\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/FORMAL_FIRMWARE_GATE.json\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/OWNER_BRIEF.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/OWNER_BRIEF_INPUT.json\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/OWNER_RESULTS.json\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/OWNER_TEST.json\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/OWNER_TEST.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/REVIEW.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/builds/\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/candidate.json\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/change.json\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/reviews/20260929T015254974735Z-a25f6f/PACK.json\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/reviews/20260929T015254974735Z-a25f6f/after/\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/reviews/20260929T015254974735Z-a25f6f/before/\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/test_packet.json\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-001/verification.json\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/delivery/\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/HARNESS_FEEDBACK.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/README.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/WD-001-machine-compile.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/WD-001-static-regression.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/distribution-audit/\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/owner-candidate-WD-001-hf01-reuse.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/owner-candidate-WD-001.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/owner-feedback-WD-001-T01-launch-fail-20260929.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/owner-feedback-WD-001-ble-pass-20260930.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/owner-feedback-WD-001-consolidated-20260930.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/owner-feedback-WD-001-final-owner-confirmation-20260930.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/owner-feedback-WD-001-wired-pass-ble-blocked-20260929.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/owner-feedback-WD-001-wired-selected-steps-pass-20260930.md\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/firmware/\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/handoffs/\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/hotfixes/\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/local.example.json\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/prompts/\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/templates/\n?? ahakeyconfig-win-java/.ahakey-desktop-harness/upgrades/\n?? ahakeyconfig-win-java/.gitignore\n?? ahakeyconfig-win-java/BLE_tcp_driver.exe.config\n?? ahakeyconfig-win-java/META-INF/\n?? ahakeyconfig-win-java/V1_FINAL_UPGRADE_PREFLIGHT_REPORT.md\n?? ahakeyconfig-win-java/V1_LAYER_DRY_RUN_REPORT.md\n?? ahakeyconfig-win-java/V1_RUNTIME_INTEGRATION_REPORT.md\n?? ahakeyconfig-win-java/V2_FINAL_UPGRADE_PREFLIGHT_REPORT.md\n?? ahakeyconfig-win-java/config_server.json\n?? ahakeyconfig-win-java/harness-v1-design-preview/\n?? ahakeyconfig-win-java/harness-v1-final-upgrade-v2/\n?? ahakeyconfig-win-java/harness-v1-final-upgrade/\n?? ahakeyconfig-win-java/harness-v1-layer/\n?? ahakeyconfig-win-java/harness-v1-runtime/\n?? ahakeyconfig-win-java/harness-v1-upgrade/"
+    },
+    "tracked_difference_from_candidate": {
+      "ok": true,
+      "text": "ahakeyconfig-win-java/AGENTS.md\nahakeyconfig-win-java/pom.xml\nahakeyconfig-win-java/src/main/java/com/example/ahakey/app/StudioController.java\nahakeyconfig-win-java/src/main/java/com/example/ahakey/model/DeviceStatus.java\nahakeyconfig-win-java/src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java\nahakeyconfig-win-java/src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java\nahakeyconfig-win-java/src/main/java/com/example/ahakey/service/BleManager.java\nahakeyconfig-win-java/src/main/java/com/example/ahakey/view/TopBar.java\nahakeyconfig-win-java/src/main/resources/messages_en.properties\nahakeyconfig-win-java/src/main/resources/messages_zh.properties"
+    }
+  },
+  "historical_claim_scope": "This exact JAR/configuration only; both installer variants NOT tested.",
+  "historical_primary": {
+    "build_receipt_sha256": "c16f5bad0f518fb8fea00f7dee7f97caaf7ac6dc3865092442a2bee260217886",
+    "path": "target/ahakey-studio-1.0.0.jar",
+    "profile_sha256": "c16f5bad0f518fb8fea00f7dee7f97caaf7ac6dc3865092442a2bee260217886"
+  },
+  "historical_product_variant": "shared-source",
+  "index_kind": "HISTORICAL_AND_CURRENT_OBSERVATIONS_ONLY",
+  "installer_validation": "NOT_ESTABLISHED_BY_THIS_TOOL",
+  "not_a_harness_runtime_upgrade": true,
+  "not_test_authorization": true,
+  "receipt_file_comparison": [
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\ahakey-studio-1.0.0.jar",
+      "expected_sha256": "c16f5bad0f518fb8fea00f7dee7f97caaf7ac6dc3865092442a2bee260217886",
+      "observed_sha256": "b9723cdc1f5b5f7eccb4f0a3ff14b87a7668c9cf7a6c307c377c404e8a68be43",
+      "path": "target/ahakey-studio-1.0.0.jar",
+      "status": "MISMATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\ahakey.jpg",
+      "expected_sha256": "a806907c934f0336b040741ecd88fb3381dedbea4b841a00e8bfb9c9ad17d9a9",
+      "observed_sha256": "a806907c934f0336b040741ecd88fb3381dedbea4b841a00e8bfb9c9ad17d9a9",
+      "path": "target/classes/ahakey.jpg",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\App$1.class",
+      "expected_sha256": "ddba7ffae28e454d9807be2f5934778d3c6999aa593bac3f2a62b96fcbefdf86",
+      "observed_sha256": "ddba7ffae28e454d9807be2f5934778d3c6999aa593bac3f2a62b96fcbefdf86",
+      "path": "target/classes/com/example/ahakey/App$1.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\App.class",
+      "expected_sha256": "a405f78993fedcc99fae17abc543f96e35afb162f55dc860119cb02162586698",
+      "observed_sha256": "a405f78993fedcc99fae17abc543f96e35afb162f55dc860119cb02162586698",
+      "path": "target/classes/com/example/ahakey/App.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\Main.class",
+      "expected_sha256": "977dff67ebee51ae9a1601a9022f3ea93b099f9782f02bfcbcadaaaedd505707",
+      "observed_sha256": "977dff67ebee51ae9a1601a9022f3ea93b099f9782f02bfcbcadaaaedd505707",
+      "path": "target/classes/com/example/ahakey/Main.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\SingleInstanceChecker.class",
+      "expected_sha256": "8c8b31424097d58851e7a3f10d5bc795b896b6e4da15262835daa9cf9c69dca4",
+      "observed_sha256": "8c8b31424097d58851e7a3f10d5bc795b896b6e4da15262835daa9cf9c69dca4",
+      "path": "target/classes/com/example/ahakey/SingleInstanceChecker.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\app\\StudioController$1.class",
+      "expected_sha256": "46403b69fe6f8d7c7e7e3f82cb125594bc4231e713132f22135e59d6e66943db",
+      "observed_sha256": "984cc621b314e8e437e0b9a9c9a9e69953a9c99397302678fa7d9cab65b1633b",
+      "path": "target/classes/com/example/ahakey/app/StudioController$1.class",
+      "status": "MISMATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\app\\StudioController.class",
+      "expected_sha256": "1fcbcb6ef670bcbaa82d4535514fcc781fb4462517337acd4d29c01d840e0651",
+      "observed_sha256": "c233136c9278b58290b7e0e13994fbafdf8a5bb69fd10625f4105481542e2bc2",
+      "path": "target/classes/com/example/ahakey/app/StudioController.class",
+      "status": "MISMATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\app\\VoiceInputController.class",
+      "expected_sha256": "f3174fad420f42878d2b02087e428dc3f1ae0ad7862c63379c82de3a54e2ffa9",
+      "observed_sha256": "f3174fad420f42878d2b02087e428dc3f1ae0ad7862c63379c82de3a54e2ffa9",
+      "path": "target/classes/com/example/ahakey/app/VoiceInputController.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\config\\ModelConfig.class",
+      "expected_sha256": "883528e90fa733eb97c975e476be5645fc7455cc410ed8c1b9753922cd5c8207",
+      "observed_sha256": "883528e90fa733eb97c975e476be5645fc7455cc410ed8c1b9753922cd5c8207",
+      "path": "target/classes/com/example/ahakey/config/ModelConfig.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\DeviceStatus.class",
+      "expected_sha256": "3bdd5cde27ed8c3fd04486880cf5c550794bbe3319c48bf5169770057baf8d5c",
+      "observed_sha256": "f61017688721fee590cdefb7009bd044188b3f263684493704edb9b42555a8b0",
+      "path": "target/classes/com/example/ahakey/model/DeviceStatus.class",
+      "status": "MISMATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\HIDUsage.class",
+      "expected_sha256": "837c6fae6b06ca72a79c4bdd3c577f6b9adac79378287ca4b2e5a302be6d1554",
+      "observed_sha256": "837c6fae6b06ca72a79c4bdd3c577f6b9adac79378287ca4b2e5a302be6d1554",
+      "path": "target/classes/com/example/ahakey/model/HIDUsage.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\IDEState.class",
+      "expected_sha256": "e364c99762ca3b48bbe3fe7de3397ab1a77e569972d5c7ce5d03f9135bf2bb41",
+      "observed_sha256": "e364c99762ca3b48bbe3fe7de3397ab1a77e569972d5c7ce5d03f9135bf2bb41",
+      "path": "target/classes/com/example/ahakey/model/IDEState.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\KeyConfig$1.class",
+      "expected_sha256": "28a20790797df9776abb47d2033a110c57023c591fd9dfeb716cc746d9cff326",
+      "observed_sha256": "28a20790797df9776abb47d2033a110c57023c591fd9dfeb716cc746d9cff326",
+      "path": "target/classes/com/example/ahakey/model/KeyConfig$1.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\KeyConfig.class",
+      "expected_sha256": "766a4cf46294e5af18627b7ff2d791ceb8ca89e80ab9917b47679782e939b001",
+      "observed_sha256": "766a4cf46294e5af18627b7ff2d791ceb8ca89e80ab9917b47679782e939b001",
+      "path": "target/classes/com/example/ahakey/model/KeyConfig.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\LightBarPreviewState.class",
+      "expected_sha256": "9334f1d3b79200e90ee146a8f1a94e874340b6ceb95ca941c82595da5e77467a",
+      "observed_sha256": "9334f1d3b79200e90ee146a8f1a94e874340b6ceb95ca941c82595da5e77467a",
+      "path": "target/classes/com/example/ahakey/model/LightBarPreviewState.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\LightEffectStyle$1.class",
+      "expected_sha256": "6719284a25326aa9ec1374e590834fa89ef7e60a6476b3a48c10caf250e6c698",
+      "observed_sha256": "6719284a25326aa9ec1374e590834fa89ef7e60a6476b3a48c10caf250e6c698",
+      "path": "target/classes/com/example/ahakey/model/LightEffectStyle$1.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\LightEffectStyle.class",
+      "expected_sha256": "144eea8cf31f0b7e32f2c8cc96329f1157b2027ca142282f1253c9c93c2b7899",
+      "observed_sha256": "144eea8cf31f0b7e32f2c8cc96329f1157b2027ca142282f1253c9c93c2b7899",
+      "path": "target/classes/com/example/ahakey/model/LightEffectStyle.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\MacroAction.class",
+      "expected_sha256": "bd00ee66a478265e1c50b366499616d78712192250e53892a91f1af1e2255f40",
+      "observed_sha256": "bd00ee66a478265e1c50b366499616d78712192250e53892a91f1af1e2255f40",
+      "path": "target/classes/com/example/ahakey/model/MacroAction.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\MacroStep.class",
+      "expected_sha256": "82643e54a81abbf80285822d1679de438b3b51c0c42f5996340b586937a33ef4",
+      "observed_sha256": "82643e54a81abbf80285822d1679de438b3b51c0c42f5996340b586937a33ef4",
+      "path": "target/classes/com/example/ahakey/model/MacroStep.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\ModeSlot.class",
+      "expected_sha256": "9f93a7c1ad1039286ba3fd9322080570bc78d60a24f1d4a63a1c9479fd2de335",
+      "observed_sha256": "9f93a7c1ad1039286ba3fd9322080570bc78d60a24f1d4a63a1c9479fd2de335",
+      "path": "target/classes/com/example/ahakey/model/ModeSlot.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\OledModeDraft.class",
+      "expected_sha256": "131b7c070f8cbf4b5a361571121e4eebc39d81cb7dace18e85a437d0a8706868",
+      "observed_sha256": "131b7c070f8cbf4b5a361571121e4eebc39d81cb7dace18e85a437d0a8706868",
+      "path": "target/classes/com/example/ahakey/model/OledModeDraft.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\StudioPart.class",
+      "expected_sha256": "0c5558019bec33ff89cc849cc87845b58bc0886630eed8cc1e2e489c1ae722da",
+      "observed_sha256": "0c5558019bec33ff89cc849cc87845b58bc0886630eed8cc1e2e489c1ae722da",
+      "path": "target/classes/com/example/ahakey/model/StudioPart.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\StudioState$1.class",
+      "expected_sha256": "42d95cf55f8a6354d9acc35e6d21ed6e283dd96d2ada18d852bfdd307163b4fc",
+      "observed_sha256": "42d95cf55f8a6354d9acc35e6d21ed6e283dd96d2ada18d852bfdd307163b4fc",
+      "path": "target/classes/com/example/ahakey/model/StudioState$1.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\StudioState$PersistedDraft$ModeDraft.class",
+      "expected_sha256": "2403246850969194c4baecb2383ed2df6c6e62c4c9a7a63a77fee8ae42d66f84",
+      "observed_sha256": "2403246850969194c4baecb2383ed2df6c6e62c4c9a7a63a77fee8ae42d66f84",
+      "path": "target/classes/com/example/ahakey/model/StudioState$PersistedDraft$ModeDraft.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\StudioState$PersistedDraft.class",
+      "expected_sha256": "e3184068fd7b8093b6aae78982a9bab4349f0e6a86c945075a8ad04c04ce889e",
+      "observed_sha256": "e3184068fd7b8093b6aae78982a9bab4349f0e6a86c945075a8ad04c04ce889e",
+      "path": "target/classes/com/example/ahakey/model/StudioState$PersistedDraft.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\StudioState.class",
+      "expected_sha256": "f9409d20ff33deaacd9a601e8fc7bcaa6e4a93a4b915e9170a313989b755dcc2",
+      "observed_sha256": "f9409d20ff33deaacd9a601e8fc7bcaa6e4a93a4b915e9170a313989b755dcc2",
+      "path": "target/classes/com/example/ahakey/model/StudioState.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\VoicePreset$1.class",
+      "expected_sha256": "fbfdbe065a4031b53dd93edcf54744d9495d2ab2686b529e90dec255e5e43c4f",
+      "observed_sha256": "fbfdbe065a4031b53dd93edcf54744d9495d2ab2686b529e90dec255e5e43c4f",
+      "path": "target/classes/com/example/ahakey/model/VoicePreset$1.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\model\\VoicePreset.class",
+      "expected_sha256": "2cae71e4ebea7a2adba893af84b1aa5d9ac20d43657dec093153d061c0bf7ca7",
+      "observed_sha256": "2cae71e4ebea7a2adba893af84b1aa5d9ac20d43657dec093153d061c0bf7ca7",
+      "path": "target/classes/com/example/ahakey/model/VoicePreset.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\platform\\VoiceRelayPlatform.class",
+      "expected_sha256": "d58a1635902022ddc78f8a62d2a722a6a0683cccc1e868e42e7b74921bbdb226",
+      "observed_sha256": "d58a1635902022ddc78f8a62d2a722a6a0683cccc1e868e42e7b74921bbdb226",
+      "path": "target/classes/com/example/ahakey/platform/VoiceRelayPlatform.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\platform\\windows\\WindowsVoiceRelayService$1.class",
+      "expected_sha256": "03cf2c61b6858221a980956fdfe861910d6fe3d38454380a0ef4b0eed8e315e4",
+      "observed_sha256": "03cf2c61b6858221a980956fdfe861910d6fe3d38454380a0ef4b0eed8e315e4",
+      "path": "target/classes/com/example/ahakey/platform/windows/WindowsVoiceRelayService$1.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\platform\\windows\\WindowsVoiceRelayService$VoiceRoute.class",
+      "expected_sha256": "e77082f9e175e4ac20ffed0ca76b74f2eaa1a07c6c64c432be59fc2ae6a5d137",
+      "observed_sha256": "e77082f9e175e4ac20ffed0ca76b74f2eaa1a07c6c64c432be59fc2ae6a5d137",
+      "path": "target/classes/com/example/ahakey/platform/windows/WindowsVoiceRelayService$VoiceRoute.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\platform\\windows\\WindowsVoiceRelayService.class",
+      "expected_sha256": "2abefd9c533e680136829530344b1a2e4ff9fd471a1c4021635bf51b824b5654",
+      "observed_sha256": "2abefd9c533e680136829530344b1a2e4ff9fd471a1c4021635bf51b824b5654",
+      "path": "target/classes/com/example/ahakey/platform/windows/WindowsVoiceRelayService.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\platform\\windows\\WindowsVoiceTyping.class",
+      "expected_sha256": "f02e504b718817c91616b9ca5609a23509d0276dd7b26e3acd973f9a2c524d8b",
+      "observed_sha256": "f02e504b718817c91616b9ca5609a23509d0276dd7b26e3acd973f9a2c524d8b",
+      "path": "target/classes/com/example/ahakey/platform/windows/WindowsVoiceTyping.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\protocol\\AhaKeyProtocol.class",
+      "expected_sha256": "1d06c1f359446ba8b93badf67154d6d38b359f0e2dc585d38d353aabbb4497e1",
+      "observed_sha256": "53d74fdc70f8124325b4272c95699580a69c3934ecbaf906e680b1837f1e0472",
+      "path": "target/classes/com/example/ahakey/protocol/AhaKeyProtocol.class",
+      "status": "MISMATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\protocol\\AhaKeyResponseParser$CommandResponse.class",
+      "expected_sha256": "324fadf3e860564a1963a02c3492ff08b747ce74622a7150c990c4dc2bb25afe",
+      "observed_sha256": "67797f4e54081634314a5b78b049aba1ea569171c94d8e1b4121efa3cc75fff4",
+      "path": "target/classes/com/example/ahakey/protocol/AhaKeyResponseParser$CommandResponse.class",
+      "status": "MISMATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\protocol\\AhaKeyResponseParser$PictureState.class",
+      "expected_sha256": "143673b652112f4730f846a37e13c03ae5dfed59ff8e0f3730410792b88c81d5",
+      "observed_sha256": "828c3381d46eb52221d2d8ef24f7819accd79bea923b4de410c0ba5a8e4442b9",
+      "path": "target/classes/com/example/ahakey/protocol/AhaKeyResponseParser$PictureState.class",
+      "status": "MISMATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\protocol\\AhaKeyResponseParser$SleepWaitTimeResponse.class",
+      "expected_sha256": "12f978e9888c8862590f2050abf3542962a4a1928403e26de8322d565b85d211",
+      "observed_sha256": "2cf8d3c21d651d7fab42d55c51cc08be160123b6e4d08bd4e5bef32a01bcc750",
+      "path": "target/classes/com/example/ahakey/protocol/AhaKeyResponseParser$SleepWaitTimeResponse.class",
+      "status": "MISMATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\protocol\\AhaKeyResponseParser.class",
+      "expected_sha256": "3287051a312beefdd8f1801c7b3c17e49667bdddc007e0af42a0d4489dd9f251",
+      "observed_sha256": "eba77a86d26409934b0aed42a95a037bb5111d31a8475fd946b832ad2f7a8816",
+      "path": "target/classes/com/example/ahakey/protocol/AhaKeyResponseParser.class",
+      "status": "MISMATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\protocol\\BleTcpPacket$ParsedPacket.class",
+      "expected_sha256": "62d048784f984d3317845d8c0b5bd11099b334fe333b7fe061c227cd0d1b9b6b",
+      "observed_sha256": "62d048784f984d3317845d8c0b5bd11099b334fe333b7fe061c227cd0d1b9b6b",
+      "path": "target/classes/com/example/ahakey/protocol/BleTcpPacket$ParsedPacket.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\protocol\\BleTcpPacket.class",
+      "expected_sha256": "3d834ed28ae2c23a251219536f60f0346f5369e692287ca5400f187bddeedec7",
+      "observed_sha256": "3d834ed28ae2c23a251219536f60f0346f5369e692287ca5400f187bddeedec7",
+      "path": "target/classes/com/example/ahakey/protocol/BleTcpPacket.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\AgentManager$BluetoothOwner.class",
+      "expected_sha256": "ab87436179bff6beaded27f4f1e2061d8298c6d1fc010eeb06ccd3096a8f4e68",
+      "observed_sha256": "ab87436179bff6beaded27f4f1e2061d8298c6d1fc010eeb06ccd3096a8f4e68",
+      "path": "target/classes/com/example/ahakey/service/AgentManager$BluetoothOwner.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\AgentManager.class",
+      "expected_sha256": "7ba2f1cc97f45651f32c15864d7f04658f4507ea00a443c914ff6918e4b69c07",
+      "observed_sha256": "7ba2f1cc97f45651f32c15864d7f04658f4507ea00a443c914ff6918e4b69c07",
+      "path": "target/classes/com/example/ahakey/service/AgentManager.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\BleManager$BleCallback.class",
+      "expected_sha256": "5e67d11ab0408479d681c54b2d20966c9ebc9d89ebcf7ce83abbb27a100bed85",
+      "observed_sha256": "5e67d11ab0408479d681c54b2d20966c9ebc9d89ebcf7ce83abbb27a100bed85",
+      "path": "target/classes/com/example/ahakey/service/BleManager$BleCallback.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\BleManager.class",
+      "expected_sha256": "64729dca9c15b7e426154b4dc0fb302a122330856dd746cb0efb6abdc8591907",
+      "observed_sha256": "1bcc2338b571c825c985a3a1c283ff6ea6278bf6b726a089af67cc8b04ef0246",
+      "path": "target/classes/com/example/ahakey/service/BleManager.class",
+      "status": "MISMATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\DeviceSyncService$LabeledCommand.class",
+      "expected_sha256": "c92274cd13ad1b61a6ab909c121c8cd5fd224dfa2f50aa9f247c69dc9f886813",
+      "observed_sha256": "c92274cd13ad1b61a6ab909c121c8cd5fd224dfa2f50aa9f247c69dc9f886813",
+      "path": "target/classes/com/example/ahakey/service/DeviceSyncService$LabeledCommand.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\DeviceSyncService.class",
+      "expected_sha256": "e1cc81d8d951867aad7d36f12b56c710a3f9950919b4299965dfca77df0a3e95",
+      "observed_sha256": "e1cc81d8d951867aad7d36f12b56c710a3f9950919b4299965dfca77df0a3e95",
+      "path": "target/classes/com/example/ahakey/service/DeviceSyncService.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\HookClient.class",
+      "expected_sha256": "18d2fb2a936b60e25e550e01a75be0c1a6ff2d5baaae4a8337d9a5f584b4c628",
+      "observed_sha256": "18d2fb2a936b60e25e550e01a75be0c1a6ff2d5baaae4a8337d9a5f584b4c628",
+      "path": "target/classes/com/example/ahakey/service/HookClient.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\HookDispatchServer$1.class",
+      "expected_sha256": "1189855da4893c809ed138c9d47303914a17fa2b8884208fb9cf460e9ff0ae51",
+      "observed_sha256": "1189855da4893c809ed138c9d47303914a17fa2b8884208fb9cf460e9ff0ae51",
+      "path": "target/classes/com/example/ahakey/service/HookDispatchServer$1.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\HookDispatchServer$ApprovalCallback.class",
+      "expected_sha256": "94ffb2edc773794598119224f12d1aeea58d57c138ba22a0984e0ecbd620465d",
+      "observed_sha256": "94ffb2edc773794598119224f12d1aeea58d57c138ba22a0984e0ecbd620465d",
+      "path": "target/classes/com/example/ahakey/service/HookDispatchServer$ApprovalCallback.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\HookDispatchServer$EventEntry.class",
+      "expected_sha256": "fcc819c94fd28d7db6dc738d6863465ffb65605f60f055bb925391ac37b21371",
+      "observed_sha256": "fcc819c94fd28d7db6dc738d6863465ffb65605f60f055bb925391ac37b21371",
+      "path": "target/classes/com/example/ahakey/service/HookDispatchServer$EventEntry.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\HookDispatchServer$Platform.class",
+      "expected_sha256": "910664c86f8d6e170a032a85caaac2bab47601954c0fb81e51fe91e2935c2ff1",
+      "observed_sha256": "910664c86f8d6e170a032a85caaac2bab47601954c0fb81e51fe91e2935c2ff1",
+      "path": "target/classes/com/example/ahakey/service/HookDispatchServer$Platform.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\HookDispatchServer.class",
+      "expected_sha256": "ddf7853bf8408468ee8afa791b8f306ce685b08bd0c277a6f46ffad305faa35a",
+      "observed_sha256": "ddf7853bf8408468ee8afa791b8f306ce685b08bd0c277a6f46ffad305faa35a",
+      "path": "target/classes/com/example/ahakey/service/HookDispatchServer.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\HookInstaller.class",
+      "expected_sha256": "745f01d5bd6e7cbfdce3af45d86ec3098880f567ea0078b82f3e5ad7f6105e52",
+      "observed_sha256": "745f01d5bd6e7cbfdce3af45d86ec3098880f567ea0078b82f3e5ad7f6105e52",
+      "path": "target/classes/com/example/ahakey/service/HookInstaller.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\KeyboardInjector.class",
+      "expected_sha256": "be20e25946aabc858f47190bfb2abf5b36b2ca2ea28a2f455149324fa43bcdc3",
+      "observed_sha256": "be20e25946aabc858f47190bfb2abf5b36b2ca2ea28a2f455149324fa43bcdc3",
+      "path": "target/classes/com/example/ahakey/service/KeyboardInjector.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\KimiAhaKeyBridge.class",
+      "expected_sha256": "9c573a0c45b4ddcbd4d5010c1b4da6d32dc93193fa6809fb22033a2836538138",
+      "observed_sha256": "9c573a0c45b4ddcbd4d5010c1b4da6d32dc93193fa6809fb22033a2836538138",
+      "path": "target/classes/com/example/ahakey/service/KimiAhaKeyBridge.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\KimiConfigLeverSync.class",
+      "expected_sha256": "9f17dd0b3be635896a4e395d8401f35f6ffd05eed51252172d0be6f642958dc2",
+      "observed_sha256": "9f17dd0b3be635896a4e395d8401f35f6ffd05eed51252172d0be6f642958dc2",
+      "path": "target/classes/com/example/ahakey/service/KimiConfigLeverSync.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\OledUploadService$UploadPlan.class",
+      "expected_sha256": "24e285adfdb046f5194b0f356db3615f9cc70d52d4e6ae920537b9f76a17e995",
+      "observed_sha256": "24e285adfdb046f5194b0f356db3615f9cc70d52d4e6ae920537b9f76a17e995",
+      "path": "target/classes/com/example/ahakey/service/OledUploadService$UploadPlan.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\OledUploadService$UploadProgress.class",
+      "expected_sha256": "d49c37211e944314396129e242c8aea203cb42a08ee2e2c22d781b82f020009d",
+      "observed_sha256": "d49c37211e944314396129e242c8aea203cb42a08ee2e2c22d781b82f020009d",
+      "path": "target/classes/com/example/ahakey/service/OledUploadService$UploadProgress.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\OledUploadService.class",
+      "expected_sha256": "3dd41dbcb76c992dbe5c7262a28195f76edd52f85e95bb35b7b71e919f8f812c",
+      "observed_sha256": "3dd41dbcb76c992dbe5c7262a28195f76edd52f85e95bb35b7b71e919f8f812c",
+      "path": "target/classes/com/example/ahakey/service/OledUploadService.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\SocketServer.class",
+      "expected_sha256": "58f520a238b6d5a8d3dbf9f346d489529102f34b976932a755a0e9fc26c1dafb",
+      "observed_sha256": "58f520a238b6d5a8d3dbf9f346d489529102f34b976932a755a0e9fc26c1dafb",
+      "path": "target/classes/com/example/ahakey/service/SocketServer.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\SpeechService$Consumer.class",
+      "expected_sha256": "96e99570bf2398931f00d88660efaa4a8e3ca12ac43d1f90cb0cd84b8fa6f05a",
+      "observed_sha256": "96e99570bf2398931f00d88660efaa4a8e3ca12ac43d1f90cb0cd84b8fa6f05a",
+      "path": "target/classes/com/example/ahakey/service/SpeechService$Consumer.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\SpeechService.class",
+      "expected_sha256": "992c10eb750651956748089ecca379d0a33e3603072bf6f7150c8f420800a9ee",
+      "observed_sha256": "992c10eb750651956748089ecca379d0a33e3603072bf6f7150c8f420800a9ee",
+      "path": "target/classes/com/example/ahakey/service/SpeechService.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\UsbHidTransport$Guid$GUID.class",
+      "expected_sha256": "3fef4619be4c80b45758e4f05c8bb9e5248e543b1e472d60ccb7c859be775f8c",
+      "observed_sha256": "3fef4619be4c80b45758e4f05c8bb9e5248e543b1e472d60ccb7c859be775f8c",
+      "path": "target/classes/com/example/ahakey/service/UsbHidTransport$Guid$GUID.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\UsbHidTransport$Guid.class",
+      "expected_sha256": "b660259622a8651b87129dc87f66e9ae1b187f37a3b42a76146af4b3e0c1c405",
+      "observed_sha256": "b660259622a8651b87129dc87f66e9ae1b187f37a3b42a76146af4b3e0c1c405",
+      "path": "target/classes/com/example/ahakey/service/UsbHidTransport$Guid.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\UsbHidTransport$Hid.class",
+      "expected_sha256": "57c09ff4bd7f165a8dcbd1a577ea31a890b216e9622192eaecf6180a5cef99df",
+      "observed_sha256": "57c09ff4bd7f165a8dcbd1a577ea31a890b216e9622192eaecf6180a5cef99df",
+      "path": "target/classes/com/example/ahakey/service/UsbHidTransport$Hid.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\UsbHidTransport$Kernel32.class",
+      "expected_sha256": "9b0b50fc9befaeb0cc13b426c6d69e4a24a000087002fd3c5e3d4051828fe900",
+      "observed_sha256": "9b0b50fc9befaeb0cc13b426c6d69e4a24a000087002fd3c5e3d4051828fe900",
+      "path": "target/classes/com/example/ahakey/service/UsbHidTransport$Kernel32.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\UsbHidTransport$SP_DEVICE_INTERFACE_DATA.class",
+      "expected_sha256": "166b524535bf860e048b7637617fee658605b4dca345adb7d41e3375eb63a228",
+      "observed_sha256": "166b524535bf860e048b7637617fee658605b4dca345adb7d41e3375eb63a228",
+      "path": "target/classes/com/example/ahakey/service/UsbHidTransport$SP_DEVICE_INTERFACE_DATA.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\UsbHidTransport$SP_DEVICE_INTERFACE_DETAIL_DATA.class",
+      "expected_sha256": "eab887123c73d26a5d53331fe677b74c4f73e03ec1c48038ac76944aa0545b4e",
+      "observed_sha256": "eab887123c73d26a5d53331fe677b74c4f73e03ec1c48038ac76944aa0545b4e",
+      "path": "target/classes/com/example/ahakey/service/UsbHidTransport$SP_DEVICE_INTERFACE_DETAIL_DATA.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\UsbHidTransport$SetupApi.class",
+      "expected_sha256": "f02926c35d38a079e482c5a1d1d047cb345ae7cd7e1c42d5800fc481eba542d6",
+      "observed_sha256": "f02926c35d38a079e482c5a1d1d047cb345ae7cd7e1c42d5800fc481eba542d6",
+      "path": "target/classes/com/example/ahakey/service/UsbHidTransport$SetupApi.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\UsbHidTransport.class",
+      "expected_sha256": "64ef6c6e9c2a9ac0fed96d8fffaf8ec3e674dc29237cd11c4d260ee29754e491",
+      "observed_sha256": "64ef6c6e9c2a9ac0fed96d8fffaf8ec3e674dc29237cd11c4d260ee29754e491",
+      "path": "target/classes/com/example/ahakey/service/UsbHidTransport.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\VoiceInputManager$Consumer.class",
+      "expected_sha256": "8f9bd26d8a50d58c9b61daa6393810b693b24128830f74ce17ee024179a945d6",
+      "observed_sha256": "8f9bd26d8a50d58c9b61daa6393810b693b24128830f74ce17ee024179a945d6",
+      "path": "target/classes/com/example/ahakey/service/VoiceInputManager$Consumer.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\VoiceInputManager$VoiceStatus.class",
+      "expected_sha256": "a585f97a924f79d3b7ff0c20e164363876370d697caf70716e1458c2ea07da2e",
+      "observed_sha256": "a585f97a924f79d3b7ff0c20e164363876370d697caf70716e1458c2ea07da2e",
+      "path": "target/classes/com/example/ahakey/service/VoiceInputManager$VoiceStatus.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\service\\VoiceInputManager.class",
+      "expected_sha256": "ed9ad9c11f8abac9e4e38ad25ea6c76ea40d5635604b2844534d456b62639664",
+      "observed_sha256": "ed9ad9c11f8abac9e4e38ad25ea6c76ea40d5635604b2844534d456b62639664",
+      "path": "target/classes/com/example/ahakey/service/VoiceInputManager.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\sherpa\\LibraryLoader.class",
+      "expected_sha256": "06ddab0aad8d39e7586d1ac883dc034a0fa7e117a99f15c38d3ea72aa9c39488",
+      "observed_sha256": "06ddab0aad8d39e7586d1ac883dc034a0fa7e117a99f15c38d3ea72aa9c39488",
+      "path": "target/classes/com/example/ahakey/sherpa/LibraryLoader.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\util\\ConfigStore$1.class",
+      "expected_sha256": "6e0623066fc64ecf8dc2a105918f5f12080e9f3aa284b3e8e7bc88dd6a12d10d",
+      "observed_sha256": "6e0623066fc64ecf8dc2a105918f5f12080e9f3aa284b3e8e7bc88dd6a12d10d",
+      "path": "target/classes/com/example/ahakey/util/ConfigStore$1.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\util\\ConfigStore.class",
+      "expected_sha256": "e915dbb2adf8112a28baabe9855703852dd6423005fddc82298ed7526f199cd5",
+      "observed_sha256": "e915dbb2adf8112a28baabe9855703852dd6423005fddc82298ed7526f199cd5",
+      "path": "target/classes/com/example/ahakey/util/ConfigStore.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\util\\Icons.class",
+      "expected_sha256": "a995d9893e40487b99635708356fc92e3b678691cd0847852a0d77e3b5b2aa07",
+      "observed_sha256": "a995d9893e40487b99635708356fc92e3b678691cd0847852a0d77e3b5b2aa07",
+      "path": "target/classes/com/example/ahakey/util/Icons.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\util\\LanguageManager$LanguageChangeListener.class",
+      "expected_sha256": "98a08581fdd14dee84af257f1e7184604883f843caa098d8e1a85a83332a1bf8",
+      "observed_sha256": "98a08581fdd14dee84af257f1e7184604883f843caa098d8e1a85a83332a1bf8",
+      "path": "target/classes/com/example/ahakey/util/LanguageManager$LanguageChangeListener.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\util\\LanguageManager$LanguageChangeNotifier.class",
+      "expected_sha256": "66857b3673f945bf1a66d69e41511d73d91b1c8b38c809c5c3cc8287b66a389d",
+      "observed_sha256": "66857b3673f945bf1a66d69e41511d73d91b1c8b38c809c5c3cc8287b66a389d",
+      "path": "target/classes/com/example/ahakey/util/LanguageManager$LanguageChangeNotifier.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\util\\LanguageManager.class",
+      "expected_sha256": "7ac0efd281e53db3d930748cf3f54383df29f81012bca13c155cc88de108f8bb",
+      "observed_sha256": "7ac0efd281e53db3d930748cf3f54383df29f81012bca13c155cc88de108f8bb",
+      "path": "target/classes/com/example/ahakey/util/LanguageManager.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\util\\OLEDFrameEncoder$EncodedFrame.class",
+      "expected_sha256": "eccbbe1ee9da9f87f7ca32e0d55207a2c77c78f9c546f3200940bfad7bb75805",
+      "observed_sha256": "eccbbe1ee9da9f87f7ca32e0d55207a2c77c78f9c546f3200940bfad7bb75805",
+      "path": "target/classes/com/example/ahakey/util/OLEDFrameEncoder$EncodedFrame.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\util\\OLEDFrameEncoder.class",
+      "expected_sha256": "1d48f953b50ec4d778f4f0838a46bfd4a452968984355bcc5142b7adf332a521",
+      "observed_sha256": "1d48f953b50ec4d778f4f0838a46bfd4a452968984355bcc5142b7adf332a521",
+      "path": "target/classes/com/example/ahakey/util/OLEDFrameEncoder.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\util\\StudioStore.class",
+      "expected_sha256": "347314dcd213ed707f5ca1fbb80eb68926ade081a88ccd1612fc738fbdd28592",
+      "observed_sha256": "347314dcd213ed707f5ca1fbb80eb68926ade081a88ccd1612fc738fbdd28592",
+      "path": "target/classes/com/example/ahakey/util/StudioStore.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\view\\AccentColor.class",
+      "expected_sha256": "fd4ddb46da63f5192de017d558628470cde22f37e7430f87387245f8e518474a",
+      "observed_sha256": "fd4ddb46da63f5192de017d558628470cde22f37e7430f87387245f8e518474a",
+      "path": "target/classes/com/example/ahakey/view/AccentColor.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\view\\CanvasController$1.class",
+      "expected_sha256": "c88c5b27985be64698095c7c344b6c8cb68dde8a096eded30d0bed9ae00b09cd",
+      "observed_sha256": "c88c5b27985be64698095c7c344b6c8cb68dde8a096eded30d0bed9ae00b09cd",
+      "path": "target/classes/com/example/ahakey/view/CanvasController$1.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\view\\CanvasController.class",
+      "expected_sha256": "33a0de028207bb2164f725ae490e974bc1004315cbdf8f63eeaf2bc17e8ce906",
+      "observed_sha256": "33a0de028207bb2164f725ae490e974bc1004315cbdf8f63eeaf2bc17e8ce906",
+      "path": "target/classes/com/example/ahakey/view/CanvasController.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\view\\CanvasPane.class",
+      "expected_sha256": "3f2590f7d60a9df3066188ad2293420ee95aeadd49f436104da1581bd844d484",
+      "observed_sha256": "3f2590f7d60a9df3066188ad2293420ee95aeadd49f436104da1581bd844d484",
+      "path": "target/classes/com/example/ahakey/view/CanvasPane.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\view\\FloatingVoiceNotification$1.class",
+      "expected_sha256": "ff297d93c62f8510f57212b37066122e286bf0b7e36cacadb1673b999e1d2257",
+      "observed_sha256": "ff297d93c62f8510f57212b37066122e286bf0b7e36cacadb1673b999e1d2257",
+      "path": "target/classes/com/example/ahakey/view/FloatingVoiceNotification$1.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\view\\FloatingVoiceNotification$AnimationTimer.class",
+      "expected_sha256": "dd55d66d36304214045d4129017ad4162a9b58165bf188e0cbf6c30cf36d5f7d",
+      "observed_sha256": "dd55d66d36304214045d4129017ad4162a9b58165bf188e0cbf6c30cf36d5f7d",
+      "path": "target/classes/com/example/ahakey/view/FloatingVoiceNotification$AnimationTimer.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\view\\FloatingVoiceNotification$StatusConfig.class",
+      "expected_sha256": "4c4cb4e6108a2d4adf9bc4047ac3535e061ade5df5d70c101b5e695bf8da2355",
+      "observed_sha256": "4c4cb4e6108a2d4adf9bc4047ac3535e061ade5df5d70c101b5e695bf8da2355",
+      "path": "target/classes/com/example/ahakey/view/FloatingVoiceNotification$StatusConfig.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\view\\FloatingVoiceNotification.class",
+      "expected_sha256": "a9ef47e2adca879d529e16f980d1c5b4498f1c028449f3eac80eed1504329dcd",
+      "observed_sha256": "a9ef47e2adca879d529e16f980d1c5b4498f1c028449f3eac80eed1504329dcd",
+      "path": "target/classes/com/example/ahakey/view/FloatingVoiceNotification.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\view\\InfoPill.class",
+      "expected_sha256": "03d49c9de3c3948a293b1307b077337f17c70e4d0cab33b91a4ad78d4a32fa98",
+      "observed_sha256": "03d49c9de3c3948a293b1307b077337f17c70e4d0cab33b91a4ad78d4a32fa98",
+      "path": "target/classes/com/example/ahakey/view/InfoPill.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\view\\InspectorPane$1.class",
+      "expected_sha256": "62f9c941bf0fc7c9a350ce5b65b8548431e6c8f7464d520c41aa76b0a16625c3",
+      "observed_sha256": "62f9c941bf0fc7c9a350ce5b65b8548431e6c8f7464d520c41aa76b0a16625c3",
+      "path": "target/classes/com/example/ahakey/view/InspectorPane$1.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\view\\InspectorPane.class",
+      "expected_sha256": "bbfb5c2b28ba7ee546a0a353fcfe9b77f63884e8b122b714c3d96e94be7987ae",
+      "observed_sha256": "bbfb5c2b28ba7ee546a0a353fcfe9b77f63884e8b122b714c3d96e94be7987ae",
+      "path": "target/classes/com/example/ahakey/view/InspectorPane.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\view\\StatusBar.class",
+      "expected_sha256": "49d174bcb5c2575ddc44fbe94b34bc314ed8cd7811861614f1398846dc646e27",
+      "observed_sha256": "49d174bcb5c2575ddc44fbe94b34bc314ed8cd7811861614f1398846dc646e27",
+      "path": "target/classes/com/example/ahakey/view/StatusBar.class",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\view\\TopBar$SleepWaitTimeOption.class",
+      "expected_sha256": "be8b0ef6d3c602351cb7d30f46b1dcfc0c1a7507ab28ef24e34ffee838de422f",
+      "observed_sha256": "997db13c055167ab4b15d5d74258806b94014387fed813f153b5382abb2172aa",
+      "path": "target/classes/com/example/ahakey/view/TopBar$SleepWaitTimeOption.class",
+      "status": "MISMATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\view\\TopBar$VoiceStatusLamp$1.class",
+      "expected_sha256": "644216f1f68e670a42269fdb55703687909946ee0a199c02c42c2907dc0d8484",
+      "observed_sha256": "471c1e7b0eacf608d4c985ed83d1574ba8221ba63deaf2cad6166793eb71e69d",
+      "path": "target/classes/com/example/ahakey/view/TopBar$VoiceStatusLamp$1.class",
+      "status": "MISMATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\view\\TopBar$VoiceStatusLamp.class",
+      "expected_sha256": "b8cba73b7b152fa2a38e3da976201df32b3014bfef314c6264c0ee940268c61d",
+      "observed_sha256": "e8b1009e4275e52bb042f7690f7ec54d927dc27cf973f285d0fc4b9ca4a2837b",
+      "path": "target/classes/com/example/ahakey/view/TopBar$VoiceStatusLamp.class",
+      "status": "MISMATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\com\\example\\ahakey\\view\\TopBar.class",
+      "expected_sha256": "959759b7cb660bcc0a5daf7ea5d31ed44468990240979233d17c61a091357594",
+      "observed_sha256": "144bd6d445bb91275a9787e768881659f26ea3222a1babde3b30ba6e37ce0ed3",
+      "path": "target/classes/com/example/ahakey/view/TopBar.class",
+      "status": "MISMATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\fxml\\CanvasLayout.fxml",
+      "expected_sha256": "36dd93fc46d0d52a4c4897a4d2c700d14c087a5bb204535ad552501aea7dd971",
+      "observed_sha256": "36dd93fc46d0d52a4c4897a4d2c700d14c087a5bb204535ad552501aea7dd971",
+      "path": "target/classes/fxml/CanvasLayout.fxml",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\fxml\\VoiceInputPanel.fxml",
+      "expected_sha256": "e3b3a36fd6e1ee7f19945b86c9ad5cdbfd98726e8809462bfa47f57154cce096",
+      "observed_sha256": "e3b3a36fd6e1ee7f19945b86c9ad5cdbfd98726e8809462bfa47f57154cce096",
+      "path": "target/classes/fxml/VoiceInputPanel.fxml",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\logback.xml",
+      "expected_sha256": "714a434a5aa5e4b61fd7f83ddcb2d88da3f69295b7cdf93a5bdabea3cca149fa",
+      "observed_sha256": "714a434a5aa5e4b61fd7f83ddcb2d88da3f69295b7cdf93a5bdabea3cca149fa",
+      "path": "target/classes/logback.xml",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\messages_en.properties",
+      "expected_sha256": "bbe8431185e76caffb9b6afba032bdb838277b7f9ca68aac5d63367a4744e700",
+      "observed_sha256": "88bc4b10b7d3a476c5b572a2dfc2af1b16daf6ec676d6a58e6d05d22b53b223a",
+      "path": "target/classes/messages_en.properties",
+      "status": "MISMATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\messages_zh.properties",
+      "expected_sha256": "592d49ea4e33a83fb1854a86a65c8ce87f954b73ca6c08511b95d8b0e48a7ec8",
+      "observed_sha256": "c833f7df933e07eca7348f4d05727e4354efb5f834065dc368878315604e68f2",
+      "path": "target/classes/messages_zh.properties",
+      "status": "MISMATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\model_config.properties",
+      "expected_sha256": "a32fc4ef090ce3e4c72634f5888fe74462487bf8781a6494ff9e74741f80cbd5",
+      "observed_sha256": "a32fc4ef090ce3e4c72634f5888fe74462487bf8781a6494ff9e74741f80cbd5",
+      "path": "target/classes/model_config.properties",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\classes\\style.css",
+      "expected_sha256": "1bd61461665f4e846c138de284d04db54251a322705b2c41059f7892f771246e",
+      "observed_sha256": "1bd61461665f4e846c138de284d04db54251a322705b2c41059f7892f771246e",
+      "path": "target/classes/style.css",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\jackson-annotations-2.16.0.jar",
+      "expected_sha256": "c4b90ea0c0074da17efdc3aa23973525f25d6f34725692169748f529547334a6",
+      "observed_sha256": "c4b90ea0c0074da17efdc3aa23973525f25d6f34725692169748f529547334a6",
+      "path": "target/lib/jackson-annotations-2.16.0.jar",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\jackson-core-2.16.0.jar",
+      "expected_sha256": "66e2cde4cc7e565d5fce2a2998b64e991777bf9fad4d220735c525fd8d01c31a",
+      "observed_sha256": "66e2cde4cc7e565d5fce2a2998b64e991777bf9fad4d220735c525fd8d01c31a",
+      "path": "target/lib/jackson-core-2.16.0.jar",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\jackson-databind-2.16.0.jar",
+      "expected_sha256": "8aaf1753823be70b798290e5826ab5bfe015d35b3a36a5d3c2ec9f57d4b0138b",
+      "observed_sha256": "8aaf1753823be70b798290e5826ab5bfe015d35b3a36a5d3c2ec9f57d4b0138b",
+      "path": "target/lib/jackson-databind-2.16.0.jar",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\javafx-base-17.0.10-win.jar",
+      "expected_sha256": "79487133c4c27e9db9d47ec9221ef322eb3695c50aacefe2dcac924ae368b2b6",
+      "observed_sha256": "79487133c4c27e9db9d47ec9221ef322eb3695c50aacefe2dcac924ae368b2b6",
+      "path": "target/lib/javafx-base-17.0.10-win.jar",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\javafx-base-17.0.10.jar",
+      "expected_sha256": "9aff54b645962383d0167610a2e734d644bc9616445b9435604afa9c2ec38a96",
+      "observed_sha256": "9aff54b645962383d0167610a2e734d644bc9616445b9435604afa9c2ec38a96",
+      "path": "target/lib/javafx-base-17.0.10.jar",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\javafx-controls-17.0.10-win.jar",
+      "expected_sha256": "0e60640b3217275b44418fc908e4320fbc4e4511096240141e213e7a8abea6fe",
+      "observed_sha256": "0e60640b3217275b44418fc908e4320fbc4e4511096240141e213e7a8abea6fe",
+      "path": "target/lib/javafx-controls-17.0.10-win.jar",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\javafx-controls-17.0.10.jar",
+      "expected_sha256": "e315426bb3ce3211f6b9ce63107f4bdd6aa078f0d266636d418cd00909d57c88",
+      "observed_sha256": "e315426bb3ce3211f6b9ce63107f4bdd6aa078f0d266636d418cd00909d57c88",
+      "path": "target/lib/javafx-controls-17.0.10.jar",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\javafx-fxml-17.0.10-win.jar",
+      "expected_sha256": "a97363c188a3a238e7b9adadc0c00617110f479fed6b8ac9898dcce13c6924db",
+      "observed_sha256": "a97363c188a3a238e7b9adadc0c00617110f479fed6b8ac9898dcce13c6924db",
+      "path": "target/lib/javafx-fxml-17.0.10-win.jar",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\javafx-fxml-17.0.10.jar",
+      "expected_sha256": "4704658510b80759bbf46d3a77351821b5942ac355ae5f8a86af30037b56dd25",
+      "observed_sha256": "4704658510b80759bbf46d3a77351821b5942ac355ae5f8a86af30037b56dd25",
+      "path": "target/lib/javafx-fxml-17.0.10.jar",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\javafx-graphics-17.0.10-win.jar",
+      "expected_sha256": "4c987a834e9ad0f6a0e5991d36d1940ae7b74be302c2a098ee8c20676fe0e2da",
+      "observed_sha256": "4c987a834e9ad0f6a0e5991d36d1940ae7b74be302c2a098ee8c20676fe0e2da",
+      "path": "target/lib/javafx-graphics-17.0.10-win.jar",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\javafx-graphics-17.0.10.jar",
+      "expected_sha256": "ce23db5a755c5713451698e7b8e0ccca4bbc6f2fb8fb673576f86a613753d2d1",
+      "observed_sha256": "ce23db5a755c5713451698e7b8e0ccca4bbc6f2fb8fb673576f86a613753d2d1",
+      "path": "target/lib/javafx-graphics-17.0.10.jar",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\jna-5.14.0.jar",
+      "expected_sha256": "34ed1e1f27fa896bca50dbc4e99cf3732967cec387a7a0d5e3486c09673fe8c6",
+      "observed_sha256": "34ed1e1f27fa896bca50dbc4e99cf3732967cec387a7a0d5e3486c09673fe8c6",
+      "path": "target/lib/jna-5.14.0.jar",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\jna-platform-5.14.0.jar",
+      "expected_sha256": "ae4caceb3840730c2537f9b7fb55a01baba580286b4122951488bcee558c2449",
+      "observed_sha256": "ae4caceb3840730c2537f9b7fb55a01baba580286b4122951488bcee558c2449",
+      "path": "target/lib/jna-platform-5.14.0.jar",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\logback-classic-1.4.11.jar",
+      "expected_sha256": "05850fca185dfa652969ed1e3864e365c0d724737a0f4ec68574baad1d855a0e",
+      "observed_sha256": "05850fca185dfa652969ed1e3864e365c0d724737a0f4ec68574baad1d855a0e",
+      "path": "target/lib/logback-classic-1.4.11.jar",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\logback-core-1.4.11.jar",
+      "expected_sha256": "37ee7367bd24ca87ef77430119a1cb814a76b240afab5c17f802ea383f58aca1",
+      "observed_sha256": "37ee7367bd24ca87ef77430119a1cb814a76b240afab5c17f802ea383f58aca1",
+      "path": "target/lib/logback-core-1.4.11.jar",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\onnxruntime-1.16.3.jar",
+      "expected_sha256": "a1722f61d5d99e8ba1c3bdcadbd47c91678888359f50e90c0b2126579f5a3850",
+      "observed_sha256": "a1722f61d5d99e8ba1c3bdcadbd47c91678888359f50e90c0b2126579f5a3850",
+      "path": "target/lib/onnxruntime-1.16.3.jar",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\slf4j-api-2.0.9.jar",
+      "expected_sha256": "0818930dc8d7debb403204611691da58e49d42c50b6ffcfdce02dadb7c3c2b6c",
+      "observed_sha256": "0818930dc8d7debb403204611691da58e49d42c50b6ffcfdce02dadb7c3c2b6c",
+      "path": "target/lib/slf4j-api-2.0.9.jar",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\maven-archiver\\pom.properties",
+      "expected_sha256": "6141c67b67808f8890749048fe4f2e798b95f3dcd31b8a729ce9ef87ac10a8fe",
+      "observed_sha256": "6141c67b67808f8890749048fe4f2e798b95f3dcd31b8a729ce9ef87ac10a8fe",
+      "path": "target/maven-archiver/pom.properties",
+      "status": "MATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\maven-status\\maven-compiler-plugin\\compile\\default-compile\\createdFiles.lst",
+      "expected_sha256": "e309e2f07a00f5f57d809bb1fe13aed3bd58ccecd60a2b5bdd5aad303c9a3fb1",
+      "observed_sha256": "ba711e16c76bb9f9c8eeff674b91734d6d5e8ca212786b52c1d190ee7221f03f",
+      "path": "target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst",
+      "status": "MISMATCH"
+    },
+    {
+      "absolute_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\maven-status\\maven-compiler-plugin\\compile\\default-compile\\inputFiles.lst",
+      "expected_sha256": "4c27e13cf52a799b5f7365a640a3814e5dd2d8819aa3f4cbb6cf599e52a65adf",
+      "observed_sha256": "4c27e13cf52a799b5f7365a640a3814e5dd2d8819aa3f4cbb6cf599e52a65adf",
+      "path": "target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst",
+      "status": "MATCH"
+    }
+  ],
+  "schema_version": 1,
+  "source_plan_sha256": "f97277c0b836df5826eca08a9e7e711b8305745df80c3cc3af5efcc34f073cfc",
+  "source_records": {
+    "ACCEPTANCE_COVERAGE.json": {
+      "path": ".ahakey-desktop-harness/changes/WD-001/ACCEPTANCE_COVERAGE.json",
+      "sha256": "9a37eace522129ad2aa1e44a4c38ac5a96b65bb9b04c621b15a0cc862cef084c"
+    },
+    "BUILD_RECEIPT.json": {
+      "path": ".ahakey-desktop-harness/changes/WD-001/BUILD_RECEIPT.json",
+      "sha256": "4bff770d9efae5a87326513aa6596871796c2e1e5487b5f897591b2c82c394ea"
+    },
+    "CONTRACT.md": {
+      "path": ".ahakey-desktop-harness/changes/WD-001/CONTRACT.md",
+      "sha256": "287e8c22b79282130cc7595c96da050f506d9bd3f68f040496941458af038738"
+    },
+    "DELIVERY_PROFILE.json": {
+      "path": ".ahakey-desktop-harness/changes/WD-001/DELIVERY_PROFILE.json",
+      "sha256": "4a58b1fc6fbdf8173f16946267ff87feb869fdca37457062a9a1a1b0df6cdd7a"
+    },
+    "OWNER_RESULTS.json": {
+      "path": ".ahakey-desktop-harness/changes/WD-001/OWNER_RESULTS.json",
+      "sha256": "9876932e3b626862f6a67dd0af0cc1f47e6559ca5cd11188ab8997fc51949afa"
+    },
+    "REVIEW.json": {
+      "path": ".ahakey-desktop-harness/changes/WD-001/REVIEW.json",
+      "sha256": "f92f3906978d4f3c58f8e9d81a336e386d69f9a0df61fda5fb8b46bcb7594ade"
+    },
+    "candidate.json": {
+      "path": ".ahakey-desktop-harness/changes/WD-001/candidate.json",
+      "sha256": "012abe0cbcebe929b20500d30e0d76766f7abc7b5990418942099305cda957f6"
+    },
+    "change.json": {
+      "path": ".ahakey-desktop-harness/changes/WD-001/change.json",
+      "sha256": "54fc7ac7aaa87412b52e9d36c840cad37c58a74afcfe7373fcb55a3ffd1975f4"
+    }
+  },
+  "task_id": "WD-001",
+  "tool_version": "1.0.0"
+}

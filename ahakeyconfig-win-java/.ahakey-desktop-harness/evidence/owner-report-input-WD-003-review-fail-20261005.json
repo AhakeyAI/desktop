@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "progress": {
+    "position": "当前任务已从审阅阶段退回实现修复阶段，下一角色为构建实现方。",
+    "conclusion": "审阅结论未通过；我已经记录审阅失败，并按流程退回修复。当前没有候选版本、构建产物、真机通过或用户验收通过。"
+  },
+  "completed": [
+    "已读取并核对项目规则、当前角色规则、公共流程规则、任务状态、任务合同、执行报告、验证记录和提交回执。",
+    "已执行交付状态检查并生成实际差异审阅包，审阅包路径为 .ahakey-desktop-harness/changes/WD-003/reviews/20261005T111938785364Z-14bf33/PACK.json。",
+    "已核对改动范围：当前七个生产改动文件都在本任务第三版合同允许范围内。",
+    "已确认主要协议护栏：生产代码未发现用 0x98 做普通键回读；0x87、0x97、0x9F 的新增路径总体没有改变已批准的协议语义。",
+    "已写入结构化审阅证据 .ahakey-desktop-harness/changes/WD-003/REVIEW.json，结论为不通过。",
+    "已登记审阅失败并执行退回修复；当前状态已变为实现修复阶段，下一角色为构建实现方。"
+  ],
+  "remaining": [
+    "构建实现方需要在原合同范围内修复三个阻塞点：侧拨自定义动作编辑缺失、检查面板不随能力状态刷新、被动回读误制造未保存变更。",
+    "修复后必须重新做开工检查、机器检查、执行报告和提交；上一轮编译证据不再使新一轮代码合格。",
+    "审阅通过、候选版本、构建收据、测试包、真机测试和用户验收都仍未完成。"
+  ],
+  "owner": {
+    "decision": {
+      "required": false,
+      "action": "不需要新的产品决策；这是原合同范围内的实现缺陷修复。"
+    },
+    "operation": {
+      "required": true,
+      "action": "请把下方完整提示词复制到构建实现对话，让构建实现方按审阅失败记录修复并重新提交。"
+    },
+    "test": {
+      "required": false,
+      "action": "当前代码未通过审阅，不能交给你做真机测试或用户验收。"
+    }
+  },
+  "next": {
+    "role": "DIB",
+    "destination": "DIB 对话",
+    "mode": "FIX",
+    "task": "WD-003 CP4C 输入配置域审阅失败修复",
+    "action": "读取审阅记录，按三个发现点在原合同范围内修复，重新运行适用机器检查并提交给审阅方。",
+    "authorization": "审阅方已在原合同范围内退回修复；只允许修复审阅指出的实现缺陷，不允许扩大协议或产品范围。",
+    "goal": "让输入配置域满足合同：侧拨自定义动作可以编辑、保存和回读，检查面板能随能力状态切换正确刷新，被动回读不会制造假的未保存草稿。",
+    "repo": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "facts": [
+      "当前状态是实现修复阶段，模式为修复，当前任务是 WD-003，下一角色是构建实现方。",
+      "任务第三版合同已经批准；上一轮实现方已经提交，但审阅方结论为不通过。",
+      "结构化审阅记录在 .ahakey-desktop-harness/changes/WD-003/REVIEW.json。",
+      "实际差异审阅包在 .ahakey-desktop-harness/changes/WD-003/reviews/20261005T111938785364Z-14bf33/PACK.json。",
+      "本轮发现不是新需求，属于已批准输入配置域内的实现缺口，应按退回修复处理，不重新打开合同。",
+      "必须保留主要通过点：通过 0x9F 目录键白名单判断设备；只有目标设备才调用 0x87；0x87 只做一次一个模式和键位的回读；0x97 只负责侧拨；不使用 0x98；继续使用统一保存。"
+    ],
+    "read": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\AGENTS.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-builder\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.agents\\skills\\ahakey-desktop-harness\\SKILL.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\STATE.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\change.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\CONTRACT.md",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\REVIEW.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\verification.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-003\\IMPLEMENTATION_RECEIPT.json"
+    ],
+    "allowed": [
+      "只在任务允许路径内修复审阅指出的实现缺陷。",
+      "必须先执行 python .agents\\skills\\ahakey-desktop-harness\\scripts\\desktop.py preflight --role DIB --id WD-003。",
+      "修复侧拨自定义快捷键或宏动作的编辑、载荷保留、保存和回读比较。",
+      "修复检查面板对能力状态和回读状态变化的刷新，使已打开的侧拨面板能从旧界面切到新表单。",
+      "修复回读状态与用户草稿版本混用的问题，避免连接或重连回读制造假未保存变更，同时不能清掉真实未保存草稿。",
+      "修复后运行十七版 Java 编译和必要静态检查，并用流程命令重新记录检查和提交。"
+    ],
+    "forbidden": [
+      "不改 0x87、0x97、0x9F 已批准协议语义；不引入 0x98 普通键回读。",
+      "不做灯光、屏幕图片、语音、电源、恢复出厂、其他型号、完整主机协议、固件升级恢复或描述符范围。",
+      "不重新做产品追问、全新审阅、正式候选或发布批次。",
+      "不执行代码入库、提交或推送。",
+      "不运行设备写入、烧录、安装包构建或安装。",
+      "如果需要任务允许路径外文件，停下交回审阅方。",
+      "不要把编译、提交或修复完成称为用户验收、真机通过、发布或候选通过。"
+    ]
+  },
+  "evidence": [
+    ".ahakey-desktop-harness/changes/WD-003/REVIEW.json",
+    ".ahakey-desktop-harness/changes/WD-003/verification.json",
+    ".ahakey-desktop-harness/changes/WD-003/reviews/20261005T111938785364Z-14bf33/PACK.json",
+    ".ahakey-desktop-harness/STATE.json"
+  ]
+}

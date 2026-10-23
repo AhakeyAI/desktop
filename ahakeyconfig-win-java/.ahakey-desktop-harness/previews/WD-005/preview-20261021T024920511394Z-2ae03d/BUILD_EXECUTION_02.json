@@ -1,0 +1,34 @@
+[
+  {
+    "executable": "C:\\WINDOWS\\system32\\cmd.exe",
+    "finished_at": "2026-10-21T10:57:15.9556627+08:00",
+    "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261021T024920511394Z-2ae03d\\source",
+    "exit_code": 0,
+    "raw_arguments": "/d /s /c \"\"C:\\Program Files\\apache-maven-3.9.12\\bin\\mvn.cmd\" -version\"",
+    "stderr": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261021T024920511394Z-2ae03d\\maven-identity-02.stderr.log",
+    "capture": "BaseStream byte copy; stdout/stderr separate",
+    "stdout": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261021T024920511394Z-2ae03d\\maven-identity-02.stdout.log",
+    "environment": {
+      "JAVA_HOME": "D:\\jdk-17.0.19.10-hotspot",
+      "MAVEN_OPTS": "-Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8"
+    },
+    "started_at": "2026-10-21T10:57:15.1765412+08:00",
+    "name": "maven-identity-02"
+  },
+  {
+    "executable": "C:\\WINDOWS\\system32\\cmd.exe",
+    "finished_at": "2026-10-21T10:57:26.9661336+08:00",
+    "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261021T024920511394Z-2ae03d\\source",
+    "exit_code": 0,
+    "raw_arguments": "/d /s /c \"\"C:\\Program Files\\apache-maven-3.9.12\\bin\\mvn.cmd\" -o \"-Dmaven.repo.local=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.m2repo\" --batch-mode --no-transfer-progress package -DskipTests\"",
+    "stderr": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261021T024920511394Z-2ae03d\\package-02.stderr.log",
+    "capture": "BaseStream byte copy; stdout/stderr separate",
+    "stdout": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-005\\preview-20261021T024920511394Z-2ae03d\\package-02.stdout.log",
+    "environment": {
+      "JAVA_HOME": "D:\\jdk-17.0.19.10-hotspot",
+      "MAVEN_OPTS": "-Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8"
+    },
+    "started_at": "2026-10-21T10:57:16.0515167+08:00",
+    "name": "package-02"
+  }
+]

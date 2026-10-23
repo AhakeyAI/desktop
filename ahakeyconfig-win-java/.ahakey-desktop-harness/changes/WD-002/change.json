@@ -1,0 +1,127 @@
+{
+  "schema_version": 3,
+  "id": "WD-002",
+  "title": "WS2 CP4A Mode Sync + Display Status",
+  "revision": 2,
+  "phase": "VERIFY",
+  "status": "PAUSED",
+  "build_round": 3,
+  "assignment": {
+    "owner_record": ".ahakey-desktop-harness\\evidence\\owner-confirmation-WD-002-contract-20261003.md",
+    "record_sha256": "87a32261bdd96cc2bfdb273e43648f57fc410ec048e2e048d59d1323da7e2237",
+    "at": "2026-10-03T08:28:28+00:00"
+  },
+  "delivery_scope": "internal_integration",
+  "requirements": {
+    "ui_entry_changed": true,
+    "device_related": true,
+    "real_device": true,
+    "owner_uat": true
+  },
+  "allowed_paths": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/model/DeviceStatus.java",
+    "src/main/java/com/example/ahakey/model/StudioState.java",
+    "src/main/java/com/example/ahakey/model/ModeSlot.java",
+    "src/main/java/com/example/ahakey/model/KeyConfig.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+    "src/main/java/com/example/ahakey/protocol/BleTcpPacket.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+    "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+    "src/main/java/com/example/ahakey/view/TopBar.java",
+    "src/main/java/com/example/ahakey/view/StatusBar.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java",
+    "src/main/java/com/example/ahakey/view/CanvasPane.java",
+    "src/main/java/com/example/ahakey/view/CanvasController.java",
+    "src/main/resources/fxml/CanvasLayout.fxml",
+    "src/main/resources/messages_en.properties",
+    "src/main/resources/messages_zh.properties"
+  ],
+  "preserved_behaviors": [
+    "WD-001 T07 remains not_executed and old PASS remains bound to the old candidate/JAR",
+    "0x95 sleep timeout behavior is not regressed",
+    "0x9F firmware catalog key behavior is not regressed",
+    "Mode1/2/3 visuals remain intact; Mode4 remains placeholder unless separately authorized",
+    "Firmware and eternal workspaces remain read-only"
+  ],
+  "approval_assets": [
+    "CONTRACT.md",
+    "REFERENCES.json"
+  ],
+  "ui_mode": "minimal",
+  "ui_note_ref": "CONTRACT.md",
+  "ui_current_refs": [],
+  "ui_preview_refs": [],
+  "mock_plan": "Focused offline tests/mocks for 0x00 parsing, 0x92 sequence, USB/BLE parity, stale responses, disconnect/reconnect and offline draft boundary.",
+  "checkpoints": [],
+  "approval": {
+    "at": "2026-10-03T09:09:31+00:00",
+    "owner_record": ".ahakey-desktop-harness/evidence/owner-alignment-WD-002-Q7-offline-edit-correction-20261003.md",
+    "owner_record_sha256": "6def2d38fc8a1b2fee1f62f24e3aa99f5075873b5661cd8d2e05cf897c71d3d2",
+    "inputs": {
+      "meta_sha256": "b8157a58c663f4591dfe2d0701e5682271810ffc5d58d6f5fb7f4dd22d75a55c",
+      "assets": {
+        "CONTRACT.md": "727bbbf6f2b5507614e8af9823f22c2559dfa210da8f80280dded0e7459d6cd0",
+        "REFERENCES.json": "39fed7696d02afa3c19e808f16c375dff267ad6a409fd7e39f574a6ac244b2fe"
+      },
+      "reference_sha256": "1c1482c74929c8e6bbde94245c8fef9b9a1a3034bc51aef50beb2d72f10b37ce"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "change_classification": [
+    "architecture_change",
+    "protocol_change",
+    "scope_expansion"
+  ],
+  "journey_ids": [
+    "J002"
+  ],
+  "review_policy": "high_impact",
+  "firmware_binding": {
+    "root": "C:\\Users\\20825\\Desktop\\vibe-code",
+    "gate": ".ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP4A/20261002T084039/gate-receipt.json",
+    "gate_sha256": "71e61a42b8771a7318467b98bfbb36804ef0b2f3f5c18875c2d9110f7e89b0ab",
+    "candidate_commit": "bd1ea87e10939fd6f738b599a4c66ba3264acf70",
+    "hex_path": ".ahakey-harness/evidence/builds/ws2-cp4a-mode-sync-display-status/HID_Keyboard_582m_vibe_coding.hex",
+    "hex_sha256": "8e11f2b526e9239a67c5199aff88ebbed875bdc9cb3df0eb5592979e5f021867",
+    "feature": "Mode sync and display status foundation"
+  },
+  "route_repair": {
+    "at": "2026-10-03T08:28:28+00:00",
+    "owner_record": ".ahakey-desktop-harness\\evidence\\owner-confirmation-WD-002-contract-20261003.md",
+    "owner_record_sha256": "87a32261bdd96cc2bfdb273e43648f57fc410ec048e2e048d59d1323da7e2237",
+    "meaning": "Owner-approved v1.0.1 route repair only; no Java/Firmware/build/Git/Release Batch action."
+  },
+  "contract_revision": {
+    "at": "2026-10-03T09:09:31+00:00",
+    "reason_record": ".ahakey-desktop-harness/evidence/owner-approval-WD-002-q7-route-repair-20261003.md",
+    "reason_sha256": "45ddc24424debea5615d79a297735126c53422f50b735c4c86128a11c9c5c938",
+    "owner_record": ".ahakey-desktop-harness/evidence/owner-alignment-WD-002-Q7-offline-edit-correction-20261003.md",
+    "owner_sha256": "6def2d38fc8a1b2fee1f62f24e3aa99f5075873b5661cd8d2e05cf897c71d3d2",
+    "previous_revision": 1
+  },
+  "fix_request": {
+    "at": "2026-10-03T09:54:48+00:00",
+    "record": ".ahakey-desktop-harness/changes/WD-002/REVIEW.md",
+    "sha256": "5213278e0d1fda78905d6304f41cc8d2af2f8aafe2a84a33e205c3c4d4ca61ec"
+  },
+  "preview_fix_round": 3,
+  "preview_fix_request": {
+    "path": ".ahakey-desktop-harness/previews/WD-002/fixes/preview-fix-20261004T035221230624Z-6ec59b/REQUEST.json",
+    "sha256": "73871f14727973743d69d2fff14b07c64036d3c38c40dde4d5573c8bebcfc11b"
+  },
+  "pause": {
+    "at": "2026-10-15T11:55:37+00:00",
+    "note": ".ahakey-desktop-harness/evidence/20261015-wd005-route-maintenance-owner-authorization.md",
+    "sha256": "9d225bd4fa28b894a231f445d2585e8d0a060b1b507660dd2e57fef90fb7a59b",
+    "code_fingerprint": "dbe02269412763dc5875bd2a4fab416fa63e0946766464100c4e5f999f22d63b",
+    "git": {
+      "available": true,
+      "root": "C:/Users/20825/Desktop/windows软件代码/desktop",
+      "head": "41c034171e60b2d4962b0adbe8f3cffbf80a0436",
+      "dirty": "M .agents/skills/ahakey-desktop-harness/scripts/guardrails.py\n M .ahakey-desktop-harness/changes/WD-004/change.json\n M .ahakey-desktop-harness/changes/WD-004/verification.json\n M .ahakey-desktop-harness/evidence/HARNESS_FEEDBACK.md\n M .ahakey-desktop-harness/journeys/REGISTRY.json\n M config_server.json\n?? ../BLE_tcp_driver_package/\n?? .ahakey-desktop-harness/RECOVERY_EVIDENCE.json\n?? .ahakey-desktop-harness/VERIFIED_BASELINE.json\n?? .ahakey-desktop-harness/builds/\n?? .ahakey-desktop-harness/changes/WD-001/builds/\n?? .ahakey-desktop-harness/changes/WD-002/builds/\n?? .ahakey-desktop-harness/changes/WD-003/ARCHIVE_GIT_PLAN.ps1\n?? .ahakey-desktop-harness/changes/WD-003/CANDIDATE_GIT_PLAN.ps1\n?? .ahakey-desktop-harness/changes/WD-003/DELIVERY_RESULT.json\n?? .ahakey-desktop-harness/changes/WD-003/EXECUTION_REPORT_BUILD_ROUND_9.md\n?? .ahakey-desktop-harness/changes/WD-003/EXECUTION_REPORT_CP4D_0x87.md\n?? .ahakey-desktop-harness/changes/WD-003/FIRMWARE_IDENTITY.json\n?? .ahakey-desktop-harness/changes/WD-003/PREVIEW_FIX_LATEST.json\n?? .ahakey-desktop-harness/changes/WD-003/PREVIEW_FIX_REQUEST_LATEST.json\n?? .ahakey-desktop-harness/changes/WD-003/PREVIEW_LATEST.json\n?? .ahakey-desktop-harness/changes/WD-003/PREVIEW_RESULT_LATEST.json\n?? .ahakey-desktop-harness/changes/WD-003/REVIEW.md\n?? .ahakey-desktop-harness/changes/WD-003/START_GIT.json\n?? .ahakey-desktop-harness/changes/WD-003/archive_plan.json\n?? .ahakey-desktop-harness/changes/WD-003/archive_receipt.json\n?? .ahakey-desktop-harness/changes/WD-003/builds/\n?? .ahakey-desktop-harness/changes/WD-003/change.json\n?? .ahakey-desktop-harness/changes/WD-003/contract-revisions/\n?? .ahakey-desktop-harness/changes/WD-003/reviews/20261005T111938785364Z-14bf33/\n?? .ahakey-desktop-harness/changes/WD-003/reviews/20261006T020035506485Z-c62711/\n?? .ahakey-desktop-harness/changes/WD-003/reviews/20261006T032853129545Z-ef93fd/\n?? .ahakey-desktop-harness/changes/WD-003/reviews/20261007T042652884373Z-a345b8/\n?? .ahakey-desktop-harness/changes/WD-003/reviews/20261007T042715452172Z-890906/\n?? .ahakey-desktop-harness/changes/WD-003/reviews/20261007T093900372181Z-fc2e84/PACK.json\n?? .ahakey-desktop-harness/changes/WD-003/reviews/20261007T093900372181Z-fc2e84/REVIEW_FORM.json\n?? .ahakey-desktop-harness/changes/WD-003/reviews/20261007T093900372181Z-fc2e84/after/\n?? .ahakey-desktop-harness/changes/WD-003/reviews/20261007T093900372181Z-fc2e84/before/\n?? .ahakey-desktop-harness/changes/WD-004/ACCEPTANCE_COVERAGE.json\n?? .ahakey-desktop-harness/changes/WD-004/BUILD_RECEIPT.json\n?? .ahakey-desktop-harness/changes/WD-004/CANDIDATE_GIT_PLAN.ps1\n?? .ahakey-desktop-harness/changes/WD-004/CLOSE_PREP.json\n?? .ahakey-desktop-harness/changes/WD-004/CLOSE_RECEIPT.json\n?? .ahakey-desktop-harness/changes/WD-004/DELIVERY_PROFILE.json\n?? .ahakey-desktop-harness/changes/WD-004/FIRMWARE_IDENTITY.json\n?? .ahakey-desktop-harness/changes/WD-004/OWNER_BRIEF_INPUT.json\n?? .ahakey-desktop-harness/changes/WD-004/OWNER_TEST.md\n?? .ahakey-desktop-harness/changes/WD-004/OWNER_UAT_RESULT.json\n?? .ahakey-desktop-harness/changes/WD-004/REVIEW.md\n?? .ahakey-desktop-harness/changes/WD-004/START_GIT.json\n?? .ahakey-desktop-harness/changes/WD-004/builds/\n?? .ahakey-desktop-harness/changes/WD-004/candidate.json\n?? .ahakey-desktop-harness/changes/WD-004/contract-revisions/\n?? .ahakey-desktop-harness/changes/WD-004/reviews/20261009T031204325820Z-9cdd38/\n?? .ahakey-desktop-harness/changes/WD-004/reviews/20261009T040652913987Z-575b8c/\n?? .ahakey-desktop-harness/changes/WD-004/reviews/20261009T042219327516Z-1446c9/PACK.json\n?? .ahakey-desktop-harness/changes/WD-004/reviews/20261009T042219327516Z-1446c9/REVIEW_FORM.json\n?? .ahakey-desktop-harness/changes/WD-004/reviews/20261009T042219327516Z-1446c9/after/\n?? .ahakey-desktop-harness/changes/WD-004/reviews/20261009T042219327516Z-1446c9/before/\n?? .ahakey-desktop-harness/evidence/20261005T180000_suspend_wd002_for_wd003.md\n?? .ahakey-desktop-harness/evidence/20261005T181500_wd003_owner_approval.md\n?? .ahakey-desktop-harness/evidence/20261005T182500_wd003_isolation_from_wd002.md\n?? .ahakey-desktop-harness/evidence/20261005T185500_wd003_studiocontroller_scope_owner_approval.md\n?? .ahakey-desktop-harness/evidence/20261005T185500_wd003_studiocontroller_scope_reason.md\n?? .ahakey-desktop-harness/evidence/20261006T110555_wd003_owner_preview_usb_hid_interface_fail.md\n?? .ahakey-desktop-harness/evidence/20261006T110555_wd003_usbhidtransport_scope_owner_approval.md\n?? .ahakey-desktop-harness/evidence/20261006T1518_wd003_cp4c_0x97_save_encoding_reconcile_reason.md\n?? .ahakey-desktop-harness/evidence/20261006T1518_wd003_owner_cp4c_short_action_ui_scope.md\n?? .ahakey-desktop-harness/evidence/20261006T_owner_preview_wd003_cp4c_wired_pass_ble_blocked.md\n?? .ahakey-desktop-harness/evidence/20261006_wd003_owner_preview_mi01_fail_0x97_timeout.md\n?? .ahakey-desktop-harness/evidence/20261006_wd003_preview_mi01_fail_0x97_timeout.png\n?? .ahakey-desktop-harness/evidence/20261006_wd003_preview_mi01_fail_runtime_log.txt\n?? .ahakey-desktop-harness/evidence/20261006_wd003_preview_mi01_fail_sleep_0x95.png\n?? .ahakey-desktop-harness/evidence/20261007T1125_wd003_cp4d_0x87_reconcile_reason.md\n?? .ahakey-desktop-harness/evidence/20261007T1125_wd003_owner_cp4d_0x87_single_packet_scope.md\n?? .ahakey-desktop-harness/evidence/20261007T1255_wd003_preview_cp4d_owner_report_input.json\n?? .ahakey-desktop-harness/evidence/20261007T1318_wd003_owner_preview_pass_cp4d_0x87.md\n?? .ahakey-desktop-harness/evidence/20261007T170857_wd003_reference_reconcile_reason.md\n?? .ahakey-desktop-harness/evidence/20261008T082336_wd003_owner_confirm_config_server_foreign.md\n?? .ahakey-desktop-harness/evidence/20261008T085156_wd003_owner_git_candidate_commit.md\n?? .ahakey-desktop-harness/evidence/20261008T_wd004_hook_manager_owner_scope.md\n?? .ahakey-desktop-harness/evidence/20261008T_wd004_hook_manager_reconcile_reason.md\n?? .ahakey-desktop-harness/evidence/20261008T_wd004_isolation_from_existing_work.md\n?? .ahakey-desktop-harness/evidence/20261008T_wd004_owner_approval.md\n?? .ahakey-desktop-harness/evidence/20261008T_ws005_local_capability_table_deferred.md\n?? .ahakey-desktop-harness/evidence/20261009T_wd004_firmware_gate_artifact_mismatch.md\n?? .ahakey-desktop-harness/evidence/20261009T_wd004_hook_task_grill_owner_scope.md\n?? .ahakey-desktop-harness/evidence/20261009T_wd004_hook_task_grill_reconcile_reason.md\n?? .ahakey-desktop-harness/evidence/20261009T_wd004_machine_static_checks.md\n?? .ahakey-desktop-harness/evidence/20261009T_wd004_owner_candidate_commit.md\n?? .ahakey-desktop-harness/evidence/20261009T_wd004_topbar_allowed_path_reconcile_reason.md\n?? .ahakey-desktop-harness/evidence/20261012T_wd004_owner_uat_pass.md\n?? .ahakey-desktop-harness/evidence/20261015-wd005-change-owner-dispatch.md\n?? .ahakey-desktop-harness/evidence/20261015-wd005-owner-scope-approval.json\n?? .ahakey-desktop-harness/evidence/20261015-wd005-route-maintenance-owner-authorization.md\n?? .ahakey-desktop-harness/evidence/owner-report-input-WD-003-cp4d-0x87-review-preview-20261007.json\n?? .ahakey-desktop-harness/evidence/owner-report-input-WD-003-dla-review-preview-20261006.json\n?? .ahakey-desktop-harness/evidence/owner-report-input-WD-003-fix-submit-20261006.json\n?? .ahakey-desktop-harness/evidence/owner-report-input-WD-003-formal-handoff-20261008.json\n?? .ahakey-desktop-harness/evidence/owner-report-input-WD-003-preview-build-finish-20261006.json\n?? .ahakey-desktop-harness/evidence/owner-report-input-WD-003-preview-fix-submit-20261006.json\n?? .ahakey-desktop-harness/evidence/owner-report-input-WD-003-preview-owner-brief-20261006.json\n?? .ahakey-desktop-harness/evidence/owner-report-input-WD-003-review-fail-20261005.json\n?? .ahakey-desktop-harness/evidence/owner-report-input-WD-003-usbhid-mi01-review-preview-20261006.json\n?? .ahakey-desktop-harness/evidence/owner-report-input-WD-003-usbhid-mi01-submit-20261006.json\n?? .ahakey-desktop-harness/evidence/owner-report-input-WD-004-delivery-prep-blocked-20261009.json\n?? .ahakey-desktop-harness/maintenance/\n?? .ahakey-desktop-harness/previews/\n?? .ahakey-desktop-harness/v1/planned-changes/WD-005-firmware-evidence.json\n?? .ahakey-desktop-harness/v1/planned-changes/WD-005/\n?? .rollback-backups/"
+    }
+  }
+}

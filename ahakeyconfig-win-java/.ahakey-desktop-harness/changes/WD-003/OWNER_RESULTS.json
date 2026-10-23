@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "id": "WD-003",
+  "delivery_packet_sha256": "045221aeb87e09f02f690cbe4f3ea01658b88dc05df506da2fb7cbca77d7ebcd",
+  "owner_source": {
+    "path": ".ahakey-desktop-harness/evidence/20261008T092956_wd003_owner_formal_test_pass.md",
+    "sha256": "5caa4af89e6dd38478431e9ef66c6380e12f057c0ce4292891c4764cca9fc7de"
+  },
+  "actual_connection": "Owner reported the WD-003 formal test passed after the published brief. The short feedback did not separately name USB or BLE; DLA records this as the Owner confirmation for the brief's normal USB/BLE connection requirement.",
+  "device_confirmation": {
+    "confirmed": true,
+    "hex_sha256": "6f9759eb912ec067564c4e63558589ab9732126344d52c2d2a278383119516be",
+    "source_quote": "测试通过"
+  },
+  "steps": [
+    {
+      "id": "T01",
+      "status": "pass",
+      "observation": "Owner reported the WD-003 formal test passed after the published brief; DLA maps this to formal JAR launch success.",
+      "source_quote": "测试通过"
+    },
+    {
+      "id": "T02",
+      "status": "pass",
+      "observation": "Owner reported the WD-003 formal test passed after the published brief; DLA maps this to target X1 connection and CP4D firmware identity confirmation.",
+      "source_quote": "测试通过"
+    },
+    {
+      "id": "T03",
+      "status": "pass",
+      "observation": "Owner reported the WD-003 formal test passed after the published brief; DLA maps this to 0x9F capability gating pass.",
+      "source_quote": "测试通过"
+    },
+    {
+      "id": "T04",
+      "status": "pass",
+      "observation": "Owner reported the WD-003 formal test passed after the published brief; DLA maps this to preserved 0x95 sleep wait time readback pass.",
+      "source_quote": "测试通过"
+    },
+    {
+      "id": "T05",
+      "status": "pass",
+      "observation": "Owner reported the WD-003 formal test passed after the published brief; DLA maps this to 0x97 side-switch readback pass.",
+      "source_quote": "测试通过"
+    },
+    {
+      "id": "T06",
+      "status": "pass",
+      "observation": "Owner reported the WD-003 formal test passed after the published brief; DLA maps this to current-mode K1-K4 0x87 readback pass.",
+      "source_quote": "测试通过"
+    },
+    {
+      "id": "T07",
+      "status": "pass",
+      "observation": "Owner reported the WD-003 formal test passed after the published brief; DLA maps this to all-mode background ordinary-key 0x87 readback pass.",
+      "source_quote": "测试通过"
+    },
+    {
+      "id": "T08",
+      "status": "pass",
+      "observation": "Owner reported the WD-003 formal test passed after the published brief; DLA maps this to side-switch Custom single-key save/readback pass.",
+      "source_quote": "测试通过"
+    },
+    {
+      "id": "T09",
+      "status": "pass",
+      "observation": "Owner reported the WD-003 formal test passed after the published brief; DLA maps this to side-switch Custom combination shortcut save/readback pass.",
+      "source_quote": "测试通过"
+    },
+    {
+      "id": "T10",
+      "status": "pass",
+      "observation": "Owner reported the WD-003 formal test passed after the published brief; DLA maps this to side-switch Custom short macro save/readback and oversize guard behavior pass.",
+      "source_quote": "测试通过"
+    },
+    {
+      "id": "T11",
+      "status": "pass",
+      "observation": "Owner reported the WD-003 formal test passed after the published brief; DLA maps this to ordinary-key save/readback verification pass.",
+      "source_quote": "测试通过"
+    },
+    {
+      "id": "T12",
+      "status": "pass",
+      "observation": "Owner reported the WD-003 formal test passed after the published brief; DLA maps this to failure/disconnect behavior and log evidence behavior pass.",
+      "source_quote": "测试通过"
+    },
+    {
+      "id": "T13",
+      "status": "pass",
+      "observation": "Owner reported the WD-003 formal test passed after the published brief; DLA maps this to legacy fallback coverage as included in the published step set.",
+      "source_quote": "测试通过"
+    }
+  ]
+}

@@ -1,0 +1,142 @@
+{
+  "schema_version": 3,
+  "id": "WD-003",
+  "title": "CP4C input configuration domain readback and side-switch integration",
+  "revision": 8,
+  "phase": "VERIFY",
+  "status": "CLOSED",
+  "build_round": 9,
+  "assignment": {
+    "owner_record": ".ahakey-desktop-harness\\evidence\\20261005T175747_input-domain-change-owner-record.md",
+    "record_sha256": "55d9ada1f969eb35abc757e39aa7267e5f197aa8a750c333bce5cd71b3228c3b",
+    "at": "2026-10-05T10:05:52+00:00"
+  },
+  "delivery_scope": "internal_integration",
+  "requirements": {
+    "ui_entry_changed": true,
+    "device_related": true,
+    "real_device": true,
+    "owner_uat": true
+  },
+  "allowed_paths": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+    "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+    "src/main/java/com/example/ahakey/model/DeviceStatus.java",
+    "src/main/java/com/example/ahakey/model/StudioState.java",
+    "src/main/java/com/example/ahakey/view/CanvasController.java",
+    "src/main/java/com/example/ahakey/view/CanvasPane.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java"
+  ],
+  "preserved_behaviors": [
+    "Preserve WD-002 owner-verified Windows-initiated mode switch behavior: UI must not bounce back to the previous mode before settling on the requested mode.",
+    "Preserve keyboard-initiated mode-switch follow behavior as currently shipped; speed improvement is explicitly deferred outside WD-003.",
+    "Preserve legacy firmware behavior when CP4C catalog key is absent or not allowlisted: ordinary keys use existing local Windows config display and existing 0x73/0x04 save flow; side-switch shows traditional Auto/Manual facts without editable 0x97 form.",
+    "Preserve existing Shortcut and Macro editor semantics; WD-003 may reuse them for side-switch Custom Shortcut/Macro but must not simplify or fork their meaning.",
+    "Preserve existing light, OLED/GIF/image, voice, mode, power, BLE connection, USB HID transport, Restore Factory, CP5, firmware upgrade/recovery and HID descriptor behavior unless directly required by the approved input-domain contract."
+  ],
+  "approval_assets": [
+    "CONTRACT.md",
+    "REFERENCES.json"
+  ],
+  "ui_mode": "minimal",
+  "ui_note_ref": "CONTRACT.md",
+  "ui_current_refs": [],
+  "ui_preview_refs": [],
+  "mock_plan": null,
+  "checkpoints": [],
+  "approval": {
+    "at": "2026-10-07T09:12:03+00:00",
+    "owner_record": ".ahakey-desktop-harness\\evidence\\20261007T170857_wd003_owner_reference_reconcile_authorization.md",
+    "owner_record_sha256": "ad0eda4100ed28e4d8d30b6468797c5ef16523c6b5766831043c80e2899d2968",
+    "inputs": {
+      "meta_sha256": "65b4c1e8ede18c053eaf30a4bb403de3ffc6fd53b900d1110a03f51f951b4d53",
+      "assets": {
+        "CONTRACT.md": "aa6dc141a75f8ac70e41041d0462949045131ee9942d4ad736b0a3288013feaa",
+        "REFERENCES.json": "c48057bdb3557eaa030a9392668a23ad3b0ab88319a8d8a9218a6869447efe42"
+      },
+      "reference_sha256": "10ec676a48e7db787e87c6fc69acbbf31e920455deca4c1b5e579b1469ff2df8"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "change_classification": [
+    "protocol_change"
+  ],
+  "journey_ids": [
+    "J003"
+  ],
+  "review_policy": "high_impact",
+  "activated_at": "2026-10-05T10:38:39+00:00",
+  "isolation_record": ".ahakey-desktop-harness\\evidence\\20261005T182500_wd003_isolation_from_wd002.md",
+  "contract_revision": {
+    "at": "2026-10-07T09:12:03+00:00",
+    "reason_record": ".ahakey-desktop-harness\\evidence\\20261007T170857_wd003_reference_reconcile_reason.md",
+    "reason_sha256": "c4b461d192ae09ad4157bc52ee54c4d4d5f910b303517ff0871631bdced9ab16",
+    "owner_record": ".ahakey-desktop-harness\\evidence\\20261007T170857_wd003_owner_reference_reconcile_authorization.md",
+    "owner_sha256": "ad0eda4100ed28e4d8d30b6468797c5ef16523c6b5766831043c80e2899d2968",
+    "previous_revision": 7
+  },
+  "fix_request": {
+    "at": "2026-10-05T11:25:33+00:00",
+    "record": ".ahakey-desktop-harness\\changes\\WD-003\\REVIEW.json",
+    "sha256": "e452fdd1316e6715c298af8fc178222ecede3830ccac251148f5a2f285ce8b56"
+  },
+  "preview_fix_round": 2,
+  "preview_fix_request": {
+    "path": ".ahakey-desktop-harness/previews/WD-003/fixes/preview-fix-20261006T072126898999Z-f7e8b6/REQUEST.json",
+    "sha256": "0ea05e79993d290007e85caa26863ecda0abcb6ca68e5c09c8b8d5b852cd9d2c"
+  },
+  "preview_fix_route_repair": {
+    "at": "2026-10-06T05:05:00+00:00",
+    "role": "DLA",
+    "reason": "preview-request-fix routed global STATE to IMPLEMENT/PREVIEW_FIX but left schema v3 change.phase at VERIFY, causing DIB preflight to stop with v1 task/global phase mismatch.",
+    "previous_change_phase": "VERIFY",
+    "repaired_change_phase": "IMPLEMENT",
+    "state_phase": "IMPLEMENT",
+    "state_mode": "PREVIEW_FIX",
+    "token": "preview-fix-20261006T043450688949Z-e97e0d",
+    "scope": "Harness route-record repair only; no production Java, protocol, contract scope, formal review, UAT or release claim."
+  },
+  "preview_fix_review_route_repair": {
+    "at": "2026-10-06T07:49:42+00:00",
+    "role": "DLA",
+    "reason": "preview-fix-submit routed global STATE to VERIFY/PREVIEW_FIX_REVIEW but left schema v3 change.phase at IMPLEMENT, causing preview-fix-review to stop with v1 task/global phase mismatch.",
+    "previous_change_phase": "IMPLEMENT",
+    "repaired_change_phase": "VERIFY",
+    "state_phase": "VERIFY",
+    "state_mode": "PREVIEW_FIX_REVIEW",
+    "token": "preview-fix-20261006T072126898999Z-f7e8b6",
+    "scope": "Harness route-record repair only; no production Java, firmware, protocol contract, Harness script, formal review, UAT, true-device PASS or release claim."
+  },
+  "preview_build_route_repair": {
+    "at": "2026-10-06T08:02:29+00:00",
+    "role": "DLA",
+    "reason": "preview-open generated build_authorized START.json but left global STATE at VERIFY/PREVIEW_REBUILD with next_actor=DLA, causing DIB preflight to stop with DIB preflight not allowed in VERIFY/PREVIEW_REBUILD.",
+    "previous_state_phase": "VERIFY",
+    "previous_state_mode": "PREVIEW_REBUILD",
+    "repaired_state_phase": "VERIFY",
+    "repaired_state_mode": "BUILD_ONLY",
+    "next_actor": "DIB",
+    "token": "preview-20261006T075111394494Z-abd1b1",
+    "snapshot_fingerprint": "9bd726189e9e1e0b9aeb1a1519ff6ab804640e8e6eafd8b0bed7b48a4bea04b2",
+    "scope": "Harness route-record repair only for Owner Preview build; no production Java, firmware, protocol contract, Harness script, formal review, candidate, UAT, true-device PASS or release claim."
+  },
+  "preview_build_route_repair_cp4d_20261007": {
+    "at": "2026-10-07T04:36:41+00:00",
+    "role": "DLA",
+    "reason": "preview-open generated build_authorized START.json for CP4D 0x87 Owner Preview but left global STATE at VERIFY/DLA_REVIEW with next_actor=DLA, which would block DIB preflight before the isolated preview build.",
+    "previous_state_phase": "VERIFY",
+    "previous_state_mode": "DLA_REVIEW",
+    "repaired_state_phase": "VERIFY",
+    "repaired_state_mode": "BUILD_ONLY",
+    "next_actor": "DIB",
+    "token": "preview-20261007T043528705385Z-bd644d",
+    "snapshot_fingerprint": "5bf47fb94cb9dbc12e45b16544c5256b047c1c6f98188289918a1671cbf7ad48",
+    "scope": "Harness route-record repair only for Owner Preview build; no production Java, firmware, protocol contract, Harness script, Git candidate, formal build, Owner UAT, true-device PASS or release claim."
+  },
+  "closed_at": "2026-10-08T01:43:15+00:00",
+  "closure_scope": "internal_integration_only_not_release"
+}

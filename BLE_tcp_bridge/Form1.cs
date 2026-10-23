@@ -136,8 +136,9 @@ namespace BLE_tcp_driver
             log(Color.FromArgb(0x00ff00FF), Utilities.ConvertUuidToShortId(sender.Uuid).ToString() + "write :" + utf8.GetString(data));
         }
 
-        private void ReceiveNotifyData(GattCharacteristic sender, byte[] data)
+        private void ReceiveNotifyData(GattCharacteristic sender, byte[] data, long generation, long discoveryId)
         {
+            if (!bleCore.IsCurrentDiscovery(generation, discoveryId)) return;
             if (ProtocolHelper.IsDeviceStatusNotification(data))
             {
                 var info = ProtocolHelper.ParseDeviceStatusFromNotification(data);
@@ -207,28 +208,26 @@ namespace BLE_tcp_driver
             }));
         }
 
-        private void CharacteristicAdded(GattCharacteristic gattCharacteristic)
+        private void CharacteristicAdded(GattCharacteristic gattCharacteristic, long generation, long discoveryId)
         {
             BeginInvoke(new Action(() =>
             {
+                if (!bleCore.TryAcceptDiscoveredCharacteristic(gattCharacteristic, generation, discoveryId)) return;
                 ushort shortId = Utilities.ConvertUuidToShortId(gattCharacteristic.Uuid);
                 log(Color.Black, "Chara:0x" + shortId.ToString("X") +
                     ", des:" + gattCharacteristic.UserDescription);
 
                 if (shortId == 0x7341)
                 {
-                    bleCore.CurrentDataCharacteristic = gattCharacteristic;
                     log(Color.Green, "  → 数据特征(0x7341)已就绪");
                 }
                 if (shortId == 0x7343)
                 {
-                    bleCore.CurrentWriteCharacteristic = gattCharacteristic;
                     log(Color.Green, "  → 命令特征(0x7343)已就绪");
                 }
                 if (shortId == 0x7344)
                 {
-                    bleCore.CurrentNotifyCharacteristic = gattCharacteristic;
-                    bleCore.EnableNotifications(gattCharacteristic);
+                    bleCore.EnableNotifications(gattCharacteristic, generation, discoveryId);
                     log(Color.Green, "  → 通知特征(0x7344)已就绪");
                 }
 
@@ -243,14 +242,14 @@ namespace BLE_tcp_driver
                     SaveCurrentDeviceToConfig();
 
                     // 自动向命令特征写入设备状态查询指令
-                    bleCore.WriteDataToCharacterstuc(
+                    _ = tcpServer.QueueControlWrite(
                         bleCore.CurrentWriteCharacteristic,
                         ProtocolHelper.DeviceStatusQueryCommand);
                     log(Color.Blue, "已发送设备状态查询指令");
 
                     if (ProtocolHelper.LastClaudeState !=  null)
                     {
-                        bleCore.WriteDataToCharacterstuc(
+                        _ = tcpServer.QueueControlWrite(
                             bleCore.CurrentWriteCharacteristic,
                             ProtocolHelper.LastClaudeState);
                         log(Color.Blue, "已发送设置claude状态指令");
@@ -262,11 +261,18 @@ namespace BLE_tcp_driver
         /// <summary>
         /// 所有服务的特征发现完毕后, 检查是否找齐目标UUID
         /// </summary>
-        private void OnAllCharacteristicsDiscovered()
+        private void OnAllCharacteristicsDiscovered(long generation, long discoveryId, bool discoverySucceeded)
         {
             BeginInvoke(new Action(() =>
             {
+                if (!bleCore.IsCurrentDiscovery(generation, discoveryId)) return;
                 if (targetConfirmed) return; // 已确认, 无需处理
+
+                if (!discoverySucceeded)
+                {
+                    log(Color.OrangeRed, "GATT服务/特征读取失败, 暂不判定为不支持目标设备");
+                    return;
+                }
 
                 bool allFound = bleCore.CurrentDataCharacteristic != null
                              && bleCore.CurrentWriteCharacteristic != null
@@ -276,7 +282,7 @@ namespace BLE_tcp_driver
                 {
                     string devName = bleCore.CurrentDevice?.Name ?? "未知";
                     log(Color.OrangeRed, $"设备 [{devName}] 未找齐目标UUID, 断开连接");
-                    bleCore.Dispose();
+                    if (!bleCore.TryDisposeIncompleteDiscovery(generation, discoveryId)) return;
                     label_connected_devices.Text = "当前连接设备:无";
 
                     if (config.HasSavedDevice)

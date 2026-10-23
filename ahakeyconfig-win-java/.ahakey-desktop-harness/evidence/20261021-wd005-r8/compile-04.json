@@ -1,0 +1,5 @@
+{
+  "java_home": "D:\\jdk-17.0.19.10-hotspot",
+  "maven_opts": "-Dsun.stdout.encoding=UTF-8 -Dsun.stderr.encoding=UTF-8",
+  "exit_code": 0
+}

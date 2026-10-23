@@ -1,0 +1,6 @@
+{
+  "log": ".ahakey-desktop-harness/evidence/20261021-wd005-r9/compile-01.log",
+  "java_home": "D:\\jdk-17.0.19.10-hotspot",
+  "exit_code": 0,
+  "command": "mvn.cmd -o -Dmaven.repo.local=<repo>/.m2repo --batch-mode --no-transfer-progress test-compile -DskipTests"
+}

@@ -1,0 +1,120 @@
+{
+  "record_type": "design_reference_snapshot",
+  "status": "EVIDENCE_ONLY_NOT_FORMAL_ADMISSION",
+  "observed_date": "2026-10-15",
+  "windows": {
+    "root": "C:/Users/20825/Desktop/windows软件代码/desktop/ahakeyconfig-win-java",
+    "head": "41c034171e60b2d4962b0adbe8f3cffbf80a0436"
+  },
+  "firmware": {
+    "root": "C:/Users/20825/Desktop/vibe-code",
+    "head": "08dd24a6e8ce3526fef36661f5c97940add98a25",
+    "candidate_commit": "08dd24a6e8ce3526fef36661f5c97940add98a25",
+    "latest_observed_gate": {
+      "path": ".ahakey-harness/evidence/checkpoints/X1-AI-WORKFLOW-PRESENTATION/CP2/20261015T185611/gate-receipt.json",
+      "sha256": "F9D0849A8A54B58DEE20C2E11376C0DEA2735434632958770A66152454B742C5",
+      "result": "PASS",
+      "machine_checks_passed": 18,
+      "machine_checks_total": 18
+    },
+    "artifact": {
+      "path": ".ahakey-harness/evidence/builds/ws3-cp2-resource-display-config/HID_Keyboard_582m_vibe_coding.hex",
+      "sha256": "D7D10510482228B74A2978BD8272F6A4E32668CF6B4F31F491A8503B0DC11E2E"
+    },
+    "source_files": [
+      {
+        "path": "APP/sub_main/command_solve.c",
+        "sha256": "968A72E823343A00ED2D82739D0FABA4F1A72AC66322E5CB416B17C97C5D9DC0"
+      },
+      {
+        "path": "APP/sub_main/command_solve.h",
+        "sha256": "D60FB7A5D6732EFF46F4229CB7D09F5D3C4AFE73F550EFE0AC238C8443CD39EB"
+      },
+      {
+        "path": "APP/services/resource_map.h",
+        "sha256": "8E1983F31575165202606CB98135E8A0BDCB6A6445448956030DDB14D09F2F00"
+      },
+      {
+        "path": "APP/services/resource_map.c",
+        "sha256": "72926D0E053B6EBCA33EC8992D26EA6109B3ABA7AFBE18D653626315B134BDB1"
+      },
+      {
+        "path": "APP/services/resource_upload_transaction.c",
+        "sha256": "3707922380C827FD0160185935FAA4B8D4B0539959FB71B11A9D0763C54D6887"
+      },
+      {
+        "path": "APP/services/display_config_store.c",
+        "sha256": "46B462BC5530A105F73FA2AACA785B28403336DC2EAB3C22230EF76D1C3FF0CE"
+      },
+      {
+        "path": "APP/services/display_preview.c",
+        "sha256": "CDBD40137AA3065D50E80300CCFC3A68565FF6A7EF7A9B872FC75A21E8599100"
+      },
+      {
+        "path": "APP/sub_main/psk_ws2812.c",
+        "sha256": "6F0B767C74F410380CDCD04C23351683041B90FF352DE0B4AD039D5BF48BEB5E"
+      },
+      {
+        "path": "APP/sub_main/psk_ws2812.h",
+        "sha256": "C0F476BFBDFEF615A9835FBA293848F468E9D8AE323D38C980E36051B0698AD7"
+      },
+      {
+        "path": ".ahakey-harness/workstreams/X1-AI-WORKFLOW-PRESENTATION/ARCHITECTURE.md",
+        "sha256": "9B087F5AC11B706C3A4C7096868DBE307DACA87651B3D0DB00218C21239A1E16"
+      },
+      {
+        "path": ".ahakey-harness/workstreams/X1-AI-WORKFLOW-PRESENTATION/EXECUTION.yaml",
+        "sha256": "B76711F91BEF4B716023A6082A1BFC42E4711233A50B243119F51D8D0FD8783A"
+      }
+    ]
+  },
+  "windows_source_files": [
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "sha256": "C205757B160BAF25E61CF678136D161EBC3BDFAEBDB3D702F7BBD62EDE1A0B1D"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "sha256": "F184D86720F24162E6BB39E6476A13E8A1D4BB95AF18FF788CA8F002DD4B6B0E"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "sha256": "B5BDDCCDD4B60A505B2BE78886C3EE60BA1C0F6F5DCCDDCD520C93EA17DDF129"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "sha256": "8BE6EC34E915C32C4C78E57226DF9B266FCA9424534EBAD8563EB57FFC4CA4EA"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "sha256": "40FA3333EC2C53BB3AEA0A62FA549C49B9DC7ECFBA350D160A741656EA799C34"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledUploadService.java",
+      "sha256": "C6DFF343511506C2AE3F5511C3992B600D5703D13B283F78FCA7C1ADD08194B1"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+      "sha256": "EA4021E87B77705F831B254B93E83C3533483B894FAEBC4DBA562986005E1044"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/StudioStore.java",
+      "sha256": "1D8009944CE5ECEC5609003D75AB31ACCBC3F1E99755BABCD14559CEBDDB8363"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+      "sha256": "0DFB88370956926F52C362F009A252499A237202BCF76A051AD30235A660A35A"
+    }
+  ],
+  "history": {
+    "previous_intake": ".ahakey-desktop-harness/v1/planned-changes/WD-005-firmware-evidence.json",
+    "previous_gate": "20261015T183923",
+    "previous_result": "FAIL",
+    "revision_policy": "保留先前失败绑定，当前追加新Gate修订，不覆盖历史。此快照未调用firmware-admit，未前移consumed cursor。"
+  },
+  "limitations": [
+    "Gate是固件侧机器证据，不是Windows实现批准或真机UAT",
+    "当前工作树可能有外部追加；source哈希而非HEAD名独立绑定所读字节",
+    "正式实现前复核源/协议；正式交测绑定实际Windows包与固件候选，不复用旧PASS"
+  ]
+}

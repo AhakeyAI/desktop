@@ -1,0 +1,136 @@
+{
+  "sources": [
+    {
+      "id": "CP2-PROTOCOL",
+      "workspace": "firmware",
+      "path": "APP/sub_main/command_solve.c",
+      "revision_or_commit": "08dd24a6e8ce3526fef36661f5c97940add98a25",
+      "sha256": "968a72e823343a00ed2d82739d0faba4f1a72ac66322e5cb416b17c97c5d9dc0",
+      "section": "CP2 0x88/0x89/0x8A/0x8B/0x8C/0x8E及互斥/失败语义",
+      "kind": "protocol",
+      "maturity": "implemented",
+      "observed_at": "2026-10-15T11:58:29+00:00"
+    },
+    {
+      "id": "CP2-RESOURCE-MAP",
+      "workspace": "firmware",
+      "path": "APP/services/resource_map.h",
+      "revision_or_commit": "08dd24a6e8ce3526fef36661f5c97940add98a25",
+      "sha256": "8e1983f31575165202606cb98135e8a0bdcb6a6445448956030ddb14d09f2f00",
+      "section": "十九目标/8或12帧/28672字节slot",
+      "kind": "protocol",
+      "maturity": "implemented",
+      "observed_at": "2026-10-15T11:58:37+00:00"
+    },
+    {
+      "id": "CP2-MAP-IMPL",
+      "workspace": "firmware",
+      "path": "APP/services/resource_map.c",
+      "revision_or_commit": "08dd24a6e8ce3526fef36661f5c97940add98a25",
+      "sha256": "72926d0e053b6ebca33ec8992d26ea6109b3aba7afbe18d653626315b134bdb1",
+      "section": "目标映射与元数据布局",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-10-15T11:58:46+00:00"
+    },
+    {
+      "id": "CP2-UPLOAD",
+      "workspace": "firmware",
+      "path": "APP/services/resource_upload_transaction.c",
+      "revision_or_commit": "08dd24a6e8ce3526fef36661f5c97940add98a25",
+      "sha256": "3707922380c827fd0160185935faa4b8d4b0539959fb71b11a9d0763c54d6887",
+      "section": "顺序Chunk/CRC/Begin失败/Commit/断连失效",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-10-15T11:58:55+00:00"
+    },
+    {
+      "id": "CP2-CONFIG",
+      "workspace": "firmware",
+      "path": "APP/services/display_config_store.c",
+      "revision_or_commit": "08dd24a6e8ce3526fef36661f5c97940add98a25",
+      "sha256": "46b462bc5530a105f73fa2aaca785b28403336dc2eab3c22230ef76d1c3ff0ce",
+      "section": "全局亮度及SINGLE灯效持久配置",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-10-15T11:59:03+00:00"
+    },
+    {
+      "id": "CP2-PREVIEW",
+      "workspace": "firmware",
+      "path": "APP/services/display_preview.c",
+      "revision_or_commit": "08dd24a6e8ce3526fef36661f5c97940add98a25",
+      "sha256": "cdbd40137aa3065d50e80300ccfc3a68565ff6a7ef7a9b872fc75a21e8599100",
+      "section": "临时预览/保存终止/10秒时限",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-10-15T11:59:12+00:00"
+    },
+    {
+      "id": "CP2-LIGHTS",
+      "workspace": "firmware",
+      "path": "APP/sub_main/psk_ws2812.c",
+      "revision_or_commit": "08dd24a6e8ce3526fef36661f5c97940add98a25",
+      "sha256": "6f0b767c74f410380cdcd04c23351683041b90ff352de0b4ad039d5bf48beb5e",
+      "section": "固件同源八灯渲染金样",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-10-15T11:59:20+00:00"
+    },
+    {
+      "id": "CP2-LIGHTS-HEADER",
+      "workspace": "firmware",
+      "path": "APP/sub_main/psk_ws2812.h",
+      "revision_or_commit": "08dd24a6e8ce3526fef36661f5c97940add98a25",
+      "sha256": "c0f476bfbdfef615a9835fba293848f468e9d8ae323d38c980e36051b0698ad7",
+      "section": "灯效枚举与渲染参数",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-10-15T11:59:29+00:00"
+    },
+    {
+      "id": "CP2-ARCH",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/workstreams/X1-AI-WORKFLOW-PRESENTATION/ARCHITECTURE.md",
+      "revision_or_commit": "08dd24a6e8ce3526fef36661f5c97940add98a25",
+      "sha256": "9b087f5ac11b706c3a4c7096868dbe307daca87651b3d0db00218c21239a1e16",
+      "section": "冻结CP2资源/灯光配置合同",
+      "kind": "protocol",
+      "maturity": "agreed",
+      "observed_at": "2026-10-15T11:59:38+00:00"
+    },
+    {
+      "id": "CP2-EXECUTION",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/workstreams/X1-AI-WORKFLOW-PRESENTATION/EXECUTION.yaml",
+      "revision_or_commit": "08dd24a6e8ce3526fef36661f5c97940add98a25",
+      "sha256": "b76711f91bef4b716023a6082a1bfc42e4711233a50b243119f51d8d0fd8783a",
+      "section": "CP2验收与边界",
+      "kind": "decision",
+      "maturity": "agreed",
+      "observed_at": "2026-10-15T11:59:46+00:00"
+    },
+    {
+      "id": "CP2-GATE",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/evidence/checkpoints/X1-AI-WORKFLOW-PRESENTATION/CP2/20261015T185611/gate-receipt.json",
+      "revision_or_commit": "08dd24a6e8ce3526fef36661f5c97940add98a25",
+      "sha256": "f9d0849a8a54b58dee20c2e11376c0dea2735434632958770a66152454b742c5",
+      "section": "18项PASS及HEX身份；不代表Windows真机验收",
+      "kind": "test",
+      "maturity": "observed",
+      "observed_at": "2026-10-15T11:59:55+00:00"
+    },
+    {
+      "id": "CP2-COMMAND-HEADER",
+      "workspace": "firmware",
+      "path": "APP/sub_main/command_solve.h",
+      "revision_or_commit": "08dd24a6e8ce3526fef36661f5c97940add98a25",
+      "sha256": "d60fb7a5d6732eff46f4229cb7d09f5d3c4afe73f550efe0ac238c8443cd39eb",
+      "section": "CP2命令与状态常量",
+      "kind": "protocol",
+      "maturity": "implemented",
+      "observed_at": "2026-10-15T12:00:41+00:00"
+    }
+  ]
+}

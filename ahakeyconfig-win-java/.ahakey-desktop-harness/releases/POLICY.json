@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "harness_version": "1.2.0",
+  "reminder_threshold": 5,
+  "auto_create": false,
+  "variant_options": [
+    "lite-no-local-model",
+    "model-bundled",
+    "both"
+  ],
+  "relationship": "exclusive_switchable",
+  "note": "Threshold is reminder only; Owner controls timing and selected variant(s)."
+}

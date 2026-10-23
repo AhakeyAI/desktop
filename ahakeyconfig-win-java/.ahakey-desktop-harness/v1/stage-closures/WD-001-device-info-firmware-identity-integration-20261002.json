@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "harness_version": "1.0.0",
+  "created_at": "2026-10-02T19:12:37+08:00",
+  "role": "DLA",
+  "record_kind": "increment_closure",
+  "stage": "Device Info / Firmware Identity Integration",
+  "related_change": "WD-001",
+  "active_change_after_record": "WD-001",
+  "status": "CLOSED_FOR_SCOPE",
+  "acceptance": "NOT_ACCEPTED_AS_PRODUCT_PASS",
+  "not_product_pass": true,
+  "not_current_jar_validation": true,
+  "not_wd001_close": true,
+  "legacy_candidate": "666494c358fd5373b27b6213e9f4a35a424dd2c6",
+  "legacy_jar_sha256": "c16f5bad0f518fb8fea00f7dee7f97caaf7ac6dc3865092442a2bee260217886",
+  "current_observed_jar_sha256": "b9723cdc1f5b5f7eccb4f0a3ff14b87a7668c9cf7a6c307c377c404e8a68be43",
+  "original_stage_goal": [
+    "firmware main/sub display",
+    "0x9F firmware catalog key",
+    "Device Info refresh",
+    "old firmware fallback",
+    "composition with existing 0x95 Device Info sleep wait time read/write"
+  ],
+  "implemented_observed": [
+    "AhaKeyProtocol 0x9F query",
+    "AhaKeyResponseParser firmware catalog key parse",
+    "BleManager catalog key read/cache, command-keyed pending queues and BLE notify reassembly",
+    "StudioController Device Info refresh and connection-time catalog key read",
+    "DeviceStatus firmware main/sub/catalog key display state",
+    "TopBar Device Info firmware display and refresh button",
+    "pom.xml manifest entry support"
+  ],
+  "retained_product_behavior": [
+    "0x95 remains sleep wait time only and does not send 0x04 save_config",
+    "0x9F is limited to firmware catalog key identity reading",
+    "0x9F failure does not block 0x95",
+    "old firmware fallback remains soft UNKNOWN/failure display",
+    "Device Info remains the UI home",
+    "T07 remains not_executed"
+  ],
+  "not_complete": [
+    "current 10-file diff DLA review",
+    "high-impact review for response ownership/BLE reassembly/0x9F behavior",
+    "Git candidate",
+    "fresh build receipt",
+    "artifact identity for current source",
+    "Owner UAT for current b972 jar",
+    "installer or Release Batch validation",
+    "helper-supported recovery addendum registration"
+  ],
+  "moved_to_recovery": [
+    "command response ownership",
+    "BLE notify splitting/reassembly",
+    "connection/request/device/dialog session isolation",
+    "disconnect and device switch handling",
+    "stale UI update suppression",
+    "Device Info refresh semantic narrowing",
+    "result-unknown UI handling"
+  ],
+  "evidence": [
+    ".ahakey-desktop-harness/changes/WD-001/CONTRACT.md",
+    ".ahakey-desktop-harness/changes/WD-001/REVIEW.json",
+    ".ahakey-desktop-harness/changes/WD-001/OWNER_RESULTS.json",
+    ".ahakey-desktop-harness/v1/artifact_identity.json",
+    ".ahakey-desktop-harness/v1/evidence_state.json",
+    "desktop.py status",
+    "desktop.py guard-status --id WD-001",
+    "git diff --stat",
+    "git diff --name-only",
+    "current source grep for 0x9F, refresh and response ownership"
+  ],
+  "external_recovery_review_path_requested": "C:\\Users\\20825\\Desktop\\AhaKey-Harness-Recovery-Review\\20261002T043335Z",
+  "external_recovery_review_path_read_this_run": false
+}
+

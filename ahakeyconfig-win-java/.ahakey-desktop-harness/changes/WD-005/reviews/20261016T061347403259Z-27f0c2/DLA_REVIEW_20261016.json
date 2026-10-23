@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "id": "WD-005",
+  "pack_sha256": "26fc47fdb649dabb07e4f14780313cb7decb2e348ebf6ae1b22792ea423328f8",
+  "reviewer_role": "DLA",
+  "review_session": "Windows DLA 原 DLA 对话，2026-10-16 实际差异审阅",
+  "builder_session": "WD-005 DIB 实现对话；Owner 确认与本对话独立，未取得会话 UUID",
+  "independence": "separate_dla_conversation",
+  "decision": "fail",
+  "scope_conclusion": "累计 23 个文件的变更目的均属于正式登记的 J005/J006 和既有功能保护范围；未要求扩大合同。存在 3 个合同内实现缺陷，阻止本轮 review pass 与 Preview。within_contract 表示范围合法，不表示实现正确。",
+  "per_file": [
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "purpose": "协调显示配置服务和旧模式/身份/保存入口",
+      "reviewed_hunks": "全部累计变更；跟踪连接/模式通知先后顺序、0x9F后续0x97/87、全量保存过滤0x84/85、CP1入口及确认固件弹窗；F1/F2相关。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+      "purpose": "分离灯光草稿、设备确认、预览及资源状态",
+      "reviewed_hunks": "新增全文；read与saved对dirty的不同影响、busy/loading/writeReady与预览时限；F3状态影响。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/LightEffectStyle.java",
+      "purpose": "保留未知灯效值",
+      "reviewed_hunks": "fromCodeOrNull新增及原fromCode兼容回退，避免把未知配置静默作OFF保存。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/OledResourceState.java",
+      "purpose": "OLED资源状态与完整性合并",
+      "reviewed_hunks": "新增全文；19目标映射、容量、草稿/上传/提交未知/应用状态、metadata匹配。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+      "purpose": "接入显示配置模型",
+      "reviewed_hunks": "新增displayConfig成员/getter，无替换既有输入和模式模型。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+      "purpose": "CP2精确构包",
+      "reviewed_hunks": "全部新增0x88/89/8A/8B/8C/8E构包、目标/参数范围、分片和CRC，旧命令定义未整体改写。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+      "purpose": "CP2精确响应解析",
+      "reviewed_hunks": "新增ACK及分型读回精确长度/选择器解析，拒绝失败及不匹配响应。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "purpose": "CP1最新快照延迟补发",
+      "reviewed_hunks": "累计新增pending与idle回调；结合原setDisplayMode路径检查0x98未补发问题F2，跨连接pending列风险R1。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "purpose": "共享显示事务租约与连接隔离",
+      "reviewed_hunks": "全部新增租约、等待器、quarantine、generation、0x00例外、SINGLE延迟、session reader；对照旧sendCommand及身份/模式调用链，F1/F2。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "purpose": "显示配置业务及异步提交",
+      "reviewed_hunks": "新增全文；库加载/迁移、刷新、上传、预览、亮度/9项保存、部分成功与FX提交；F1/F3。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/FirmwareLightSimulator.java",
+      "purpose": "固件灯效本地模拟",
+      "reviewed_hunks": "新增全文；17效果与Firmware实际renderer对应，已执行golden只覆盖记录范围，不代替完整物理效果。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+      "purpose": "本地资源库与原子恢复",
+      "reviewed_hunks": "新增全文；资源/索引原子替换、加载校验、共享资源清理、tombstone及迁移；磁盘故障集成仍缺覆盖。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledUploadService.java",
+      "purpose": "以CP2替换旧OLED写入",
+      "reviewed_hunks": "全部累计替换；租约覆盖begin/chunk/commit，校验ACK，区分commit未知，移除旧raw上传/预览入口。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "purpose": "USB响应与连接句柄隔离",
+      "reviewed_hunks": "累计变更；65字节API缓冲与64字节report内容、CP2精确帧、旧session回调隔离、写入不盲重试；保留原native关闭风险不冒充新故障。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+      "purpose": "静图/GIF编码及草稿解码",
+      "reviewed_hunks": "累计变更；尺寸/帧数、GIF合成处置、RGB565顺序/补零/本地预览。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "purpose": "设备画布与本地预览",
+      "reviewed_hunks": "累计变更；8灯珠/160x80预览/时间推进/草稿提示/忙时热点；完整窗口布局待测。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "purpose": "OLED/灯光编辑与状态UI",
+      "reviewed_hunks": "累计变更；目标选择、导入/上传/清除、灯光保存/预览/未知值、确认固件、busy监听；未覆盖CP1模式按钮见F2。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/fxml/CanvasLayout.fxml",
+      "purpose": "画布布局",
+      "reviewed_hunks": "累计新增8灯珠及160x80预览/草稿badge；未声称最小窗口与高DPI已实测。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/messages_en.properties",
+      "purpose": "英文文案",
+      "reviewed_hunks": "全部17新增键与UI引用对应；无改动既有设备功能命令。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/messages_zh.properties",
+      "purpose": "中文文案",
+      "reviewed_hunks": "全部17新增键与UI引用对应；异常/草稿/设备状态区分。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/style.css",
+      "purpose": "显示配置局部样式",
+      "reviewed_hunks": "全部新增尺寸/资源状态/草稿标记样式；非全局主题替换。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigChecks.java",
+      "purpose": "离线断言",
+      "reviewed_hunks": "新增全文及offline-05实际日志；175项仅证明其实际执行列，未覆盖本次F1-F3时序。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigFxChecks.java",
+      "purpose": "隔离JavaFX/服务断言",
+      "reviewed_hunks": "新增全文及fx-02实际日志；36项不等同完整应用UI或设备回归，补充时序测试交DIB。",
+      "within_contract": true
+    }
+  ],
+  "production_journey": "实际检查 Canvas/Inspector -> StudioController -> DisplayConfigService/OledResourceStore/OledUploadService -> BleManager DisplayLease -> USB/BLE -> ACK/metadata -> FX model/UI；同时检查 selectedMode/connectionChanged 自动回读、CP1 0x90/98/99、0x9F/97/87 与 0x92/00 旧调用链。全量保存过滤 0x84/85，新 OLED 入口不再调用旧 raw 上传/预览。",
+  "preserved_behavior_assessment": "既有按键/侧拨/语音/睡眠等协议未主动重定义；全量保存保留按键与 0x04，但新显示读租约可能中断固件身份读取和模式切换（F1），CP1 模式切换可能本地与设备不一致（F2）。不能据此声称 WS001-003/CP1 全部回归通过。原有历史 dirty、BLE 本地配置保持不动。",
+  "baseline_assessment": "以冻结任务起点和累计 ACTUAL_DIFF 审阅，HEAD=41c034171e60b2d4962b0adbe8f3cffbf80a0436，提交指纹=3a967e3f34a85f7d346bdf3e35110bbe191a4d980effdb13218de4307659bb93，无 missing_start_bytes。PACK 的 last_verified_baseline 是 WD-003，不等同当前完整工作树验证；WD-004 CLOSED 也不替代本次回归。未重写原批准/起点/隔离证据。",
+  "protocol_assessment": "对照正式 PROTOCOL_AND_STATE、REFERENCES 和只读 Firmware 的 command_solve/resource_upload_transaction/display_preview/psk_ws2812 实现；12 项引用 SHA 匹配。核对 19 分区、160x80 RGB565 BE、28672 字节帧、容量8/12帧、48字节分片、CRC/精确ACK长度、0x88/89/8A/8B/8C/8E 及禁止旧0x84/85写入。协议字节检查不代表设备已刷配对固件；身份确认仅本连接有效，正式配对仍缺实际包与Firmware identity。",
+  "risk_level": "high_impact",
+  "fresh_review_required": true,
+  "risk_rationale": "正式登记为高影响协议/状态集成，触及共享通信互斥与既有连接/模式流程。当前原DLA实际审阅失败；修复后重新actual review，通过后才可Preview；正式配对仍需fresh独立实际实现审阅，设计复审不能替代。",
+  "findings": [
+    {
+      "id": "WD005-F1",
+      "severity": "P1",
+      "issue": "自动 CP2 回读与固件身份读取/模式切换竞争租约，可能使既有流程失败。",
+      "evidence": "DisplayConfigService.java:62-65,70-80,145-156 自动排队并占用读租约；StudioController.java:449 在启动模式线程前触发回读，742 在755身份读取前触发回读；BleManager.java:396-397 拒绝租约期间所有非0x00旧命令。StudioController.java:797-805 在9F失败后本连接不重试。详见 DLA_ACTUAL_REVIEW_20261016.md F1。",
+      "resolution": "open；DIB 在原边界内协调自动回读与旧流程顺序、取消/重排，保留事务互斥和超时隔离；用受控并发验证身份、0x97/87与0x92/00。",
+      "code_location": {
+        "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+        "start_line": 62,
+        "end_line": 65
+      }
+    },
+    {
+      "id": "WD005-F2",
+      "severity": "P2",
+      "issue": "CP2 事务期间仍可切换 CP1 SINGLE/MULTI，本地先持久化并宣告成功，但0x98被拒绝且不会补发或回滚。",
+      "evidence": "InspectorPane.java:879-880 未按显示事务锁定模式按钮；StudioController.java:176-178 无门禁；AiRuntimeDisplayService.java:154-169 先改本地再发0x98，失败仅日志；BleManager.java:396-397 拒绝；idle回调仅补0x99。详见证据F2。",
+      "resolution": "open；DIB 在UI与实际服务入口一致处理冲突，禁止先改本地后静默失败；保留CP1最新事实补发语义，补双向模式切换及程序入口回归。",
+      "code_location": {
+        "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+        "start_line": 879,
+        "end_line": 880
+      }
+    },
+    {
+      "id": "WD005-F3",
+      "severity": "P2",
+      "issue": "灯光预览/保存成功回调没有在FX提交时校验连接代次，旧连接结果可污染新连接的预览与草稿确认状态。",
+      "evidence": "DisplayConfigService.java:212,223,243,245 的FX成功回调未校验connection；70-80断连重置预览与资源状态，但265仅判断closed。ACK返回后断连、FX回调后执行即可重建过期预览或清除dirty。详见证据F3。",
+      "resolution": "open；DIB 在FX提交处校验连接/操作身份，历史ACK事实与当前设备状态分开保留；逐项保存与最终提示一致处理，补ACK后断连/重连再执行UI回调测试。",
+      "code_location": {
+        "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+        "start_line": 212,
+        "end_line": 223
+      }
+    }
+  ],
+  "baseline_gap_owner_record": null,
+  "fresh_review_record": null,
+  "review_evidence": ".ahakey-desktop-harness/changes/WD-005/DLA_ACTUAL_REVIEW_20261016.md"
+}

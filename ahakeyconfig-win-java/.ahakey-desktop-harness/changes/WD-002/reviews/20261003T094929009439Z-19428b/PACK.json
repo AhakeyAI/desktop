@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "WD-002",
+  "created_at": "2026-10-03T09:49:29+00:00",
+  "build_round": 2,
+  "code_fingerprint": "14530150225c68bc23e2ce96dfd7727240fa8ac26c939d1a95ba9f66440a11c3",
+  "approval_sha256": "a34f0f05a0daee947b6ebddd45a22762a6316d6c41c2304928c2814fc57aeaed",
+  "submission_sha256": "e35f4726682e5d41df65db4839b765b375b17ca6ba56d5c39b1b92017b804d6d",
+  "start_sha256": "c8302ff71ea5b5cc1894c2e6121df7f14f76d21075b733c983e40455942c1e10",
+  "changed_paths": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/view/CanvasPane.java"
+  ],
+  "missing_start_bytes": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/view/CanvasPane.java"
+  ],
+  "diff_path": ".ahakey-desktop-harness/changes/WD-002/reviews/20261003T094929009439Z-19428b/ACTUAL_DIFF.txt",
+  "diff_sha256": "4c37ee2231a2926020da4a812f7d8e5b51150d0a0c3ecf4d72963977d32d47d2",
+  "policy_sha256": "61afcbd81aa0cf732b5b344ac3c3c191bcf11903315cd9177e67bf4f5d73dc85",
+  "last_verified_baseline": null,
+  "limits": "Machine checks path/identity only. DLA must review every relevant hunk and real call chain; compile is not UAT."
+}

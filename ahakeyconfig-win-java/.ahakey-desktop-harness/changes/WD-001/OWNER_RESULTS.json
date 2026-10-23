@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "id": "WD-001",
+  "delivery_packet_sha256": "9f9fd29053db86a4068d8ee5720adba40e395352f408e0cbdda61f3df5c698a5",
+  "owner_source": {
+    "path": ".ahakey-desktop-harness\\evidence\\owner-feedback-WD-001-final-owner-confirmation-20260930.md",
+    "sha256": "120880644921439757320f7fbaf8d8045d00b8427049ef2a4c6eb7115122d169"
+  },
+  "actual_connection": "USB wired mode passed for selected WD-001 device steps; BLE-related testing also passed after BLE_tcp_driver.exe was built and made available.",
+  "device_confirmation": {
+    "confirmed": true,
+    "hex_sha256": "9aabce5f015fd44d980ff6818d825b6bab34f6e4b4f7ac277e942272d700444c",
+    "source_quote": "都测试通过了"
+  },
+  "steps": [
+    {
+      "id": "T01",
+      "status": "pass",
+      "observation": "Owner reached and completed wired and BLE device testing after the launch-command correction. DLA did not start the product or device test.",
+      "source_quote": "有线模式我测是通过了的"
+    },
+    {
+      "id": "T02",
+      "status": "pass",
+      "observation": "Owner confirmed the selected step set passed after DLA explained T02 as target device and CP3A firmware identity confirmation.",
+      "source_quote": "都测试通过了"
+    },
+    {
+      "id": "T03",
+      "status": "pass",
+      "observation": "Owner confirmed the selected step set passed after DLA explained T03 as current sleep wait time readback.",
+      "source_quote": "都测试通过了"
+    },
+    {
+      "id": "T04",
+      "status": "pass",
+      "observation": "Owner confirmed the selected step set passed after DLA explained T04 as setting 30 and immediately reading back 30.",
+      "source_quote": "都测试通过了"
+    },
+    {
+      "id": "T05",
+      "status": "pass",
+      "observation": "Owner confirmed the selected step set passed after DLA explained T05 as persistence after real keyboard reboot/power cycle.",
+      "source_quote": "都测试通过了"
+    },
+    {
+      "id": "T06",
+      "status": "pass",
+      "observation": "Owner confirmed the selected step set passed after DLA explained T06 as legal-value matrix coverage for 0, 60, and 120.",
+      "source_quote": "都测试通过了"
+    },
+    {
+      "id": "T07",
+      "status": "not_executed",
+      "observation": "Illegal-value negative testing was not part of the selected confirmation and remains not executed unless Owner separately confirms it or applicable independent evidence is accepted.",
+      "source_quote": ""
+    },
+    {
+      "id": "T08",
+      "status": "pass",
+      "observation": "Owner confirmed the selected step set passed after DLA explained T08 as real idle Sleep/Wake/display-loop observation.",
+      "source_quote": "都测试通过了"
+    },
+    {
+      "id": "T09",
+      "status": "pass",
+      "observation": "Owner confirmed the selected step set passed after DLA explained T09 as related power lifecycle regression.",
+      "source_quote": "都测试通过了"
+    },
+    {
+      "id": "T10",
+      "status": "pass",
+      "observation": "Owner confirmed BLE-related testing passed after the BLE driver executable was built and placed for the Java application.",
+      "source_quote": "现在BLE相关的，也都测试通过，没有问题了"
+    },
+    {
+      "id": "T11",
+      "status": "pass",
+      "observation": "Owner confirmed the selected step set passed after DLA explained T11 as result recording and restoration if applicable.",
+      "source_quote": "都测试通过了"
+    }
+  ]
+}

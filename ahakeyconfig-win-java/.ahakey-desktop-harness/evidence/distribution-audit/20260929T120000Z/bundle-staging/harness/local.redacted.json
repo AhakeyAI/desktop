@@ -1,0 +1,7 @@
+﻿{
+    "receive_root":  "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "source_root":  "C:\\Users\\20825\\Desktop\\windows软件代码-eternal版本\\desktop\\ahakeyconfig-win-java",
+    "firmware_root":  "C:\\Users\\20825\\Desktop\\vibe-code",
+    "redacted":  true,
+    "note":  "Only three authorized root paths retained; no credentials or environment variables."
+}
