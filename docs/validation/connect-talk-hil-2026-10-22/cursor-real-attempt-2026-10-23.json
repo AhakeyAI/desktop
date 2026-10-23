@@ -1,0 +1,52 @@
+{
+  "status": "timeout",
+  "requestLimit": 1,
+  "contentScope": "Fixed synthetic prompt and one temporary text file",
+  "mode": "ask",
+  "cliVersion": "2026.10.19-6bbf2c4",
+  "exitCode": 143,
+  "markerReturned": false,
+  "hookEvents": [],
+  "allProductionHooksSucceeded": false,
+  "preToolDecisions": [],
+  "sameConversation": false,
+  "changedConfigKeys": [
+    "privacyCache"
+  ],
+  "attemptsStarted": 1,
+  "retryPerformed": false,
+  "realProviderSubmission": "unknown",
+  "localLifecycle": {
+    "cli": "2026.10.19-6bbf2c4",
+    "lifecycle": {
+      "initial": {
+        "configuredHooks": 10,
+        "executed": [
+          "sessionEnd",
+          "sessionStart",
+          "user"
+        ],
+        "expectedStreamFailure": true
+      },
+      "reinstall": {
+        "configuredHooks": 10,
+        "executed": [
+          "sessionEnd",
+          "sessionStart",
+          "user"
+        ],
+        "expectedStreamFailure": true
+      },
+      "remove": {
+        "configuredHooks": 1,
+        "executed": [
+          "user"
+        ],
+        "expectedStreamFailure": true
+      }
+    },
+    "scope": "startup/exit only; loopback metadata and unsupported Agent stream; no real model/provider",
+    "promptAndToolCallbacks": "not verified"
+  },
+  "verdict": "Real prompt/tool flow not verified; no further real requests authorized"
+}

@@ -1,0 +1,22 @@
+{
+  "build": 371,
+  "sourceCommit": "7dea8bb",
+  "sourceFrames": 120,
+  "sourceSHA256": "3d1c2365273b80d0fd3f849f3537b4ae7414601f41c50c76ae7fd73279b6f5cf",
+  "configuredFPS": 12,
+  "warmupAllForeground": true,
+  "warmupSamples": 13,
+  "allForeground": true,
+  "foregroundSamples": 11,
+  "samples": 11,
+  "wallSeconds": 12.378160999999999,
+  "cpuPercentOfOneCore": 1.5349614534824676,
+  "preview": "Full Studio, Claude LCD selected, no editor",
+  "keyboardWrites": 0,
+  "sourceFieldStillOwned": true,
+  "restored": true,
+  "allDraftsSemanticallyUnchanged": true,
+  "agentCodeUnchanged": true,
+  "scope": "Full Studio warm steady-state original 120-frame animation; not cold startup or long-duration acceptance",
+  "formalPerformanceBudget": false
+}
