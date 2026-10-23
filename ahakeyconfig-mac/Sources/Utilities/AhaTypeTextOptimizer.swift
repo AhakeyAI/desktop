@@ -12,13 +12,16 @@ final class AhaTypeTextOptimizer: ObservableObject {
     private let session: URLSession
     private let customConfigURL: URL?
     private let onLoginRequired: ((String?) -> Void)?
+    private let processingTimeout: TimeInterval
 
     private let fallbackAPIBase = "https://956798.xyz/prod-api"
 
-    init(configURL: URL? = nil, session: URLSession = .shared, onLoginRequired: ((String?) -> Void)? = nil) {
+    init(configURL: URL? = nil, session: URLSession = .shared, onLoginRequired: ((String?) -> Void)? = nil,
+         processingTimeout: TimeInterval = 8) {
         customConfigURL = configURL
         self.session = session
         self.onLoginRequired = onLoginRequired
+        self.processingTimeout = processingTimeout.isFinite && processingTimeout > 0 ? min(processingTimeout, 8) : 8
         refreshFromDisk()
     }
 
@@ -73,7 +76,8 @@ final class AhaTypeTextOptimizer: ObservableObject {
         refreshFromDisk()
     }
 
-    func processIfEnabled(_ text: String, enabledForRecording: Bool? = nil) async -> String {
+    func processIfEnabled(_ text: String, enabledForRecording: Bool? = nil,
+                          onTimeout: (() -> Void)? = nil) async -> String {
         let source = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !source.isEmpty else { return text }
 
@@ -100,14 +104,14 @@ final class AhaTypeTextOptimizer: ObservableObject {
 
         statusMessage = NSLocalizedString("AhaType 整理中…", comment: "")
 
-        var request = URLRequest(url: url, timeoutInterval: 120)
+        var request = URLRequest(url: url, timeoutInterval: processingTimeout)
         request.httpMethod = "POST"
         request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.httpBody = try? JSONSerialization.data(withJSONObject: ["text": source], options: [])
 
         do {
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await InteractiveCloudRequest.data(for: request, session: session, budget: processingTimeout)
             guard stringValue(loadConfig()["access_token"]) == token else { return text }
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
@@ -153,6 +157,12 @@ final class AhaTypeTextOptimizer: ObservableObject {
             statusMessage = NSLocalizedString("AhaType 已整理，准备粘贴。", comment: "")
             return polished
         } catch {
+            guard stringValue(loadConfig()["access_token"]) == token else { return text }
+            if (error as? URLError)?.code == .timedOut {
+                statusMessage = NSLocalizedString("云端整理超时，已使用原始转写。", comment: "")
+                onTimeout?()
+                return text
+            }
             statusMessage = NSLocalizedString("AhaType 网络错误，已写入原始转写。", comment: "")
             return text
         }

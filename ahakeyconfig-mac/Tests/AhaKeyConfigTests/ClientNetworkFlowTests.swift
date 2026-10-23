@@ -107,6 +107,17 @@ final class ClientNetworkFlowTests: XCTestCase {
         XCTAssertTrue(optimizer.isEnabled)
     }
 
+    func testAhaTypeRequestHasInteractiveLatencyBudget() async throws {
+        ClientStubProtocol.handle = { request in
+            XCTAssertLessThanOrEqual(request.timeoutInterval, 8, "Typing must not wait up to two minutes for cloud cleanup")
+            return (200, #"{"code":0,"data":{"text":"processed"}}"#)
+        }
+        let (optimizer, folder) = try optimizer { _ in XCTFail("valid account") }
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let output = await optimizer.processIfEnabled("original")
+        XCTAssertEqual(output, "processed")
+    }
+
     func testLogicalTokenFailureRedirectsButQuota403DoesNot() async throws {
         for (code, body, shouldRedirect) in [(200, #"{"code":500,"msg":"Token 无效"}"#, true), (403, #"{"code":403,"message":"quota exceeded"}"#, false)] {
             ClientStubProtocol.handle = { _ in (code, body) }

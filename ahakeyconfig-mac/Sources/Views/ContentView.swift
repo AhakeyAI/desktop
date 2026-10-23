@@ -67,6 +67,7 @@ struct ContentView: View {
             voiceSummary: voiceRelay.statusMessage,
             speechSummary: nativeSpeech.statusMessage,
             isRecording: nativeSpeech.isRecording,
+            isStartingRecording: nativeSpeech.isStartingRecording,
             transcriptPreview: nativeSpeech.transcriptPreview,
             lastCommittedText: nativeSpeech.lastCommittedText,
             speechStatusMessage: nativeSpeech.statusMessage

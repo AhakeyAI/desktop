@@ -19,6 +19,7 @@ struct AhaKeyOnboardingPermissionState: Equatable {
     var voiceSummary: String
     var speechSummary: String
     var isRecording: Bool
+    var isStartingRecording: Bool = false
     var transcriptPreview: String
     var lastCommittedText: String
     var speechStatusMessage: String
@@ -329,9 +330,9 @@ struct UnifiedAhaKeyOnboardingView: View {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
                     Circle()
-                        .fill(permissionState.isRecording ? Color.red : (permissionState.canTrySpeechInput ? Color.green : Color.orange))
+                        .fill(permissionState.isStartingRecording ? Color.orange : (permissionState.isRecording ? Color.red : (permissionState.canTrySpeechInput ? Color.green : Color.orange)))
                         .frame(width: 10, height: 10)
-                    Text(permissionState.isRecording ? NSLocalizedString("录音中", comment: "") : (permissionState.canTrySpeechInput ? NSLocalizedString("语音已准备", comment: "") : NSLocalizedString("仍缺语音权限", comment: "")))
+                    Text(permissionState.isStartingRecording ? NSLocalizedString("正在启动麦克风", comment: "") : (permissionState.isRecording ? NSLocalizedString("录音中", comment: "") : (permissionState.canTrySpeechInput ? NSLocalizedString("语音已准备", comment: "") : NSLocalizedString("仍缺语音权限", comment: ""))))
                         .font(.system(size: 15, weight: .semibold))
                 }
 
@@ -360,7 +361,7 @@ struct UnifiedAhaKeyOnboardingView: View {
             }
 
             HStack(spacing: 10) {
-                Button(permissionState.isRecording ? NSLocalizedString("结束并写入", comment: "") : NSLocalizedString("开始试说", comment: "")) {
+                Button(permissionState.isStartingRecording ? NSLocalizedString("取消启动", comment: "") : (permissionState.isRecording ? NSLocalizedString("结束并写入", comment: "") : NSLocalizedString("开始试说", comment: ""))) {
                     didRunTryExperience = true
                     actions.toggleTryExperience()
                 }

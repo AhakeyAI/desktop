@@ -1,0 +1,238 @@
+{
+  "date": "2026-10-23",
+  "baseCommit": "9747326",
+  "installedAtDiagnosis": "2103343 / build365",
+  "baseline": {
+    "startupApproxSeconds": 2,
+    "cloudWaitSeconds": [
+      38,
+      26
+    ],
+    "resolution": "Existing timestamps are second-granularity; not per-API profiling",
+    "sanitizedTimeline": [
+      {
+        "ts": "2026-10-23T03:12:02Z",
+        "source": "voice-relay.log",
+        "event": "matched keyCode=79 type=10 autorepeat=false route=macOS 原生语音 mode=2"
+      },
+      {
+        "ts": "2026-10-23T03:12:03Z",
+        "source": "voice-relay.log",
+        "event": "matched keyCode=79 type=11 autorepeat=false route=macOS 原生语音 mode=2"
+      },
+      {
+        "ts": "2026-10-23T03:12:03Z",
+        "source": "native-speech.log",
+        "event": "short press (keyUp before threshold) → toggle"
+      },
+      {
+        "ts": "2026-10-23T03:12:05Z",
+        "source": "voice-relay.log",
+        "event": "matched keyCode=79 type=10 autorepeat=false route=macOS 原生语音 mode=2"
+      },
+      {
+        "ts": "2026-10-23T03:12:05Z",
+        "source": "voice-relay.log",
+        "event": "matched keyCode=79 type=11 autorepeat=false route=macOS 原生语音 mode=2"
+      },
+      {
+        "ts": "2026-10-23T03:12:05Z",
+        "source": "native-speech.log",
+        "event": "start recording locale=zh-CN"
+      },
+      {
+        "ts": "2026-10-23T03:12:05Z",
+        "source": "native-speech.log",
+        "event": "short press while recording → stop"
+      },
+      {
+        "ts": "2026-10-23T03:12:05Z",
+        "source": "native-speech.log",
+        "event": "stop recording requested bypassAhaType=false"
+      },
+      {
+        "ts": "2026-10-23T03:12:05Z",
+        "source": "native-speech.log",
+        "event": "recognition error [details withheld]"
+      },
+      {
+        "ts": "2026-10-23T03:12:06Z",
+        "source": "voice-relay.log",
+        "event": "matched keyCode=79 type=10 autorepeat=false route=macOS 原生语音 mode=2"
+      },
+      {
+        "ts": "2026-10-23T03:12:06Z",
+        "source": "voice-relay.log",
+        "event": "matched keyCode=79 type=11 autorepeat=false route=macOS 原生语音 mode=2"
+      },
+      {
+        "ts": "2026-10-23T03:12:06Z",
+        "source": "native-speech.log",
+        "event": "short press (keyUp before threshold) → toggle"
+      },
+      {
+        "ts": "2026-10-23T03:12:07Z",
+        "source": "native-speech.log",
+        "event": "start recording locale=zh-CN"
+      },
+      {
+        "ts": "2026-10-23T03:12:12Z",
+        "source": "voice-relay.log",
+        "event": "matched keyCode=79 type=10 autorepeat=false route=macOS 原生语音 mode=2"
+      },
+      {
+        "ts": "2026-10-23T03:12:12Z",
+        "source": "voice-relay.log",
+        "event": "matched keyCode=79 type=11 autorepeat=false route=macOS 原生语音 mode=2"
+      },
+      {
+        "ts": "2026-10-23T03:12:12Z",
+        "source": "native-speech.log",
+        "event": "short press while recording → stop"
+      },
+      {
+        "ts": "2026-10-23T03:12:12Z",
+        "source": "native-speech.log",
+        "event": "stop recording requested bypassAhaType=false"
+      },
+      {
+        "ts": "2026-10-23T03:12:12Z",
+        "source": "native-speech.log",
+        "event": "finalize begin reason=final_result bypass=false"
+      },
+      {
+        "ts": "2026-10-23T03:12:27Z",
+        "source": "voice-relay.log",
+        "event": "matched keyCode=79 type=10 autorepeat=false route=macOS 原生语音 mode=2"
+      },
+      {
+        "ts": "2026-10-23T03:12:28Z",
+        "source": "voice-relay.log",
+        "event": "matched keyCode=79 type=11 autorepeat=false route=macOS 原生语音 mode=2"
+      },
+      {
+        "ts": "2026-10-23T03:12:28Z",
+        "source": "native-speech.log",
+        "event": "short press (keyUp before threshold) → toggle"
+      },
+      {
+        "ts": "2026-10-23T03:12:28Z",
+        "source": "native-speech.log",
+        "event": "start recording locale=zh-CN"
+      },
+      {
+        "ts": "2026-10-23T03:12:32Z",
+        "source": "voice-relay.log",
+        "event": "matched keyCode=79 type=10 autorepeat=false route=macOS 原生语音 mode=2"
+      },
+      {
+        "ts": "2026-10-23T03:12:33Z",
+        "source": "voice-relay.log",
+        "event": "matched keyCode=79 type=11 autorepeat=false route=macOS 原生语音 mode=2"
+      },
+      {
+        "ts": "2026-10-23T03:12:33Z",
+        "source": "native-speech.log",
+        "event": "short press while recording → stop"
+      },
+      {
+        "ts": "2026-10-23T03:12:33Z",
+        "source": "native-speech.log",
+        "event": "stop recording requested bypassAhaType=false"
+      },
+      {
+        "ts": "2026-10-23T03:12:33Z",
+        "source": "native-speech.log",
+        "event": "finalize begin reason=final_result bypass=false"
+      },
+      {
+        "ts": "2026-10-23T03:12:50Z",
+        "source": "native-speech.log",
+        "event": "late completion retained for explicit copy"
+      },
+      {
+        "ts": "2026-10-23T03:12:59Z",
+        "source": "native-speech.log",
+        "event": "finalize success reason=final_result"
+      },
+      {
+        "ts": "2026-10-23T03:13:03Z",
+        "source": "voice-relay.log",
+        "event": "matched keyCode=79 type=10 autorepeat=false route=macOS 原生语音 mode=2"
+      },
+      {
+        "ts": "2026-10-23T03:13:04Z",
+        "source": "native-speech.log",
+        "event": "start recording locale=zh-CN"
+      },
+      {
+        "ts": "2026-10-23T03:13:04Z",
+        "source": "native-speech.log",
+        "event": "long press threshold reached → start long press recording"
+      },
+      {
+        "ts": "2026-10-23T03:13:12Z",
+        "source": "voice-relay.log",
+        "event": "matched keyCode=79 type=11 autorepeat=false route=macOS 原生语音 mode=2"
+      },
+      {
+        "ts": "2026-10-23T03:13:12Z",
+        "source": "native-speech.log",
+        "event": "long press key up → stop + direct"
+      },
+      {
+        "ts": "2026-10-23T03:13:12Z",
+        "source": "native-speech.log",
+        "event": "stop recording requested bypassAhaType=true"
+      },
+      {
+        "ts": "2026-10-23T03:13:12Z",
+        "source": "native-speech.log",
+        "event": "finalize begin reason=final_result bypass=true"
+      },
+      {
+        "ts": "2026-10-23T03:13:12Z",
+        "source": "native-speech.log",
+        "event": "finalize success reason=final_result"
+      }
+    ]
+  },
+  "redLoops": {
+    "capturedTimeline": "failed startup1s/cloud8s assertions",
+    "requestBudget": "one test, one failure at old120s timeout"
+  },
+  "tests": {
+    "fullSwift": 619,
+    "failures": 0,
+    "localeSyntax": "en and zh-Hans passed"
+  },
+  "cloudServiceProbe": {
+    "scope": "One fixed synthetic text latency probe; no recording or personal text",
+    "requestCount": 1,
+    "httpStatus": 200,
+    "businessCode": 200,
+    "closedEndpointError": false,
+    "timeoutError": false,
+    "hasProcessedText": true,
+    "elapsedSeconds": 3.74
+  },
+  "privacy": "No transcript, recording, account, token, quota or processed text in this receipt",
+  "sourceSHA256": {
+    "ahakeyconfig-mac/Sources/Utilities/NativeSpeechTranscriptionService.swift": "929c17d5d8c1d126f35059141d648eb9ada6f2905541f42178cb673e2a6a1c09",
+    "ahakeyconfig-mac/Sources/Utilities/NativeSpeechCaptureSession.swift": "01d26adacc2ead8a1422799ee1a7c2fed36a5f5d98889d22c87f38ab788e8480",
+    "ahakeyconfig-mac/Sources/Utilities/InteractiveCloudRequest.swift": "f1142bdba64c0d245e46d68ae76671f428a55e6ce008e285cdbedd1cc139e65b",
+    "ahakeyconfig-mac/Sources/Utilities/AhaTypeTextOptimizer.swift": "2d89688aa31aea5562da6bdea39160474930dd2c27db7ad28886031bf8a2f31a",
+    "ahakeyconfig-mac/Sources/Utilities/VoiceStatusHUDController.swift": "246d67c8c6bdb8d9e4510dd10f0bde9a80841e12f3864c232a47bf2825114b55",
+    "ahakeyconfig-mac/Tests/AhaKeyConfigTests/NativeSpeechStartupTests.swift": "f7c98489f5c1dfd4fedc78fba905d9b922f1938aabcde8d2e45869b416475646",
+    "ahakeyconfig-mac/Tests/AhaKeyConfigTests/InteractiveCloudRequestTests.swift": "6d4aa42f98c6f599d89ede9c0b2be30df9ac52bb54c66129bdfda5f2b26055f6"
+  },
+  "reviews": "pending",
+  "newCandidateInstalled": false,
+  "remaining": [
+    "Two-axis review and signed candidate",
+    "Real DJI microphone cold-start and rapid press cancellation",
+    "Real short/long voice completeness and cloud8s fallback HUD",
+    "Normal keyboard reboot and Coffee validation",
+    "Remaining WBS firmware/CLI/performance/release matrix unchanged"
+  ]
+}

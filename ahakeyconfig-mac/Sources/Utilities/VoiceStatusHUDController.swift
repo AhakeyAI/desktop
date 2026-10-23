@@ -11,16 +11,20 @@ final class VoiceStatusHUDController {
 
     private init() {}
 
+    /// Build the hidden UI at app startup, without opening the microphone or
+    /// stealing focus on the user's first physical press.
+    func prepare() {
+        guard hostingView == nil else { return }
+        let host = NSHostingView(rootView: VoiceStatusHUDView(state: .starting))
+        host.frame = NSRect(x: 0, y: 0, width: 260, height: 58)
+        hostingView = host
+        ensurePanel().contentView = host
+    }
+
     func show(_ state: VoiceStatusHUDState, autoHideAfter delay: TimeInterval? = nil) {
         hideWorkItem?.cancel()
-        let view = VoiceStatusHUDView(state: state)
-        if let hostingView {
-            hostingView.rootView = view
-        } else {
-            let hostingView = NSHostingView(rootView: view)
-            hostingView.frame = NSRect(x: 0, y: 0, width: 260, height: 58)
-            self.hostingView = hostingView
-        }
+        prepare()
+        hostingView?.rootView = VoiceStatusHUDView(state: state)
 
         let panel = ensurePanel()
         if let hostingView, hostingView.superview == nil {
@@ -94,6 +98,7 @@ struct VoiceStatusHUDState: Equatable {
     let subtitle: String
 
     static let recording = VoiceStatusHUDState(kind: .recording, title: NSLocalizedString("录音中", comment: ""), subtitle: NSLocalizedString("再次按语音键结束", comment: ""))
+    static let starting = VoiceStatusHUDState(kind: .processing, title: NSLocalizedString("正在启动麦克风", comment: ""), subtitle: NSLocalizedString("就绪后说话，再按可取消", comment: ""))
     static let recognizing = VoiceStatusHUDState(kind: .processing, title: NSLocalizedString("本地识别中", comment: ""), subtitle: NSLocalizedString("正在整理语音文本", comment: ""))
     static let ahaType = VoiceStatusHUDState(kind: .processing, title: NSLocalizedString("AhaType 整理中", comment: ""), subtitle: NSLocalizedString("云端正在优化文本", comment: ""))
     static let pasting = VoiceStatusHUDState(kind: .processing, title: NSLocalizedString("准备粘贴", comment: ""), subtitle: NSLocalizedString("正在写入当前光标", comment: ""))

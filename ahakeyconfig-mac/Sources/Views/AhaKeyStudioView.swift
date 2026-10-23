@@ -919,9 +919,9 @@ struct AhaKeyStudioView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(spacing: 10) {
                             Circle()
-                                .fill(nativeSpeech.isRecording ? Color.red : (nativeSpeech.microphoneGranted && nativeSpeech.speechRecognitionGranted ? Color.green : Color.orange))
+                                .fill(nativeSpeech.isStartingRecording ? Color.orange : (nativeSpeech.isRecording ? Color.red : (nativeSpeech.microphoneGranted && nativeSpeech.speechRecognitionGranted ? Color.green : Color.orange)))
                                 .frame(width: 10, height: 10)
-                            Text(nativeSpeech.isRecording ? NSLocalizedString("录音转写中", comment: "") : NSLocalizedString("等待触发", comment: ""))
+                            Text(nativeSpeech.isStartingRecording ? NSLocalizedString("正在启动麦克风", comment: "") : (nativeSpeech.isRecording ? NSLocalizedString("录音转写中", comment: "") : NSLocalizedString("等待触发", comment: "")))
                                 .font(.callout.weight(.semibold))
                             Spacer()
                         }
@@ -941,9 +941,9 @@ struct AhaKeyStudioView: View {
 
                         HStack(spacing: 10) {
                             Circle()
-                                .fill(nativeSpeech.isRecording ? Color.red : Color.clear)
+                                .fill(nativeSpeech.isStartingRecording ? Color.orange : (nativeSpeech.isRecording ? Color.red : Color.clear))
                                 .frame(width: 8, height: 8)
-                            Text(nativeSpeech.isRecording ? NSLocalizedString("录音中", comment: "") : NSLocalizedString("转写测试", comment: ""))
+                            Text(nativeSpeech.isStartingRecording ? NSLocalizedString("正在启动麦克风", comment: "") : (nativeSpeech.isRecording ? NSLocalizedString("录音中", comment: "") : NSLocalizedString("转写测试", comment: "")))
                                 .font(.callout.weight(.semibold))
                             Spacer()
                             if !nativeSpeech.transcriptPreview.isEmpty {
@@ -959,7 +959,7 @@ struct AhaKeyStudioView: View {
                             }
                         }
                         HStack(spacing: 8) {
-                            Button(nativeSpeech.isRecording ? NSLocalizedString("结束并写入", comment: "") : NSLocalizedString("开始录音", comment: "")) {
+                            Button(nativeSpeech.isStartingRecording ? NSLocalizedString("取消启动", comment: "") : (nativeSpeech.isRecording ? NSLocalizedString("结束并写入", comment: "") : NSLocalizedString("开始录音", comment: ""))) {
                                 nativeSpeech.toggleRecordingFromVoiceKey()
                             }
                             .buttonStyle(.borderedProminent)
@@ -5748,7 +5748,7 @@ private extension AhaKeyStudioView {
     }
 
     func checkInlineVoiceReady(_ key: AhaKeyKeyDraft) throws {
-        guard !nativeSpeech.isRecording else { throw ConfirmedVoiceHandoff.Failure.hostNotReady }
+        guard !nativeSpeech.isRecording, !nativeSpeech.isStartingRecording else { throw ConfirmedVoiceHandoff.Failure.hostNotReady }
         if key.voicePreset == .ahaTypeCloud, !ahaType.isEnabled { throw VoiceHandoffHost.Failure.cloudDisabled }
         guard key.voicePreset != .custom else { return }
         guard voiceRelay.inputMonitoringGranted, voiceRelay.accessibilityGranted, voiceRelay.isListening else {

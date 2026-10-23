@@ -13,6 +13,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     @Published private(set) var siriEnabled = false
     @Published private(set) var dictationEnabled = false
     @Published private(set) var isRecording = false
+    @Published private(set) var isStartingRecording = false
     @Published private(set) var statusMessage = NSLocalizedString("等待苹果原生转写就绪。", comment: "")
     @Published private(set) var transcriptPreview = ""
     @Published private(set) var lastCommittedText = ""
@@ -48,9 +49,13 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         .init(shortPressAhaType: shortPressAhaTypeEnabled, longPressAhaType: longPressAhaTypeEnabled,
               longPressThresholdMs: longPressThresholdMs)
     }
-    private var audioEngine: AVAudioEngine?
-    private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
-    private var recognitionTask: SFSpeechRecognitionTask?
+    private var captureSession: NativeSpeechCapturing?
+    private var startupTask: Task<Void, Never>?
+    private let captureFactory: () -> NativeSpeechCapturing
+    private let authorizationCheck: (() -> Bool)?
+    private let hudHandler: ((VoiceStatusHUDState, TimeInterval?) -> Void)?
+    private let diagnosticSink: ((String) -> Void)?
+    private var hasActiveCapture: Bool { isRecording || isStartingRecording }
     private var finalizeWorkItem: DispatchWorkItem?
     private var currentTranscript = ""
     private var transcriptAccumulator = SpeechTranscriptAccumulator()
@@ -60,9 +65,23 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
     private let syntheticEventUserData: Int64 = 0x4148414B
 
-    private init() { }
+    init(captureFactory: @escaping () -> NativeSpeechCapturing = { NativeSpeechCaptureSession() },
+         authorizationCheck: (() -> Bool)? = nil,
+         hud: ((VoiceStatusHUDState, TimeInterval?) -> Void)? = nil,
+         diagnosticSink: ((String) -> Void)? = nil) {
+        self.captureFactory = captureFactory
+        self.authorizationCheck = authorizationCheck
+        self.hudHandler = hud
+        self.diagnosticSink = diagnosticSink
+    }
+
+    private func presentHUD(_ state: VoiceStatusHUDState, autoHideAfter delay: TimeInterval? = nil) {
+        if let hudHandler { hudHandler(state, delay) }
+        else { VoiceStatusHUDController.shared.show(state, autoHideAfter: delay) }
+    }
 
     func start() {
+        if hudHandler == nil { VoiceStatusHUDController.shared.prepare() }
         AhaTypeTextOptimizer.shared.refreshFromDisk()
         refreshPermissions(requestIfNeeded: false)
     }
@@ -140,7 +159,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
         if !currentMicGranted || !currentSpeechGranted || !currentSiriEnabled || !currentDictationEnabled {
             statusMessage = NSLocalizedString("还缺苹果原生语音权限，请先打开麦克风、语音转写、Siri 与听写。", comment: "")
-        } else if !isRecording {
+        } else if !hasActiveCapture {
             statusMessage = NSLocalizedString("苹果原生转写已就绪，按一次语音键开始，再按一次结束。", comment: "")
         }
 
@@ -154,12 +173,12 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         guard let ticket = voicePressGate.begin(code: trigger) else { return }
         let policy = policy ?? legacyProcessingPolicy
         pressedPolicy = policy
-        if longPressEnabled, !isRecording {
+        if longPressEnabled, !hasActiveCapture {
             // 启动长按计时：阈值内松开 → 短按；超时后仍按着 → 进入长按录音
             let work = DispatchWorkItem { [weak self] in
                 guard let self, self.voicePressGate.isCurrent(ticket) else { return }
                 self.longPressTimerWork = nil
-                if !self.isRecording {
+                if !self.hasActiveCapture {
                     self.isLongPressRecording = true
                     self.startRecording(policy: policy, gesture: .longPress)
                     self.appendDiagnostic("long press threshold reached → start long press recording")
@@ -172,7 +191,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             )
         } else if !longPressEnabled {
             // 无长按：keyDown 直接切换（兼容旧行为）
-            if isRecording { stopRecording() }
+            if hasActiveCapture { stopRecording() }
             else { startRecording(policy: policy, gesture: .shortPress) }
         }
         // 若 longPressEnabled 且已在录音中，keyDown 不做任何事，等 keyUp 判断
@@ -198,12 +217,12 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             work.cancel()
             longPressTimerWork = nil
             appendDiagnostic("short press (keyUp before threshold) → toggle")
-            if isRecording {
+            if hasActiveCapture {
                 stopRecording(bypassAhaType: !shortPressAhaTypeEnabled)
             } else {
                 startRecording(policy: policy, gesture: .shortPress)
             }
-        } else if longPressEnabled, isRecording {
+        } else if longPressEnabled, hasActiveCapture {
             // 长按模式开启时，短按第一次已进入切换式录音；第二次短按没有 timer，
             // 仍应按短按配置结束录音，保持“按一次开始，再按一次结束”的体验。
             appendDiagnostic("short press while recording → stop")
@@ -220,14 +239,14 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         pressedPolicy = nil
         longPressTimerWork?.cancel()
         longPressTimerWork = nil
-        if isLongPressRecording {
+        if isLongPressRecording || isStartingRecording {
             isLongPressRecording = false
             stopRecording(bypassAhaType: !longPressAhaTypeEnabled)
         }
     }
 
     func toggleRecordingFromVoiceKey() {
-        if isRecording {
+        if hasActiveCapture {
             stopRecording(bypassAhaType: !shortPressAhaTypeEnabled)
         } else {
             startRecording()
@@ -361,57 +380,53 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     }
 
     func stopRecording(bypassAhaType: Bool) {
+        if isStartingRecording {
+            cancelRecognitionPipeline()
+            isLongPressRecording = false
+            statusMessage = NSLocalizedString("已取消启动录音。", comment: "")
+            presentHUD(.init(kind: .warning, title: NSLocalizedString("已取消录音", comment: ""),
+                subtitle: NSLocalizedString("尚未开始采集语音", comment: "")), autoHideAfter: 1.5)
+            appendDiagnostic("cancelled pending audio startup")
+            return
+        }
         guard isRecording else { return }
-        // Public callers may stop audio, but cannot replace its captured policy.
         let bypassAhaType = recordingPolicy.map { !$0.usesAhaType } ?? bypassAhaType
         let generation = recordingGeneration
+        let capture = captureSession
         isRecording = false
         statusMessage = NSLocalizedString("正在结束录音并整理文字…", comment: "")
-        VoiceStatusHUDController.shared.show(.recognizing)
+        presentHUD(.recognizing)
         pendingFinalizeBypassAhaType = bypassAhaType
         appendDiagnostic("stop recording requested bypassAhaType=\(bypassAhaType)")
-
         finalizeWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            Task { @MainActor in
+        finalizeWorkItem = nil
+        Task { @MainActor in
+            // Start the final-result grace period after endAudio, not while
+            // slow microphone teardown is still queued.
+            await capture?.finish()
+            guard self.recordingGeneration == generation else { return }
+            let workItem = DispatchWorkItem { [weak self] in
                 guard let self, self.recordingGeneration == generation else { return }
                 self.finalizeCurrentTranscriptIfNeeded(reason: "timeout_finalize", bypassAhaType: bypassAhaType)
             }
+            self.finalizeWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: workItem)
         }
-        finalizeWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: workItem)
-
-        audioEngine?.stop()
-        audioEngine?.inputNode.removeTap(onBus: 0)
-        recognitionRequest?.endAudio()
     }
 
     private func startRecording(policy: VoiceProcessingPolicy? = nil,
                                 gesture: VoiceRecordingPolicySnapshot.Gesture = .shortPress) {
-        guard microphoneGranted, speechRecognitionGranted, siriEnabled, dictationEnabled else {
+        guard authorizationCheck?() ?? (microphoneGranted && speechRecognitionGranted && siriEnabled && dictationEnabled) else {
             let micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
             let speechStatus = SFSpeechRecognizer.authorizationStatus()
             refreshPermissions(requestIfNeeded: true)
-            statusMessage = missingPermissionMessage(
-                micStatus: micStatus,
-                speechStatus: speechStatus,
-                siriEnabled: siriEnabled,
-                dictationEnabled: dictationEnabled
-            )
-            appendDiagnostic("blocked start recording micStatus=\(micStatus.rawValue) speechStatus=\(speechStatus.rawValue) siri=\(siriEnabled) dictation=\(dictationEnabled)")
-            if !VoiceRelayService.shared.isPermissionOnboardingSuppressed {
-                VoiceRelayService.shared.showsPermissionOnboarding = true
-            }
+            statusMessage = missingPermissionMessage(micStatus: micStatus, speechStatus: speechStatus,
+                siriEnabled: siriEnabled, dictationEnabled: dictationEnabled)
+            appendDiagnostic("blocked start recording micStatus=\(micStatus.rawValue) speechStatus=\(speechStatus.rawValue)")
+            if !VoiceRelayService.shared.isPermissionOnboardingSuppressed { VoiceRelayService.shared.showsPermissionOnboarding = true }
             NSApp.activate(ignoringOtherApps: true)
             return
         }
-
-        guard let recognizer = makeSpeechRecognizer() else {
-            statusMessage = NSLocalizedString("当前系统语言暂不支持苹果原生转写。", comment: "")
-            appendDiagnostic("speech recognizer unavailable")
-            return
-        }
-
         cancelRecognitionPipeline()
         let generation = UUID()
         recordingGeneration = generation
@@ -424,44 +439,42 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         transcriptPreview = ""
         lastCommittedText = ""
         hasCommittedThisRecording = false
-
-        let request = SFSpeechAudioBufferRecognitionRequest()
-        request.shouldReportPartialResults = true
-        if recognizer.supportsOnDeviceRecognition {
-            request.requiresOnDeviceRecognition = true
-        }
-
-        let engine = AVAudioEngine()
-        let inputNode = engine.inputNode
-        let format = inputNode.outputFormat(forBus: 0)
-
-        inputNode.removeTap(onBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
-            request.append(buffer)
-        }
-
-        do {
-            engine.prepare()
-            try engine.start()
-        } catch {
-            inputNode.removeTap(onBus: 0)
-            statusMessage = NSLocalizedString("无法启动麦克风录音。", comment: "")
-            appendDiagnostic("audio engine start failed: \(error.localizedDescription)")
-            return
-        }
-
-        audioEngine = engine
-        recognitionRequest = request
-        isRecording = true
-        statusMessage = NSLocalizedString("苹果原生转写录音中… 再按一次语音键结束。", comment: "")
-        VoiceStatusHUDController.shared.show(.recording)
-        appendDiagnostic("start recording locale=\(recognizer.locale.identifier)")
-
-        recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
-            guard let self else { return }
-            Task { @MainActor in
+        let capture = captureFactory()
+        let startupStartedAt = ProcessInfo.processInfo.systemUptime
+        captureSession = capture
+        isStartingRecording = true
+        statusMessage = NSLocalizedString("正在启动麦克风，显示录音中后开始说话。", comment: "")
+        presentHUD(.starting)
+        appendDiagnostic("audio startup requested")
+        startupTask = Task { @MainActor in
+            do {
+                let locale = try await capture.start { [weak self] result, error in
+                    Task { @MainActor in
+                        guard let self, self.recordingGeneration == generation else { return }
+                        self.handleRecognition(result: result, error: error)
+                    }
+                }
+                guard self.recordingGeneration == generation, self.isStartingRecording, !Task.isCancelled else {
+                    capture.cancel()
+                    self.appendDiagnostic("discarded stale audio startup")
+                    return
+                }
+                self.startupTask = nil
+                self.isStartingRecording = false
+                self.isRecording = true
+                self.statusMessage = NSLocalizedString("苹果原生转写录音中… 再按一次语音键结束。", comment: "")
+                self.presentHUD(.recording)
+                let elapsed = Int((ProcessInfo.processInfo.systemUptime - startupStartedAt) * 1_000)
+                self.appendDiagnostic("start recording locale=\(locale) startupMs=\(elapsed)")
+            } catch {
                 guard self.recordingGeneration == generation else { return }
-                self.handleRecognition(result: result, error: error)
+                self.startupTask = nil
+                self.cancelRecognitionPipeline()
+                self.isLongPressRecording = false
+                self.statusMessage = error.localizedDescription
+                self.presentHUD(.init(kind: .warning, title: NSLocalizedString("无法开始录音", comment: ""),
+                    subtitle: error.localizedDescription), autoHideAfter: 3)
+                self.appendDiagnostic("audio startup failed")
             }
         }
     }
@@ -496,7 +509,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             } else {
                 cancelRecognitionPipeline()
                 statusMessage = "苹果原生转写失败：\(error.localizedDescription)"
-                VoiceStatusHUDController.shared.show(
+                presentHUD(
                     VoiceStatusHUDState(kind: .warning, title: NSLocalizedString("识别失败", comment: ""), subtitle: NSLocalizedString("请重试或检查语音权限", comment: "")),
                     autoHideAfter: 2.0
                 )
@@ -539,7 +552,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             hasCommittedThisRecording = true
             deferredTranscripts.append(.init(text: latest, requiresReview: true, previousText: previous))
             statusMessage = NSLocalizedString("转写内容尚未完整确认，已保留供核对，未自动粘贴。", comment: "")
-            VoiceStatusHUDController.shared.show(.init(kind: .warning, title: NSLocalizedString("请核对转写内容", comment: ""),
+            presentHUD(.init(kind: .warning, title: NSLocalizedString("请核对转写内容", comment: ""),
                 subtitle: NSLocalizedString("文字已保留在语音设置中", comment: "")), autoHideAfter: 3)
             appendDiagnostic("finalize retained for review reason=\(reason)")
             return
@@ -548,7 +561,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
         guard !text.isEmpty else {
             statusMessage = NSLocalizedString("未识别到有效语音内容。", comment: "")
-            VoiceStatusHUDController.shared.show(.empty, autoHideAfter: 1.8)
+            presentHUD(.empty, autoHideAfter: 1.8)
             appendDiagnostic("finalize empty reason=\(reason)")
             return
         }
@@ -556,15 +569,16 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         hasCommittedThisRecording = true
         let willUseAhaType = capturedPolicy?.usesAhaType ?? (!bypassAhaType && AhaTypeTextOptimizer.shared.isEnabled)
         statusMessage = willUseAhaType ? NSLocalizedString("AhaType 整理中…", comment: "") : NSLocalizedString("准备粘贴…", comment: "")
-        VoiceStatusHUDController.shared.show(willUseAhaType ? .ahaType : .pasting)
+        presentHUD(willUseAhaType ? .ahaType : .pasting)
         appendDiagnostic("finalize begin reason=\(reason) bypass=\(bypassAhaType) rawText=\(text)")
 
         let completionTicket = recordingGeneration
         Task { @MainActor in
+            var cloudTimedOut = false
             let result = await VoiceTranscriptCompletion.run(text: text, ticket: completionTicket,
                 currentTicket: { self.recordingGeneration }, process: { source in
                     if willUseAhaType {
-                        return await AhaTypeTextOptimizer.shared.processIfEnabled(source, enabledForRecording: true)
+                        return await AhaTypeTextOptimizer.shared.processIfEnabled(source, enabledForRecording: true, onTimeout: { cloudTimedOut = true })
                     }
                     return source
                 })
@@ -584,11 +598,15 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             if self.injectText(output) {
                 self.lastCommittedText = output
                 self.statusMessage = output == text ? "已写入：\(output)" : "AhaType 已整理并写入：\(output)"
-                VoiceStatusHUDController.shared.show(.done, autoHideAfter: 1.4)
+                if cloudTimedOut {
+                    self.statusMessage = NSLocalizedString("云端整理超时，已使用原始转写。", comment: "")
+                    presentHUD(.init(kind: .warning, title: NSLocalizedString("已写入原文", comment: ""),
+                        subtitle: NSLocalizedString("云端整理超时，请稍后重试", comment: "")), autoHideAfter: 3)
+                } else { presentHUD(.done, autoHideAfter: 1.4) }
                 self.appendDiagnostic("finalize success reason=\(reason) rawText=\(text) outputText=\(output)")
             } else {
                 self.statusMessage = NSLocalizedString("识别完成，但写入当前光标失败。", comment: "")
-                VoiceStatusHUDController.shared.show(.failed, autoHideAfter: 2.0)
+                presentHUD(.failed, autoHideAfter: 2.0)
                 self.appendDiagnostic("finalize inject failed reason=\(reason) text=\(output)")
             }
         }
@@ -615,31 +633,12 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         finalizeWorkItem?.cancel()
         finalizeWorkItem = nil
         recordingPolicy = nil
-        audioEngine?.stop()
-        audioEngine?.inputNode.removeTap(onBus: 0)
-        audioEngine = nil
-
-        recognitionRequest?.endAudio()
-        recognitionRequest = nil
-
-        recognitionTask?.cancel()
-        recognitionTask = nil
+        startupTask?.cancel()
+        startupTask = nil
+        captureSession?.cancel()
+        captureSession = nil
+        isStartingRecording = false
         isRecording = false
-    }
-
-    private func makeSpeechRecognizer() -> SFSpeechRecognizer? {
-        if let preferredIdentifier = Locale.preferredLanguages.first {
-            let locale = Locale(identifier: preferredIdentifier)
-            if let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable {
-                return recognizer
-            }
-        }
-
-        if let recognizer = SFSpeechRecognizer(), recognizer.isAvailable {
-            return recognizer
-        }
-
-        return nil
     }
 
     private func missingPermissionMessage(
@@ -810,6 +809,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     }
 
     private func appendDiagnostic(_ message: String) {
+        if let diagnosticSink { diagnosticSink(message); return }
         let line = "[\(ISO8601DateFormatter().string(from: Date()))] \(message)\n"
         let url = diagnosticLogURL
 
