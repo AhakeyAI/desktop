@@ -230,12 +230,14 @@
     "ahakeyconfig-mac/Tests/AhaKeyConfigTests/InteractiveCloudRequestTests.swift": "6d4aa42f98c6f599d89ede9c0b2be30df9ac52bb54c66129bdfda5f2b26055f6",
     "ahakeyconfig-mac/scripts/generate_localizations.py": "d264258d8547a8d4e8885d2cff16425d857035d3751f02da47e06f47bc0bebb0"
   },
-  "reviews": "final recheck pending",
-  "newCandidateInstalled": false,
+  "reviews": {
+    "standards": "passed cumulative9747326..db7e410",
+    "spec": "passed; old finishing-context P2 closed"
+  },
+  "newCandidateInstalled": true,
   "remaining": [
-    "Two-axis review and signed candidate",
-    "Real DJI microphone cold-start and rapid press cancellation",
-    "Real short/long voice completeness and cloud8s fallback HUD",
+    "Real first cold press feedback and timely cloud/fallback completion",
+    "Real short/long voice completeness and rapid starting cancellation",
     "Normal keyboard reboot and Coffee validation",
     "Remaining WBS firmware/CLI/performance/release matrix unchanged"
   ],
@@ -248,5 +250,28 @@
     "redAssertionFailures": 2,
     "greenLifecycleTests": 7,
     "scope": "Real service gesture + immutable recognition input, paused teardown, old final arrives during new capture; old full text retained, current preview unchanged"
-  }
+  },
+  "sourceCommit": "db7e410b047351d791241cf961d14783fad7243a",
+  "candidate": {
+    "version": "0.2.3",
+    "build": "367",
+    "signature": "deep strict passed",
+    "mainAndAgentRestarted": true,
+    "freshApproval": {
+      "physicalSwitchState": 0,
+      "switchState": 0,
+      "approvalAutoVerified": true
+    },
+    "newEnglishKeysInBundle": true
+  },
+  "preservation": {
+    "existingUserDraftSemanticallyUnchanged": true,
+    "actualCloudConfigPath": "Library/Application Support/VibeKeyboard/typeless_config.json",
+    "activeCloudTokenPreserved": true,
+    "cloudTogglePreserved": true,
+    "completedPendingTranscriptPrivatelyBackedUp": true,
+    "nativeLogPrivatelyBackedUp": true,
+    "scopeNote": "Actual active legacy VibeKeyboard config now checked; earlier receipts only compared AhaKeyConfig/ahatype.json. No credentials or speech text in receipt."
+  },
+  "actualColdMicrophoneAndVoiceAcceptance": "pending user test; no microphone recording initiated autonomously"
 }
