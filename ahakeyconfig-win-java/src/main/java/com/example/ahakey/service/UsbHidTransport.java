@@ -510,18 +510,26 @@ public class UsbHidTransport implements Closeable {
     }
 
     private static String findDevicePath() {
-        List<String> paths = listDevicePaths();
+        return selectConfigInterface(listDevicePaths());
+    }
+
+    /**
+     * Picks the keyboard's vendor/config interface (mi_01). The keyboard also
+     * exposes mi_00 collections (keyboard, consumer control) that reject our
+     * writes; Windows may list those first, so they are never used.
+     */
+    static String selectConfigInterface(List<String> paths) {
         for (String path : paths) {
             String p = path.toLowerCase(Locale.ROOT);
-            if (p.contains("vid_413c") && p.contains("pid_2107") && (p.contains("mi_01") || p.contains("col02"))) {
+            if (p.contains("vid_413c") && p.contains("pid_2107") && p.contains("mi_01")) {
                 return path;
             }
         }
-        for (String path : paths) {
-            String p = path.toLowerCase(Locale.ROOT);
-            if (p.contains("vid_413c") && p.contains("pid_2107")) {
-                return path;
-            }
+        boolean hasAhaKey = paths.stream()
+            .map(path -> path.toLowerCase(Locale.ROOT))
+            .anyMatch(path -> path.contains("vid_413c") && path.contains("pid_2107"));
+        if (hasAhaKey) {
+            logger.warn("AhaKey USB HID device found, but vendor/config interface mi_01 was not available");
         }
         return null;
     }
