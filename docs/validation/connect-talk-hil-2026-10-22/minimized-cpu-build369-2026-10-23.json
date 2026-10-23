@@ -1,0 +1,100 @@
+{
+  "sourceCommit": "7f71002770065508b7c060398d4dfd8b3ebc350c",
+  "build": 369,
+  "scenario": "Local Claude120-frame preview selected, sampled window minimized; no device configuration writes initiated by benchmark",
+  "checkpoints": [
+    {
+      "elapsedSeconds": 30.47,
+      "minimized": true,
+      "processes": {
+        "Studio": {
+          "cpuPercentOfOneCore": 0.361,
+          "rssMiB": 69.55
+        },
+        "Agent": {
+          "cpuPercentOfOneCore": 0.23,
+          "rssMiB": 13.48
+        }
+      },
+      "windowStateCheckSucceeded": true
+    },
+    {
+      "elapsedSeconds": 61.12,
+      "minimized": true,
+      "processes": {
+        "Studio": {
+          "cpuPercentOfOneCore": 0.311,
+          "rssMiB": 45.66
+        },
+        "Agent": {
+          "cpuPercentOfOneCore": 0.229,
+          "rssMiB": 13.3
+        }
+      },
+      "windowStateCheckSucceeded": true
+    },
+    {
+      "elapsedSeconds": 91.77,
+      "minimized": true,
+      "processes": {
+        "Studio": {
+          "cpuPercentOfOneCore": 0.403,
+          "rssMiB": 64.55
+        },
+        "Agent": {
+          "cpuPercentOfOneCore": 0.251,
+          "rssMiB": 13.12
+        }
+      },
+      "windowStateCheckSucceeded": true
+    },
+    {
+      "elapsedSeconds": 122.48,
+      "minimized": true,
+      "processes": {
+        "Studio": {
+          "cpuPercentOfOneCore": 0.384,
+          "rssMiB": 62.5
+        },
+        "Agent": {
+          "cpuPercentOfOneCore": 0.245,
+          "rssMiB": 13.05
+        }
+      },
+      "windowStateCheckSucceeded": true
+    }
+  ],
+  "wallSeconds": 122.724,
+  "samples": 24,
+  "voiceLogFilesObserved": 2,
+  "voiceLogsChanged": false,
+  "processes": {
+    "Studio": {
+      "cpuPercentOfOneCore": 0.383,
+      "rssStartMiB": 70.69,
+      "rssEndMiB": 62.5,
+      "rssPeakMiB": 82.52,
+      "processStable": true
+    },
+    "Agent": {
+      "cpuPercentOfOneCore": 0.244,
+      "rssStartMiB": 13.97,
+      "rssEndMiB": 13.05,
+      "rssPeakMiB": 13.97,
+      "processStable": true
+    }
+  },
+  "limits": [
+    "Two-minute minimized window sample only; not foreground GIF, overnight, device OLED, sleep or full performance acceptance",
+    "CPU ratio uses process CPU time divided by observed wall time; not lifetime ps percent",
+    "Window minimization checked at four checkpoints, not continuously; concurrent UI activity cannot be excluded between checkpoints"
+  ],
+  "acceptance": "Current two-minute minimized-window scenario only",
+  "restoredWindow": true,
+  "freshApprovalAfter": {
+    "physicalSwitchState": 0,
+    "switchState": 0,
+    "approvalAutoVerified": true
+  },
+  "concurrentUserInterfaceActivity": "At restoration, Claude LCD editor had an unapplied multi-task selection; left untouched, did not return or change browsing mode"
+}
