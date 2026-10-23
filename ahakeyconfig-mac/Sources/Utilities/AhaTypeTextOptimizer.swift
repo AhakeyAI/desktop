@@ -76,7 +76,7 @@ final class AhaTypeTextOptimizer: ObservableObject {
         }
 
         guard tokenIsStillValid(config["token_valid_until"]) else {
-            statusMessage = NSLocalizedString("AhaType 登录已过期，直接写入原始转写。", comment: "")
+            statusMessage = NSLocalizedString("AhaType 服务已到期，直接写入原始转写。", comment: "")
             return text
         }
 
@@ -102,6 +102,11 @@ final class AhaTypeTextOptimizer: ObservableObject {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if AhaTypeCloudSession.isExpired(httpStatus: statusCode, object: try? JSONSerialization.jsonObject(with: data) as? [String: Any]) {
+                CloudAccountManager.shared.expireSession(token: token)
+                statusMessage = NSLocalizedString("AhaType 登录已过期，直接写入原始转写。", comment: "")
+                return text
+            }
             guard statusCode == 200 else {
                 statusMessage = "AhaType 请求失败（HTTP \(statusCode)），已写入原始转写。"
                 return text
@@ -151,7 +156,7 @@ final class AhaTypeTextOptimizer: ObservableObject {
         } else if token.isEmpty {
             statusMessage = NSLocalizedString("AhaType 已开启，但尚未登录。", comment: "")
         } else if !valid {
-            statusMessage = NSLocalizedString("AhaType 已开启，但登录已过期。", comment: "")
+            statusMessage = NSLocalizedString("AhaType 已开启，但服务已到期，续费后可继续使用。", comment: "")
         } else {
             statusMessage = NSLocalizedString("AhaType 已开启，语音结果会先经云端整理。", comment: "")
         }

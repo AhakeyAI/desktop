@@ -57,6 +57,19 @@ final class CloudAccountManager: ObservableObject {
         statusMessage = NSLocalizedString("请输入账号密码重新登录。", comment: "")
     }
 
+    /// 云端判定登录态失效时清掉本地会话，避免界面继续显示「已登录」而实际请求全部失败。
+    /// 只在失效的仍是当前 Token 时生效，防止旧请求晚到把刚重新登录的会话踢掉。
+    func expireSession(token: String) {
+        guard !token.isEmpty, token == accessToken else { return }
+        logout()
+        statusMessage = NSLocalizedString("登录已过期，请重新登录。", comment: "")
+    }
+
+    private func expireSessionIfNeeded(_ error: Error, token: String) {
+        guard (error as? CloudAccountError)?.statusCode == 401 else { return }
+        expireSession(token: token)
+    }
+
     func refreshProfile(showAlertOnFailure: Bool = true) {
         guard !accessToken.isEmpty else {
             logout()
@@ -64,6 +77,7 @@ final class CloudAccountManager: ObservableObject {
         }
         isBusy = true
         statusMessage = NSLocalizedString("正在刷新用户信息…", comment: "")
+        let token = accessToken
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
@@ -81,9 +95,7 @@ final class CloudAccountManager: ObservableObject {
                     } else {
                         self.statusMessage = "已登录，用户信息稍后可刷新。"
                     }
-                    if showAlertOnFailure, (error as? CloudAccountError)?.statusCode == 401 {
-                        self.logout()
-                    }
+                    self.expireSessionIfNeeded(error, token: token)
                 }
             }
         }
@@ -97,6 +109,7 @@ final class CloudAccountManager: ObservableObject {
         }
         isBusy = true
         statusMessage = NSLocalizedString("正在兑换免费券…", comment: "")
+        let token = accessToken
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
@@ -112,6 +125,7 @@ final class CloudAccountManager: ObservableObject {
                 await MainActor.run {
                     self.alertMessage = error.localizedDescription
                     self.statusMessage = NSLocalizedString("兑换失败。", comment: "")
+                    self.expireSessionIfNeeded(error, token: token)
                 }
             }
         }
@@ -124,6 +138,7 @@ final class CloudAccountManager: ObservableObject {
         }
         isBusy = true
         statusMessage = NSLocalizedString("正在创建微信支付订单…", comment: "")
+        let token = accessToken
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
@@ -156,6 +171,7 @@ final class CloudAccountManager: ObservableObject {
                 await MainActor.run {
                     self.alertMessage = error.localizedDescription
                     self.statusMessage = NSLocalizedString("创建支付订单失败。", comment: "")
+                    self.expireSessionIfNeeded(error, token: token)
                 }
             }
         }
@@ -422,6 +438,10 @@ final class CloudAccountManager: ObservableObject {
         if statusCode != 200 {
             throw CloudAccountError(responseMessage(object).isEmpty ? "请求失败（HTTP \(statusCode)）。" : responseMessage(object), statusCode: statusCode)
         }
+        if AhaTypeCloudSession.isExpired(httpStatus: statusCode, object: object) {
+            let message = responseMessage(object)
+            throw CloudAccountError(message.isEmpty ? NSLocalizedString("登录已过期，请重新登录。", comment: "") : message, statusCode: 401)
+        }
         return object
     }
 
@@ -571,6 +591,27 @@ final class CloudAccountManager: ObservableObject {
             return NSLocalizedString("云端连接失败：当前网络无法访问 AhaType 服务，请检查网络后重试。", comment: "")
         default:
             return "云端连接失败：\(urlError.localizedDescription)"
+        }
+    }
+}
+
+/// 云端对失效 Token 返回 HTTP 200 + `{"code":500,"msg":"未登录或Token无效","data":401}`，
+/// 只看 HTTP 状态码会漏判，必须同时识别业务层的 401。
+enum AhaTypeCloudSession {
+    static func isExpired(httpStatus: Int, object: [String: Any]?) -> Bool {
+        if httpStatus == 401 { return true }
+        guard let object else { return false }
+        return code(object["code"]) == 401 || code(object["data"]) == 401
+    }
+
+    private static func code(_ value: Any?) -> Int? {
+        switch value {
+        case let number as NSNumber:
+            return number.intValue
+        case let string as String:
+            return Int(string.trimmingCharacters(in: .whitespacesAndNewlines))
+        default:
+            return nil
         }
     }
 }
