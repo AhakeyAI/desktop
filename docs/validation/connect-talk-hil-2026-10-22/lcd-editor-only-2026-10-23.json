@@ -1,0 +1,28 @@
+{
+  "sourceCommit": "7f71002770065508b7c060398d4dfd8b3ebc350c",
+  "build": 369,
+  "signature": "deep strict passed",
+  "agentBinaryCDHashIdentical": true,
+  "agentRestartedByInstaller": false,
+  "ui": {
+    "outerTaskControlsAbsent": true,
+    "editTaskControlsPresent": true,
+    "returnedSummaryTaskControlsAbsent": true,
+    "readingLeaseReturnedToAgent": true,
+    "resourceReadback": "Codex default custom1 frame, preserved",
+    "pendingDraftCountAtInstallationAndAfterUI": 2
+  },
+  "preferenceChangedKeys": [],
+  "preferencesSemanticallyUnchanged": true,
+  "freshApproval": {
+    "physicalSwitchState": 0,
+    "switchState": 0,
+    "approvalAutoVerified": true
+  },
+  "limits": [
+    "No task mode apply, foreground permission enable, keyboard writes or resource upload tested",
+    "User drafts retained; do not discard or apply the2 pending items"
+  ],
+  "ciRun": 39910991663,
+  "ciConclusion": "success"
+}

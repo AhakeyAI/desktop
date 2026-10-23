@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-23",
+  "sourceCommit": "a8b683d9d7630d933b00cb33743d3dfa4b2e6310",
+  "build": 368,
+  "baseline": {
+    "build": 367,
+    "focused20SecondsCpuPercent": 21.237,
+    "firstMinuteCpuPercent": 19.165,
+    "profilerHotPath": "AnimatedGIFLayerView.image(at:) -> CGImageSourceCreateThumbnailAtIndex -> GIF decode"
+  },
+  "regression": {
+    "finalTestsLegacyBehavior": "fails; repeated second-cycle frame decoding",
+    "focusedTests": 5,
+    "fullSwiftTests": 625,
+    "failures": 0,
+    "standardsReview": "passed",
+    "specReview": "passed",
+    "ciRun": 39909858228,
+    "ciConclusion": "success"
+  },
+  "installation": {
+    "signature": "Developer ID, deep strict passed",
+    "backup": "local private backup, not published",
+    "freshApproval": {
+      "physicalSwitchState": 0,
+      "switchState": 0,
+      "approvalAutoVerified": true
+    },
+    "preferencesSemanticallyUnchanged": true,
+    "existingVoiceDraftCount": 1,
+    "cliConfigurationsByteUnchanged": true,
+    "cloudTokenAndToggleUnchanged": true,
+    "cloudChangedFields": [
+      "used_daily",
+      "used_weekly",
+      "used_monthly"
+    ],
+    "cloudNote": "Only usage counters changed during account refresh; no account reset or transcript request initiated by benchmark"
+  },
+  "performanceAcceptance": "pending controlled foreground comparison; not closed",
+  "invalidOrIncompleteSamples": [
+    {
+      "build": 367,
+      "reason": "planned ten-minute run ended early when fixed daemon PID changed; cause unproven"
+    },
+    {
+      "build": 368,
+      "rawCpuPercent": 0.3,
+      "reason": "foreground not tracked for entire interval; not accepted as active-animation proof"
+    },
+    {
+      "build": 368,
+      "seconds": 24.489,
+      "rawCpuPercent": 6.615,
+      "foregroundObservations": 21,
+      "foregroundTrue": 10,
+      "reason": "foreground lost; diagnostic assertion failed; not accepted"
+    },
+    {
+      "build": 368,
+      "reason": "segmented observation intentionally stopped for user-requested LCD UI change; no final verdict"
+    }
+  ],
+  "scope": "Local virtual LCD preview only; no firmware or keyboard configuration writes. No full long-GIF, sleep, OLED or complete performance matrix acceptance."
+}

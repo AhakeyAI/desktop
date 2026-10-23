@@ -35,3 +35,10 @@
 
 
 2026-10-22复核：通过GitHub API确认Fireware-harness头仍为076382b2214289ac7bc1735d669d7de78730c4da。与70ca334f比较仅一个Harness证据/状态归档提交，没有生产代码变化；上述全局Consumer分发与0x96限制仍适用。Key1逐模式App方案已在PR155完成本机保存与语音正常路径验收，不能据此宣称Consumer混用已被固件支持。
+
+
+## 2026-10-23：退出后如何恢复Consumer
+
+用户明确追问当前已suppress后如何恢复。接受源70ca334中，command_solve.c的0x96写入口仅允许SUPPRESSED_BY_DESKTOP（3），其余值包括COMPLETED_MAC（2）直接拒绝。main.c的引导仅对UNSET启动；reset_ble_identity只处理蓝牙身份，不清Voice选择。init_default_key_bund会清整个key_bund，但只在启动检测配置区为空时调用。因此没有已确认的无损实体组合键或客户端恢复入口；普通重启、Forget PC无效，保留EEPROM的重刷也不能保证恢复。工程清配置后重选Mac会影响其他设置，不作为当前用户操作指引，更不在本机执行。
+
+最小固件协作可先独立于分模式：允许显式全局恢复COMPLETED_MAC与退出Consumer，保存并读回确认；切换前释放旧键盘/Consumer路线；保留所有普通键位、素材配置、灯效、待机与蓝牙绑定。已有voice_onboarding_persist_state可持久化合法状态，但发布协议、能力身份、失败后实际状态及可验收HEX仍需固件方确认，客户端不能绕过旧固件的拒绝硬写2。该增量应纳入既有Consumer恢复/分模式协作范围，不据此假称已具备一键恢复。
