@@ -75,9 +75,9 @@ final class DeviceStateReducerTests: XCTestCase {
         XCTAssertEqual(r3.effect, .none)
     }
 
-    /// battery 事件只更新电量字段，其他字段不变。
+    /// 只支持标准电量服务的设备仍能更新电量，其他字段不变。
     func testBatteryEventOnlyUpdatesBatteryLevel() {
-        let base = DeviceStateReducer.apply(sampleStatus, core: CoreDeviceSnapshot(), diagnostics: DeviceDiagnosticsSnapshot())
+        let base = DeviceStateReducer.apply(.connected(name: "Standard battery", uuid: "BAS"), core: CoreDeviceSnapshot(), diagnostics: DeviceDiagnosticsSnapshot())
 
         let result = DeviceStateReducer.apply(.battery(42), core: base.core, diagnostics: base.diagnostics)
         XCTAssertEqual(result.core.batteryLevel, 42)
@@ -88,8 +88,8 @@ final class DeviceStateReducerTests: XCTestCase {
         XCTAssertEqual(result.effect, .none)
     }
 
-    /// 电量后到覆盖（last-write-wins）：状态帧与 Battery Service notify 谁后到谁生效。
-    func testBatteryLastWriteWins() {
+    /// 复现现场：标准服务历史低值不能覆盖本次连接的实时协议电量。
+    func testProtocolBatteryDoesNotRegressToHistoricalServiceMinimum() {
         var core = CoreDeviceSnapshot()
         let diagnostics = DeviceDiagnosticsSnapshot()
 
@@ -100,9 +100,58 @@ final class DeviceStateReducerTests: XCTestCase {
         core = DeviceStateReducer.apply(sampleStatus, core: core, diagnostics: diagnostics).core
         XCTAssertEqual(core.batteryLevel, 87)
 
-        // notify 后到，再覆盖
-        core = DeviceStateReducer.apply(.battery(88), core: core, diagnostics: diagnostics).core
-        XCTAssertEqual(core.batteryLevel, 88)
+        // 固件 BAS 只保留历史最低值，晚到的回包也不能覆盖当前状态。
+        let current = core
+        core = DeviceStateReducer.apply(.battery(66), core: core, diagnostics: diagnostics).core
+        XCTAssertEqual(core, current)
+        XCTAssertEqual(core.batteryLevel, 87)
+    }
+
+    func testProtocolBatteryCanRiseFallAndReportActualZero() {
+        var core = CoreDeviceSnapshot()
+        let diagnostics = DeviceDiagnosticsSnapshot()
+        for level in [85, 84, 90, 0] {
+            let status = DeviceStateEvent.fullStatus(battery: level, firmwareMain: 1, firmwareSub: 2,
+                workMode: 2, lightMode: 1, switchState: 0, brightness: 35, activePictureSet: 0)
+            core = DeviceStateReducer.apply(status, core: core, diagnostics: diagnostics).core
+            let afterStandard = DeviceStateReducer.apply(.battery(66), core: core, diagnostics: diagnostics)
+            XCTAssertEqual(afterStandard.core, core)
+            XCTAssertEqual(afterStandard.core.batteryLevel, level)
+        }
+    }
+
+    func testNewConnectionCanUseStandardBatteryUntilItsOwnProtocolStatus() {
+        let diagnostics = DeviceDiagnosticsSnapshot()
+        var core = DeviceStateReducer.apply(sampleStatus, core: CoreDeviceSnapshot(), diagnostics: diagnostics).core
+        core = DeviceStateReducer.apply(.disconnected, core: core, diagnostics: diagnostics).core
+        core = DeviceStateReducer.apply(.connected(name: "Other keyboard", uuid: "OTHER"), core: core, diagnostics: diagnostics).core
+        core = DeviceStateReducer.apply(.battery(42), core: core, diagnostics: diagnostics).core
+        XCTAssertEqual(core.batteryLevel, 42)
+        core = DeviceStateReducer.apply(.battery(41), core: core, diagnostics: diagnostics).core
+        XCTAssertEqual(core.batteryLevel, 41)
+        core = DeviceStateReducer.apply(sampleStatus, core: core, diagnostics: diagnostics).core
+        core = DeviceStateReducer.apply(.battery(40), core: core, diagnostics: diagnostics).core
+        XCTAssertEqual(core.batteryLevel, 87)
+    }
+
+    func testInvalidBatteryCannotReplaceOrEstablishProtocolReadback() {
+        let diagnostics = DeviceDiagnosticsSnapshot()
+        var core = DeviceStateReducer.apply(.battery(42), core: CoreDeviceSnapshot(), diagnostics: diagnostics).core
+        for level in [-1, 101, 255] {
+            let status = DeviceStateEvent.fullStatus(battery: level, firmwareMain: 1, firmwareSub: 2,
+                workMode: 2, lightMode: 1, switchState: 0, brightness: 35, activePictureSet: 0)
+            core = DeviceStateReducer.apply(status, core: core, diagnostics: diagnostics).core
+            XCTAssertEqual(core.batteryLevel, 42)
+            XCTAssertFalse(core.hasProtocolBatteryReadback)
+            core = DeviceStateReducer.apply(.battery(level), core: core, diagnostics: diagnostics).core
+            XCTAssertEqual(core.batteryLevel, 42)
+        }
+        core = DeviceStateReducer.apply(.battery(41), core: core, diagnostics: diagnostics).core
+        XCTAssertEqual(core.batteryLevel, 41)
+        core = DeviceStateReducer.apply(sampleStatus, core: core, diagnostics: diagnostics).core
+        core = DeviceStateReducer.apply(.battery(255), core: core, diagnostics: diagnostics).core
+        XCTAssertEqual(core.batteryLevel, 87)
+        XCTAssertTrue(core.hasProtocolBatteryReadback)
     }
 
     /// disconnected：连接状态断开、RSSI 复位、任务图套图清空；电量/模式/亮度/设备身份保留（与现有行为一致）。

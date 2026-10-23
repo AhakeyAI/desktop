@@ -14,6 +14,8 @@ public struct CoreDeviceSnapshot: Equatable {
     public var deviceName: String? = nil
     public var deviceUUID: String = "—"
     public var batteryLevel: Int = 0
+    /// Connection-local provenance: the X1 Battery Service can retain an old minimum.
+    public var hasProtocolBatteryReadback: Bool = false
     public var firmwareMainVersion: Int = 0
     public var firmwareSubVersion: Int = 0
     public var workMode: Int = 0
@@ -51,7 +53,7 @@ public enum DeviceStateEvent: Equatable {
     /// 连接成功：设备身份（名字/UUID）。
     case connected(name: String?, uuid: String)
     /// 断开：连接状态置为断开、诊断值复位、任务图套图清空（与现有 didDisconnect 行为一致）；
-    /// 电量/模式/亮度/固件版本与设备身份保留（现有代码断开时从不清这些）。
+    /// 电量/模式/亮度/固件版本与设备身份保留；电量来源证明重置，不跨连接使用。
     case disconnected
 }
 
@@ -70,8 +72,8 @@ public struct DeviceStateResult: Equatable {
 }
 
 public enum DeviceStateReducer {
-    /// 唯一归并入口。字段级"后到的信息覆盖"（last-write-wins）：
-    /// 电量同时来自 Battery Service notify（`.battery`）与完整状态帧（`.fullStatus`），后到的覆盖先到的。
+    /// 完整状态帧的有效电量优先；本次连接尚未收到时才采用标准电量服务。
+    /// 固件的 Battery Service 可能只保留历史最低值，不能按回包到达顺序覆盖实时状态。
     public static func apply(
         _ event: DeviceStateEvent,
         core: CoreDeviceSnapshot,
@@ -83,7 +85,10 @@ public enum DeviceStateReducer {
 
         switch event {
         case let .fullStatus(battery, firmwareMain, firmwareSub, workMode, lightMode, switchState, brightness, activePictureSet):
-            core.batteryLevel = battery
+            if (0...100).contains(battery) {
+                core.batteryLevel = battery
+                core.hasProtocolBatteryReadback = true
+            }
             core.firmwareMainVersion = firmwareMain
             core.firmwareSubVersion = firmwareSub
             if core.workMode != workMode {
@@ -96,7 +101,9 @@ public enum DeviceStateReducer {
             core.activeTaskPictureSets[workMode] = activePictureSet
 
         case let .battery(level):
-            core.batteryLevel = level
+            if !core.hasProtocolBatteryReadback, (0...100).contains(level) {
+                core.batteryLevel = level
+            }
 
         case let .rssi(value):
             diagnostics.signalStrength = value
@@ -112,9 +119,11 @@ public enum DeviceStateReducer {
             core.isConnected = true
             core.deviceName = name
             core.deviceUUID = uuid
+            core.hasProtocolBatteryReadback = false
 
         case .disconnected:
             core.isConnected = false
+            core.hasProtocolBatteryReadback = false
             core.activeTaskPictureSets.removeAll()
             diagnostics.signalStrength = 0
 
