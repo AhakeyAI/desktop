@@ -24,6 +24,27 @@ final class StudioLCDInspectorTests: XCTestCase {
         XCTFail("Inspector did not finish")
     }
 
+    func testDisconnectedHeartbeatRevokesDelayedReadWithoutDiscardingDrafts() async throws {
+        var delayed: CheckedContinuation<WS3TaskOverview?, Never>?
+        let model = StudioLCDInspectorModel()
+        model.chooseMode(.multi)
+        model.read(using: access(read: { await withCheckedContinuation { delayed = $0 } }))
+        for _ in 0..<1000 {
+            if delayed != nil { break }
+            await Task.yield()
+        }
+        let continuation = try XCTUnwrap(delayed)
+        model.invalidateConnectionFacts()
+        XCTAssertFalse(model.isReading)
+        continuation.resume(returning: report(.single))
+        for _ in 0..<10 { await Task.yield() }
+        XCTAssertNil(model.overview, "A pre-disconnect reply must not restore old facts")
+        XCTAssertEqual(model.modeDraft, .multi)
+        model.read(using: access())
+        try await finish(model)
+        XCTAssertNotNil(model.overview, "A fresh explicit read still works")
+    }
+
     func testRefreshAndDraftSelectionNeverWriteOrEnableFollowing() async throws {
         var writes = 0, following = 0
         let model = StudioLCDInspectorModel()

@@ -167,7 +167,9 @@ struct AhaKeyStudioView: View {
             writeOutcome = result
         }
         .onChange(of: agentManager.bluetoothOwnershipRevision) { revision in lcdInspectorModel.invalidateFacts(ownershipRevision: revision) }
-        .onChange(of: agentManager.isAgentBLEConnected) { connected in if !connected { lcdInspectorModel.invalidateConnectionFacts() } }
+        .onChange(of: agentManager.isAgentBLEConnected) { connected in
+            if !connected, agentManager.bluetoothConnectionOwner == .agentDaemon { lcdInspectorModel.invalidateConnectionFacts() }
+        }
         .onChange(of: bleManager.configurationSnapshot.generation) { _ in
             if agentManager.bluetoothConnectionOwner == .ahaKeyStudio { lcdInspectorModel.invalidateFacts() }
         }

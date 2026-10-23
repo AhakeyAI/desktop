@@ -64,7 +64,12 @@ final class StudioLCDInspectorModel: ObservableObject {
         // read has already started on that owner. Do not cancel the new read.
         if ownershipRevision != readRevision || ownershipRevision == nil { cancelRead() }
     }
-    func invalidateConnectionFacts() { overview = nil }
+    func invalidateConnectionFacts() {
+        overview = nil
+        // Revoke the read token as well: an old socket reply must not resurrect
+        // facts after the heartbeat has already reported a lost connection.
+        cancelRead()
+    }
     func cancelRead() {
         readID = nil; readRevision = nil; readTask?.cancel(); readTask = nil; isReading = false
     }
