@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-23",
+  "sourceCommit": "d826a51c2fcd0d8b79781d4026f49e283fd3ce0d",
+  "version": "0.2.3",
+  "build": "364",
+  "signature": "Developer ID App/Agent; deep strict verified after installation",
+  "tests": {
+    "regressionRed": {
+      "tests": 10,
+      "assertionFailures": 11
+    },
+    "focusedGreen": {
+      "tests": 11,
+      "failures": 0
+    },
+    "fullSwift": {
+      "tests": 604,
+      "failures": 0
+    }
+  },
+  "reviews": {
+    "spec": "passed",
+    "standards": "passed"
+  },
+  "installed": true,
+  "privateBackup": true,
+  "originalUserDraftSemanticallyUnchanged": true,
+  "cliAndAccountConfigurationUnchanged": true,
+  "HIL": {
+    "method": "Repeated same virtual Mode component sidebar read of standby, two completed leases, no writes",
+    "standbyReadbackMinutes": 60,
+    "oldHistorical66ObservedAfterFix": false,
+    "observedDuringLeasesPercent": 95,
+    "scope": "Historical BAS overwrite not reproduced in these two leases; no calibrated battery-accuracy or long-duration claim",
+    "temporaryMaterialDrafts": 0,
+    "existingUserPendingDraftCount": 1,
+    "freshApproval": {
+      "physicalSwitchState": 0,
+      "switchState": 0,
+      "approvalAutoVerified": true
+    }
+  },
+  "firmwareScope": "Mac source-selection fix; firmware BAS only-decreases behavior remains and may affect macOS battery display",
+  "notarized": false,
+  "keyboardWrites": false,
+  "sourceSHA256": {
+    "ahakeyconfig-mac/Sources/Shared/DeviceStateReducer.swift": "087875af5cd868fdeb9066440ad8f02dbcf08ec0fd090cc5afc83de5d5d666c1",
+    "ahakeyconfig-mac/Tests/AhaKeyConfigSharedTests/DeviceStateReducerTests.swift": "2288c5074198f3b275867527182a88b68cf2e1f10de73c1ca81d8e39f1db90bc"
+  }
+}

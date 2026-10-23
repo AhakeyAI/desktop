@@ -1,0 +1,42 @@
+{
+  "date": "2026-10-23",
+  "sourceCommit": "86f2b41e9fcde4d7e7a70710e203ece95437a1a9",
+  "candidate": "0.2.3 build363 Developer ID test",
+  "method": "Native CUA accessibility and screenshots on installed application; unlocked Mac, real AhaKey 505C",
+  "observations": {
+    "mainWindow": "Opened without crash; connected; actual automatic state",
+    "battery": "Initially84%; BAS/protocol discrepancy66 vs85 found during standby lease, tracked separately",
+    "moreMenu": "No Keyboard Settings entry",
+    "deviceInfo": "Wider dialog visually readable; agent ownership explicitly displayed",
+    "ordinaryKey": "Codex Key4 sidebar read Backspace; readback and explanations below primary key; no separate sheet",
+    "lease": "Agent resumed fresh verified automatic state while sidebar remained editing",
+    "lighting": "Flat state choices and effect cards; descriptions/icons visible, white play icons bottom right; one write action; no preview-to-keyboard bottom action",
+    "screen": "Codex four state cards / multitask three cards; restore, refresh, file operations inline; no more-operations disclosure",
+    "existingCoffee": "Default Codex entry reports custom1 frame; no upload or restore invoked",
+    "largePNG": {
+      "sourceBytes": 3147775,
+      "sourceSHA256": "253ecfbe9b1c81792658a16c3726b57c56d5738fa38419fa26aa1baf83b2bc4b",
+      "originalUnchanged": true,
+      "UI": "Automatically adapted to keyboard screen; ready to write without manual resizing",
+      "hardwareUpload": false
+    },
+    "animation": {
+      "sourceFrames": 13,
+      "multitaskPreparationFrames": 12,
+      "defaultCodexPreparationFrames": 8,
+      "UI": "Automatic sampling summary and duration warning shown",
+      "hardwareUpload": false
+    },
+    "cleanup": "All three temporary resource drafts explicitly cleared; pending count returned2 to original1; preserved original unapplied Voice draft",
+    "taskOverview": "Read-only snapshot contained an actual Codex session; display mode unconfigured, no display-mode write",
+    "standby": "Read60 minutes; no change or write",
+    "lever": "Physical automatic state display; no software switch control"
+  },
+  "scopeLimits": [
+    "Not a complete 19-slot or 8/12-frame physical upload validation",
+    "No Consumer migration, keyboard writes, Voice changes, factory reset or flashing",
+    "Terminal/iTerm permission and foreground-window matrix not tested",
+    "Manual/offline approval and final human voice/power/OLED round remain pending",
+    "Battery discrepancy reopens L02/Q04 for fix; this receipt does not claim battery regression passed"
+  ]
+}

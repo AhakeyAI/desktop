@@ -94,6 +94,7 @@ final class AgentStatusReplyTests: XCTestCase {
         let output = ClaudeHookHandler.permissionRequestOutput(reply: reply)
         let hook = output["hookSpecificOutput"] as? [String: Any]
         let decision = hook?["decision"] as? [String: Any]
-        XCTAssertEqual(decision?["behavior"] as? String, "ask")
+        XCTAssertNil(decision)
+        XCTAssertTrue(output.isEmpty)
     }
 }

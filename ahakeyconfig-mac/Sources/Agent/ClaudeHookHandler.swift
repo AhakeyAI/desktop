@@ -87,10 +87,13 @@ enum ClaudeHookHandler {
     }
 
     static func permissionRequestOutput(reply: [String: Any]?, controlDirectory: URL = ApprovalAutomationControl.productionDirectory) -> [String: Any] {
-        [
+        // PermissionRequest supports allow/deny only. No decision preserves
+        // Claude's own approval flow for manual, paused or unverified states.
+        guard effectiveSwitchState(reply, controlDirectory: controlDirectory) == 0 else { return [:] }
+        return [
             "hookSpecificOutput": [
                 "hookEventName": "PermissionRequest",
-                "decision": ["behavior": effectiveSwitchState(reply, controlDirectory: controlDirectory) == 0 ? "allow" : "ask"],
+                "decision": ["behavior": "allow"],
             ],
         ]
     }

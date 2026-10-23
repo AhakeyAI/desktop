@@ -22,7 +22,7 @@ final class ClaudeHookHandlerTests: XCTestCase {
             let output = ClaudeHookHandler.preToolUseOutput(reply: reply, controlDirectory: controlDirectory)
             let hook = output?["hookSpecificOutput"] as? [String: Any]
             XCTAssertEqual(hook?["permissionDecision"] as? String, switchState == 0 ? "allow" : nil)
-            XCTAssertEqual(permissionBehavior(reply), switchState == 0 ? "allow" : "ask")
+            XCTAssertEqual(permissionBehavior(reply), switchState == 0 ? "allow" : nil)
         }
     }
 
@@ -33,7 +33,8 @@ final class ClaudeHookHandlerTests: XCTestCase {
         ]
         for reply: [String: Any]? in [nil, ["switchState": 0], ["switchState": 1], failedVerification] {
             XCTAssertNil(ClaudeHookHandler.preToolUseOutput(reply: reply, controlDirectory: controlDirectory))
-            XCTAssertEqual(permissionBehavior(reply), "ask")
+            XCTAssertNil(permissionBehavior(reply))
+            XCTAssertTrue(ClaudeHookHandler.permissionRequestOutput(reply: reply, controlDirectory: controlDirectory).isEmpty)
         }
     }
 
@@ -42,7 +43,17 @@ final class ClaudeHookHandlerTests: XCTestCase {
         let reply: [String: Any] = ["approvalPolicyVersion": 1, "physicalSwitchState": 0,
                                     "switchState": 0, "approvalAutoVerified": true]
         XCTAssertNil(ClaudeHookHandler.preToolUseOutput(reply: reply, controlDirectory: controlDirectory))
-        XCTAssertEqual(permissionBehavior(reply), "ask")
+        XCTAssertNil(permissionBehavior(reply))
+        XCTAssertTrue(ClaudeHookHandler.permissionRequestOutput(reply: reply, controlDirectory: controlDirectory).isEmpty)
+    }
+
+    func testManualPermissionRequestLeavesNativePromptUnchanged() throws {
+        let status = AgentDeviceStatus(battery: 62, signal: 0, firmwareMain: 1, firmwareSub: 0,
+            workMode: 0, lightMode: 16, switchState: 1)
+        let output = ClaudeHookHandler.permissionRequestOutput(reply: AhaKeyAgent.permissionReply(status), controlDirectory: controlDirectory)
+        XCTAssertTrue(output.isEmpty, "PermissionRequest accepts allow/deny, not an ask decision")
+        let encoded = try JSONSerialization.data(withJSONObject: output)
+        XCTAssertEqual(try JSONSerialization.jsonObject(with: encoded) as? [String: String], [:])
     }
 
     private func permissionBehavior(_ reply: [String: Any]?) -> String? {
