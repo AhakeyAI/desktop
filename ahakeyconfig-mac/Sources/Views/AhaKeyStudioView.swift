@@ -1996,7 +1996,7 @@ struct AhaKeyStudioView: View {
             case .externalChange: Text("已保留你在 Codex 中修改的权限")
             }
         } else {
-            Text(agentManager.isRunning ? "等待后台同步状态" : "后台未运行")
+            Text(LocalizedStringKey(agentManager.isRunning ? "等待后台同步状态" : "后台未运行"))
         }
     }
 
