@@ -15,7 +15,7 @@ final class VoiceStatusHUDController {
     /// stealing focus on the user's first physical press.
     func prepare() {
         guard hostingView == nil else { return }
-        let host = NSHostingView(rootView: VoiceStatusHUDView(state: .starting))
+        let host = NSHostingView(rootView: VoiceStatusHUDView(state: .done))
         host.frame = NSRect(x: 0, y: 0, width: 260, height: 58)
         hostingView = host
         ensurePanel().contentView = host

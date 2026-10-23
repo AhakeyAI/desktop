@@ -202,9 +202,10 @@
     "requestBudget": "one test, one failure at old120s timeout"
   },
   "tests": {
-    "fullSwift": 619,
+    "fullSwift": 620,
     "failures": 0,
-    "localeSyntax": "en and zh-Hans passed"
+    "localeSyntax": "Canonical generator regenerated1800 strings; en/zh-Hans syntax passed,12 new keys included",
+    "initialFullSwift": 619
   },
   "cloudServiceProbe": {
     "scope": "One fixed synthetic text latency probe; no recording or personal text",
@@ -218,15 +219,18 @@
   },
   "privacy": "No transcript, recording, account, token, quota or processed text in this receipt",
   "sourceSHA256": {
-    "ahakeyconfig-mac/Sources/Utilities/NativeSpeechTranscriptionService.swift": "929c17d5d8c1d126f35059141d648eb9ada6f2905541f42178cb673e2a6a1c09",
-    "ahakeyconfig-mac/Sources/Utilities/NativeSpeechCaptureSession.swift": "01d26adacc2ead8a1422799ee1a7c2fed36a5f5d98889d22c87f38ab788e8480",
+    "ahakeyconfig-mac/Sources/Utilities/NativeSpeechTranscriptionService.swift": "59b39f09b369cf3cd98fd8d7e2cdf751a3657aee7a4f074d171a73d6acb3e22c",
+    "ahakeyconfig-mac/Sources/Utilities/NativeSpeechCaptureSession.swift": "ebce5f2797df1add02aad841db4475f79f7aca2b3ef86ce62432c9de3c71c1b1",
+    "ahakeyconfig-mac/Sources/Utilities/NativeSpeechRecognitionUpdate.swift": "6946827d73a73a6d2c06efbc4ad21415aae9833eec47bfff472331b85fa15a64",
+    "ahakeyconfig-mac/Sources/Utilities/SpeechTranscriptSnapshot.swift": "e16dca374729810163715ca1ff1cf519f930173bfff1034bf97f286a54f11f34",
     "ahakeyconfig-mac/Sources/Utilities/InteractiveCloudRequest.swift": "f1142bdba64c0d245e46d68ae76671f428a55e6ce008e285cdbedd1cc139e65b",
     "ahakeyconfig-mac/Sources/Utilities/AhaTypeTextOptimizer.swift": "2d89688aa31aea5562da6bdea39160474930dd2c27db7ad28886031bf8a2f31a",
-    "ahakeyconfig-mac/Sources/Utilities/VoiceStatusHUDController.swift": "246d67c8c6bdb8d9e4510dd10f0bde9a80841e12f3864c232a47bf2825114b55",
-    "ahakeyconfig-mac/Tests/AhaKeyConfigTests/NativeSpeechStartupTests.swift": "f7c98489f5c1dfd4fedc78fba905d9b922f1938aabcde8d2e45869b416475646",
-    "ahakeyconfig-mac/Tests/AhaKeyConfigTests/InteractiveCloudRequestTests.swift": "6d4aa42f98c6f599d89ede9c0b2be30df9ac52bb54c66129bdfda5f2b26055f6"
+    "ahakeyconfig-mac/Sources/Utilities/VoiceStatusHUDController.swift": "8e29c4cbaeda08541d02c71a6ad5651cdac2b56ad84a55beb60082900d1d2d15",
+    "ahakeyconfig-mac/Tests/AhaKeyConfigTests/NativeSpeechStartupTests.swift": "d3074d84254b3bc13441916f236d767153f47e30ee57f0c17c57f710908f1051",
+    "ahakeyconfig-mac/Tests/AhaKeyConfigTests/InteractiveCloudRequestTests.swift": "6d4aa42f98c6f599d89ede9c0b2be30df9ac52bb54c66129bdfda5f2b26055f6",
+    "ahakeyconfig-mac/scripts/generate_localizations.py": "d264258d8547a8d4e8885d2cff16425d857035d3751f02da47e06f47bc0bebb0"
   },
-  "reviews": "pending",
+  "reviews": "final recheck pending",
   "newCandidateInstalled": false,
   "remaining": [
     "Two-axis review and signed candidate",
@@ -234,5 +238,15 @@
     "Real short/long voice completeness and cloud8s fallback HUD",
     "Normal keyboard reboot and Coffee validation",
     "Remaining WBS firmware/CLI/performance/release matrix unchanged"
-  ]
+  ],
+  "initialReview": {
+    "standards": "passed",
+    "spec": "P2: finishing recording could be discarded by next start; candidate5eccce7 not installed"
+  },
+  "finishingRegression": {
+    "redTests": 1,
+    "redAssertionFailures": 2,
+    "greenLifecycleTests": 7,
+    "scope": "Real service gesture + immutable recognition input, paused teardown, old final arrives during new capture; old full text retained, current preview unchanged"
+  }
 }

@@ -3,7 +3,7 @@ import Foundation
 import Speech
 
 protocol NativeSpeechCapturing: AnyObject {
-    func start(onRecognition: @escaping (SFSpeechRecognitionResult?, Error?) -> Void) async throws -> String
+    func start(onRecognition: @escaping (NativeSpeechRecognitionUpdate) -> Void) async throws -> String
     func finish() async
     func cancel()
 }
@@ -29,7 +29,7 @@ final class NativeSpeechCaptureSession: NativeSpeechCapturing, @unchecked Sendab
         }
     }
 
-    func start(onRecognition: @escaping (SFSpeechRecognitionResult?, Error?) -> Void) async throws -> String {
+    func start(onRecognition: @escaping (NativeSpeechRecognitionUpdate) -> Void) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
             Self.queue.async {
                 do {
@@ -52,7 +52,9 @@ final class NativeSpeechCaptureSession: NativeSpeechCapturing, @unchecked Sendab
                     try self.checkCancellation()
                     try engine.start()
                     try self.checkCancellation()
-                    self.task = recognizer.recognitionTask(with: request, resultHandler: onRecognition)
+                    self.task = recognizer.recognitionTask(with: request) { result, error in
+                        onRecognition(.capture(result, error: error))
+                    }
                     continuation.resume(returning: recognizer.locale.identifier)
                 } catch {
                     self.cleanup()

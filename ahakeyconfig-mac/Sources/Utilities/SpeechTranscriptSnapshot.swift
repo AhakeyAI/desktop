@@ -9,7 +9,7 @@ enum SpeechTranscriptSnapshot {
 }
 
 struct SpeechTranscriptAccumulator {
-    struct AudioSpan: Equatable {
+    struct AudioSpan: Equatable, Sendable {
         let start: TimeInterval
         let end: TimeInterval
         private static let roundingTolerance = 0.000001
@@ -33,11 +33,11 @@ struct SpeechTranscriptAccumulator {
         }
     }
 
-    struct TimedSegment {
+    struct TimedSegment: Sendable {
         let audio: AudioSpan
         let textRange: NSRange
     }
-    struct Completion {
+    struct Completion: Sendable {
         let audio: AudioSpan
         let segments: [TimedSegment]
         init(audio: AudioSpan, segments: [TimedSegment] = []) {

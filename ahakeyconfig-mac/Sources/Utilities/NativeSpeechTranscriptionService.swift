@@ -42,25 +42,36 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     private var longPressTimerWork: DispatchWorkItem?
     private var voicePressGate = NativeVoicePressGate()
     private var pressedPolicy: VoiceProcessingPolicy?
-    private var recordingPolicy: VoiceRecordingPolicySnapshot?
+    @MainActor
+    private final class Recording {
+        let id: UUID
+        let capture: NativeSpeechCapturing
+        let policy: VoiceRecordingPolicySnapshot
+        var accumulator = SpeechTranscriptAccumulator()
+        var text = ""
+        var finishing = false
+        var closed = false
+        var finalizeWorkItem: DispatchWorkItem?
+        init(id: UUID, capture: NativeSpeechCapturing, policy: VoiceRecordingPolicySnapshot) {
+            self.id = id; self.capture = capture; self.policy = policy
+        }
+    }
+    private var currentCapture: Recording?
+    private var finishingCaptures: [UUID: Recording] = [:]
+    private var recordingPolicy: VoiceRecordingPolicySnapshot? { currentCapture?.policy }
     private var recordingGeneration = UUID()
 
     var legacyProcessingPolicy: VoiceProcessingPolicy {
         .init(shortPressAhaType: shortPressAhaTypeEnabled, longPressAhaType: longPressAhaTypeEnabled,
               longPressThresholdMs: longPressThresholdMs)
     }
-    private var captureSession: NativeSpeechCapturing?
     private var startupTask: Task<Void, Never>?
     private let captureFactory: () -> NativeSpeechCapturing
     private let authorizationCheck: (() -> Bool)?
     private let hudHandler: ((VoiceStatusHUDState, TimeInterval?) -> Void)?
     private let diagnosticSink: ((String) -> Void)?
+    private let textInjector: ((String) -> Bool)?
     private var hasActiveCapture: Bool { isRecording || isStartingRecording }
-    private var finalizeWorkItem: DispatchWorkItem?
-    private var currentTranscript = ""
-    private var transcriptAccumulator = SpeechTranscriptAccumulator()
-    /// 防止 `isFinal`、1s 超时、`error` 回调各触发一次，导致同一段被 ⌘V 多遍
-    private var hasCommittedThisRecording = false
 
 
     private let syntheticEventUserData: Int64 = 0x4148414B
@@ -68,11 +79,13 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     init(captureFactory: @escaping () -> NativeSpeechCapturing = { NativeSpeechCaptureSession() },
          authorizationCheck: (() -> Bool)? = nil,
          hud: ((VoiceStatusHUDState, TimeInterval?) -> Void)? = nil,
-         diagnosticSink: ((String) -> Void)? = nil) {
+         diagnosticSink: ((String) -> Void)? = nil,
+         textInjector: ((String) -> Bool)? = nil) {
         self.captureFactory = captureFactory
         self.authorizationCheck = authorizationCheck
         self.hudHandler = hud
         self.diagnosticSink = diagnosticSink
+        self.textInjector = textInjector
     }
 
     private func presentHUD(_ state: VoiceStatusHUDState, autoHideAfter delay: TimeInterval? = nil) {
@@ -389,28 +402,23 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             appendDiagnostic("cancelled pending audio startup")
             return
         }
-        guard isRecording else { return }
-        let bypassAhaType = recordingPolicy.map { !$0.usesAhaType } ?? bypassAhaType
-        let generation = recordingGeneration
-        let capture = captureSession
+        guard isRecording, let recording = currentCapture else { return }
+        let bypassAhaType = !recording.policy.usesAhaType
+        recording.finishing = true
+        finishingCaptures[recording.id] = recording
         isRecording = false
         statusMessage = NSLocalizedString("正在结束录音并整理文字…", comment: "")
         presentHUD(.recognizing)
-        pendingFinalizeBypassAhaType = bypassAhaType
         appendDiagnostic("stop recording requested bypassAhaType=\(bypassAhaType)")
-        finalizeWorkItem?.cancel()
-        finalizeWorkItem = nil
         Task { @MainActor in
-            // Start the final-result grace period after endAudio, not while
-            // slow microphone teardown is still queued.
-            await capture?.finish()
-            guard self.recordingGeneration == generation else { return }
-            let workItem = DispatchWorkItem { [weak self] in
-                guard let self, self.recordingGeneration == generation else { return }
-                self.finalizeCurrentTranscriptIfNeeded(reason: "timeout_finalize", bypassAhaType: bypassAhaType)
+            await recording.capture.finish()
+            guard !recording.closed else { return }
+            let work = DispatchWorkItem { [weak self, weak recording] in
+                guard let self, let recording, !recording.closed else { return }
+                self.finalizeCurrentTranscriptIfNeeded(reason: "timeout_finalize", recording: recording)
             }
-            self.finalizeWorkItem = workItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: workItem)
+            recording.finalizeWorkItem = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
         }
     }
 
@@ -427,31 +435,30 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             NSApp.activate(ignoringOtherApps: true)
             return
         }
-        cancelRecognitionPipeline()
+        if let previous = currentCapture {
+            if previous.finishing { currentCapture = nil }
+            else { cancelRecognitionPipeline() }
+        }
         let generation = UUID()
         recordingGeneration = generation
         let snapshot = VoiceRecordingPolicySnapshot(policy: policy ?? legacyProcessingPolicy,
             gesture: gesture, ahaTypeEnabledAtStart: AhaTypeTextOptimizer.shared.isEnabled)
-        recordingPolicy = snapshot
-        pendingFinalizeBypassAhaType = !snapshot.usesAhaType
-        currentTranscript = ""
-        transcriptAccumulator = SpeechTranscriptAccumulator()
         transcriptPreview = ""
         lastCommittedText = ""
-        hasCommittedThisRecording = false
         let capture = captureFactory()
         let startupStartedAt = ProcessInfo.processInfo.systemUptime
-        captureSession = capture
+        let recording = Recording(id: generation, capture: capture, policy: snapshot)
+        currentCapture = recording
         isStartingRecording = true
         statusMessage = NSLocalizedString("正在启动麦克风，显示录音中后开始说话。", comment: "")
         presentHUD(.starting)
         appendDiagnostic("audio startup requested")
         startupTask = Task { @MainActor in
             do {
-                let locale = try await capture.start { [weak self] result, error in
+                let locale = try await capture.start { [weak self, weak recording] update in
                     Task { @MainActor in
-                        guard let self, self.recordingGeneration == generation else { return }
-                        self.handleRecognition(result: result, error: error)
+                        guard let self, let recording, !recording.closed else { return }
+                        self.handleRecognition(update, recording: recording)
                     }
                 }
                 guard self.recordingGeneration == generation, self.isStartingRecording, !Task.isCancelled else {
@@ -479,100 +486,76 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
     }
 
-    private func applyStreamingTranscriptionPartial(_ result: SFSpeechRecognitionResult) {
-        currentTranscript = transcriptAccumulator.apply(result.bestTranscription.formattedString,
-            completion: completedTranscription(for: result))
-    }
-
-    private var pendingFinalizeBypassAhaType = false
-
-    private func handleRecognition(result: SFSpeechRecognitionResult?, error: Error?) {
-        if let result {
-            let newText = result.bestTranscription.formattedString
-            // Metadata can finish an utterance before the recording isFinal.
-            // Keep prior audio while revising the currently recognized utterance.
-            if !newText.isEmpty {
-                applyStreamingTranscriptionPartial(result)
-                transcriptPreview = currentTranscript
+    private func handleRecognition(_ update: NativeSpeechRecognitionUpdate, recording: Recording) {
+        guard !recording.closed else { return }
+        if let text = update.text {
+            if !text.isEmpty {
+                recording.text = recording.accumulator.apply(text, completion: update.completion)
+                if currentCapture === recording { transcriptPreview = recording.text }
             }
-            appendDiagnostic("partial result=\(newText) isFinal=\(result.isFinal)")
-            if result.isFinal {
-                finalizeCurrentTranscriptIfNeeded(reason: "final_result", bypassAhaType: pendingFinalizeBypassAhaType)
+            appendDiagnostic("partial result=\(text) isFinal=\(update.isFinal)")
+            if update.isFinal {
+                finalizeCurrentTranscriptIfNeeded(reason: "final_result", recording: recording)
                 return
             }
         }
-
-        if let error {
-            appendDiagnostic("recognition error: \(error.localizedDescription)")
-            if !currentTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                finalizeCurrentTranscriptIfNeeded(reason: "error_with_text", bypassAhaType: pendingFinalizeBypassAhaType)
+        if let error = update.errorDescription {
+            appendDiagnostic("recognition error: \(error)")
+            if !recording.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                finalizeCurrentTranscriptIfNeeded(reason: "error_with_text", recording: recording)
             } else {
-                cancelRecognitionPipeline()
-                statusMessage = "苹果原生转写失败：\(error.localizedDescription)"
-                presentHUD(
-                    VoiceStatusHUDState(kind: .warning, title: NSLocalizedString("识别失败", comment: ""), subtitle: NSLocalizedString("请重试或检查语音权限", comment: "")),
-                    autoHideAfter: 2.0
-                )
+                let isForeground = recordingGeneration == recording.id
+                closeRecording(recording)
+                if isForeground {
+                    statusMessage = "苹果原生转写失败：\(error)"
+                    presentHUD(.init(kind: .warning, title: NSLocalizedString("识别失败", comment: ""),
+                        subtitle: NSLocalizedString("请重试或检查语音权限", comment: "")), autoHideAfter: 2)
+                }
             }
         }
     }
 
-    private func completedTranscription(for result: SFSpeechRecognitionResult) -> SpeechTranscriptAccumulator.Completion? {
-        guard result.isFinal || result.speechRecognitionMetadata != nil else { return nil }
-        let source = result.bestTranscription.segments
-        let segments = source.compactMap { segment -> SpeechTranscriptAccumulator.TimedSegment? in
-            guard let span = SpeechTranscriptAccumulator.AudioSpan(start: segment.timestamp, duration: segment.duration) else { return nil }
-            return .init(audio: span, textRange: segment.substringRange)
-        }
-        if segments.count == source.count,
-           let span = SpeechTranscriptAccumulator.AudioSpan.covering(segments.map(\.audio)) {
-            return .init(audio: span, segments: segments)
-        }
-        return result.speechRecognitionMetadata.flatMap {
-            SpeechTranscriptAccumulator.AudioSpan(start: $0.speechStartTimestamp, duration: $0.speechDuration)
-        }.map { .init(audio: $0) }
-    }
-
-    private func finalizeCurrentTranscriptIfNeeded(reason: String, bypassAhaType: Bool = false) {
-        finalizeWorkItem?.cancel()
-        finalizeWorkItem = nil
-
-        if hasCommittedThisRecording {
+    private func finalizeCurrentTranscriptIfNeeded(reason: String, recording: Recording) {
+        guard !recording.closed else {
             appendDiagnostic("skip duplicate finalize reason=\(reason)")
             return
         }
-
-        let finalization = transcriptAccumulator.finalization
-        let capturedPolicy = recordingPolicy
-        cancelRecognitionPipeline()
+        let finalization = recording.accumulator.finalization
+        let capturedPolicy = recording.policy
+        let isForeground = recordingGeneration == recording.id
+        closeRecording(recording)
         let text: String
         switch finalization {
         case .ready(let value): text = value
         case .review(let previous, let latest):
-            hasCommittedThisRecording = true
             deferredTranscripts.append(.init(text: latest, requiresReview: true, previousText: previous))
-            statusMessage = NSLocalizedString("转写内容尚未完整确认，已保留供核对，未自动粘贴。", comment: "")
-            presentHUD(.init(kind: .warning, title: NSLocalizedString("请核对转写内容", comment: ""),
-                subtitle: NSLocalizedString("文字已保留在语音设置中", comment: "")), autoHideAfter: 3)
+            if isForeground {
+                statusMessage = NSLocalizedString("转写内容尚未完整确认，已保留供核对，未自动粘贴。", comment: "")
+                presentHUD(.init(kind: .warning, title: NSLocalizedString("请核对转写内容", comment: ""),
+                    subtitle: NSLocalizedString("文字已保留在语音设置中", comment: "")), autoHideAfter: 3)
+            }
             appendDiagnostic("finalize retained for review reason=\(reason)")
             return
         case .empty: text = ""
         }
 
         guard !text.isEmpty else {
-            statusMessage = NSLocalizedString("未识别到有效语音内容。", comment: "")
-            presentHUD(.empty, autoHideAfter: 1.8)
+            if isForeground {
+                statusMessage = NSLocalizedString("未识别到有效语音内容。", comment: "")
+                presentHUD(.empty, autoHideAfter: 1.8)
+            }
             appendDiagnostic("finalize empty reason=\(reason)")
             return
         }
 
-        hasCommittedThisRecording = true
-        let willUseAhaType = capturedPolicy?.usesAhaType ?? (!bypassAhaType && AhaTypeTextOptimizer.shared.isEnabled)
-        statusMessage = willUseAhaType ? NSLocalizedString("AhaType 整理中…", comment: "") : NSLocalizedString("准备粘贴…", comment: "")
-        presentHUD(willUseAhaType ? .ahaType : .pasting)
-        appendDiagnostic("finalize begin reason=\(reason) bypass=\(bypassAhaType) rawText=\(text)")
+        let willUseAhaType = capturedPolicy.usesAhaType
+        if isForeground {
+            statusMessage = willUseAhaType ? NSLocalizedString("AhaType 整理中…", comment: "") : NSLocalizedString("准备粘贴…", comment: "")
+            presentHUD(willUseAhaType ? .ahaType : .pasting)
+        }
+        appendDiagnostic("finalize begin reason=\(reason) bypass=\(!willUseAhaType) rawText=\(text)")
 
-        let completionTicket = recordingGeneration
+        let completionTicket = recording.id
         Task { @MainActor in
             var cloudTimedOut = false
             let result = await VoiceTranscriptCompletion.run(text: text, ticket: completionTicket,
@@ -628,15 +611,25 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
     }
 
+    private func closeRecording(_ recording: Recording) {
+        recording.closed = true
+        recording.finalizeWorkItem?.cancel()
+        recording.finalizeWorkItem = nil
+        recording.capture.cancel()
+        finishingCaptures[recording.id] = nil
+        if currentCapture === recording {
+            currentCapture = nil
+            startupTask?.cancel(); startupTask = nil
+            isStartingRecording = false
+            isRecording = false
+            isLongPressRecording = false
+        }
+    }
+
     private func cancelRecognitionPipeline() {
         recordingGeneration = UUID()
-        finalizeWorkItem?.cancel()
-        finalizeWorkItem = nil
-        recordingPolicy = nil
-        startupTask?.cancel()
-        startupTask = nil
-        captureSession?.cancel()
-        captureSession = nil
+        if let recording = currentCapture { closeRecording(recording) }
+        startupTask?.cancel(); startupTask = nil
         isStartingRecording = false
         isRecording = false
     }
@@ -713,6 +706,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     }
 
     private func injectText(_ text: String) -> Bool {
+        if let textInjector { return textInjector(text) }
         guard !text.isEmpty else { return false }
         guard CGPreflightPostEventAccess() else {
             appendDiagnostic("inject denied: no post event access")

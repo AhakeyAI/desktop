@@ -8,16 +8,35 @@ private final class SuspendedSpeechCapture: NativeSpeechCapturing {
     private var continuation: CheckedContinuation<String, Error>?
     private var cancellations = 0
     private var finishes = 0
+    private var recognition: ((NativeSpeechRecognitionUpdate) -> Void)?
+    private var finishContinuation: CheckedContinuation<Void, Never>?
+    var finishEntered: XCTestExpectation?
     let entered: XCTestExpectation
 
     init(_ entered: XCTestExpectation) { self.entered = entered }
-    func start(onRecognition: @escaping (SFSpeechRecognitionResult?, Error?) -> Void) async throws -> String {
+    func start(onRecognition: @escaping (NativeSpeechRecognitionUpdate) -> Void) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
-            lock.lock(); self.continuation = continuation; lock.unlock()
+            lock.lock(); self.continuation = continuation; recognition = onRecognition; lock.unlock()
             entered.fulfill()
         }
     }
-    func finish() async { recordFinish() }
+    func finish() async {
+        recordFinish()
+        if let finishEntered {
+            await withCheckedContinuation { continuation in
+                lock.lock(); finishContinuation = continuation; lock.unlock()
+                finishEntered.fulfill()
+            }
+        }
+    }
+    func completeFinish() {
+        lock.lock(); let continuation = finishContinuation; finishContinuation = nil; lock.unlock()
+        continuation?.resume()
+    }
+    func emit(_ text: String, isFinal: Bool = false) {
+        lock.lock(); let recognition = recognition; lock.unlock()
+        recognition?(.init(text: text, isFinal: isFinal))
+    }
     private func recordFinish() { lock.lock(); finishes += 1; lock.unlock() }
     func cancel() { lock.lock(); cancellations += 1; lock.unlock() }
     var finishCount: Int { lock.lock(); defer { lock.unlock() }; return finishes }
@@ -111,7 +130,7 @@ final class NativeSpeechStartupTests: XCTestCase {
         let capture = NativeSpeechCaptureSession()
         capture.cancel()
         do {
-            _ = try await capture.start { _, _ in XCTFail("cancelled before startup") }
+            _ = try await capture.start { _ in XCTFail("cancelled before startup") }
             XCTFail("cancelled capture started")
         } catch { XCTAssertTrue(error is CancellationError) }
     }
@@ -154,6 +173,49 @@ final class NativeSpeechStartupTests: XCTestCase {
         retry.complete()
         await fulfillment(of: [ready], timeout: 1)
         XCTAssertTrue(service.isRecording)
+        service.stopRecording(bypassAhaType: true)
+    }
+
+    func testFinishingRecordingKeepsItsFinalTextWhenNextRecordingStarts() async {
+        let oldEntered = expectation(description: "first recording")
+        let nextEntered = expectation(description: "next recording")
+        let firstReady = expectation(description: "first ready"), nextReady = expectation(description: "next ready")
+        let partial = expectation(description: "first partial processed")
+        let newPartial = expectation(description: "new partial processed")
+        let finishEntered = expectation(description: "old teardown suspended")
+        let retained = expectation(description: "old full result preserved")
+        let old = SuspendedSpeechCapture(oldEntered), next = SuspendedSpeechCapture(nextEntered)
+        old.finishEntered = finishEntered
+        var captures = [old, next], readyCount = 0
+        let service = NativeSpeechTranscriptionService(captureFactory: { captures.removeFirst() }, authorizationCheck: { true },
+            hud: { state, _ in
+                if state == .recording { readyCount += 1; (readyCount == 1 ? firstReady : nextReady).fulfill() }
+            }, diagnosticSink: { message in
+                if message.hasPrefix("partial result=first partial ") { partial.fulfill() }
+                if message.hasPrefix("partial result=next speech ") { newPartial.fulfill() }
+                if message == "late completion retained for explicit copy" { retained.fulfill() }
+            }, textInjector: { _ in false })
+        shortPress(service)
+        await fulfillment(of: [oldEntered], timeout: 1)
+        old.complete()
+        await fulfillment(of: [firstReady], timeout: 1)
+        old.emit("first partial")
+        await fulfillment(of: [partial], timeout: 1)
+        service.stopRecording(bypassAhaType: true)
+        await fulfillment(of: [finishEntered], timeout: 1)
+        shortPress(service)
+        await fulfillment(of: [nextEntered], timeout: 1)
+        next.complete()
+        await fulfillment(of: [nextReady], timeout: 1)
+        next.emit("next speech")
+        await fulfillment(of: [newPartial], timeout: 1)
+        old.emit("first complete sentence", isFinal: true)
+        await fulfillment(of: [retained], timeout: 1)
+        XCTAssertEqual(service.deferredTranscripts.map(\.text), ["first complete sentence"])
+        XCTAssertEqual(service.transcriptPreview, "next speech")
+        XCTAssertTrue(service.isRecording)
+        XCTAssertEqual(service.lastCommittedText, "")
+        old.completeFinish()
         service.stopRecording(bypassAhaType: true)
     }
 }

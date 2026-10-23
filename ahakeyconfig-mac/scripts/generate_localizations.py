@@ -7,6 +7,18 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "正在启动麦克风": "Starting microphone",
+    "就绪后说话，再按可取消": "Wait for recording; press to cancel",
+    "正在启动麦克风，显示录音中后开始说话。": "Starting the microphone. Speak when recording starts.",
+    "已取消启动录音。": "Recording startup cancelled.",
+    "已取消录音": "Recording cancelled",
+    "尚未开始采集语音": "Audio capture had not started",
+    "当前麦克风不可用，请检查输入设备。": "The microphone is unavailable. Check your input device.",
+    "无法开始录音": "Cannot start recording",
+    "云端整理超时，已使用原始转写。": "Cloud processing timed out. The original transcript was used.",
+    "已写入原文": "Original text inserted",
+    "云端整理超时，请稍后重试": "Cloud timed out. Try again later.",
+    "取消启动": "Cancel startup",
     "Kimi 任务状态同步已配置。请重新打开 Kimi；原生版的审批仍由 Kimi 管理。": "Kimi task-state synchronization is configured. Reopen Kimi to load it. Native Kimi continues to manage its own approvals.",
     "后台已就绪": "Background connection ready",
     "实体拨杆对 Claude、Cursor、Codex 的审批生效，与键盘 Mode 无关。Kimi 原生版当前仅同步任务状态，审批仍由 Kimi 自身管理。": "The physical lever controls Claude, Cursor and Codex approvals regardless of keyboard mode. Native Kimi currently synchronizes task status and manages its own approvals.",
