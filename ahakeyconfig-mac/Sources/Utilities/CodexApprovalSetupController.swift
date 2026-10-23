@@ -1,20 +1,26 @@
 import Foundation
 import AhaKeyConfigShared
 
-/// A choice affects only future setup offers. It never changes Hook grants or
-/// the permissions of a running Codex session.
+/// New consent to manage original desktop sessions, independent of the retired
+/// choice which only authorized changing the default config file.
 @MainActor
 final class CodexApprovalSetupModel {
-    enum Choice: String { case undecided, keepCurrent, requestedApproval }
+    enum Choice: String { case undecided, keepCurrent, managedSessions }
     enum Result { case keptCurrent, configured, failed }
     private let readChoice: () -> Choice
     private let saveChoice: (Choice) -> Void
     private let configure: () -> Bool
+    private let revoke: () -> Bool
     private(set) var isPresenting = false
+    static func persistedChoice(defaults: UserDefaults, managementEnabled: Bool) -> Choice {
+        if managementEnabled { return .managedSessions }
+        return Choice(rawValue: defaults.string(forKey: "codexDesktopLeverChoiceV1") ?? "") == .keepCurrent ? .keepCurrent : .undecided
+    }
 
     init(readChoice: @escaping () -> Choice, saveChoice: @escaping (Choice) -> Void,
-         configure: @escaping () -> Bool) {
+         configure: @escaping () -> Bool, revoke: @escaping () -> Bool = { true }) {
         self.readChoice = readChoice; self.saveChoice = saveChoice; self.configure = configure
+        self.revoke = revoke
     }
 
     func offer(force: Bool = false) -> Bool {
@@ -23,15 +29,16 @@ final class CodexApprovalSetupModel {
         return true
     }
 
-    func resolve(useRequestedApproval: Bool) -> Result {
+    func resolve(manageSessions: Bool) -> Result {
         guard isPresenting else { return .failed }
         isPresenting = false
-        guard useRequestedApproval else {
+        guard manageSessions else {
+            guard revoke() else { return .failed }
             saveChoice(.keepCurrent)
             return .keptCurrent
         }
         guard configure() else { return .failed }
-        saveChoice(.requestedApproval)
+        saveChoice(.managedSessions)
         return .configured
     }
 }
@@ -39,13 +46,15 @@ final class CodexApprovalSetupModel {
 @MainActor
 final class CodexApprovalSetupController {
     static let shared = CodexApprovalSetupController(model: CodexApprovalSetupModel(
-        readChoice: { CodexApprovalSetupModel.Choice(rawValue: UserDefaults.standard.string(forKey: "codexApprovalSetupChoice") ?? "") ?? .undecided },
-        saveChoice: { UserDefaults.standard.set($0.rawValue, forKey: "codexApprovalSetupChoice") },
+        readChoice: {
+            CodexApprovalSetupModel.persistedChoice(defaults: .standard,
+                managementEnabled: (try? CodexDesktopLeverState().snapshot().managementEnabled) == true)
+        },
+        saveChoice: { UserDefaults.standard.set($0.rawValue, forKey: "codexDesktopLeverChoiceV1") },
         configure: {
-            switch CodexConfigLeverSync.configureRequestedApproval() {
-            case .alreadyDesired, .replaced, .inserted: return true
-            default: return false
-            }
+            do { try CodexDesktopLeverState().setManagementEnabled(true); return true } catch { return false }
+        }, revoke: {
+            do { try CodexDesktopLeverState().setManagementEnabled(false); return true } catch { return false }
         }), hud: .shared)
     private let model: CodexApprovalSetupModel
     private let hud: VoiceStatusHUDController
@@ -62,16 +71,18 @@ final class CodexApprovalSetupController {
         guard model.offer(force: force) else { return }
         hud.offerCodexApproval { [weak self] accept in
             guard let self else { return }
-            switch self.model.resolve(useRequestedApproval: accept) {
-            case .keptCurrent: break
+            switch self.model.resolve(manageSessions: accept) {
+            case .keptCurrent:
+                self.hud.show(.init(kind: .success, title: NSLocalizedString("未启用权限接管", comment: ""),
+                    subtitle: NSLocalizedString("已有接管由后台恢复，继续 Codex 原有审批流程", comment: "")), autoHideAfter: 6)
             case .configured:
                 self.hud.show(.init(kind: .success,
-                    title: NSLocalizedString("已设置默认请求批准", comment: ""),
-                    subtitle: NSLocalizedString("当前会话请在 Codex 切换权限或新建会话", comment: "")), autoHideAfter: 6)
+                    title: NSLocalizedString("已允许拨杆管理权限", comment: ""),
+                    subtitle: NSLocalizedString("等待后台同步；当前轮权限不变", comment: "")), autoHideAfter: 6)
             case .failed:
                 self.hud.show(.init(kind: .warning,
-                    title: NSLocalizedString("未能修改 Codex 默认权限", comment: ""),
-                    subtitle: NSLocalizedString("原有权限保留，可在 Codex 中手动设置", comment: "")), autoHideAfter: 6)
+                    title: NSLocalizedString("未能更新权限管理选择", comment: ""),
+                    subtitle: NSLocalizedString("请稍后重试，未确认已同步", comment: "")), autoHideAfter: 6)
             }
         }
     }

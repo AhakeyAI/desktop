@@ -214,15 +214,15 @@ private struct CodexApprovalOfferView: View {
     let resolve: (Bool) -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("体验 Codex 自动批准？", systemImage: "checkmark.shield")
+            Label("允许拨杆管理 Codex 权限？", systemImage: "checkmark.shield")
                 .font(.system(size: 14, weight: .semibold))
-            Text("将默认权限设为请求批准。当前会话需在 Codex 中切换权限或新建会话；保留完全访问仍可正常执行。")
+            Text("管理已识别的本机桌面会话：自动档为完全访问，手动档为请求批准，同一会话下一轮生效。暂停或断连时恢复接管前权限。")
                 .font(.system(size: 12)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             HStack {
-                Button("保留当前权限") { resolve(false) }
+                Button("暂不接管") { resolve(false) }
                 Spacer()
-                Button("设置请求批准") { resolve(true) }.buttonStyle(.borderedProminent)
+                Button("允许拨杆管理") { resolve(true) }.buttonStyle(.borderedProminent)
             }.controlSize(.small)
         }
         .padding(16).frame(width: 390, height: 150)

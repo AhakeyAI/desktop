@@ -127,6 +127,25 @@ final class CodexDesktopSessionBridgeTests: XCTestCase {
         XCTAssertEqual(reads, 1)
     }
 
+    func testReadbackRequiresOriginalOwnersPendingSettingsBarrier() throws {
+        var calls: [String] = []
+        let settings = try CodexDesktopSessionBridge.Settings(encoded: Data("{\"approvalPolicy\":\"on-request\",\"permissions\":\":workspace\"}".utf8))
+        let bridge = CodexDesktopSessionBridge(exchange: { method, _, version, target in
+            calls.append(method)
+            if method == "thread-follower-read-model-settings" {
+                XCTAssertEqual(version, 1); XCTAssertEqual(target, self.client)
+            }
+            return self.reply(method)
+        }, readSnapshot: { _ in calls.append("snapshot"); return settings })
+        _ = try bridge.readSettings(owner: .init(threadID: thread, clientID: client))
+        XCTAssertEqual(calls, ["thread-owner-discovery", "thread-follower-read-model-settings", "snapshot"])
+        let failed = CodexDesktopSessionBridge(exchange: { method, _, _, _ in
+            if method == "thread-follower-read-model-settings" { return ["resultType": "error"] }
+            return self.reply(method)
+        }, readSnapshot: { _ in XCTFail("An unconfirmed pending-write queue cannot be called restored"); return settings })
+        XCTAssertThrowsError(try failed.readSettings(owner: .init(threadID: thread, clientID: client)))
+    }
+
     func testRealSocketRejectsPublicOrSymlinkEndpointBeforeConnecting() throws {
         let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])

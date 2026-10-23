@@ -5,7 +5,7 @@
   "permissionWrites": 0,
   "sameThread": true,
   "date": "2026-10-23",
-  "scope": "bridge foundation; not wired to production lever lifecycle",
+  "scope": "App/Agent candidate wiring; installed build371 still uses old consent path",
   "bundledCLIVersion": "0.163.0-alpha.11",
   "sharedDaemonVersion": "0.164.0",
   "isolatedNativePolicyProof": {
@@ -63,8 +63,8 @@
     "modelTurnsStarted": 0,
     "appliesTo": "subsequent turns per generated schema; no in-progress policy switch claimed"
   },
-  "focusedTests": 15,
-  "fullTests": 660,
+  "focusedTests": 32,
+  "fullTests": 674,
   "failures": 0,
   "productionPermissionUpdatesVerified": false,
   "consentAndLifecycleIntegrationComplete": false,
@@ -77,5 +77,19 @@
   "snapshotPolling": false,
   "snapshotFrameLimitBytes": 67108864,
   "snapshotDeadlineSeconds": 6,
-  "writeAheadRecoveryStorageImplemented": true
+  "writeAheadRecoveryStorageImplemented": true,
+  "consentAndLifecycleCodeWired": true,
+  "nativePendingSettingsBarrierReadVerified": true,
+  "candidateCoverage": [
+    "fresh Agent factory-binding authority",
+    "no legacy consent migration",
+    "coalesced lever changes",
+    "lost reply readback",
+    "all submitted permission candidates retained",
+    "original owner restart recovery",
+    "external native user changes preserved",
+    "normal termination drain",
+    "pending native leases prevent false revoke success",
+    "bounded retry and no stable desktop snapshot polling"
+  ]
 }

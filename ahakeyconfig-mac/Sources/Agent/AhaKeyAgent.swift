@@ -90,6 +90,27 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var approvalRequestID: UUID?
     private var approvalDrainToken: UUID?
     private var approvalWaiters: [([String: Any]) -> Void] = []
+    /// Only the weak reference crosses executors; Agent access stays on main.
+    private final class DesktopAuthorityRelay: @unchecked Sendable {
+        private weak var agent: AhaKeyAgent?
+        init(_ agent: AhaKeyAgent) { self.agent = agent }
+        func read() async -> CodexDesktopLeverCoordinator.Authority {
+            await withCheckedContinuation { continuation in
+                DispatchQueue.main.async {
+                    guard let agent = self.agent, ApprovalAutomationControl.isEnabled(.codex) else { continuation.resume(returning: .unmanaged); return }
+                    agent.queryApprovalStatus { reply in
+                        if ApprovalBindingPolicy.effectiveSwitchState(reply) == 0 { continuation.resume(returning: .verifiedAutomatic) }
+                        else if reply["physicalSwitchState"] as? Int == 1 { continuation.resume(returning: .manual) }
+                        else { continuation.resume(returning: .unmanaged) }
+                    }
+                }
+            }
+        }
+    }
+    private lazy var desktopAuthorityRelay = DesktopAuthorityRelay(self)
+    private lazy var codexDesktopLever = CodexDesktopLeverAgent(authority: { [relay = desktopAuthorityRelay] in
+        await relay.read()
+    })
     /// 工具完成 / 用户提交等短暂态的自动回落。
     private var statusPollTimer: DispatchSourceTimer?
     private var pendingStateReset: DispatchWorkItem?
@@ -400,6 +421,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
         listen(fd, 5)
         emit("监听 Unix socket: \(socketPath)")
+        codexDesktopLever.start()
 
         DispatchQueue.global(qos: .utility).async { [weak self] in
             while true {
@@ -507,6 +529,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     /// 在主队列执行的 JSON 命令分发。回包由 `replyAndClose` 负责异步写入 + 关 fd。
     private func handleJsonCommand(cmd: String, obj: [String: Any], clientFd: Int32) {
+        codexDesktopLever.observe(obj)
+        if cmd == "codex_desktop_status" {
+            Self.replyAndClose(clientFd, codexDesktopLever.snapshot()); return
+        }
         let connected = !presentationPoisoned && connectionLock.holdsLock && commandChar != nil && peripheral != nil && cachedSwitchState != nil
         presentationSession.updateConnection(connected: connected, generation: connectionGeneration)
         foregroundReceiver?.revalidate()
@@ -691,7 +717,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     @MainActor
-    func prepareForTermination() async { await presentationSession.quiesce() }
+    func prepareForTermination() async {
+        await codexDesktopLever.shutdown()
+        await presentationSession.quiesce()
+    }
 
     @MainActor
     private func exchangePresentation(_ request: Data) async throws -> Data {
@@ -788,6 +817,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         notifyNotificationFramer.reset()
         self.peripheral = nil
         cachedSwitchState = nil
+        codexDesktopLever.status(physical: nil, generation: connectionGeneration)
         cachedLightMode = nil
         lastLoggedStatus = nil
         pendingStateReset?.cancel()
@@ -1012,6 +1042,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 object: nil, userInfo: nil, deliverImmediately: true)
         }
         cachedSwitchState = UInt8(clamping: status.switchState)
+        codexDesktopLever.status(physical: status.switchState, generation: connectionGeneration)
         presentationSession.updateConnection(connected: !presentationPoisoned, generation: connectionGeneration)
         foregroundReceiver?.revalidate()
         cachedLightMode = UInt8(clamping: status.lightMode)

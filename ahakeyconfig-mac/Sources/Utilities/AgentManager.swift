@@ -255,6 +255,15 @@ final class AgentManager: ObservableObject {
     }
 
     /// Snapshot only; never opens a configuration connection or writes device state.
+    func readCodexDesktopLeverStatus() async -> CodexDesktopLeverStatus? {
+        guard isRunning else { return nil }
+        let path = socketPath
+        return await Task.detached(priority: .utility) {
+            Self.querySocketData(socketPath: path, command: "codex_desktop_status").flatMap(CodexDesktopLeverStatus.decode)
+        }.value
+    }
+
+    /// Snapshot only; never opens a configuration connection or writes device state.
     func readTaskOverview() async -> WS3TaskOverview? {
         await readTaskOverview(shouldQuery: {
             self.bluetoothConnectionOwner == .agentDaemon && self.isRunning

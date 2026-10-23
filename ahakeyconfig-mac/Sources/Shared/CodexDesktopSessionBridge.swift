@@ -47,6 +47,25 @@ public final class CodexDesktopSessionBridge {
         public func encode(to encoder: Encoder) throws {
             var container = encoder.singleValueContainer(); try container.encode(encoded)
         }
+        public static var fullAccess: Settings {
+            // These fixed native settings have no fallible user input.
+            try! Settings(encoded: Data("{\"approvalPolicy\":\"never\",\"permissions\":\":danger-full-access\"}".utf8))
+        }
+        public func requestingApproval() throws -> Settings {
+            var value = try JSONSerialization.jsonObject(with: encoded) as! [String: Any]
+            if let profile = value["permissions"] as? String {
+                guard [":danger-full-access", ":workspace", ":read-only"].contains(profile) else { throw BridgeError.invalidSettings }
+                if profile == ":danger-full-access" { value["permissions"] = ":workspace" }
+            } else if let sandbox = value["sandboxPolicy"] as? [String: Any] {
+                switch sandbox["type"] as? String {
+                case "workspaceWrite", "readOnly": break // Retain the exact custom restricted range.
+                case "dangerFullAccess": value.removeValue(forKey: "sandboxPolicy"); value["permissions"] = ":workspace"
+                default: throw BridgeError.invalidSettings
+                }
+            }
+            value["approvalPolicy"] = "on-request"
+            return try Settings(encoded: JSONSerialization.data(withJSONObject: value))
+        }
     }
     private let exchange: (String, [String: Any], Int, String?) throws -> [String: Any]
     private let readSnapshot: (Owner) throws -> Settings
@@ -61,9 +80,11 @@ public final class CodexDesktopSessionBridge {
             return try channel.request(method, parameters, version: version, target: owner)
         }
         readSnapshot = { owner in
-            let channel = try CodexDesktopIPCChannel(url: socketURL)
-            try channel.initialize()
-            return try channel.readSettings(owner: owner)
+            try autoreleasepool {
+                let channel = try CodexDesktopIPCChannel(url: socketURL)
+                try channel.initialize()
+                return try channel.readSettings(owner: owner)
+            }
         }
     }
 
@@ -74,6 +95,13 @@ public final class CodexDesktopSessionBridge {
 
     public func readSettings(owner: Owner) throws -> Settings {
         guard try discoverOwner(threadID: owner.threadID) == owner else { throw BridgeError.ownerChanged }
+        // The desktop's getter first awaits pending thread settings updates.
+        // A snapshot without this barrier can precede a write whose reply was
+        // lost, making recovery incorrectly conclude that nothing was applied.
+        let barrier = try exchange("thread-follower-read-model-settings", ["conversationId": owner.threadID], 1, owner.clientID)
+        guard barrier["resultType"] as? String == "success",
+              barrier["method"] as? String == "thread-follower-read-model-settings",
+              barrier["handledByClientId"] as? String == owner.clientID else { throw BridgeError.notApplied }
         return try readSnapshot(owner)
     }
 

@@ -47,6 +47,8 @@ final class CodexDesktopLeverStateTests: XCTestCase {
             let auto = try state.prepare(owner: owner, baseline: baseline, intended: settings("never", ":danger-full-access"))
             let manual = try state.prepare(owner: owner, baseline: auto.intended, intended: baseline)
             XCTAssertEqual(manual.baseline, baseline)
+            XCTAssertTrue(manual.possibleOwnedSettings.contains(auto.intended), "A lost manual reply cannot make an earlier auto grant look like a user edit")
+            XCTAssertFalse(try state.removeAfterExternalChange(manual, observed: auto.intended))
             XCTAssertFalse(try state.acknowledge(auto))
             XCTAssertFalse(try state.removeAfterVerifiedRestore(auto))
             XCTAssertEqual(try state.snapshot().leases, [manual])
@@ -77,6 +79,31 @@ final class CodexDesktopLeverStateTests: XCTestCase {
             try FileManager.default.createSymbolicLink(at: file, withDestinationURL: target)
             XCTAssertThrowsError(try state.setManagementEnabled(true))
             XCTAssertEqual(try Data(contentsOf: target), bytes)
+        }
+    }
+
+    func testLegacyJournalStillRecoversItsLastSubmittedPermissionValue() throws {
+        try withState { state, root in
+            try state.setManagementEnabled(true)
+            let lease = try state.prepare(owner: owner, baseline: settings("on-request", ":workspace"), intended: settings("never", ":danger-full-access"))
+            let file = root.appendingPathComponent("codex-desktop-lever-v1.json")
+            var document = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
+            var leases = try XCTUnwrap(document["leases"] as? [[String: Any]])
+            leases[0].removeValue(forKey: "possibleOwnedSettings"); document["leases"] = leases
+            try JSONSerialization.data(withJSONObject: document).write(to: file)
+            XCTAssertEqual(try state.snapshot().leases[0].possibleOwnedSettings, [lease.intended])
+        }
+    }
+
+    func testRevokeCannotClaimSuccessBeforeNativeRecoveryCompletes() throws {
+        try withState { state, root in
+            try state.setManagementEnabled(true)
+            let lease = try state.prepare(owner: owner, baseline: settings("on-request", ":workspace"), intended: settings("never", ":danger-full-access"))
+            let config = root.appendingPathComponent("isolated-codex.toml")
+            XCTAssertFalse(ApprovalAutomationControl.revoke(.codex, directory: root, codexURL: config))
+            XCTAssertFalse(ApprovalAutomationControl.isEnabled(.codex, directory: root))
+            _ = try state.removeAfterVerifiedRestore(lease)
+            XCTAssertTrue(ApprovalAutomationControl.revoke(.codex, directory: root, codexURL: config))
         }
     }
 }

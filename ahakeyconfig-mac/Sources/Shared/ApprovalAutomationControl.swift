@@ -44,7 +44,7 @@ public enum ApprovalAutomationControl {
                               codexURL: URL = CodexConfigLeverSync.productionConfigURL,
                               kimiURL: URL = KimiConfigPolicySync.productionConfigURL,
                               cursorDirectory: URL = CursorApprovalPolicySync.productionDirectory) -> Bool {
-        locked(directory: directory) {
+        let legacyCleanup = locked(directory: directory) {
             let path = directory.appendingPathComponent(client.map { $0.rawValue + ".paused" } ?? "all.paused")
             do { try Data([1]).write(to: path, options: .atomic) } catch { return false }
             var success = true
@@ -74,5 +74,13 @@ public enum ApprovalAutomationControl {
             }
             return success
         } ?? false
+        guard legacyCleanup else { return false }
+        // The daemon reconciles native sessions asynchronously after seeing the
+        // pause. Do not report complete revocation while its recovery journal
+        // still owns permissions, or recurse into the same file lock above.
+        if client == nil || client == .codex {
+            return (try? CodexDesktopLeverState(directory: directory).hasPendingRecovery()) == false
+        }
+        return true
     }
 }

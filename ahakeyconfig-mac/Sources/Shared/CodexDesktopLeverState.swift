@@ -12,6 +12,9 @@ public struct CodexDesktopLeverState {
         public let intended: CodexDesktopSessionBridge.Settings
         public let operationID: UUID
         public var acknowledged: Bool
+        /// A previous submitted value may still be live when the next write's
+        /// acknowledgement is lost. Keep it distinguishable from a user edit.
+        public let possibleOwnedSettings: [CodexDesktopSessionBridge.Settings]
     }
     public struct Snapshot: Codable, Equatable, Sendable {
         public let version: Int
@@ -23,6 +26,14 @@ public struct CodexDesktopLeverState {
     public init(directory: URL = ApprovalAutomationControl.productionDirectory) { self.directory = directory }
 
     public func snapshot() throws -> Snapshot { try transaction { $0 } }
+    public func hasPendingRecovery() throws -> Bool {
+        var info = stat()
+        if lstat(file.path, &info) != 0 {
+            guard errno == ENOENT else { throw StateError.invalid }
+            return false
+        }
+        return try !snapshot().leases.isEmpty
+    }
 
     /// Revoking consent retains every journal entry until native recovery is
     /// verified; losing a reply is not evidence that a grant never reached Codex.
@@ -41,8 +52,11 @@ public struct CodexDesktopLeverState {
             let index = state.leases.firstIndex { $0.owner.threadID == owner.threadID }
             if let index, state.leases[index].owner != owner { throw StateError.ownerChanged }
             guard index != nil || state.leases.count < 32 else { throw StateError.capacity }
+            var possible = index.map { state.leases[$0].possibleOwnedSettings } ?? []
+            if !possible.contains(intended) { possible.append(intended) }
+            guard possible.count <= 8 else { throw StateError.capacity }
             let lease = Lease(owner: owner, baseline: index.map { state.leases[$0].baseline } ?? baseline,
-                intended: intended, operationID: UUID(), acknowledged: false)
+                intended: intended, operationID: UUID(), acknowledged: false, possibleOwnedSettings: possible)
             if let index { state.leases[index] = lease } else { state.leases.append(lease) }
             try save(state)
             return lease
@@ -65,6 +79,26 @@ public struct CodexDesktopLeverState {
         try transaction { state in
             guard let index = state.leases.firstIndex(where: { $0.operationID == lease.operationID && $0.owner == lease.owner }) else { return false }
             state.leases.remove(at: index); try save(state); return true
+        }
+    }
+
+    /// Drop ownership only after a native read proves that the user selected a
+    /// value outside every value this lease might have submitted.
+    @discardableResult
+    public func removeAfterExternalChange(_ lease: Lease, observed: CodexDesktopSessionBridge.Settings) throws -> Bool {
+        guard observed != lease.baseline, !lease.possibleOwnedSettings.contains(observed) else { return false }
+        return try removeAfterVerifiedRestore(lease)
+    }
+
+    public func rebindForRecovery(_ lease: Lease, to owner: CodexDesktopSessionBridge.Owner,
+                                  observed: CodexDesktopSessionBridge.Settings) throws -> Lease {
+        try transaction { state in
+            guard owner.threadID == lease.owner.threadID, UUID(uuidString: owner.clientID) != nil,
+                  observed == lease.baseline || lease.possibleOwnedSettings.contains(observed),
+                  let index = state.leases.firstIndex(where: { $0.operationID == lease.operationID && $0.owner == lease.owner }) else { throw StateError.ownerChanged }
+            let rebound = Lease(owner: owner, baseline: lease.baseline, intended: lease.intended,
+                operationID: UUID(), acknowledged: false, possibleOwnedSettings: lease.possibleOwnedSettings)
+            state.leases[index] = rebound; try save(state); return rebound
         }
     }
 
@@ -97,7 +131,8 @@ public struct CodexDesktopLeverState {
         let state = try JSONDecoder().decode(Snapshot.self, from: data)
         guard state.version == 1, state.leases.count <= 32,
               Set(state.leases.map { $0.owner.threadID }).count == state.leases.count,
-              state.leases.allSatisfy({ UUID(uuidString: $0.owner.threadID) != nil && UUID(uuidString: $0.owner.clientID) != nil }) else { throw StateError.invalid }
+              state.leases.allSatisfy({ UUID(uuidString: $0.owner.threadID) != nil && UUID(uuidString: $0.owner.clientID) != nil &&
+                  !$0.possibleOwnedSettings.isEmpty && $0.possibleOwnedSettings.count <= 8 && $0.possibleOwnedSettings.contains($0.intended) }) else { throw StateError.invalid }
         return state
     }
     private func save(_ state: Snapshot) throws {
@@ -105,5 +140,18 @@ public struct CodexDesktopLeverState {
         guard data.count <= 262_144 else { throw StateError.capacity }
         try data.write(to: file, options: .atomic)
         guard chmod(file.path, 0o600) == 0 else { throw StateError.unavailable }
+    }
+}
+
+extension CodexDesktopLeverState.Lease {
+    private enum CodingKeys: String, CodingKey { case owner, baseline, intended, operationID, acknowledged, possibleOwnedSettings }
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        owner = try values.decode(CodexDesktopSessionBridge.Owner.self, forKey: .owner)
+        baseline = try values.decode(CodexDesktopSessionBridge.Settings.self, forKey: .baseline)
+        intended = try values.decode(CodexDesktopSessionBridge.Settings.self, forKey: .intended)
+        operationID = try values.decode(UUID.self, forKey: .operationID)
+        acknowledged = try values.decode(Bool.self, forKey: .acknowledged)
+        possibleOwnedSettings = try values.decodeIfPresent([CodexDesktopSessionBridge.Settings].self, forKey: .possibleOwnedSettings) ?? [intended]
     }
 }

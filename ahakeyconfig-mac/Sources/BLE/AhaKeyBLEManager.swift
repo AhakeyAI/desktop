@@ -2241,14 +2241,14 @@ final class SwitchStateNotifier: ObservableObject {
             }
             postNotification(
                 title: "拨杆 → 自动批准",
-                body: "Claude／Cursor 与 Codex 原生审批请求可由 Hook 自动批准。Codex 完全访问保持原有执行方式；Kimi 原生终端审批由自身管理。",
+                body: "Claude／Cursor 原生审批请求可由 Hook 自动批准。已授权的 Codex 本机桌面会话从下一轮随拨杆切换权限；未接管时继续原流程。Kimi 原生终端审批由自身管理。",
                 identifier: "lab.jawa.ahakey.switch.auto",
                 isCritical: true
             )
         } else if switchedToManual {
             postNotification(
                 title: "拨杆 → 手动批准",
-                body: "AhaKey 停止自动批准，交回各客户端原有审批流程；不会修改完全访问或拒绝正常操作。",
+                body: "AhaKey 停止 Hook 自动批准；已接管的 Codex 本机桌面会话从下一轮切为请求批准，其他会话继续原流程，不拒绝正常操作。",
                 identifier: "lab.jawa.ahakey.switch.manual",
                 isCritical: false
             )

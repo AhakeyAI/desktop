@@ -28,6 +28,7 @@ struct AhaKeyStudioView: View {
     @State private var lightBarPreview: IDEState
     @State private var modeCustomNames: [Int: String] = [:]
     @State private var lastSyncDate: Date?
+    @State private var codexDesktopLeverStatus: CodexDesktopLeverStatus?
     @State private var syncStatusMessage = NSLocalizedString("修改会先保存在本地，连接设备后再同步。", comment: "")
     @State private var isSyncing = false
     // AhaKeyStudio 交还蓝牙给 Agent 的过渡期：保持"已连接"显示，直到 Agent 接管或超时。
@@ -1950,27 +1951,30 @@ struct AhaKeyStudioView: View {
                 StudioDeviceInspectorView(model: deviceInspectorModel, ble: bleManager, session: inspectorSession, lever: true)
             }
 
-            if liveKeyboardSwitchState == 0 {
-                StudioInspectorSection {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label("自动批准依赖 Agent 与 Hook，且须蓝牙由 Agent 占用", systemImage: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                            .font(.callout.weight(.semibold))
-                        Button("Codex：设置请求批准…") {
-                            CodexApprovalSetupController.shared.requestOffer(force: true)
-                        }
-                        Text(LocalizedStringKey(agentManager.kimiUsesNativeCLI ? "Claude／Cursor 自动批准需要后台与 Hook。Codex 仅接管请求批准，完全访问保持原有执行方式；Kimi 原生版审批由自身管理。" : "Claude Code：PreToolUse allow，PermissionRequest 兜底（桌面版须使用 Code 本地会话，Chat 不支持本地 Hook）。Cursor：preToolUse 等与 cli-config。Codex：PermissionRequest allow。Kimi：安装过 AhaKey Kimi Hooks 后，**拨杆会直接接管当前会话的自动批准**；若刚装完或刚升级 kimi-cli，请**完全关闭并重新打开一次 kimi**。钩子 stdout 只对 **`permissionDecision: deny`** 有特殊拦截语义。Agent 须在跑且蓝牙由其占用。"))
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
+            StudioInspectorSection(NSLocalizedString("Codex 会话权限", comment: "")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    codexDesktopStatusText.font(.callout.weight(.semibold))
+                    Button("拨杆权限管理…") {
+                        CodexApprovalSetupController.shared.requestOffer(force: true)
                     }
+                    Text("授权后，已识别的本机桌面会话随拨杆切换权限，从同一会话下一轮生效。当前正在执行的一轮保持原权限。")
+                        .font(.callout).foregroundStyle(.secondary)
+                }
+            }
+            .task {
+                while !Task.isCancelled {
+                    let status = await agentManager.readCodexDesktopLeverStatus()
+                    guard !Task.isCancelled else { break }
+                    codexDesktopLeverStatus = status
+                    do { try await Task.sleep(nanoseconds: 2_000_000_000) } catch { break }
                 }
             }
 
             StudioInspectorSection(NSLocalizedString("如何理解这个部件", comment: "")) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(LocalizedStringKey(agentManager.kimiUsesNativeCLI ? "实体拨杆对 Claude／Cursor 与 Codex 的原生审批请求生效，与键盘 Mode 无关。Codex 完全访问和 Kimi 原生版仍由自身管理。" : "拨杆对 Claude / Cursor / Codex / Kimi **同时生效**，与键盘当前所在 Mode 无关。Agent 后台同时监听所有 IDE 的 Hook，拨杆拨动后四个 IDE 的批准行为立即切换。"))
+                    Text("实体拨杆控制批准方式，与键盘当前工作模式无关。")
                     Divider()
-                    Text(LocalizedStringKey(agentManager.kimiUsesNativeCLI ? "Claude／Cursor 自动批准需要后台与 Hook。Codex 仅接管请求批准，完全访问保持原有执行方式；Kimi 原生版审批由自身管理。" : "自动批准：**Claude Code PreToolUse**（PermissionRequest 兜底；桌面版仅 Code 本地会话）、**Codex PermissionRequest**、**Cursor preToolUse**（含 cli-config）。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管**当前会话**的自动批准；刚装完或刚升级 kimi-cli 时，重开一次 kimi 即可。"))
+                    Text("Claude／Cursor 自动批准需要后台与 Hook。Codex 未接管的会话继续原有审批流程，不会因键盘未授权而被拒绝。Kimi 原生终端审批仍由自身管理。")
                     Text(NSLocalizedString("手动批准：会交回用户/终端确认。若 Cursor、Codex 或 Kimi 仍弹窗，请看 diagnostics 里的 ide 与 diagnostic 字段。", comment: ""))
                     Text(NSLocalizedString("若仍出现手动：在「设备信息」里打开「工具批准诊断」查看 permission-request.log（含 ide、hookEvent、diagnostic 等）。", comment: ""))
                 }
@@ -1981,16 +1985,32 @@ struct AhaKeyStudioView: View {
     }
 
     @ViewBuilder
+    private var codexDesktopStatusText: some View {
+        if let status = codexDesktopLeverStatus {
+            switch status.phase {
+            case .waiting: Text("等待识别 Codex 桌面会话")
+            case .working: Text("正在同步会话权限")
+            case .synchronized: Text("已同步，下一轮生效")
+            case .notManaged: Text("未接管，沿用 Codex 原有权限")
+            case .notSynchronized: Text("尚未同步，请以 Codex 当前权限为准")
+            case .externalChange: Text("已保留你在 Codex 中修改的权限")
+            }
+        } else {
+            Text(agentManager.isRunning ? "等待后台同步状态" : "后台未运行")
+        }
+    }
+
+    @ViewBuilder
     private var switchEffectivenessBox: some View {
         let agentReady = agentManager.isInstalled && agentManager.isRunning && agentManager.hooksInstalled
         let hasAnyMissing = !agentManager.isInstalled || !agentManager.isRunning || !agentManager.hooksInstalled
-        StudioInspectorSection(agentReady ? (agentManager.kimiUsesNativeCLI ? "后台已就绪" : "已生效") : "未生效") {
+        StudioInspectorSection(agentReady ? "后台已就绪" : "后台未就绪") {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     Image(systemName: agentReady ? "checkmark.seal.fill" : "exclamationmark.circle.fill")
                         .foregroundStyle(agentReady ? .green : .orange)
                     Text(LocalizedStringKey(agentReady
-                         ? (agentManager.kimiUsesNativeCLI ? "Claude／Cursor 及 Codex 原生审批请求可随实体拨杆批准；Codex 完全访问及 Kimi 原生版保持原有行为。" : "Agent 就绪时 Claude/Cursor/Codex 可随拨杆走批准。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管当前会话；若刚装完或刚升级 kimi-cli，重开一次 kimi 即可。")
+                         ? "Claude／Cursor 可由后台接管批准；Codex 会话权限同步请查看下方状态。Kimi 原生终端仍由自身管理。"
                          : "拨杆在 IDE 中生效需先安装 Agent 与 Hook，并把蓝牙交给 Agent；否则仅为状态显示。"))
                         .font(.callout)
                 }
