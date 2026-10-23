@@ -236,10 +236,9 @@
   },
   "newCandidateInstalled": true,
   "remaining": [
-    "Real first cold press feedback and timely cloud/fallback completion",
-    "Real short/long voice completeness and rapid starting cancellation",
-    "Normal keyboard reboot and Coffee validation",
-    "Remaining WBS firmware/CLI/performance/release matrix unchanged"
+    "Other voice modes/routes, fault and rapid-restart physical variants",
+    "Remaining macro writes, capacity/lighting/display/CLI/long CPU and joint matrix",
+    "Four firmware contracts, Kimi native approval choice and formal release inputs remain"
   ],
   "initialReview": {
     "standards": "passed",
@@ -273,5 +272,69 @@
     "nativeLogPrivatelyBackedUp": true,
     "scopeNote": "Actual active legacy VibeKeyboard config now checked; earlier receipts only compared AhaKeyConfig/ahatype.json. No credentials or speech text in receipt."
   },
-  "actualColdMicrophoneAndVoiceAcceptance": "pending user test; no microphone recording initiated autonomously"
+  "actualColdMicrophoneAndVoiceAcceptance": {
+    "firstShortPress": {
+      "userConfirmed": "Immediate visible feedback, timely paste, no double trigger",
+      "audioStartupMilliseconds": 2024,
+      "recognitionFinalizeToPasteApproxSeconds": 7,
+      "timingResolution": "Start duration measured in ms; existing finalize/paste timestamps second-level",
+      "metadata": [
+        "[2026-10-23T04:32:26Z] audio startup requested",
+        "[2026-10-23T04:32:28Z] start recording locale=zh-CN startupMs=2024",
+        "[2026-10-23T04:32:31Z] finalize begin reason=final_result bypass=false",
+        "[2026-10-23T04:32:38Z] finalize success reason=final_result"
+      ],
+      "limits": "Actual hardware cold start still about2s; UI feedback confirmed by user, not programmatically timed"
+    },
+    "longPressPauseAndIntentionalRepetition": {
+      "userConfirmed": "Both sides of pause and intentional repetition retained; one paste; Dock normal",
+      "metadata": [
+        "[2026-10-23T04:34:33Z] audio startup requested",
+        "[2026-10-23T04:34:33Z] start recording locale=zh-CN startupMs=106",
+        "[2026-10-23T04:34:43Z] long press key up → stop + direct",
+        "[2026-10-23T04:34:43Z] stop recording requested bypassAhaType=true",
+        "[2026-10-23T04:34:43Z] finalize begin reason=final_result bypass=true",
+        "[2026-10-23T04:34:43Z] finalize success reason=final_result"
+      ],
+      "scope": "Codex mode existing applied F18/App transcription, current microphone"
+    },
+    "normalPowerCycle": {
+      "userConfirmed": "Normal power cycle, Studio reconnected, Coffee image normal",
+      "freshStatusAfterReboot": {
+        "physicalSwitchState": 0,
+        "switchState": 0,
+        "approvalAutoVerified": true,
+        "approvalPolicyVersion": 1
+      },
+      "ui": "Connected, automatic, voice bridge running; original1 draft preserved"
+    },
+    "roundResult": "Current Codex mode short/long and normal restart passed; not entire four-mode/fault/latency matrix"
+  },
+  "postInstallCpuSample": {
+    "sourceCommit": "db7e410b047351d791241cf961d14783fad7243a",
+    "build": "367",
+    "wallSeconds": 30.528,
+    "voiceLogChanged": true,
+    "processes": {
+      "Agent": {
+        "cpuPercentOfOneCore": 0.295,
+        "rssPeakMiB": 13.98
+      },
+      "Studio": {
+        "cpuPercentOfOneCore": 3.538,
+        "rssPeakMiB": 72.14
+      }
+    },
+    "scope": "Installed app/Agent connected, no mic started by test, hidden HUD preconstructed; short sample only, not long GIF/sleep/CPU acceptance",
+    "classification": "Mixed short voice interaction; voice log changed, cannot call idle or long-GIF acceptance"
+  },
+  "firmwareRecheck": {
+    "Fireware-harness": "076382b2214289ac7bc1735d669d7de78730c4da",
+    "otherRefsObserved": {
+      "master": "71b11676c4ebc8ff5b4885a24b601cb9cc04aa67",
+      "dev": "3e7f900ae6f5fe71d57a03da973d79356afea1b6",
+      "runtime": "d5ee0795fbf45ba21d99f9c7e29a73b9e893f43f"
+    },
+    "scope": "Read-only remote refs and metadata; no checkout change or newly accepted capability contract"
+  }
 }

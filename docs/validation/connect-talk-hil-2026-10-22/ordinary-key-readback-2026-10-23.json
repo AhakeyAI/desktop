@@ -1,0 +1,85 @@
+{
+  "date": "2026-10-23",
+  "sourceCommit": "db7e410b047351d791241cf961d14783fad7243a",
+  "build": 367,
+  "scope": "Actual virtual components, sidebar modify, live readback, return; all4 modes keys2/3/4, no configuration writes",
+  "readbacks": [
+    {
+      "mode": 1,
+      "key": 2,
+      "readbackPresent": true
+    },
+    {
+      "mode": 1,
+      "key": 3,
+      "readbackPresent": true
+    },
+    {
+      "mode": 1,
+      "key": 4,
+      "readbackPresent": true
+    },
+    {
+      "mode": 2,
+      "key": 2,
+      "readbackPresent": true
+    },
+    {
+      "mode": 2,
+      "key": 3,
+      "readbackPresent": true
+    },
+    {
+      "mode": 2,
+      "key": 4,
+      "readbackPresent": true
+    },
+    {
+      "mode": 3,
+      "key": 2,
+      "readbackPresent": true
+    },
+    {
+      "mode": 3,
+      "key": 3,
+      "readbackPresent": true
+    },
+    {
+      "mode": 3,
+      "key": 4,
+      "readbackPresent": true
+    },
+    {
+      "mode": 4,
+      "key": 2,
+      "readbackPresent": true
+    },
+    {
+      "mode": 4,
+      "key": 3,
+      "readbackPresent": true
+    },
+    {
+      "mode": 4,
+      "key": 4,
+      "readbackPresent": true
+    }
+  ],
+  "count": 12,
+  "functionalDraftUnchanged": true,
+  "macroUIIdentifiersRegenerated": 8,
+  "identityNote": "Only MacroStep.id changes were excluded; all action/param sequences, descriptions, bindings and voice policies compared exactly",
+  "userExistingVoiceDraft": "preserved; UI pending count remains1, not applied or cleared",
+  "finalBrowsingMode": "Codex; not editing",
+  "freshApprovalAfterMatrix": {
+    "physicalSwitchState": 0,
+    "switchState": 0,
+    "approvalAutoVerified": true,
+    "approvalPolicyVersion": 1
+  },
+  "limits": [
+    "Voice key not part of these12 readbacks",
+    "Not macro writes, physical HID output, persistence or old/unknown-firmware acceptance",
+    "No keyboard mode switch, write or restore action used"
+  ]
+}
