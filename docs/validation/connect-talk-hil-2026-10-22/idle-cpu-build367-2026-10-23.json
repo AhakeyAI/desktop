@@ -1,0 +1,30 @@
+{
+  "sourceCommit": "db7e410b047351d791241cf961d14783fad7243a",
+  "build": 367,
+  "scenario": "Connected, physical Codex auto; ordinary sidebar browsing, not editing; no voice or configuration action initiated by sampler",
+  "wallSeconds": 121.486,
+  "samples": 24,
+  "voiceLogFilesObserved": 2,
+  "voiceLogsChanged": false,
+  "processes": {
+    "Studio": {
+      "cpuPercentOfOneCore": 0.864,
+      "rssStartMiB": 70.95,
+      "rssEndMiB": 67.03,
+      "rssPeakMiB": 70.95,
+      "processStable": true
+    },
+    "Agent": {
+      "cpuPercentOfOneCore": 0.305,
+      "rssStartMiB": 13.62,
+      "rssEndMiB": 13.44,
+      "rssPeakMiB": 14.19,
+      "processStable": true
+    }
+  },
+  "limits": [
+    "Two-minute sample, not long-duration GIF, sleep, old-firmware or energy-impact acceptance",
+    "CPU ratio uses process CPU time divided by observed wall time; not lifetime ps percent"
+  ],
+  "measurementNote": "Initial discovery sampler rejected a process identity mismatch; no first-run values used. Final sampler pinned exact long-running App/Agent PIDs and executable paths, avoiding transient invocations of same Agent executable."
+}
