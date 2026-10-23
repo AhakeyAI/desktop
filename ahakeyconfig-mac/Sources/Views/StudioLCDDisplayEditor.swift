@@ -32,8 +32,8 @@ struct StudioLCDDisplayEditor: View {
                         HStack {
                             Text(foregroundHint).font(.caption).foregroundStyle(.secondary)
                             Spacer(minLength: 0)
-                            if foregroundSource.status == .accessibility || foregroundSource.status == .automation {
-                                Button(NSLocalizedString("授权", comment: "")) { Task { await foregroundSource.authorize() } }
+                            if foregroundSource.canRequestAuthorization {
+                                Button(NSLocalizedString("允许读取终端状态", comment: "")) { Task { await foregroundSource.authorize() } }
                                     .buttonStyle(.link).font(.caption)
                             }
                         }

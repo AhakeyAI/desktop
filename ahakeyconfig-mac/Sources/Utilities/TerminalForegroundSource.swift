@@ -62,6 +62,12 @@ final class TerminalForegroundSource: ObservableObject {
     }()
     deinit { query?.cancel(); workspaceObservers.forEach { NSWorkspace.shared.notificationCenter.removeObserver($0) } }
 
+    var canRequestAuthorization: Bool {
+        // Studio becomes frontmost when the user returns to authorize. Keep
+        // the last observed terminal target available without reading it.
+        enabled && status != .following && (lastTarget != nil || status == .accessibility)
+    }
+
     func setEnabled(_ value: Bool) {
         guard enabled != value else { return }
         enabled = value

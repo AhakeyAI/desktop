@@ -42,6 +42,26 @@ final class TerminalForegroundSourceTests: XCTestCase {
         XCTAssertEqual(harness.authorizationCount, 1)
         source.setEnabled(false)
     }
+    func testAuthorizationRemainsAvailableWhenReturningToStudioAfterDeniedRead() async {
+        let harness = Harness(), source = harness.source()
+        source.setEnabled(true)
+        let started = await eventually { harness.pending != nil }; XCTAssertTrue(started)
+        harness.resolve(.failure(TerminalSelectionQuery.Failure.authorizationRequired))
+        let denied = await eventually { source.status == .automation }; XCTAssertTrue(denied)
+        XCTAssertTrue(source.canRequestAuthorization)
+        harness.target = nil
+        source.refresh()
+        XCTAssertEqual(source.status, .waiting)
+        XCTAssertNil(source.focus)
+        XCTAssertTrue(source.canRequestAuthorization, "The button must survive switching back to Studio to use it")
+        let reads = harness.readCount
+        await source.authorize()
+        XCTAssertEqual(harness.authorizationCount, 1)
+        XCTAssertEqual(harness.readCount, reads, "Returning to Studio does not read background terminal content")
+        source.setEnabled(false)
+        XCTAssertFalse(source.canRequestAuthorization)
+    }
+
     func testLateResultAfterDisableCannotRestoreForeground() async {
         let harness = Harness(), source = harness.source()
         source.setEnabled(true)
