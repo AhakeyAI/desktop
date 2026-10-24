@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- 从 model_config.properties 加载日志级别配置 -->
+    <property resource="model_config.properties"/>
+    
+    <!-- 控制台输出 -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 文件输出（滚动日志） -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${log.file.path:-logs/ahakey-studio.log}</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${log.file.pattern:-logs/ahakey-studio.%d{yyyy-MM-dd}.log}</fileNamePattern>
+            <maxHistory>${log.file.maxHistory:-30}</maxHistory>
+            <totalSizeCap>${log.file.totalSizeCap:-100MB}</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 主应用日志级别（从配置文件读取，默认 DEBUG） -->
+    <logger name="com.example.ahakey" level="${log.level.app:-DEBUG}" additivity="false">
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="FILE"/>
+    </logger>
+
+    <!-- 第三方库日志级别（从配置文件读取，默认 WARN） -->
+    <logger name="com.fasterxml.jackson" level="${log.level.jackson:-WARN}"/>
+    <logger name="com.sun.jna" level="${log.level.jna:-WARN}"/>
+    <logger name="org.openjfx" level="${log.level.javafx:-WARN}"/>
+
+    <!-- 根日志级别（从配置文件读取，默认 INFO） -->
+    <root level="${log.level.root:-INFO}">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>
