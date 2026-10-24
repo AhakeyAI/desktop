@@ -90,6 +90,37 @@ final class OLEDDataWriteResultTests: XCTestCase {
         manager.finishDataWrite(.success(()))
     }
 
+    func testTimedOutConnectionRejectsRetryBeforeLateAckCanConfirmIt() async {
+        let manager = makeManager()
+        do {
+            try await manager.awaitDataWriteResult(timeoutSeconds: 0.01) {}
+            XCTFail("expected timeout")
+        } catch {}
+        XCTAssertTrue(manager.dataWriteRequiresReconnect)
+        var sentRetry = false
+        do {
+            try await manager.awaitDataWriteResult(timeoutSeconds: 1) {
+                sentRetry = true
+                manager.parseProtocolResponse(Data([0xAA, 0xBB, 0x81, 0x00, 0xCC, 0xDD]))
+            }
+            XCTFail("must reconnect before retry")
+        } catch OLEDUploadError.reconnectRequired {
+        } catch { XCTFail("unexpected error: \(error)") }
+        XCTAssertFalse(sentRetry)
+    }
+
+    func testPacketSendFailureEndsWaitAndRequiresReconnect() async {
+        let manager = makeManager()
+        do {
+            try await manager.awaitDataWriteResult(timeoutSeconds: 5) {
+                throw OLEDUploadError.dataWriteFailed("stalled transport")
+            }
+            XCTFail("expected send failure")
+        } catch OLEDUploadError.dataWriteFailed {
+        } catch { XCTFail("unexpected error: \(error)") }
+        XCTAssertTrue(manager.dataWriteRequiresReconnect)
+    }
+
     func testWriteResultTimeoutMessageOffersRetry() {
         let message = OLEDUploadError.timeout(command: AhaKeyCommand.cmdWriteResult).errorDescription ?? ""
         XCTAssertTrue(message.contains("0x81"))
