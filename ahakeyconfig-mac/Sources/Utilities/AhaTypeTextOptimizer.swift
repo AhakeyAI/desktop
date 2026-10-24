@@ -123,7 +123,9 @@ final class AhaTypeTextOptimizer: ObservableObject {
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             if AhaTypeCloudSession.isExpired(httpStatus: statusCode, object: try? JSONSerialization.jsonObject(with: data) as? [String: Any]) {
                 CloudAccountManager.shared.expireSession(token: token)
-                return fail(NSLocalizedString("AhaType 登录已过期，直接写入原始转写。", comment: ""))
+                let message = NSLocalizedString("AhaType 登录已过期，直接写入原始转写。", comment: "")
+                statusMessage = message
+                return AhaTypeProcessResult(text: text, failureReason: message)
             }
             guard statusCode == 200 else {
                 return fail(String(format: NSLocalizedString("AhaType 请求失败（HTTP %d），已写入原始转写。", comment: ""), statusCode))

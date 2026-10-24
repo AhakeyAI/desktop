@@ -434,15 +434,16 @@ final class CloudAccountManager: ObservableObject {
             throw CloudAccountError(networkMessage(for: error))
         }
         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        let decoded = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        if AhaTypeCloudSession.isExpired(httpStatus: statusCode, object: decoded) {
+            let message = decoded.map(responseMessage) ?? ""
+            throw CloudAccountError(message.isEmpty ? NSLocalizedString("登录已过期，请重新登录。", comment: "") : message, statusCode: 401)
+        }
+        guard let object = decoded else {
             throw CloudAccountError(NSLocalizedString("服务器返回非 JSON。", comment: ""), statusCode: statusCode)
         }
         if statusCode != 200 {
             throw CloudAccountError(responseMessage(object).isEmpty ? "请求失败（HTTP \(statusCode)）。" : responseMessage(object), statusCode: statusCode)
-        }
-        if AhaTypeCloudSession.isExpired(httpStatus: statusCode, object: object) {
-            let message = responseMessage(object)
-            throw CloudAccountError(message.isEmpty ? NSLocalizedString("登录已过期，请重新登录。", comment: "") : message, statusCode: 401)
         }
         return object
     }
