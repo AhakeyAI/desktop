@@ -184,8 +184,9 @@ enum TomlPolicyLocator {
         case unsupported(String)
     }
 
-    static func locate(_ bytes: [UInt8]) -> Location {
-        var scanner = Scanner(bytes: bytes)
+    /// `key` 默认是 Codex 的 `approval_policy`；Kimi Code 用同一扫描器定位 `default_permission_mode`。
+    static func locate(_ bytes: [UInt8], key: String = "approval_policy") -> Location {
+        var scanner = Scanner(bytes: bytes, policyKey: key)
         do {
             try scanner.scan()
         } catch let failure as Failure {
@@ -226,8 +227,8 @@ enum TomlPolicyLocator {
         static let rbrace: UInt8 = 0x7D
         static let comma: UInt8 = 0x2C
         static let backslash: UInt8 = 0x5C
-        /// 本产品唯一的顶层 scalar 目标键。
-        static let policyKey = "approval_policy"
+        /// 本次扫描的顶层 scalar 目标键。
+        let policyKey: String
 
         enum Value {
             /// 单行 basic / literal 字符串（可安全定位并替换）。
@@ -245,8 +246,9 @@ enum TomlPolicyLocator {
         var policy: (range: Range<Int>, value: String)?
         var newlineStyle: [UInt8] = [Scanner.lf]
 
-        init(bytes: [UInt8]) {
+        init(bytes: [UInt8], policyKey: String = "approval_policy") {
             self.bytes = bytes
+            self.policyKey = policyKey
             self.newlineStyle = Scanner.detectNewlineStyle(bytes)
         }
 
@@ -326,8 +328,8 @@ enum TomlPolicyLocator {
             }
             // namespace：table path 首段是 approval_policy ⇒ 与目标 scalar 定义冲突。
             statements.append(Statement(range: start..<index, kind: .table(path: path, isArray: isArrayOfTables)))
-            if locatePolicy, path.first == Scanner.policyKey {
-                throw Failure.unsupported("approval_policy 命名空间冲突（table header）")
+            if locatePolicy, path.first == policyKey {
+                throw Failure.unsupported("\(policyKey) 命名空间冲突（table header）")
             }
         }
 
@@ -349,15 +351,15 @@ enum TomlPolicyLocator {
             }
 
             statements.append(Statement(range: start..<index, kind: .assignment(path: keyPath)))
-            guard locatePolicy, !inTable, keyPath.first == Scanner.policyKey else { return }
-            // 首段是 approval_policy：唯一允许形态是顶层单行 scalar key 本身；
+            guard locatePolicy, !inTable, keyPath.first == policyKey else { return }
+            // 首段是目标键：唯一允许形态是顶层单行 scalar key 本身；
             // `approval_policy.foo` / `"approval_policy".x` 等 dotted 形态与目标 scalar 冲突。
-            guard keyPath == [Scanner.policyKey] else {
-                throw Failure.unsupported("approval_policy 命名空间冲突（dotted key）")
+            guard keyPath == [policyKey] else {
+                throw Failure.unsupported("\(policyKey) 命名空间冲突（dotted key）")
             }
             guard policy == nil else { throw Failure.duplicate }
             guard case let .scalarString(range, decoded) = value else {
-                throw Failure.unsupported("approval_policy 的 value 不是单行 scalar 字符串")
+                throw Failure.unsupported("\(policyKey) 的 value 不是单行 scalar 字符串")
             }
             policy = (range, decoded)
         }

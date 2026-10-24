@@ -1,20 +1,28 @@
 import Foundation
+import AhaKeyConfigShared
 
-/// 读取 `~/.kimi/config.toml` 快照。`default_yolo` 也可由 **拨杆→`KimiConfigLeverSync`** 在 `PreToolUse` 写入；已开会话需在 kimi 执行 **`/reload`** 才读新值。PreToolUse 仍仅 **`deny`** 有 hook 侧拦截语义（`runner.py`）。
+/// 读取当前 Kimi 配置快照（`KimiConfigLocation.activeConfigURL()`）。拨杆 → `KimiConfigLeverSync` 写入：
+/// Kimi Code CLI 2.x 为 `default_permission_mode`（新建会话生效），旧版 kimi-cli 为 `default_yolo`（`/reload` 生效）。
+/// 两代 CLI 的 PreToolUse 都只认 **`deny`**，hook 侧无法直接放行。
 enum KimiConfigDiagnostic {
-    private static var configURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".kimi/config.toml", isDirectory: false)
-    }
-
     /// 写入 `permission-request.log` 的 `kimiLeverDebug` 块。
     static func snapshotForLog() -> [String: Any] {
         let fm = FileManager.default
-        let path = configURL.path
+        let url = KimiConfigLocation.activeConfigURL()
+        let path = url.path
+        let legacy = KimiConfigLocation.isLegacy(url)
         var d: [String: Any] = [
             "kimiConfigPath": path,
             "kimiConfigExists": fm.fileExists(atPath: path),
-            "hookApprovalPolicy": "dial_writes_default_yolo_on_PreToolUse_kimi_reload_to_apply_upstream_deny_only",
+            "kimiConfigGeneration": legacy ? "legacy_kimi_cli" : "kimi_code",
+            "hookApprovalPolicy": legacy
+                ? "dial_writes_default_yolo_kimi_reload_to_apply_upstream_deny_only"
+                : "dial_writes_default_permission_mode_new_sessions_apply_upstream_deny_only",
         ]
+        if !legacy {
+            d["default_permission_mode"] = KimiPermissionModeSync.configuredMode(configURL: url) ?? NSNull()
+            return d
+        }
         guard let data = fm.contents(atPath: path),
               let raw = String(data: data, encoding: .utf8) else { return d }
         if let regex = try? NSRegularExpression(pattern: #"(?m)^\s*default_yolo\s*=\s*(\S+)"#, options: []),
