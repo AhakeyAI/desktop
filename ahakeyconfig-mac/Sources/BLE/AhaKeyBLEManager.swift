@@ -1742,8 +1742,7 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
         guard let data = characteristic.value else { return }
         Task { @MainActor in
             guard self.acceptsConnectionCallbacks else { return }
-            guard self.peripheral === peripheral, !self.dataWriteRequiresReconnect,
-                  characteristic === self.notifyChar || characteristic === self.dataChar else { return }
+            guard self.peripheral === peripheral, self.acceptsNotification(characteristic) else { return }
             self.handleNotification(from: characteristic.uuid, data: data)
         }
     }
@@ -1768,6 +1767,14 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
                 self.appendLog("写入特征 \(characteristic.uuid) 完成", category: .verbose)
             }
         }
+    }
+
+    /// 仅协议 ACK 需要当前写入通道身份；标准电量/设备信息读回不受 OLED 写入状态影响。
+    func acceptsNotification(_ characteristic: CBCharacteristic) -> Bool {
+        if characteristic.uuid == Self.dataCharUUID || characteristic.uuid == Self.notifyCharUUID {
+            return !dataWriteRequiresReconnect && (characteristic === notifyChar || characteristic === dataChar)
+        }
+        return true
     }
 
     private func handleNotification(from uuid: CBUUID, data: Data) {
