@@ -205,18 +205,18 @@ public final class LocalVoiceFeature {
 
     private void runInstall(AtomicBoolean cancel) {
         try {
-            LocalVoiceManifest manifest = installer.fetchManifest(manifestUrl.get());
+            LocalVoiceManifest manifest = installer.fetchManifest(manifestUrl.get(), cancel::get);
             long total = manifest.totalBytes();
-            uiThread.accept(() -> {
+            publishIfCurrent(cancel, () -> {
                 phase.set(Phase.DOWNLOADING);
                 message.set(localize("正在下载本地语音模型（共 ") + formatMegabytes(total) + "）…");
             });
-            installer.install(manifest, (done, all, file) -> uiThread.accept(() -> {
+            installer.install(manifest, (done, all, file) -> publishIfCurrent(cancel, () -> {
                 progress.set(all <= 0 ? 0 : (double) done / all);
                 message.set(localize("正在下载本地语音模型 ")
                     + formatMegabytes(done) + " / " + formatMegabytes(all));
             }), cancel::get);
-            uiThread.accept(() -> {
+            publishIfCurrent(cancel, () -> {
                 phase.set(Phase.IDLE);
                 progress.set(1);
                 message.set("");
@@ -226,24 +226,31 @@ public final class LocalVoiceFeature {
             });
         } catch (CancellationException e) {
             uiThread.accept(() -> {
+                if (cancelFlag != cancel) return;
                 phase.set(Phase.IDLE);
                 progress.set(0);
                 message.set(localize("已取消下载，下次开启时会继续下载。"));
             });
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            fail(localize("下载被中断"));
+            fail(cancel, localize("下载被中断"));
         } catch (java.nio.file.FileSystemException e) {
             logger.warn("Local voice install failed", e);
-            fail(localize("安装失败：本地语音文件正被占用，请重启 AhaKey Studio 后再开启。"));
+            fail(cancel, localize("安装失败：本地语音文件正被占用，请重启 AhaKey Studio 后再开启。"));
         } catch (IOException | RuntimeException e) {
             logger.warn("Local voice download failed", e);
-            fail(localize("下载失败：") + e.getMessage());
+            fail(cancel, localize("下载失败：") + e.getMessage());
         }
     }
 
-    private void fail(String text) {
+    private void publishIfCurrent(AtomicBoolean operation, Runnable update) {
         uiThread.accept(() -> {
+            if (cancelFlag == operation && !operation.get()) update.run();
+        });
+    }
+
+    private void fail(AtomicBoolean operation, String text) {
+        publishIfCurrent(operation, () -> {
             phase.set(Phase.FAILED);
             message.set(text);
         });
@@ -251,6 +258,10 @@ public final class LocalVoiceFeature {
 
     public void cancelDownload() {
         cancelFlag.set(true);
+        cancelFlag = new AtomicBoolean(false);
+        phase.set(Phase.IDLE);
+        progress.set(0);
+        message.set(localize("已取消下载，下次开启时会继续下载。"));
     }
 
     /**

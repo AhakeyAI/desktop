@@ -29,6 +29,44 @@ class LocalVoiceFeatureTest {
     }
 
     @Test
+    void disablingBeforeQueuedCompletionDoesNotReenableVoice() throws Exception {
+        try (FakePackServer server = new FakePackServer()) {
+            LocalVoiceAssets assets = new LocalVoiceAssets(temp.resolve("lv"));
+            List<Runnable> queuedUi = new ArrayList<>();
+            LocalVoiceFeature feature = new LocalVoiceFeature(temp.resolve("settings.json"), assets,
+                new LocalVoiceInstaller(HttpClient.newHttpClient(), assets, Duration.ofSeconds(20)),
+                Runnable::run, queuedUi::add, server::manifestUrl);
+            feature.enable();
+            assertFalse(queuedUi.isEmpty());
+            feature.disable(false);
+            queuedUi.forEach(Runnable::run);
+            assertFalse(feature.enabledProperty().get());
+            assertFalse(feature.isAvailable());
+            assertEquals(LocalVoiceFeature.Phase.IDLE, feature.phaseProperty().get());
+        }
+    }
+
+    @Test
+    void oldFailureCannotOverwriteANewDownload() throws Exception {
+        try (FakePackServer server = new FakePackServer()) {
+            server.forcedSha256 = "0".repeat(64);
+            LocalVoiceAssets assets = new LocalVoiceAssets(temp.resolve("lv"));
+            List<Runnable> workers = new ArrayList<>();
+            List<Runnable> queuedUi = new ArrayList<>();
+            LocalVoiceFeature feature = new LocalVoiceFeature(temp.resolve("settings.json"), assets,
+                new LocalVoiceInstaller(HttpClient.newHttpClient(), assets, Duration.ofSeconds(20)),
+                workers::add, queuedUi::add, server::manifestUrl);
+            feature.enable();
+            workers.remove(0).run();
+            feature.cancelDownload();
+            feature.enable();
+            queuedUi.forEach(Runnable::run);
+            assertEquals(LocalVoiceFeature.Phase.CHECKING, feature.phaseProperty().get());
+            assertFalse(feature.isAvailable());
+        }
+    }
+
+    @Test
     void freshInstallIsTheLightClient() {
         LocalVoiceFeature feature = feature(URI.create("http://127.0.0.1:9/none"));
         assertFalse(feature.isAvailable());

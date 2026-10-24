@@ -12,7 +12,6 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -36,7 +35,6 @@ public class CloudAccountManager {
     private final HttpClient httpClient;
     private final ObjectMapper mapper;
     private final URI apiBase;
-    private final Clock clock;
     private final Duration paymentPollInterval;
     private final Duration paymentPollTimeout;
     private final ExecutorService paymentPollExecutor;
@@ -91,7 +89,6 @@ public class CloudAccountManager {
         this.httpClient = httpClient;
         this.mapper = mapper;
         this.apiBase = normalizeApiBase(apiBase);
-        this.clock = clock;
         this.paymentPollInterval = paymentPollInterval;
         this.paymentPollTimeout = paymentPollTimeout;
         this.paymentPollExecutor = Executors.newSingleThreadExecutor(runnable -> {
@@ -440,6 +437,9 @@ public class CloudAccountManager {
         } catch (Exception exception) {
             throw new CloudAccountException(response.statusCode(), "服务器返回异常");
         }
+        if (AhaTypeService.isExpiredSession(response.statusCode(), root)) {
+            throw new CloudAccountException(401, "登录已过期，请重新登录");
+        }
         if (response.statusCode() != 200 || root == null || !root.isObject()
             || !AhaTypeService.isSuccessCode(root.get("code"))) {
             throw new CloudAccountException(response.statusCode(), safeResponseMessage(root,
@@ -500,21 +500,7 @@ public class CloudAccountManager {
             value = firstText(quota, "token_valid_until", "tokenValidUntil", "expires_at", "expiresAt");
         }
         if (!value.isEmpty()) return value;
-        JsonNode expiresIn = AhaTypeService.firstNode(data, "expires_in");
-        if (expiresIn != null && expiresIn.canConvertToLong()) {
-            return clock.instant().plusSeconds(expiresIn.asLong()).toString();
-        }
-        int dot = token.indexOf('.');
-        if (dot >= 0) {
-            try {
-                String payload = token.substring(dot + 1, token.indexOf('.', dot + 1));
-                JsonNode jwt = mapper.readTree(new String(java.util.Base64.getUrlDecoder().decode(payload)));
-                JsonNode exp = jwt.get("exp");
-                if (exp != null && exp.canConvertToLong()) return Instant.ofEpochSecond(exp.asLong()).toString();
-            } catch (Exception ignored) {
-                // A non-JWT token is valid as long as the server did not provide an expiry.
-            }
-        }
+        // Login JWT/response expiry is not a subscription entitlement.
         return null;
     }
 

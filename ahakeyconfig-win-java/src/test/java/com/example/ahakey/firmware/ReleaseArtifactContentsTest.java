@@ -104,6 +104,24 @@ class ReleaseArtifactContentsTest {
         assertTrue(result.output().contains("AhaKeyProtocol.class"));
     }
 
+    @Test
+    void optionalWchIspIsRequiredOnlyWhenRequested() throws Exception {
+        Path jar = jar("optional-wchisp.jar", REQUIRED);
+        Path input = temporary.resolve("input");
+        Files.createDirectories(input.resolve("lib"));
+        Files.writeString(input.resolve("lib/sherpa-onnx-java-api-1.13.3.jar"), "api");
+        Result withoutVendor = verify(jar, "-ReleaseInputDir", input.toString());
+        assertTrue(withoutVendor.success(), withoutVendor.output());
+        Result missingRequired = verify(jar, "-ReleaseInputDir", input.toString(), "-RequireWchIsp");
+        assertFalse(missingRequired.success());
+        assertTrue(missingRequired.output().contains("chip database"));
+        Path database = input.resolve("tools/wchisp/ChipType/chiplist_CH57x_CH59x.wcfg");
+        Files.createDirectories(database.getParent());
+        Files.writeString(database, "database");
+        Result supplied = verify(jar, "-ReleaseInputDir", input.toString(), "-RequireWchIsp");
+        assertTrue(supplied.success(), supplied.output());
+    }
+
     private Path jar(String name, List<String> entries) throws Exception {
         Path jar = temporary.resolve(name);
         try (JarOutputStream output = new JarOutputStream(Files.newOutputStream(jar))) {
@@ -119,14 +137,16 @@ class ReleaseArtifactContentsTest {
         return jar;
     }
 
-    private Result verify(Path jar) throws Exception {
+    private Result verify(Path jar, String... extraArguments) throws Exception {
         Path powershell = Path.of(System.getenv("SystemRoot"), "System32",
             "WindowsPowerShell", "v1.0", "powershell.exe");
-        Process process = new ProcessBuilder(
+        var arguments = new java.util.ArrayList<>(List.of(
             powershell.toString(), "-NoLogo", "-NoProfile", "-NonInteractive",
             "-ExecutionPolicy", "Bypass", "-File",
             Path.of("Test-ReleaseArtifactContents.ps1").toAbsolutePath().toString(),
-            "-JarPath", jar.toString())
+            "-JarPath", jar.toString()));
+        arguments.addAll(List.of(extraArguments));
+        Process process = new ProcessBuilder(arguments)
             .redirectErrorStream(true)
             .start();
         String output = new String(process.getInputStream().readAllBytes(),

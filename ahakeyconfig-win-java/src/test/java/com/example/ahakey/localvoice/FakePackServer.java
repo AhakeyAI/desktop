@@ -22,6 +22,9 @@ final class FakePackServer implements AutoCloseable {
     final AtomicInteger rangeRequests = new AtomicInteger();
     /** When set, the manifest advertises this hash for every file (forces a mismatch). */
     volatile String forcedSha256;
+    volatile boolean stallBody;
+    final java.util.concurrent.CountDownLatch partialBodySent = new java.util.concurrent.CountDownLatch(1);
+    final java.util.concurrent.CountDownLatch releaseBody = new java.util.concurrent.CountDownLatch(1);
     private final HttpServer server;
 
     FakePackServer() throws IOException {
@@ -92,6 +95,11 @@ final class FakePackServer implements AutoCloseable {
             for (int offset = start; offset < content.length; offset += 4096) {
                 out.write(content, offset, Math.min(4096, content.length - offset));
                 out.flush();
+                if (stallBody) {
+                    partialBodySent.countDown();
+                    try { releaseBody.await(); }
+                    catch (InterruptedException exception) { Thread.currentThread().interrupt(); return; }
+                }
             }
         } catch (IOException clientWentAway) {
             exchange.close();
@@ -108,6 +116,7 @@ final class FakePackServer implements AutoCloseable {
 
     @Override
     public void close() {
+        releaseBody.countDown();
         server.stop(0);
     }
 }

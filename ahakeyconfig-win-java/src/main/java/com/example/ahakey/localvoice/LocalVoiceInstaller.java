@@ -22,6 +22,12 @@ import java.time.Duration;
 import java.util.HexFormat;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -38,6 +44,12 @@ public final class LocalVoiceInstaller {
     static final String MANIFEST_URL_PROPERTY = "ahakey.localVoice.manifestUrl";
     static final String MANIFEST_URL_ENV = "AHAKEY_LOCAL_VOICE_MANIFEST_URL";
     private static final int MAX_MANIFEST_BYTES = 64 * 1024;
+    private static final ScheduledExecutorService BODY_WATCHDOG =
+        Executors.newSingleThreadScheduledExecutor(task -> {
+            Thread thread = new Thread(task, "local-voice-http-cancellation");
+            thread.setDaemon(true);
+            return thread;
+        });
 
     /** Overall progress across all files of the pack. */
     @FunctionalInterface
@@ -74,21 +86,30 @@ public final class LocalVoiceInstaller {
     }
 
     public LocalVoiceManifest fetchManifest(URI url) throws IOException, InterruptedException {
+        return fetchManifest(url, () -> false);
+    }
+
+    public LocalVoiceManifest fetchManifest(URI url, BooleanSupplier cancelled)
+            throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(url)
             .timeout(Duration.ofSeconds(20))
             .header("Accept", "application/json")
             .header("User-Agent", "AhaKeyStudio-LocalVoice")
             .GET()
             .build();
-        HttpResponse<InputStream> response =
-            httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-        try (InputStream body = response.body()) {
+        HttpResponse<InputStream> response = send(request, cancelled);
+        try (WatchedBody watched = new WatchedBody(response.body(), cancelled, Duration.ofSeconds(20))) {
+            InputStream body = watched.stream;
             if (response.statusCode() != 200) {
                 throw new IOException("manifest request failed with HTTP " + response.statusCode());
             }
             byte[] bytes = body.readNBytes(MAX_MANIFEST_BYTES + 1);
             if (bytes.length > MAX_MANIFEST_BYTES) throw new IOException("manifest is too large");
+            watched.check();
             return LocalVoiceManifest.parse(new String(bytes, StandardCharsets.UTF_8));
+        } catch (IOException exception) {
+            if (cancelled.getAsBoolean()) throw new CancellationException();
+            throw exception;
         }
     }
 
@@ -137,14 +158,22 @@ public final class LocalVoiceInstaller {
             Files.delete(part);
             existing = 0;
         }
+        if (existing == entry.size()) {
+            if (matches(part, entry)) {
+                if (cancelled.getAsBoolean()) throw new CancellationException();
+                Files.move(part, target, StandardCopyOption.REPLACE_EXISTING);
+                return;
+            }
+            Files.delete(part);
+            existing = 0;
+        }
 
         HttpRequest.Builder builder = HttpRequest.newBuilder(entry.url())
             .timeout(requestTimeout)
             .header("User-Agent", "AhaKeyStudio-LocalVoice")
             .GET();
         if (existing > 0) builder.header("Range", "bytes=" + existing + "-");
-        HttpResponse<InputStream> response =
-            httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofInputStream());
+        HttpResponse<InputStream> response = send(builder.build(), cancelled);
 
         MessageDigest digest = sha256();
         boolean append;
@@ -162,13 +191,13 @@ public final class LocalVoiceInstaller {
         }
 
         long written = existing;
-        try (InputStream body = response.body();
+        try (WatchedBody watched = new WatchedBody(response.body(), cancelled, requestTimeout);
              OutputStream out = Files.newOutputStream(part, StandardOpenOption.CREATE,
                  StandardOpenOption.WRITE,
                  append ? StandardOpenOption.APPEND : StandardOpenOption.TRUNCATE_EXISTING)) {
             byte[] buffer = new byte[128 * 1024];
             int read;
-            while ((read = body.read(buffer)) >= 0) {
+            while ((read = watched.stream.read(buffer)) >= 0) {
                 if (cancelled.getAsBoolean()) throw new CancellationException();
                 if (read == 0) continue;
                 written += read;
@@ -177,7 +206,12 @@ public final class LocalVoiceInstaller {
                 digest.update(buffer, 0, read);
                 listener.onProgress(completedBefore + written, total, entry.path());
             }
+            watched.check();
+        } catch (IOException exception) {
+            if (cancelled.getAsBoolean()) throw new CancellationException();
+            throw exception;
         }
+        if (cancelled.getAsBoolean()) throw new CancellationException();
         if (written != entry.size()) {
             throw new IOException(entry.path() + ": incomplete download (" + written + "/" + entry.size() + ")");
         }
@@ -187,6 +221,67 @@ public final class LocalVoiceInstaller {
             throw new IOException(entry.path() + ": checksum mismatch");
         }
         Files.move(part, target, StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    /** Cancel while waiting for headers as well as while consuming the body. */
+    private HttpResponse<InputStream> send(HttpRequest request, BooleanSupplier cancelled)
+            throws IOException, InterruptedException {
+        if (cancelled.getAsBoolean()) throw new CancellationException();
+        var pending = httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofInputStream());
+        try {
+            while (true) {
+                if (cancelled.getAsBoolean()) throw new CancellationException();
+                try {
+                    HttpResponse<InputStream> response = pending.get(100, TimeUnit.MILLISECONDS);
+                    if (cancelled.getAsBoolean()) {
+                        response.body().close();
+                        throw new CancellationException();
+                    }
+                    return response;
+                } catch (TimeoutException ignored) {
+                    // Poll cancellation while HttpClient enforces the header deadline.
+                }
+            }
+        } catch (ExecutionException exception) {
+            if (exception.getCause() instanceof IOException failure) throw failure;
+            throw new IOException("local voice request failed", exception.getCause());
+        } catch (InterruptedException | CancellationException exception) {
+            // A completed header response may already own a body; close that too.
+            pending.thenAccept(response -> {
+                try { response.body().close(); } catch (IOException ignored) { }
+            });
+            pending.cancel(true);
+            throw exception;
+        }
+    }
+
+    /** HttpRequest.timeout ends at headers for ofInputStream; bound the body separately. */
+    private static final class WatchedBody implements AutoCloseable {
+        private final InputStream stream;
+        private final BooleanSupplier cancelled;
+        private final long deadline;
+        private final ScheduledFuture<?> watcher;
+
+        private WatchedBody(InputStream stream, BooleanSupplier cancelled, Duration timeout) {
+            this.stream = stream;
+            this.cancelled = cancelled;
+            this.deadline = System.nanoTime() + timeout.toNanos();
+            watcher = BODY_WATCHDOG.scheduleWithFixedDelay(() -> {
+                if (cancelled.getAsBoolean() || System.nanoTime() >= deadline) {
+                    try { stream.close(); } catch (IOException ignored) { }
+                }
+            }, 0, 100, TimeUnit.MILLISECONDS);
+        }
+
+        private void check() throws IOException {
+            if (cancelled.getAsBoolean()) throw new CancellationException();
+            if (System.nanoTime() >= deadline) throw new IOException("local voice response body timed out");
+        }
+
+        @Override public void close() throws IOException {
+            watcher.cancel(false);
+            stream.close();
+        }
     }
 
     /** Size check first; the hash is only computed when the size already matches. */

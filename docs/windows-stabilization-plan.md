@@ -3,7 +3,7 @@
 > 唯一权威事实源：`desktop/docs/windows-stabilization-plan.md`。适用范围是
 > `desktop/ahakeyconfig-win-java` 及其 Windows 发布脚本；固件仓库只读，不在本轮修改。
 >
-> 最后更新：2026-09-19。状态必须区分代码完成、自动测试完成、软件手工验证和真机验证。
+> 最后更新：2026-10-24。状态必须区分代码完成、自动测试完成、软件手工验证和真机验证。
 >
 > 解释顺序：第 0～6 节记录当前工程事实和仍需修复的边界；第 7 节之后是按时间追加的
 > 交付与决策历史。历史章节保留用于追溯，但如果与第 0～6 节或更晚的明确 supersedes
@@ -1575,3 +1575,39 @@ No configuration was written to the keyboard.
 - **编辑配置 / 保存配置按钮移到编辑区。** 顶栏不再有该按钮，只保留“键盘控制中 / 配置编辑中”状态。按钮在右侧
   编辑区标题行右端（K1–K4、灯条、OLED、拨杆每个模块都有），行为不变：未编辑时进入编辑，编辑中写入键盘，
   写入时显示进度并禁用（`InspectorPane.createConfigModeButton`）。
+
+
+## 46. PR #179 review corrections (2026-10-24)
+
+This section supersedes earlier descriptions that treat `token_valid_until` as login expiry.
+The field represents the AhaType service entitlement. An expired service period stops cloud
+text processing and retains the original transcript, while the login token remains available
+for profile refresh, coupon redemption, renewal orders and payment-status queries. JWT `exp`
+and server HTTP/business 401 responses determine login expiry. JWT/`expires_in` values are no
+longer copied into the service-entitlement field; subscription failures do not clear login.
+
+Local voice download callbacks now belong to their captured operation. Cancel/disable invalidates
+that operation before changing UI state; queued progress, failure and completion cannot overwrite
+a newer operation or turn voice back on. Cancellation is checked while waiting for HTTP headers,
+and streamed response bodies have a cancellation watcher and total body deadline because the
+HttpClient header timeout does not bound `InputStream.read`. Cancellation retains partial files;
+retry resumes them, including verification/reuse when the entire file was received before cancel.
+
+The packaged JAR derives its runtime Class-Path from Maven dependencies, retaining the explicit
+system-scope Sherpa API. A package-phase isolated classloader check invokes traditional-Chinese
+conversion using the manifest alone and checks every shipped dependency. This covers OpenCC and
+its transitive libraries, which ordinary Maven tests previously supplied implicitly. WCHISP's chip
+database is required by the artifact gate only when licensed WCHISP is selected for packaging;
+`-PrepareOnly` without that option no longer fails the optional-vendor gate.
+
+Windows CI now runs the unfiltered `mvn -B -q clean package` and release-configuration check on
+Windows/JDK 17. Local review validation used macOS/JDK 23 with Java 17 source/target: the portable
+selection passed **380 tests, 0 failures, 0 errors, 1 Windows-only skip**, built the full JAR,
+and the isolated artifact check returned `PACKAGED_RUNTIME_CLASSPATH=OK`. The unfiltered local
+attempt was **402 tests, 1 failure, 22 errors, 1 skip**: PowerShell/SystemRoot-dependent tests
+cannot execute on macOS; the firmware compatibility timeout also reproduces on the unchanged PR
+baseline, and the occupied-port test depends on Windows socket binding behavior. The portable
+command excluded these platform tests explicitly and skipped the PowerShell package invocation.
+No Windows-only test was removed; the read-only-DLL deletion test now declares its Windows OS
+requirement. Windows CI/full packaging, installer execution and real device verification remain
+separate from the successful local portable checks. No firmware or device configuration was written.

@@ -93,7 +93,7 @@ public class AhaTypeService {
         return !getValidAccessToken().isEmpty();
     }
 
-    /** Returns one consistent token snapshot only when it is present and unexpired. */
+    /** Login credentials remain usable for renewal after the service entitlement expires. */
     public String getValidAccessToken() {
         Map<String, Object> values = readConfig();
         String token = stringValue(values.get(AhaTypeConfig.ACCESS_TOKEN)).trim();
@@ -300,6 +300,11 @@ public class AhaTypeService {
             statusMessage = "AhaType 未登录或登录已过期，直接粘贴原文";
             return original;
         }
+        if (!serviceIsStillValid(values.get(AhaTypeConfig.TOKEN_VALID_UNTIL))) {
+            lastProcessIssue = ProcessIssue.QUOTA_REQUIRED;
+            statusMessage = "AhaType 服务已到期，请续费或兑换；已使用原文";
+            return original;
+        }
         String token = stringValue(values.get(AhaTypeConfig.ACCESS_TOKEN)).trim();
         try {
             URI endpoint = endpoint("/api/v1/typeless/process");
@@ -370,10 +375,14 @@ public class AhaTypeService {
     }
 
     private ProcessIssue classifyProcessFailure(int statusCode, JsonNode root) {
-        if (statusCode == 401 || statusCode == 403) return ProcessIssue.LOGIN_REQUIRED;
+        if (isExpiredSession(statusCode, root)) return ProcessIssue.LOGIN_REQUIRED;
         if (statusCode == 402 || statusCode == 429) return ProcessIssue.QUOTA_REQUIRED;
         String message = firstText(root, "errorMsg", "msg", "message", "error")
             .toLowerCase(java.util.Locale.ROOT);
+        if (message.contains("服务已到期") || message.contains("服务过期")
+            || message.contains("subscription") || message.contains("entitlement")) {
+            return ProcessIssue.QUOTA_REQUIRED;
+        }
         if (message.contains("token") || message.contains("login")
             || message.contains("unauthorized") || message.contains("登录")
             || message.contains("过期")) {
@@ -511,6 +520,8 @@ public class AhaTypeService {
             statusMessage = "AhaType 未启用，直接粘贴原文";
         } else if (!hasValidToken(values)) {
             statusMessage = "AhaType 未登录或登录已过期";
+        } else if (!serviceIsStillValid(values.get(AhaTypeConfig.TOKEN_VALID_UNTIL))) {
+            statusMessage = "AhaType 服务已到期，请续费或兑换";
         } else {
             statusMessage = "AhaType 已启用";
         }
@@ -653,10 +664,25 @@ public class AhaTypeService {
 
     private boolean hasValidToken(Map<String, Object> values) {
         String token = stringValue(values.get(AhaTypeConfig.ACCESS_TOKEN)).trim();
-        return !token.isEmpty() && tokenIsStillValid(values.get(AhaTypeConfig.TOKEN_VALID_UNTIL));
+        if (token.isEmpty()) return false;
+        // token_valid_until is subscription expiry. Only a JWT's exp describes
+        // login expiry; opaque tokens remain subject to the server's response.
+        String[] parts = token.split("\\.", -1);
+        if (parts.length == 3) {
+            try {
+                JsonNode payload = mapper.readTree(java.util.Base64.getUrlDecoder().decode(parts[1]));
+                JsonNode exp = payload.get("exp");
+                if (exp != null && exp.canConvertToLong()) {
+                    return Instant.ofEpochSecond(exp.asLong()).isAfter(clock.instant());
+                }
+            } catch (Exception ignored) {
+                // Non-JWT credentials must be validated by the server.
+            }
+        }
+        return true;
     }
 
-    private boolean tokenIsStillValid(Object value) {
+    private boolean serviceIsStillValid(Object value) {
         if (value == null || stringValue(value).isBlank()) {
             return true;
         }
@@ -699,6 +725,13 @@ public class AhaTypeService {
     private static URI normalizeApiBase(URI value) {
         String text = value.toString().replaceAll("/+$", "");
         return URI.create(text + "/");
+    }
+
+    static boolean isExpiredSession(int statusCode, JsonNode root) {
+        if (statusCode == 401 || statusCode == 403) return true;
+        if (root == null) return false;
+        // The API can return HTTP 200 with code=500 and data=401 for an invalid token.
+        return "401".equals(root.path("code").asText()) || "401".equals(root.path("data").asText());
     }
 
     static boolean isSuccessCode(JsonNode code) {

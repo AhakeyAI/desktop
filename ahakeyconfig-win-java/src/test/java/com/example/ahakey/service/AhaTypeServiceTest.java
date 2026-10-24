@@ -32,6 +32,36 @@ class AhaTypeServiceTest {
     Path tempDir;
 
     @Test
+    void jwtLoginExpiryIsIndependentOfSubscriptionExpiry() throws Exception {
+        try (MockServer server = new MockServer(exchange -> respond(exchange, 200, "{}"))) {
+            AhaTypeService service = configuredService(server, true, "2030-01-01T00:00:00Z");
+            String expiredJwt = "e30." + java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString("{\"exp\":1}".getBytes(StandardCharsets.UTF_8)) + ".signature";
+            service.patchCloudToken(expiredJwt);
+            assertEquals("", service.getValidAccessToken());
+            assertEquals("原文", service.processIfEnabled("原文"));
+            assertEquals(AhaTypeService.ProcessIssue.LOGIN_REQUIRED, service.getLastProcessIssue());
+        }
+    }
+
+    @Test
+    void invalidTokenEnvelopeClearsSessionWhileSubscriptionFailureKeepsIt() throws Exception {
+        try (MockServer server = new MockServer(exchange -> respond(exchange, 200,
+                "{\"code\":500,\"data\":401}"))) {
+            AhaTypeService service = configuredService(server, true, "2030-01-01T00:00:00Z");
+            assertEquals("原文", service.processIfEnabled("原文"));
+            assertEquals("", service.getAccessToken());
+        }
+        try (MockServer server = new MockServer(exchange -> respond(exchange, 200,
+                "{\"code\":500,\"msg\":\"服务已到期\"}"))) {
+            AhaTypeService service = configuredService(server, true, "2030-01-01T00:00:00Z");
+            assertEquals("原文", service.processIfEnabled("原文"));
+            assertEquals("test-token", service.getAccessToken());
+            assertEquals(AhaTypeService.ProcessIssue.QUOTA_REQUIRED, service.getLastProcessIssue());
+        }
+    }
+
+    @Test
     void postsTheStrictProcessEnvelopeAndUpdatesQuota() throws Exception {
         AtomicReference<String> method = new AtomicReference<>();
         AtomicReference<String> path = new AtomicReference<>();
@@ -251,6 +281,10 @@ class AhaTypeServiceTest {
 
             AhaTypeService expired = configuredService(server, true, "2020-01-01T00:00:00Z");
             assertEquals("原始文本", expired.processIfEnabled("原始文本"));
+            assertTrue(expired.hasValidToken());
+            assertEquals(AhaTypeService.ProcessIssue.QUOTA_REQUIRED, expired.getLastProcessIssue());
+            assertTrue(expired.getStatusMessage().contains("服务已到期"));
+            assertEquals("test-token", expired.getAccessToken());
             assertEquals(1, calls.get());
         }
     }

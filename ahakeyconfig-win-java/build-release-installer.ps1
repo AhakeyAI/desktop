@@ -272,7 +272,7 @@ if ($IncludeLicensedWchIsp) {
 }
 
 & (Join-Path $projectDir "Test-ReleaseArtifactContents.ps1") `
-    -JarPath $releaseJar -ReleaseInputDir $inputDir
+    -JarPath $releaseJar -ReleaseInputDir $inputDir -RequireWchIsp:$IncludeLicensedWchIsp
 
 Write-Output $(if ([string]::IsNullOrWhiteSpace($FirmwareHex)) {
     if ($InternalValidationOnly) { "RELEASE_INPUT_VALIDATION=INTERNAL_WITHOUT_FORMAL_FIRMWARE" }

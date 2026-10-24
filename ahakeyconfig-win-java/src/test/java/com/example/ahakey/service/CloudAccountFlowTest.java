@@ -32,6 +32,48 @@ class CloudAccountFlowTest {
     Path tempDir;
 
     @Test
+    void expiredServiceCanStillRefreshRedeemAndRenewWithItsLoginToken() throws Exception {
+        HttpServer server = server();
+        AtomicInteger calls = new AtomicInteger();
+        try {
+            server.createContext("/prod-api/api/v1/auth/users/me", exchange -> {
+                calls.incrementAndGet();
+                assertEquals("Bearer test-token", exchange.getRequestHeaders().getFirst("Authorization"));
+                respond(exchange, 200, profileResponse(7).replace("2031-01-01", "2020-01-01"));
+            });
+            server.createContext("/prod-api/api/v1/coupon/redeem", exchange -> {
+                calls.incrementAndGet();
+                respond(exchange, 200, "{\"code\":0,\"data\":{}}");
+            });
+            server.createContext("/prod-api/api/v1/payment/wechat/native", exchange -> {
+                calls.incrementAndGet();
+                respond(exchange, 200, "{\"code\":0,\"data\":{\"out_trade_no\":\"renewal\",\"code_url\":\"weixin://renew\"}}");
+            });
+            server.createContext("/prod-api/api/v1/payment/wechat/order-status", exchange -> {
+                calls.incrementAndGet();
+                respond(exchange, 200, "{\"code\":0,\"data\":{\"status\":\"NOTPAY\"}}");
+            });
+            server.start();
+            CloudAccountManager manager = loggedInManager(server, "expired-service.json",
+                Duration.ofMillis(10), Duration.ofMillis(100));
+            AhaTypeConfig config = new AhaTypeConfig(tempDir.resolve("expired-service.json"));
+            Map<String, Object> values = config.load();
+            values.put(AhaTypeConfig.TOKEN_VALID_UNTIL, "2020-01-01T00:00:00Z");
+            config.save(values);
+            assertTrue(manager.isLoggedIn());
+            assertNull(manager.refreshProfile());
+            assertNull(manager.redeemCoupon("RENEW"));
+            var order = manager.createWechatOrder("monthly");
+            assertEquals("renewal", order.outTradeNo());
+            assertEquals(CloudAccountManager.PaymentState.PENDING, manager.fetchPaymentState(order.outTradeNo()));
+            assertEquals(5, calls.get());
+            assertTrue(manager.isLoggedIn());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void preservesUserQuotaPolicyAndExpiryAcrossSnakeAndCamelCase() throws Exception {
         HttpServer server = server();
         try {

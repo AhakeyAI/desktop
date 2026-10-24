@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory = $true)]
     [string]$JarPath,
-    [string]$ReleaseInputDir = ""
+    [string]$ReleaseInputDir = "",
+    [switch]$RequireWchIsp
 )
 
 $ErrorActionPreference = "Stop"
@@ -134,10 +135,10 @@ if (-not [string]::IsNullOrWhiteSpace($ReleaseInputDir)) {
     }
     $chipDatabase = Join-Path $resolvedInput `
         "tools\wchisp\ChipType\chiplist_CH57x_CH59x.wcfg"
-    if (-not (Test-Path -LiteralPath $chipDatabase -PathType Leaf) -or
-        (Get-Item -LiteralPath $chipDatabase).Length -eq 0) {
+    if ($RequireWchIsp -and (-not (Test-Path -LiteralPath $chipDatabase -PathType Leaf) -or
+        (Get-Item -LiteralPath $chipDatabase).Length -eq 0)) {
         throw "Release input is missing WCHISP chip database: $chipDatabase"
     }
     Write-Output "LOCAL_VOICE_NOT_BUNDLED=OK"
-    Write-Output "WCHISP_CHIP_DATABASE_RELEASE_INPUT=OK"
+    if ($RequireWchIsp) { Write-Output "WCHISP_CHIP_DATABASE_RELEASE_INPUT=OK" }
 }

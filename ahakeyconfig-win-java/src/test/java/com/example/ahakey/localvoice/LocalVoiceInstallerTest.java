@@ -27,6 +27,74 @@ class LocalVoiceInstallerTest {
     }
 
     @Test
+    void completedPartialFileIsVerifiedWithoutAnUnsatisfiableRangeRequest() throws Exception {
+        try (FakePackServer server = new FakePackServer()) {
+            LocalVoiceAssets assets = new LocalVoiceAssets(temp.resolve("lv"));
+            LocalVoiceInstaller installer = installer(assets);
+            LocalVoiceManifest manifest = installer.fetchManifest(server.manifestUrl());
+            String first = manifest.files().get(0).path();
+            Path part = assets.stagingDir(manifest.packId()).resolve(first + ".part");
+            Files.createDirectories(part.getParent());
+            Files.write(part, server.files.get(first));
+            installer.install(manifest, null, () -> false);
+            assertEquals(manifest.files().size() - 1, server.fileRequests.get());
+            assertEquals(0, server.rangeRequests.get());
+            assertTrue(assets.isInstalled(manifest));
+        }
+    }
+
+    @Test
+    void stalledResponseCanBeCancelledAndThePartialFileResumed() throws Exception {
+        try (FakePackServer server = new FakePackServer()) {
+            LocalVoiceAssets assets = new LocalVoiceAssets(temp.resolve("lv"));
+            LocalVoiceInstaller installer = installer(assets);
+            LocalVoiceManifest manifest = installer.fetchManifest(server.manifestUrl());
+            server.stallBody = true;
+            var cancelled = new java.util.concurrent.atomic.AtomicBoolean();
+            var received = new java.util.concurrent.CountDownLatch(1);
+            var worker = java.util.concurrent.Executors.newSingleThreadExecutor();
+            try {
+                var download = worker.submit(() -> installer.install(manifest,
+                    (done, total, file) -> { if (done > 0) received.countDown(); }, cancelled::get));
+                assertTrue(received.await(3, java.util.concurrent.TimeUnit.SECONDS));
+                cancelled.set(true);
+                var failure = assertThrows(java.util.concurrent.ExecutionException.class,
+                    () -> download.get(2, java.util.concurrent.TimeUnit.SECONDS));
+                assertTrue(failure.getCause() instanceof CancellationException);
+                assertTrue(assets.installed().isEmpty());
+                server.stallBody = false;
+                server.releaseBody.countDown();
+                installer.install(manifest, null, () -> false);
+                assertTrue(server.rangeRequests.get() > 0);
+                assertTrue(assets.isInstalled(manifest));
+            } finally {
+                worker.shutdownNow();
+            }
+        }
+    }
+
+    @Test
+    void stalledBodyHasADeadlineAfterHeaders() throws Exception {
+        try (FakePackServer server = new FakePackServer()) {
+            LocalVoiceAssets assets = new LocalVoiceAssets(temp.resolve("lv"));
+            LocalVoiceInstaller installer = new LocalVoiceInstaller(HttpClient.newHttpClient(),
+                assets, Duration.ofMillis(300));
+            LocalVoiceManifest manifest = installer.fetchManifest(server.manifestUrl());
+            server.stallBody = true;
+            var worker = java.util.concurrent.Executors.newSingleThreadExecutor();
+            try {
+                var download = worker.submit(() -> installer.install(manifest, null, () -> false));
+                var failure = assertThrows(java.util.concurrent.ExecutionException.class,
+                    () -> download.get(3, java.util.concurrent.TimeUnit.SECONDS));
+                assertTrue(failure.getCause() instanceof IOException);
+                assertTrue(assets.installed().isEmpty());
+            } finally {
+                worker.shutdownNow();
+            }
+        }
+    }
+
+    @Test
     void manifestAcceptsOnlyTheFilesTheClientLoads() throws Exception {
         try (FakePackServer server = new FakePackServer()) {
             LocalVoiceManifest manifest = LocalVoiceManifest.parse(server.manifestJson());
@@ -136,6 +204,7 @@ class LocalVoiceInstallerTest {
     }
 
     @Test
+    @org.junit.jupiter.api.condition.EnabledOnOs(org.junit.jupiter.api.condition.OS.WINDOWS)
     void reinstallAfterDeleteSucceedsWhenAnUndeletableDllWasLeftBehind() throws Exception {
         try (FakePackServer server = new FakePackServer()) {
             LocalVoiceAssets assets = new LocalVoiceAssets(temp.resolve("lv"));
