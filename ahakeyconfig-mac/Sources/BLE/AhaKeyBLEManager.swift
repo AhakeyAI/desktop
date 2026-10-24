@@ -519,77 +519,88 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let writeType: CBCharacteristicWriteType =
             dataChar.properties.contains(.write) ? .withResponse : .withoutResponse
         var completedChunks = 0
+        var completedFrames = 0
 
-        for (frameIndex, frame) in frames.enumerated() {
-            let frameAddress = UInt32(Int(startIndex) + frameIndex) * UInt32(AhaKeyCommand.oledFrameSlotSize)
-            appendLog("  帧 #\(frameIndex) 物理地址=0x\(String(format: "%08X", frameAddress))=\(frameAddress), 大小=\(frame.count)B", category: .verbose)
-            let chunks = stride(from: 0, to: frame.count, by: AhaKeyCommand.oledChunkSize).map { offset in
-                let end = min(offset + AhaKeyCommand.oledChunkSize, frame.count)
-                return (offset: offset, data: Data(frame[offset ..< end]))
-            }
+        do {
 
-            for (chunkIndex, chunk) in chunks.enumerated() {
-                let address = frameAddress + UInt32(chunk.offset)
-                let prepare = AhaKeyCommand.prepareWrite(chunkLength: chunk.data.count, address: address)
-                // 同一地址重发 0x80 + 数据是幂等的（固件按扇区擦写），单块丢一次 0x81 不应让整次上传失败（AHK-022）。
-                var stage = OLEDTransferStage.prepareWrite
-                var attempts = 0
-                do {
-                    try await Self.retryingOLEDTimeouts(
-                        maxAttempts: Self.oledChunkMaxAttempts,
-                        canRetry: { self.dataCharReady && !self.dataWriteRequiresReconnect },
-                        onRetry: { attempt, error in
-                            self.appendLog("  帧 #\(frameIndex) 块 \(chunkIndex + 1)/\(chunks.count) \(stage.label)失败（\(error.localizedDescription)），第 \(attempt) 次重试", isError: true)
-                        }
-                    ) { attempt in
-                        attempts = attempt
-                        stage = .prepareWrite
-                        _ = try await self.sendCommandAwaitingResponse(prepare, expectedCommand: AhaKeyCommand.cmdPrepareWrite)
-                        stage = .dataWrite
-                        try await self.writeDataChunk(chunk.data, to: peripheral, characteristic: dataChar, type: writeType)
+            for (frameIndex, frame) in frames.enumerated() {
+                let frameAddress = UInt32(Int(startIndex) + frameIndex) * UInt32(AhaKeyCommand.oledFrameSlotSize)
+                appendLog("  帧 #\(frameIndex) 物理地址=0x\(String(format: "%08X", frameAddress))=\(frameAddress), 大小=\(frame.count)B", category: .verbose)
+                let chunks = stride(from: 0, to: frame.count, by: AhaKeyCommand.oledChunkSize).map { offset in
+                    let end = min(offset + AhaKeyCommand.oledChunkSize, frame.count)
+                    return (offset: offset, data: Data(frame[offset ..< end]))
+                }
+
+                for (chunkIndex, chunk) in chunks.enumerated() {
+                    guard self.peripheral === peripheral, self.dataChar === dataChar else {
+                        throw OLEDUploadError.disconnected
                     }
-                } catch {
-                    throw OLEDUploadError.transferFailed(
-                        stage: stage, mode: mode,
-                        frame: frameIndex + 1, totalFrames: frames.count,
-                        chunk: chunkIndex + 1, totalChunks: chunks.count,
-                        attempts: attempts, reason: error.localizedDescription
+                    let address = frameAddress + UInt32(chunk.offset)
+                    let prepare = AhaKeyCommand.prepareWrite(chunkLength: chunk.data.count, address: address)
+                    // 同一地址重发 0x80 + 数据是幂等的（固件按扇区擦写），单块丢一次 0x81 不应让整次上传失败（AHK-022）。
+                    var stage = OLEDTransferStage.prepareWrite
+                    var attempts = 0
+                    do {
+                        try await Self.retryingOLEDTimeouts(
+                            maxAttempts: Self.oledChunkMaxAttempts,
+                            canRetry: { self.dataCharReady && !self.dataWriteRequiresReconnect },
+                            onRetry: { attempt, error in
+                                self.appendLog("  帧 #\(frameIndex) 块 \(chunkIndex + 1)/\(chunks.count) \(stage.label)失败（\(error.localizedDescription)），第 \(attempt) 次重试", isError: true)
+                            }
+                        ) { attempt in
+                            attempts = attempt
+                            stage = .prepareWrite
+                            _ = try await self.sendCommandAwaitingResponse(prepare, expectedCommand: AhaKeyCommand.cmdPrepareWrite)
+                            stage = .dataWrite
+                            try await self.writeDataChunk(chunk.data, to: peripheral, characteristic: dataChar, type: writeType)
+                        }
+                    } catch {
+                        throw OLEDUploadError.transferFailed(
+                            stage: stage, mode: mode,
+                            frame: frameIndex + 1, totalFrames: frames.count,
+                            chunk: chunkIndex + 1, totalChunks: chunks.count,
+                            attempts: attempts, reason: error.localizedDescription
+                        )
+                    }
+                    completedChunks += 1
+                    oledUploadProgress = OLEDUploadProgress(
+                        completedChunks: completedChunks,
+                        totalChunks: oledUploadProgress?.totalChunks ?? completedChunks,
+                        completedFrames: frameIndex,
+                        totalFrames: frames.count
                     )
                 }
-                completedChunks += 1
+
+                completedFrames = frameIndex + 1
                 oledUploadProgress = OLEDUploadProgress(
                     completedChunks: completedChunks,
                     totalChunks: oledUploadProgress?.totalChunks ?? completedChunks,
-                    completedFrames: frameIndex,
+                    completedFrames: completedFrames,
                     totalFrames: frames.count
                 )
             }
 
-            oledUploadProgress = OLEDUploadProgress(
-                completedChunks: completedChunks,
-                totalChunks: oledUploadProgress?.totalChunks ?? completedChunks,
-                completedFrames: frameIndex + 1,
-                totalFrames: frames.count
+            let delay = UInt16(max(1, 1000 / max(1, fps)))
+            let updateCommand = AhaKeyCommand.updatePicture(
+                mode: mode,
+                startIndex: startIndex,
+                frameCount: UInt16(frames.count),
+                timeDelayMs: delay
             )
-        }
-
-        let delay = UInt16(max(1, 1000 / max(1, fps)))
-        let updateCommand = AhaKeyCommand.updatePicture(
-            mode: mode,
-            startIndex: startIndex,
-            frameCount: UInt16(frames.count),
-            timeDelayMs: delay
-        )
-        appendLog("→ updatePicture mode=\(mode) startIndex=\(startIndex) frameCount=\(frames.count) delayMs=\(delay) hex=\(updateCommand.hexString)")
-        do {
-            _ = try await sendCommandAwaitingResponse(updateCommand, expectedCommand: AhaKeyCommand.cmdUpdatePic)
+            appendLog("→ updatePicture mode=\(mode) startIndex=\(startIndex) frameCount=\(frames.count) delayMs=\(delay) hex=\(updateCommand.hexString)")
+            do {
+                _ = try await sendCommandAwaitingResponse(updateCommand, expectedCommand: AhaKeyCommand.cmdUpdatePic)
+            } catch {
+                throw OLEDUploadError.transferFailed(
+                    stage: .commitPicture, mode: mode,
+                    frame: frames.count, totalFrames: frames.count,
+                    chunk: nil, totalChunks: nil,
+                    attempts: 1, reason: error.localizedDescription
+                )
+            }
         } catch {
-            throw OLEDUploadError.transferFailed(
-                stage: .commitPicture, mode: mode,
-                frame: frames.count, totalFrames: frames.count,
-                chunk: nil, totalChunks: nil,
-                attempts: 1, reason: error.localizedDescription
-            )
+            appendLog("LCD 上传未确认完成: mode=\(mode) 已写入 \(completedFrames)/\(frames.count) 帧。原因：\(error.localizedDescription)", isError: true)
+            throw OLEDUploadError.uploadIncomplete(completedFrames: completedFrames, totalFrames: frames.count, reason: error.localizedDescription)
         }
         appendLog("LCD 上传完成: \(frames.count) 帧, start=\(startIndex)")
         _ = commandChar
@@ -1448,6 +1459,7 @@ enum OLEDUploadError: LocalizedError {
     case noAvailablePictureSlot(needed: Int, max: Int)
     case timeout(command: UInt8)
     case deviceRejected(command: UInt8, status: UInt8)
+    case uploadIncomplete(completedFrames: Int, totalFrames: Int, reason: String)
     case disconnected
     case superseded(command: UInt8)
     case reconnectRequired
@@ -1482,6 +1494,8 @@ enum OLEDUploadError: LocalizedError {
             return String(format: "等待设备响应超时: 0x%02X", command)
         case .deviceRejected(let command, let status):
             return String(format: "设备拒绝了命令 0x%02X，状态码 0x%02X", command, status)
+        case .uploadIncomplete(let completedFrames, let totalFrames, let reason):
+            return "动图上传未完成（已写入 \(completedFrames)/\(totalFrames) 帧）：\(reason)"
         case .disconnected:
             return "设备连接已断开，本次写入未完成。"
         case .superseded(let command):

@@ -38,4 +38,29 @@ final class StudioDraftMigrationTests: XCTestCase {
         XCTAssertEqual(migrated.key(for: .approve), expected.key(for: .approve))
         XCTAssertEqual(migrated.key(for: .reject), expected.key(for: .reject))
     }
+
+    func testInterruptedOLEDUploadStatusIsRepairedAndMarkedForReupload() {
+        // ≤0.2.3 上传中断后重启会停在「正在上传动图到 Mode 4…」（AHK-065）。
+        var draft = AhaKeyStudioDraft.default
+        var mode = draft.draft(for: .mode3)
+        mode.oled.localAssetPath = "/tmp/custom.gif"
+        mode.oled.statusLine = "正在上传动图到 Mode 4…"
+        draft.updateMode(mode)
+
+        let migrated = AhaKeyStudioStore.migratedDraft(from: draft).draft(for: .mode3).oled
+        XCTAssertEqual(migrated.statusLine, AhaKeyOLEDDraft.interruptedUploadStatusLine)
+        XCTAssertTrue(migrated.needsDeviceUpload)
+        XCTAssertEqual(migrated.localAssetPath, "/tmp/custom.gif")
+    }
+
+    func testOLEDDraftWithoutPendingFlagDecodesAsUploaded() throws {
+        let legacy = Data(#"{"localAssetPath":"/tmp/a.gif","statusLine":"x","framesPerSecond":12}"#.utf8)
+        let decoded = try JSONDecoder().decode(AhaKeyOLEDDraft.self, from: legacy)
+        XCTAssertFalse(decoded.needsDeviceUpload)
+
+        var pending = decoded
+        pending.needsDeviceUpload = true
+        let roundTrip = try JSONDecoder().decode(AhaKeyOLEDDraft.self, from: JSONEncoder().encode(pending))
+        XCTAssertTrue(roundTrip.needsDeviceUpload)
+    }
 }

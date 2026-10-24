@@ -1953,7 +1953,7 @@ struct AhaKeyStudioView: View {
             for role in AhaKeyKeyRole.allCases where current.key(for: role) != baseline.key(for: role) {
                 count += 1
             }
-            if current.oled != baseline.oled {
+            if current.oled != baseline.oled || current.oled.needsDeviceUpload {
                 count += 1
             }
             if current.lightBar != baseline.lightBar {
@@ -1974,6 +1974,7 @@ struct AhaKeyStudioView: View {
         updateCurrentMode { mode in
             mode.oled.localAssetPath = nil
             mode.oled.statusLine = AhaKeyOLEDDraft.default(for: selectedMode).statusLine
+            mode.oled.needsDeviceUpload = false
         }
     }
 
@@ -2088,7 +2089,7 @@ struct AhaKeyStudioView: View {
             guard let role = part.keyRole else { return false }
             return current.key(for: role) != baseline.key(for: role)
         case .oledDisplay:
-            return current.oled != baseline.oled
+            return current.oled != baseline.oled || current.oled.needsDeviceUpload
         case .lightBar:
             return current.lightBar != baseline.lightBar
         case .toggleSwitch:
@@ -2121,6 +2122,7 @@ struct AhaKeyStudioView: View {
             updateCurrentMode { mode in
                 mode.oled.localAssetPath = url.path
                 mode.oled.statusLine = "已选 \(max(frameCount, 1)) 帧图片预览；写入时将上传到 \(selectedMode.title) 固定分区。"
+                mode.oled.needsDeviceUpload = true
             }
             syncStatusMessage = "已更新 \(selectedMode.title) 的 LCD 预览；写入设备请使用底部通用按钮。"
         }
@@ -2271,7 +2273,7 @@ struct AhaKeyStudioView: View {
                 }
             } catch {
                 var message = Self.deviceWriteFailureMessage(for: error)
-                if case OLEDUploadError.transferFailed = error {
+                if case OLEDUploadError.uploadIncomplete = error {
                     // 动图先于键位/灯效上传，失败时后续命令与 0x04 保存都未发送（AHK-022）。
                     message += "键位与灯效配置本次未写入。"
                 }
@@ -2302,14 +2304,15 @@ struct AhaKeyStudioView: View {
 
             let baseline = lastSyncedDraft.draft(for: mode).oled
             let deviceFrameCount = bleManager.keyboardPictureStates[mode.rawValue]?.frameCount ?? 0
-            guard draft.oled != baseline || deviceFrameCount == 0 else { continue }
+            guard draft.oled != baseline || deviceFrameCount == 0 || draft.oled.needsDeviceUpload else { continue }
 
             let assetURL = URL(fileURLWithPath: assetPath)
             try OLEDFrameEncoder.validateGIFSourceFileSize(at: assetURL)
             let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL)
 
             updateMode(mode) { modeDraft in
-                modeDraft.oled.statusLine = "正在上传动图到 \(mode.title)…"
+                modeDraft.oled.statusLine = "\(AhaKeyOLEDDraft.uploadInProgressStatusPrefix)\(mode.title)…"
+                modeDraft.oled.needsDeviceUpload = true
             }
             syncStatusMessage = "正在上传 \(mode.title) 的 LCD 动图…"
 
@@ -2323,14 +2326,16 @@ struct AhaKeyStudioView: View {
                     startIndex: UInt16(startIndex)
                 )
             } catch {
+                // 不能停在「正在上传…」：给出失败原因与恢复步骤，needsDeviceUpload 保持 true 以便下次重传（AHK-061/082）。
                 updateMode(mode) { modeDraft in
-                    modeDraft.oled.statusLine = "动图上传未完成：\(error.localizedDescription)"
+                    modeDraft.oled.statusLine = "\(mode.title) 动图上传失败：\(error.localizedDescription)。键盘上的动图可能是旧图或新旧帧混杂；请确认键盘已连接后点击「写入键盘」重新上传。"
                 }
                 throw error
             }
 
             updateMode(mode) { modeDraft in
                 modeDraft.oled.statusLine = "已上传 \(frames.count) 帧到设备，槽位起点 \(startIndex)；切换模式时会先显示描述，再回到当前模式动图。"
+                modeDraft.oled.needsDeviceUpload = false
             }
             uploadCount += 1
         }
@@ -2488,6 +2493,10 @@ struct AhaKeyStudioView: View {
             do {
                 try OLEDFrameEncoder.validateGIFSourceFileSize(at: assetURL)
                 let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL)
+                updateMode(mode) { m in
+                    m.oled.statusLine = "\(AhaKeyOLEDDraft.uploadInProgressStatusPrefix)\(mode.title)…"
+                    m.oled.needsDeviceUpload = true
+                }
                 let startIndex = try await resolveOLEDUploadStartIndex(for: mode, frameCount: frames.count)
                 try await bleManager.uploadOLEDFrames(
                     frames,
@@ -2497,8 +2506,12 @@ struct AhaKeyStudioView: View {
                 )
                 updateMode(mode) { m in
                     m.oled.statusLine = "已自动同步默认动图（\(frames.count) 帧）。"
+                    m.oled.needsDeviceUpload = false
                 }
             } catch {
+                updateMode(mode) { m in
+                    m.oled.statusLine = "动图上传未完成：\(error.localizedDescription)。请重新连接后点击「写入键盘」重传。"
+                }
                 syncStatusMessage = "\(mode.title) 默认动图自动同步失败: \(error.localizedDescription)"
             }
         }
