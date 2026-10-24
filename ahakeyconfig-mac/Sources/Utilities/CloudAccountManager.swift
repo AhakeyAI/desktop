@@ -81,14 +81,16 @@ final class CloudAccountManager: ObservableObject {
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
-                let object = try await request(path: "api/v1/auth/users/me", method: "GET", body: nil, authorized: true)
+                let object = try await request(path: "api/v1/auth/users/me", method: "GET", body: nil, authorized: true, token: token)
                 let data = try payloadData(from: object, fallbackError: "获取用户信息失败")
                 await MainActor.run {
+                    guard token == self.accessToken else { return }
                     self.applyProfile(data)
                     self.statusMessage = "用户信息已刷新。"
                 }
             } catch {
                 await MainActor.run {
+                    guard token == self.accessToken else { return }
                     if showAlertOnFailure {
                         self.alertMessage = error.localizedDescription
                         self.statusMessage = "刷新失败。"
@@ -113,9 +115,10 @@ final class CloudAccountManager: ObservableObject {
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
-                let object = try await request(path: "api/v1/coupon/redeem", method: "POST", body: ["code": code], authorized: true)
+                let object = try await request(path: "api/v1/coupon/redeem", method: "POST", body: ["code": code], authorized: true, token: token)
                 let data = try payloadData(from: object, fallbackError: NSLocalizedString("兑换失败", comment: ""))
                 await MainActor.run {
+                    guard token == self.accessToken else { return }
                     self.couponCode = ""
                     self.applyProfile(data)
                     self.statusMessage = NSLocalizedString("兑换成功。", comment: "")
@@ -123,6 +126,7 @@ final class CloudAccountManager: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
+                    guard token == self.accessToken else { return }
                     self.alertMessage = error.localizedDescription
                     self.statusMessage = NSLocalizedString("兑换失败。", comment: "")
                     self.expireSessionIfNeeded(error, token: token)
@@ -146,7 +150,7 @@ final class CloudAccountManager: ObservableObject {
                     path: "api/v1/payment/wechat/native",
                     method: "POST",
                     body: ["plan": plan.rawValue, "description": plan.orderDescription],
-                    authorized: true
+                    authorized: true, token: token
                 )
                 let data = try payloadData(from: object, fallbackError: NSLocalizedString("创建支付订单失败", comment: ""))
                 let codeURL = firstString(in: data, keys: ["code_url", "codeUrl"])
@@ -156,6 +160,7 @@ final class CloudAccountManager: ObservableObject {
                 guard !codeURL.isEmpty || !h5URL.isEmpty else { throw CloudAccountError(NSLocalizedString("云端未返回可支付链接。", comment: "")) }
                 let amountFen = firstInt(in: data, keys: ["amount_fen", "amountFen"])
                 await MainActor.run {
+                    guard token == self.accessToken else { return }
                     self.paymentOrder = CloudPaymentOrder(
                         plan: plan,
                         amountFen: amountFen,
@@ -169,6 +174,7 @@ final class CloudAccountManager: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
+                    guard token == self.accessToken else { return }
                     self.alertMessage = error.localizedDescription
                     self.statusMessage = NSLocalizedString("创建支付订单失败。", comment: "")
                     self.expireSessionIfNeeded(error, token: token)
@@ -407,7 +413,7 @@ final class CloudAccountManager: ObservableObject {
         return profile
     }
 
-    private func request(path: String, method: String, body: [String: Any]?, authorized: Bool) async throws -> [String: Any] {
+    private func request(path: String, method: String, body: [String: Any]?, authorized: Bool, token: String? = nil) async throws -> [String: Any] {
         guard let url = URL(string: "\(apiBase)/\(path)") else {
             throw CloudAccountError(NSLocalizedString("云端地址无效。", comment: ""))
         }
@@ -415,7 +421,7 @@ final class CloudAccountManager: ObservableObject {
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if authorized {
-            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            request.setValue("Bearer \(token ?? accessToken)", forHTTPHeaderField: "Authorization")
         }
         if let body {
             request.httpBody = try JSONSerialization.data(withJSONObject: body, options: [])

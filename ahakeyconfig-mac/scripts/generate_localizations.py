@@ -7,6 +7,7 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "AhaType 登录状态已变化，已写入原始转写。": "AhaType login changed; raw transcript written.",
     "USB 接口": "USB Interface",
     "USB HID 写入失败（%d）": "USB HID write failed (%d)",
     "USB HID 有线配置通道已断开，配置写入回退 BLE": "USB HID configuration disconnected; configuration writes fell back to BLE",

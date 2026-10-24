@@ -73,8 +73,11 @@ final class AhaTypeTextOptimizer: ObservableObject {
         let source = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !source.isEmpty else { return AhaTypeProcessResult(text: text, failureReason: nil) }
 
+        let initialToken = stringValue(loadConfig()["access_token"]).trimmingCharacters(in: .whitespacesAndNewlines)
         func fail(_ message: String) -> AhaTypeProcessResult {
-            statusMessage = message
+            if stringValue(loadConfig()["access_token"]).trimmingCharacters(in: .whitespacesAndNewlines) == initialToken {
+                statusMessage = message
+            }
             return AhaTypeProcessResult(text: text, failureReason: message)
         }
 
@@ -114,6 +117,9 @@ final class AhaTypeTextOptimizer: ObservableObject {
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
+            guard stringValue(loadConfig()["access_token"]).trimmingCharacters(in: .whitespacesAndNewlines) == token else {
+                return AhaTypeProcessResult(text: text, failureReason: NSLocalizedString("AhaType 登录状态已变化，已写入原始转写。", comment: ""))
+            }
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             if AhaTypeCloudSession.isExpired(httpStatus: statusCode, object: try? JSONSerialization.jsonObject(with: data) as? [String: Any]) {
                 CloudAccountManager.shared.expireSession(token: token)
@@ -134,6 +140,7 @@ final class AhaTypeTextOptimizer: ObservableObject {
             }
 
             if let quota = inner["quota"] as? [String: Any] {
+                config = loadConfig()
                 mergeQuota(quota, into: &config)
                 saveConfig(config)
                 updateStatus(from: config)
