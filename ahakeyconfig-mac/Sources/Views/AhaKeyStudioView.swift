@@ -2269,7 +2269,11 @@ struct AhaKeyStudioView: View {
                     self.returnToKeyboardControl()
                 }
             } catch {
-                let message = Self.deviceWriteFailureMessage(for: error)
+                var message = Self.deviceWriteFailureMessage(for: error)
+                if case OLEDUploadError.transferFailed = error {
+                    // 动图先于键位/灯效上传，失败时后续命令与 0x04 保存都未发送（AHK-022）。
+                    message += "键位与灯效配置本次未写入。"
+                }
                 self.isSyncing = false
                 self.syncStatusMessage = message
                 if showResultAlert {
