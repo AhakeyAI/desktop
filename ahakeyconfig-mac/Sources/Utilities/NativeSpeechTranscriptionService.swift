@@ -562,16 +562,25 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
         Task { @MainActor in
             let output: String
+            var ahaTypeFailure: String?
             if willUseAhaType {
-                output = await AhaTypeTextOptimizer.shared.processIfEnabled(text)
+                let result = await AhaTypeTextOptimizer.shared.processIfEnabled(text)
+                output = result.text
+                ahaTypeFailure = result.failureReason
             } else {
                 output = text
             }
             if self.injectText(output) {
                 self.lastCommittedText = output
-                self.statusMessage = output == text ? "已写入：\(output)" : "AhaType 已整理并写入：\(output)"
-                VoiceStatusHUDController.shared.show(.done, autoHideAfter: 1.4)
-                self.appendDiagnostic("finalize success reason=\(reason) rawText=\(text) outputText=\(output)")
+                if let ahaTypeFailure {
+                    self.statusMessage = ahaTypeFailure
+                    VoiceStatusHUDController.shared.show(.rawWritten, autoHideAfter: 2.4)
+                    self.appendDiagnostic("finalize success reason=\(reason) rawText=\(text) ahaTypeFailure=\(ahaTypeFailure)")
+                } else {
+                    self.statusMessage = output == text ? "已写入：\(output)" : "AhaType 已整理并写入：\(output)"
+                    VoiceStatusHUDController.shared.show(.done, autoHideAfter: 1.4)
+                    self.appendDiagnostic("finalize success reason=\(reason) rawText=\(text) outputText=\(output)")
+                }
             } else {
                 self.statusMessage = NSLocalizedString("识别完成，但写入当前光标失败。", comment: "")
                 VoiceStatusHUDController.shared.show(.failed, autoHideAfter: 2.0)

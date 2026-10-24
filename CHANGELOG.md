@@ -1,5 +1,17 @@
 # Changelog
 
+## 未发布
+
+### macOS — Codex Hooks
+
+- 修复重复安装 Codex Hooks 会删除 AhaKey 标记块内其他配置的问题（#125）：Codex 会把新表写在结尾标记之前，重装与移除现在只清理 AhaKey 自己的标记和 hook 组，保留 `tui`、`projects` 信任级别、MCP 及其他 `hooks.state` 信任记录。
+## Unreleased
+
+### macOS — AhaType
+
+- AhaType 云端整理失败时，悬浮提示改为“已写入原始文字”，不再显示为正常完成；AhaType 状态中给出具体原因（#137）。
+- 区分令牌有效期“格式无法识别”与“已过期”；云端推理端点关闭（`InvalidEndpoint.ClosedEndpoint`）时显示可读提示，不再显示整段上游错误。
+
 ## v0.2.3 — 2026-10-15
 
 ### macOS — AhaType 与 Claude Code

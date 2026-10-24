@@ -58,7 +58,9 @@ struct AhaKeyStudioView: View {
         // 任何在 init 里调用 updateRoutes 都会重置 functionRelay 的 holdingRoute（按住状态），
         // 导致微信等"按住说话"过几秒就自动结束。正确入口在下面的 .onAppear。
         _studioDraft = State(initialValue: initialDraft)
-        _lastSyncedDraft = State(initialValue: initialDraft)
+        // 基线单独持久化：未写入键盘的本地改动重启后仍计入"未同步改动"。
+        // 旧版本没有记录基线，升级后首次启动沿用当前草稿，避免把全部配置误报为未同步。
+        _lastSyncedDraft = State(initialValue: AhaKeyStudioStore.loadSynced() ?? initialDraft)
         let initialMode = AhaKeyModeSlot(rawValue: bleManager.workMode) ?? .mode0
         _selectedMode = State(initialValue: initialMode)
         _selectedPart = State(initialValue: .key1)
@@ -2256,6 +2258,7 @@ struct AhaKeyStudioView: View {
                 // 最后的 0x04 已收到固件 ACK，略等再交还蓝牙。
                 try? await Task.sleep(nanoseconds: UInt64(150) * 1_000_000)
                 self.lastSyncedDraft = self.studioDraft
+                AhaKeyStudioStore.saveSynced(self.lastSyncedDraft)
                 self.lastSyncDate = Date()
                 self.isSyncing = false
                 self.syncStatusMessage = "已全部写入设备并保存（所有命令已确认）。"
@@ -2267,7 +2270,11 @@ struct AhaKeyStudioView: View {
                     self.returnToKeyboardControl()
                 }
             } catch {
-                let message = "写入键盘失败：\(error.localizedDescription)"
+                var message = "写入键盘失败：\(error.localizedDescription)"
+                if case OLEDUploadError.transferFailed = error {
+                    // 动图先于键位/灯效上传，失败时后续命令与 0x04 保存都未发送（AHK-022）。
+                    message += "键位与灯效配置本次未写入。"
+                }
                 self.isSyncing = false
                 self.syncStatusMessage = message
                 if showResultAlert {
@@ -2299,12 +2306,19 @@ struct AhaKeyStudioView: View {
             syncStatusMessage = "正在上传 \(mode.title) 的 LCD 动图…"
 
             let startIndex = try await resolveOLEDUploadStartIndex(for: mode, frameCount: frames.count)
-            try await bleManager.uploadOLEDFrames(
-                frames,
-                fps: draft.oled.framesPerSecond,
-                mode: UInt8(mode.rawValue),
-                startIndex: UInt16(startIndex)
-            )
+            do {
+                try await bleManager.uploadOLEDFrames(
+                    frames,
+                    fps: draft.oled.framesPerSecond,
+                    mode: UInt8(mode.rawValue),
+                    startIndex: UInt16(startIndex)
+                )
+            } catch {
+                updateMode(mode) { modeDraft in
+                    modeDraft.oled.statusLine = "动图上传失败，可重新写入重试：\(error.localizedDescription)"
+                }
+                throw error
+            }
 
             updateMode(mode) { modeDraft in
                 modeDraft.oled.statusLine = "已上传 \(frames.count) 帧到设备，槽位起点 \(startIndex)；切换模式时会先显示描述，再回到当前模式动图。"

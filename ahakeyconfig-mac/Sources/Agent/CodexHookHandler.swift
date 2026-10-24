@@ -71,7 +71,7 @@ enum CodexHookHandler {
             request["delayMs"] = delayMilliseconds
         }
         let reply = dependencies.sendRequest(request, HookSupport.stateRequestTimeout)
-        let switchState = HookSupport.intValue(reply?["switchState"])
+        let switchState = HookSupport.switchStateValue(reply?["switchState"])
 
         // SessionStart 时把拨杆状态写入顶层 approval_policy：
         // Codex 在会话开始即读取审批策略，之后才会决定是否触发 PermissionRequest，
@@ -80,7 +80,7 @@ enum CodexHookHandler {
         // 必须单独发 `status` 查询拨杆的真实状态。
         if stateValue == 4 {
             let statusReply = dependencies.sendRequest(["cmd": "status"], HookSupport.stateRequestTimeout)
-            syncPolicy(switchState: HookSupport.intValue(statusReply?["switchState"]))
+            syncPolicy(switchState: HookSupport.switchStateValue(statusReply?["switchState"]))
         }
 
         dependencies.appendHookLog(
@@ -100,7 +100,7 @@ enum CodexHookHandler {
         let ctx = dependencies.parseContext(stdinData, "Codex")
         let request: [String: Any] = ["cmd": "permission", "value": Int(HookSupport.permissionLedValue)]
         let reply = dependencies.sendRequest(request, HookSupport.permissionRequestTimeout)
-        let switchState = HookSupport.intValue(reply?["switchState"])
+        let switchState = HookSupport.switchStateValue(reply?["switchState"])
         let isAuto = switchState == 0
 
         syncPolicy(switchState: switchState)
