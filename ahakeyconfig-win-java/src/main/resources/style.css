@@ -776,6 +776,36 @@ BorderPane > .center .scroll-pane > .viewport {
     -fx-font-size: 13px;
 }
 
+/* Firmware workflow uses light step surfaces inside the dark maintenance card. */
+.maintenance-step > .title {
+    -fx-background-color: #e5e7eb;
+    -fx-border-color: #cbd5e1;
+    -fx-border-width: 0 0 1 0;
+    -fx-text-fill: #111827;
+}
+
+.maintenance-step > .title > .text {
+    -fx-fill: #111827;
+}
+
+.maintenance-step > .title > .arrow-button > .arrow {
+    -fx-background-color: #374151;
+}
+
+.maintenance-step > .content {
+    -fx-background-color: #f8fafc;
+    -fx-border-color: #cbd5e1;
+}
+
+.maintenance-step > .content .label,
+.maintenance-step > .content .check-box {
+    -fx-text-fill: #1f2937;
+}
+
+.dialog-dark-check-box {
+    -fx-text-fill: #f3f4f6;
+}
+
 .dialog-log-area {
     -fx-background-color: #1a1a1a;
     -fx-text-fill: #aaa;
@@ -791,4 +821,53 @@ BorderPane > .center .scroll-pane > .viewport {
     -fx-font-size: 14px;
     -fx-font-weight: bold;
     -fx-text-fill: white;
+}
+
+/* AhaType master switch in the top bar (track + knob) */
+.aha-switch {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+.aha-switch-track {
+    -fx-min-width: 44;
+    -fx-pref-width: 44;
+    -fx-max-width: 44;
+    -fx-min-height: 24;
+    -fx-pref-height: 24;
+    -fx-max-height: 24;
+    -fx-background-radius: 12;
+    -fx-background-color: #d1d5db;
+    -fx-padding: 3;
+    -fx-alignment: center-left;
+}
+.aha-switch:selected .aha-switch-track {
+    -fx-background-color: #30d158;
+    -fx-alignment: center-right;
+}
+.aha-switch:focused .aha-switch-track {
+    -fx-border-color: rgba(10, 132, 255, 0.45);
+    -fx-border-width: 2;
+    -fx-border-radius: 12;
+    -fx-padding: 1;
+}
+.aha-switch-knob {
+    -fx-min-width: 18;
+    -fx-min-height: 18;
+    -fx-max-width: 18;
+    -fx-max-height: 18;
+    -fx-background-radius: 9;
+    -fx-background-color: white;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.25), 3, 0, 0, 1);
+}
+
+/* Connection block doubles as the BLE driver entry (click to open, hold 5 s to stop) */
+.info-pill-clickable {
+    -fx-cursor: hand;
+}
+.info-pill-clickable:hover {
+    -fx-background-color: #f2f7ff;
+}
+.info-pill-clickable:pressed {
+    -fx-background-color: #e3eefc;
 }

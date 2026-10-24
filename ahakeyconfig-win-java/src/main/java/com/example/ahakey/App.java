@@ -1,9 +1,18 @@
 package com.example.ahakey;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 import com.example.ahakey.app.StudioController;
+import com.example.ahakey.app.ApplicationLifecycle;
+import com.example.ahakey.service.BleBridgeProcessOwner;
 import com.example.ahakey.platform.windows.WindowsVoiceRelayService;
 import com.example.ahakey.platform.windows.WindowsVoiceTyping;
+import com.example.ahakey.platform.voice.VoiceButtonEvent;
+import com.example.ahakey.localvoice.LocalVoiceFeature;
+import com.example.ahakey.platform.voice.LocalVoicePressHandler;
+import com.example.ahakey.platform.voice.VoiceAction;
 import com.example.ahakey.service.VoiceInputManager;
+import com.example.ahakey.util.LanguageManager;
 import com.example.ahakey.view.CanvasPane;
 import com.example.ahakey.view.InspectorPane;
 import com.example.ahakey.view.StatusBar;
@@ -13,18 +22,25 @@ import javafx.util.Duration;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
-import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.image.Image;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
-import javafx.stage.Screen;
 import javafx.stage.Stage;
+import javafx.stage.WindowEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.awt.SystemTray;
+import java.awt.TrayIcon;
+import java.awt.MenuItem;
+import java.awt.PopupMenu;
+import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.Toolkit;
+import java.awt.Font;
 
 /**
  * AhaKey Studio 主应用类
@@ -56,8 +72,31 @@ public class App extends Application {
     /**
      * 语音输入管理器，负责管理语音识别和键盘注入功能
      */
-    private VoiceInputManager voiceInputManager;
+    private volatile VoiceInputManager voiceInputManager;
+    private final LocalVoicePressHandler localVoicePresses = new LocalVoicePressHandler();
+    /** Ends a forgotten toggle recording so it cannot keep typing indefinitely. */
+    private final java.util.concurrent.ScheduledExecutorService toggleTimeout =
+        java.util.concurrent.Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "local-voice-toggle-timeout");
+            thread.setDaemon(true);
+            return thread;
+        });
+    private final java.util.concurrent.atomic.AtomicLong toggleSession =
+        new java.util.concurrent.atomic.AtomicLong();
+    private TopBar topBar;
     private boolean shuttingDown;
+    
+    /**
+     * 系统托盘图标
+     */
+    private TrayIcon trayIcon;
+    private Stage primaryStage;
+    
+    /**
+     * 保存窗口原始尺寸，用于从托盘恢复时恢复尺寸
+     */
+    private double savedWidth = 1280;
+    private double savedHeight = 820;
 
     /**
      * JavaFX 应用的核心方法，负责初始化和显示主界面
@@ -65,20 +104,39 @@ public class App extends Application {
      */
     @Override
     public void start(Stage primaryStage) {
-        // 1. 创建主控制器，作为整个应用的核心协调者
+        this.primaryStage = primaryStage;
+        if (SingleInstanceChecker.acquireOrActivate(this::showFromTray)) {
+            logger.info("检测到已有实例运行，退出");
+            Platform.exit();
+            return;
+        }
+        logger.info("AhaKey Studio 启动中...");
+        
+        ApplicationLifecycle.registerExitHandler(this::shutdownApplication);
+
+        Platform.setImplicitExit(false);
+
+        initLanguage();
+
         controller = new StudioController();
         
-        // 2. 条件初始化语音输入管理器（根据 model.enabled 配置）
+        // 2. 本地语音是可选功能：仅当用户在设置中开启且模型已下载时才加载
         if (com.example.ahakey.config.ModelConfig.getInstance().isEnabled()) {
             initVoiceInputManager();
         } else {
-            logger.info("本地模型已禁用 (model.enabled=false)，跳过语音输入初始化");
+            logger.info("本地语音未开启，跳过语音输入初始化");
         }
+        controller.getStudioState().setLocalSpeechAvailable(
+            () -> voiceInputManager != null && voiceInputManager.isEnabled());
+        LocalVoiceFeature.getInstance().addListener(this::onLocalVoiceAvailabilityChanged);
         
-        // 2. 配置主窗口（Stage）属性
+        // 3. 初始化系统托盘
+        initSystemTray();
+        
+        // 4. 配置主窗口（Stage）属性
         primaryStage.setTitle("AhaKey Studio");      // 窗口标题
-        primaryStage.setMinWidth(800);              // 最小宽度（分屏/多屏适配）
-        primaryStage.setMinHeight(600);              // 最小高度
+        primaryStage.setMinWidth(1024);             // Preserve panel geometry on narrow windows.
+        primaryStage.setMinHeight(640);
         primaryStage.setWidth(1280);                 // 默认宽度
         primaryStage.setHeight(820);                 // 默认高度
         primaryStage.getIcons().add(new Image(getClass().getResourceAsStream("/ahakey.jpg")));
@@ -92,7 +150,7 @@ public class App extends Application {
         // 4. 创建各个 UI 组件
         
         // TopBar（顶部导航栏）：包含连接状态、模式选择、AhaType开关等
-        TopBar topBar = new TopBar(
+        topBar = new TopBar(
             controller, 
             controller.getDeviceStatus(), 
             controller.getStudioState(), 
@@ -107,7 +165,7 @@ public class App extends Application {
         // 中间区域：使用 HBox 水平排列两个面板
         HBox centerPane = new HBox();
         centerPane.getStyleClass().add("workspace");
-        centerPane.setMinWidth(Region.USE_PREF_SIZE); // HBox 不缩小，由外层 ScrollPane 处理溢出
+        centerPane.setMinWidth(1100); // Scroll instead of compressing the keyboard preview.
         
         // CanvasPane（画布面板）：显示键盘布局预览
         CanvasPane canvasPane = new CanvasPane(controller);
@@ -122,7 +180,7 @@ public class App extends Application {
         
         // 包裹在 ScrollPane 中：跨屏幕拖拽时 DPI 变化不会导致变形
         ScrollPane centerScroll = new ScrollPane(centerPane);
-        centerScroll.setFitToWidth(true);
+        centerScroll.setFitToWidth(false);
         centerScroll.setFitToHeight(true);
         centerScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         centerScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
@@ -167,33 +225,11 @@ public class App extends Application {
             }
         });
 
-        // 8. 跨屏幕拖拽防护：记住高分屏窗口尺寸，拖回来时自动恢复
-        // 问题场景：2880x1800(高DPI) → 1920x1080(低DPI) → 2880x1800，窗口被压缩无法恢复
-        final double[] savedSize = {1280, 820}; // 保存高分屏的窗口尺寸
-        final double[] lastScreenDpi = {0};     // 上次所在屏幕的 DPI
-
-        PauseTransition layoutRefresh = new PauseTransition(Duration.millis(500));
+        // JavaFX performs per-monitor scaling. Only request a fresh layout
+        // after a screen/size change; never force another monitor's pixel
+        // dimensions onto the current monitor.
+        PauseTransition layoutRefresh = new PauseTransition(Duration.millis(150));
         layoutRefresh.setOnFinished(e -> Platform.runLater(() -> {
-            // 检测当前屏幕 DPI
-            double currentDpi = getCurrentScreenDpi(primaryStage);
-            
-            if (lastScreenDpi[0] > 0 && currentDpi > lastScreenDpi[0] * 1.1) {
-                // 从低DPI屏回到了高DPI屏，恢复保存的窗口尺寸
-                logger.debug("检测到低DPI→高DPI切换 ({}→{})，恢复窗口尺寸 {}x{}",
-                    (int) lastScreenDpi[0], (int) currentDpi, (int) savedSize[0], (int) savedSize[1]);
-                primaryStage.setWidth(savedSize[0]);
-                primaryStage.setHeight(savedSize[1]);
-            }
-            
-            // 保存当前尺寸（如果窗口在高分屏上且尺寸足够大）
-            if (currentDpi >= 120 || primaryStage.getWidth() >= 1100) {
-                savedSize[0] = primaryStage.getWidth();
-                savedSize[1] = primaryStage.getHeight();
-            }
-            
-            lastScreenDpi[0] = currentDpi;
-            
-            // 强制刷新布局
             root.applyCss();
             root.requestLayout();
         }));
@@ -211,10 +247,22 @@ public class App extends Application {
         // 8. 显示窗口
         primaryStage.show();
         
-        // 9. 设置窗口关闭时的清理逻辑
+        // 10. 设置窗口关闭时的逻辑：最小化到系统托盘
         // 类比于 Web 中的 beforeunload 事件
         primaryStage.setOnCloseRequest(event -> {
-            shutdownApplication();
+            if (SystemTray.isSupported()) {
+                event.consume(); // 阻止默认关闭行为
+                minimizeToTray();
+            } else {
+                shutdownApplication();
+            }
+        });
+        
+        // 11. 设置窗口最小化时隐藏到托盘
+        primaryStage.iconifiedProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal && SystemTray.isSupported()) {
+                minimizeToTray();
+            }
         });
     }
 
@@ -223,16 +271,135 @@ public class App extends Application {
         shutdownApplication();
     }
 
+    /**
+     * 初始化系统托盘
+     */
+    private void initLanguage() {
+        try {
+            LanguageManager languageManager = LanguageManager.getInstance();
+            
+            java.io.File prefsDir = new java.io.File(
+                System.getProperty("user.home"), ".ahakey"
+            );
+            java.io.File prefsFile = new java.io.File(prefsDir, "preferences.properties");
+            
+            if (prefsFile.exists()) {
+                java.util.Properties prefs = new java.util.Properties();
+                try (java.io.FileInputStream fis = new java.io.FileInputStream(prefsFile)) {
+                    prefs.load(fis);
+                    String savedLang = prefs.getProperty("AhaKeySelectedLanguage");
+                    if (savedLang != null && !savedLang.isEmpty()) {
+                        languageManager.switchLanguage(savedLang);
+                    }
+                }
+            }
+            
+            logger.info("语言设置初始化完成，当前语言: {}", languageManager.getCurrentLanguage());
+        } catch (Exception e) {
+            logger.warn("初始化语言设置失败: {}", e.getMessage());
+        }
+    }
+    
+    private void initSystemTray() {
+        if (!SystemTray.isSupported()) {
+            logger.warn("系统托盘不受支持");
+            return;
+        }
+        
+        try {
+            // 创建弹出菜单
+            PopupMenu popupMenu = new PopupMenu();
+            
+            // 退出菜单项（使用英文避免中文乱码）
+            MenuItem exitItem = new MenuItem(LanguageManager.getInstance().getString("menu.exit"));
+            exitItem.addActionListener(e -> shutdownApplication());
+            popupMenu.add(exitItem);
+            
+            // 创建托盘图标
+            java.awt.Image image = Toolkit.getDefaultToolkit().getImage(
+                getClass().getResource("/ahakey.jpg")
+            );
+            trayIcon = new TrayIcon(image, "AhaKey Studio", popupMenu);
+            
+            // 设置图标大小自适应
+            trayIcon.setImageAutoSize(true);
+            
+            // 添加鼠标点击事件：左键单击显示窗口（右键菜单由系统自动处理）
+            trayIcon.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if (e.getButton() == MouseEvent.BUTTON1) {
+                        showFromTray();
+                    }
+                }
+            });
+            
+            // 添加到系统托盘
+            SystemTray.getSystemTray().add(trayIcon);
+            logger.info("系统托盘图标已添加");
+            
+        } catch (Exception e) {
+            logger.error("初始化系统托盘失败: {}", e.getMessage());
+            trayIcon = null;
+        }
+    }
+    
+    /**
+     * 最小化到系统托盘
+     */
+    private void minimizeToTray() {
+        Platform.runLater(() -> {
+            // 保存当前窗口尺寸
+            savedWidth = primaryStage.getWidth();
+            savedHeight = primaryStage.getHeight();
+            
+            primaryStage.setIconified(false);
+            primaryStage.hide();
+            if (trayIcon != null) {
+                trayIcon.displayMessage("AhaKey Studio", localize("应用已最小化到托盘"), TrayIcon.MessageType.INFO);
+            }
+        });
+    }
+    
+    /**
+     * 从系统托盘显示窗口
+     */
+    private void showFromTray() {
+        Platform.runLater(() -> {
+            // 恢复之前保存的窗口尺寸
+            primaryStage.setWidth(savedWidth);
+            primaryStage.setHeight(savedHeight);
+            
+            // 取消图标化状态，显示窗口并置于前端
+            primaryStage.setIconified(false);
+            primaryStage.show();
+            primaryStage.toFront();
+        });
+    }
+    
     private void shutdownApplication() {
         if (shuttingDown) {
             return;
         }
         shuttingDown = true;
         try {
+            // 移除系统托盘图标（使用局部变量避免竞态条件）
+            TrayIcon iconToRemove = trayIcon;
+            trayIcon = null;
+            if (iconToRemove != null) {
+                try {
+                    SystemTray.getSystemTray().remove(iconToRemove);
+                } catch (Exception e) {
+                    logger.warn("移除系统托盘图标失败: {}", e.getMessage());
+                }
+            }
+            
             shutdownVoiceInputManager();
             if (controller != null) {
                 controller.shutdown();
             }
+            
+            BleBridgeProcessOwner.stopOwned();
         } catch (Exception e) {
             logger.warn("Application shutdown cleanup failed: {}", e.getMessage());
         } finally {
@@ -245,7 +412,7 @@ public class App extends Application {
      * 初始化语音输入管理器
      */
     private void initVoiceInputManager() {
-        logger.info("初始化语音输入管理器 (SenseVoice-Small)...");
+        logger.info("初始化语音输入管理器 (Sherpa-ONNX Paraformer)...");
         try {
             voiceInputManager = new VoiceInputManager();
             voiceInputManager.initialize();
@@ -253,14 +420,40 @@ public class App extends Application {
             // 配置语音键回调：按下开始录音，释放停止录音
             if (WindowsVoiceTyping.isWindows()) {
                 WindowsVoiceRelayService relay = WindowsVoiceRelayService.getInstance();
-                relay.setOnVoiceKeyDown(() -> {
-                    if (voiceInputManager != null && voiceInputManager.isActivated()) {
-                        voiceInputManager.startRecording();
+                relay.setOnVoiceAction(event -> {
+                    VoiceInputManager manager = voiceInputManager;
+                    if (manager == null || !manager.isActivated()) {
+                        // Keep the relay's availability bit truthful.  An
+                        // unavailable local action is reported and performs
+                        // no unrelated shortcut fallback.
+                        relay.setAhaKeyVoiceAvailable(false);
+                        return;
                     }
-                });
-                relay.setOnVoiceKeyUp(() -> {
-                    if (voiceInputManager != null && voiceInputManager.isRecording()) {
-                        voiceInputManager.stopRecording();
+                    // Short press toggles recording; long press records while
+                    // held. No synthetic Fn key is emitted.
+                    LocalVoicePressHandler.Decision decision =
+                        localVoicePresses.onEvent(event.type(), manager.isRecording());
+                    if (decision.command() == LocalVoicePressHandler.Command.START) {
+                        boolean shortPress = decision.trigger() == VoiceButtonEvent.Type.SHORT_PRESS;
+                        long session = toggleSession.incrementAndGet();
+                        manager.startRecording(
+                            controller.getStudioState().isVoiceAhaTypeEnabled(shortPress));
+                        if (shortPress) {
+                            toggleTimeout.schedule(() -> Platform.runLater(() -> {
+                                VoiceInputManager current = voiceInputManager;
+                                if (toggleSession.get() == session && current != null
+                                    && current.isRecording()) {
+                                    logger.info("短按录音超过 {} 秒，自动停止",
+                                        LocalVoicePressHandler.TOGGLE_MAX_SECONDS);
+                                    current.stopRecording();
+                                    localVoicePresses.reset();
+                                }
+                            }), LocalVoicePressHandler.TOGGLE_MAX_SECONDS,
+                                java.util.concurrent.TimeUnit.SECONDS);
+                        }
+                    } else if (decision.command() == LocalVoicePressHandler.Command.STOP
+                        && manager.isRecording()) {
+                        manager.stopRecording();
                     }
                 });
                 // 配置模拟录音回调（用于模拟按钮直接触发录音）
@@ -274,20 +467,63 @@ public class App extends Application {
                         voiceInputManager.stopRecording();
                     }
                 });
+                // Availability is promoted to true only by TopBar after the
+                // user explicitly activates VoiceInputManager.  Until then
+                // the AhaKey action remains unavailable and fail-closed.
+                relay.setAhaKeyVoiceAvailable(false);
             }
             
             logger.info("语音输入管理器初始化成功");
         } catch (Exception e) {
-            logger.error("语音输入管理器初始化失败: {}", e.getMessage());
+            // Keep the complete cause (including UnsatisfiedLinkError/model
+            // paths) in the production log; the UI may still fail closed.
+            logger.error("语音输入管理器初始化失败", e);
             // 语音输入功能不可用，但不影响主应用运行
             voiceInputManager = null;
+            if (WindowsVoiceTyping.isWindows()) {
+                WindowsVoiceRelayService.getInstance().setAhaKeyVoiceAvailable(false);
+            }
         }
     }
     
     /**
+     * 设置中开启或关闭本地语音后，在不重启的情况下加载或卸载语音服务。
+     * 模型加载耗时较长，放到后台线程执行。
+     */
+    private void onLocalVoiceAvailabilityChanged(boolean available) {
+        localVoicePresses.reset();
+        if (available) {
+            // First-time setup: with untouched Win+H defaults, make long press
+            // the local push-to-talk so the feature works right after enabling.
+            var state = controller.getStudioState();
+            if (state.hasDefaultVoiceActions()) {
+                state.setVoiceLongAction(VoiceAction.AHAKEY_VOICE);
+            }
+            Thread loader = new Thread(() -> {
+                initVoiceInputManager();
+                VoiceInputManager loaded = voiceInputManager;
+                Platform.runLater(() -> {
+                    if (topBar != null) topBar.setVoiceInputManager(loaded);
+                    controller.getStudioState().refreshAhaTypeState();
+                });
+            }, "local-voice-loader");
+            loader.setDaemon(true);
+            loader.start();
+        } else {
+            if (topBar != null) topBar.setVoiceInputManager(null);
+            shutdownVoiceInputManager();
+            voiceInputManager = null;
+            controller.getStudioState().refreshAhaTypeState();
+        }
+    }
+
+    /**
      * 关闭语音输入管理器
      */
     private void shutdownVoiceInputManager() {
+        if (WindowsVoiceTyping.isWindows()) {
+            WindowsVoiceRelayService.getInstance().setAhaKeyVoiceAvailable(false);
+        }
         if (voiceInputManager != null) {
             logger.info("关闭语音输入管理器...");
             voiceInputManager.shutdown();
@@ -310,21 +546,4 @@ public class App extends Application {
         launch(args);
     }
     
-    /**
-     * 获取窗口当前所在屏幕的 DPI
-     * 通过比较窗口中心点与各屏幕边界来确定当前屏幕
-     */
-    private double getCurrentScreenDpi(Stage stage) {
-        double centerX = stage.getX() + stage.getWidth() / 2;
-        double centerY = stage.getY() + stage.getHeight() / 2;
-        
-        for (Screen screen : Screen.getScreens()) {
-            Rectangle2D bounds = screen.getBounds();
-            if (bounds.contains(centerX, centerY)) {
-                return screen.getDpi();
-            }
-        }
-        // 回退：使用主屏幕 DPI
-        return Screen.getPrimary().getDpi();
-    }
 }

@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <!--
+      The chooser edits ProgramFiles64Folder, which is INSTALLDIR's parent in
+      jpackage's generated directory tree. INSTALLDIR itself therefore always
+      resolves to <selected parent>\AhaKeyStudio and is the only tree owned by
+      the installer and its recursive uninstall cleanup.
+    -->
+    <Property Id="WIXUI_INSTALLDIR" Value="ProgramFiles64Folder" />
+
+    <UI Id="JpUI">
+      <UIRef Id="WixUI_InstallDir" />
+      <DialogRef Id="InstallDirNotEmptyDlg" />
+
+      <Dialog Id="AhaKeyInstallParentDlg"
+              Width="370"
+              Height="270"
+              Title="[ProductName] 安装程序">
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17"
+                 Default="yes" Text="下一步(&amp;N)" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17"
+                 Text="上一步(&amp;B)" />
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17"
+                 Cancel="yes" Text="取消">
+          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        </Control>
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="320" Height="15"
+                 Transparent="yes" NoPrefix="yes"
+                 Text="选择父目录，安装程序会自动创建 AhaKeyStudio 文件夹。" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="220" Height="15"
+                 Transparent="yes" NoPrefix="yes"
+                 Text="{\WixUI_Font_Title}选择安装位置" />
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44"
+                 TabSkip="no" Text="WixUI_Bmp_Banner" />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="FolderLabel" Type="Text" X="20" Y="60" Width="320" Height="30"
+                 NoPrefix="yes"
+                 Text="请选择安装位置的父文件夹。实际安装目录将显示在下方。" />
+        <Control Id="ParentFolder" Type="PathEdit" X="20" Y="98" Width="320" Height="18"
+                 Property="WIXUI_INSTALLDIR" Indirect="yes" />
+        <Control Id="FinalFolderLabel" Type="Text" X="20" Y="128" Width="320" Height="22"
+                 NoPrefix="yes"
+                 Text="程序文件夹：[ProgramFiles64Folder]AhaKeyStudio\" />
+        <Control Id="ChangeFolder" Type="PushButton" X="20" Y="158" Width="86" Height="19"
+                 Text="浏览父文件夹..." />
+      </Dialog>
+
+      <!-- First install asks once; upgrades with a remembered path skip it. -->
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog"
+               Value="AhaKeyInstallParentDlg" Order="6">
+        NOT Installed AND NOT AHAKEY_PREVIOUS_INSTALLDIR
+      </Publish>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog"
+               Value="VerifyReadyDlg" Order="7">
+        NOT Installed AND AHAKEY_PREVIOUS_INSTALLDIR
+      </Publish>
+      <Publish Dialog="AhaKeyInstallParentDlg" Control="Back" Event="NewDialog"
+               Value="WelcomeDlg" Order="1">1</Publish>
+      <Publish Dialog="AhaKeyInstallParentDlg" Control="ChangeFolder"
+               Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+      <Publish Dialog="AhaKeyInstallParentDlg" Control="ChangeFolder"
+               Event="SpawnDialog" Value="BrowseDlg" Order="2">1</Publish>
+
+      <Publish Dialog="AhaKeyInstallParentDlg" Control="Next"
+               Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+      <Publish Dialog="AhaKeyInstallParentDlg" Control="Next"
+               Event="DoAction" Value="WixUIValidatePath" Order="2">
+        NOT WIXUI_DONTVALIDATEPATH
+      </Publish>
+      <Publish Dialog="AhaKeyInstallParentDlg" Control="Next"
+               Event="SpawnDialog" Value="InvalidDirDlg" Order="3">
+        NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID&lt;&gt;"1"
+      </Publish>
+      <Publish Dialog="AhaKeyInstallParentDlg" Control="Next"
+               Event="DoAction" Value="JpCheckInstallDir" Order="4">
+        WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID="1"
+      </Publish>
+      <Publish Dialog="AhaKeyInstallParentDlg" Control="Next"
+               Event="NewDialog" Value="InstallDirNotEmptyDlg" Order="5">
+        (WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID="1") AND INSTALLDIR_VALID="0"
+      </Publish>
+      <Publish Dialog="AhaKeyInstallParentDlg" Control="Next"
+               Event="NewDialog" Value="VerifyReadyDlg" Order="6">
+        (WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID="1") AND INSTALLDIR_VALID="1"
+      </Publish>
+
+      <Publish Dialog="InstallDirNotEmptyDlg" Control="No" Event="NewDialog"
+               Value="AhaKeyInstallParentDlg" Order="6">1</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog"
+               Value="AhaKeyInstallParentDlg" Order="6">
+        NOT Installed AND NOT AHAKEY_PREVIOUS_INSTALLDIR
+      </Publish>
+    </UI>
+  </Fragment>
+</Wix>

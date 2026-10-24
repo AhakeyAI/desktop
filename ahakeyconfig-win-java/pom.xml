@@ -6,7 +6,7 @@
 
     <groupId>com.example</groupId>
     <artifactId>ahakey-studio</artifactId>
-    <version>1.0.0</version>
+    <version>1.5.4</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -42,6 +42,20 @@
             <version>2.16.0</version>
         </dependency>
 
+        <!-- Lightweight QR encoder for WeChat Native payment orders. -->
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>core</artifactId>
+            <version>3.5.3</version>
+        </dependency>
+
+        <!-- 本地语音识别结果的简繁转换（纯 Java，离线） -->
+        <dependency>
+            <groupId>com.github.houbb</groupId>
+            <artifactId>opencc4j</artifactId>
+            <version>1.14.0</version>
+        </dependency>
+
         <!-- Windows: Win+H 语音 + 低级别键盘钩子 -->
         <dependency>
             <groupId>net.java.dev.jna</groupId>
@@ -71,11 +85,22 @@
             <version>1.4.11</version>
         </dependency>
 
-        <!-- ONNX Runtime for SenseVoice-Small -->
+        <!-- Historical Sherpa-ONNX Java API.  The API is not published to
+             Maven Central at 1.13.3, so the release-pinned vendor JAR is
+             checked in under third-party and copied to target/lib. -->
         <dependency>
-            <groupId>com.microsoft.onnxruntime</groupId>
-            <artifactId>onnxruntime</artifactId>
-            <version>1.16.3</version>
+            <groupId>com.k2fsa</groupId>
+            <artifactId>sherpa-onnx-java-api</artifactId>
+            <version>1.13.3</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/third-party/sherpa-onnx-java-api-1.13.3.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.2</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
@@ -92,6 +117,12 @@
             </plugin>
 
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+            </plugin>
+
+            <plugin>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
                 <version>0.0.8</version>
@@ -105,6 +136,9 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
                 <version>3.3.1</version>
+                <configuration>
+                    <encoding>UTF-8</encoding>
+                </configuration>
                 <executions>
                     <execution>
                         <id>copy-resources</id>
@@ -113,12 +147,31 @@
                             <goal>copy-resources</goal>
                         </goals>
                         <configuration>
+                            <encoding>UTF-8</encoding>
                             <outputDirectory>${project.build.directory}/classes</outputDirectory>
                             <resources>
                                 <resource>
                                     <directory>src/main/resources</directory>
                                     <includes>
                                         <include>**/*</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>copy-sherpa-api</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/third-party</directory>
+                                    <includes>
+                                        <include>sherpa-onnx-java-api-1.13.3.jar</include>
                                     </includes>
                                 </resource>
                             </resources>
@@ -139,6 +192,11 @@
                             <addClasspath>true</addClasspath>
                             <classpathPrefix>lib/</classpathPrefix>
                         </manifest>
+                        <manifestEntries>
+                            <Implementation-Version>${project.version}</Implementation-Version>
+                            <!-- System-scope vendor JAR is not included by addClasspath. -->
+                            <Class-Path>lib/sherpa-onnx-java-api-1.13.3.jar</Class-Path>
+                        </manifestEntries>
                     </archive>
                 </configuration>
             </plugin>
@@ -158,6 +216,47 @@
                         <configuration>
                             <outputDirectory>${project.build.directory}/lib</outputDirectory>
                             <includeScope>runtime</includeScope>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.3.0</version>
+                <executions>
+                    <execution>
+                        <id>verify-packaged-runtime</id>
+                        <phase>package</phase>
+                        <goals><goal>java</goal></goals>
+                        <configuration>
+                            <mainClass>com.example.ahakey.firmware.PackagedRuntimeCheck</mainClass>
+                            <classpathScope>test</classpathScope>
+                            <arguments>
+                                <argument>${project.build.directory}/${project.build.finalName}.jar</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>verify-release-artifact-contents</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>powershell.exe</executable>
+                            <arguments>
+                                <argument>-NoLogo</argument>
+                                <argument>-NoProfile</argument>
+                                <argument>-NonInteractive</argument>
+                                <argument>-ExecutionPolicy</argument>
+                                <argument>Bypass</argument>
+                                <argument>-File</argument>
+                                <argument>${project.basedir}/Test-ReleaseArtifactContents.ps1</argument>
+                                <argument>-JarPath</argument>
+                                <argument>${project.build.directory}/${project.build.finalName}.jar</argument>
+                            </arguments>
                         </configuration>
                     </execution>
                 </executions>

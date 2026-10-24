@@ -1,0 +1,439 @@
+param(
+    [string]$BaselineInstallDir = (Join-Path $env:ProgramFiles "AhaKeyStudio"),
+    [string]$FirmwareHex = "",
+    [string]$AppVersion = "",
+    [Parameter(Mandatory = $true)]
+    [string]$FirmwareVersion,
+    [string]$WchIspBundleDir = "",
+    [string]$WixBin = "",
+    [string]$UpdateManifestUrl = "",
+    [string]$IconPath = "",
+    [Alias("IncludeWchIsp")]
+    [switch]$IncludeLicensedWchIsp,
+    [switch]$InternalValidationOnly,
+    [switch]$PrepareOnly
+)
+
+$ErrorActionPreference = "Stop"
+Set-StrictMode -Version Latest
+
+$projectDir = $PSScriptRoot
+$pomPath = Join-Path $projectDir "pom.xml"
+[xml]$pom = Get-Content -LiteralPath $pomPath -Raw
+$pomVersion = [string]$pom.project.version
+
+if ([string]::IsNullOrWhiteSpace($AppVersion)) {
+    $tag = [string]$env:GITHUB_REF_NAME
+    if ([string]::IsNullOrWhiteSpace($tag)) {
+        # Windows PowerShell can promote native stderr to a terminating error
+        # under Stop. An untagged development checkout is expected here.
+        $savedErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "SilentlyContinue"
+            $tag = (& git -C $projectDir describe --tags --exact-match 2>$null)
+        } finally {
+            $ErrorActionPreference = $savedErrorActionPreference
+        }
+        if ($LASTEXITCODE -ne 0) {
+            $tag = ""
+        }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($tag)) {
+        if ($tag -notmatch '^v(\d+\.\d+\.\d+)$') {
+            throw "Release tag must use vMAJOR.MINOR.PATCH: $tag"
+        }
+        $AppVersion = $Matches[1]
+    } else {
+        $AppVersion = $pomVersion
+    }
+}
+
+if ($AppVersion -notmatch '^\d+\.\d+\.\d+$') {
+    throw "AppVersion must use MAJOR.MINOR.PATCH: $AppVersion"
+}
+if ($FirmwareVersion -notmatch '^\d+\.\d+\.\d+$') {
+    throw "FirmwareVersion must use MAJOR.MINOR.PATCH: $FirmwareVersion"
+}
+. (Join-Path $projectDir "Test-FirmwareReleaseInput.ps1")
+$firmwareValidation = Assert-AhaKeyFirmwareReleaseInput `
+    -ProjectDir $projectDir `
+    -FirmwareVersion $FirmwareVersion `
+    -FirmwareHex $FirmwareHex `
+    -RequireFirmware:(-not ($PrepareOnly -or $InternalValidationOnly))
+if (-not [string]::IsNullOrWhiteSpace($UpdateManifestUrl)) {
+    $updateManifestUri = [Uri]$UpdateManifestUrl
+    if (-not $updateManifestUri.IsAbsoluteUri -or
+        $updateManifestUri.Scheme -ne "https") {
+        throw "UpdateManifestUrl must be an absolute HTTPS URL"
+    }
+}
+if ($AppVersion -ne $pomVersion) {
+    throw "Release version $AppVersion does not match pom.xml $pomVersion"
+}
+
+$baselineAppDir = Join-Path $BaselineInstallDir "app"
+$baselineRuntime = Join-Path $BaselineInstallDir "runtime"
+$currentJar = Join-Path $projectDir "target\ahakey-studio-$AppVersion.jar"
+$currentLibDir = Join-Path $projectDir "target\lib"
+$baselineIcon = if ([string]::IsNullOrWhiteSpace($IconPath)) {
+    Join-Path $BaselineInstallDir "AhaKeyStudio.ico"
+} else {
+    [IO.Path]::GetFullPath($IconPath)
+}
+$releaseRoot = Join-Path $projectDir "target\release-$AppVersion"
+$inputDir = Join-Path $releaseRoot "input"
+# WiX 3 still uses MAX_PATH for payload source files. Keep jpackage's work
+# directory short because the bundled speech-model tree contains long names.
+$jpackageTemp = Join-Path $env:TEMP "ahakey-jpackage-$AppVersion"
+$installerDir = Join-Path $projectDir "installer"
+$windowsResourceDir = Join-Path $projectDir "packaging\windows"
+$productUpgradeCode = "8842dbef-62f7-49ac-af0f-9447198265f3"
+$legacyUpgradeCode = "03E5A934-FFCA-3815-B455-7D49BF1CA1DC"
+
+if (-not (Test-Path -LiteralPath $baselineIcon -PathType Leaf)) {
+    throw "Release baseline icon is missing: $baselineIcon"
+}
+$requiredWindowsResources = @("main.wxs", "ui.wxf")
+foreach ($resourceName in $requiredWindowsResources) {
+    $resourcePath = Join-Path $windowsResourceDir $resourceName
+    if (-not (Test-Path -LiteralPath $resourcePath -PathType Leaf)) {
+        throw "Windows installer resource is missing: $resourcePath"
+    }
+}
+foreach ($required in @($currentJar, $currentLibDir)) {
+    if (-not (Test-Path -LiteralPath $required)) {
+        throw "Current clean-build output is missing: $required. Run mvn clean package first."
+    }
+}
+& (Join-Path $projectDir "Test-ReleaseArtifactContents.ps1") -JarPath $currentJar
+
+# Destructive cleanup is restricted to this exact project-owned build folder.
+$resolvedProject = [IO.Path]::GetFullPath($projectDir)
+$resolvedRelease = [IO.Path]::GetFullPath($releaseRoot)
+if (-not $resolvedRelease.StartsWith($resolvedProject, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Unsafe release output path: $resolvedRelease"
+}
+if (Test-Path -LiteralPath $releaseRoot) {
+    # The previous WiX attempt may have created paths beyond MAX_PATH.
+    # The target was validated above as project-owned before using the
+    # extended-length prefix for cleanup.
+    Remove-Item -LiteralPath ("\\?\" + $resolvedRelease) -Recurse -Force
+}
+if (Test-Path -LiteralPath $jpackageTemp) {
+    $resolvedTempRoot = [IO.Path]::GetFullPath($env:TEMP)
+    $resolvedJpackageTemp = [IO.Path]::GetFullPath($jpackageTemp)
+    if (-not $resolvedJpackageTemp.StartsWith(
+        $resolvedTempRoot, [StringComparison]::OrdinalIgnoreCase
+    ) -or [IO.Path]::GetFileName($resolvedJpackageTemp) -ne "ahakey-jpackage-$AppVersion") {
+        throw "Unsafe jpackage temporary path: $resolvedJpackageTemp"
+    }
+    Remove-Item -LiteralPath $resolvedJpackageTemp -Recurse -Force
+}
+New-Item -ItemType Directory -Force -Path `
+    $inputDir, (Join-Path $inputDir "lib") |
+    Out-Null
+
+$releaseJar = Join-Path $inputDir "ahakey-studio-$AppVersion.jar"
+Copy-Item -LiteralPath $currentJar -Destination $releaseJar
+$currentJarHash = (Get-FileHash -LiteralPath $currentJar -Algorithm SHA256).Hash
+$releaseJarHash = (Get-FileHash -LiteralPath $releaseJar -Algorithm SHA256).Hash
+if ($currentJarHash -cne $releaseJarHash) {
+    throw "Staged Java JAR differs from the verified Maven JAR."
+}
+Write-Output "FULL_MAVEN_JAR_STAGED=OK"
+Get-ChildItem -LiteralPath $currentLibDir |
+    Copy-Item -Destination (Join-Path $inputDir "lib") -Recurse
+# Local voice is optional: speech models and Sherpa native DLLs are
+# downloaded from settings (ahakey.com/local-voice/manifest.json) and are
+# never part of the installer. Publish them with New-LocalVoicePack.ps1.
+Write-Output "LOCAL_VOICE_NOT_BUNDLED=PASS"
+
+$bleDriver = @(
+    (Join-Path $projectDir "BLE_tcp_driver.exe"),
+    (Join-Path $projectDir "..\BLE_tcp_bridge\bin\Release\BLE_tcp_driver.exe"),
+    (Join-Path $baselineAppDir "ble-driver\BLE_tcp_driver.exe"),
+    (Join-Path $baselineAppDir "BLE_tcp_driver.exe")
+) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+if (-not $bleDriver) {
+    Write-Output "BLE_DRIVER_BUILD=FAIL"
+    throw "BLE_tcp_driver.exe is missing. Build BLE_tcp_bridge Release before packaging."
+}
+Write-Output "BLE_DRIVER_BUILD=PASS"
+$bleDriverStage = Join-Path $inputDir "ble-driver"
+New-Item -ItemType Directory -Force -Path $bleDriverStage | Out-Null
+Copy-Item -LiteralPath $bleDriver -Destination (Join-Path $bleDriverStage "BLE_tcp_driver.exe")
+if (-not (Test-Path -LiteralPath (Join-Path $bleDriverStage "BLE_tcp_driver.exe") -PathType Leaf)) {
+    Write-Output "BLE_DRIVER_PACKAGED=FAIL"
+    throw "BLE driver was not staged at the canonical app/ble-driver path."
+}
+Write-Output "BLE_DRIVER_PACKAGED=PASS"
+Write-Output "BLE_DRIVER_RELEASE_PATH=$bleDriverStage\BLE_tcp_driver.exe"
+& (Join-Path $projectDir "Test-BleDriverPackaging.ps1") -ReleaseInputDir $inputDir
+
+if (-not [string]::IsNullOrWhiteSpace($FirmwareHex)) {
+    $firmwareDir = Join-Path $inputDir "firmware"
+    New-Item -ItemType Directory -Force -Path $firmwareDir | Out-Null
+    $bundledFirmwarePath = Join-Path $firmwareDir $firmwareValidation.FirmwareName
+    Copy-Item -LiteralPath $FirmwareHex -Destination $bundledFirmwarePath
+    Copy-Item -LiteralPath $firmwareValidation.ProvenancePath -Destination `
+        (Join-Path $firmwareDir ([IO.Path]::GetFileName($firmwareValidation.ProvenancePath)))
+    if ([IO.Path]::GetFileName($bundledFirmwarePath) -cne
+        "AhaKey-X1-firmware-$($firmwareValidation.Capabilities.expectedBundledVersion)-ch582.hex") {
+        throw "Packaged firmware filename does not match Java BUNDLED_FIRMWARE_NAME"
+    }
+}
+
+if ($IncludeLicensedWchIsp) {
+    if ([string]::IsNullOrWhiteSpace($WchIspBundleDir) -or
+        -not (Test-Path -LiteralPath $WchIspBundleDir -PathType Container)) {
+        throw "A supplied official WCHISP CH57x-59x bundle directory is required."
+    }
+    foreach ($runtimeFile in @(
+        "WCHISPTool_CH57x-59x.exe",
+        "CH343PT.DLL",
+        "WCH55xISPDLL.dll"
+    )) {
+        if (-not (Test-Path -LiteralPath (Join-Path $WchIspBundleDir $runtimeFile) -PathType Leaf)) {
+            throw "WCHISP runtime bundle is missing: $runtimeFile"
+        }
+    }
+    $chipDatabaseRelativePath = "ChipType\chiplist_CH57x_CH59x.wcfg"
+    $sourceChipDatabase = Join-Path $WchIspBundleDir $chipDatabaseRelativePath
+    if (-not (Test-Path -LiteralPath $sourceChipDatabase -PathType Leaf)) {
+        throw "WCHISP runtime bundle is missing: $chipDatabaseRelativePath"
+    }
+    $wchDir = Join-Path $inputDir "tools\wchisp"
+    New-Item -ItemType Directory -Force -Path $wchDir | Out-Null
+    foreach ($runtimeFile in @(
+        "WCHISPTool_CH57x-59x.exe",
+        "CH343PT.DLL",
+        "WCH55xISPDLL.dll"
+    )) {
+        Copy-Item -LiteralPath (Join-Path $WchIspBundleDir $runtimeFile) `
+            -Destination (Join-Path $wchDir $runtimeFile)
+    }
+    $stagedChipDatabase = Join-Path $wchDir $chipDatabaseRelativePath
+    New-Item -ItemType Directory -Force -Path `
+        (Split-Path -Parent $stagedChipDatabase) | Out-Null
+    Copy-Item -LiteralPath $sourceChipDatabase -Destination $stagedChipDatabase
+    # The external bundle supplies only the official binaries. Keep every
+    # unknown byte of the hardware-verified repository CONFIG unchanged.
+    $sourceConfig = Join-Path $projectDir `
+        "src\main\resources\wchisp\CONFIG_CH57X59X-sanitized.WCH"
+    if (-not (Test-Path -LiteralPath $sourceConfig -PathType Leaf)) {
+        throw "Verified repository WCHISP configuration is missing: $sourceConfig"
+    }
+    $stagedConfig = Join-Path $wchDir "CONFIG_CH57X59X.WCH"
+    Copy-Item -LiteralPath $sourceConfig -Destination $stagedConfig
+
+    $stagedExe = Join-Path $wchDir "WCHISPTool_CH57x-59x.exe"
+    $stagedDriverDll = Join-Path $wchDir "CH343PT.DLL"
+    $stagedIspDll = Join-Path $wchDir "WCH55xISPDLL.dll"
+    $toolVersion = [string](Get-Item -LiteralPath $stagedExe).VersionInfo.FileVersion
+    $driverVersion = [string](Get-Item -LiteralPath $stagedDriverDll).VersionInfo.FileVersion
+    $ispVersion = [string](Get-Item -LiteralPath $stagedIspDll).VersionInfo.FileVersion
+    foreach ($versionEvidence in @($toolVersion, $driverVersion, $ispVersion)) {
+        if ([string]::IsNullOrWhiteSpace($versionEvidence)) {
+            throw "WCHISP runtime component lacks file-version evidence."
+        }
+    }
+    $exeHash = (Get-FileHash -LiteralPath $stagedExe -Algorithm SHA256).Hash.ToLowerInvariant()
+    $driverHash = (Get-FileHash -LiteralPath $stagedDriverDll -Algorithm SHA256).Hash.ToLowerInvariant()
+    $ispHash = (Get-FileHash -LiteralPath $stagedIspDll -Algorithm SHA256).Hash.ToLowerInvariant()
+    $configHash = (Get-FileHash -LiteralPath $stagedConfig -Algorithm SHA256).Hash.ToLowerInvariant()
+    $runtimeMetadata = [ordered]@{
+        bundleId = "wchisp-ch57x59x-packaged"
+        toolVersion = $toolVersion.Trim()
+        ispDllVersion = $ispVersion.Trim()
+        driverDllVersion = $driverVersion.Trim()
+        configContractVersion = "sanitized-five-path-slots-v1"
+        configLayoutFingerprint = $configHash
+        supportedChipFamily = "CH57x/CH59x"
+        supportedModel = "CH582"
+        source = "Official WCHISP binaries and chip database supplied at release time; verified sanitized CONFIG from repository"
+        provenance = "Binary versions and hashes recorded during packaging; chip database copied from official bundle; CONFIG copied byte-for-byte from repository baseline"
+        exeSha256 = $exeHash
+        ch343Sha256 = $driverHash
+        ispDllSha256 = $ispHash
+        configSha256 = $configHash
+    }
+    $metadataJson = $runtimeMetadata | ConvertTo-Json
+    [IO.File]::WriteAllText(
+        (Join-Path $wchDir "wchisp-runtime.json"),
+        $metadataJson,
+        (New-Object Text.UTF8Encoding($false))
+    )
+    if (-not (Test-Path -LiteralPath `
+        (Join-Path $wchDir "WCHISPTool_CH57x-59x.exe"))) {
+        throw "WCHISP bundle does not contain WCHISPTool_CH57x-59x.exe at its root."
+    }
+    & (Join-Path $projectDir "Test-WchIspReleasePrivacy.ps1") `
+        -RootPath $wchDir -WchIspBundleDir $WchIspBundleDir
+}
+
+& (Join-Path $projectDir "Test-ReleaseArtifactContents.ps1") `
+    -JarPath $releaseJar -ReleaseInputDir $inputDir -RequireWchIsp:$IncludeLicensedWchIsp
+
+Write-Output $(if ([string]::IsNullOrWhiteSpace($FirmwareHex)) {
+    if ($InternalValidationOnly) { "RELEASE_INPUT_VALIDATION=INTERNAL_WITHOUT_FORMAL_FIRMWARE" }
+    else { "RELEASE_INPUT_VALIDATION=PREPARED_WITHOUT_FIRMWARE" }
+} else {
+    "RELEASE_INPUT_VALIDATION=OK"
+})
+if ($InternalValidationOnly -and [string]::IsNullOrWhiteSpace($FirmwareHex)) {
+    Write-Output "FIRMWARE_BUNDLED=NO_UNVERIFIED"
+}
+Write-Output "Prepared input: $inputDir"
+if ($PrepareOnly) {
+    exit 0
+}
+
+$jdkCandidates = @()
+if ($env:JAVA_HOME) {
+    $jdkCandidates += Join-Path $env:JAVA_HOME "bin"
+}
+$jdkCandidates += Join-Path $env:LOCALAPPDATA `
+    "Temp\ahakey-part3-toolchain\jdk-17\bin"
+$jdkBin = $jdkCandidates |
+    Where-Object { Test-Path -LiteralPath (Join-Path $_ "jpackage.exe") } |
+    Select-Object -First 1
+if (-not $jdkBin) {
+    throw "JDK 17 jpackage.exe is required. Set JAVA_HOME to a JDK 17 installation."
+}
+$jpackage = Join-Path $jdkBin "jpackage.exe"
+$wix = @(
+    $WixBin,
+    "C:\Program Files (x86)\WiX Toolset v3.14\bin",
+    "C:\Program Files\WiX Toolset v3.14\bin",
+    "C:\Program Files (x86)\WiX Toolset v3.11\bin"
+) | Where-Object {
+    -not [string]::IsNullOrWhiteSpace($_) -and
+    (Test-Path -LiteralPath (Join-Path $_ "candle.exe"))
+} | Select-Object -First 1
+if (-not $wix) {
+    throw "WiX Toolset 3.x is required for the Windows .exe installer. Release input is ready and validated."
+}
+$env:PATH = "$wix;$env:PATH"
+New-Item -ItemType Directory -Force -Path $installerDir | Out-Null
+
+$jpackageArgs = @(
+    "--type", "exe",
+    "--name", "AhaKeyStudio",
+    "--app-version", $AppVersion,
+    "--vendor", "AhaKey",
+    "--description", "AhaKey Studio - Keyboard Configuration Tool",
+    "--icon", $baselineIcon,
+    "--input", $inputDir,
+    "--main-jar", "ahakey-studio-$AppVersion.jar",
+    "--main-class", "com.example.ahakey.App",
+    "--dest", $installerDir,
+    "--temp", $jpackageTemp,
+    "--runtime-image", $baselineRuntime,
+    "--install-dir", "AhaKeyStudio",
+    "--resource-dir", $windowsResourceDir,
+    "--win-dir-chooser",
+    "--win-shortcut",
+    "--win-menu",
+    "--win-menu-group", "AhaKey",
+    # Keep the safe upgrade line introduced in 1.2.5. The custom WiX UI lets
+    # the user choose a parent directory while INSTALLDIR always remains the
+    # AhaKeyStudio child directory, so uninstall cannot own the broad parent.
+    "--win-upgrade-uuid", $productUpgradeCode,
+    "--java-options", "--add-opens=javafx.graphics/com.sun.javafx.application=ALL-UNNAMED",
+    "--java-options", "--add-opens=javafx.controls/com.sun.javafx.scene.control=ALL-UNNAMED",
+    "--java-options", "--add-opens=javafx.fxml/com.sun.javafx.fxml=ALL-UNNAMED",
+    "--java-options", "-Dprism.allowhidpi=true",
+    "--java-options", "-Dapp.version=$AppVersion"
+)
+if (-not [string]::IsNullOrWhiteSpace($UpdateManifestUrl)) {
+    $jpackageArgs += @(
+        "--java-options",
+        "-Dahakey.update.manifestUrl=$UpdateManifestUrl"
+    )
+}
+
+& $jpackage @jpackageArgs
+if ($LASTEXITCODE -ne 0) {
+    throw "jpackage failed with exit code $LASTEXITCODE"
+}
+
+# Validate jpackage's generated WiX directory tree, not only the source
+# templates. This guards against a future JDK/template change that could make
+# INSTALLDIR point at the broad user-selected parent again.
+$generatedConfigDir = Join-Path $jpackageTemp "config"
+$generatedBundlePath = Join-Path $generatedConfigDir "bundle.wxf"
+$generatedMainPath = Join-Path $generatedConfigDir "main.wxs"
+$generatedUiPath = Join-Path $generatedConfigDir "ui.wxf"
+foreach ($generatedResource in @(
+    $generatedBundlePath,
+    $generatedMainPath,
+    $generatedUiPath
+)) {
+    if (-not (Test-Path -LiteralPath $generatedResource -PathType Leaf)) {
+        throw "Generated Windows installer resource is missing: $generatedResource"
+    }
+}
+
+$bundleXml = New-Object System.Xml.XmlDocument
+$bundleXml.LoadXml([IO.File]::ReadAllText($generatedBundlePath))
+$installDirNode = $bundleXml.SelectSingleNode(
+    "//*[local-name()='Directory' and @Id='INSTALLDIR']"
+)
+if ($null -eq $installDirNode -or
+    $installDirNode.GetAttribute("Name") -ne "AhaKeyStudio" -or
+    $null -eq $installDirNode.ParentNode -or
+    $installDirNode.ParentNode.GetAttribute("Id") -ne "ProgramFiles64Folder") {
+    throw "Unsafe installer layout: INSTALLDIR must be ProgramFiles64Folder/AhaKeyStudio."
+}
+
+$generatedMain = [IO.File]::ReadAllText($generatedMainPath)
+$generatedUi = [IO.File]::ReadAllText($generatedUiPath)
+if ($generatedUi -notmatch 'WIXUI_INSTALLDIR"\s+Value="ProgramFiles64Folder"' -or
+    $generatedUi -notmatch 'AhaKeyInstallParentDlg') {
+    throw "Unsafe installer UI: the chooser must edit only the install parent."
+}
+if ($generatedMain -notmatch 'AHAKEY_PREVIOUS_INSTALLDIR' -or
+    $generatedMain -notmatch 'AhaKeyRememberInstallDir') {
+    throw "Installer upgrade-path persistence was not included."
+}
+if ($generatedMain -notmatch [regex]::Escape($legacyUpgradeCode) -or
+    $generatedMain -notmatch 'AHAKEY_LEGACY_UPGRADE_FOUND' -or
+    $generatedMain -notmatch 'RemoveExistingProducts') {
+    throw "Legacy 1.0.0 upgrade detection/removal was not included."
+}
+if ((Get-Content -LiteralPath (Join-Path $windowsResourceDir "main.wxs") -Raw) -notmatch
+    [regex]::Escape($legacyUpgradeCode)) {
+    throw "Legacy UpgradeCode is missing from the controlled WiX source."
+}
+Write-Output "WINDOWS_UPGRADE_PATH_VALIDATION=OK"
+Write-Output "WINDOWS_INSTALLER_LAYOUT_VALIDATION=OK"
+
+$generated = Join-Path $installerDir "AhaKeyStudio-$AppVersion.exe"
+$final = Join-Path $installerDir `
+    "AhaKey-Studio-$AppVersion-Setup.exe"
+if (-not (Test-Path -LiteralPath $generated)) {
+    throw "jpackage output was not found: $generated"
+}
+if (Test-Path -LiteralPath $final -PathType Leaf) {
+    Remove-Item -LiteralPath $final -Force
+}
+Move-Item -LiteralPath $generated -Destination $final
+$signature = Get-AuthenticodeSignature -LiteralPath $final
+if (-not $InternalValidationOnly -and
+    $signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid) {
+    throw "Formal release installer must have a Valid Authenticode signature; status=$($signature.Status)"
+}
+if ($signature.Status -eq [System.Management.Automation.SignatureStatus]::Valid) {
+    Write-Output "AUTHENTICODE_SIGNATURE=VALID"
+    Write-Output "SIGNED=YES"
+} else {
+    Write-Output "AUTHENTICODE_SIGNATURE=$($signature.Status)"
+    Write-Output "SIGNED=NO"
+}
+if ($InternalValidationOnly) {
+    Write-Output "PACKAGE_MODE=INTERNAL_INSTALL_VALIDATION_ONLY"
+}
+Write-Output "INSTALLER=$final"
+$stableFinal = Join-Path $installerDir "AhaKey-Studio-Setup.exe"
+Copy-Item -LiteralPath $final -Destination $stableFinal -Force
+Write-Output "INSTALLER_STABLE=$stableFinal"

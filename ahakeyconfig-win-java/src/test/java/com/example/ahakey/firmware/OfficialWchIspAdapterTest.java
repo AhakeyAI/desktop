@@ -1,0 +1,245 @@
+package com.example.ahakey.firmware;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.TimeUnit;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class OfficialWchIspAdapterTest {
+    @TempDir Path temporary;
+
+    @Test
+    void detectDeviceIsOneShotPresenceAndDoesNotRunUidCli() throws Exception {
+        RuntimeBundle runtime = runtime();
+        AtomicReference<Boolean> runnerCalled = new AtomicReference<>(false);
+        DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
+            () -> runtime, () -> true,
+            new WchIspRunner((command, cancellation) -> {
+                runnerCalled.set(true);
+                throw new AssertionError("detection must not invoke -u get");
+            }));
+
+        OfficialWchIspAdapter.DeviceDetectionResult result = adapter.detectDevice();
+
+        assertTrue(result.ispPresent());
+        assertTrue(result.uid().isEmpty(), "UID is optional in the adapter first phase");
+        assertTrue(result.detail().contains("UID=OPTIONAL_NOT_QUERIED"));
+        assertFalse(runnerCalled.get());
+    }
+
+    @Test
+    void flashFirmwareUsesOfficialConfigAndDownloadArgumentsWithoutUidQuery() throws Exception {
+        RuntimeBundle runtime = runtime();
+        Path hex = temporary.resolve("firmware.hex");
+        Files.writeString(hex, ":0400000001020304F2\n:00000001FF\n");
+        AtomicReference<List<String>> arguments = new AtomicReference<>();
+        DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
+            () -> runtime, () -> true,
+            new WchIspRunner((command, cancellation) -> {
+                arguments.set(command.arguments());
+                return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 42, 0,
+                    false, false, "", "",
+                    "{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}",
+                    Duration.ofMillis(8), false,
+                    Map.of(), "PROCESS_EXIT", List.of(42L));
+            }));
+
+        OfficialWchIspAdapter.FlashResult result = adapter.flashFirmware(hex);
+
+        assertTrue(result.success());
+        assertEquals("-c", arguments.get().get(0));
+        Path generatedConfig = Path.of(arguments.get().get(1));
+        assertTextCliConfig(generatedConfig, hex);
+        assertEquals(List.of("-o", "download", "-f", hex.toAbsolutePath().normalize().toString()),
+            arguments.get().subList(2, arguments.get().size()));
+        assertFalse(arguments.get().contains("-u"));
+        assertEquals(42, result.processResult().pid());
+        assertTrue(result.detail().contains("POST_VERIFY_REQUIRED=NO"));
+    }
+
+    @Test
+    void exitZeroWithoutVendorTerminalSuccessFailsClosed() throws Exception {
+        RuntimeBundle runtime = runtime();
+        Path hex = temporary.resolve("exit-zero-only.hex");
+        Files.writeString(hex, ":0400000001020304F2\n:00000001FF\n");
+        DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
+            () -> runtime, () -> true,
+            new WchIspRunner((command, cancellation) ->
+                new WchIspRunner.WchIspProcessResult(command.operationId(), true, 42, 0,
+                    false, false, "", "", "", Duration.ofMillis(1), false,
+                    Map.of(), "PROCESS_EXIT", List.of(42L))));
+
+        assertFalse(adapter.flashFirmware(hex).success());
+    }
+
+    @Test
+    void prepareFlashCreatesConfigBeforeLaunchAndArmsOnlyAfterDetection() throws Exception {
+        RuntimeBundle runtime = runtime();
+        Path hex = temporary.resolve("prepared.hex");
+        Files.writeString(hex, ":0400000001020304F2\n:00000001FF\n");
+        AtomicReference<Boolean> runnerCalled = new AtomicReference<>(false);
+        DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
+            () -> runtime, () -> true,
+            new WchIspRunner((command, cancellation) -> {
+                runnerCalled.set(true);
+                return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 7, 0,
+                    false, false, "", "", "", Duration.ofMillis(1), false,
+                    Map.of(), "PROCESS_EXIT", List.of(7L));
+            }));
+
+        UUID operationId = UUID.randomUUID();
+        Path operationDirectory = temporary.resolve("operation");
+        PreparedFlashSession session = adapter.prepareFlash(hex, operationId,
+            operationDirectory, runtime);
+
+        assertEquals(PreparedFlashSession.State.PREPARED, session.state());
+        assertTrue(Files.isRegularFile(session.configPath()));
+        assertEquals(List.of("-c", session.configPath().toString(), "-o", "download", "-f",
+            hex.toAbsolutePath().normalize().toString()), session.command().arguments());
+        assertTextCliConfig(session.configPath(), hex);
+        assertFalse(runnerCalled.get(), "preparation must not launch WCHISP");
+        assertNull(session.launchContext(),
+            "production preparation must not create a resident elevated worker");
+        assertFalse(session.elevatedWorkerPrepared(),
+            "READY marker/GO worker is not part of the production path");
+        assertTrue(session.markDeviceDetected());
+        assertTrue(session.markDeviceDetected(), "repeated ISP detection keeps the session armed");
+        adapter.flashPrepared(session, WchIspRunner.CancellationToken.NONE);
+        assertTrue(runnerCalled.get());
+        assertEquals(PreparedFlashSession.State.COMPLETED, session.state());
+    }
+
+    @Test
+    void latestSelectionOwnsFinalFlashPathIncludingStableBaseline79() throws Exception {
+        RuntimeBundle runtime = runtime();
+        Path first = temporary.resolve("A.hex");
+        Path stable79 = temporary.resolve("AhaKey-X1-firmware-stable-baseline-79.hex");
+        Files.writeString(first, ":0400000001020304F2\n:00000001FF\n");
+        Files.writeString(stable79, ":0400000001020304F2\n:00000001FF\n");
+        DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
+            () -> runtime, () -> true, new WchIspRunner((command, cancellation) -> {
+                throw new AssertionError("preparation must not launch WCHISP");
+            }));
+
+        adapter.prepareFlash(first, UUID.randomUUID(), temporary.resolve("first"), runtime);
+        PreparedFlashSession selected = adapter.prepareFlash(stable79, UUID.randomUUID(),
+            temporary.resolve("selected"), runtime);
+
+        int flag = selected.command().arguments().indexOf("-f");
+        assertEquals(stable79.toAbsolutePath().normalize().toString(),
+            selected.command().arguments().get(flag + 1));
+        assertEquals(stable79.toAbsolutePath().normalize(), selected.hexPath());
+    }
+
+    @Test
+    void productionPreparationUsesHistoricalLauncherWithoutPrestartWorker() throws Exception {
+        RuntimeBundle runtime = runtime();
+        Path hex = temporary.resolve("production-prepared.hex");
+        Files.writeString(hex, ":0400000001020304F2\n:00000001FF\n");
+        DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
+            () -> runtime, () -> true, null);
+
+        PreparedFlashSession session = adapter.prepareFlash(hex, UUID.randomUUID(),
+            temporary.resolve("production-operation"), runtime);
+
+        assertNull(session.launchContext());
+        assertFalse(session.elevatedWorkerPrepared());
+        assertEquals(List.of("-c", session.configPath().toString(), "-o", "download", "-f",
+            hex.toAbsolutePath().normalize().toString()), session.command().arguments());
+    }
+
+    @Test
+    void cancelledPreparedSessionCannotLaunchDownload() throws Exception {
+        RuntimeBundle runtime = runtime();
+        Path hex = temporary.resolve("cancelled.hex");
+        Files.writeString(hex, ":0400000001020304F2\n:00000001FF\n");
+        AtomicReference<Boolean> runnerCalled = new AtomicReference<>(false);
+        DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
+            () -> runtime, () -> true,
+            new WchIspRunner((command, cancellation) -> {
+                runnerCalled.set(true);
+                throw new AssertionError("cancelled session must not run");
+            }));
+        PreparedFlashSession session = adapter.prepareFlash(hex, UUID.randomUUID(),
+            temporary.resolve("cancelled-operation"), runtime);
+        session.markDeviceDetected();
+        assertTrue(session.cancel());
+        assertThrows(Exception.class, () -> adapter.flashPrepared(session,
+            WchIspRunner.CancellationToken.NONE));
+        assertFalse(runnerCalled.get());
+    }
+
+    @Test
+    void firmwareServiceProductionSeamUsesAdapterAndKeepsUidOptional() throws Exception {
+        RuntimeBundle runtime = runtime();
+        Path hex = temporary.resolve("service-firmware.hex");
+        Files.writeString(hex, ":0400000001020304F2\n:00000001FF\n");
+        AtomicReference<Integer> detectCalls = new AtomicReference<>(0);
+        AtomicReference<Integer> flashCalls = new AtomicReference<>(0);
+        OfficialWchIspAdapter adapter = new OfficialWchIspAdapter() {
+            @Override public DeviceDetectionResult detectDevice() {
+                detectCalls.updateAndGet(value -> value + 1);
+                return DeviceDetectionResult.present(runtime, "official detection");
+            }
+            @Override public FlashResult flashFirmware(Path ignored) {
+                flashCalls.updateAndGet(value -> value + 1);
+                return new FlashResult(true, "official flash", null, runtime);
+            }
+        };
+        FirmwarePostVerifier verifier = new FirmwarePostVerifier(
+            () -> new com.example.ahakey.protocol.AhaKeyResponseParser.DeviceCapabilities(
+                3, 2, 1, 4, 0, FirmwareCapabilities.REQUIRED_CAPABILITY_MASK, 8, 1),
+            () -> true, millis -> { });
+        FirmwareUpdateService service = new FirmwareUpdateService(adapter, () -> runtime,
+            verifier, new FirmwareUpdateDiagnostics(temporary.resolve("service-diagnostics")), temporary);
+        try {
+            FirmwareUpdateRequest request = new FirmwareUpdateRequest(hex, null, null, true, false);
+            FirmwareUpdateResult result = service.start(request).handle().completion()
+                .get(5, TimeUnit.SECONDS);
+            assertTrue(result.success(), result.detail());
+            assertEquals(1, detectCalls.get());
+            assertEquals(1, flashCalls.get());
+            assertTrue(Files.isRegularFile(result.diagnosticDirectory().resolve("adapter-detection.txt")));
+            assertFalse(result.detail().contains("UID_QUERY_FAILED"));
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    private void assertTextCliConfig(Path generated, Path hex) throws Exception {
+        Path normalizedHex = hex.toAbsolutePath().normalize();
+        String expected = WchIspConfig.forCh582(normalizedHex);
+        byte[] bytes = Files.readAllBytes(generated);
+        String actual = new String(bytes, StandardCharsets.UTF_8);
+
+        assertEquals("flash-config.ini", generated.getFileName().toString());
+        assertFalse(generated.getFileName().toString().endsWith(".WCH"));
+        assertArrayEquals(expected.getBytes(StandardCharsets.UTF_8), bytes,
+            "CLI config must be the exact UTF-8 WchIspConfig output");
+        assertEquals(expected, actual);
+        assertTrue(actual.contains("MCUName=CH582"));
+        assertTrue(actual.contains("swzUserFile1=" + normalizedHex));
+        assertTrue(actual.contains("IsUserFile1Sel=1"));
+        assertTrue(actual.contains("IsClearDataFlash=0"));
+    }
+
+    private RuntimeBundle runtime() {
+        Path root = temporary.resolve("runtime");
+        Path exe = root.resolve(WchIspRuntimeProvider.EXECUTABLE_NAME);
+        return new RuntimeBundle(root, exe, root.resolve("CH343PT.DLL"),
+            root.resolve("WCH55xISPDLL.dll"), root.resolve("CONFIG_CH57X59X.WCH"), null,
+            new RuntimeIdentity(Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                "exe", "ch343", "isp", "config", RuntimeIdentity.ValidationStatus.UNKNOWN));
+    }
+}

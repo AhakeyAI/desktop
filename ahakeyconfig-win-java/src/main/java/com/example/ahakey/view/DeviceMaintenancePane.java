@@ -1,0 +1,903 @@
+package com.example.ahakey.view;
+
+import static com.example.ahakey.util.LanguageManager.localize;
+
+import com.example.ahakey.app.StudioController;
+import com.example.ahakey.firmware.FirmwareCapabilities;
+import com.example.ahakey.firmware.FirmwareOperationHandle;
+import com.example.ahakey.firmware.FirmwareUpdateRequest;
+import com.example.ahakey.firmware.FirmwareUpdateService;
+import com.example.ahakey.firmware.FirmwareUpdateState;
+import com.example.ahakey.firmware.PreparationGeneration;
+import com.example.ahakey.model.DeviceStatus;
+import com.example.ahakey.protocol.AhaKeyProtocol;
+import com.example.ahakey.protocol.AhaKeyResponseParser;
+import com.example.ahakey.service.BleManager;
+import com.example.ahakey.update.AssetDownloader;
+import com.example.ahakey.update.SemanticVersion;
+import com.example.ahakey.update.StableReleaseClient;
+import javafx.application.Platform;
+import javafx.geometry.Insets;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.Label;
+import javafx.scene.control.ProgressBar;
+import javafx.scene.control.TitledPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
+import javafx.stage.Stage;
+import javafx.stage.WindowEvent;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Locale;
+import java.util.Optional;
+
+/** Firmware management and USB-only device factory reset cards. */
+public final class DeviceMaintenancePane {
+    static final String BUNDLED_FIRMWARE_VERSION =
+        FirmwareCapabilities.BUNDLED_VERSION.toString();
+    static final String BUNDLED_FIRMWARE_NAME =
+        FirmwareCapabilities.INSTALLED_BUNDLED_FIRMWARE_NAME;
+    static final String FLASH_COMPLETION_MESSAGE_ZH =
+        "固件烧录完成，请退出 ISP 并以普通模式重新连接设备。";
+    static final String FLASH_COMPLETION_MESSAGE_EN =
+        "Firmware flashing completed. Exit ISP mode and reconnect the device normally.";
+    static final String FLASH_COMPLETION_STATUS_ZH =
+        "WCHISP 已完成固件写入。请退出 ISP 并以普通模式重新连接设备；本次流程未自动读取设备版本。";
+    static final String FLASH_COMPLETION_STATUS_EN =
+        "WCHISP completed firmware writing. Exit ISP mode and reconnect the device normally; "
+            + "this operation did not automatically read back the device version.";
+    private final StudioController controller;
+    private final BleManager bleManager;
+    private final DeviceStatus deviceStatus;
+    private final FirmwareUpdateService firmwareUpdateService;
+
+    public DeviceMaintenancePane(StudioController controller) {
+        this.controller = controller;
+        this.bleManager = controller.getBleManager();
+        this.deviceStatus = controller.getDeviceStatus();
+        this.firmwareUpdateService = controller.getFirmwareUpdateService();
+    }
+
+    public VBox create(Stage owner) {
+        return new VBox(12, firmwareCard(owner), resetCard(owner));
+    }
+
+    private VBox firmwareCard(Stage owner) {
+        VBox card = card();
+        Label title = title(text(localize("固件管理（CH582）"), "Firmware Management (CH582)"));
+        Label description = body(text(
+            localize("支持安装包内置固件、ahakey.com 最新固件和本地 .hex。普通更新保留设备数据。"),
+            "Use bundled, latest ahakey.com, or local .hex firmware. Normal updates preserve device data."
+        ));
+        Label selected = body(text(localize("尚未选择固件"), "No firmware selected"));
+        Label status = body(text(
+            localize("烧录前：断开设备，按住最左侧“语音输入键”，再插入 USB。"),
+            "Before flashing: unplug, hold the leftmost Voice Input key, then connect USB."
+        ));
+        ProgressBar progress = new ProgressBar(0);
+        progress.setMaxWidth(Double.MAX_VALUE);
+        progress.setVisible(false);
+        progress.setManaged(false);
+
+        CheckBox allowDowngrade = new CheckBox(text(
+            localize("高级选项：我了解风险，允许降级"),
+            "Advanced: I understand the risk and allow downgrade"
+        ));
+        CheckBox allowUnknown = new CheckBox(text(
+            localize("我了解本地固件版本未知的风险"),
+            "I understand the risk of unknown local firmware"
+        ));
+        allowUnknown.setVisible(false);
+        allowUnknown.setManaged(false);
+
+        final Path[] firmware = {null};
+        final FirmwareUpdateRequest.Source[] firmwareSource = {
+            FirmwareUpdateRequest.Source.LOCAL
+        };
+        final SemanticVersion[] targetVersion = {null};
+        final SemanticVersion[] currentVersion = {
+            controller.getLastKnownFirmwareVersion()
+        };
+        final SemanticVersion[] pendingFlashVersion = {
+            controller.getPendingFirmwareVersion()
+        };
+        final boolean[] unknownVersion = {false};
+        final FirmwareUpdateService.PreparedFirmwareOperation[] preparedOperation = {null};
+        final PreparationGeneration preparationGeneration = new PreparationGeneration();
+        final boolean[] preparing = {false};
+        final TitledPane[] steps = new TitledPane[4];
+        final String[] diagnosticReport = {""};
+        final FirmwareOperationHandle[] activeOperation = {null};
+
+        Button bundled = new Button(text(
+            localize("选择内置 ") + BUNDLED_FIRMWARE_VERSION,
+            "Bundled " + BUNDLED_FIRMWARE_VERSION
+        ));
+        Button latest = new Button(text(localize("下载最新固件"), "Download Latest"));
+        Button local = new Button(text(localize("选择本地 .hex"), "Choose Local .hex"));
+        Button flash = new Button(text(localize("开始烧录"), "Flash Firmware"));
+        Button cancelFlash = new Button(text(localize("取消烧录"), "Cancel Flash"));
+        cancelFlash.setDisable(true);
+        Button readDeviceVersion = new Button(text(localize("读取设备版本"), "Read Device Version"));
+        Label detectedVersion = body(text(
+            localize("当前设备固件：尚未读取"),
+            "Current device firmware: not read"
+        ));
+        detectedVersion.setWrapText(true);
+        if (currentVersion[0] != null) {
+            detectedVersion.setText(text(
+                localize("当前设备固件（已缓存）："),
+                "Current device firmware (cached): "
+            ) + currentVersion[0]);
+        }
+        flash.getStyleClass().add("button-prominent");
+        flash.setDisable(true);
+        Label flashRequirement = body("");
+        Label ispStatus = body("");
+        Button diagnose = new Button(text(
+            "检测烧录环境和 ISP", "Check Environment and ISP"));
+        Button exportDiagnostic = new Button(text("导出诊断报告", "Export Diagnostic Report"));
+        diagnose.setDisable(true);
+        exportDiagnostic.setDisable(true);
+
+        Runnable updateFlashState = () -> {
+            String block = flashBlockReason(
+                firmware[0] != null,
+                targetVersion[0],
+                currentVersion[0],
+                unknownVersion[0],
+                allowUnknown.isSelected(),
+                allowDowngrade.isSelected()
+            );
+            boolean preparedArmed = preparedOperation[0] != null
+                && preparedOperation[0].armed();
+            flash.setDisable(!canStartFlash(block, preparedArmed));
+            flashRequirement.setText(switch (block) {
+                case "FIRMWARE_REQUIRED" -> text(
+                    localize("请先在第 2 步选择固件。"),
+                    "Choose firmware in step 2 first.");
+                case "UNKNOWN_CONFIRMATION_REQUIRED" -> text(
+                    localize("本地固件版本未知，需要勾选风险确认。"),
+                    "Confirm the risk for unknown local firmware.");
+                case "CURRENT_VERSION_REQUIRED" -> text(
+                    localize("请先在普通连接模式完成第 1 步版本读取。"),
+                    "Read the device version in normal mode in step 1 first.");
+                case "DOWNGRADE_CONFIRMATION_REQUIRED" -> text(
+                    localize("检测到固件降级，默认禁止。"),
+                    "Firmware downgrade detected and blocked by default.");
+                default -> preparedArmed ? text(
+                    "条件已满足，可以开始烧录。",
+                    "All prerequisites are satisfied; flashing is ready.") : (preparing[0] ? text(
+                        "正在准备烧录环境。",
+                        "Preparing the flash environment.") : text(
+                        "请先完成第 3 步烧录环境检查。",
+                        "Complete the flash environment check in step 3."));
+            });
+            if (block.isEmpty() && preparedArmed) {
+                expandStep(steps, 3);
+            }
+        };
+        Runnable invalidatePrepared = () -> {
+            preparationGeneration.invalidate();
+            FirmwareUpdateService.PreparedFirmwareOperation old = preparedOperation[0];
+            preparedOperation[0] = null;
+            preparing[0] = false;
+            diagnose.setDisable(true);
+            exportDiagnostic.setDisable(true);
+            if (old != null) firmwareUpdateService.discardPrepared(old);
+        };
+        Runnable[] beginPreparation = {null};
+        beginPreparation[0] = () -> {
+            invalidatePrepared.run();
+            String block = flashBlockReason(
+                firmware[0] != null,
+                targetVersion[0],
+                currentVersion[0],
+                unknownVersion[0],
+                allowUnknown.isSelected(),
+                allowDowngrade.isSelected()
+            );
+            updateFlashState.run();
+            if (!block.isEmpty()) {
+                ispStatus.setText(text(
+                    "请先满足固件版本和风险确认条件，再准备烧录环境。",
+                    "Complete firmware version and risk prerequisites before preparing."));
+                return;
+            }
+            FirmwareUpdateRequest request = new FirmwareUpdateRequest(
+                firmware[0], targetVersion[0], currentVersion[0],
+                allowUnknown.isSelected(), allowDowngrade.isSelected(), firmwareSource[0]);
+            long generation = preparationGeneration.begin();
+            preparing[0] = true;
+            diagnose.setDisable(true);
+            ispStatus.setText(text(
+                "正在准备烧录环境（不会启动 WCHISP）…",
+                "Preparing the flash environment (WCHISP will not start)…"));
+            updateFlashState.run();
+            daemon("firmware-preparation", () -> {
+                FirmwareUpdateService.PreparationResult result =
+                    firmwareUpdateService.prepareFlash(request);
+                Platform.runLater(() -> {
+                    if (!preparationGeneration.isCurrent(generation)) {
+                        if (result.operation() != null) {
+                            firmwareUpdateService.discardPrepared(result.operation());
+                        }
+                        return;
+                    }
+                    preparing[0] = false;
+                    if (result.prepared()) {
+                        preparedOperation[0] = result.operation();
+                        diagnose.setDisable(false);
+                        ispStatus.setText(text(
+                            "烧录环境已准备完成。请进入 ISP 后执行第 3 步检测。",
+                            "Flash environment prepared. Enter ISP, then run step 3 detection."));
+                    } else {
+                        preparedOperation[0] = null;
+                        diagnose.setDisable(true);
+                        ispStatus.setText(text(
+                            "烧录环境准备失败：", "Flash environment preparation failed: ")
+                            + result.detail());
+                    }
+                    updateFlashState.run();
+                });
+            });
+        };
+        allowUnknown.selectedProperty().addListener((o, a, b) -> {
+            beginPreparation[0].run();
+        });
+        allowDowngrade.selectedProperty().addListener((o, a, b) -> {
+            beginPreparation[0].run();
+        });
+
+        readDeviceVersion.setOnAction(event -> {
+            if (!deviceStatus.isConnected()) {
+                detectedVersion.setText(text(
+                    localize("当前设备固件：请先正常连接设备"),
+                    "Current device firmware: connect the device normally first"
+                ));
+                return;
+            }
+            readDeviceVersion.setDisable(true);
+            detectedVersion.setText(text(
+                localize("当前设备固件：正在读取…"),
+                "Current device firmware: reading…"
+            ));
+            daemon("firmware-read-version", () -> {
+                try {
+                    var caps = bleManager.queryDeviceCapabilities();
+                    if (caps == null && bleManager.lacksCapabilityQuery()) {
+                        throw new IllegalStateException(text(
+                            localize("这把键盘的固件较早，读不到版本号。如需更新固件，请勾选“高级选项：我了解风险，允许降级”后继续"),
+                            "This keyboard runs older firmware that cannot report its version. To update it, tick \"Advanced: I understand the risk and allow downgrade\" and continue"
+                        ));
+                    }
+                    if (caps == null && bleManager.isCatalogKeyFirmware()) {
+                        throw new IllegalStateException(text(
+                            localize("当前键盘是新一代固件，这个客户端版本读不到它的版本号"),
+                            "This keyboard runs newer firmware; this client version cannot read its version"
+                        ));
+                    }
+                    if (caps == null) {
+                        throw new IllegalStateException(text(
+                            localize("设备未返回有效的 0x9F 版本信息"),
+                            "The device did not return valid 0x9F version information"
+                        ));
+                    }
+                    SemanticVersion version = new SemanticVersion(
+                        caps.firmwareMajor(),
+                        caps.firmwareMinor(),
+                        caps.firmwarePatch()
+                    );
+                    currentVersion[0] = version;
+                    controller.setLastKnownFirmwareVersion(version);
+                    String value = text(localize("当前设备固件："), "Current device firmware: ")
+                        + version
+                        + text(localize("；协议 "), "; protocol ")
+                        + caps.protocolMajor() + "." + caps.protocolMinor()
+                        + text(localize("；能力位 0x"), "; capabilities 0x")
+                        + String.format("%08X", caps.capabilityBits());
+                    Platform.runLater(() -> {
+                        detectedVersion.setText(value);
+                        if (firmware[0] != null) {
+                            beginPreparation[0].run();
+                        }
+                        updateFlashState.run();
+                        expandStep(steps, 1);
+                        SemanticVersion expected = controller.getPendingFirmwareVersion();
+                        if (expected == null) {
+                            return;
+                        }
+                        pendingFlashVersion[0] = null;
+                        controller.setPendingFirmwareVersion(null);
+                        if (expected.equals(version)) {
+                            status.setText(text(
+                                localize("固件升级成功，设备当前版本为 "),
+                                "Firmware update succeeded; device version is "
+                            ) + version);
+                            show(owner, Alert.AlertType.INFORMATION,
+                                text(localize("固件升级成功"), "Firmware Update Succeeded"),
+                                text(localize("已从设备读取到目标版本 "), "The device reported target version ")
+                                    + expected + "。");
+                        } else {
+                            status.setText(text(
+                                localize("烧录未生效：目标版本 "),
+                                "Flash did not take effect: target "
+                            ) + expected + text(localize("，设备仍为 "), ", device still reports ")
+                                + version);
+                            show(owner, Alert.AlertType.ERROR,
+                                text(localize("固件升级未生效"), "Firmware Update Did Not Take Effect"),
+                                text(localize("目标版本为 "), "Target version is ") + expected
+                                    + text(localize("，但设备返回 "), ", but the device reported ")
+                                    + version + "。\n\n"
+                                    + text(
+                                        localize("请重新进入 ISP 模式后点击“重新烧录”。"),
+                                        "Re-enter ISP mode and click Flash Firmware again."
+                                    ));
+                        }
+                    });
+                } catch (Exception exception) {
+                    Platform.runLater(() -> detectedVersion.setText(
+                        text(localize("版本读取失败："), "Version read failed: ")
+                            + exception.getMessage()
+                    ));
+                } finally {
+                    Platform.runLater(() -> readDeviceVersion.setDisable(false));
+                }
+            });
+        });
+
+        bundled.setOnAction(event -> {
+            Path path = bundledFirmwarePath();
+            if (!Files.isRegularFile(path)) {
+                show(owner, Alert.AlertType.WARNING,
+                    text(localize("内置固件尚未生成"), "Bundled Firmware Missing"),
+                    text(localize("请先执行安全发布构建，将 ") + BUNDLED_FIRMWARE_VERSION + localize(" 固件放入安装包。"),
+                        "Run the safe release build and include firmware "
+                            + BUNDLED_FIRMWARE_VERSION + " first."));
+                return;
+            }
+            firmware[0] = path;
+            firmwareSource[0] = FirmwareUpdateRequest.Source.BUILTIN;
+            targetVersion[0] = SemanticVersion.parse(BUNDLED_FIRMWARE_VERSION);
+            currentVersion[0] = controller.getLastKnownFirmwareVersion();
+            unknownVersion[0] = false;
+            allowUnknown.setVisible(false);
+            allowUnknown.setManaged(false);
+            selected.setText(path.getFileName().toString());
+            expandStep(steps, 2);
+            beginPreparation[0].run();
+        });
+
+        local.setOnAction(event -> {
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle(text(localize("选择 CH582 固件"), "Choose CH582 Firmware"));
+            chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Intel HEX (*.hex)", "*.hex")
+            );
+            var chosen = chooser.showOpenDialog(owner);
+            if (chosen == null) {
+                return;
+            }
+            firmware[0] = chosen.toPath();
+            firmwareSource[0] = FirmwareUpdateRequest.Source.LOCAL;
+            targetVersion[0] = versionFromFilename(chosen.getName()).orElse(null);
+            currentVersion[0] = controller.getLastKnownFirmwareVersion();
+            unknownVersion[0] = targetVersion[0] == null;
+            allowUnknown.setSelected(false);
+            allowUnknown.setVisible(unknownVersion[0]);
+            allowUnknown.setManaged(unknownVersion[0]);
+            selected.setText(chosen.getName());
+            expandStep(steps, 2);
+            beginPreparation[0].run();
+        });
+
+        latest.setOnAction(event -> {
+            setBusy(true, progress, bundled, latest, local, flash);
+            status.setText(text(
+                localize("正在读取 ahakey.com 稳定版本…"),
+                "Checking the ahakey.com stable release…"));
+            daemon("firmware-release", () -> {
+                try {
+                    var release = new StableReleaseClient().fetchLatest()
+                        .orElseThrow(() -> new IllegalStateException(localize("尚未发布稳定版本")));
+                    var asset = release.ch582Firmware()
+                        .orElseThrow(() -> new IllegalStateException(localize("稳定版本中没有 CH582 固件")));
+                    Path destination = Path.of(
+                        System.getProperty("user.home"), ".ahakey", "downloads",
+                        asset.asset().name()
+                    );
+                    new AssetDownloader().download(
+                        asset.asset(),
+                        destination,
+                        (done, total) -> Platform.runLater(() ->
+                            progress.setProgress(total > 0 ? (double) done / total : -1))
+                    );
+                    Platform.runLater(() -> {
+                        firmware[0] = destination;
+                        firmwareSource[0] = FirmwareUpdateRequest.Source.REMOTE;
+                        targetVersion[0] = asset.version();
+                        currentVersion[0] = controller.getLastKnownFirmwareVersion();
+                        unknownVersion[0] = false;
+                        allowUnknown.setVisible(false);
+                        allowUnknown.setManaged(false);
+                        selected.setText(asset.asset().name());
+                        expandStep(steps, 2);
+                        status.setText(text(
+                            localize("下载完成并通过固件格式检查。"),
+                            "Downloaded and firmware format validated."));
+                        setBusy(false, progress, bundled, latest, local, flash);
+                        beginPreparation[0].run();
+                    });
+                } catch (Exception exception) {
+                    Platform.runLater(() -> {
+                        status.setText(text(localize("下载失败："), "Download failed: ") + exception.getMessage());
+                        setBusy(false, progress, bundled, latest, local, flash);
+                        updateFlashState.run();
+                    });
+                }
+            });
+        });
+
+        flash.setOnAction(event -> {
+            FirmwareUpdateService.PreparedFirmwareOperation prepared = preparedOperation[0];
+            if (prepared == null || !prepared.armed()) {
+                expandStep(steps, 2);
+                updateFlashState.run();
+                return;
+            }
+            expandStep(steps, 3);
+            setBusy(true, progress, bundled, latest, local, flash);
+            diagnose.setDisable(true);
+            status.setText(text("正在调用 WCHISP…", "Starting WCHISP…"));
+            java.util.function.Consumer<com.example.ahakey.firmware.FirmwareUpdateStatus> listener = update -> {
+                Platform.runLater(() -> {
+                    progress.setProgress(update.progress());
+                    boolean flashing = update.state() == FirmwareUpdateState.FLASHING;
+                    cancelFlash.setDisable(flashing || update.state().terminal());
+                    status.setText(flashing
+                        ? text("烧录进行中，请勿断开设备，本阶段不可取消",
+                            "Flashing is in progress; do not disconnect. Cancellation is unavailable.")
+                        : update.detail());
+                });
+            };
+            firmwareUpdateService.addListener(listener);
+            FirmwareUpdateService.OperationStart admission =
+                firmwareUpdateService.startPrepared(prepared);
+            if (!admission.accepted()) {
+                firmwareUpdateService.removeListener(listener);
+                setBusy(false, progress, bundled, latest, local, flash);
+                status.setText(admission.rejection().detail());
+                show(owner, Alert.AlertType.WARNING,
+                    text(localize("烧录正在进行"), "Firmware operation is busy"), admission.rejection().detail());
+                return;
+            }
+            FirmwareOperationHandle operation = admission.handle();
+            activeOperation[0] = operation;
+            cancelFlash.setDisable(false);
+            operation.completion().whenComplete((result, failure) -> Platform.runLater(() -> {
+                firmwareUpdateService.removeListener(listener);
+                activeOperation[0] = null;
+                cancelFlash.setDisable(true);
+                preparedOperation[0] = null;
+                preparationGeneration.invalidate();
+                preparing[0] = false;
+                diagnose.setDisable(true);
+                setBusy(false, progress, bundled, latest, local, flash);
+                updateFlashState.run();
+                if (failure != null) {
+                    expandStep(steps, 2);
+                    show(owner, Alert.AlertType.ERROR,
+                        text(localize("固件更新失败"), "Firmware Update Failed"), failure.getMessage());
+                } else if (result.success()) {
+                    pendingFlashVersion[0] = targetVersion[0];
+                    controller.setPendingFirmwareVersion(targetVersion[0]);
+                    status.setText(text(FLASH_COMPLETION_STATUS_ZH, FLASH_COMPLETION_STATUS_EN));
+                    show(owner, Alert.AlertType.INFORMATION,
+                        text("固件烧录完成", "Firmware Flashing Completed"),
+                        text(FLASH_COMPLETION_MESSAGE_ZH, FLASH_COMPLETION_MESSAGE_EN));
+                } else {
+                    expandStep(steps, 2);
+                    show(owner, Alert.AlertType.ERROR,
+                        text(localize("固件更新失败"), "Firmware Update Failed"), result.detail());
+                }
+            }));
+        });
+        cancelFlash.setOnAction(event -> {
+            FirmwareOperationHandle operation = activeOperation[0];
+            if (operation != null && operation.cancel()) {
+                cancelFlash.setDisable(true);
+                status.setText(text(localize("正在取消烧录…"), "Cancelling firmware operation…"));
+            }
+        });
+
+        owner.addEventHandler(WindowEvent.WINDOW_HIDDEN, event -> {
+            FirmwareOperationHandle operation = activeOperation[0];
+            if (operation != null && shouldCancelWhenWindowHidden(operation.state())) {
+                operation.cancel();
+            }
+            invalidatePrepared.run();
+        });
+
+        exportDiagnostic.setDisable(true);
+        diagnose.setOnAction(event -> {
+            FirmwareUpdateService.PreparedFirmwareOperation prepared = preparedOperation[0];
+            if (prepared == null) {
+                updateFlashState.run();
+                return;
+            }
+            updateFlashState.run();
+            diagnose.setDisable(true);
+            ispStatus.setText(text(localize("正在检查 WCHISP 工具、配置和 CH582 ISP 设备…"),
+                "Checking WCHISP tools, configuration, and the CH582 ISP device…"));
+            daemon("wchisp-diagnostics", () -> {
+                StringBuilder report = new StringBuilder("AhaKey WCHISP diagnostics\n");
+                FirmwareUpdateService.DiagnosticResult result =
+                    firmwareUpdateService.diagnose(prepared);
+                report.append(result.ready() ? "ENVIRONMENT=READY\n" : "ENVIRONMENT=NOT_READY\n");
+                report.append("RUNTIME_READY=").append(result.runtimeReady() ? "YES" : "NO").append('\n');
+                report.append("ISP_PRESENT=").append(result.ispPresent() ? "YES" : "NO").append('\n');
+                report.append("CHIP_MATCHED=").append(result.chipMatched() ? "YES" : "NO").append('\n');
+                report.append("CHIP_MATCH_STATUS=").append(result.chipMatchStatus()).append('\n');
+                report.append("CHIP_GATE_ALLOWED=").append(result.chipGateAllowed() ? "YES" : "NO").append('\n');
+                report.append("OFFICIAL_ADAPTER_READY=").append(result.officialAdapterReady() ? "YES" : "NO").append('\n');
+                report.append("UID_CONFIRMED=").append(result.uidConfirmed() ? "YES" : "NO").append('\n');
+                report.append(result.detail()).append('\n');
+                diagnosticReport[0] = report.toString();
+                Platform.runLater(() -> {
+                    if (preparedOperation[0] != prepared) {
+                        return;
+                    }
+                    diagnose.setDisable(!(result.officialAdapterReady() && prepared.armed()));
+                    exportDiagnostic.setDisable(false);
+                    ispStatus.setText(diagnosticReport[0]);
+                    updateFlashState.run();
+                });
+            });
+        });
+        exportDiagnostic.setOnAction(event -> {
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle(text(localize("导出烧录诊断报告"), "Export Flash Diagnostics"));
+            chooser.setInitialFileName("ahakey-wchisp-diagnostics.txt");
+            var file = chooser.showSaveDialog(owner);
+            if (file == null) return;
+            try {
+                Files.writeString(file.toPath(), diagnosticReport[0],
+                    java.nio.charset.StandardCharsets.UTF_8);
+            } catch (Exception exception) {
+                show(owner, Alert.AlertType.ERROR,
+                    text(localize("导出失败"), "Export Failed"), exception.getMessage());
+            }
+        });
+
+        HBox sources = new HBox(8, bundled, latest, local);
+        HBox version = new HBox(8, readDeviceVersion, detectedVersion);
+        HBox.setHgrow(detectedVersion, Priority.ALWAYS);
+        steps[0] = step(text(localize("1. 读取设备版本"), "1. Read Device Version"), version, true);
+        steps[1] = step(text(localize("2. 选择固件"), "2. Choose Firmware"),
+            new VBox(8, sources, selected, allowUnknown, allowDowngrade), false);
+        steps[2] = step(text(localize("3. 进入 ISP 并检测"), "3. Enter and Detect ISP"),
+            new VBox(8, body(text(
+                localize("断开 USB，将键盘关机，按住最左侧“语音输入键”，再插入 USB；随后点击检测。"),
+                "Disconnect USB, hold the leftmost Voice Input key, reconnect USB, then run detection."
+            )), new HBox(8, diagnose, exportDiagnostic), ispStatus), false);
+        steps[3] = step(text(localize("4. 烧录、校验并确认版本"), "4. Flash, Verify, and Confirm"),
+            new VBox(8, new HBox(8, flash, cancelFlash), flashRequirement, progress, status), false);
+        card.getChildren().addAll(
+            title, description, steps[0], steps[1], steps[2], steps[3]
+        );
+        updateFlashState.run();
+        return card;
+    }
+
+    private VBox resetCard(Stage owner) {
+        VBox card = card();
+        Label title = title(text(localize("危险操作：恢复初始化"), "Danger: Factory Reset"));
+        title.setStyle("-fx-text-fill: #d73a49;");
+        Label description = body(text(
+            localize("仅限 USB。将清除 GIF、用户配置、按键配置、待机时间、其他用户数据和蓝牙配对；保留固件版本、设备标识和 MAC。数据不可恢复。"),
+            "USB only. Erases GIFs, user/key settings, standby, other user data and Bluetooth bonds; preserves firmware, device identity and MAC. This cannot be undone."
+        ));
+        CheckBox understood = new CheckBox(text(
+            localize("我已了解数据不可恢复"),
+            "I understand the data cannot be recovered"
+        ));
+        understood.getStyleClass().add("dialog-dark-check-box");
+        Button reset = new Button(text(localize("恢复初始化"), "Factory Reset"));
+        reset.setStyle("-fx-background-color: #d73a49; -fx-text-fill: white;");
+        reset.disableProperty().bind(understood.selectedProperty().not());
+        Button reconnect = new Button(text(localize("重新检测 USB"), "Detect USB Again"));
+        reconnect.setVisible(false);
+        reconnect.setManaged(false);
+        Label status = body("");
+
+        reconnect.setOnAction(event -> {
+            reconnect.setDisable(true);
+            status.setText(text(localize("正在重新检测 USB…"), "Detecting USB again…"));
+            controller.userConnect();
+            javafx.animation.PauseTransition delay =
+                new javafx.animation.PauseTransition(javafx.util.Duration.seconds(2));
+            delay.setOnFinished(done -> {
+                reconnect.setDisable(false);
+                if (bleManager.isUsbConnected()) {
+                    reconnect.setVisible(false);
+                    reconnect.setManaged(false);
+                    status.setText(text(localize("USB 已重新连接，可读取设备设置。"),
+                        "USB reconnected; device settings are available."));
+                } else {
+                    status.setText(text(localize("仍未检测到 USB，请重新拔插后再试。"),
+                        "USB is still unavailable; reconnect the cable and try again."));
+                }
+            });
+            delay.play();
+        });
+
+        reset.setOnAction(event -> {
+            if (!bleManager.isUsbConnected()) {
+                show(owner, Alert.AlertType.WARNING,
+                    text(localize("需要 USB 连接"), "USB Required"),
+                    text(localize("恢复初始化不能通过 BLE 执行，请连接 USB 数据线。"),
+                        "Factory reset cannot run over BLE. Connect the USB cable."));
+                return;
+            }
+            Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
+            confirmation.initOwner(owner);
+            confirmation.setTitle(text(localize("确认恢复初始化"), "Confirm Factory Reset"));
+            confirmation.setHeaderText(text(localize("所有设备用户数据将被永久删除"),
+                "All device user data will be permanently erased"));
+            confirmation.setContentText(text(localize("确认后设备会重启，请保持 USB 连接。"),
+                "The device will reboot. Keep USB connected."));
+            if (confirmation.showAndWait().filter(
+                button -> button == javafx.scene.control.ButtonType.OK).isEmpty()) {
+                return;
+            }
+            understood.setSelected(false);
+            reconnect.setVisible(false);
+            reconnect.setManaged(false);
+            status.setText(text(localize("正在发送恢复命令…"), "Sending factory-reset command…"));
+            daemon("factory-reset", () -> performFactoryReset(
+                owner, understood, reconnect, status));
+        });
+
+        card.getChildren().addAll(title, description, understood,
+            new HBox(8, reset, reconnect), status);
+        return card;
+    }
+
+    private void performFactoryReset(
+        Stage owner, CheckBox understood, Button reconnect, Label status
+    ) {
+        try {
+            AhaKeyResponseParser.DeviceCapabilities capabilities =
+                bleManager.queryDeviceCapabilities();
+            if (capabilities == null
+                || !capabilities.supports(AhaKeyProtocol.CAP_FACTORY_RESET_V1)) {
+                throw new IllegalStateException(localize("当前固件不支持安全恢复初始化，请先更新固件"));
+            }
+            bleManager.factoryReset();
+            Files.deleteIfExists(Path.of(
+                System.getProperty("user.home"), ".ahakey", "studio-draft.json"
+            ));
+            Platform.runLater(() -> {
+                controller.getStudioState().loadFromPersisted(
+                    com.example.ahakey.util.StudioStore.loadOrDefault()
+                );
+                understood.setSelected(false);
+                reconnect.setVisible(true);
+                reconnect.setManaged(true);
+                status.setText(text(
+                    localize("设备已接受恢复命令。请重新拔插 USB 后点击“重新检测 USB”；蓝牙配对已清除，需要在 Windows 中删除旧 AhaKey 配对记录后重新配对。"),
+                    "The reset was accepted. Reconnect USB and click Detect USB Again. Bluetooth bonding was cleared; pair the keyboard again in Windows."
+                ));
+                show(owner, Alert.AlertType.INFORMATION,
+                    text(localize("恢复初始化命令已执行"), "Factory Reset Accepted"),
+                    text(
+                        localize("客户端不会等待蓝牙自动重连。请重新拔插 USB。\n\n")
+                            + BluetoothPairingGuide.WINDOWS_STEPS,
+                        "The app will not wait for automatic Bluetooth reconnection. Reconnect USB and pair Bluetooth again."
+                    ));
+            });
+        } catch (Exception exception) {
+            Platform.runLater(() -> {
+                status.setText(text(localize("恢复失败："), "Reset failed: ") + exception.getMessage());
+                show(owner, Alert.AlertType.ERROR,
+                    text(localize("恢复初始化失败"), "Factory Reset Failed"),
+                    exception.getMessage());
+            });
+        }
+    }
+
+    private boolean isVersionAllowed(
+        Stage owner, SemanticVersion target, SemanticVersion cachedCurrent,
+        boolean allowDowngrade
+    ) {
+        if (target == null) {
+            return true;
+        }
+        // Step 4 runs while the keyboard is in ISP mode, where normal 0x9F
+        // queries are unavailable. Only use the version captured in step 1.
+        SemanticVersion current = cachedCurrent;
+        if (current == null && !allowDowngrade) {
+            show(owner, Alert.AlertType.WARNING,
+                text(localize("无法验证固件版本"), "Cannot Verify Firmware Version"),
+                text(
+                    localize("请先在正常模式连接设备后选择固件；或在高级选项中确认风险后继续。"),
+                    "Connect the device in normal mode before choosing firmware, or explicitly accept the advanced risk."
+                ));
+            return false;
+        }
+        if (current != null && target.compareTo(current) < 0 && !allowDowngrade) {
+            show(owner, Alert.AlertType.WARNING,
+                text(localize("已阻止固件降级"), "Firmware Downgrade Blocked"),
+                text(localize("当前版本 "), "Current version ") + current
+                    + text(localize("，目标版本 "), ", target version ") + target
+                    + text(localize("。如确需降级，请勾选高级风险选项。"),
+                        ". Enable the advanced risk option to continue."));
+            return false;
+        }
+        return true;
+    }
+
+    static String flashBlockReason(
+        boolean firmwareSelected,
+        SemanticVersion target,
+        SemanticVersion current,
+        boolean unknownVersion,
+        boolean allowUnknown,
+        boolean allowDowngrade
+    ) {
+        if (!firmwareSelected) {
+            return "FIRMWARE_REQUIRED";
+        }
+        if (unknownVersion && !allowUnknown) {
+            return "UNKNOWN_CONFIRMATION_REQUIRED";
+        }
+        if (target != null && current == null && !allowDowngrade) {
+            return "CURRENT_VERSION_REQUIRED";
+        }
+        if (target != null && current != null
+            && target.compareTo(current) < 0 && !allowDowngrade) {
+            return "DOWNGRADE_CONFIRMATION_REQUIRED";
+        }
+        return "";
+    }
+
+    static boolean canStartFlash(String blockReason, boolean ispReady) {
+        return blockReason != null && blockReason.isEmpty() && ispReady;
+    }
+
+    private SemanticVersion readCurrentVersion() {
+        if (!deviceStatus.isConnected()) return null;
+        try {
+            var caps = bleManager.queryDeviceCapabilities();
+            return caps == null ? null : new SemanticVersion(
+                caps.firmwareMajor(), caps.firmwareMinor(), caps.firmwarePatch()
+            );
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private Path bundledFirmwarePath() {
+        return bundledFirmwarePath(
+            System.getProperty("jpackage.app-path", ""),
+            Path.of("firmware", BUNDLED_FIRMWARE_NAME)
+                .toAbsolutePath()
+        );
+    }
+
+    static Path bundledFirmwarePath(String appPath, Path developmentFallback) {
+        if (!appPath.isBlank()) {
+            Path parent = Path.of(appPath).toAbsolutePath().getParent();
+            if (parent != null) {
+                Path installed = parent.resolve("firmware")
+                    .resolve(BUNDLED_FIRMWARE_NAME);
+                Path packaged = parent.resolve("app").resolve("firmware")
+                    .resolve(BUNDLED_FIRMWARE_NAME);
+                Path legacyInstalled = parent.resolve("firmware")
+                    .resolve(FirmwareCapabilities.BUNDLED_FIRMWARE_NAME);
+                Path legacyPackaged = parent.resolve("app").resolve("firmware")
+                    .resolve(FirmwareCapabilities.BUNDLED_FIRMWARE_NAME);
+                for (Path candidate : new Path[] {
+                    installed, packaged, legacyInstalled, legacyPackaged
+                }) {
+                    if (Files.isRegularFile(candidate)) return candidate;
+                }
+                return installed;
+            }
+        }
+        return developmentFallback.toAbsolutePath();
+    }
+
+    static Optional<SemanticVersion> versionFromFilename(String filename) {
+        String lower = filename.toLowerCase(Locale.ROOT);
+        String prefix = "ahakey-x1-firmware-";
+        String suffix = "-ch582.hex";
+        if (!lower.startsWith(prefix) || !lower.endsWith(suffix)) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(SemanticVersion.parse(
+                filename.substring(prefix.length(), filename.length() - suffix.length())
+            ));
+        } catch (IllegalArgumentException ignored) {
+            return Optional.empty();
+        }
+    }
+
+    static boolean shouldCancelWhenWindowHidden(FirmwareUpdateState state) {
+        return state != null && !state.terminal();
+    }
+
+    private VBox card() {
+        VBox card = new VBox(9);
+        card.getStyleClass().add("dialog-card");
+        card.setPadding(new Insets(12));
+        return card;
+    }
+
+    private TitledPane step(String title, javafx.scene.Node content, boolean expanded) {
+        TitledPane pane = new TitledPane(title, content);
+        pane.getStyleClass().add("maintenance-step");
+        pane.setExpanded(expanded);
+        pane.setAnimated(false);
+        return pane;
+    }
+
+    private void expandStep(TitledPane[] steps, int selected) {
+        if (steps[selected] == null) return;
+        for (int index = 0; index < steps.length; index++) {
+            if (steps[index] != null) steps[index].setExpanded(index == selected);
+        }
+    }
+
+    private Label title(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("dialog-card-title");
+        return label;
+    }
+
+    private Label body(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("dialog-text");
+        label.setWrapText(true);
+        return label;
+    }
+
+    private void setBusy(
+        boolean busy, ProgressBar progress, Button... buttons
+    ) {
+        progress.setVisible(busy);
+        progress.setManaged(busy);
+        if (busy) {
+            progress.setProgress(-1);
+        }
+        for (Button button : buttons) {
+            button.setDisable(busy);
+        }
+    }
+
+    private void show(Stage owner, Alert.AlertType type, String title, String detail) {
+        Alert alert = new Alert(type);
+        alert.initOwner(owner);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(detail);
+        alert.showAndWait();
+    }
+
+    private void daemon(String name, Runnable task) {
+        Thread thread = new Thread(task, name);
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private String text(String zh, String en) {
+        return com.example.ahakey.util.LanguageManager.getInstance().isChinese()
+            || com.example.ahakey.util.LanguageManager.getInstance().isRussian() ? localize(zh) : en;
+    }
+}

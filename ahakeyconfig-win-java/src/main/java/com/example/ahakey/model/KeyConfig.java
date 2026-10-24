@@ -1,5 +1,7 @@
 package com.example.ahakey.model;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -56,7 +58,7 @@ public class KeyConfig {
     }
     
     public String getDisplayName() {
-        if (hidCode == 0) return "未设置";
+        if (hidCode == 0) return localize("未设置");
         return HIDUsage.getName(hidCode);
     }
     
@@ -69,7 +71,7 @@ public class KeyConfig {
             return voicePreset.getDisplayName();
         }
         if (usesMacro()) {
-            return "宏 (" + macro.size() + " 步)";
+            return localize("宏 (") + macro.size() + localize(" 步)");
         }
         return getDisplayName();
     }
@@ -152,44 +154,12 @@ public class KeyConfig {
     }
 }
 
-class MacroStep {
-    private String id;
-    private MacroAction action;
-    private int param;
-    
-    public MacroStep() {
-        this.id = java.util.UUID.randomUUID().toString();
-        this.action = MacroAction.NO_OP;
-        this.param = 0;
-    }
-    
-    public String getId() {
-        return id;
-    }
-    
-    public MacroAction getAction() {
-        return action;
-    }
-    
-    public void setAction(MacroAction action) {
-        this.action = action;
-    }
-    
-    public int getParam() {
-        return param;
-    }
-    
-    public void setParam(int param) {
-        this.param = param;
-    }
-}
-
 enum MacroAction {
-    NO_OP("无操作", false, false),
-    DOWN_KEY("按下键", true, false),
-    UP_KEY("释放键", true, false),
-    UP_ALL_KEYS("释放所有", false, false),
-    DELAY("延时", false, true);
+    NO_OP(localize("无操作"), false, false),
+    DOWN_KEY(localize("按下键"), true, false),
+    UP_KEY(localize("释放键"), true, false),
+    UP_ALL_KEYS(localize("释放所有"), false, false),
+    DELAY(localize("延时"), false, true);
     
     private final String title;
     private final boolean takesKeycodeParam;
