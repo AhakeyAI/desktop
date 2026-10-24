@@ -38,8 +38,9 @@ for ARCH in ${(z)BUILD_ARCHS}; do
   swift build -c release --arch "$ARCH" --product AhaKeyConfig
   swift build -c release --arch "$ARCH" --product ahakeyconfig-agent
 
-  ARCH_BUILD_OUTPUT=".build/$ARCH-apple-macosx/release/$EXECUTABLE_NAME"
-  ARCH_AGENT_OUTPUT=".build/$ARCH-apple-macosx/release/ahakeyconfig-agent"
+  ARCH_BIN_PATH="$(swift build -c release --arch "$ARCH" --show-bin-path)"
+  ARCH_BUILD_OUTPUT="$ARCH_BIN_PATH/$EXECUTABLE_NAME"
+  ARCH_AGENT_OUTPUT="$ARCH_BIN_PATH/ahakeyconfig-agent"
   if [[ ! -f "$ARCH_BUILD_OUTPUT" ]]; then
     echo "Build output not found at $ARCH_BUILD_OUTPUT"
     exit 1
@@ -48,8 +49,14 @@ for ARCH in ${(z)BUILD_ARCHS}; do
     echo "Agent build output not found at $ARCH_AGENT_OUTPUT"
     exit 1
   fi
-  BUILD_OUTPUTS+=("$ARCH_BUILD_OUTPUT")
-  AGENT_OUTPUTS+=("$ARCH_AGENT_OUTPUT")
+  # Some SwiftPM build systems reuse one product directory across architectures.
+  # Preserve each slice before the next architecture build replaces the products.
+  ARCH_STAGING_DIR="$APP_ROOT/.build/app-bundle-products/$ARCH"
+  mkdir -p "$ARCH_STAGING_DIR"
+  cp "$ARCH_BUILD_OUTPUT" "$ARCH_STAGING_DIR/$EXECUTABLE_NAME"
+  cp "$ARCH_AGENT_OUTPUT" "$ARCH_STAGING_DIR/ahakeyconfig-agent"
+  BUILD_OUTPUTS+=("$ARCH_STAGING_DIR/$EXECUTABLE_NAME")
+  AGENT_OUTPUTS+=("$ARCH_STAGING_DIR/ahakeyconfig-agent")
 done
 
 echo "🧱 Creating app bundle..."
