@@ -58,7 +58,9 @@ struct AhaKeyStudioView: View {
         // 任何在 init 里调用 updateRoutes 都会重置 functionRelay 的 holdingRoute（按住状态），
         // 导致微信等"按住说话"过几秒就自动结束。正确入口在下面的 .onAppear。
         _studioDraft = State(initialValue: initialDraft)
-        _lastSyncedDraft = State(initialValue: initialDraft)
+        // 基线单独持久化：未写入键盘的本地改动重启后仍计入"未同步改动"。
+        // 旧版本没有记录基线，升级后首次启动沿用当前草稿，避免把全部配置误报为未同步。
+        _lastSyncedDraft = State(initialValue: AhaKeyStudioStore.loadSynced() ?? initialDraft)
         let initialMode = AhaKeyModeSlot(rawValue: bleManager.workMode) ?? .mode0
         _selectedMode = State(initialValue: initialMode)
         _selectedPart = State(initialValue: .key1)
@@ -2255,6 +2257,7 @@ struct AhaKeyStudioView: View {
                 // 最后的 0x04 已收到固件 ACK，略等再交还蓝牙。
                 try? await Task.sleep(nanoseconds: UInt64(150) * 1_000_000)
                 self.lastSyncedDraft = self.studioDraft
+                AhaKeyStudioStore.saveSynced(self.lastSyncedDraft)
                 self.lastSyncDate = Date()
                 self.isSyncing = false
                 self.syncStatusMessage = "已全部写入设备并保存（所有命令已确认）。"
