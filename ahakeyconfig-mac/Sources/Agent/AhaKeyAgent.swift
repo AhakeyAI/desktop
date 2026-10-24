@@ -48,6 +48,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private(set) var cachedSwitchState: UInt8?
     /// 最新 lightMode
     private(set) var cachedLightMode: UInt8?
+    /// 只用近期实体状态同步 Kimi 新会话默认模式，超时后的旧 AUTO 不继续生效。
+    private var lastDeviceStatusAt: Date?
     /// 等待下一次 status 回包的回调队列（用于 querySwitchState）
     private var statusWaiters = AgentStatusQueries()
     /// 工具完成 / 用户提交等短暂态的自动回落。
@@ -263,9 +265,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     // MARK: - 看门狗
 
     private func startWatchdog() {
+        KimiConfigLeverSync.synchronizeManaged(switchState: nil)
         processDetector.start()
         let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + 30, repeating: 10)
+        timer.schedule(deadline: .now() + 10, repeating: 10)
         timer.setEventHandler { [weak self] in
             self?.checkWatchdog()
         }
@@ -274,6 +277,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     private func checkWatchdog() {
+        // 断连/未知时仍重试 manual 写入，也覆盖刚安装 hooks 的用户。
+        let fresh = commandChar != nil && peripheral != nil
+            && lastDeviceStatusAt.map { Date().timeIntervalSince($0) < 5 } == true
+        KimiConfigLeverSync.synchronizeManaged(switchState: fresh ? cachedSwitchState.map(Int.init) : nil)
         guard let lastAt = lastHookStateAt else { return }
         let elapsed = Date().timeIntervalSince(lastAt)
         let threshold = watchdogTimeout(for: lastSentState)
@@ -549,6 +556,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         if central.state == .poweredOn {
             emit(NSLocalizedString("蓝牙就绪", comment: ""))
             connectAutomatically()
+        } else {
+            lastDeviceStatusAt = nil
+            KimiConfigLeverSync.synchronizeManaged(switchState: nil)
         }
     }
 
@@ -577,6 +587,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         self.peripheral = nil
         cachedSwitchState = nil
         cachedLightMode = nil
+        lastDeviceStatusAt = nil
+        KimiConfigLeverSync.synchronizeManaged(switchState: nil)
         // 把 pending 的 waiter 全部通知为 nil（避免 hook 客户端一直等）
         statusWaiters.resolveAll(with: nil)
         emit("已断开，2s 后重连")
@@ -617,6 +629,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
         cachedSwitchState = UInt8(clamping: status.switchState)
         cachedLightMode = UInt8(clamping: status.lightMode)
+        lastDeviceStatusAt = Date()
+        KimiConfigLeverSync.synchronizeManaged(switchState: status.switchState)
         if lastLoggedStatus != status {
             lastLoggedStatus = status
             emit("← status battery=\(status.battery) light=\(status.lightMode) switch=\(status.switchState)")

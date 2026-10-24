@@ -1285,14 +1285,14 @@ final class SwitchStateNotifier: ObservableObject {
         if switchedToAuto {
             postNotification(
                 title: "拨杆 → 自动批准",
-                body: "Kimi：若已安装 AhaKey Kimi Hooks，自动档会直接接管当前会话批准；若刚装完或刚升级 kimi-cli，请先重开一次 kimi。Claude/Cursor/Codex 仍走各自钩子。",
+                body: "Kimi Code：已安装 AhaKey Kimi Hooks 时，自动档仅影响新建会话。已打开或恢复的会话请用 /permission 切换权限。Claude/Cursor/Codex 仍走各自钩子。",
                 identifier: "lab.jawa.ahakey.switch.auto",
                 isCritical: true
             )
         } else if switchedToManual {
             postNotification(
                 title: "拨杆 → 手动批准",
-                body: "Claude / Cursor / Codex：按各自确认链。Kimi：若已安装 AhaKey Kimi Hooks，手动档会直接把当前会话拉回手动批准。",
+                body: "Claude / Cursor / Codex：按各自确认链。Kimi Code：手动档仅将新建会话设为手动批准；已打开或恢复的会话请用 /permission 选择手动模式。",
                 identifier: "lab.jawa.ahakey.switch.manual",
                 isCritical: false
             )
@@ -1303,8 +1303,8 @@ final class SwitchStateNotifier: ObservableObject {
         let center = UNUserNotificationCenter.current()
         let deliver = { [weak self] in
             let content = UNMutableNotificationContent()
-            content.title = title
-            content.body = body
+            content.title = NSLocalizedString(title, comment: "")
+            content.body = NSLocalizedString(body, comment: "")
             content.sound = isCritical ? .defaultCritical : .default
             let request = UNNotificationRequest(identifier: "\(identifier).\(UUID().uuidString)",
                                                 content: content,

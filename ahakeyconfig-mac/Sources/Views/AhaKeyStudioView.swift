@@ -1631,7 +1631,7 @@ struct AhaKeyStudioView: View {
                         Label("自动批准依赖 Agent 与 Hook，且须蓝牙由 Agent 占用", systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
                             .font(.callout.weight(.semibold))
-                        Text("Claude Code：PreToolUse allow，PermissionRequest 兜底（桌面版须使用 Code 本地会话，Chat 不支持本地 Hook）。Cursor：preToolUse 等与 cli-config。Codex：PermissionRequest allow。Kimi：安装过 AhaKey Kimi Hooks 后，**拨杆会直接接管当前会话的自动批准**；若刚装完或刚升级 kimi-cli，请**完全关闭并重新打开一次 kimi**。钩子 stdout 只对 **`permissionDecision: deny`** 有特殊拦截语义。Agent 须在跑且蓝牙由其占用。")
+                        Text("Claude Code：PreToolUse allow，PermissionRequest 兜底（桌面版须使用 Code 本地会话，Chat 不支持本地 Hook）。Cursor：preToolUse 等与 cli-config。Codex：PermissionRequest allow。Kimi Code：安装 AhaKey Kimi Hooks 后，拨杆仅设置**新建会话**的默认权限；已打开或恢复的会话请用 `/permission` 切换。PreToolUse 不替代 Kimi 会话内审批。Agent 须在跑且蓝牙由其占用。")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
@@ -1640,10 +1640,10 @@ struct AhaKeyStudioView: View {
 
             GroupBox(NSLocalizedString("如何理解这个部件", comment: "")) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("拨杆对 Claude / Cursor / Codex / Kimi **同时生效**，与键盘当前所在 Mode 无关。Agent 后台同时监听所有 IDE 的 Hook，拨杆拨动后四个 IDE 的批准行为立即切换。")
+                    Text("拨杆与键盘当前所在 Mode 无关。Agent 后台监听 Claude / Cursor / Codex 的 Hook；Kimi Code 仅同步**新建会话**的默认权限，已打开或恢复的会话请用 `/permission` 切换。")
                     Divider()
-                    Text("自动批准：**Claude Code PreToolUse**（PermissionRequest 兜底；桌面版仅 Code 本地会话）、**Codex PermissionRequest**、**Cursor preToolUse**（含 cli-config）。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管**当前会话**的自动批准；刚装完或刚升级 kimi-cli 时，重开一次 kimi 即可。")
-                    Text(NSLocalizedString("手动批准：会交回用户/终端确认。若 Cursor、Codex 或 Kimi 仍弹窗，请看 diagnostics 里的 ide 与 diagnostic 字段。", comment: ""))
+                    Text("自动批准：**Claude Code PreToolUse**（PermissionRequest 兜底；桌面版仅 Code 本地会话）、**Codex PermissionRequest**、**Cursor preToolUse**（含 cli-config）。**Kimi Code**：安装 AhaKey Kimi Hooks 后，自动档为新建会话设置默认权限；已打开或恢复的会话请用 `/permission` 切换。")
+                    Text(NSLocalizedString("手动批准：Claude/Cursor/Codex 交回用户或终端确认。Kimi Code 新建会话默认手动；已打开或恢复的会话请用 `/permission` 选择手动模式。", comment: ""))
                     Text(NSLocalizedString("若仍出现手动：在「设备信息」里打开「工具批准诊断」查看 permission-request.log（含 ide、hookEvent、diagnostic 等）。", comment: ""))
                 }
                 .font(.callout)
@@ -1662,7 +1662,7 @@ struct AhaKeyStudioView: View {
                     Image(systemName: agentReady ? "checkmark.seal.fill" : "exclamationmark.circle.fill")
                         .foregroundStyle(agentReady ? .green : .orange)
                     Text(agentReady
-                         ? "Agent 就绪时 Claude/Cursor/Codex 可随拨杆走批准。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管当前会话；若刚装完或刚升级 kimi-cli，重开一次 kimi 即可。"
+                         ? "Agent 就绪时 Claude/Cursor/Codex 可随拨杆走批准。**Kimi Code**：安装 AhaKey Kimi Hooks 后，拨杆仅影响新建会话；已打开或恢复的会话请用 `/permission` 切换，手动档请选择手动模式。"
                          : "拨杆在 IDE 中生效需先安装 Agent 与 Hook，并把蓝牙交给 Agent；否则仅为状态显示。")
                         .font(.callout)
                 }
