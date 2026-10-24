@@ -195,7 +195,7 @@ final class CloudAccountManager: ObservableObject {
         let validUntil = stringValue(profile["token_valid_until"])
         return [
             phone.isEmpty ? "" : "手机号：\(phone)",
-            validUntil.isEmpty ? "有效期：无" : "有效期：\(validUntil)",
+            validUntil.isEmpty ? "权益有效期：无" : "权益有效期：\(validUntil)",
         ].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
@@ -320,29 +320,26 @@ final class CloudAccountManager: ObservableObject {
             defaults.removeObject(forKey: passwordKey)
         }
         AhaTypeTextOptimizer.shared.patchCloudToken(token)
-        seedLocalProfile(token: token, authData: authData)
+        seedLocalProfile(authData: authData)
         isLoggedIn = true
     }
 
     private func applyProfile(_ profile: [String: Any]) {
-        let normalized = normalizedProfile(profile)
+        let normalized = Self.normalizedProfile(profile)
         self.profile = normalized
         isLoggedIn = true
         AhaTypeTextOptimizer.shared.patchCloudToken(accessToken)
         AhaTypeTextOptimizer.shared.setUserProfile(normalized)
     }
 
-    private func seedLocalProfile(token: String, authData: [String: Any]) {
-        var profile = normalizedProfile(authData)
+    private func seedLocalProfile(authData: [String: Any]) {
+        var profile = Self.normalizedProfile(authData)
         let phoneValue = firstString(in: authData, keys: ["phone", "mobile", "username"])
         profile["phone"] = phoneValue.isEmpty ? phone.trimmingCharacters(in: .whitespacesAndNewlines) : phoneValue
         let userID = firstString(in: authData, keys: ["id", "user_id", "userId"])
         if !userID.isEmpty {
             profile["user_id"] = userID
             profile["id"] = userID
-        }
-        if let validUntil = jwtExpirationString(token) {
-            profile["token_valid_until"] = validUntil
         }
         profile["limit_daily"] = firstInt(in: authData, keys: ["limit_daily", "limitDaily"])
         profile["limit_weekly"] = firstInt(in: authData, keys: ["limit_weekly", "limitWeekly"])
@@ -354,7 +351,9 @@ final class CloudAccountManager: ObservableObject {
         AhaTypeTextOptimizer.shared.setUserProfile(profile)
     }
 
-    private func normalizedProfile(_ raw: [String: Any]) -> [String: Any] {
+    /// 只透传服务端的权益字段；`token_valid_until` 为空时保持为空，
+    /// 不能用登录 JWT 的 exp 推算，否则会把会话有效期误显示成订阅权益到期时间。
+    nonisolated static func normalizedProfile(_ raw: [String: Any]) -> [String: Any] {
         var profile = raw
         let aliases: [(String, String)] = [
             ("id", "userId"),
@@ -371,9 +370,6 @@ final class CloudAccountManager: ObservableObject {
             if let value = raw[camel] {
                 profile[snake] = value
             }
-        }
-        if stringValue(profile["token_valid_until"]).isEmpty, let validUntil = jwtExpirationString(accessToken) {
-            profile["token_valid_until"] = validUntil
         }
         if var policy = profile["policy"] as? [String: Any] {
             let policyAliases: [(String, String)] = [
@@ -521,30 +517,6 @@ final class CloudAccountManager: ObservableObject {
 
     private func responseMessage(_ object: [String: Any]) -> String {
         firstString(in: object, keys: ["errorMsg", "msg", "message", "error"])
-    }
-
-    private func jwtExpirationString(_ token: String) -> String? {
-        let parts = token.split(separator: ".")
-        guard parts.count >= 2 else { return nil }
-        var payload = String(parts[1])
-            .replacingOccurrences(of: "-", with: "+")
-            .replacingOccurrences(of: "_", with: "/")
-        let remainder = payload.count % 4
-        if remainder > 0 {
-            payload += String(repeating: "=", count: 4 - remainder)
-        }
-        guard let data = Data(base64Encoded: payload),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-        let exp = Double(intValue(object["exp"]))
-        guard exp > 0 else { return nil }
-        let date = Date(timeIntervalSince1970: exp)
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        return formatter.string(from: date)
     }
 
     private func intValue(_ value: Any?) -> Int {

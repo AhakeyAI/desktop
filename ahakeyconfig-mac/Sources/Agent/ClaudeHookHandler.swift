@@ -43,10 +43,9 @@ enum ClaudeHookHandler {
         // Older Agents may return a cached GPIO value after a failed BLE query.
         // Only the current Agent's explicitly verified physical auto state may allow.
         guard HookSupport.intValue(reply["approvalPolicyVersion"]) == 1,
-              let physicalSwitch = HookSupport.intValue(reply["physicalSwitchState"]),
-              (0...1).contains(physicalSwitch),
-              HookSupport.intValue(reply["switchState"]) == physicalSwitch else { return nil }
-        if physicalSwitch == 0, reply["approvalAutoVerified"] as? Bool != true { return nil }
+              let physicalSwitch = HookSupport.switchStateValue(reply["physicalSwitchState"]),
+              HookSupport.switchStateValue(reply["switchState"]) == physicalSwitch else { return nil }
+        if physicalSwitch == 0, HookSupport.boolValue(reply["approvalAutoVerified"]) != true { return nil }
         return physicalSwitch
     }
 
