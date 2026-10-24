@@ -1279,6 +1279,17 @@ TRANSLATIONS.update({
     "Agent 就绪时 Claude/Cursor/Codex 可随拨杆走批准。**Kimi Code**：安装 AhaKey Kimi Hooks 后，拨杆仅影响新建会话；已打开或恢复的会话请用 `/permission` 切换，手动档请选择手动模式。": "When the Agent is ready, Claude/Cursor/Codex follow the lever for approval. With AhaKey Kimi Hooks installed, the lever affects newly created **Kimi Code** sessions only. Use `/permission` in open or resumed sessions, choosing manual mode for Manual.",
 })
 
+# Retain translations for wording still used by parallel macOS fix branches.
+TRANSLATIONS.update({
+    "AhaType 已开启，但登录已过期。": "AhaType is on but login has expired.",
+    "Claude / Cursor / Codex：按各自确认链。Kimi：若已安装 AhaKey Kimi Hooks，手动档会直接把当前会话拉回手动批准。": "Claude / Cursor / Codex: follow their own confirmation chains. Kimi: if AhaKey Kimi Hooks are installed, Manual mode pulls the current session back to manual approval.",
+    "Kimi：若已安装 AhaKey Kimi Hooks，自动档会直接接管当前会话批准；若刚装完或刚升级 kimi-cli，请先重开一次 kimi。Claude/Cursor/Codex 仍走各自钩子。": "Kimi: if AhaKey Kimi Hooks are installed, Auto mode directly takes over approval for the current session; if you just installed or upgraded kimi-cli, please reopen kimi once. Claude/Cursor/Codex still use their own hooks.",
+    "手动批准：会交回用户/终端确认。若 Cursor、Codex 或 Kimi 仍弹窗，请看 diagnostics 里的 ide 与 diagnostic 字段。": "Manual approval: returns to user/terminal confirmation. If Cursor, Codex, or Kimi still prompts, check the ide and diagnostic fields in diagnostics.",
+    "拨杆对 Claude / Cursor / Codex / Kimi **同时生效**，与键盘当前所在 Mode 无关。Agent 后台同时监听所有 IDE 的 Hook，拨杆拨动后四个 IDE 的批准行为立即切换。": "The lever controls Claude, Cursor, Codex, and Kimi **at the same time**, regardless of keyboard mode. The Agent listens for all IDE hooks in the background and updates approval behavior when the lever moves.",
+    "自动批准：**Claude Code PreToolUse**（PermissionRequest 兜底；桌面版仅 Code 本地会话）、**Codex PermissionRequest**、**Cursor preToolUse**（含 cli-config）。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管**当前会话**的自动批准；刚装完或刚升级 kimi-cli 时，重开一次 kimi 即可。": "Auto-approval uses **Claude Code PreToolUse** (with PermissionRequest fallback; desktop requires a local Code session), **Codex PermissionRequest**, and **Cursor preToolUse**. For **Kimi Code CLI**, install AhaKey Kimi Hooks and restart kimi after installation or upgrade.",
+    "Claude Code：PreToolUse allow，PermissionRequest 兜底（桌面版须使用 Code 本地会话，Chat 不支持本地 Hook）。Cursor：preToolUse 等与 cli-config。Codex：PermissionRequest allow。Kimi：安装过 AhaKey Kimi Hooks 后，**拨杆会直接接管当前会话的自动批准**；若刚装完或刚升级 kimi-cli，请**完全关闭并重新打开一次 kimi**。钩子 stdout 只对 **`permissionDecision: deny`** 有特殊拦截语义。Agent 须在跑且蓝牙由其占用。": "Claude Code uses PreToolUse allow with a PermissionRequest fallback (desktop requires a local Code session; Chat does not support local hooks). Cursor uses preToolUse and cli-config. Codex uses PermissionRequest allow. Kimi Code CLI uses AhaKey Kimi Hooks; restart kimi after installing or upgrading. Hook stdout only treats permissionDecision: deny as a special block. The Agent must be running and own Bluetooth."
+})
+
 ZH_OVERRIDES = {
     "Breathing": "呼吸",
     "Close": "关闭",
