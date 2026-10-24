@@ -32,6 +32,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 设备名前缀白名单：官方 "AhaKey" 及 vibe coding 固件的 "vibe code"（与主 App 保持一致）。
     private let deviceNamePrefixes = ["AhaKey", "vibe code"]
     private let socketPath: String
+    /// 单实例锁 fd，进程存活期间保持打开。
+    private var instanceLockFd: Int32?
 
     private func matchesDeviceName(_ name: String?) -> Bool {
         guard let lower = name?.lowercased() else { return false }
@@ -197,6 +199,20 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     @discardableResult
     func startSocketListener() -> Bool {
+        guard AgentInstanceLock.isValidSocketPath(socketPath) else {
+            emit("Unix socket 路径过长（上限 \(AgentInstanceLock.maxSocketPathBytes - 1) 字节）: \(socketPath)")
+            return false
+        }
+        switch AgentInstanceLock.acquire(socketPath: socketPath) {
+        case .acquired(let fd):
+            instanceLockFd = fd
+        case .heldByOther:
+            emit("已有 Agent 实例持有锁，拒绝接管 Unix socket: \(socketPath)")
+            return false
+        case .unavailable(let err):
+            emit("无法获取 Agent 实例锁（errno \(err)），仅按 socket 探测判断")
+        }
+        // 兼容未加锁的旧版 Agent 仍在运行的情况
         if Self.hasLiveSocket(at: socketPath) {
             emit("已有 Agent 在监听 Unix socket: \(socketPath)")
             return false
@@ -225,14 +241,20 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         guard bindResult == 0 else { emit("bind() 失败: \(errno)"); close(fd); return false }
 
-        listen(fd, 5)
+        listen(fd, SOMAXCONN)
         emit("监听 Unix socket: \(socketPath)")
 
+        // accept 线程只负责收连接；读请求放到并发队列并设读超时，
+        // 避免一个不发数据的客户端卡死 accept、塞满 backlog。
+        let clientQueue = DispatchQueue(label: "lab.jawa.ahakeyconfig.agent.client", qos: .utility,
+                                        attributes: .concurrent)
         DispatchQueue.global(qos: .utility).async { [weak self] in
             while true {
                 let clientFd = accept(fd, nil, nil)
                 guard clientFd >= 0 else { continue }
-                self?.handleClient(clientFd)
+                var tv = timeval(tv_sec: 2, tv_usec: 0)
+                setsockopt(clientFd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+                clientQueue.async { self?.handleClient(clientFd) }
             }
         }
         return true
