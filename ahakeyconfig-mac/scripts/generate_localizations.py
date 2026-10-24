@@ -7,6 +7,8 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "AhaType 登录状态已变化，已写入原始转写。": "AhaType login changed; raw transcript written.",
+    "图片第 %d 帧无法解码，文件可能已损坏。请重新导出图片后再试。": "Image frame %d cannot be decoded. The file may be damaged. Export the image again and retry.",
     "USB 接口": "USB Interface",
     "USB HID 写入失败（%d）": "USB HID write failed (%d)",
     "USB HID 有线配置通道已断开，配置写入回退 BLE": "USB HID configuration disconnected; configuration writes fell back to BLE",
@@ -101,7 +103,7 @@ TRANSLATIONS = {
     "AhaType 处理失败，已写入原始转写。": "AhaType processing failed; raw transcript written.",
     "AhaType 处理失败：%@": "AhaType processing failed: %@",
     "AhaType 已开启，但尚未登录。": "AhaType is on but not logged in.",
-    "AhaType 已开启，但登录已过期。": "AhaType is on but login has expired.",
+    "AhaType 已开启，但服务已到期，续费后可继续使用。": "AhaType is on but the service period has ended. Renew to continue.",
     "AhaType 已开启，语音结果会先经云端整理。": "AhaType is on; voice results will be refined in the cloud first.",
     "AhaType 已整理并写入：%@": "AhaType optimized and wrote: %@",
     "AhaType 已整理，准备粘贴。": "AhaType refined, ready to paste.",
@@ -112,6 +114,7 @@ TRANSLATIONS = {
     "AhaType 未启用，直接写入原始转写。": "AhaType not enabled; writing raw transcript directly.",
     "AhaType 未注册登录": "AhaType Not Logged In",
     "AhaType 状态": "AhaType Status",
+    "AhaType 服务已到期，直接写入原始转写。": "AhaType service period ended; writing raw transcript directly.",
     "AhaType 登录已过期，直接写入原始转写。": "AhaType login expired; writing raw transcript directly.",
     "AhaType 无法识别登录有效期，直接写入原始转写。请重新登录或更新客户端。": "AhaType could not read the login expiry; writing raw transcript directly. Please log in again or update the app.",
     "AhaType 已开启，但无法识别登录有效期。": "AhaType is on but the login expiry could not be read.",
@@ -639,6 +642,8 @@ TRANSLATIONS = {
     "最近写入：%@": "Last written: %@",
     "最近同步 %@": "Last synced %@",
     "最长 15 字节": "Up to 15 bytes",
+    "设备名称不能为空，已保留原名称": "Device name cannot be empty; the current name was kept",
+    "设备名称最长 %d 字节（当前 %d 字节），已保留原名称": "Device name can be at most %d bytes (currently %d bytes); the current name was kept",
     "月": "Month",
     "有效期 %@": "Valid until %@",
     "有效期：%@": "Valid until: %@",

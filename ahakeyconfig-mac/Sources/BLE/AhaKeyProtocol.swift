@@ -83,10 +83,26 @@ enum AhaKeyCommand {
         return Data(header + [cmdUpdateCustomKey] + payload + trailer)
     }
 
-    /// 修改设备名称 → AA BB 01 [utf8...] CC DD
+    /// 设备名 UTF-8 字节上限：固件可存 21 字节，但 BLE 广播只显示前 15 字节，超出部分会乱码。
+    static let deviceNameMaxBytes = 15
+
+    enum DeviceNameValidationError: Error, Equatable {
+        case empty
+        case tooLong(byteCount: Int)
+    }
+
+    /// 去掉首尾空白后校验设备名；空名或超过 `deviceNameMaxBytes` 字节时返回错误，不做静默截断。
+    static func validateDeviceName(_ raw: String) -> Result<String, DeviceNameValidationError> {
+        let name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return .failure(.empty) }
+        let byteCount = name.utf8.count
+        guard byteCount <= deviceNameMaxBytes else { return .failure(.tooLong(byteCount: byteCount)) }
+        return .success(name)
+    }
+
+    /// 修改设备名称 → AA BB 01 [utf8...] CC DD；调用方需先经 `validateDeviceName` 校验。
     static func changeName(_ name: String) -> Data {
-        let nameBytes = Array(name.utf8.prefix(21))
-        return Data(header + [cmdChangeName] + nameBytes + trailer)
+        Data(header + [cmdChangeName] + Array(name.utf8) + trailer)
     }
 
     /// 修改 BLE Appearance → AA BB 02 [appearance] CC DD
