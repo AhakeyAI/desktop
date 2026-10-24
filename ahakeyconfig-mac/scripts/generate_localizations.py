@@ -7,6 +7,8 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "AhaType 登录状态已变化，已写入原始转写。": "AhaType login changed; raw transcript written.",
+    "图片第 %d 帧无法解码，文件可能已损坏。请重新导出图片后再试。": "Image frame %d cannot be decoded. The file may be damaged. Export the image again and retry.",
     "USB 接口": "USB Interface",
     "USB HID 写入失败（%d）": "USB HID write failed (%d)",
     "USB HID 有线配置通道已断开，配置写入回退 BLE": "USB HID configuration disconnected; configuration writes fell back to BLE",
@@ -101,7 +103,7 @@ TRANSLATIONS = {
     "AhaType 处理失败，已写入原始转写。": "AhaType processing failed; raw transcript written.",
     "AhaType 处理失败：%@": "AhaType processing failed: %@",
     "AhaType 已开启，但尚未登录。": "AhaType is on but not logged in.",
-    "AhaType 已开启，但登录已过期。": "AhaType is on but login has expired.",
+    "AhaType 已开启，但服务已到期，续费后可继续使用。": "AhaType is on but the service period has ended. Renew to continue.",
     "AhaType 已开启，语音结果会先经云端整理。": "AhaType is on; voice results will be refined in the cloud first.",
     "AhaType 已整理并写入：%@": "AhaType optimized and wrote: %@",
     "AhaType 已整理，准备粘贴。": "AhaType refined, ready to paste.",
@@ -112,6 +114,7 @@ TRANSLATIONS = {
     "AhaType 未启用，直接写入原始转写。": "AhaType not enabled; writing raw transcript directly.",
     "AhaType 未注册登录": "AhaType Not Logged In",
     "AhaType 状态": "AhaType Status",
+    "AhaType 服务已到期，直接写入原始转写。": "AhaType service period ended; writing raw transcript directly.",
     "AhaType 登录已过期，直接写入原始转写。": "AhaType login expired; writing raw transcript directly.",
     "AhaType 无法识别登录有效期，直接写入原始转写。请重新登录或更新客户端。": "AhaType could not read the login expiry; writing raw transcript directly. Please log in again or update the app.",
     "AhaType 已开启，但无法识别登录有效期。": "AhaType is on but the login expiry could not be read.",
@@ -133,7 +136,7 @@ TRANSLATIONS = {
     "Breathing": "Breathing",
     "CGVirtualDisplay 创建失败": "CGVirtualDisplay creation failed",
     "Claude / Cursor / Codex / Kimi Hook 已配置": "Claude / Cursor / Codex / Kimi Hook configured",
-    "Claude / Cursor / Codex：按各自确认链。Kimi：若已安装 AhaKey Kimi Hooks，手动档会直接把当前会话拉回手动批准。": "Claude / Cursor / Codex: follow their own confirmation chains. Kimi: if AhaKey Kimi Hooks are installed, Manual mode pulls the current session back to manual approval.",
+    "Claude / Cursor / Codex：按各自确认链。Kimi Code：手动档仅将新建会话设为手动批准；已打开或恢复的会话请用 /permission 选择手动模式。": "Claude / Cursor / Codex follow their own approval flows. Kimi Code: Manual sets manual approval for newly created sessions only; use /permission to select manual mode in open or resumed sessions.",
     "Claude Code · 终端权限 Y/N": "Claude Code · Terminal permission Y/N",
     "Claude Code · 终端权限菜单 Y/N。": "Claude Code · Terminal permission menu Y/N.",
     "Claude Hooks 已写入 ~/.claude/settings.json。": "Claude Hooks written to ~/.claude/settings.json.",
@@ -171,7 +174,7 @@ TRANSLATIONS = {
     "Kimi Hooks：无法创建目录 %@：%@": "Kimi Hooks: unable to create directory %@: %@",
     "Kimi hooks 中 AhaKey 标记块与旧版裸 hook 已移除": "AhaKey marker block and legacy bare hook removed from Kimi hooks",
     "Kimi hooks 已写入 ~/.kimi/config.toml": "Kimi hooks written to ~/.kimi/config.toml",
-    "Kimi：若已安装 AhaKey Kimi Hooks，自动档会直接接管当前会话批准；若刚装完或刚升级 kimi-cli，请先重开一次 kimi。Claude/Cursor/Codex 仍走各自钩子。": "Kimi: if AhaKey Kimi Hooks are installed, Auto mode directly takes over approval for the current session; if you just installed or upgraded kimi-cli, please reopen kimi once. Claude/Cursor/Codex still use their own hooks.",
+    "Kimi Code：已安装 AhaKey Kimi Hooks 时，自动档仅影响新建会话。已打开或恢复的会话请用 /permission 切换权限。Claude/Cursor/Codex 仍走各自钩子。": "Kimi Code: with AhaKey Kimi Hooks installed, Auto affects newly created sessions only. Use /permission to change permissions in open or resumed sessions. Claude/Cursor/Codex use their own hooks.",
     "L1: 系统断言": "L1: System Assertion",
     "L2: IORegistry": "L2: IORegistry",
     "L3 禁用电量": "L3 Disable Battery",
@@ -552,7 +555,7 @@ TRANSLATIONS = {
     "我已完成，重新检查": "I'm done, recheck",
     "所有特征就绪，查询设备状态": "All characteristics ready, querying device status",
     "手动批准": "Manual Approve",
-    "手动批准：会交回用户/终端确认。若 Cursor、Codex 或 Kimi 仍弹窗，请看 diagnostics 里的 ide 与 diagnostic 字段。": "Manual approval: returns to user/terminal confirmation. If Cursor, Codex, or Kimi still prompts, check the ide and diagnostic fields in diagnostics.",
+    "手动批准：Claude/Cursor/Codex 交回用户或终端确认。Kimi Code 新建会话默认手动；已打开或恢复的会话请用 `/permission` 选择手动模式。": "Manual approval: Claude/Cursor/Codex return approval to the user or terminal. Newly created Kimi Code sessions default to manual; use `/permission` to select manual mode in open or resumed sessions.",
     "手机号": "Phone Number",
     "手机号：%@": "Phone: %@",
     "打字涟漪": "Typing Ripple",
@@ -639,6 +642,8 @@ TRANSLATIONS = {
     "最近写入：%@": "Last written: %@",
     "最近同步 %@": "Last synced %@",
     "最长 15 字节": "Up to 15 bytes",
+    "设备名称不能为空，已保留原名称": "Device name cannot be empty; the current name was kept",
+    "设备名称最长 %d 字节（当前 %d 字节），已保留原名称": "Device name can be at most %d bytes (currently %d bytes); the current name was kept",
     "月": "Month",
     "有效期 %@": "Valid until %@",
     "有效期：%@": "Valid until: %@",
@@ -1264,10 +1269,14 @@ TRANSLATIONS.update({
     "还没有选择动图": "No animation selected yet",
     "硬性限制：源文件 ≤ 2 MB，FPS 1–30，单模式最多 70 帧；Mode 1/2/3/4 固定写入 slot 10/80/150/220。": "Limits: source file up to 2 MB, 1–30 FPS, and 70 frames per mode. Modes 1–4 use slots 10/80/150/220.",
     "写 cli-config（CLI）与 permissions.json 的 terminalAllowlist（Agent TUI「Not in allowlist」层）；分见官方文档。均先备份为 .ahakey.bak。": "Write cli-config for the CLI and terminalAllowlist in permissions.json for the Agent TUI. Both are backed up as .ahakey.bak first.",
-    "拨杆对 Claude / Cursor / Codex / Kimi **同时生效**，与键盘当前所在 Mode 无关。Agent 后台同时监听所有 IDE 的 Hook，拨杆拨动后四个 IDE 的批准行为立即切换。": "The lever controls Claude, Cursor, Codex, and Kimi **at the same time**, regardless of keyboard mode. The Agent listens for all IDE hooks in the background and updates approval behavior when the lever moves.",
-    "自动批准：**Claude Code PreToolUse**（PermissionRequest 兜底；桌面版仅 Code 本地会话）、**Codex PermissionRequest**、**Cursor preToolUse**（含 cli-config）。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管**当前会话**的自动批准；刚装完或刚升级 kimi-cli 时，重开一次 kimi 即可。": "Auto-approval uses **Claude Code PreToolUse** (with PermissionRequest fallback; desktop requires a local Code session), **Codex PermissionRequest**, and **Cursor preToolUse**. For **Kimi Code CLI**, install AhaKey Kimi Hooks and restart kimi after installation or upgrade.",
-    "Claude Code：PreToolUse allow，PermissionRequest 兜底（桌面版须使用 Code 本地会话，Chat 不支持本地 Hook）。Cursor：preToolUse 等与 cli-config。Codex：PermissionRequest allow。Kimi：安装过 AhaKey Kimi Hooks 后，**拨杆会直接接管当前会话的自动批准**；若刚装完或刚升级 kimi-cli，请**完全关闭并重新打开一次 kimi**。钩子 stdout 只对 **`permissionDecision: deny`** 有特殊拦截语义。Agent 须在跑且蓝牙由其占用。": "Claude Code uses PreToolUse allow with a PermissionRequest fallback (desktop requires a local Code session; Chat does not support local hooks). Cursor uses preToolUse and cli-config. Codex uses PermissionRequest allow. Kimi Code CLI uses AhaKey Kimi Hooks; restart kimi after installing or upgrading. Hook stdout only treats permissionDecision: deny as a special block. The Agent must be running and own Bluetooth.",
+    "拨杆与键盘当前所在 Mode 无关。Agent 后台监听 Claude / Cursor / Codex 的 Hook；Kimi Code 仅同步**新建会话**的默认权限，已打开或恢复的会话请用 `/permission` 切换。": "The lever is independent of the current keyboard Mode. The Agent listens to Claude / Cursor / Codex hooks in the background. Kimi Code syncs default permissions for **newly created sessions only**; use `/permission` in open or resumed sessions.",
+    "自动批准：**Claude Code PreToolUse**（PermissionRequest 兜底；桌面版仅 Code 本地会话）、**Codex PermissionRequest**、**Cursor preToolUse**（含 cli-config）。**Kimi Code**：安装 AhaKey Kimi Hooks 后，自动档为新建会话设置默认权限；已打开或恢复的会话请用 `/permission` 切换。": "Auto-approval uses **Claude Code PreToolUse** (PermissionRequest fallback; desktop requires a local Code session), **Codex PermissionRequest**, and **Cursor preToolUse** (including cli-config). With AhaKey Kimi Hooks installed, Auto sets defaults for newly created **Kimi Code** sessions; use `/permission` in open or resumed sessions.",
+    "Claude Code：PreToolUse allow，PermissionRequest 兜底（桌面版须使用 Code 本地会话，Chat 不支持本地 Hook）。Cursor：preToolUse 等与 cli-config。Codex：PermissionRequest allow。Kimi Code：安装 AhaKey Kimi Hooks 后，拨杆仅设置**新建会话**的默认权限；已打开或恢复的会话请用 `/permission` 切换。PreToolUse 不替代 Kimi 会话内审批。Agent 须在跑且蓝牙由其占用。": "Claude Code uses PreToolUse allow with a PermissionRequest fallback (desktop requires a local Code session; Chat does not support local hooks). Cursor uses preToolUse and cli-config. Codex uses PermissionRequest allow. With AhaKey Kimi Hooks installed, the lever sets default permissions for **newly created Kimi Code sessions only**; use `/permission` in open or resumed sessions. PreToolUse does not replace Kimi session approval. The Agent must be running and own Bluetooth.",
     "\\n请立即退出 AhaKey Studio 并重新启动，按系统提示重新勾选权限即可。": "\\nQuit and restart AhaKey Studio, then grant permissions again when macOS prompts you.",
+})
+
+TRANSLATIONS.update({
+    "Agent 就绪时 Claude/Cursor/Codex 可随拨杆走批准。**Kimi Code**：安装 AhaKey Kimi Hooks 后，拨杆仅影响新建会话；已打开或恢复的会话请用 `/permission` 切换，手动档请选择手动模式。": "When the Agent is ready, Claude/Cursor/Codex follow the lever for approval. With AhaKey Kimi Hooks installed, the lever affects newly created **Kimi Code** sessions only. Use `/permission` in open or resumed sessions, choosing manual mode for Manual.",
 })
 
 ZH_OVERRIDES = {
