@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-23",
+  "installedBuild": "375",
+  "sourceCommit": "8b5a993",
+  "fullTestsPassed": 677,
+  "focusedTestsPassed": 35,
+  "developerIDSignatureVerified": true,
+  "notarized": false,
+  "firstSigningAttempt": "timestamp service unavailable; rejected before replacing installed app",
+  "signingRetry": "completed with timestamp and deep strict verification",
+  "draftAndVoicePreferencesSemanticallyUnchanged": true,
+  "codexDefaultConfigurationBytesUnchanged": true,
+  "userConfirmedManagementConsentPreserved": true,
+  "temporaryPausePresent": false,
+  "backgroundStatus": {
+    "pendingRecovery": 0,
+    "managedSessions": 0,
+    "appliesTo": "nextTurn",
+    "phase": "synchronized"
+  },
+  "previousOriginalDesktopProtocolReceipt": "native-session-original-desktop-2026-10-23.json",
+  "newProductionPermissionMutationsInThisUpdate": 0,
+  "newKeyboardConfigurationWrites": 0,
+  "newModelTestRequests": 0,
+  "hardwareLeverAcceptanceComplete": false
+}
