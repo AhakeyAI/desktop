@@ -58,6 +58,35 @@ final class CodexHookInstallationTests: XCTestCase {
         XCTAssertTrue(reinstalled.contains("session_start:1:0"))
     }
 
+    // AHK-047: Codex appends new tables before the trailing END comment, so they land inside our markers.
+    func testReinstallKeepsForeignContentWrittenInsideManagedBlock() throws {
+        let foreign = """
+        [tui]
+        notifications = true
+
+        [projects."/Users/x/repo"]
+        trust_level = "trusted"
+
+        [hooks.state."/proj/.codex/hooks.json:pre_tool_use:0:0"]
+        trusted_hash = "sha256:project"
+        """
+        let installed = try install(user)
+        let config = installed.replacingOccurrences(of: CodexHookTrust.blockEnd, with: foreign + "\n" + CodexHookTrust.blockEnd)
+        let reinstalled = try install(config)
+        XCTAssertTrue(reinstalled.contains(user))
+        XCTAssertTrue(reinstalled.contains(foreign))
+        XCTAssertEqual(reinstalled.components(separatedBy: "[[hooks.SessionStart]]").count - 1, 2)
+        XCTAssertEqual(reinstalled.components(separatedBy: CodexHookTrust.blockStart).count - 1, 1)
+        XCTAssertEqual(reinstalled.components(separatedBy: "session_start:1:0").count - 1, 1)
+        XCTAssertEqual(try install(reinstalled), reinstalled)
+        let removed = try CodexHookTrust.removingManagedHooks(in: config, configPath: path)
+        XCTAssertTrue(removed.contains(user))
+        XCTAssertTrue(removed.contains(foreign))
+        XCTAssertFalse(removed.contains("session_start:1:0"))
+        XCTAssertFalse(removed.contains(CodexHookTrust.blockStart))
+        XCTAssertFalse(removed.contains("command = \"true\""))
+    }
+
     func testHeadersAndMarkersInMultilineStringsAreNotHooks() throws {
         let config = "description = '''\n[[hooks.SessionStart]]\n" + block + "\n'''\n" + user
         let result = try install(config)

@@ -203,6 +203,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     private var writeBatches: [WriteCommandBatch] = []
     private var protocolResponseWaiters: [UInt8: CheckedContinuation<CommandResponse, Error>] = [:]
     private var dataWriteResultContinuation: CheckedContinuation<Void, Error>?
+    private var dataPacketSendTask: Task<Void, Never>?
+    /// LCD 单个 4096B 块（0x80 准备 + 数据 + 0x81 确认）遇到超时时的最大尝试次数。
+    nonisolated static let oledChunkMaxAttempts = 3
 
     // MARK: - Init
 
@@ -516,12 +519,34 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 return (offset: offset, data: Data(frame[offset ..< end]))
             }
 
-            for chunk in chunks {
+            for (chunkIndex, chunk) in chunks.enumerated() {
                 let address = frameAddress + UInt32(chunk.offset)
                 let prepare = AhaKeyCommand.prepareWrite(chunkLength: chunk.data.count, address: address)
-                _ = try await sendCommandAwaitingResponse(prepare, expectedCommand: AhaKeyCommand.cmdPrepareWrite)
-
-                try await writeDataChunk(chunk.data, to: peripheral, characteristic: dataChar, type: writeType)
+                // 同一地址重发 0x80 + 数据是幂等的（固件按扇区擦写），单块丢一次 0x81 不应让整次上传失败（AHK-022）。
+                var stage = OLEDTransferStage.prepareWrite
+                var attempts = 0
+                do {
+                    try await Self.retryingOLEDTimeouts(
+                        maxAttempts: Self.oledChunkMaxAttempts,
+                        canRetry: { self.dataCharReady },
+                        onRetry: { attempt, error in
+                            self.appendLog("  帧 #\(frameIndex) 块 \(chunkIndex + 1)/\(chunks.count) \(stage.label)失败（\(error.localizedDescription)），第 \(attempt) 次重试", isError: true)
+                        }
+                    ) { attempt in
+                        attempts = attempt
+                        stage = .prepareWrite
+                        _ = try await self.sendCommandAwaitingResponse(prepare, expectedCommand: AhaKeyCommand.cmdPrepareWrite)
+                        stage = .dataWrite
+                        try await self.writeDataChunk(chunk.data, to: peripheral, characteristic: dataChar, type: writeType)
+                    }
+                } catch {
+                    throw OLEDUploadError.transferFailed(
+                        stage: stage, mode: mode,
+                        frame: frameIndex + 1, totalFrames: frames.count,
+                        chunk: chunkIndex + 1, totalChunks: chunks.count,
+                        attempts: attempts, reason: error.localizedDescription
+                    )
+                }
                 completedChunks += 1
                 oledUploadProgress = OLEDUploadProgress(
                     completedChunks: completedChunks,
@@ -547,7 +572,16 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             timeDelayMs: delay
         )
         appendLog("→ updatePicture mode=\(mode) startIndex=\(startIndex) frameCount=\(frames.count) delayMs=\(delay) hex=\(updateCommand.hexString)")
-        _ = try await sendCommandAwaitingResponse(updateCommand, expectedCommand: AhaKeyCommand.cmdUpdatePic)
+        do {
+            _ = try await sendCommandAwaitingResponse(updateCommand, expectedCommand: AhaKeyCommand.cmdUpdatePic)
+        } catch {
+            throw OLEDUploadError.transferFailed(
+                stage: .commitPicture, mode: mode,
+                frame: frames.count, totalFrames: frames.count,
+                chunk: nil, totalChunks: nil,
+                attempts: 1, reason: error.localizedDescription
+            )
+        }
         appendLog("LCD 上传完成: \(frames.count) 帧, start=\(startIndex)")
         _ = commandChar
     }
@@ -1095,7 +1129,11 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         type: CBCharacteristicWriteType,
         timeoutSeconds: Double = 5.0
     ) async throws {
-        defer { dataWriteResultContinuation = nil }
+        defer {
+            dataWriteResultContinuation = nil
+            dataPacketSendTask?.cancel()
+            dataPacketSendTask = nil
+        }
         try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask { [weak self] in
                 try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
@@ -1106,8 +1144,17 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                         // 否则会触发 CoreBluetooth "value's length is invalid" 或固件直接丢帧。
                         let maxPacketLength = min(negotiatedLength, AhaKeyCommand.oledPacketSize)
                         self?.appendLog("→ DATA \(data.count)B, 分片 \(maxPacketLength)B (协商上限 \(negotiatedLength)B)", category: .verbose)
-                        Task {
+                        self?.dataPacketSendTask = Task { @MainActor in
                             for offset in stride(from: 0, to: data.count, by: maxPacketLength) {
+                                guard !Task.isCancelled else { return }
+                                // withoutResponse 在 canSendWriteWithoutResponse == false 时写入可能被系统丢弃，
+                                // 固件收不齐整块就永远不回 0x81（旧 Mac / Intel 蓝牙控制器上更容易触发）。
+                                var flowControlWaitMs = 0
+                                while type == .withoutResponse, !peripheral.canSendWriteWithoutResponse,
+                                      flowControlWaitMs < 1_000, !Task.isCancelled {
+                                    try? await Task.sleep(nanoseconds: 2_000_000)
+                                    flowControlWaitMs += 2
+                                }
                                 let end = min(offset + maxPacketLength, data.count)
                                 let packet = Data(data[offset ..< end])
                                 peripheral.writeValue(packet, for: characteristic, type: type)
@@ -1117,13 +1164,55 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                     }
                 }
             }
-            group.addTask {
+            group.addTask { [weak self] in
                 try await Task.sleep(nanoseconds: UInt64(Double(timeoutSeconds) * 1_000_000_000))
+                // 与 sendCommandAwaitingResponse 相同：CheckedContinuation 不响应取消，0x81 一直不来时必须主动 resume，
+                // 否则 task group 永远等不到第一个子任务结束，上传卡在「正在上传…」且 isUploadingOLED 不复位。
+                await MainActor.run { [weak self] in
+                    self?.dataPacketSendTask?.cancel()
+                    let pending = self?.dataWriteResultContinuation
+                    self?.dataWriteResultContinuation = nil
+                    pending?.resume(throwing: OLEDUploadError.timeout(command: AhaKeyCommand.cmdWriteResult))
+                }
                 throw OLEDUploadError.timeout(command: AhaKeyCommand.cmdWriteResult)
             }
 
             _ = try await group.next()
             group.cancelAll()
+        }
+    }
+
+    /// 仅对「等待设备响应超时」重试；设备明确拒绝或链路已断开时立即抛出，避免断线后空等多轮超时。
+    static func retryingOLEDTimeouts(
+        maxAttempts: Int,
+        canRetry: () -> Bool,
+        onRetry: (_ nextAttempt: Int, _ error: Error) -> Void,
+        _ operation: (_ attempt: Int) async throws -> Void
+    ) async throws {
+        var attempt = 1
+        while true {
+            do {
+                try await operation(attempt)
+                return
+            } catch OLEDUploadError.timeout(let command) where attempt < maxAttempts && canRetry() {
+                attempt += 1
+                onRetry(attempt, OLEDUploadError.timeout(command: command))
+            }
+        }
+    }
+}
+
+/// LCD 动图上传所处的协议阶段，用于失败提示定位（AHK-022）。
+enum OLEDTransferStage: Equatable {
+    case prepareWrite   // 0x80 准备写入
+    case dataWrite      // 数据包发送 + 等待 0x81 写入结果
+    case commitPicture  // 0x82 提交动图元信息
+
+    var label: String {
+        switch self {
+        case .prepareWrite: return "准备写入（0x80）"
+        case .dataWrite: return "数据写入确认（0x81）"
+        case .commitPicture: return "提交动图（0x82）"
         }
     }
 }
@@ -1301,6 +1390,12 @@ enum OLEDUploadError: LocalizedError {
     case noAvailablePictureSlot(needed: Int, max: Int)
     case timeout(command: UInt8)
     case deviceRejected(command: UInt8, status: UInt8)
+    case transferFailed(
+        stage: OLEDTransferStage, mode: UInt8,
+        frame: Int, totalFrames: Int,
+        chunk: Int?, totalChunks: Int?,
+        attempts: Int, reason: String
+    )
     case invalidPictureStatePayload
     case invalidDeviceStatusPayload
     case invalidCommandFrame
@@ -1320,6 +1415,12 @@ enum OLEDUploadError: LocalizedError {
             return String(format: "等待设备响应超时: 0x%02X", command)
         case .deviceRejected(let command, let status):
             return String(format: "设备拒绝了命令 0x%02X，状态码 0x%02X", command, status)
+        case .transferFailed(let stage, let mode, let frame, let totalFrames, let chunk, let totalChunks, let attempts, let reason):
+            let modeTitle = AhaKeyModeSlot(rawValue: Int(mode))?.title ?? "mode \(mode)"
+            var position = "\(modeTitle) 第 \(frame)/\(totalFrames) 帧"
+            if let chunk, let totalChunks { position += "、第 \(chunk)/\(totalChunks) 块" }
+            let attemptNote = attempts > 1 ? "，已自动重试 \(attempts - 1) 次" : ""
+            return "LCD 动图上传在「\(stage.label)」阶段失败（\(position)\(attemptNote)）：\(reason)。该动图未确认生效，请保持键盘连接并靠近电脑后重新写入。"
         case .invalidPictureStatePayload:
             return "设备返回的动画槽位信息无法解析。"
         case .invalidDeviceStatusPayload:

@@ -337,10 +337,12 @@ final class AgentManager: ObservableObject {
         removeStaleSocketIfNeeded()
     }
 
+    /// 只删除没有进程监听的残留 socket；仍有 Agent 在监听（如手动启动的实例）时不能删，
+    /// 否则该 Agent 进程存活却再也连不上（AHK-015）。
     private func removeStaleSocketIfNeeded() {
-        if FileManager.default.fileExists(atPath: socketPath) {
-            try? FileManager.default.removeItem(atPath: socketPath)
-        }
+        guard FileManager.default.fileExists(atPath: socketPath),
+              !Self.agentSocketAlive(socketPath: socketPath) else { return }
+        try? FileManager.default.removeItem(atPath: socketPath)
     }
 
     private func detectClaudeHooksInstalled() -> Bool {
@@ -542,9 +544,7 @@ final class AgentManager: ObservableObject {
         _ = removeKimiHooks()
 
         // 4. 清理 socket
-        if FileManager.default.fileExists(atPath: socketPath) {
-            try? FileManager.default.removeItem(atPath: socketPath)
-        }
+        removeStaleSocketIfNeeded()
 
         bluetoothConnectionOwner = .ahaKeyStudio
         UserDefaults.standard.set(BluetoothConnectionOwner.ahaKeyStudio.rawValue, forKey: Self.bluetoothOwnerKey)
