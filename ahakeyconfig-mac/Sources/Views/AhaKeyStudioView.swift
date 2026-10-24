@@ -2270,7 +2270,7 @@ struct AhaKeyStudioView: View {
                     self.returnToKeyboardControl()
                 }
             } catch {
-                var message = "写入键盘失败：\(error.localizedDescription)"
+                var message = Self.deviceWriteFailureMessage(for: error)
                 if case OLEDUploadError.transferFailed = error {
                     // 动图先于键位/灯效上传，失败时后续命令与 0x04 保存都未发送（AHK-022）。
                     message += "键位与灯效配置本次未写入。"
@@ -2283,6 +2283,14 @@ struct AhaKeyStudioView: View {
                 }
             }
         }
+    }
+
+    /// 断连属于「部分写入」：之前已 ACK 的命令可能已生效，但最后的 0x04 保存未确认，需要重连后整体重写。
+    static func deviceWriteFailureMessage(for error: Error) -> String {
+        if case OLEDUploadError.disconnected = error {
+            return "写入中断：键盘在写入过程中断开，配置可能只写入了一部分，且未确认保存。请重新连接后再次点击「写入键盘」完整重写。"
+        }
+        return "写入键盘失败：\(error.localizedDescription)"
     }
 
     private func uploadChangedOLEDsToDevice() async throws -> Int {
@@ -2305,8 +2313,9 @@ struct AhaKeyStudioView: View {
             }
             syncStatusMessage = "正在上传 \(mode.title) 的 LCD 动图…"
 
-            let startIndex = try await resolveOLEDUploadStartIndex(for: mode, frameCount: frames.count)
+            let startIndex: Int
             do {
+                startIndex = try await resolveOLEDUploadStartIndex(for: mode, frameCount: frames.count)
                 try await bleManager.uploadOLEDFrames(
                     frames,
                     fps: draft.oled.framesPerSecond,
@@ -2315,7 +2324,7 @@ struct AhaKeyStudioView: View {
                 )
             } catch {
                 updateMode(mode) { modeDraft in
-                    modeDraft.oled.statusLine = "动图上传失败，可重新写入重试：\(error.localizedDescription)"
+                    modeDraft.oled.statusLine = "动图上传未完成：\(error.localizedDescription)"
                 }
                 throw error
             }
@@ -2351,7 +2360,7 @@ struct AhaKeyStudioView: View {
                 self.syncStatusMessage = "已重新写入 \(self.selectedMode.title)（固件已确认）。"
             } catch {
                 self.isSyncing = false
-                self.syncStatusMessage = "写入键盘失败：\(error.localizedDescription)"
+                self.syncStatusMessage = Self.deviceWriteFailureMessage(for: error)
             }
         }
     }

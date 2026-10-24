@@ -202,6 +202,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     private var writeBatches: [WriteCommandBatch] = []
     private var protocolResponseWaiters: [UInt8: CheckedContinuation<CommandResponse, Error>] = [:]
+    private var protocolResponseWaiterIDs: [UInt8: UUID] = [:]
+    private var protocolResponseTimeoutTasks: [UInt8: Task<Void, Never>] = [:]
     private var dataWriteResultContinuation: CheckedContinuation<Void, Error>?
     /// 当前数据块的分包发送 + 0x81 超时计时任务；数据块结算时取消，避免超时后旧分包继续写进下一块。
     private var dataWriteTask: Task<Void, Never>?
@@ -1105,36 +1107,48 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     private func sendCommandAwaitingResponse(_ data: Data, expectedCommand: UInt8, timeoutSeconds: Double = 5.0) async throws -> CommandResponse {
         guard !dataWriteRequiresReconnect else { throw OLEDUploadError.reconnectRequired }
-        defer { protocolResponseWaiters[expectedCommand] = nil }
-        return try await withThrowingTaskGroup(of: CommandResponse.self) { group in
-            group.addTask { [weak self] in
-                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CommandResponse, Error>) in
-                    Task { @MainActor in
-                        self?.protocolResponseWaiters[expectedCommand] = continuation
-                        self?.writeCommand(data)
-                    }
-                }
-            }
-            group.addTask { [weak self] in
-                try await Task.sleep(nanoseconds: UInt64(Double(timeoutSeconds) * 1_000_000_000))
-                // 超时必须主动 resume 仍挂着的 continuation 并移除它：CheckedContinuation 不响应任务取消，
-                // 否则 withThrowingTaskGroup 会一直等这个永不结束的子任务而 hang，导致本函数永不返回 →
-                // defer 不清理 → protocolResponseWaiters 残留 → 状态轮询被 guard 永久挡死（设备某档/某模式
-                // 不回应即复现：界面不再随键盘变化刷新，必须重连）。removeValue 原子取出，与响应处理互斥，不会重复 resume。
-                await MainActor.run { [weak self] in
-                    self?.protocolResponseWaiters.removeValue(forKey: expectedCommand)?
-                        .resume(throwing: OLEDUploadError.timeout(command: expectedCommand))
-                }
-                throw OLEDUploadError.timeout(command: expectedCommand)
-            }
-
-            let result = try await group.next() ?? (status: 0, payload: Data())
-            group.cancelAll()
-            guard result.status == 0 else {
-                throw OLEDUploadError.deviceRejected(command: expectedCommand, status: result.status)
-            }
-            return result
+        guard peripheral != nil, commandChar != nil else { throw OLEDUploadError.disconnected }
+        return try await awaitProtocolResponse(expectedCommand: expectedCommand, timeoutSeconds: timeoutSeconds) {
+            self.writeCommand(data)
         }
+    }
+
+    /// 注册、计时、取消与结算共享同一请求 ID；旧请求的清理不能删除新等待者。
+    func awaitProtocolResponse(expectedCommand: UInt8, timeoutSeconds: Double, send: () -> Void) async throws -> CommandResponse {
+        let id = UUID()
+        let result: CommandResponse = try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                finishProtocolResponse(expectedCommand, result: .failure(OLEDUploadError.superseded(command: expectedCommand)))
+                protocolResponseWaiterIDs[expectedCommand] = id
+                protocolResponseWaiters[expectedCommand] = continuation
+                protocolResponseTimeoutTasks[expectedCommand] = Task { @MainActor [weak self] in
+                    do { try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000)) }
+                    catch { return }
+                    self?.finishProtocolResponse(expectedCommand, id: id, result: .failure(OLEDUploadError.timeout(command: expectedCommand)))
+                }
+                send()
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.finishProtocolResponse(expectedCommand, id: id, result: .failure(CancellationError()))
+            }
+        }
+        guard result.status == 0 else {
+            throw OLEDUploadError.deviceRejected(command: expectedCommand, status: result.status)
+        }
+        return result
+    }
+
+    private func finishProtocolResponse(_ command: UInt8, id: UUID? = nil, result: Result<CommandResponse, Error>) {
+        if let id, protocolResponseWaiterIDs[command] != id { return }
+        protocolResponseWaiterIDs.removeValue(forKey: command)
+        protocolResponseTimeoutTasks.removeValue(forKey: command)?.cancel()
+        protocolResponseWaiters.removeValue(forKey: command)?.resume(with: result)
+    }
+
+    func failPendingDeviceOperations() {
+        failPendingResponses(with: OLEDUploadError.disconnected)
     }
 
     private func writeDataChunk(
@@ -1221,9 +1235,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     /// 断线时立即结算所有在途等待，而不是让上传各自等满超时再报「0x81 超时」。
     func failPendingResponses(with error: Error) {
         finishDataWrite(.failure(error))
-        let waiters = protocolResponseWaiters
-        protocolResponseWaiters.removeAll()
-        waiters.values.forEach { $0.resume(throwing: error) }
+        for command in Array(protocolResponseWaiters.keys) {
+            finishProtocolResponse(command, result: .failure(error))
+        }
     }
 
     /// 仅对「等待设备响应超时」重试；设备明确拒绝或链路已断开时立即抛出，避免断线后空等多轮超时。
@@ -1434,6 +1448,8 @@ enum OLEDUploadError: LocalizedError {
     case noAvailablePictureSlot(needed: Int, max: Int)
     case timeout(command: UInt8)
     case deviceRejected(command: UInt8, status: UInt8)
+    case disconnected
+    case superseded(command: UInt8)
     case reconnectRequired
     case uploadInProgress
     case uploadInterrupted
@@ -1466,6 +1482,10 @@ enum OLEDUploadError: LocalizedError {
             return String(format: "等待设备响应超时: 0x%02X", command)
         case .deviceRejected(let command, let status):
             return String(format: "设备拒绝了命令 0x%02X，状态码 0x%02X", command, status)
+        case .disconnected:
+            return "设备连接已断开，本次写入未完成。"
+        case .superseded(let command):
+            return String(format: "另一项写入占用了设备通道，命令 0x%02X 已中止。", command)
         case .reconnectRequired:
             return "上次图片数据写入未获确认，请等待键盘重新连接后重新写入。"
         case .uploadInProgress:
@@ -1598,7 +1618,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
                 )
             }
             self.apply(.disconnected)
-            self.failPendingResponses(with: OLEDUploadError.deviceDisconnected)
+            self.failPendingDeviceOperations()
             self.bleConnectionStatus = NSLocalizedString("已断开", comment: "")
             self.dataChar = nil
             self.commandChar = nil
@@ -1781,10 +1801,10 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
             let supported = Self.statusAdvertisesConfigurableLighting(brightness: status.brightness)
             if supportsConfigurableLighting != supported { supportsConfigurableLighting = supported }
             // Preserve main's status-query waiter; status frames are not ordinary ACKs.
-            protocolResponseWaiters.removeValue(forKey: 0x00)?.resume(returning: (status: 0, payload: data))
+            finishProtocolResponse(0x00, result: .success((status: 0, payload: data)))
         } else if AhaKeyResponseParser.isProtocolFrame(data) {
             if let response = AhaKeyResponseParser.parseCommandResponse(data) {
-                protocolResponseWaiters.removeValue(forKey: response.cmd)?.resume(returning: (response.status, response.payload))
+                finishProtocolResponse(response.cmd, result: .success((response.status, response.payload)))
 
                 if response.cmd == AhaKeyCommand.cmdWriteResult {
                     finishDataWrite(response.status == 0
