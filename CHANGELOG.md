@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### macOS — AhaType
+
+- AhaType 云端整理失败时，悬浮提示改为“已写入原始文字”，不再显示为正常完成；AhaType 状态中给出具体原因（#137）。
+- 区分令牌有效期“格式无法识别”与“已过期”；云端推理端点关闭（`InvalidEndpoint.ClosedEndpoint`）时显示可读提示，不再显示整段上游错误。
+
 ## v0.2.3 — 2026-10-15
 
 ### macOS — AhaType 与 Claude Code
