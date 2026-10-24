@@ -59,4 +59,68 @@ final class AhaKeyBLEManagerTests: XCTestCase {
         XCTAssertEqual(AhaKeyCommand.previewLightEffect(16), Data([0xAA, 0xBB, 0x91, 16, 0xCC, 0xDD]))
         XCTAssertEqual(AhaKeyCommand.saveConfig(), Data([0xAA, 0xBB, 0x04, 0xCC, 0xDD]))
     }
+
+    @MainActor
+    func testOLEDChunkTimeoutIsRetriedUntilSuccess() async throws {
+        var attempts: [Int] = []
+        var retries: [Int] = []
+        try await AhaKeyBLEManager.retryingOLEDTimeouts(
+            maxAttempts: 3,
+            canRetry: { true },
+            onRetry: { next, _ in retries.append(next) }
+        ) { attempt in
+            attempts.append(attempt)
+            if attempt < 3 { throw OLEDUploadError.timeout(command: AhaKeyCommand.cmdWriteResult) }
+        }
+        XCTAssertEqual(attempts, [1, 2, 3])
+        XCTAssertEqual(retries, [2, 3])
+    }
+
+    @MainActor
+    func testOLEDChunkRetryStopsOnRejectionDisconnectOrLimit() async {
+        var attempts = 0
+        do {
+            try await AhaKeyBLEManager.retryingOLEDTimeouts(maxAttempts: 3, canRetry: { true }, onRetry: { _, _ in }) { _ in
+                attempts += 1
+                throw OLEDUploadError.deviceRejected(command: AhaKeyCommand.cmdWriteResult, status: 1)
+            }
+            XCTFail("expected rejection")
+        } catch {}
+        XCTAssertEqual(attempts, 1)
+
+        attempts = 0
+        do {
+            try await AhaKeyBLEManager.retryingOLEDTimeouts(maxAttempts: 3, canRetry: { false }, onRetry: { _, _ in }) { _ in
+                attempts += 1
+                throw OLEDUploadError.timeout(command: AhaKeyCommand.cmdPrepareWrite)
+            }
+            XCTFail("expected timeout")
+        } catch {}
+        XCTAssertEqual(attempts, 1)
+
+        attempts = 0
+        do {
+            try await AhaKeyBLEManager.retryingOLEDTimeouts(maxAttempts: 3, canRetry: { true }, onRetry: { _, _ in }) { _ in
+                attempts += 1
+                throw OLEDUploadError.timeout(command: AhaKeyCommand.cmdWriteResult)
+            }
+            XCTFail("expected timeout")
+        } catch {}
+        XCTAssertEqual(attempts, 3)
+    }
+
+    func testOLEDTransferFailureNamesStagePositionAndRetry() {
+        let error = OLEDUploadError.transferFailed(
+            stage: .dataWrite, mode: 1,
+            frame: 3, totalFrames: 12,
+            chunk: 2, totalChunks: 7,
+            attempts: 3, reason: OLEDUploadError.timeout(command: AhaKeyCommand.cmdWriteResult).localizedDescription
+        )
+        let message = error.localizedDescription
+        XCTAssertTrue(message.contains("数据写入确认（0x81）"), message)
+        XCTAssertTrue(message.contains("第 3/12 帧、第 2/7 块"), message)
+        XCTAssertTrue(message.contains("已自动重试 2 次"), message)
+        XCTAssertTrue(message.contains("等待设备响应超时: 0x81"), message)
+        XCTAssertTrue(message.contains("重新写入"), message)
+    }
 }
