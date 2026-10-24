@@ -1,3 +1,4 @@
+import CoreBluetooth
 import AhaKeyConfigShared
 import XCTest
 @testable import AhaKeyConfig
@@ -119,6 +120,17 @@ final class OLEDDataWriteResultTests: XCTestCase {
         } catch OLEDUploadError.dataWriteFailed {
         } catch { XCTFail("unexpected error: \(error)") }
         XCTAssertTrue(manager.dataWriteRequiresReconnect)
+    }
+
+    func testStandardTelemetryIsNotFilteredAsProtocolAcknowledgement() {
+        let manager = makeManager()
+        for uuid in [AhaKeyBLEManager.batteryLevelCharUUID, AhaKeyBLEManager.firmwareRevisionCharUUID,
+                     AhaKeyBLEManager.modelNumberCharUUID] {
+            let characteristic = CBMutableCharacteristic(type: uuid, properties: .read, value: nil, permissions: .readable)
+            XCTAssertTrue(manager.acceptsNotification(characteristic))
+        }
+        let staleAck = CBMutableCharacteristic(type: AhaKeyBLEManager.notifyCharUUID, properties: .notify, value: nil, permissions: .readable)
+        XCTAssertFalse(manager.acceptsNotification(staleAck))
     }
 
     func testWriteResultTimeoutMessageOffersRetry() {
