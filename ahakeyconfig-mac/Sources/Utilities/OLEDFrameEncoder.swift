@@ -5,6 +5,7 @@ import ImageIO
 enum OLEDFrameEncodingError: LocalizedError {
     case cannotCreateImageSource
     case noFrames
+    case undecodableFrame(index: Int)
     case cannotCreateContext
     case sourceFileTooLarge(fileSize: Int, maxBytes: Int)
     case tooManyFrames(count: Int, max: Int)
@@ -15,6 +16,8 @@ enum OLEDFrameEncodingError: LocalizedError {
             return "无法读取 GIF 文件。"
         case .noFrames:
             return NSLocalizedString("没有可编码的图片帧。", comment: "")
+        case .undecodableFrame(let index):
+            return String(format: NSLocalizedString("图片第 %d 帧无法解码，文件可能已损坏。请重新导出图片后再试。", comment: ""), index + 1)
         case .cannotCreateContext:
             return NSLocalizedString("无法创建 LCD 编码上下文。", comment: "")
         case .sourceFileTooLarge(let fileSize, let maxBytes):
@@ -69,6 +72,17 @@ enum OLEDFrameEncoder {
         }
     }
 
+    /// 逐帧确认像素能真正解码。损坏的 PNG（截断、IDAT 损坏）仍会报告 1 帧且能拿到 CGImage，
+    /// 但绘制出来是全黑；必须在选择文件时就拒绝，避免黑帧被当作正常图片上传。
+    static func validateDecodableFrames(at url: URL) throws {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
+            throw OLEDFrameEncodingError.cannotCreateImageSource
+        }
+        for index in 0 ..< CGImageSourceGetCount(source) {
+            _ = try decodedImage(from: source, at: index)
+        }
+    }
+
     static func frames(fromGIFAt url: URL) throws -> [Data] {
         try validateGIFSourceFileSize(at: url)
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
@@ -86,14 +100,23 @@ enum OLEDFrameEncoder {
         var frames: [Data] = []
         frames.reserveCapacity(count)
         for index in 0 ..< count {
-            guard let image = CGImageSourceCreateImageAtIndex(source, index, nil) else { continue }
-            frames.append(try encodeFrame(image))
+            frames.append(try encodeFrame(try decodedImage(from: source, at: index)))
         }
 
         guard !frames.isEmpty else {
             throw OLEDFrameEncodingError.noFrames
         }
         return frames
+    }
+
+    /// ImageIO 对损坏数据是惰性失败的：`CGImageSourceCreateImageAtIndex` 可能返回非空图像，
+    /// 但取像素数据时才发现解码失败（`dataProvider.data == nil`），此时绘制结果全黑。
+    private static func decodedImage(from source: CGImageSource, at index: Int) throws -> CGImage {
+        guard let image = CGImageSourceCreateImageAtIndex(source, index, nil),
+              image.dataProvider?.data != nil else {
+            throw OLEDFrameEncodingError.undecodableFrame(index: index)
+        }
+        return image
     }
 
     private static func encodeFrame(_ image: CGImage) throws -> Data {

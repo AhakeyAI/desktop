@@ -1631,7 +1631,7 @@ struct AhaKeyStudioView: View {
                         Label("自动批准依赖 Agent 与 Hook，且须蓝牙由 Agent 占用", systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
                             .font(.callout.weight(.semibold))
-                        Text("Claude Code：PreToolUse allow，PermissionRequest 兜底（桌面版须使用 Code 本地会话，Chat 不支持本地 Hook）。Cursor：preToolUse 等与 cli-config。Codex：PermissionRequest allow。Kimi：安装过 AhaKey Kimi Hooks 后，**拨杆会直接接管当前会话的自动批准**；若刚装完或刚升级 kimi-cli，请**完全关闭并重新打开一次 kimi**。钩子 stdout 只对 **`permissionDecision: deny`** 有特殊拦截语义。Agent 须在跑且蓝牙由其占用。")
+                        Text("Claude Code：PreToolUse allow，PermissionRequest 兜底（桌面版须使用 Code 本地会话，Chat 不支持本地 Hook）。Cursor：preToolUse 等与 cli-config。Codex：PermissionRequest allow。Kimi Code：安装 AhaKey Kimi Hooks 后，拨杆仅设置**新建会话**的默认权限；已打开或恢复的会话请用 `/permission` 切换。PreToolUse 不替代 Kimi 会话内审批。Agent 须在跑且蓝牙由其占用。")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
@@ -1640,10 +1640,10 @@ struct AhaKeyStudioView: View {
 
             GroupBox(NSLocalizedString("如何理解这个部件", comment: "")) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("拨杆对 Claude / Cursor / Codex / Kimi **同时生效**，与键盘当前所在 Mode 无关。Agent 后台同时监听所有 IDE 的 Hook，拨杆拨动后四个 IDE 的批准行为立即切换。")
+                    Text("拨杆与键盘当前所在 Mode 无关。Agent 后台监听 Claude / Cursor / Codex 的 Hook；Kimi Code 仅同步**新建会话**的默认权限，已打开或恢复的会话请用 `/permission` 切换。")
                     Divider()
-                    Text("自动批准：**Claude Code PreToolUse**（PermissionRequest 兜底；桌面版仅 Code 本地会话）、**Codex PermissionRequest**、**Cursor preToolUse**（含 cli-config）。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管**当前会话**的自动批准；刚装完或刚升级 kimi-cli 时，重开一次 kimi 即可。")
-                    Text(NSLocalizedString("手动批准：会交回用户/终端确认。若 Cursor、Codex 或 Kimi 仍弹窗，请看 diagnostics 里的 ide 与 diagnostic 字段。", comment: ""))
+                    Text("自动批准：**Claude Code PreToolUse**（PermissionRequest 兜底；桌面版仅 Code 本地会话）、**Codex PermissionRequest**、**Cursor preToolUse**（含 cli-config）。**Kimi Code**：安装 AhaKey Kimi Hooks 后，自动档为新建会话设置默认权限；已打开或恢复的会话请用 `/permission` 切换。")
+                    Text(NSLocalizedString("手动批准：Claude/Cursor/Codex 交回用户或终端确认。Kimi Code 新建会话默认手动；已打开或恢复的会话请用 `/permission` 选择手动模式。", comment: ""))
                     Text(NSLocalizedString("若仍出现手动：在「设备信息」里打开「工具批准诊断」查看 permission-request.log（含 ide、hookEvent、diagnostic 等）。", comment: ""))
                 }
                 .font(.callout)
@@ -1662,7 +1662,7 @@ struct AhaKeyStudioView: View {
                     Image(systemName: agentReady ? "checkmark.seal.fill" : "exclamationmark.circle.fill")
                         .foregroundStyle(agentReady ? .green : .orange)
                     Text(agentReady
-                         ? "Agent 就绪时 Claude/Cursor/Codex 可随拨杆走批准。**Kimi**：安装过 AhaKey Kimi Hooks 后，拨杆会直接接管当前会话；若刚装完或刚升级 kimi-cli，重开一次 kimi 即可。"
+                         ? "Agent 就绪时 Claude/Cursor/Codex 可随拨杆走批准。**Kimi Code**：安装 AhaKey Kimi Hooks 后，拨杆仅影响新建会话；已打开或恢复的会话请用 `/permission` 切换，手动档请选择手动模式。"
                          : "拨杆在 IDE 中生效需先安装 Agent 与 Hook，并把蓝牙交给 Agent；否则仅为状态显示。")
                         .font(.callout)
                 }
@@ -1953,7 +1953,7 @@ struct AhaKeyStudioView: View {
             for role in AhaKeyKeyRole.allCases where current.key(for: role) != baseline.key(for: role) {
                 count += 1
             }
-            if current.oled != baseline.oled {
+            if current.oled != baseline.oled || current.oled.needsDeviceUpload {
                 count += 1
             }
             if current.lightBar != baseline.lightBar {
@@ -1974,6 +1974,7 @@ struct AhaKeyStudioView: View {
         updateCurrentMode { mode in
             mode.oled.localAssetPath = nil
             mode.oled.statusLine = AhaKeyOLEDDraft.default(for: selectedMode).statusLine
+            mode.oled.needsDeviceUpload = false
         }
     }
 
@@ -2088,7 +2089,7 @@ struct AhaKeyStudioView: View {
             guard let role = part.keyRole else { return false }
             return current.key(for: role) != baseline.key(for: role)
         case .oledDisplay:
-            return current.oled != baseline.oled
+            return current.oled != baseline.oled || current.oled.needsDeviceUpload
         case .lightBar:
             return current.lightBar != baseline.lightBar
         case .toggleSwitch:
@@ -2108,6 +2109,7 @@ struct AhaKeyStudioView: View {
             do {
                 try OLEDFrameEncoder.validateGIFSourceFileSize(at: url)
                 try OLEDFrameEncoder.validateFrameCount(at: url)
+                try OLEDFrameEncoder.validateDecodableFrames(at: url)
             } catch {
                 let msg = (error as? LocalizedError)?.errorDescription ?? NSLocalizedString("图片文件不符合上传限制。", comment: "")
                 syncStatusMessage = msg
@@ -2120,6 +2122,7 @@ struct AhaKeyStudioView: View {
             updateCurrentMode { mode in
                 mode.oled.localAssetPath = url.path
                 mode.oled.statusLine = "已选 \(max(frameCount, 1)) 帧图片预览；写入时将上传到 \(selectedMode.title) 固定分区。"
+                mode.oled.needsDeviceUpload = true
             }
             syncStatusMessage = "已更新 \(selectedMode.title) 的 LCD 预览；写入设备请使用底部通用按钮。"
         }
@@ -2269,8 +2272,8 @@ struct AhaKeyStudioView: View {
                     self.returnToKeyboardControl()
                 }
             } catch {
-                var message = "写入键盘失败：\(error.localizedDescription)"
-                if case OLEDUploadError.transferFailed = error {
+                var message = Self.deviceWriteFailureMessage(for: error)
+                if case OLEDUploadError.uploadIncomplete = error {
                     // 动图先于键位/灯效上传，失败时后续命令与 0x04 保存都未发送（AHK-022）。
                     message += "键位与灯效配置本次未写入。"
                 }
@@ -2284,6 +2287,14 @@ struct AhaKeyStudioView: View {
         }
     }
 
+    /// 断连属于「部分写入」：之前已 ACK 的命令可能已生效，但最后的 0x04 保存未确认，需要重连后整体重写。
+    static func deviceWriteFailureMessage(for error: Error) -> String {
+        if case OLEDUploadError.disconnected = error {
+            return "写入中断：键盘在写入过程中断开，配置可能只写入了一部分，且未确认保存。请重新连接后再次点击「写入键盘」完整重写。"
+        }
+        return "写入键盘失败：\(error.localizedDescription)"
+    }
+
     private func uploadChangedOLEDsToDevice() async throws -> Int {
         var uploadCount = 0
 
@@ -2293,19 +2304,21 @@ struct AhaKeyStudioView: View {
 
             let baseline = lastSyncedDraft.draft(for: mode).oled
             let deviceFrameCount = bleManager.keyboardPictureStates[mode.rawValue]?.frameCount ?? 0
-            guard draft.oled != baseline || deviceFrameCount == 0 else { continue }
+            guard draft.oled != baseline || deviceFrameCount == 0 || draft.oled.needsDeviceUpload else { continue }
 
             let assetURL = URL(fileURLWithPath: assetPath)
             try OLEDFrameEncoder.validateGIFSourceFileSize(at: assetURL)
             let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL)
 
             updateMode(mode) { modeDraft in
-                modeDraft.oled.statusLine = "正在上传动图到 \(mode.title)…"
+                modeDraft.oled.statusLine = "\(AhaKeyOLEDDraft.uploadInProgressStatusPrefix)\(mode.title)…"
+                modeDraft.oled.needsDeviceUpload = true
             }
             syncStatusMessage = "正在上传 \(mode.title) 的 LCD 动图…"
 
-            let startIndex = try await resolveOLEDUploadStartIndex(for: mode, frameCount: frames.count)
+            let startIndex: Int
             do {
+                startIndex = try await resolveOLEDUploadStartIndex(for: mode, frameCount: frames.count)
                 try await bleManager.uploadOLEDFrames(
                     frames,
                     fps: draft.oled.framesPerSecond,
@@ -2313,14 +2326,16 @@ struct AhaKeyStudioView: View {
                     startIndex: UInt16(startIndex)
                 )
             } catch {
+                // 不能停在「正在上传…」：给出失败原因与恢复步骤，needsDeviceUpload 保持 true 以便下次重传（AHK-061/082）。
                 updateMode(mode) { modeDraft in
-                    modeDraft.oled.statusLine = "动图上传失败，可重新写入重试：\(error.localizedDescription)"
+                    modeDraft.oled.statusLine = "\(mode.title) 动图上传失败：\(error.localizedDescription)。键盘上的动图可能是旧图或新旧帧混杂；请确认键盘已连接后点击「写入键盘」重新上传。"
                 }
                 throw error
             }
 
             updateMode(mode) { modeDraft in
                 modeDraft.oled.statusLine = "已上传 \(frames.count) 帧到设备，槽位起点 \(startIndex)；切换模式时会先显示描述，再回到当前模式动图。"
+                modeDraft.oled.needsDeviceUpload = false
             }
             uploadCount += 1
         }
@@ -2350,7 +2365,7 @@ struct AhaKeyStudioView: View {
                 self.syncStatusMessage = "已重新写入 \(self.selectedMode.title)（固件已确认）。"
             } catch {
                 self.isSyncing = false
-                self.syncStatusMessage = "写入键盘失败：\(error.localizedDescription)"
+                self.syncStatusMessage = Self.deviceWriteFailureMessage(for: error)
             }
         }
     }
@@ -2478,6 +2493,10 @@ struct AhaKeyStudioView: View {
             do {
                 try OLEDFrameEncoder.validateGIFSourceFileSize(at: assetURL)
                 let frames = try OLEDFrameEncoder.frames(fromGIFAt: assetURL)
+                updateMode(mode) { m in
+                    m.oled.statusLine = "\(AhaKeyOLEDDraft.uploadInProgressStatusPrefix)\(mode.title)…"
+                    m.oled.needsDeviceUpload = true
+                }
                 let startIndex = try await resolveOLEDUploadStartIndex(for: mode, frameCount: frames.count)
                 try await bleManager.uploadOLEDFrames(
                     frames,
@@ -2487,8 +2506,12 @@ struct AhaKeyStudioView: View {
                 )
                 updateMode(mode) { m in
                     m.oled.statusLine = "已自动同步默认动图（\(frames.count) 帧）。"
+                    m.oled.needsDeviceUpload = false
                 }
             } catch {
+                updateMode(mode) { m in
+                    m.oled.statusLine = "动图上传未完成：\(error.localizedDescription)。请重新连接后点击「写入键盘」重传。"
+                }
                 syncStatusMessage = "\(mode.title) 默认动图自动同步失败: \(error.localizedDescription)"
             }
         }
