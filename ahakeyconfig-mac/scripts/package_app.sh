@@ -12,17 +12,21 @@ cd "$(dirname "$0")/.."          # -> ahakeyconfig-mac
 CONFIG="release"
 APP_NAME="AhaKey Studio"
 EXEC="AhaKeyConfig"
+AGENT="ahakeyconfig-agent"
 DIST="dist"
 APP="${DIST}/${APP_NAME}.app"
 
 echo "==> swift build -c ${CONFIG} --product ${EXEC}"
 swift build -c "${CONFIG}" --product "${EXEC}"
+echo "==> swift build -c ${CONFIG} --product ${AGENT}"
+swift build -c "${CONFIG}" --product "${AGENT}"
 BIN_PATH="$(swift build -c "${CONFIG}" --show-bin-path)"
 
 echo "==> assembling ${APP}"
 rm -rf "${APP}"
 mkdir -p "${APP}/Contents/MacOS" "${APP}/Contents/Resources"
 cp "${BIN_PATH}/${EXEC}" "${APP}/Contents/MacOS/${EXEC}"
+cp "${BIN_PATH}/${AGENT}" "${APP}/Contents/MacOS/${AGENT}"
 
 VERSION="${APP_VERSION:-0.0.0}"
 BUILD="${APP_BUILD:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}"

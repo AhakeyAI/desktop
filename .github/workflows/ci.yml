@@ -60,6 +60,12 @@ jobs:
           chmod +x scripts/package_app.sh
           scripts/package_app.sh
 
+      - name: Verify app bundle contains both executable products
+        run: |
+          test -x "dist/AhaKey Studio.app/Contents/MacOS/AhaKeyConfig"
+          test -x "dist/AhaKey Studio.app/Contents/MacOS/ahakeyconfig-agent"
+          codesign --verify --deep --strict "dist/AhaKey Studio.app"
+
       - name: Zip app bundle
         working-directory: ahakeyconfig-mac/dist
         run: ditto -c -k --sequesterRsrc --keepParent "AhaKey Studio.app" "AhaKey-Studio-macOS.zip"
