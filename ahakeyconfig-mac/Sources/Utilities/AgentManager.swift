@@ -1018,7 +1018,7 @@ final class AgentManager: ObservableObject {
             ? """
             Kimi Hooks 已写入 \(kimiConfigDisplayPath)。
 
-            **拨杆接管**：AhaKey 会随拨杆改写该文件的 `default_permission_mode`（自动档 `yolo`、手动档 `manual`）。Kimi Code 只在**新建会话**时读取它：拨杆切换后新开的 kimi 会话即按拨杆审批；已打开或恢复的会话请在 Kimi 内输入 `/yolo` 或 `/permission` 切换。
+            **拨杆接管**：AhaKey 会随拨杆改写该文件的 `default_permission_mode`（自动档 `yolo`、手动档 `manual`）。Kimi Code 只在**新建会话**时读取它：拨杆切换后新开的 kimi 会话即按拨杆审批；启动、断连或状态未知时，新会话默认恢复为 `manual`。已打开或恢复的会话不会随拨杆切换，需在 Kimi 内输入 `/permission` 选择手动模式（或用 `/yolo` 切换）；PreToolUse 不替代会话内审批。
             自动档对应 Kimi 的「Ask When Needed」：常规编辑与命令自动执行，危险命令、提问与计划仍会询问。
 
             安装完成。Hooks 为 Beta，行为以官方文档为准。

@@ -58,6 +58,18 @@ final class KimiPermissionModeSyncTests: XCTestCase {
         )
     }
 
+    func testExplicitUninitializedHomeDoesNotFallBackToLegacyConfig() throws {
+        let legacyDirectory = root.appendingPathComponent(".kimi")
+        try FileManager.default.createDirectory(at: legacyDirectory, withIntermediateDirectories: true)
+        try Data("default_yolo = true".utf8).write(to: legacyDirectory.appendingPathComponent("config.toml"))
+        let custom = root.appendingPathComponent("not-created-yet")
+        XCTAssertEqual(
+            KimiConfigLocation.activeConfigURL(environment: ["KIMI_CODE_HOME": custom.path], home: root),
+            custom.appendingPathComponent("config.toml")
+        )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: custom.path))
+    }
+
     // MARK: - default_permission_mode 同步
 
     func testDialTogglesExistingModeAndPreservesOtherBytes() throws {

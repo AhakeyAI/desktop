@@ -48,7 +48,8 @@ enum KimiHookHandler {
         ])
         var leverSnapshotForLog = kimiProbeInitial
         if switchState == nil {
-            KimiHookDebugLog.stderrLine("no switchState from agent → skipped Kimi permission sync; kimiPreTool=\(kimiPreToolDecision); check BLE/agent")
+            KimiConfigLeverSync.synchronizeManaged(switchState: nil)
+            KimiHookDebugLog.stderrLine("no switchState from agent → reset managed Kimi defaults to manual for NEW sessions; existing/resumed sessions require /permission; kimiPreTool=\(kimiPreToolDecision)")
         } else {
             KimiConfigLeverSync.apply(switchStateAuto: isAuto)
             leverSnapshotForLog = KimiConfigLeverSync.diagnosticSnapshotForLog()

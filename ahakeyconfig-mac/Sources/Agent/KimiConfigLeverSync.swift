@@ -29,31 +29,41 @@ enum KimiConfigLeverSync {
         return result
     }
 
-    static func apply(switchStateAuto: Bool) {
-        let active = KimiConfigLocation.activeConfigURL()
+    /// 每次状态确认都核对配置；不缓存“已尝试”，失败后下一次轮询会重试。
+    /// 启动、断连、未知状态均恢复新会话的 manual，未安装 AhaKey hooks 的配置不修改。
+    @discardableResult
+    static func synchronizeManaged(switchState: Int?, configURL: URL = KimiConfigLocation.activeConfigURL()) -> Bool {
+        guard hasAhaKeyHooks(at: configURL) else { return false }
+        return apply(switchStateAuto: switchState == 0, activeConfigURL: configURL)
+    }
+
+    @discardableResult
+    static func apply(switchStateAuto: Bool, activeConfigURL active: URL = KimiConfigLocation.activeConfigURL()) -> Bool {
         guard KimiConfigLocation.isLegacy(active) else {
             let outcome = KimiPermissionModeSync.apply(switchStateAuto: switchStateAuto, configURL: active)
-            KimiHookDebugLog.append(event: "kimi_permission_mode_sync", details: [
-                "path": active.path,
-                "switchStateAuto": switchStateAuto,
-                "outcome": String(describing: outcome),
-            ])
-            return
+            if outcome != .alreadyDesired {
+                KimiHookDebugLog.append(event: "kimi_permission_mode_sync", details: [
+                    "path": active.path,
+                    "switchStateAuto": switchStateAuto,
+                    "outcome": String(describing: outcome),
+                ])
+            }
+            return outcome == .alreadyDesired || outcome == .replaced || outcome == .inserted
         }
         if switchStateAuto {
-            enableYoloInConfig()
+            return enableYoloInConfig()
         } else {
-            disableDefaultYoloForManualDial()
+            return disableDefaultYoloForManualDial()
         }
     }
 
-    private static func enableYoloInConfig() {
+    private static func enableYoloInConfig() -> Bool {
         let fm = FileManager.default
         let path = configURL.path
         guard fm.fileExists(atPath: path) else {
             fprintStderr("KimiConfigLeverSync: 未找到 \(path)，跳过。\n")
             KimiHookDebugLog.append(event: "kimi_lever_sync_missing_config", details: ["path": path])
-            return
+            return false
         }
 
         if !fm.fileExists(atPath: snapshotURL.path) {
@@ -67,15 +77,15 @@ enum KimiConfigLeverSync {
         }
 
         guard let data = fm.contents(atPath: path),
-              var raw = String(data: data, encoding: .utf8) else {
+              let raw = String(data: data, encoding: .utf8) else {
             fprintStderr("KimiConfigLeverSync: 无法读取 \(path)\n")
-            return
+            return false
         }
-        raw = replaceOrInsertDefaultYolo(raw, template: #"default_yolo = true  # AhaKey: dial auto; run /reload in Kimi after changing dial"#)
-        writeRaw(raw, label: "enable_auto")
+        let updated = replaceOrInsertDefaultYolo(raw, template: #"default_yolo = true  # AhaKey: dial auto; run /reload in Kimi after changing dial"#)
+        return updated == raw || writeRaw(updated, label: "enable_auto")
     }
 
-    private static func disableDefaultYoloForManualDial() {
+    private static func disableDefaultYoloForManualDial() -> Bool {
         let fm = FileManager.default
         let path = configURL.path
         // 删掉旧逻辑用的快照：手动档若用它「整文件还原」会把原先的 default_yolo=true 整块带回来。
@@ -88,16 +98,18 @@ enum KimiConfigLeverSync {
                 fprintStderr("KimiConfigLeverSync: 无法删除快照 \(error.localizedDescription)\n")
             }
         }
-        guard fm.fileExists(atPath: path) else { return }
+        guard fm.fileExists(atPath: path) else { return false }
         guard let data = fm.contents(atPath: path),
-              var raw = String(data: data, encoding: .utf8) else { return }
-        raw = replaceOrInsertDefaultYolo(raw, template: #"default_yolo = false  # AhaKey: dial manual; run /reload in Kimi after changing dial"#)
-        writeRaw(raw, label: "disable_manual")
+              let raw = String(data: data, encoding: .utf8) else { return false }
+        let updated = replaceOrInsertDefaultYolo(raw, template: #"default_yolo = false  # AhaKey: dial manual; run /reload in Kimi after changing dial"#)
+        if updated == raw { return true }
+        let saved = writeRaw(updated, label: "disable_manual")
         KimiHookDebugLog.stderrLine("default_yolo=false on dial manual; run /reload in Kimi.")
         // kimi-cli: effective_yolo = load_config.default_yolo OR session persist state.json approval.yolo
         KimiHookDebugLog.stderrLine(
             "note: kimi ORs persisted session YOLO (e.g. after /yolo) with config — if reload still shows yolo, toggle /yolo off once or use a fresh session."
         )
+        return saved
     }
 
     private static func replaceOrInsertDefaultYolo(_ text: String, template: String) -> String {
@@ -115,17 +127,19 @@ enum KimiConfigLeverSync {
         return template + "\n\n" + text
     }
 
-    private static func writeRaw(_ raw: String, label: String) {
-        guard let out = raw.data(using: .utf8) else { return }
+    private static func writeRaw(_ raw: String, label: String) -> Bool {
+        guard let out = raw.data(using: .utf8) else { return false }
         do {
             try out.write(to: configURL, options: .atomic)
             KimiHookDebugLog.append(event: "kimi_lever_sync_\(label)", details: [
                 "bytes": out.count,
                 "reloadHint": "kimi_reload_slash_same_session_ok",
             ])
+            return true
         } catch {
             fprintStderr("KimiConfigLeverSync: 写回失败 \(error.localizedDescription)\n")
             KimiHookDebugLog.append(event: "kimi_lever_sync_write_failed", details: ["error": error.localizedDescription])
+            return false
         }
     }
 

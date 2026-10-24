@@ -29,6 +29,8 @@ public enum KimiConfigLocation {
         fileManager: FileManager = .default
     ) -> URL {
         let kimiCode = kimiCodeConfigURL(environment: environment, home: home)
+        // 显式 home 是 CLI 的选择，即使尚未首次启动、目录尚不存在也不能回落旧版。
+        if let custom = environment["KIMI_CODE_HOME"], !custom.isEmpty { return kimiCode }
         if fileManager.fileExists(atPath: kimiCode.deletingLastPathComponent().path) {
             return kimiCode
         }
