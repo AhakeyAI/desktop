@@ -3,9 +3,10 @@ import Foundation
 /// WS2 mode, standby and side-binding writes require a narrow confirmed-transaction
 /// grant. Other configuration writes stay closed; unknown builds allow probes.
 public enum ConfigurationCommandPolicy {
-    public enum ConfirmedWrite { case none, mode, standby, sideSwitch, ordinaryKey, voiceHandoff, ws3Display, ws3Resource, ws3ResourceRestore, ws3Presentation, k1Route }
+    public enum ConfirmedWrite { case none, mode, standby, sideSwitch, ordinaryKey, voiceHandoff, ws3Display, ws3Resource, ws3ResourceRestore, ws3Presentation, k1Route, restoreInitialization }
     public static func permits(_ data: Data, profile: FirmwareCapabilityProfile?, confirmedWrite: ConfirmedWrite = .none,
-                               ws3DisplayReadbackVerified: Bool = false, k1RouteReadbackVerified: Bool = false) -> Bool {
+                               ws3DisplayReadbackVerified: Bool = false, k1RouteReadbackVerified: Bool = false,
+                               restoreReadbackVerified: Bool = false) -> Bool {
         let b = [UInt8](data)
         guard b.count >= 5, b[0] == 0xAA, b[1] == 0xBB,
               b[b.count - 2] == 0xCC, b[b.count - 1] == 0xDD else { return false }
@@ -16,7 +17,7 @@ public enum ConfigurationCommandPolicy {
             case .capability, .restoreStatus: return true
             case .read: return k1RouteReadbackVerified
             case .begin, .chunk, .commit: return k1RouteReadbackVerified && confirmedWrite == .k1Route
-            case .startRestore: return false // A destructive Restore needs its own confirmed transaction.
+            case .startRestore: return confirmedWrite == .restoreInitialization && restoreReadbackVerified
             }
         }
         if profile?.identity == .legacy { return true }

@@ -1987,6 +1987,80 @@ TRANSLATIONS.update({'撤销默认素材选择': 'Undo default artwork selection
                                                                      'and native Kimi keep their original '
                                                                      'behavior.'})
 
+# Integration and explicit initialization-reset UI.
+TRANSLATIONS.update({'%d 键待核对': '%d keys awaiting comparison',
+ '上次恢复结果尚未核对，请先读取恢复状态。': 'The previous reset result is unverified. Read its status first.',
+ '准备好后，使用底部“写入键盘”；不会同时保存待机草稿。': 'When ready, use Write to Keyboard below. Pending sleep settings will not be '
+                                'saved at the same time.',
+ '将恢复所有模式的键位、语音路由、待机、拨杆与显示灯光，自定义画面将停止使用。本地草稿保留。请保持键盘 USB 供电；当前固件完成后暂不支持再次恢复。': 'This resets key bindings, '
+                                                                               'voice routes, sleep, switch '
+                                                                               'bindings, screen settings '
+                                                                               'and lighting across all '
+                                                                               'modes. Custom artwork will '
+                                                                               'stop being used. Local '
+                                                                               'drafts are kept. Keep USB '
+                                                                               'power connected. Current '
+                                                                               'firmware cannot repeat a '
+                                                                               'completed reset.',
+ '展示方式': 'Display mode',
+ '已连接键盘 USB 供电，并会保持连接': 'USB power is connected to the keyboard and will remain connected',
+ '当前固件不支持恢复初始化。': 'This firmware does not support initialization reset.',
+ '当前模式语音设置已确认生效，其他模式未修改。': 'Voice settings for this mode are confirmed. Other modes were not changed.',
+ '当前状态无法开始恢复，请读取并处理未完成提示。': 'A reset cannot start in this state. Read its status and address the unfinished '
+                            'operation.',
+ '恢复后的键位、语音路由、待机、拨杆和显示灯光已核对一致；断电保持仍待验证。本地草稿保留。': 'Key bindings, voice routes, sleep, switch bindings, screen '
+                                                 'settings and lighting match the expected defaults. '
+                                                 'Power-cycle persistence still needs verification. Local '
+                                                 'drafts are kept.',
+ '恢复尚未完成，请先读取状态，再明确选择是否重试。': 'The reset is unfinished. Read its status before explicitly choosing to retry.',
+ '恢复整把键盘的设置？': 'Reset settings for the entire keyboard?',
+ '恢复状态已变化，请重新读取后确认。': 'Reset status changed. Read it again before confirming.',
+ '恢复状态读回无效，请重新连接后核对。': 'Invalid reset status. Reconnect and check again.',
+ '恢复结果未确认，可能已执行；请重新连接并读取状态，不要重复恢复。': 'The reset result is unconfirmed and may have taken effect. Reconnect '
+                                     'and read its status; do not repeat the reset.',
+ '恢复键盘设置': 'Reset keyboard settings',
+ '本次选择恢复键盘设置': 'Reset keyboard settings with this submission',
+ '核对恢复后的设置': 'Verify settings after reset',
+ '正在恢复并核对设置，请保持 USB 供电。': 'Resetting and checking settings. Keep USB power connected.',
+ '正在核对恢复后的设置，本次不执行恢复。': 'Checking settings after reset. No reset is being performed.',
+ '此固件恢复完成后暂不支持再次发起；分模式语音设置仍可正常修改。': 'This firmware cannot repeat a completed reset. Per-mode voice settings '
+                                    'can still be changed.',
+ '此固件暂不支持再次恢复；分模式语音设置仍可反复修改。': 'This firmware cannot repeat the reset. Per-mode voice settings can still be '
+                               'changed repeatedly.',
+ '自定义画面将停止使用；键盘无法导出原素材。仅清除蓝牙配对请使用“忘记主机”，两者不同。': 'Custom artwork will stop being used, and original artwork '
+                                                'cannot be exported from the keyboard. Forget Host only '
+                                                'clears pairing and is a separate action.',
+ '请先确认恢复影响范围，本次尚未执行。': 'Confirm the reset scope first. No reset has been performed.',
+ '请连接键盘 USB 供电并确认后再恢复。': 'Connect USB power to the keyboard and confirm before resetting.',
+ '请重新读取恢复状态，不要直接重复恢复。': 'Read the reset status again instead of repeating the reset.',
+ '还有其他键盘的恢复结果待核对，请先完成核对。': 'Other keyboards have unverified reset results. Complete those checks first.',
+ '配置已成功写入键盘，并收到固件确认。': 'Settings were written to the keyboard and acknowledged by firmware.',
+ '重置整把键盘的键位、语音路由、待机、拨杆和显示灯光；本地草稿保留。': 'Reset key bindings, voice routes, sleep, switch bindings, screen '
+                                      'settings and lighting for the entire keyboard. Local drafts are kept.',
+ '键盘报告已恢复，但部分设置与预期默认值不同，请重新核对。': 'The keyboard reports a completed reset, but some settings differ from the '
+                                 'expected defaults. Check again.',
+ '键盘报告已恢复，但默认设置尚未完整核对。': 'The keyboard reports a completed reset, but the default settings are not fully '
+                         'verified.',
+ '键盘未接受本次恢复，请检查 USB 供电并重新读取状态。': 'The keyboard did not accept the reset. Check USB power and read its status '
+                                 'again.',
+ '尚未执行恢复': 'No reset has been performed',
+ '恢复尚在进行，请勿断电': 'Reset is in progress. Keep power connected',
+ '上次恢复未完成': 'The previous reset is unfinished',
+ '键盘报告恢复已完成': 'The keyboard reports a completed reset',
+ '暂时无法读取恢复记录': 'Reset record is temporarily unavailable',
+ '此固件不支持恢复初始化': 'This firmware does not support initialization reset',
+ 'AhaType 权益状态尚未确认，已写入原始转写。请刷新账户信息。': 'AhaType service entitlement is unconfirmed. The original transcript '
+                                      'was inserted. Refresh account information.',
+ 'Kimi 任务状态同步已配置。新进程的默认权限可随拨杆管理；已有会话的权限接管尚需单独核验，重新打开前请确认权限设置。': 'Kimi task status synchronization is '
+                                                                'configured. The switch can manage defaults '
+                                                                'for new processes. Control of existing '
+                                                                'sessions needs separate verification; check '
+                                                                'permission settings before reopening.'})
+
+TRANSLATIONS.update({
+    "请先停止录音或松开语音键，再恢复键盘设置。本次尚未执行。": "Stop recording or release the voice key before resetting keyboard settings. No reset has been performed.",
+})
+
 def escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 

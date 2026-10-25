@@ -23,7 +23,8 @@ struct AhaKeyStudioView: View {
     @AppStorage(StudioVoiceConfigurationStore.pendingGlobalKey) private var pendingGlobalVoiceChange = false
     @State private var studioDraft: AhaKeyStudioDraft
     @State private var lastSyncedDraft: AhaKeyStudioDraft
-    @State private var keyBaselines = StudioKeyBaselines.load()
+    @State private var keyBaselines: StudioKeyBaselines
+    @State private var baselineDeviceID: String?
     @State private var selectedMode: AhaKeyModeSlot
     @State private var selectedPart: AhaKeyStudioPart
     @State private var lightBarPreview: IDEState
@@ -48,6 +49,8 @@ struct AhaKeyStudioView: View {
     @State private var confirmsLCDWrite = false
     @State private var lcdSubmittedEntry: UInt8?
     @StateObject private var deviceInspectorModel = StudioDeviceInspectorModel()
+    @StateObject private var restoreInspectorModel = StudioRestoreInspectorModel()
+    @State private var confirmsRestoreInitialization = false
     @StateObject private var inspectorSession: StudioInspectorSession
     @State private var inlineKeyTarget: StudioInlineKeyTarget?
     @State private var inlineKeyFact: StudioInlineKeyFact?
@@ -95,7 +98,11 @@ struct AhaKeyStudioView: View {
         _voiceConfigurationError = State(initialValue: configurationError)
         _studioDraft = State(initialValue: editable)
         let persistedBaseline = AhaKeyStudioStore.loadSynced()
-        _lastSyncedDraft = State(initialValue: persistedBaseline ?? applied.overlay(on: initialDraft))
+        let history = StudioKeyBaselines.load()
+        _keyBaselines = State(initialValue: history)
+        _baselineDeviceID = State(initialValue: history.lastDeviceID)
+        _lastSyncedDraft = State(initialValue: history.overlay(on: persistedBaseline ?? applied.overlay(on: initialDraft),
+                                                              deviceID: history.lastDeviceID))
         let initialMode = AhaKeyModeSlot(rawValue: bleManager.workMode) ?? .mode0
         _selectedMode = State(initialValue: initialMode)
         _selectedPart = State(initialValue: .key1)
@@ -177,6 +184,30 @@ struct AhaKeyStudioView: View {
             if agentManager.bluetoothConnectionOwner == .ahaKeyStudio { lcdInspectorModel.invalidateFacts() }
         }
         .onReceive(deviceInspectorModel.writeCompleted) { writeOutcome = $0 }
+        .onReceive(restoreInspectorModel.writeCompleted) { outcome in
+            inlineKeyFact = nil; inlineKeyConflict = nil
+            lcdInspectorModel.invalidateConnectionFacts()
+            writeOutcome = outcome
+        }
+        .onChange(of: selectedPart) { _ in
+            restoreInspectorModel.clearIntent()
+            confirmsRestoreInitialization = false
+        }
+        .onChange(of: isEditingInspector) { editing in
+            if !editing {
+                restoreInspectorModel.clearIntent()
+                confirmsRestoreInitialization = false
+            }
+        }
+        .confirmationDialog(NSLocalizedString("恢复整把键盘的设置？", comment: ""),
+                            isPresented: $confirmsRestoreInitialization, titleVisibility: .visible) {
+            Button(NSLocalizedString("写入键盘", comment: ""), role: .destructive) {
+                Task { await restoreInspectorModel.start(using: restoreAccess, userConfirmed: true) }
+            }
+            Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
+        } message: {
+            Text(NSLocalizedString("将恢复所有模式的键位、语音路由、待机、拨杆与显示灯光，自定义画面将停止使用。本地草稿保留。请保持键盘 USB 供电；当前固件完成后暂不支持再次恢复。", comment: ""))
+        }
         .onReceive(deviceInspectorModel.$message.compactMap { $0 }) { syncStatusMessage = $0 }
         .onReceive(NotificationCenter.default.publisher(for: .ahaKeyHardwareEditingFinished)) { _ in
             completeEditingAfterSuccessfulWrite()
@@ -507,7 +538,7 @@ struct AhaKeyStudioView: View {
             [.lightBar, .oledDisplay, .toggleSwitch, .modeButton].contains(selectedPart)
     }
     private var componentBusy: Bool {
-        inspectorSession.isBusy || resourceInspectorModel.isBusy || resourceInspectorModel.isPreparing || deviceInspectorModel.isBusy || lcdInspectorModel.isReading || lcdInspectorModel.isWriting
+        inspectorSession.isBusy || resourceInspectorModel.isBusy || resourceInspectorModel.isPreparing || deviceInspectorModel.isBusy || restoreInspectorModel.isBusy || lcdInspectorModel.isReading || lcdInspectorModel.isWriting
     }
 
     private var canvasModeDraft: AhaKeyModeDraft {
@@ -685,6 +716,10 @@ struct AhaKeyStudioView: View {
                             case .toggleSwitch: switchInspector
                             case .modeButton:
                                 StudioDeviceInspectorView(model: deviceInspectorModel, ble: bleManager, session: inspectorSession, lever: false)
+                                    .disabled(restoreInspectorModel.intendsRestore)
+                                if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+                                    StudioRestoreInspectorView(model: restoreInspectorModel, session: inspectorSession, access: restoreAccess)
+                                }
                             }
                         }
 
@@ -775,11 +810,15 @@ struct AhaKeyStudioView: View {
                     } else if usesInlineHardwareEditor {
                         Button(NSLocalizedString(componentBusy ? "处理中…" : "写入键盘", comment: "")) {
                             if selectedPart == .oledDisplay { requestLCDWrite() }
+                            else if selectedPart == .modeButton && restoreInspectorModel.intendsRestore {
+                                confirmsRestoreInitialization = true
+                            }
                             else { deviceInspectorModel.write(lever: selectedPart == .toggleSwitch, ble: bleManager, session: inspectorSession) }
                         }
                         .buttonStyle(.borderedProminent)
                         .disabled(componentBusy || (selectedPart == .oledDisplay ? !canWriteLCD :
-                            (selectedPart == .toggleSwitch ? !deviceInspectorModel.canWriteLever : deviceInspectorModel.standbyDraft == nil)))
+                            (selectedPart == .toggleSwitch ? !deviceInspectorModel.canWriteLever :
+                                (restoreInspectorModel.intendsRestore ? !restoreInspectorModel.canSubmit : deviceInspectorModel.standbyDraft == nil))))
                     } else {
                         Button {
                             writeToKeyboard()
@@ -2299,10 +2338,10 @@ struct AhaKeyStudioView: View {
 
     private var syncBaselineSummary: String {
         let changes = dirtyCount + (bleManager.firmwareCapabilityProfile?.identity == .legacy ? 0 : lightInspectorModel.values.dirtyTargets.count)
-        let known = inlineKeyFact.map { fact in
+        let known = baselineDeviceID.map { deviceID in
             AhaKeyModeSlot.allCases.reduce(into: 0) { count, mode in
                 count += AhaKeyKeyRole.allCases.filter {
-                    keyBaselines.key(deviceID: fact.deviceID, mode: mode, role: $0) != nil
+                    keyBaselines.key(deviceID: deviceID, mode: mode, role: $0) != nil
                 }.count
             }
         } ?? 0
@@ -5892,6 +5931,10 @@ private extension AhaKeyStudioView {
     func recordInlineKeyBaseline(_ fact: StudioInlineKeyFact) {
         guard let mode = AhaKeyModeSlot(rawValue: Int(fact.value.mode)),
               let role = AhaKeyKeyRole(rawValue: Int(fact.value.keyIndex)) else { return }
+        if baselineDeviceID != fact.deviceID {
+            lastSyncedDraft = keyBaselines.overlay(on: studioDraft, deviceID: fact.deviceID)
+            baselineDeviceID = fact.deviceID
+        }
         let current = studioDraft.draft(for: mode).key(for: role)
         let reference = role == .voice ? voiceConfiguration.key(for: mode) : current
         guard let imported = importedInlineKey(fact.value, preserving: reference, route: fact.k1Route) else { return }
@@ -6210,5 +6253,37 @@ private extension AhaKeyStudioView {
             } catch { if inlineKeyOperationID == ticket { reportVoiceFailure(error) } }
             if inlineKeyOperationID == ticket { inlineKeyTask = nil }
         }
+    }
+}
+
+// MARK: - Explicit whole-device initialization, existing component inspector
+private extension AhaKeyStudioView {
+    var restoreAccess: StudioRestoreInspectorModel.Access {
+        .init(read: {
+            try await inspectorSession.withConnection { context in
+                .init(deviceID: context.deviceID, value: try await bleManager.readRestoreInitializationStatus())
+            }
+        }, start: { baseline, confirmed, power in
+            guard !nativeSpeech.isRecording, !nativeSpeech.isStartingRecording,
+                  !voiceRelay.hasActiveFunctionRelayHold else {
+                throw StudioRestoreInspectorModel.Failure.voiceActive
+            }
+            return try await inspectorSession.withConnection(expectedDeviceID: baseline.deviceID) { context in
+                guard !nativeSpeech.isRecording, !nativeSpeech.isStartingRecording,
+                      !voiceRelay.hasActiveFunctionRelayHold else {
+                    throw StudioRestoreInspectorModel.Failure.voiceActive
+                }
+                let result = try await bleManager.restoreInitializationConfirmed(baseline: baseline.value,
+                    expectedGeneration: context.generation, userConfirmed: confirmed, usbPowerConfirmed: power,
+                    writeStarted: {})
+                return .init(result: result, readback: bleManager.restoreInitializationReadback)
+            }
+        }, verify: { baseline in
+            try await inspectorSession.withConnection(expectedDeviceID: baseline.deviceID) { context in
+                let result = try await bleManager.verifyRestoreInitializationReadback(baseline: baseline.value,
+                    expectedGeneration: context.generation)
+                return .init(result: result, readback: bleManager.restoreInitializationReadback)
+            }
+        })
     }
 }

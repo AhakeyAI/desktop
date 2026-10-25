@@ -1,0 +1,38 @@
+{
+  "timestamp": "2026-10-25T13:43:00.670604+00:00",
+  "sourceBase": "71bfaf9645559fb1633daec9f9fd4573332b528b",
+  "testedFiles": {
+    "ahakeyconfig-mac/Sources/BLE/AhaKeyBLEManager.swift": "278925290adfd12d8c186a8480991705b9d574fb81fdad5c45e9b103dd10feaa",
+    "ahakeyconfig-mac/Sources/Models/StudioKeyBaselines.swift": "2fdd8807d07ca7e9b81ea9839ac7ab41ba6410a5bcf0b39f714db2838889fb62",
+    "ahakeyconfig-mac/Sources/Shared/ConfigurationCommandPolicy.swift": "827789795a524aab5fed9d481dc9b61d63c98262e3febaeed40593976e13fb60",
+    "ahakeyconfig-mac/Sources/Shared/DeviceResponseMatcher.swift": "47c46fa5f68c6a6b433ce8114d67508773d8f2b13f251fa2c5d47e980aeda4e3",
+    "ahakeyconfig-mac/Sources/Shared/RestoreInitializationReadback.swift": "e378e9060bf3443e4fb302e807972d9bf18ddbc08f9a489600f74226d3621aa1",
+    "ahakeyconfig-mac/Sources/Utilities/StudioRestoreInspectorModel.swift": "80d6de7174bfd6badcfe9a33604ad8d8662b197593683b62d6d9e210d5ffec24",
+    "ahakeyconfig-mac/Sources/Utilities/VoiceRelayService.swift": "acd140b04643f99427585ece9d566810d9a4448647027e7a0f0e6114a84a52bb",
+    "ahakeyconfig-mac/Sources/Views/AhaKeyStudioView.swift": "b09003d5d1ccd43a75650c5f5244a22d206488775f8922d590a3b175426e98cc",
+    "ahakeyconfig-mac/Sources/Views/StudioRestoreInspectorView.swift": "0e9eeed341d99d230f19d8290b5b1a0c7330a2174dd79a226acd0f6ff4079fb3",
+    "ahakeyconfig-mac/Tests/AhaKeyConfigSharedTests/RestoreInitializationReadbackTests.swift": "43aa5d819721e34d8af1ef52fd1400b70545fc02d44a05f9c2470dca00c9a1ce",
+    "ahakeyconfig-mac/Tests/AhaKeyConfigSharedTests/RestoreTransportPolicyTests.swift": "db82befb40cf0c797db19443ba9b111c8bd311f9e46b9431abf76e278dcf2cf5",
+    "ahakeyconfig-mac/Tests/AhaKeyConfigTests/StudioKeyBaselinesTests.swift": "e37178d263fd3d7dd0741dab7d51861edd6ed6cb1ea69775457f69c7ba634a9c",
+    "ahakeyconfig-mac/Tests/AhaKeyConfigTests/StudioRestoreInspectorModelTests.swift": "6d02134006e1e6c66753cb60396e0a0cc54adeb558dae24c40fdc0279f4d6e1a"
+  },
+  "swiftFullRegression": {
+    "count": 799,
+    "failures": 0,
+    "log": "/tmp/ahakey-restore-voice-guard-full-tests-20261025.log"
+  },
+  "localizations": "plutil en and zh-Hans passed",
+  "priorCI": {
+    "run": 40193441251,
+    "commit": "71bfaf9645559fb1633daec9f9fd4573332b528b",
+    "conclusion": "success"
+  },
+  "notPerformed": [
+    "candidate installation/UI acceptance",
+    "actual BLE reset",
+    "flash of exact new firmware",
+    "power-cycle persistence",
+    "full reset repeatability (firmware issue #9)"
+  ],
+  "goalComplete": false
+}

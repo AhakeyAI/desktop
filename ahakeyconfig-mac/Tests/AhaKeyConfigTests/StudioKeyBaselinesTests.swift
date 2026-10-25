@@ -36,4 +36,23 @@ final class StudioKeyBaselinesTests: XCTestCase {
         XCTAssertTrue(record.preservesDraft(key, deviceID: "second", mode: mode))
         XCTAssertTrue(record.preservesDraft(key, deviceID: "first", mode: .mode0))
     }
+    func testRelaunchBaselineOverlayDoesNotTreatUnwrittenDraftAsSynchronized() {
+        let mode = AhaKeyModeSlot.mode3
+        var saved = AhaKeyStudioDraft.default.draft(for: mode).key(for: .voice)
+        saved.description = "last confirmed"
+        var record = StudioKeyBaselines()
+        record.observe(saved, deviceID: "device", mode: mode)
+        var working = AhaKeyStudioDraft.default
+        var changed = working.draft(for: mode)
+        var local = saved; local.description = "not written"
+        changed.updateKey(local)
+        var other = changed.key(for: .submit); other.description = "other draft"
+        changed.updateKey(other); working.updateMode(changed)
+        let baseline = record.overlay(on: working, deviceID: "device")
+        XCTAssertEqual(baseline.draft(for: mode).key(for: .voice).description, "last confirmed")
+        XCTAssertEqual(working.draft(for: mode).key(for: .voice).description, "not written")
+        XCTAssertEqual(baseline.draft(for: mode).key(for: .submit).description, "other draft")
+        XCTAssertNotEqual(baseline, working)
+        XCTAssertEqual(record.overlay(on: working, deviceID: "other device"), working)
+    }
 }

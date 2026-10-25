@@ -51,6 +51,9 @@ final class VoiceRelayService: ObservableObject {
     private var pendingFnReleaseWorkItem: DispatchWorkItem?
     /// 当前是否已向系统发出尚未配对的 Fn keyDown（用于短脉冲 cancel 延后 release 后避免重复 keyDown）。
     private var syntheticFnRelayHeld: Bool = false
+    var hasActiveFunctionRelayHold: Bool {
+        routeQueue.sync { holdingRoute != nil || syntheticFnRelayHeld || pendingFnReleaseWorkItem != nil }
+    }
 
     private let syntheticEventUserData: Int64 = 0x4148414B
     private let fnKeyCode: CGKeyCode = 63

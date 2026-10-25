@@ -21,7 +21,7 @@ public enum DeviceResponseMatcher {
             guard let command = K1OutputRouteCommand(request: request) else { return false }
             // Accept a legacy ACK only as a completed negative probe. The
             // transaction explicitly rejects it as capability evidence.
-            if command.subcommand == 0, received.count == 6 { return received[3] <= 1 }
+            if [UInt8(0x00), 0x30].contains(command.subcommand), received.count == 6 { return received[3] <= 1 }
             return K1OutputRouteReply.parse(response, for: command) != nil
         }
         if received[3] != 0 { return received.count == 6 }

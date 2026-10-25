@@ -137,7 +137,16 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var isEditingOrdinaryKey = false
     @Published private(set) var isManagingVoiceHandoff = false
     @Published private(set) var isManagingK1Route = false
+    @Published private(set) var isRestoringInitialization = false
+    private(set) var restoreInitializationReadback: RestoreInitializationReadback?
+    private var restoreOperationID: UUID?
     private var k1RouteProofGeneration: UInt64?
+    private var restoreStatusProof: (generation: UInt64, value: RestoreInitializationTransaction.Snapshot)?
+    private var hasCurrentRestoreProof: Bool {
+        restoreStatusProof?.generation == commandSessionGeneration &&
+            restoreStatusProof?.value.canStart == true && isRestoringInitialization &&
+            hasValidStatusReadback && firmwareCapabilityProfile?.mayQueryOrdinaryKeys == true
+    }
     private var hasCurrentK1RouteProof: Bool {
         k1RouteProofGeneration == commandSessionGeneration && hasValidStatusReadback &&
             firmwareCapabilityProfile?.mayQueryOrdinaryKeys == true
@@ -147,7 +156,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     private(set) var presentationRuntimeActive = false
     lazy var studioPresentation = StudioPresentationController(ble: self)
     var isConfigurationOperationInProgress: Bool {
-        isChangingPresentation || isUploadingOLED || isReadingWS3Display || isUpdatingWS3Display || isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey || isManagingVoiceHandoff || isManagingK1Route
+        isChangingPresentation || isUploadingOLED || isReadingWS3Display || isUpdatingWS3Display || isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey || isManagingVoiceHandoff || isManagingK1Route || isRestoringInitialization
     }
     @Published private(set) var firmwareCapabilityProfile: FirmwareCapabilityProfile?
     @Published private(set) var bluetoothPermissionGranted = true
@@ -623,6 +632,16 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func writeCommand(_ data: Data, confirmedWrite: ConfigurationCommandPolicy.ConfirmedWrite) {
+        if isRestoringInitialization, confirmedWrite != .restoreInitialization {
+            let b = [UInt8](data)
+            let readOnly = b.count >= 5 && (
+                ([UInt8(0x00), 0x9F, 0x95, 0x96, 0x97].contains(b[2]) && b.count == 5) ||
+                b[2] == 0x87 || b[2] == 0x88 || b[2] == 0x83 ||
+                (b[2] == 0x9E && K1OutputRouteCommand(request: data).map {
+                    [UInt8(0x00), 0x10, 0x30].contains($0.subcommand)
+                } == true))
+            guard readOnly else { return }
+        }
         if isManagingK1Route, ![UInt8(0x00), 0x9F, 0x9E].contains(data.count > 2 ? data[2] : 0xFF) { return }
         if data.count > 2 {
             if data[2] == 0x90, presentationBlocksLegacySingle, confirmedWrite != .ws3Presentation { return }
@@ -641,7 +660,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
         guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite,
                                                ws3DisplayReadbackVerified: canEditWS3Display,
-                                               k1RouteReadbackVerified: hasCurrentK1RouteProof) else {
+                                               k1RouteReadbackVerified: hasCurrentK1RouteProof,
+                                               restoreReadbackVerified: hasCurrentRestoreProof) else {
             appendLog("当前固件配置写入尚未验证，已阻止写入", isError: true)
             return
         }
@@ -887,6 +907,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     /// A catalog probe is read-only. A legacy profile is assigned only after
     /// this connection has independently returned a valid status frame.
     func readFirmwareCapabilityProfile(forceStatusReadback: Bool = false) async throws -> FirmwareCapabilityProfile {
+        restoreStatusProof = nil
         k1RouteProofGeneration = nil
         let generation = commandSessionGeneration
         let previousProfile = firmwareCapabilityProfile
@@ -1514,6 +1535,162 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }, exchange: { try await self.exchangeK1Route($0, generation: generation) })
     }
 
+    func readRestoreInitializationStatus() async throws -> RestoreInitializationTransaction.Snapshot {
+        let operation = try beginRestoreOperation()
+        let generation = commandSessionGeneration
+        defer { endRestoreOperation(operation) }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.mayQueryOrdinaryKeys else { throw RestoreInitializationTransaction.Failure.unsupported }
+        return try await RestoreInitializationTransaction.read(checkSession: {
+            try self.ensureRestoreOperation(operation, generation: generation)
+        }, exchange: { try await self.exchangeRestoreInitialization($0, generation: generation) })
+    }
+
+    func restoreInitializationConfirmed(baseline: RestoreInitializationTransaction.Snapshot,
+        expectedGeneration: UInt64, userConfirmed: Bool, usbPowerConfirmed: Bool,
+        writeStarted: () -> Void) async throws -> RestoreInitializationTransaction.Result {
+        guard userConfirmed else { throw RestoreInitializationTransaction.Failure.confirmationRequired }
+        guard usbPowerConfirmed else { throw RestoreInitializationTransaction.Failure.externalPowerRequired }
+        guard expectedGeneration == commandSessionGeneration else { throw OLEDUploadError.channelNotReady }
+        let operation = try beginRestoreOperation()
+        let generation = commandSessionGeneration
+        var attempted = false
+        defer {
+            if restoreOperationID == operation, attempted {
+                k1RouteProofGeneration = nil
+                ws3DisplaySnapshot = nil; ws3SingleLightSnapshot = nil; ws3LightCatalogSnapshot = nil
+                configurationSnapshot.reset(generation: generation)
+            }
+            endRestoreOperation(operation)
+        }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.mayQueryOrdinaryKeys else { throw RestoreInitializationTransaction.Failure.unsupported }
+        return try await RestoreInitializationTransaction.start(baseline: baseline,
+            userConfirmed: userConfirmed, usbPowerConfirmed: usbPowerConfirmed, checkSession: {
+                try self.ensureRestoreOperation(operation, generation: generation)
+            }, exchange: { try await self.exchangeRestoreInitialization($0, generation: generation) },
+            writeStarted: {
+                attempted = true
+                k1RouteProofGeneration = nil
+                writeStarted()
+            }, verifyDefaults: {
+                try await self.readRestoreInitializationDefaults(operation, generation: generation).matchesX1RefactorDefaults
+            })
+    }
+
+    func verifyRestoreInitializationReadback(baseline: RestoreInitializationTransaction.Snapshot,
+        expectedGeneration: UInt64) async throws -> RestoreInitializationTransaction.Result {
+        guard expectedGeneration == commandSessionGeneration else { throw OLEDUploadError.channelNotReady }
+        let operation = try beginRestoreOperation()
+        let generation = commandSessionGeneration
+        defer { endRestoreOperation(operation) }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.mayQueryOrdinaryKeys else { throw RestoreInitializationTransaction.Failure.unsupported }
+        return try await RestoreInitializationTransaction.verify(baseline: baseline, checkSession: {
+            try self.ensureRestoreOperation(operation, generation: generation)
+        }, exchange: { try await self.exchangeRestoreInitialization($0, generation: generation) },
+        verifyDefaults: {
+            try await self.readRestoreInitializationDefaults(operation, generation: generation).matchesX1RefactorDefaults
+        })
+    }
+
+    private func readRestoreInitializationDefaults(_ operation: UUID,
+                                                   generation: UInt64) async throws -> RestoreInitializationReadback {
+        try ensureRestoreOperation(operation, generation: generation)
+        guard let profile = firmwareCapabilityProfile, profile.mayQueryOrdinaryKeys,
+              profile.mayQueryStandby, profile.mayQueryVoiceOnboarding,
+              profile.mayQuerySideSwitchBindings, profile.mayQueryWS3Display else {
+            throw OLEDUploadError.unsupportedReadOnlyProfile
+        }
+        let first = try await sendCommandAwaitingResponse(AhaKeyCommand.queryDeviceStatus(), expectedCommand: 0)
+        guard let before = AhaKeyResponseParser.parseDeviceStatus(first.frame) else { throw OLEDUploadError.invalidReadback }
+        var keys: [OrdinaryKeyReadback] = []
+        for mode: UInt8 in 0..<4 {
+            for index: UInt8 in 0..<4 {
+                try ensureRestoreOperation(operation, generation: generation)
+                keys.append(try await requireOrdinaryKey(mode: mode, index: index))
+            }
+        }
+        let routes = try await K1OutputRouteTransaction.read(checkSession: {
+            try self.ensureRestoreOperation(operation, generation: generation)
+        }, exchange: { try await self.exchangeK1Route($0, generation: generation) })
+        let standby = try await readStandbyMinutes()
+        let voice = try await readVoiceOnboardingState()
+        let binding = try await readSideSwitchBinding()
+        guard case .brightness(let brightness) = try await readWS3DisplayValue(.brightness, generation: generation) else {
+            throw OLEDUploadError.invalidReadback
+        }
+        var resources: [WS3ResourceReadback] = []
+        for id: UInt8 in 0..<19 {
+            let basic = try await readWS3DisplayValue(.resourceBasic(id), generation: generation)
+            let integrity = try await readWS3DisplayValue(.resourceIntegrity(id), generation: generation)
+            guard let resource = WS3ResourceReadback(id: id, basic: basic, integrity: integrity) else {
+                throw OLEDUploadError.invalidReadback
+            }
+            resources.append(resource)
+        }
+        let display = WS3DisplaySnapshot(generation: generation, brightness: brightness, resources: resources)
+        let lights = try await ConfirmedWS3LightCatalog.read(baseline: display, generation: generation,
+            checkSession: { try self.ensureRestoreOperation(operation, generation: generation) },
+            exchange: { request in
+                try await self.sendCommandAwaitingResponse(request, expectedCommand: 0x88).frame
+            })
+        let last = try await sendCommandAwaitingResponse(AhaKeyCommand.queryDeviceStatus(), expectedCommand: 0)
+        guard let after = AhaKeyResponseParser.parseDeviceStatus(last.frame), after.workMode == before.workMode,
+              let facts = RestoreInitializationReadback(workMode: UInt8(clamping: after.workMode), keys: keys,
+                routes: routes, standbyMinutes: standby, voiceState: voice, sideSwitch: binding, display: display, lights: lights) else {
+            throw OLEDUploadError.invalidReadback
+        }
+        try ensureRestoreOperation(operation, generation: generation)
+        restoreInitializationReadback = facts
+        return facts
+    }
+
+    private func beginRestoreOperation() throws -> UUID {
+        guard !isConfigurationOperationInProgress, !isWriting, writeQueue.isEmpty, writeBatches.isEmpty,
+              pendingCommandResponse == nil, pendingDataWrite == nil, !commandTurnOccupied else {
+            throw OLEDUploadError.channelNotReady
+        }
+        try ensureConfigurationReadSession(commandSessionGeneration)
+        let id = UUID()
+        restoreOperationID = id; isRestoringInitialization = true; restoreStatusProof = nil
+        restoreInitializationReadback = nil
+        return id
+    }
+    private func endRestoreOperation(_ id: UUID) {
+        guard restoreOperationID == id else { return }
+        restoreOperationID = nil; isRestoringInitialization = false; restoreStatusProof = nil
+    }
+    private func ensureRestoreOperation(_ id: UUID, generation: UInt64) throws {
+        try ensureConfigurationReadSession(generation)
+        guard restoreOperationID == id else { throw OLEDUploadError.channelNotReady }
+    }
+    private func exchangeRestoreInitialization(_ command: K1OutputRouteCommand,
+                                               generation: UInt64) async throws -> Data {
+        try ensureConfigurationReadSession(generation)
+        guard isRestoringInitialization, command.subcommand == 0x30 || command.subcommand == 0x31,
+              let request = command.request, let peripheral, let characteristic = commandChar else {
+            throw OLEDUploadError.invalidCommandFrame
+        }
+        let type: CBCharacteristicWriteType = characteristic.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+        guard request.count <= peripheral.maximumWriteValueLength(for: type) else {
+            throw K1OutputRouteTransaction.Failure.transportLimit
+        }
+        let starts = command.subcommand == 0x31
+        defer { if starts { restoreStatusProof = nil } }
+        let response = try await sendCommandAwaitingResponse(request, expectedCommand: 0x9E,
+            allowDeviceError: true, confirmedWrite: starts ? .restoreInitialization : .none)
+        try ensureConfigurationReadSession(generation)
+        if !starts {
+            restoreStatusProof = nil
+            if case .restore(let handled, let state, let attempt) = K1OutputRouteReply.parse(response.frame, for: command),
+               let snapshot = RestoreInitializationTransaction.Snapshot(handled: handled, state: state, attempt: attempt) {
+                restoreStatusProof = (generation, snapshot)
+            }
+        }
+        return response.frame
+    }
+
     func setK1RouteConfirmed(mode: UInt8, baseline: K1OutputRoute, target: K1OutputRoute,
                              expectedGeneration: UInt64, prepareHost: () throws -> Void,
                              writeStarted: () -> Void) async throws -> K1OutputRouteTransaction.Snapshot {
@@ -2042,6 +2219,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func resetCommandSession() {
+        restoreStatusProof = nil
+        restoreOperationID = nil; isRestoringInitialization = false
+        restoreInitializationReadback = nil
         k1RouteProofGeneration = nil
         commandSessionGeneration &+= 1
         isChangingPresentation = false
@@ -2115,6 +2295,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func invalidateCommandResponseChannel() {
+        restoreStatusProof = nil
         k1RouteProofGeneration = nil
         commandTurns.invalidate()
         // A poisoned channel also terminates any companion data/control request.
@@ -2181,7 +2362,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         defer { commandTurns.release(ticket) }
         guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite,
                                                ws3DisplayReadbackVerified: canEditWS3Display,
-                                               k1RouteReadbackVerified: hasCurrentK1RouteProof) else {
+                                               k1RouteReadbackVerified: hasCurrentK1RouteProof,
+                                               restoreReadbackVerified: hasCurrentRestoreProof) else {
             throw OLEDUploadError.unsupportedReadOnlyProfile
         }
         try Task.checkCancellation()
