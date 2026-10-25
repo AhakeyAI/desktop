@@ -1,0 +1,14 @@
+{
+  "date": "2026-10-25",
+  "scope": "CP2.6 route transaction and BLE transport; no hardware commands executed",
+  "targetedTests": 24,
+  "allSwiftTests": 703,
+  "failures": 0,
+  "singleModeSelectorOnly": true,
+  "capabilityProof": "exact nonce/version/subcommand; per-operation same-generation; cleared on refresh, failure or reconnect",
+  "legacyACK": "negative capability probe only",
+  "transport": "complete commands fit negotiated maximum; response slices use request length rather than delimiter scan",
+  "uncertainCommit": "readback once; no automatic replay; disconnected result unconfirmed",
+  "uiAndHostIntegration": "pending",
+  "installed": false
+}

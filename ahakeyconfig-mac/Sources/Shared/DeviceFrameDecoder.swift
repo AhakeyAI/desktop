@@ -7,6 +7,7 @@ import Foundation
 public struct DeviceFrameDecoder {
     private var bytes: [UInt8] = []
     private let maximumFrameLength = 64
+    private var k1Reply: K1OutputRouteCommand?
 
     public init() {}
 
@@ -14,13 +15,20 @@ public struct DeviceFrameDecoder {
 
     public static func recognizes(_ command: UInt8) -> Bool {
         switch command {
-        case 0x00, 0x87, 0x88, 0x8A, 0x8B, 0x8C, 0x8D, 0x90, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9A, 0x9F: return true
+        case 0x00, 0x87, 0x88, 0x8A, 0x8B, 0x8C, 0x8D, 0x90, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9A, 0x9E, 0x9F: return true
         default: return false
         }
     }
 
     public mutating func reset() {
         bytes.removeAll(keepingCapacity: true)
+        k1Reply = nil
+    }
+
+    /// The route-slice response omits its slice length. Only the current
+    /// serialized request supplies it; payload trailer bytes are never scanned.
+    public mutating func expectResponse(to request: Data) {
+        k1Reply = K1OutputRouteCommand(request: request)
     }
 
     public mutating func append(_ chunk: Data) -> [Data] {
@@ -67,6 +75,14 @@ public struct DeviceFrameDecoder {
         if command == 0x00 { return hasTrailer(at: 10) ? .complete(12) : .complete(13) }
         guard bytes.count >= 6 else { return .incomplete }
         let status = bytes[3]
+        if command == 0x9E {
+            if hasTrailer(at: 4) { return .complete(6) }
+            guard let expected = k1Reply else { return .invalid }
+            if bytes[5] == 0x30 || bytes[5] == 0x31 { return .complete(17) }
+            if status == 1 { return .complete(12) }
+            guard status == 0, bytes[4] == 1, bytes[5] == expected.subcommand else { return .invalid }
+            return .complete(expected.successReplyLength)
+        }
         if status != 0 { return .complete(6) }
 
         switch command {

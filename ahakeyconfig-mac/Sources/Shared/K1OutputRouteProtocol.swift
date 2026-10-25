@@ -41,6 +41,36 @@ public enum K1OutputRouteCommand: Equatable, Sendable {
     case restoreStatus(nonce: UInt32)
     case startRestore(nonce: UInt32)
 
+    public init?(request: Data) {
+        let b = [UInt8](request)
+        guard (11...62).contains(b.count), Array(b.prefix(4)) == [0xAA, 0xBB, 0x9E, 1],
+              Array(b.suffix(2)) == [0xCC, 0xDD] else { return nil }
+        func u32(_ i: Int) -> UInt32 { (0..<4).reduce(0) { $0 | UInt32(b[i + $1]) << ($1 * 8) } }
+        func u16(_ i: Int) -> UInt16 { UInt16(b[i]) | UInt16(b[i + 1]) << 8 }
+        switch b[4] {
+        case 0x00 where b.count == 11: self = .capability(nonce: u32(5))
+        case 0x10 where b.count == 14: self = .read(nonce: u32(5), mode: b[9], offset: b[10], count: b[11])
+        case 0x20 where b.count == 18: self = .begin(nonce: u32(12), selector: b[5], length: u16(6), checksum: u32(8))
+        case 0x21 where b.count >= 16 && b.count == 15 + Int(b[12]):
+            self = .chunk(token: u32(5), selector: b[9], offset: u16(10), bytes: Data(b[13..<(b.count - 2)]))
+        case 0x22 where b.count == 12: self = .commit(token: u32(5), selector: b[9])
+        case 0x30 where b.count == 11: self = .restoreStatus(nonce: u32(5))
+        case 0x31 where b.count == 11: self = .startRestore(nonce: u32(5))
+        default: return nil
+        }
+        guard self.request == request else { return nil }
+    }
+
+    public var successReplyLength: Int {
+        switch self {
+        case .capability: return 14
+        case .read(_, _, _, let count): return 20 + Int(count)
+        case .begin: return 18
+        case .chunk: return 16
+        case .commit, .restoreStatus, .startRestore: return 17
+        }
+    }
+
     public var subcommand: UInt8 {
         switch self {
         case .capability: return 0x00

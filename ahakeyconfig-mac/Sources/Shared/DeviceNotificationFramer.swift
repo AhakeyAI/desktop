@@ -10,6 +10,8 @@ public struct DeviceNotificationFramer {
 
     public init() {}
 
+    public mutating func expectResponse(to request: Data) { decoder.expectResponse(to: request) }
+
     public mutating func reset() {
         decoder.reset()
         lastChunkAt = nil

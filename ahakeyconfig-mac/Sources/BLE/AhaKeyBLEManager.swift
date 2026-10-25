@@ -136,12 +136,18 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var isSettingSideSwitch = false
     @Published private(set) var isEditingOrdinaryKey = false
     @Published private(set) var isManagingVoiceHandoff = false
+    @Published private(set) var isManagingK1Route = false
+    private var k1RouteProofGeneration: UInt64?
+    private var hasCurrentK1RouteProof: Bool {
+        k1RouteProofGeneration == commandSessionGeneration && hasValidStatusReadback &&
+            firmwareCapabilityProfile?.mayQueryOrdinaryKeys == true
+    }
     @Published private(set) var isChangingPresentation = false
     private var presentationBlocksLegacySingle = false
     private(set) var presentationRuntimeActive = false
     lazy var studioPresentation = StudioPresentationController(ble: self)
     var isConfigurationOperationInProgress: Bool {
-        isChangingPresentation || isUploadingOLED || isReadingWS3Display || isUpdatingWS3Display || isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey || isManagingVoiceHandoff
+        isChangingPresentation || isUploadingOLED || isReadingWS3Display || isUpdatingWS3Display || isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey || isManagingVoiceHandoff || isManagingK1Route
     }
     @Published private(set) var firmwareCapabilityProfile: FirmwareCapabilityProfile?
     @Published private(set) var bluetoothPermissionGranted = true
@@ -614,6 +620,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func writeCommand(_ data: Data, confirmedWrite: ConfigurationCommandPolicy.ConfirmedWrite) {
+        if isManagingK1Route, ![UInt8(0x00), 0x9F, 0x9E].contains(data.count > 2 ? data[2] : 0xFF) { return }
         if data.count > 2 {
             if data[2] == 0x90, presentationBlocksLegacySingle, confirmedWrite != .ws3Presentation { return }
             if isChangingPresentation, confirmedWrite != .ws3Presentation,
@@ -630,7 +637,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             }
         }
         guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite,
-                                               ws3DisplayReadbackVerified: canEditWS3Display) else {
+                                               ws3DisplayReadbackVerified: canEditWS3Display,
+                                               k1RouteReadbackVerified: hasCurrentK1RouteProof) else {
             appendLog("当前固件配置写入尚未验证，已阻止写入", isError: true)
             return
         }
@@ -830,6 +838,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     /// A catalog probe is read-only. A legacy profile is assigned only after
     /// this connection has independently returned a valid status frame.
     func readFirmwareCapabilityProfile(forceStatusReadback: Bool = false) async throws -> FirmwareCapabilityProfile {
+        k1RouteProofGeneration = nil
         let generation = commandSessionGeneration
         let previousProfile = firmwareCapabilityProfile
         firmwareCapabilityProfile = nil
@@ -1441,6 +1450,59 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         return try await requireOrdinaryKey(mode: mode, index: index)
     }
 
+    /// New routing is proved on every acquired connection, never inferred from
+    /// the unchanged WS2 catalog key or the old global onboarding byte.
+    func readK1RoutesForEditing() async throws -> K1OutputRouteTransaction.Snapshot {
+        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        try ensureConfigurationReadSession(generation)
+        isManagingK1Route = true; k1RouteProofGeneration = nil
+        defer { isManagingK1Route = false; k1RouteProofGeneration = nil }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.mayQueryOrdinaryKeys else { throw K1OutputRouteTransaction.Failure.unsupported }
+        return try await K1OutputRouteTransaction.read(checkSession: {
+            try self.ensureConfigurationReadSession(generation)
+        }, exchange: { try await self.exchangeK1Route($0, generation: generation) })
+    }
+
+    func setK1RouteConfirmed(mode: UInt8, baseline: K1OutputRoute, target: K1OutputRoute,
+                             expectedGeneration: UInt64, prepareHost: () throws -> Void,
+                             writeStarted: () -> Void) async throws -> K1OutputRouteTransaction.Snapshot {
+        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        try ensureConfigurationReadSession(generation)
+        guard generation == expectedGeneration else { throw OLEDUploadError.channelNotReady }
+        isManagingK1Route = true; k1RouteProofGeneration = nil
+        defer { isManagingK1Route = false; k1RouteProofGeneration = nil }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.mayQueryOrdinaryKeys, let peripheral, let characteristic = commandChar else {
+            throw OLEDUploadError.unsupportedReadOnlyProfile
+        }
+        let type: CBCharacteristicWriteType = characteristic.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+        return try await K1OutputRouteTransaction.save(mode: mode, baseline: baseline, target: target,
+            maximumRequestBytes: min(62, peripheral.maximumWriteValueLength(for: type)), checkSession: {
+                try self.ensureConfigurationReadSession(generation)
+            }, prepareHost: prepareHost, writeStarted: writeStarted,
+            exchange: { try await self.exchangeK1Route($0, generation: generation) })
+    }
+
+    private func exchangeK1Route(_ command: K1OutputRouteCommand, generation: UInt64) async throws -> Data {
+        try ensureConfigurationReadSession(generation)
+        guard let request = command.request, let peripheral, let characteristic = commandChar else {
+            throw OLEDUploadError.invalidCommandFrame
+        }
+        let type: CBCharacteristicWriteType = characteristic.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+        guard request.count <= peripheral.maximumWriteValueLength(for: type) else { throw K1OutputRouteTransaction.Failure.transportLimit }
+        let isWrite = [UInt8(0x20), 0x21, 0x22].contains(command.subcommand)
+        let reply = try await sendCommandAwaitingResponse(request, expectedCommand: 0x9E, allowDeviceError: true,
+            confirmedWrite: isWrite ? .k1Route : .none)
+        try ensureConfigurationReadSession(generation)
+        if command.subcommand == 0, K1OutputRouteReply.parse(reply.frame, for: command) == .capability {
+            k1RouteProofGeneration = generation
+        }
+        return reply.frame
+    }
+
     private func requireOrdinaryKey(mode: UInt8, index: UInt8) async throws -> OrdinaryKeyReadback {
         let result = try await readOrdinaryKey(mode: mode, keyIndex: index)
         guard case .value(let value) = result else { throw OLEDUploadError.invalidReadback }
@@ -1924,6 +1986,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func resetCommandSession() {
+        k1RouteProofGeneration = nil
         commandSessionGeneration &+= 1
         isChangingPresentation = false
         presentationRuntimeActive = false
@@ -1996,6 +2059,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func invalidateCommandResponseChannel() {
+        k1RouteProofGeneration = nil
         commandTurns.invalidate()
         // A poisoned channel also terminates any companion data/control request.
         // The initiating caller already removed its own pending entry and keeps
@@ -2059,7 +2123,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let generation = ticket.generation
         defer { commandTurns.release(ticket) }
         guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite,
-                                               ws3DisplayReadbackVerified: canEditWS3Display) else {
+                                               ws3DisplayReadbackVerified: canEditWS3Display,
+                                               k1RouteReadbackVerified: hasCurrentK1RouteProof) else {
             throw OLEDUploadError.unsupportedReadOnlyProfile
         }
         try Task.checkCancellation()
@@ -2082,6 +2147,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                     id: id, generation: generation, request: data, command: expectedCommand,
                     continuation: continuation, timeoutTask: timeoutTask
                 )
+                dataNotificationFramer.expectResponse(to: data)
+                notifyNotificationFramer.expectResponse(to: data)
                 writeCommand(data, confirmedWrite: confirmedWrite)
             }
         }, onCancel: { [weak self] in
