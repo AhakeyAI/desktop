@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-25",
+  "build": 376,
+  "source": "e3e210a",
+  "signature": "Developer ID; deep strict verification passed; not notarized",
+  "humanConsentConfirmed": true,
+  "originalDraftsPreserved": 2,
+  "voicePreferencesUnchanged": true,
+  "sameOriginalDesktopSession": true,
+  "manualPhysicalReadback": 1,
+  "manualNativeReadback": {
+    "approvalPolicy": "on-request",
+    "permissions": ":workspace"
+  },
+  "automaticPhysicalReadback": 0,
+  "automaticNativeReadback": {
+    "approvalPolicy": "never",
+    "permissions": ":danger-full-access"
+  },
+  "nativeAcknowledgementVerified": true,
+  "pendingRecoveryDuringBothModes": 0,
+  "normalAgentStop": {
+    "originalPermissionsRestored": true,
+    "leaseCountAfterShutdownCompleted": 0,
+    "consentRetained": true,
+    "scope": "Original baseline was full access; stop checked after automatic selection; does not prove restricted-baseline automatic-grant recovery"
+  },
+  "agentRestarted": true,
+  "keyboardConfigurationWrites": 0,
+  "newModelTurnsStartedByTestHarness": 0,
+  "actualNextTurnExecution": "not separately instrumented; permissions independently read from original owner",
+  "ci": {
+    "run": 40173065317,
+    "conclusion": "success"
+  },
+  "scope": "Codex native permission and installation acceptance before separate LCD presentation test"
+}

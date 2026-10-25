@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-25",
+  "repository": "AhakeyAI/AhaKey-X1-hardware-source",
+  "branch": "harness/x1-refactor-main",
+  "fetchedCommit": "0a055ba95f857a1d32f05b79bcabd3ecfe78d4eb",
+  "candidateSourceCommit": "292a49f32939e2b778b15eceb194746133d3b2c7",
+  "recordedHexSHA256": "6EC0413CFC983788CDC99F628F0F8E2A64C6AF147D2A5E1727A03F036BF1123C",
+  "candidateHexPresentInGitTree": false,
+  "independentHexByteHashVerified": false,
+  "firmwareRecordedGate": {
+    "result": "PASS",
+    "checks": 13,
+    "allChecksReportedPass": true
+  },
+  "firmwareOwnerUAT": "owner-reported combined pass; checkpoint review records incomplete evidence",
+  "sourceCapabilities": {
+    "perModeConsumerAndOrdinaryRoutes": true,
+    "consumerRouteRestorable": true,
+    "restoreStatusAndExplicitRetry": true,
+    "formerWS3CP3": "superseded by WS45 Restore"
+  },
+  "clientCodec": {
+    "focusedTestsPassed": 7,
+    "completeSwiftTestsPassed": 687,
+    "bleAndSidebarIntegrated": false,
+    "installedBuild376ContainsNewCodec": false
+  },
+  "deviceFlashOrRestorePerformed": false
+}
