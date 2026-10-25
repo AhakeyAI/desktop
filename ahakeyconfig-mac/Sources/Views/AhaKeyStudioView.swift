@@ -818,7 +818,7 @@ struct AhaKeyStudioView: View {
             Button(NSLocalizedString("取消", comment: ""), role: .cancel) { inlineKeyConflict = nil }
         } message: {
             if let conflict = inlineKeyConflict {
-                Text(NSLocalizedString("键盘当前：", comment: "") + StudioKeyWriteProposal.summary(conflict.actual) + "\n" + NSLocalizedString("准备修改为：", comment: "") + StudioKeyWriteProposal.summary(conflict.desired))
+                Text(NSLocalizedString("键盘当前：", comment: "") + inlineConflictSummary(conflict, desired: false) + "\n" + NSLocalizedString("准备修改为：", comment: "") + inlineConflictSummary(conflict, desired: true))
             }
         }
         .confirmationDialog(NSLocalizedString(voiceGlobalChange?.exitsGlobalPreset == true
@@ -1251,14 +1251,19 @@ struct AhaKeyStudioView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        Text(NSLocalizedString("仅修改当前模式键位；退出 Consumer 会全局生效，其他模式改发各自已保存的普通键位。", comment: ""))
+                        Text(NSLocalizedString(inlineCurrentK1Route == nil
+                            ? "仅修改当前模式键位；退出 Consumer 会全局生效，其他模式改发各自已保存的普通键位。"
+                            : "仅修改当前模式的语音方案和按键描述，其他模式保持不变。", comment: ""))
                             .font(.caption)
                             .foregroundStyle(.tertiary)
-                        if let state = inlineVoiceState {
+                        if let route = inlineCurrentK1Route, let fact = inlineKeyFact {
+                            Text(NSLocalizedString("键盘当前：", comment: "") + StudioK1VoiceProposal.summary(route: route, actual: fact.value))
+                                .font(.caption).foregroundStyle(.secondary)
+                        } else if let state = inlineVoiceState {
                             Text(NSLocalizedString(state == 2 ? "键盘当前：系统听写（Consumer，全局）" : "键盘当前：普通键绑定", comment: ""))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
-                        if key.voicePreset == .systemDictation, inlineVoiceState != 2 {
+                        if key.voicePreset == .systemDictation, inlineVoiceState != 2, inlineCurrentK1Route == nil {
                             Text(NSLocalizedString("当前键盘已退出系统听写，此固件暂不支持客户端一键恢复。", comment: ""))
                                 .font(.caption).foregroundStyle(.orange)
                         }
@@ -5592,9 +5597,15 @@ private struct FAQTopicView: View {
 
 // MARK: - Current-component ordinary-key transactions
 private extension AhaKeyStudioView {
+    var inlineCurrentK1Route: K1OutputRoute? { inlineKeyTarget?.index == 0 ? inlineKeyFact?.k1Route : nil }
+
     var inlineKeyIsEditable: Bool {
         guard let fact = inlineKeyFact, let target = inlineKeyTarget,
               fact.value.mode == target.mode, fact.value.keyIndex == target.index else { return false }
+        if let route = fact.k1Route, target.index == 0 {
+            return StudioK1VoiceProposal.importing(route: route, actual: fact.value,
+                configuration: voiceConfiguration, preserving: currentSelectedKey) != nil
+        }
         if target.index == 0, inlineVoiceState == nil { return false }
         return StudioKeyWriteProposal.draft(from: fact.value, preserving: currentSelectedKey) != nil
     }
@@ -5611,6 +5622,8 @@ private extension AhaKeyStudioView {
                     if inspectorSession.isBusy {
                         ProgressView().controlSize(.small)
                         Text(NSLocalizedString("处理中…", comment: ""))
+                    } else if let route = inlineCurrentK1Route, let fact = inlineKeyFact {
+                        Text(String(format: NSLocalizedString("已读取：%@", comment: ""), StudioK1VoiceProposal.summary(route: route, actual: fact.value)))
                     } else if target.index == 0, currentSelectedKey.voicePreset == .systemDictation {
                         Text(NSLocalizedString(inlineVoiceState == 2 ? "已读取：Consumer（系统听写）" : "未启用 Consumer，当前为普通键绑定", comment: ""))
                     } else if let fact = inlineKeyFact {
@@ -5678,18 +5691,21 @@ private extension AhaKeyStudioView {
         let retainDraft = partIsDirty(selectedPart)
         let original = currentSelectedKey
         let expectedDevice = inlineKeyFact?.deviceID
+        if target.index == 0 { inlineVoiceState = nil; inlineKeyFact = nil }
         inlineKeyTask = Task { @MainActor in
             guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
             do {
                 let (fact, voiceState) = try await inspectorSession.withConnection(expectedDeviceID: expectedDevice) { context in
+                    if target.index == 0 {
+                        return try await readInlineK1Fact(mode: target.mode, deviceID: context.deviceID, allowsLegacy: true)
+                    }
                     let actual = try await bleManager.readOrdinaryKeyForEditing(mode: target.mode, index: target.index)
-                    let state: UInt8? = target.index == 0 ? try await bleManager.readVoiceOnboardingState() : nil
-                    return (StudioInlineKeyFact(deviceID: context.deviceID, value: actual), state)
+                    return (StudioInlineKeyFact(deviceID: context.deviceID, value: actual), nil as UInt8?)
                 }
                 guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
                 inlineKeyFact = fact
                 inlineVoiceState = voiceState
-                if !retainDraft, let imported = importedInlineKey(fact.value, preserving: original) {
+                if !retainDraft, let imported = importedInlineKey(fact.value, preserving: original, route: fact.k1Route) {
                     setInlineDraft(imported, target: target)
                     reconcileInlineReadback(fact.value)
                 }
@@ -5703,6 +5719,7 @@ private extension AhaKeyStudioView {
     }
 
     func saveInlineKey(overwrite: StudioInlineKeyConflict? = nil) {
+        if inlineCurrentK1Route != nil { saveInlineK1Voice(overwrite: overwrite); return }
         if inlineKeyTarget?.index == 0 {
             let key = overwrite?.voiceDraft ?? currentSelectedKey
             if key.voicePreset == .systemDictation { confirmExistingConsumer(); return }
@@ -5797,11 +5814,11 @@ private extension AhaKeyStudioView {
     func adoptInlineKeyConflict(_ conflict: StudioInlineKeyConflict) {
         guard let target = inlineKeyTarget, target.mode == conflict.actual.mode,
               target.index == conflict.actual.keyIndex,
-              let imported = importedInlineKey(conflict.actual, preserving: currentSelectedKey) else {
+              let imported = importedInlineKey(conflict.actual, preserving: currentSelectedKey, route: conflict.k1Route) else {
             inlineKeyMessage = NSLocalizedString("此动作无法在当前编辑器中完整表示，保持只读。", comment: "")
             return
         }
-        inlineKeyFact = .init(deviceID: conflict.deviceID, value: conflict.actual)
+        inlineKeyFact = .init(deviceID: conflict.deviceID, value: conflict.actual, k1Route: conflict.k1Route)
         setInlineDraft(imported, target: target)
         reconcileInlineReadback(conflict.actual)
         inlineKeyMessage = NSLocalizedString("已采用这次读回值，未写入键盘。", comment: "")
@@ -5822,8 +5839,9 @@ private extension AhaKeyStudioView {
         })
     }
 
-    func importedInlineKey(_ actual: OrdinaryKeyReadback, preserving original: AhaKeyKeyDraft) -> AhaKeyKeyDraft? {
-        voiceConfiguration.importing(actual, preserving: original)
+    func importedInlineKey(_ actual: OrdinaryKeyReadback, preserving original: AhaKeyKeyDraft, route: K1OutputRoute? = nil) -> AhaKeyKeyDraft? {
+        if let route { return StudioK1VoiceProposal.importing(route: route, actual: actual, configuration: voiceConfiguration, preserving: original) }
+        return voiceConfiguration.importing(actual, preserving: original)
     }
 
     func reconcileInlineReadback(_ actual: OrdinaryKeyReadback) {
@@ -5860,10 +5878,116 @@ private extension AhaKeyStudioView {
     }
 }
 
+// MARK: - CP2.6 per-mode Voice route
+private extension AhaKeyStudioView {
+    func inlineConflictSummary(_ conflict: StudioInlineKeyConflict, desired: Bool) -> String {
+        let value = desired ? conflict.desired : conflict.actual
+        if let route = desired ? conflict.desiredK1Route : conflict.k1Route {
+            return StudioK1VoiceProposal.summary(route: route, actual: value)
+        }
+        return StudioKeyWriteProposal.summary(value)
+    }
+
+    func readInlineK1Fact(mode: UInt8, deviceID: String, allowsLegacy: Bool) async throws -> (StudioInlineKeyFact, UInt8?) {
+        guard mode < 4 else { throw K1OutputRouteTransaction.Failure.invalidTarget }
+        let route: K1OutputRoute?
+        do { route = try await bleManager.readK1RoutesForEditing().routes[Int(mode)] }
+        catch K1OutputRouteTransaction.Failure.unsupported where allowsLegacy { route = nil }
+        let actual = try await bleManager.readOrdinaryKeyForEditing(mode: mode, index: 0)
+        if let route {
+            guard StudioK1VoiceProposal.projection(route, mode: mode, description: actual.description) == actual else {
+                throw K1OutputRouteTransaction.Failure.verificationMismatch
+            }
+            return (.init(deviceID: deviceID, value: actual, k1Route: route), nil)
+        }
+        return (.init(deviceID: deviceID, value: actual), try await bleManager.readVoiceOnboardingState())
+    }
+
+    func checkInlineK1Ready(_ key: AhaKeyKeyDraft) throws {
+        if key.voicePreset == .systemDictation {
+            guard !nativeSpeech.isRecording, !nativeSpeech.isStartingRecording else { throw ConfirmedVoiceHandoff.Failure.hostNotReady }
+        } else { try checkInlineVoiceReady(key) }
+    }
+
+    func saveInlineK1Voice(overwrite: StudioInlineKeyConflict?) {
+        guard !inspectorSession.isBusy, let target = inlineKeyTarget, target.index == 0,
+              let old = inlineKeyFact, let route = overwrite?.k1Route ?? old.k1Route,
+              let mode = AhaKeyModeSlot(rawValue: Int(target.mode)) else { return }
+        let submitted: AhaKeyKeyDraft
+        do {
+            submitted = try voiceConfiguration.preparing(overwrite?.voiceDraft ?? currentSelectedKey, mode: mode)
+            _ = try StudioK1VoiceProposal.route(for: submitted)
+            _ = try StudioK1VoiceProposal.description(for: submitted)
+            try checkInlineK1Ready(submitted)
+        } catch { reportVoiceFailure(error); return }
+        let baseline = StudioInlineKeyFact(deviceID: overwrite?.deviceID ?? old.deviceID,
+            value: overwrite?.actual ?? old.value, k1Route: route)
+        guard baseline.value.mode == target.mode, baseline.value.keyIndex == 0 else { return }
+        setInlineDraft(submitted, target: target)
+        inlineKeyTask?.cancel()
+        let ticket = UUID(); inlineKeyOperationID = ticket; inlineKeyMessage = nil
+        inlineKeyTask = Task { @MainActor in
+            guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
+            var wrote = false
+            do {
+                let result = try await StudioK1VoiceSave.run(session: inspectorSession, baseline: baseline,
+                    key: submitted, configuration: voiceConfiguration,
+                    read: { mode in try await readInlineK1Fact(mode: mode, deviceID: baseline.deviceID, allowsLegacy: false).0 },
+                    saveDescription: { actual, description, generation in
+                        let expected = OrdinaryKeyReadback(mode: actual.mode, keyIndex: 0, actionType: actual.actionType,
+                            action: actual.action, description: description)
+                        let confirmed = try await bleManager.setOrdinaryKeyConfirmed(baseline: actual, target: expected, expectedGeneration: generation)
+                        guard confirmed == expected else { throw K1OutputRouteTransaction.Failure.verificationMismatch }
+                    }, saveRoute: { actual, desired, generation in
+                        _ = try await bleManager.setK1RouteConfirmed(mode: target.mode, baseline: actual, target: desired,
+                            expectedGeneration: generation, prepareHost: { try checkInlineK1Ready(submitted) }, writeStarted: { wrote = true })
+                    }, checkHostReady: { try checkInlineK1Ready(submitted) }, prepareHost: {
+                        guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { throw CancellationError() }
+                        let desired = try StudioK1VoiceProposal.route(for: submitted)
+                        let projection = StudioK1VoiceProposal.projection(desired, mode: target.mode,
+                            description: try StudioK1VoiceProposal.description(for: submitted))
+                        let prepared = try voiceConfiguration.committingK1(key: submitted, mode: mode, route: desired, actual: projection)
+                        try StudioVoiceConfigurationStore.save(prepared)
+                        voiceConfiguration = prepared
+                        voiceRelay.updateRoutes(from: prepared.routeDraft)
+                        guard voiceRelay.hasPreparedRoutes(for: prepared.routeDraft) else { throw ConfirmedVoiceHandoff.Failure.hostNotReady }
+                    }, writeStarted: { wrote = true })
+                guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else {
+                    if wrote { inlineKeyUnconfirmed.insert("\(baseline.deviceID):\(target.mode):0") }; return
+                }
+                switch result {
+                case .conflict(let conflict): inlineKeyConflict = conflict
+                case .readOnly(let fact):
+                    inlineKeyFact = fact
+                    inlineKeyMessage = NSLocalizedString("此动作无法在当前编辑器中完整表示，保持只读。", comment: "")
+                case .saved(let fact), .unchanged(let fact):
+                    guard let actualRoute = fact.k1Route else { throw K1OutputRouteTransaction.Failure.invalidReply }
+                    let applied = try voiceConfiguration.committingK1(key: submitted, mode: mode, route: actualRoute, actual: fact.value)
+                    try StudioVoiceConfigurationStore.save(applied)
+                    voiceConfiguration = applied; voiceConfigurationError = nil
+                    inlineKeyFact = fact
+                    var confirmedMode = lastSyncedDraft.draft(for: mode)
+                    confirmedMode.updateKey(applied.key(for: mode)); lastSyncedDraft.updateMode(confirmedMode)
+                    if case .saved = result { inlineKeyUnconfirmed.remove(inlineKeyReceiptID(fact)) }
+                    let message = NSLocalizedString("当前模式语音设置已确认生效，其他模式未修改。", comment: "")
+                    inlineKeyMessage = message
+                    if !inlineKeyUnconfirmed.contains(inlineKeyReceiptID(fact)) {
+                        writeOutcome = .init(succeeded: true, message: message, wrote: wrote)
+                    }
+                }
+            } catch {
+                if wrote { inlineKeyUnconfirmed.insert("\(baseline.deviceID):\(target.mode):0") }
+                if inlineKeyOperationID == ticket { reportVoiceFailure(error) }
+            }
+            if inlineKeyOperationID == ticket { inlineKeyTask = nil }
+        }
+    }
+}
+
 // MARK: - Legacy global Consumer exit, selected-mode binding only
 private extension AhaKeyStudioView {
     var inlineKeyCanSave: Bool {
-        inlineKeyIsEditable && !(inlineKeyTarget?.index == 0 && currentSelectedKey.voicePreset == .systemDictation && inlineVoiceState != 2)
+        inlineKeyIsEditable && !(inlineCurrentK1Route == nil && inlineKeyTarget?.index == 0 && currentSelectedKey.voicePreset == .systemDictation && inlineVoiceState != 2)
     }
 
     var customVoiceTriggerBinding: Binding<Bool> {

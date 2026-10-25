@@ -121,3 +121,18 @@ public enum K1OutputRouteTransaction {
         try Task.checkCancellation(); try checkSession()
     }
 }
+
+extension K1OutputRouteTransaction.Failure: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .unsupported: return NSLocalizedString("当前固件不支持分模式语音设置，请重新读取后使用兼容方案。", comment: "")
+        case .invalidReply: return NSLocalizedString("语音设置读回无效，请重新连接后核对。", comment: "")
+        case .rejected: return NSLocalizedString("键盘未能处理语音设置，请读取设备状态后再试。", comment: "")
+        case .invalidTarget: return NSLocalizedString("语音设置目标无效，请重新选择模式。", comment: "")
+        case .transportLimit: return NSLocalizedString("当前连接无法发送语音设置，请重新连接后再试。", comment: "")
+        case .changedSinceRead: return NSLocalizedString("键盘该键已变化，请重新读取后编辑。", comment: "")
+        case .verificationMismatch: return NSLocalizedString("保存后键位读回不一致，设置未确认。", comment: "")
+        case .writeUnconfirmed: return NSLocalizedString("语音设置写入未确认，可能已生效；请重新连接并读取，不要反复写入。", comment: "")
+        }
+    }
+}

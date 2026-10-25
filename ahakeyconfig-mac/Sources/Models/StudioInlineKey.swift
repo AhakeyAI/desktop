@@ -10,6 +10,7 @@ struct StudioInlineKeyTarget: Equatable {
 struct StudioInlineKeyFact {
     let deviceID: String
     let value: OrdinaryKeyReadback
+    var k1Route: K1OutputRoute? = nil
 }
 
 struct StudioInlineKeyConflict: Identifiable {
@@ -18,6 +19,8 @@ struct StudioInlineKeyConflict: Identifiable {
     let actual: OrdinaryKeyReadback
     let desired: OrdinaryKeyReadback
     var voiceDraft: AhaKeyKeyDraft? = nil
+    var k1Route: K1OutputRoute? = nil
+    var desiredK1Route: K1OutputRoute? = nil
 }
 
 /// Only import values the existing editor can round-trip without losing bytes.

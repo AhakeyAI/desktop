@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-25",
+  "scope": "CP2.6 per-mode Voice sidebar integration",
+  "completeSwiftTests": 715,
+  "componentAndHostTests": 12,
+  "failed": 0,
+  "perModeConsumerRestoreImplemented": true,
+  "legacyGlobalFallback": "only an explicit generic legacy ACK, never timeout/rejection",
+  "otherModesAndDrafts": "not rewritten by selected-mode transaction",
+  "hostConsumerRequiresAppSpeechPermissions": false,
+  "ordinaryF18CanProveConsumer": false,
+  "descriptionAndRouteAtomicity": "not promised; individual confirmations and uncertain-write receipt",
+  "newFirmwareHardwareCommandsExecuted": false,
+  "installed": false,
+  "installedBuildUnchanged": 376,
+  "remaining": [
+    "combined HEX bytes and hash verification",
+    "new firmware HIL after development completes",
+    "missing-route explicit initialization",
+    "long macro and unknown description fact separation",
+    "Restore initialization UI and recovery state machine"
+  ]
+}

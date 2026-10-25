@@ -107,6 +107,22 @@ struct StudioVoiceConfiguration: Codable, Equatable {
         entries.first { $0.mode == mode }?.readOnlyBinding?.value
     }
 
+    /// Only this mode changes. Other Consumer and ordinary routes remain
+    /// independent; no all-mode legacy observation/import is performed.
+    func committingK1(key: AhaKeyKeyDraft, mode: AhaKeyModeSlot,
+                      route: K1OutputRoute, actual: OrdinaryKeyReadback) throws -> Self {
+        let prepared = try preparing(key, mode: mode)
+        guard try StudioK1VoiceProposal.route(for: prepared) == route,
+              try StudioK1VoiceProposal.description(for: prepared) == actual.description,
+              StudioK1VoiceProposal.projection(route, mode: UInt8(mode.rawValue), description: actual.description) == actual else {
+            throw ConfirmedOrdinaryKeySetting.Failure.mismatch
+        }
+        var next = self
+        let index = next.entries.firstIndex { $0.mode == mode }!
+        next.entries[index].key = prepared; next.entries[index].readOnlyBinding = nil
+        return next
+    }
+
     func observing(_ actual: VoiceHandoffSnapshot, consumer: Bool, excluding selected: AhaKeyModeSlot?) -> Self {
         var next = self
         for index in entries.indices where entries[index].mode != selected {
