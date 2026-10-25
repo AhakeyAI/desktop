@@ -34,11 +34,17 @@ final class RestoreInitializationReadbackTests: XCTestCase {
             if index == 0 && consumer { return K1OutputRoute(kind: .consumer, action: Data([0xCF, 0]))! }
             return K1OutputRoute(kind: .ordinary, action: index < 3 ? Data([0x73, 1, 0x6D]) : Data())!
         }
-        let resources = (UInt8(0)..<19).map { id in
-            WS3ResourceReadback(id: id,
-                basic: .resourceBasic(userValid: customResource && id == 0, writeState: customResource && id == 0 ? .valid : .empty),
-                integrity: customResource && id == 0 ? .resourceIntegrity(frames: 1, bytes: WS3ResourceReadback.frameBytes, crc32: 7)
-                    : .resourceIntegrity(frames: 0, bytes: 0, crc32: 0))!
+        let resources: [WS3ResourceReadback] = (UInt8(0)..<19).map { id in
+            let isCustom = customResource && id == 0
+            let state: WS3ResourceWriteState = isCustom ? .valid : .empty
+            let basic = WS3DisplayValue.resourceBasic(userValid: isCustom, writeState: state)
+            let integrity: WS3DisplayValue
+            if isCustom {
+                integrity = .resourceIntegrity(frames: 1, bytes: WS3ResourceReadback.frameBytes, crc32: 7)
+            } else {
+                integrity = .resourceIntegrity(frames: 0, bytes: 0, crc32: 0)
+            }
+            return WS3ResourceReadback(id: id, basic: basic, integrity: integrity)!
         }
         let defaults: [UInt8] = [11, 5, 1, 1, 1, 6, 6, 7, 0]
         let lights = (UInt8(0)..<4).flatMap { mode in
