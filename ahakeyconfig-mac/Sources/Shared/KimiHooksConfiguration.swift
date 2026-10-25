@@ -6,6 +6,7 @@ public enum KimiHooksConfiguration {
     public static let blockStart = "# BEGIN AhaKey Kimi Hooks"
     public static let blockEnd = "# END AhaKey Kimi Hooks"
     public static let events = ["Notification", "SessionStart", "SessionEnd", "PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop"]
+    public static let nativeEvents = events + ["PermissionRequest", "PermissionResult"]
     public enum Failure: Error { case malformed, unsafePath }
 
     public static func installing(in text: String, location: KimiConfigPolicySync.Location, agentPath: String) throws -> String {
@@ -13,9 +14,11 @@ public enum KimiHooksConfiguration {
         var result = try removing(in: text).trimmingCharacters(in: .whitespacesAndNewlines)
         if !result.isEmpty { result += "\n\n" }
         result += blockStart + "\n# Managed by AhaKey Studio. Kimi lifecycle hooks.\n"
-        for event in events {
+        for event in location.layout == .nativeV2 ? nativeEvents : events {
             var call = "/usr/bin/env AHAKEY_KIMI_LAYOUT=\(location.layout.rawValue)"
-            if location.layout == .nativeV2 { call += " KIMI_CODE_HOME=\(shellQuote(location.root.path))" }
+            if location.layout == .nativeV2 {
+                call += " KIMI_CODE_HOME=\(shellQuote(location.root.path)) AHAKEY_KIMI_APPROVAL_OBSERVATIONS=1"
+            }
             call += " \(shellQuote(agentPath)) hook Kimi\(event)"
             let command = "/bin/sh -c \(shellQuote(call))"
             result += "\n[[hooks]]\nevent = \"\(event)\"\nmatcher = \"\"\ncommand = \(tomlQuote(command))\ntimeout = \(event == "PreToolUse" ? 20 : 10)\n"
@@ -85,6 +88,6 @@ public enum KimiHooksConfiguration {
         return nil
     }
     private static func owns(_ command: String) -> Bool {
-        ManagedHookCommand.owns(command, events: events.map { "Kimi" + $0 })
+        ManagedHookCommand.owns(command, events: nativeEvents.map { "Kimi" + $0 })
     }
 }

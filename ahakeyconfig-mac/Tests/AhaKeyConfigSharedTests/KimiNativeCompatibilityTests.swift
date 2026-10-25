@@ -60,6 +60,9 @@ final class KimiNativeCompatibilityTests: XCTestCase {
         let first = try KimiHooksConfiguration.installing(in: input, location: location, agentPath: "/tmp/test agent's/ahakeyconfig-agent")
         XCTAssertTrue(first.contains("[providers.user]\napi_key = \"fixture-only\""))
         XCTAssertTrue(first.contains("command = \"echo user\""))
+        XCTAssertTrue(first.contains("event = \"PermissionRequest\""))
+        XCTAssertTrue(first.contains("event = \"PermissionResult\""))
+        XCTAssertTrue(first.contains("AHAKEY_KIMI_APPROVAL_OBSERVATIONS=1"))
         XCTAssertEqual(try KimiHooksConfiguration.installing(in: first, location: location,
             agentPath: "/tmp/test agent's/ahakeyconfig-agent"), first)
         let removed = try KimiHooksConfiguration.removing(in: first)
@@ -70,6 +73,15 @@ final class KimiNativeCompatibilityTests: XCTestCase {
         let input = "prompt = '''\n# BEGIN AhaKey Kimi Hooks\n[[hooks]]\ncommand = \"ahakeyconfig-agent hook KimiStop\"\n# END AhaKey Kimi Hooks\n'''\n"
         XCTAssertEqual(try KimiHooksConfiguration.removing(in: input), input)
         XCTAssertThrowsError(try KimiHooksConfiguration.removing(in: "# BEGIN AhaKey Kimi Hooks\n"))
+    }
+    func testLegacyInstallDoesNotGainUnsupportedNativeObservationEvents() throws {
+        let root = try directory()
+        let location = KimiConfigPolicySync.Location(layout: .legacyPython, root: root)
+        let text = try KimiHooksConfiguration.installing(in: "", location: location, agentPath: "/tmp/ahakeyconfig-agent")
+        XCTAssertFalse(text.contains("event = \"PermissionRequest\""))
+        XCTAssertFalse(text.contains("event = \"PermissionResult\""))
+        XCTAssertFalse(text.contains("AHAKEY_KIMI_APPROVAL_OBSERVATIONS"))
+        XCTAssertEqual(text.components(separatedBy: "[[hooks]]").count - 1, 7)
     }
     func testMentionsPipelinesAndOtherProgramsDoNotGrantHookRemovalOwnership() throws {
         for command in ["echo 'ahakeyconfig-agent hook KimiStop'", "/tmp/other-agent hook KimiStop",

@@ -4,6 +4,15 @@ import threading
 from pathlib import Path
 
 
+def policy_swift_sources(shared):
+    """The real dependency closure used by standalone policy fixture compilers."""
+    return [shared / name for name in (
+        "CodexConfigLeverSync.swift", "ApprovalAutomationControl.swift",
+        "CodexDesktopSessionBridge.swift", "CodexDesktopLeverState.swift",
+        "CursorApprovalPolicySync.swift", "KimiConfigPolicySync.swift", "CodexHookTrust.swift",
+    )]
+
+
 def ensure_claude_fixture_isolated(policy_root=Path("/Library/Application Support/ClaudeCode"), preference_probe=None):
     """User-config redirection does not disable machine-wide Claude policies."""
     import subprocess

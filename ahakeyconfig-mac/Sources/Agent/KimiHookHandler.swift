@@ -4,11 +4,15 @@ import AhaKeyConfigShared
 enum KimiHookHandler {
     static func handlePreToolPermission(stdin suppliedInput: Data? = nil,
         layout suppliedLayout: KimiConfigPolicySync.Layout? = nil,
+        approvalObservations suppliedObservations: Bool? = nil,
         send suppliedSend: (([String: Any], Double) -> [String: Any]?)? = nil) {
         let stdinData = suppliedInput ?? HookSupport.readAllStdinSilently()
         let send = suppliedSend ?? { HookSupport.sendJsonRequest($0, timeout: $1) }
         if (suppliedLayout ?? KimiConfigPolicySync.productionLocation.layout) == .nativeV2 {
-            let request = WS3TaskMetadata.enrich(["cmd": "state", "value": Int(HookSupport.permissionLedValue)],
+            // An already-running TUI may still hold the previous seven-hook
+            // configuration. Only the new complete observation set opts in.
+            let observesApproval = suppliedObservations ?? (ProcessInfo.processInfo.environment["AHAKEY_KIMI_APPROVAL_OBSERVATIONS"] == "1")
+            let request = WS3TaskMetadata.enrich(["cmd": "state", "value": observesApproval ? 3 : 1],
                 client: .kimi, event: "KimiPreToolUse", stdin: stdinData)
             _ = send(request, HookSupport.stateRequestTimeout)
             return

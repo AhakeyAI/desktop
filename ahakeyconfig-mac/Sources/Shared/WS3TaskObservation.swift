@@ -45,7 +45,7 @@ public struct WS3TaskMetadata: Equatable, Sendable {
         switch event {
         case "Notification", "PostToolUse", "SessionStart", "Stop", "TaskCompleted", "UserPromptSubmit", "SessionEnd", "PreCompact": return .claude
         case "sessionStart", "sessionEnd", "postToolUse", "stop", "beforeSubmitPrompt", "beforeReadFile": return .cursor
-        case "KimiNotification", "KimiSessionStart", "KimiSessionEnd", "KimiPostToolUse", "KimiUserPromptSubmit", "KimiStop": return .kimi
+        case "KimiNotification", "KimiSessionStart", "KimiSessionEnd", "KimiPostToolUse", "KimiUserPromptSubmit", "KimiStop", "KimiPermissionRequest", "KimiPermissionResult": return .kimi
         default: return nil
         }
     }

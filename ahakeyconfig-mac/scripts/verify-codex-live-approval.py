@@ -17,7 +17,7 @@ import tempfile
 import threading
 import time
 
-from hook_lifecycle_fixture import terminate_process_group
+from hook_lifecycle_fixture import terminate_process_group, policy_swift_sources
 
 SWIFT = r'''import Foundation
 import Darwin
@@ -259,10 +259,9 @@ wire_api = "responses"
 requires_openai_auth = false
 ''')
             (root / "main.swift").write_text(SWIFT)
-            names = ["CodexConfigLeverSync.swift", "ApprovalAutomationControl.swift", "CursorApprovalPolicySync.swift",
-                "KimiConfigPolicySync.swift", "CodexHookTrust.swift", "CodexHookApproval.swift"]
+            fixture_sources = policy_swift_sources(source) + [source / "CodexHookApproval.swift"]
             generator = root / "generate"
-            subprocess.run(["swiftc", *[str(source / name) for name in names], str(root / "main.swift"), "-o", str(generator)], check=True, timeout=60)
+            subprocess.run(["swiftc", *map(str, fixture_sources), str(root / "main.swift"), "-o", str(generator)], check=True, timeout=60)
             agent = root / "agent's space/ahakeyconfig-agent"
             agent.parent.mkdir()
             agent.write_text('#!/bin/sh\nexec "$CODEX_HOME/generate" "$CODEX_HOME" hook "$2"\n')

@@ -1,0 +1,74 @@
+{
+  "date": "2026-10-25",
+  "installedCandidateAtMeasurement": {
+    "version": "0.2.3",
+    "build": 375,
+    "source": "8b5a993"
+  },
+  "swiftTests": {
+    "passed": 680,
+    "failed": 0
+  },
+  "pythonFixtureTests": {
+    "passed": 5,
+    "failed": 0
+  },
+  "kimiNativeLifecycle": {
+    "cli": "2.3.0",
+    "lifecycle": {
+      "initial": {
+        "configuredHooks": 10,
+        "executed": [
+          "KimiSessionStart",
+          "KimiUserPromptSubmit",
+          "user"
+        ],
+        "cliExit": 1
+      },
+      "reinstall": {
+        "configuredHooks": 10,
+        "executed": [
+          "KimiSessionStart",
+          "KimiUserPromptSubmit",
+          "user"
+        ],
+        "cliExit": 1
+      },
+      "remove": {
+        "configuredHooks": 1,
+        "executed": [
+          "user"
+        ],
+        "cliExit": 1
+      }
+    },
+    "modelRequests": 0,
+    "scope": "temporary home; lifecycle only; no live dial control claimed"
+  },
+  "codexFixtureCompile": {
+    "fixture_compiled": true,
+    "fixture_lifecycle": [
+      "initial",
+      "reinstall",
+      "remove"
+    ],
+    "cli_executed": false
+  },
+  "backgroundPerformance": {
+    "durationSeconds": 30.105466125,
+    "samples": 6,
+    "oneCoreCPUPercent": 0.398598711283,
+    "scope": "Installed build375 background Agent; keyboard supplied no live BLE state; not connected-device or long-GIF acceptance"
+  },
+  "nativeKimiApprovalDialogProbe": {
+    "verdict": "incomplete",
+    "permissionRequestObserved": true,
+    "permissionResultObservedInEarlierAttempt": true,
+    "persistedRuntimeReceipt": false,
+    "reason": "PTY cleanup did not finish normally across interrupted host runtime; no end-to-end runtime pass claimed",
+    "externalModelRequests": 0,
+    "leftoverProbeProcesses": 0
+  },
+  "physicalLeverAcceptance": "pending live keyboard connection",
+  "defaultCodexConfigWrites": 0
+}

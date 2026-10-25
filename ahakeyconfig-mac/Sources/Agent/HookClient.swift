@@ -48,6 +48,8 @@ enum HookClient {
         "KimiSessionStart": .sharedState(4),
         "KimiSessionEnd": .sharedState(8),
         "KimiPreToolUse": .kimiPreToolPermission,
+        "KimiPermissionRequest": .sharedState(1),
+        "KimiPermissionResult": .sharedState(2),
         "KimiPostToolUse": .sharedState(2),
         "KimiUserPromptSubmit": .sharedState(7),
         "KimiStop": .sharedState(5),

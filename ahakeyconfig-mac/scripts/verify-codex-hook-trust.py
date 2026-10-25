@@ -16,6 +16,7 @@ import tempfile
 import threading
 import time
 
+from hook_lifecycle_fixture import policy_swift_sources
 
 SWIFT_FIXTURE = r'''
 import Foundation
@@ -141,9 +142,8 @@ def main():
         generate = root / "generate"
         # TomlPolicyLocator shares the production policy module's source file;
         # compile its real lifecycle dependencies rather than stubbing them.
-        fixture_sources = ["CodexConfigLeverSync.swift", "ApprovalAutomationControl.swift",
-                           "CursorApprovalPolicySync.swift", "KimiConfigPolicySync.swift", "CodexHookTrust.swift"]
-        subprocess.run(["swiftc", *[str(sources / name) for name in fixture_sources],
+        fixture_sources = policy_swift_sources(sources)
+        subprocess.run(["swiftc", *map(str, fixture_sources),
                         str(root / "main.swift"), "-o", str(generate)], check=True)
         if args.compile_only:
             for mode in ("initial", "reinstall", "remove"):

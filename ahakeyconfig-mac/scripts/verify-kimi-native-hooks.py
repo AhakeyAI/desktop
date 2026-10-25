@@ -14,7 +14,7 @@ import subprocess
 import tempfile
 
 
-from hook_lifecycle_fixture import ForbiddenModelEndpoint
+from hook_lifecycle_fixture import ForbiddenModelEndpoint, policy_swift_sources
 
 
 SWIFT = r'''
@@ -49,13 +49,12 @@ def main():
     if not version.startswith("2."):
         parser.error("this fixture targets native Kimi v2; legacy support has separate tests")
     sources = Path(__file__).resolve().parents[1] / "Sources/Shared"
-    names = ["CodexConfigLeverSync.swift", "ApprovalAutomationControl.swift", "CursorApprovalPolicySync.swift",
-             "KimiConfigPolicySync.swift", "CodexHookTrust.swift", "KimiHooksConfiguration.swift", "JSONHooksConfiguration.swift"]
+    fixture_sources = policy_swift_sources(sources) + [sources / "KimiHooksConfiguration.swift", sources / "JSONHooksConfiguration.swift"]
     with tempfile.TemporaryDirectory(prefix="ahakey-kimi-lifecycle-") as directory, ForbiddenModelEndpoint() as endpoint:
         root = Path(directory).resolve()
         (root / "main.swift").write_text(SWIFT)
         generator = root / "generate"
-        subprocess.run(["swiftc", *[str(sources / name) for name in names], str(root / "main.swift"), "-o", str(generator)], check=True, timeout=60)
+        subprocess.run(["swiftc", *map(str, fixture_sources), str(root / "main.swift"), "-o", str(generator)], check=True, timeout=60)
         agent = root / "agent's space/ahakeyconfig-agent"
         agent.parent.mkdir()
         agent.write_text('#!/bin/sh\ncat >/dev/null\nprintf "%s\\n" "$2" >> "$KIMI_CODE_HOME/markers"\nprintf "{}\\n"\n')
@@ -92,7 +91,7 @@ command = ''' + json.dumps(str(user)) + '\ntimeout = 5\n'
             if stage == "reinstall":
                 assert actual == previous, "Reinstall must be idempotent"
             previous = actual
-            assert actual.count("[[hooks]]") == (1 if stage == "remove" else 8)
+            assert actual.count("[[hooks]]") == (1 if stage == "remove" else 10)
             doctor = subprocess.run([args.cli, "doctor"], env=env, cwd=root, capture_output=True, text=True, timeout=10)
             assert doctor.returncode == 0, "Native configuration schema rejected"
             assert "default_yolo" not in doctor.stdout + doctor.stderr
