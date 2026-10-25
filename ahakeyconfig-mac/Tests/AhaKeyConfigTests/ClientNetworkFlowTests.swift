@@ -188,7 +188,7 @@ final class ClientNetworkFlowTests: XCTestCase {
         XCTAssertEqual(redirects, 1)
     }
 
-    func testExpiredTokenDoesNotSendSpeechAndLateFailureCannotClearNewToken() async throws {
+    func testExpiredEntitlementKeepsLoginAndLateFailureCannotClearNewToken() async throws {
         var redirects = 0
         let (optimizer, folder) = try optimizer { _ in redirects += 1 }
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -196,9 +196,12 @@ final class ClientNetworkFlowTests: XCTestCase {
         var payload = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as! [String: Any]
         payload["token_valid_until"] = "2000-01-01T00:00:00Z"
         try JSONSerialization.data(withJSONObject: payload).write(to: file)
-        ClientStubProtocol.handle = { _ in XCTFail("expired token should not reach network"); return (500, "") }
+        ClientStubProtocol.handle = { _ in XCTFail("expired entitlement should not reach network"); return (500, "") }
         _ = await optimizer.processIfEnabled("speech")
-        XCTAssertEqual(redirects, 1)
+        XCTAssertEqual(redirects, 0)
+        XCTAssertFalse(optimizer.requiresLogin)
+        let retained = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as! [String: Any]
+        XCTAssertEqual(retained["access_token"] as? String, payload["access_token"] as? String)
         payload["access_token"] = "old-token"
         payload["token_valid_until"] = "2099-01-01T00:00:00Z"
         try JSONSerialization.data(withJSONObject: payload).write(to: file)
@@ -209,7 +212,7 @@ final class ClientNetworkFlowTests: XCTestCase {
             return (401, "")
         }
         _ = await optimizer.processIfEnabled("speech")
-        XCTAssertEqual(redirects, 1)
+        XCTAssertEqual(redirects, 0)
         let latest = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as! [String: Any]
         XCTAssertEqual(latest["access_token"] as? String, "new-token")
     }

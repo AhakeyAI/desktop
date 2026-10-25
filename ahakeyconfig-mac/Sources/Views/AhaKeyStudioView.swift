@@ -23,6 +23,7 @@ struct AhaKeyStudioView: View {
     @AppStorage(StudioVoiceConfigurationStore.pendingGlobalKey) private var pendingGlobalVoiceChange = false
     @State private var studioDraft: AhaKeyStudioDraft
     @State private var lastSyncedDraft: AhaKeyStudioDraft
+    @State private var keyBaselines = StudioKeyBaselines.load()
     @State private var selectedMode: AhaKeyModeSlot
     @State private var selectedPart: AhaKeyStudioPart
     @State private var lightBarPreview: IDEState
@@ -93,7 +94,8 @@ struct AhaKeyStudioView: View {
         _voiceConfiguration = State(initialValue: applied)
         _voiceConfigurationError = State(initialValue: configurationError)
         _studioDraft = State(initialValue: editable)
-        _lastSyncedDraft = State(initialValue: applied.overlay(on: initialDraft))
+        let persistedBaseline = AhaKeyStudioStore.loadSynced()
+        _lastSyncedDraft = State(initialValue: persistedBaseline ?? applied.overlay(on: initialDraft))
         let initialMode = AhaKeyModeSlot(rawValue: bleManager.workMode) ?? .mode0
         _selectedMode = State(initialValue: initialMode)
         _selectedPart = State(initialValue: .key1)
@@ -1979,7 +1981,7 @@ struct AhaKeyStudioView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("实体拨杆控制批准方式，与键盘当前工作模式无关。")
                     Divider()
-                    Text("Claude／Cursor 自动批准需要后台与 Hook。Codex 未接管的会话继续原有审批流程，不会因键盘未授权而被拒绝。Kimi 原生终端审批仍由自身管理。")
+                    Text("Claude／Cursor 自动批准需要后台与 Hook。Codex 未接管的会话继续原有审批流程，不会因键盘未授权而被拒绝。Kimi 默认权限可随拨杆同步；已有会话的接管状态需单独核验。")
                     Text(NSLocalizedString("手动批准：会交回用户/终端确认。若 Cursor、Codex 或 Kimi 仍弹窗，请看 diagnostics 里的 ide 与 diagnostic 字段。", comment: ""))
                     Text(NSLocalizedString("若仍出现手动：在「设备信息」里打开「工具批准诊断」查看 permission-request.log（含 ide、hookEvent、diagnostic 等）。", comment: ""))
                 }
@@ -2015,7 +2017,7 @@ struct AhaKeyStudioView: View {
                     Image(systemName: agentReady ? "checkmark.seal.fill" : "exclamationmark.circle.fill")
                         .foregroundStyle(agentReady ? .green : .orange)
                     Text(LocalizedStringKey(agentReady
-                         ? "Claude／Cursor 可由后台接管批准；Codex 会话权限同步请查看下方状态。Kimi 原生终端仍由自身管理。"
+                         ? "Claude／Cursor 可由后台接管批准；Codex 会话权限同步请查看下方状态。Kimi 已有会话权限需单独核验。"
                          : "拨杆在 IDE 中生效需先安装 Agent 与 Hook，并把蓝牙交给 Agent；否则仅为状态显示。"))
                         .font(.callout)
                 }
@@ -2080,7 +2082,7 @@ struct AhaKeyStudioView: View {
                 .font(.callout)
             Divider()
                 .frame(height: 14)
-            Text(String(format: NSLocalizedString("未同步改动 %d", comment: ""), dirtyCount + (bleManager.firmwareCapabilityProfile?.identity == .legacy ? 0 : lightInspectorModel.values.dirtyTargets.count)))
+            Text(syncBaselineSummary)
                 .font(.callout)
             Divider()
                 .frame(height: 14)
@@ -2295,6 +2297,19 @@ struct AhaKeyStudioView: View {
         )
     }
 
+    private var syncBaselineSummary: String {
+        let changes = dirtyCount + (bleManager.firmwareCapabilityProfile?.identity == .legacy ? 0 : lightInspectorModel.values.dirtyTargets.count)
+        let known = inlineKeyFact.map { fact in
+            AhaKeyModeSlot.allCases.reduce(into: 0) { count, mode in
+                count += AhaKeyKeyRole.allCases.filter {
+                    keyBaselines.key(deviceID: fact.deviceID, mode: mode, role: $0) != nil
+                }.count
+            }
+        } ?? 0
+        let status = String(format: NSLocalizedString("未同步改动 %d", comment: ""), changes)
+        return known == 16 ? status : status + " · " + String(format: NSLocalizedString("%d 键待核对", comment: ""), 16 - known)
+    }
+
     private var hasUnsyncedChanges: Bool {
         dirtyCount > 0
     }
@@ -2306,7 +2321,7 @@ struct AhaKeyStudioView: View {
             for role in AhaKeyKeyRole.allCases where current.key(for: role) != baseline.key(for: role) {
                 count += 1
             }
-            if bleManager.firmwareCapabilityProfile?.identity == .legacy && current.oled != baseline.oled {
+            if bleManager.firmwareCapabilityProfile?.identity == .legacy && (current.oled != baseline.oled || current.oled.needsDeviceUpload) {
                 count += 1
             }
             if bleManager.firmwareCapabilityProfile?.identity == .legacy && current.lightBar != baseline.lightBar {
@@ -2328,6 +2343,7 @@ struct AhaKeyStudioView: View {
         updateCurrentMode { mode in
             mode.oled.localAssetPath = nil
             mode.oled.statusLine = AhaKeyOLEDDraft.default(for: selectedMode).statusLine
+            mode.oled.needsDeviceUpload = false
         }
     }
 
@@ -2456,7 +2472,7 @@ struct AhaKeyStudioView: View {
             if bleManager.firmwareCapabilityProfile?.identity != .legacy {
                 return lcdInspectorModel.hasSettingsDraft || resourceInspectorModel.dirtyEntries.contains { $0 / 4 == UInt8(selectedMode.rawValue) || $0 >= 16 }
             }
-            return current.oled != baseline.oled
+            return current.oled != baseline.oled || current.oled.needsDeviceUpload
         case .lightBar:
             if bleManager.firmwareCapabilityProfile?.identity != .legacy {
                 return lightInspectorModel.values.isDirty(mode: UInt8(selectedMode.rawValue))
@@ -2480,6 +2496,7 @@ struct AhaKeyStudioView: View {
         if panel.runModal() == .OK, let url = panel.url {
             do {
                 _ = try OLEDFrameEncoder.adaptedFrameCount(at: url)
+                try OLEDFrameEncoder.validateDecodableFrames(at: url)
             } catch {
                 let msg = (error as? LocalizedError)?.errorDescription ?? NSLocalizedString("图片文件不符合上传限制。", comment: "")
                 syncStatusMessage = msg
@@ -2492,6 +2509,7 @@ struct AhaKeyStudioView: View {
             updateCurrentMode { mode in
                 mode.oled.localAssetPath = url.path
                 mode.oled.statusLine = "已选 \(max(frameCount, 1)) 帧图片预览；写入时将上传到 \(selectedMode.title) 固定分区。"
+                mode.oled.needsDeviceUpload = true
             }
             syncStatusMessage = "已更新 \(selectedMode.title) 的 LCD 预览；写入设备请使用底部通用按钮。"
         }
@@ -2677,6 +2695,7 @@ struct AhaKeyStudioView: View {
                 try StudioVoiceConfigurationStore.save(applied)
                 self.voiceConfiguration = applied
                 self.lastSyncedDraft = self.studioDraft
+                AhaKeyStudioStore.saveSynced(self.lastSyncedDraft)
                 self.lastSyncDate = Date()
                 self.isSyncing = false
                 self.syncStatusMessage = "已全部写入设备并保存（所有命令已确认）。"
@@ -2687,7 +2706,11 @@ struct AhaKeyStudioView: View {
                     self.returnToKeyboardControl()
                 }
             } catch {
-                let message = "写入键盘失败：\(error.localizedDescription)"
+                var message = Self.deviceWriteFailureMessage(for: error)
+                if case OLEDUploadError.uploadIncomplete = error {
+                    // 动图先于键位/灯效上传，失败时后续命令与 0x04 保存都未发送（AHK-022）。
+                    message += "键位与灯效配置本次未写入。"
+                }
                 self.isSyncing = false
                 self.syncStatusMessage = message
                 if showResultAlert {
@@ -2698,6 +2721,14 @@ struct AhaKeyStudioView: View {
     }
 
     // OLED uploads require an explicit save action; connection/readback must not write resources.
+    /// 断连属于「部分写入」：之前已 ACK 的命令可能已生效，但最后的 0x04 保存未确认，需要重连后整体重写。
+    static func deviceWriteFailureMessage(for error: Error) -> String {
+        if case OLEDUploadError.disconnected = error {
+            return "写入中断：键盘在写入过程中断开，配置可能只写入了一部分，且未确认保存。请重新连接后再次点击「写入键盘」完整重写。"
+        }
+        return "写入键盘失败：\(error.localizedDescription)"
+    }
+
     private func uploadChangedOLEDsToDevice() async throws -> Int {
         var uploadCount = 0
         let generation = bleManager.configurationSnapshot.generation
@@ -2710,7 +2741,7 @@ struct AhaKeyStudioView: View {
 
             let baseline = lastSyncedDraft.draft(for: mode).oled
             let deviceFrameCount = bleManager.keyboardPictureStates[mode.rawValue]?.frameCount ?? 0
-            guard draft.oled != baseline || deviceFrameCount == 0 else { continue }
+            guard draft.oled != baseline || deviceFrameCount == 0 || draft.oled.needsDeviceUpload else { continue }
 
             let assetURL = URL(fileURLWithPath: assetPath)
             let preparation = Task.detached(priority: .userInitiated) { try OLEDFrameEncoder.adaptedFrames(at: assetURL) }
@@ -2722,20 +2753,31 @@ struct AhaKeyStudioView: View {
             let frames = prepared.frames
 
             updateMode(mode) { modeDraft in
-                modeDraft.oled.statusLine = "正在上传动图到 \(mode.title)…"
+                modeDraft.oled.statusLine = "\(AhaKeyOLEDDraft.uploadInProgressStatusPrefix)\(mode.title)…"
+                modeDraft.oled.needsDeviceUpload = true
             }
             syncStatusMessage = "正在上传 \(mode.title) 的 LCD 动图…"
 
-            let startIndex = try await resolveOLEDUploadStartIndex(for: mode, frameCount: frames.count)
-            try await bleManager.uploadOLEDFrames(
-                frames,
-                fps: draft.oled.framesPerSecond,
-                mode: UInt8(mode.rawValue),
-                startIndex: UInt16(startIndex)
-            )
+            let startIndex: Int
+            do {
+                startIndex = try await resolveOLEDUploadStartIndex(for: mode, frameCount: frames.count)
+                try await bleManager.uploadOLEDFrames(
+                    frames,
+                    fps: draft.oled.framesPerSecond,
+                    mode: UInt8(mode.rawValue),
+                    startIndex: UInt16(startIndex)
+                )
+            } catch {
+                // 不能停在「正在上传…」：给出失败原因与恢复步骤，needsDeviceUpload 保持 true 以便下次重传（AHK-061/082）。
+                updateMode(mode) { modeDraft in
+                    modeDraft.oled.statusLine = "\(mode.title) 动图上传失败：\(error.localizedDescription)。键盘上的动图可能是旧图或新旧帧混杂；请确认键盘已连接后点击「写入键盘」重新上传。"
+                }
+                throw error
+            }
 
             updateMode(mode) { modeDraft in
                 modeDraft.oled.statusLine = "已上传 \(frames.count) 帧到设备，槽位起点 \(startIndex)；切换模式时会先显示描述，再回到当前模式动图。"
+                modeDraft.oled.needsDeviceUpload = false
             }
             uploadCount += 1
         }
@@ -2765,7 +2807,7 @@ struct AhaKeyStudioView: View {
                 self.syncStatusMessage = "已重新写入 \(self.selectedMode.title)（固件已确认）。"
             } catch {
                 self.isSyncing = false
-                self.syncStatusMessage = "写入键盘失败：\(error.localizedDescription)"
+                self.syncStatusMessage = Self.deviceWriteFailureMessage(for: error)
             }
         }
     }
@@ -5535,7 +5577,7 @@ private struct FAQTopicView: View {
                 按这顺序排查：
                 1. Agent 在跑吗？打开「权限诊断」看
                 2. Agent 是否占着蓝牙？画布顶部应显示已连接，且不在编辑态
-                3. 拨杆在 auto 档？看顶部状态栏；不是的话点画布拨杆切到 auto
+                3. 实体拨杆在 auto 档？看顶部状态栏；不是的话拨动实体拨杆，画布仅展示状态
                 4. IDE 的 Hook 文件配了吗？「权限诊断」会列出 Claude/Cursor/Codex/Kimi 各自的 Hook 安装状态
                 5. 装完后是否重启过 IDE？尤其 Kimi 安装/升级后必须完全关闭再重开
                 """
@@ -5705,10 +5747,12 @@ private extension AhaKeyStudioView {
                 guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
                 inlineKeyFact = fact
                 inlineVoiceState = voiceState
-                if !retainDraft, let imported = importedInlineKey(fact.value, preserving: original, route: fact.k1Route) {
+                if let mode = AhaKeyModeSlot(rawValue: Int(target.mode)),
+                   !retainDraft, !keyBaselines.preservesDraft(original, deviceID: fact.deviceID, mode: mode),
+                   let imported = importedInlineKey(fact.value, preserving: original, route: fact.k1Route) {
                     setInlineDraft(imported, target: target)
-                    reconcileInlineReadback(fact.value)
                 }
+                recordInlineKeyBaseline(fact)
                 inlineKeyTask = nil
             } catch {
                 guard inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
@@ -5795,6 +5839,7 @@ private extension AhaKeyStudioView {
                     syncStatusMessage = target.title + " · " + NSLocalizedString("已保存并读回一致", comment: "")
                     writeOutcome = .init(succeeded: true, message: target.title + " · " + NSLocalizedString("当前按键已写入键盘。", comment: ""))
                 }
+                if let fact = inlineKeyFact { recordInlineKeyBaseline(fact) }
                 inlineKeyTask = nil
             } catch {
                 let failure = error as? ConfirmedOrdinaryKeySetting.Failure
@@ -5820,7 +5865,7 @@ private extension AhaKeyStudioView {
         }
         inlineKeyFact = .init(deviceID: conflict.deviceID, value: conflict.actual, k1Route: conflict.k1Route)
         setInlineDraft(imported, target: target)
-        reconcileInlineReadback(conflict.actual)
+        if let fact = inlineKeyFact { recordInlineKeyBaseline(fact) }
         inlineKeyMessage = NSLocalizedString("已采用这次读回值，未写入键盘。", comment: "")
     }
 }
@@ -5842,6 +5887,21 @@ private extension AhaKeyStudioView {
     func importedInlineKey(_ actual: OrdinaryKeyReadback, preserving original: AhaKeyKeyDraft, route: K1OutputRoute? = nil) -> AhaKeyKeyDraft? {
         if let route { return StudioK1VoiceProposal.importing(route: route, actual: actual, configuration: voiceConfiguration, preserving: original) }
         return voiceConfiguration.importing(actual, preserving: original)
+    }
+
+    func recordInlineKeyBaseline(_ fact: StudioInlineKeyFact) {
+        guard let mode = AhaKeyModeSlot(rawValue: Int(fact.value.mode)),
+              let role = AhaKeyKeyRole(rawValue: Int(fact.value.keyIndex)) else { return }
+        let current = studioDraft.draft(for: mode).key(for: role)
+        let reference = role == .voice ? voiceConfiguration.key(for: mode) : current
+        guard let imported = importedInlineKey(fact.value, preserving: reference, route: fact.k1Route) else { return }
+        // Retain macro UI IDs when the actual wire action already matches.
+        let observed = role != .voice && (try? StudioKeyWriteProposal.make(key: current, mode: mode)) == fact.value
+            ? current : imported
+        var baseline = lastSyncedDraft.draft(for: mode)
+        baseline.updateKey(observed); lastSyncedDraft.updateMode(baseline)
+        keyBaselines.observe(observed, deviceID: fact.deviceID, mode: mode)
+        keyBaselines.save()
     }
 
     func reconcileInlineReadback(_ actual: OrdinaryKeyReadback) {
@@ -5968,6 +6028,7 @@ private extension AhaKeyStudioView {
                     inlineKeyFact = fact
                     var confirmedMode = lastSyncedDraft.draft(for: mode)
                     confirmedMode.updateKey(applied.key(for: mode)); lastSyncedDraft.updateMode(confirmedMode)
+                    recordInlineKeyBaseline(fact)
                     if case .saved = result { inlineKeyUnconfirmed.remove(inlineKeyReceiptID(fact)) }
                     let message = NSLocalizedString("当前模式语音设置已确认生效，其他模式未修改。", comment: "")
                     inlineKeyMessage = message
@@ -6101,6 +6162,9 @@ private extension AhaKeyStudioView {
                 inlineVoiceState = actual.onboardingState
                 inlineKeyFact = .init(deviceID: request.deviceID, value: actual.keys[mode.rawValue])
                 lastSyncedDraft = confirmed.overlay(on: lastSyncedDraft)
+                for value in actual.keys {
+                    recordInlineKeyBaseline(.init(deviceID: request.deviceID, value: value))
+                }
                 for slot in untouchedModes {
                     setInlineDraft(confirmed.key(for: slot), target: .init(mode: UInt8(slot.rawValue), index: 0))
                 }
@@ -6135,6 +6199,9 @@ private extension AhaKeyStudioView {
                 pendingGlobalVoiceChange = false
                 voiceConfigurationError = nil
                 lastSyncedDraft = confirmed.overlay(on: lastSyncedDraft)
+                for value in actual.keys {
+                    recordInlineKeyBaseline(.init(deviceID: fact.deviceID, value: value))
+                }
                 for slot in cleanModes { setInlineDraft(confirmed.key(for: slot), target: .init(mode: UInt8(slot.rawValue), index: 0)) }
                 inlineVoiceState = 2
                 inlineKeyFact = .init(deviceID: fact.deviceID, value: actual.keys[Int(target.mode)])

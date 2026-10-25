@@ -66,7 +66,7 @@ enum CodexHookHandler {
         request = WS3TaskMetadata.enrich(request, client: .codex,
             event: codexAgentEventName(forStateValue: stateValue), stdin: stdinData)
         let reply = dependencies.sendRequest(request, HookSupport.stateRequestTimeout)
-        let switchState = HookSupport.intValue(reply?["switchState"])
+        let switchState = HookSupport.switchStateValue(reply?["switchState"])
 
         let output: [String: Any] = [:]
         // A missing AhaKey grant is not a denial. Codex retains its original

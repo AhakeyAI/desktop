@@ -123,11 +123,13 @@ final class AgentManager: ObservableObject {
             .appendingPathComponent(".codex/config.toml").path
     }
 
+    /// Kimi Code CLI 2.x 读 `~/.kimi-code/config.toml`；仅纯旧版 kimi-cli 回落 `~/.kimi/config.toml`。
     private var kimiConfigPath: String {
         KimiConfigPolicySync.productionConfigURL.path
     }
+    private var kimiConfigDisplayPath: String { (kimiConfigPath as NSString).abbreviatingWithTildeInPath }
     private var kimiNativeInstallNote: String {
-        NSLocalizedString("Kimi 任务状态同步已配置。请重新打开 Kimi；原生版的审批仍由 Kimi 管理。", comment: "")
+        NSLocalizedString("Kimi 任务状态同步已配置。新进程的默认权限可随拨杆管理；已有会话的权限接管尚需单独核验，重新打开前请确认权限设置。", comment: "")
     }
 
     private var kimiCliFallbackRoot: String {
@@ -503,10 +505,12 @@ final class AgentManager: ObservableObject {
         removeStaleSocketIfNeeded()
     }
 
+    /// 只删除没有进程监听的残留 socket；仍有 Agent 在监听（如手动启动的实例）时不能删，
+    /// 否则该 Agent 进程存活却再也连不上（AHK-015）。
     private func removeStaleSocketIfNeeded() {
-        if FileManager.default.fileExists(atPath: socketPath) {
-            try? FileManager.default.removeItem(atPath: socketPath)
-        }
+        guard FileManager.default.fileExists(atPath: socketPath),
+              !Self.agentSocketAlive(socketPath: socketPath) else { return }
+        try? FileManager.default.removeItem(atPath: socketPath)
     }
 
     private func detectClaudeHooksInstalled() -> Bool {
@@ -552,9 +556,8 @@ final class AgentManager: ObservableObject {
         guard let text = try? String(contentsOfFile: kimiConfigPath, encoding: .utf8) else {
             return false
         }
-        return text.contains(kimiHookBlockStart)
-            && text.contains(kimiHookBlockEnd)
-            && isAhakeyHookCommand(text)
+        // Kimi Code 首次启动会把旧 `~/.kimi` 的 hooks 原样迁移过来，迁移后不带 AhaKey 标记块。
+        return isAhakeyHookCommand(text) && text.contains("hook Kimi")
     }
 
     private func isAhakeyHookCommand(_ command: String) -> Bool {
@@ -716,9 +719,7 @@ final class AgentManager: ObservableObject {
         _ = removeKimiHooks()
 
         // 4. 清理 socket
-        if FileManager.default.fileExists(atPath: socketPath) {
-            try? FileManager.default.removeItem(atPath: socketPath)
-        }
+        removeStaleSocketIfNeeded()
 
         bluetoothConnectionOwner = .ahaKeyStudio
         UserDefaults.standard.set(BluetoothConnectionOwner.ahaKeyStudio.rawValue, forKey: Self.bluetoothOwnerKey)
@@ -801,7 +802,7 @@ final class AgentManager: ObservableObject {
     /// Codex 0.125 使用 `~/.codex/config.toml` 的 inline `[[hooks.Event]]`。
     var userCodexConfigFilePath: String { codexConfigPath }
 
-    /// Kimi Code CLI（Beta）使用 `~/.kimi/config.toml` 的 `[[hooks]]`。
+    /// Kimi Code CLI（Beta）使用 `~/.kimi-code/config.toml` 的 `[[hooks]]`（旧版 kimi-cli 为 `~/.kimi/config.toml`）。
     var userKimiConfigFilePath: String { kimiConfigPath }
 
     /// Cursor CLI / Agent 的全局 `permissions` 等（控制 Shell 等是否仍弹层确认，与 `hooks.json` 独立）。
@@ -834,7 +835,7 @@ final class AgentManager: ObservableObject {
         return (try? String(contentsOfFile: path, encoding: .utf8)) ?? "（存在但无法读取：\(path)）"
     }
 
-    /// `~/.kimi/config.toml` 原样读出（Kimi Hooks 配置为文本 TOML）。
+    /// 当前 Kimi 配置原样读出（Kimi Hooks 配置为文本 TOML）。
     func readUserKimiConfigForDisplay() -> String {
         let path = kimiConfigPath
         guard FileManager.default.fileExists(atPath: path) else {
@@ -1104,7 +1105,7 @@ final class AgentManager: ObservableObject {
         refresh()
     }
 
-    /// 单独安装 Kimi Code CLI hooks（`~/.kimi/config.toml`，Beta）。
+    /// 单独安装 Kimi Code CLI hooks（当前 Kimi 配置，Beta）。
     func installKimiHooksOnly() {
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
@@ -1381,7 +1382,7 @@ final class AgentManager: ObservableObject {
     private func patchInstalledKimiCliForAhaKeyDialControl() -> String {
         guard let targets = resolveKimiCliPatchTargets() else {
             return """
-            Kimi Hooks 已写入 ~/.kimi/config.toml，但**未找到可重打补丁的本机 kimi-cli 安装**。
+            Kimi Hooks 已写入 \(kimiConfigDisplayPath)，但**未找到可重打补丁的本机 kimi-cli 安装**。
 
             请确认终端里存在 `kimi` 命令；确认后再次点击「安装 Kimi Hooks」即可重试拨杆接管补丁。
             """
@@ -1395,7 +1396,7 @@ final class AgentManager: ObservableObject {
         } catch {
             log.error("patchInstalledKimiCliForAhaKeyDialControl: \(error.localizedDescription)")
             return """
-            Kimi Hooks 已写入 ~/.kimi/config.toml，但**本机 kimi-cli 拨杆接管补丁未完成**：
+            Kimi Hooks 已写入 \(kimiConfigDisplayPath)，但**本机 kimi-cli 拨杆接管补丁未完成**：
             \(error.localizedDescription)
 
             你可在确认 `kimi` 可执行后，再次点击「安装 Kimi Hooks」重试。
@@ -1656,6 +1657,15 @@ final class AgentManager: ObservableObject {
         return .patched
     }
 
+    /// `~/.kimi-code/config.toml` 内含 API key，通常为 0600；原子写会按 umask 新建文件，写后恢复原权限。
+    private func writeKimiConfig(_ text: String, toFile path: String) throws {
+        let permissions = (try? FileManager.default.attributesOfItem(atPath: path))?[.posixPermissions]
+        try text.write(toFile: path, atomically: true, encoding: .utf8)
+        if let permissions {
+            try? FileManager.default.setAttributes([.posixPermissions: permissions], ofItemAtPath: path)
+        }
+    }
+
     @discardableResult
     private func removeKimiHooks() -> String {
         let path = kimiConfigPath
@@ -1672,7 +1682,7 @@ final class AgentManager: ObservableObject {
             return "在 \(path) 中未发现 AhaKey Kimi hook 标记块或旧版裸 hook。"
         }
         do {
-            try next.write(toFile: path, atomically: true, encoding: .utf8)
+            try writeKimiConfig(next, toFile: path)
             log.info("Kimi hooks 中 AhaKey 标记块与旧版裸 hook 已移除")
             return "已从 \(path) 移除 AhaKey Kimi Hooks。"
         } catch {

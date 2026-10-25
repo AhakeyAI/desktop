@@ -89,19 +89,28 @@ enum HookSupport {
         return (try? JSONSerialization.jsonObject(with: slice)) as? [String: Any]
     }
 
+    /// Agent 回包里的整数字段只接受 JSON 整数；布尔、小数、字符串都视为无效，
+    /// 避免 `false` / `0.5` 被桥接或截断成 0 而误判为自动批准。
     static func intValue(_ v: Any?) -> Int? {
-        switch v {
-        case let i as Int:
-            return i
-        case let n as NSNumber:
-            return n.intValue
-        case let d as Double:
-            return Int(d)
-        case let s as String:
-            return Int(s)
-        default:
+        guard let n = v as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID() else { return nil }
+        switch UInt8(bitPattern: n.objCType.pointee) {
+        case UInt8(ascii: "d"), UInt8(ascii: "f"):
             return nil
+        default:
+            return n.intValue
         }
+    }
+
+    /// 拨杆状态只有 0（自动）/ 1（手动）两个合法值，其它一律视为未知（不自动批准）。
+    static func switchStateValue(_ v: Any?) -> Int? {
+        guard let s = intValue(v), (0...1).contains(s) else { return nil }
+        return s
+    }
+
+    /// 只接受 JSON 布尔；数字 1 不能冒充 `true`。
+    static func boolValue(_ v: Any?) -> Bool? {
+        guard let n = v as? NSNumber, CFGetTypeID(n) == CFBooleanGetTypeID() else { return nil }
+        return n.boolValue
     }
 
     static func emitPermissionStderr(

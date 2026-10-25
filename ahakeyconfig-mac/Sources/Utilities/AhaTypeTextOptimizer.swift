@@ -1,5 +1,11 @@
 import Foundation
 
+struct AhaTypeProcessResult {
+    let text: String
+    /// 已开启 AhaType 却未能整理时的原因；为 nil 表示已整理或未开启。
+    let failureReason: String?
+}
+
 @MainActor
 final class AhaTypeTextOptimizer: ObservableObject {
     static let shared = AhaTypeTextOptimizer()
@@ -78,8 +84,21 @@ final class AhaTypeTextOptimizer: ObservableObject {
 
     func processIfEnabled(_ text: String, enabledForRecording: Bool? = nil,
                           onTimeout: (() -> Void)? = nil) async -> String {
+        await processResultIfEnabled(text, enabledForRecording: enabledForRecording, onTimeout: onTimeout).text
+    }
+
+    func processResultIfEnabled(_ text: String, enabledForRecording: Bool? = nil,
+                                onTimeout: (() -> Void)? = nil) async -> AhaTypeProcessResult {
         let source = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !source.isEmpty else { return text }
+        guard !source.isEmpty else { return AhaTypeProcessResult(text: text, failureReason: nil) }
+
+        let initialToken = stringValue(loadConfig()["access_token"]).trimmingCharacters(in: .whitespacesAndNewlines)
+        func fail(_ message: String) -> AhaTypeProcessResult {
+            if stringValue(loadConfig()["access_token"]).trimmingCharacters(in: .whitespacesAndNewlines) == initialToken {
+                statusMessage = message
+            }
+            return AhaTypeProcessResult(text: text, failureReason: message)
+        }
 
         var config = loadConfig()
         sanitize(&config)
@@ -88,18 +107,24 @@ final class AhaTypeTextOptimizer: ObservableObject {
         // and token validity below are still checked against current credentials.
         guard enabledForRecording ?? isEnabled else {
             statusMessage = NSLocalizedString("AhaType 未启用，直接写入原始转写。", comment: "")
-            return text
+            return AhaTypeProcessResult(text: text, failureReason: nil)
         }
 
         let token = stringValue(config["access_token"]).trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !token.isEmpty, tokenIsStillValid(config["token_valid_until"]) else {
+        guard !token.isEmpty else {
             requestLogin(token: token)
-            return text
+            return fail(NSLocalizedString("登录已失效，请重新登录。", comment: ""))
+        }
+        switch AhaTypeTokenExpiry.status(config["token_valid_until"]) {
+        case .valid: break
+        case .expired:
+            return fail(NSLocalizedString("AhaType 服务已到期，直接写入原始转写。", comment: ""))
+        case .missing, .unreadable:
+            return fail(NSLocalizedString("AhaType 权益状态尚未确认，已写入原始转写。请刷新账户信息。", comment: ""))
         }
 
         guard let url = URL(string: "\(resolveAPIBase(legacyAPIBase: stringValue(config["api_base"])))/api/v1/typeless/process") else {
-            statusMessage = NSLocalizedString("AhaType 云端地址无效，直接写入原始转写。", comment: "")
-            return text
+            return fail(NSLocalizedString("AhaType 云端地址无效，直接写入原始转写。", comment: ""))
         }
 
         statusMessage = NSLocalizedString("AhaType 整理中…", comment: "")
@@ -112,36 +137,33 @@ final class AhaTypeTextOptimizer: ObservableObject {
 
         do {
             let (data, response) = try await InteractiveCloudRequest.data(for: request, session: session, budget: processingTimeout)
-            guard stringValue(loadConfig()["access_token"]) == token else { return text }
+            guard stringValue(loadConfig()["access_token"]).trimmingCharacters(in: .whitespacesAndNewlines) == token else {
+                return AhaTypeProcessResult(text: text, failureReason: NSLocalizedString("AhaType 登录状态已变化，已写入原始转写。", comment: ""))
+            }
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
             if CloudAuthenticationFailure.matches(status: statusCode, code: object.map { intValue($0["code"]) },
-                message: object.map { responseMessage($0) } ?? "") {
+                message: object.map { responseMessage($0) } ?? "") || AhaTypeCloudSession.isExpired(httpStatus: statusCode, object: object) {
                 requestLogin(token: token)
-                return text
+                return fail(NSLocalizedString("登录已失效，请重新登录。", comment: ""))
             }
             guard statusCode == 200 else {
-                statusMessage = "AhaType 请求失败（HTTP \(statusCode)），已写入原始转写。"
-                return text
+                return fail(String(format: NSLocalizedString("AhaType 请求失败（HTTP %d），已写入原始转写。", comment: ""), statusCode))
             }
             guard let object else {
-                statusMessage = NSLocalizedString("AhaType 返回非 JSON，已写入原始转写。", comment: "")
-                return text
+                return fail(NSLocalizedString("AhaType 返回非 JSON，已写入原始转写。", comment: ""))
             }
             let code = intValue(object["code"])
             guard code == 0 || code == 200 else {
-                let message = responseMessage(object)
-                statusMessage = message.isEmpty ? "AhaType 处理失败，已写入原始转写。" : "AhaType 处理失败：\(message)"
-                return text
+                return fail(Self.businessFailureMessage(responseMessage(object)))
             }
             guard let inner = object["data"] as? [String: Any] else {
-                statusMessage = NSLocalizedString("AhaType 返回缺少 data，已写入原始转写。", comment: "")
-                return text
+                return fail(NSLocalizedString("AhaType 返回缺少 data，已写入原始转写。", comment: ""))
             }
 
             if let quota = inner["quota"] as? [String: Any] {
                 var latest = loadConfig()
-                guard stringValue(latest["access_token"]) == token else { return text }
+                guard stringValue(latest["access_token"]) == token else { return AhaTypeProcessResult(text: text, failureReason: NSLocalizedString("AhaType 登录状态已变化，已写入原始转写。", comment: "")) }
                 mergeQuota(quota, into: &latest)
                 saveConfig(latest)
                 isEnabled = boolValue(latest["typeless_enabled"])
@@ -151,20 +173,19 @@ final class AhaTypeTextOptimizer: ObservableObject {
             let output = stringValue(inner["text"]).isEmpty ? stringValue(inner["result"]) : stringValue(inner["text"])
             let polished = output.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !polished.isEmpty else {
-                statusMessage = NSLocalizedString("AhaType 返回空文本，已写入原始转写。", comment: "")
-                return text
+                return fail(NSLocalizedString("AhaType 返回空文本，已写入原始转写。", comment: ""))
             }
             statusMessage = NSLocalizedString("AhaType 已整理，准备粘贴。", comment: "")
-            return polished
+            return AhaTypeProcessResult(text: polished, failureReason: nil)
         } catch {
-            guard stringValue(loadConfig()["access_token"]) == token else { return text }
+            guard stringValue(loadConfig()["access_token"]) == token else { return fail(NSLocalizedString("AhaType 登录状态已变化，已写入原始转写。", comment: "")) }
             if (error as? URLError)?.code == .timedOut {
                 statusMessage = NSLocalizedString("云端整理超时，已使用原始转写。", comment: "")
                 onTimeout?()
-                return text
+                return fail(NSLocalizedString("云端整理超时，已使用原始转写。", comment: ""))
             }
             statusMessage = NSLocalizedString("AhaType 网络错误，已写入原始转写。", comment: "")
-            return text
+            return fail(NSLocalizedString("AhaType 网络错误，已写入原始转写。", comment: ""))
         }
     }
 
@@ -177,18 +198,31 @@ final class AhaTypeTextOptimizer: ObservableObject {
         else { CloudAccountManager.shared.requireLogin(ifTokenMatches: token.isEmpty ? nil : token) }
     }
 
+    /// 云端以 HTTP 200 + 业务 code 返回的失败；上游推理端点关闭时给出可读原因，而不是整段上游 JSON。
+    nonisolated static func businessFailureMessage(_ message: String) -> String {
+        if message.contains("ClosedEndpoint") {
+            return NSLocalizedString("AhaType 云端整理服务暂不可用（推理端点已关闭），已写入原始转写。", comment: "")
+        }
+        if message.isEmpty {
+            return NSLocalizedString("AhaType 处理失败，已写入原始转写。", comment: "")
+        }
+        return String(format: NSLocalizedString("AhaType 处理失败：%@", comment: ""), message)
+    }
+
     private func updateStatus(from config: [String: Any]) {
         let enabled = boolValue(config["typeless_enabled"])
         let token = stringValue(config["access_token"]).trimmingCharacters(in: .whitespacesAndNewlines)
-        let valid = tokenIsStillValid(config["token_valid_until"])
+        let expiry = AhaTypeTokenExpiry.status(config["token_valid_until"])
 
-        requiresLogin = enabled && (token.isEmpty || !valid)
+        requiresLogin = enabled && token.isEmpty
         if !enabled {
             statusMessage = NSLocalizedString("AhaType 未启用。", comment: "")
         } else if token.isEmpty {
             statusMessage = NSLocalizedString("AhaType 已开启，但尚未登录。", comment: "")
-        } else if !valid {
-            statusMessage = NSLocalizedString("AhaType 已开启，但登录已过期。", comment: "")
+        } else if expiry == .expired {
+            statusMessage = NSLocalizedString("AhaType 已开启，但服务已到期，续费后可继续使用。", comment: "")
+        } else if expiry != .valid {
+            statusMessage = NSLocalizedString("AhaType 已开启，但无法识别登录有效期。", comment: "")
         } else {
             statusMessage = NSLocalizedString("AhaType 已开启，语音结果会先经云端整理。", comment: "")
         }
@@ -201,7 +235,7 @@ final class AhaTypeTextOptimizer: ObservableObject {
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
         if !validUntil.isEmpty {
-            lastQuotaSummary += lastQuotaSummary.isEmpty ? "有效期 \(validUntil)" : " · 有效期 \(validUntil)"
+            lastQuotaSummary += lastQuotaSummary.isEmpty ? "权益有效期 \(validUntil)" : " · 权益有效期 \(validUntil)"
         }
         if lastQuotaSummary.isEmpty {
             lastQuotaSummary = NSLocalizedString("暂无配额信息。", comment: "")
@@ -234,10 +268,6 @@ final class AhaTypeTextOptimizer: ObservableObject {
             value = "https://\(value)"
         }
         return value
-    }
-
-    private func tokenIsStillValid(_ raw: Any?) -> Bool {
-        AhaTypeTokenExpiry.isValid(raw)
     }
 
     private func mergeQuota(_ quota: [String: Any], into config: inout [String: Any]) {
@@ -366,12 +396,19 @@ final class AhaTypeTextOptimizer: ObservableObject {
 }
 
 enum AhaTypeTokenExpiry {
-    static func isValid(_ raw: Any?, now: Date = Date()) -> Bool {
-        guard let date = parseDate(raw) else { return false }
-        return now < date
+    enum Status {
+        case valid
+        case expired
+        case missing
+        /// 有值但格式无法解析；与真正过期区分，避免把客户端解析问题报成“登录已过期”。
+        case unreadable
     }
 
-    private static func parseDate(_ raw: Any?) -> Date? {
+    static func isValid(_ raw: Any?, now: Date = Date()) -> Bool {
+        status(raw, now: now) == .valid
+    }
+
+    static func status(_ raw: Any?, now: Date = Date()) -> Status {
         let value: String
         switch raw {
         case let string as String:
@@ -379,9 +416,14 @@ enum AhaTypeTokenExpiry {
         case let number as NSNumber:
             value = number.stringValue
         default:
-            return nil
+            return .missing
         }
-        guard !value.isEmpty else { return nil }
+        guard !value.isEmpty else { return .missing }
+        guard let date = parseDate(value) else { return .unreadable }
+        return now < date ? .valid : .expired
+    }
+
+    private static func parseDate(_ value: String) -> Date? {
 
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")

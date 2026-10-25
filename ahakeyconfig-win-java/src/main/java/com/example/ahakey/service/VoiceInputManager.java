@@ -3,6 +3,10 @@ package com.example.ahakey.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+
 /**
  * 语音输入管理器
  * 统一管理语音识别、AhaType服务和键盘注入
@@ -17,10 +21,54 @@ public class VoiceInputManager {
     private volatile boolean isActivated = false;  // 服务是否已激活
     private volatile boolean isRecording = false;  // 是否正在录音
     private volatile boolean keyDownTriggered = false;  // 按键按下防抖标志
+    /** Whether the current recording may be sent through AhaType (per voice-key trigger). */
+    private volatile boolean recordingAllowsAhaType = true;
+    /** Simplified unless the production constructor wires the user's setting. */
+    private volatile java.util.function.Supplier<Boolean> traditionalChinese = () -> false;
+    private volatile boolean closed;
+    private final AhaTypeService ahaTypeService;
+    private final ExecutorService ahaTypeWorker;
+    private final Consumer<String> injectionOverride;
+    private final Object deliveryLock = new Object();
     private Consumer<String> resultCallback;
     private Consumer<String> partialCallback;
     private Consumer<String> statusCallback;  // 状态回调，通知UI当前状态
     private StringBuilder accumulatedResult = new StringBuilder();  // 累积的中间识别结果
+
+    /**
+     * Package-private seam for deterministic lifecycle tests.  Production
+     * construction still uses the no-arg constructor and initializes the
+     * real Sherpa/keyboard components from the configured resources.
+     */
+    VoiceInputManager(SpeechService speechService, KeyboardInjector keyboardInjector) {
+        this(speechService, keyboardInjector, AhaTypeService.getInstance());
+    }
+
+    VoiceInputManager(SpeechService speechService, KeyboardInjector keyboardInjector,
+                      AhaTypeService ahaTypeService) {
+        this(speechService, keyboardInjector, ahaTypeService, null);
+    }
+
+    VoiceInputManager(SpeechService speechService, KeyboardInjector keyboardInjector,
+                      AhaTypeService ahaTypeService, Consumer<String> injectionOverride) {
+        this.speechService = speechService;
+        this.keyboardInjector = keyboardInjector;
+        this.ahaTypeService = ahaTypeService;
+        this.injectionOverride = injectionOverride;
+        this.ahaTypeWorker = Executors.newSingleThreadExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "ahatype-processing");
+            thread.setDaemon(true);
+            return thread;
+        });
+        this.isEnabled = speechService != null;
+    }
+
+    public VoiceInputManager() {
+        this(null, null, AhaTypeService.getInstance());
+        this.traditionalChinese = () ->
+            com.example.ahakey.localvoice.LocalVoiceFeature.getInstance().getChineseScript()
+                == com.example.ahakey.localvoice.LocalVoiceSettings.ChineseScript.TRADITIONAL;
+    }
     
     public interface Consumer<T> {
         void accept(T t);
@@ -54,19 +102,10 @@ public class VoiceInputManager {
      */
     public void initialize() {
         try {
-            // 初始化语音识别服务
+            closed = false;
+            // 初始化历史已验证的 Sherpa-ONNX Paraformer 服务
             speechService = new SpeechService();
-            
-            // 获取资源文件路径（支持从 JAR 包内或外部目录加载）
-            // 优先在 models/ 目录下查找
-            String modelPath = findModelFile("models/model_q8.onnx");
-            String tokensPath = findModelFile("models/tokens.txt");
-            
-            logger.info("模型文件路径: {}", modelPath);
-            logger.info("词汇表路径: {}", tokensPath);
-            
-            // 初始化语音识别
-            speechService.initialize(modelPath, tokensPath);
+            speechService.initialize();
             
             // 初始化键盘注入器
             keyboardInjector = new KeyboardInjector();
@@ -76,63 +115,16 @@ public class VoiceInputManager {
         } catch (Exception e) {
             logger.error("VoiceInputManager 初始化失败: {}", e.getMessage(), e);
             isEnabled = false;
+            // Propagate the complete failure to App so initialization is not
+            // reported as successful when a model, token file, or JNI
+            // dependency is missing.  The UI still fails closed.
+            throw new IllegalStateException("VoiceInputManager 初始化失败", e);
         }
     }
     
-    /**
-     * 查找模型文件路径
-     */
-    private String findModelFile(String fileName) throws Exception {
-        // 首先尝试从类路径加载（完整路径，例如 models/model_q8.onnx）
-        var resource = getClass().getResource("/" + fileName);
-        if (resource != null) {
-            logger.debug("从类路径加载模型文件: {}", resource.getPath());
-            return resource.getPath();
-        }
-        
-        // 获取 JAR 文件所在目录（处理可能的 null 情况）
-        String baseDir = null;
-        try {
-            var codeSource = getClass().getProtectionDomain().getCodeSource();
-            if (codeSource != null && codeSource.getLocation() != null) {
-                String jarPath = codeSource.getLocation().getPath();
-                java.io.File jarFile = new java.io.File(jarPath);
-                baseDir = jarFile.getParentFile().getAbsolutePath();
-                logger.debug("JAR 所在目录: {}", baseDir);
-            }
-        } catch (Exception e) {
-            logger.debug("获取 JAR 路径失败: {}", e.getMessage());
-        }
-        
-        // 尝试从 app 目录下直接加载（jpackage 打包后的标准位置，fileName 已包含 models/）
-        if (baseDir != null) {
-            String appPath = new java.io.File(baseDir, fileName).getAbsolutePath();
-            if (new java.io.File(appPath).exists()) {
-                logger.debug("从 app 目录加载: {}", appPath);
-                return appPath;
-            }
-        }
-        
-        // 尝试从当前工作目录加载
-        if (new java.io.File(fileName).exists()) {
-            String absPath = new java.io.File(fileName).getAbsolutePath();
-            logger.debug("从当前目录加载: {}", absPath);
-            return absPath;
-        }
-        
-        // 尝试从 EXE 所在目录查找（jpackage 打包后，app 目录的父目录）
-        if (baseDir != null) {
-            java.io.File exeDir = new java.io.File(baseDir).getParentFile();
-            if (exeDir != null) {
-                String exePath = new java.io.File(exeDir, fileName).getAbsolutePath();
-                if (new java.io.File(exePath).exists()) {
-                    logger.debug("从 EXE 目录加载: {}", exePath);
-                    return exePath;
-                }
-            }
-        }
-        
-        throw new Exception("无法找到文件: " + fileName + "。请确保模型文件位于以下位置之一：\n- JAR 包内的 " + fileName + "\n- app 目录下的 " + fileName + "\n- 当前工作目录下的 " + fileName + "\n- EXE 所在目录下的 " + fileName);
+    /** Package-private seam used by resource-resolution tests. */
+    static java.nio.file.Path resolveModelDirectory(String configuredPath) throws Exception {
+        return SpeechService.resolveModelDirectory(configuredPath);
     }
     
     /**
@@ -215,9 +207,17 @@ public class VoiceInputManager {
     }
     
     /**
-     * 开始录音（由按键触发）
+     * 开始录音（由按键触发），识别结果按 AhaType 开关处理。
      */
     public void startRecording() {
+        startRecording(true);
+    }
+
+    /**
+     * 开始录音。
+     * @param allowAhaType 该触发方式（短按 / 长按）是否允许经 AhaType 云端整理
+     */
+    public void startRecording(boolean allowAhaType) {
         if (!isActivated || speechService == null) {
             logger.warn("语音输入服务未激活，无法开始录音");
             return;
@@ -233,6 +233,7 @@ public class VoiceInputManager {
         }
         
         this.isRecording = true;
+        this.recordingAllowsAhaType = allowAhaType;
         this.keyDownTriggered = true;  // 设置按键按下标志
         this.accumulatedResult = new StringBuilder();  // 重置累积结果
         
@@ -266,7 +267,7 @@ public class VoiceInputManager {
      * 处理中间识别结果（Partial）
      */
     private void onPartialResult(String text) {
-        logger.info("[语音识别中] {}", text);
+        logger.info("[语音识别中] textLength={}", text == null ? 0 : text.length());
         
         // 通知UI识别中状态
         notifyStatus(VoiceStatus.RECOGNIZING);
@@ -274,7 +275,7 @@ public class VoiceInputManager {
         // 累积中间结果
         if (text != null && !text.isEmpty()) {
             accumulatedResult.append(text);
-            logger.debug("累积结果更新: \"{}\"", accumulatedResult.toString());
+            logger.debug("累积结果更新: textLength={}", accumulatedResult.length());
         }
         
         // 通知UI更新中间结果
@@ -291,15 +292,15 @@ public class VoiceInputManager {
      * 处理最终识别结果（Final）
      */
     private void onFinalResult(String text) {
-        logger.info("[语音识别完成] {}", text);
+        logger.info("[语音识别完成] textLength={}", text == null ? 0 : text.length());
         
         // 通知UI处理中状态
         notifyStatus(VoiceStatus.PROCESSING);
         
         // 调试：显示累积结果状态
         String accumulatedStr = accumulatedResult.toString();
-        logger.debug("onFinalResult - 累积结果: \"{}\", 长度: {}", accumulatedStr, accumulatedStr.length());
-        logger.debug("onFinalResult - 最后结果: \"{}\"", text != null ? text : "null");
+        logger.debug("onFinalResult - accumulatedLength={}, finalLength={}",
+            accumulatedStr.length(), text == null ? 0 : text.length());
         
         // 使用累积的中间结果 + 最后一块的识别结果
         StringBuilder finalResultBuilder = new StringBuilder(accumulatedResult);
@@ -313,30 +314,20 @@ public class VoiceInputManager {
         }
         
         String finalResult = finalResultBuilder.toString().trim();
-        logger.debug("onFinalResult - 最终合并结果: \"{}\"", finalResult);
+        logger.debug("onFinalResult - mergedLength={}", finalResult.length());
         
         if (!finalResult.isEmpty()) {
-            // 使用 AhaType 整理文本（如果启用）
-            String processedText = processWithAhaType(finalResult);
-            logger.debug("准备注入文本: {}", processedText);
-            
-            // 通知UI显示最终结果
-            if (resultCallback != null) {
-                try {
-                    resultCallback.accept(processedText);
-                } catch (Exception e) {
-                    logger.error("最终结果回调失败: {}", e.getMessage());
-                }
+            Consumer<String> callbackForSegment = resultCallback;
+            boolean allowAhaType = recordingAllowsAhaType;
+            try {
+                ahaTypeWorker.execute(() -> processAndDeliver(finalResult, callbackForSegment, allowAhaType));
+            } catch (RejectedExecutionException exception) {
+                logger.debug("AhaType worker is already closed");
             }
-            
-            // 注入到当前光标位置
-            injectText(processedText);
         } else {
             logger.debug("识别结果为空或null");
+            notifyStatus(VoiceStatus.STOPPED);
         }
-        
-        // 通知UI已停止状态
-        notifyStatus(VoiceStatus.STOPPED);
         
         // 重置回调和累积结果
         this.resultCallback = null;
@@ -348,15 +339,46 @@ public class VoiceInputManager {
      * 使用 AhaType 整理文本
      */
     private String processWithAhaType(String text) {
-        // TODO: 实现 AhaType 文本整理逻辑
-        // 目前直接返回原始文本
-        return text;
+        return ahaTypeService.processIfEnabled(text);
+    }
+
+    private void processAndDeliver(String originalText, Consumer<String> callback, boolean allowAhaType) {
+        String processedText = allowAhaType ? processWithAhaType(originalText) : originalText;
+        if (Boolean.TRUE.equals(traditionalChinese.get())) {
+            processedText = com.example.ahakey.util.ChineseTextConverter.toTraditional(processedText);
+        }
+        synchronized (deliveryLock) {
+            if (closed) {
+                return;
+            }
+            logger.debug("准备注入文本长度: {}", processedText == null ? 0 : processedText.length());
+            if (callback != null) {
+                try {
+                    callback.accept(processedText);
+                } catch (Exception e) {
+                    logger.error("最终结果回调失败: {}", e.getClass().getSimpleName());
+                }
+            }
+            injectText(processedText);
+            notifyStatus(VoiceStatus.STOPPED);
+        }
     }
     
+    /** Test seam for the simplified/traditional output choice. */
+    void setTraditionalChineseSupplier(java.util.function.Supplier<Boolean> supplier) {
+        this.traditionalChinese = supplier == null ? () -> false : supplier;
+    }
+
     /**
      * 将文本注入到当前光标位置
      */
     private void injectText(String text) {
+        if (injectionOverride != null) {
+            if (text != null && !text.isEmpty()) {
+                injectionOverride.accept(text);
+            }
+            return;
+        }
         if (keyboardInjector != null && text != null && !text.isEmpty()) {
             try {
                 logger.debug("VoiceInputManager - 准备调用键盘注入器，文本长度: {}", text.length());
@@ -403,7 +425,11 @@ public class VoiceInputManager {
      * 关闭并释放资源
      */
     public void shutdown() {
+        synchronized (deliveryLock) {
+            closed = true;
+        }
         stopVoiceInput();
+        ahaTypeWorker.shutdownNow();
         if (speechService != null) {
             speechService.release();
         }

@@ -39,6 +39,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 设备名前缀白名单：官方 "AhaKey" 及 vibe coding 固件的 "vibe code"（与主 App 保持一致）。
     private let deviceNamePrefixes = ["AhaKey", "vibe code"]
     private let socketPath: String
+    /// 单实例锁 fd，进程存活期间保持打开。
+    private var instanceLockFd: Int32?
 
     private func matchesDeviceName(_ name: String?) -> Bool {
         guard let lower = name?.lowercased() else { return false }
@@ -53,6 +55,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private(set) var cachedSwitchState: UInt8?
     /// 最新 lightMode
     private(set) var cachedLightMode: UInt8?
+    /// 只用近期实体状态同步 Kimi 新会话默认模式，超时后的旧 AUTO 不继续生效。
+    private var lastDeviceStatusAt: Date?
     /// 等待下一次 status 回包的回调队列（用于 querySwitchState）
     private var statusWaiters = AgentStatusQueries()
     private var connectionGeneration: UInt64 = 0
@@ -372,6 +376,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         approvalDrainToken = nil
         if let drainedApproval { legacyCommandDrain.complete(drainedApproval) }
         let body = Self.approvalReply(status, profile: profile, binding: binding, fresh: status != nil && approvalChannelReady)
+        let kimiState: Int? = ApprovalBindingPolicy.effectiveSwitchState(body) == 0 ? 0
+            : (status?.switchState == 1 ? 1 : nil)
+        KimiConfigLeverSync.synchronizeManaged(switchState: kimiState)
         let waiters = approvalWaiters
         approvalWaiters.removeAll()
         for waiter in waiters { waiter(body) }
@@ -391,6 +398,20 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     @discardableResult
     func startSocketListener() -> Bool {
+        guard AgentInstanceLock.isValidSocketPath(socketPath) else {
+            emit("Unix socket 路径过长（上限 \(AgentInstanceLock.maxSocketPathBytes - 1) 字节）: \(socketPath)")
+            return false
+        }
+        switch AgentInstanceLock.acquire(socketPath: socketPath) {
+        case .acquired(let fd):
+            instanceLockFd = fd
+        case .heldByOther:
+            emit("已有 Agent 实例持有锁，拒绝接管 Unix socket: \(socketPath)")
+            return false
+        case .unavailable(let err):
+            emit("无法获取 Agent 实例锁（errno \(err)），仅按 socket 探测判断")
+        }
+        // 兼容未加锁的旧版 Agent 仍在运行的情况
         if Self.hasLiveSocket(at: socketPath) {
             emit("已有 Agent 在监听 Unix socket: \(socketPath)")
             return false
@@ -419,15 +440,21 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         guard bindResult == 0 else { emit("bind() 失败: \(errno)"); close(fd); return false }
 
-        listen(fd, 5)
+        listen(fd, SOMAXCONN)
         emit("监听 Unix socket: \(socketPath)")
         codexDesktopLever.start()
 
+        // accept 线程只负责收连接；读请求放到并发队列并设读超时，
+        // 避免一个不发数据的客户端卡死 accept、塞满 backlog。
+        let clientQueue = DispatchQueue(label: "lab.jawa.ahakeyconfig.agent.client", qos: .utility,
+                                        attributes: .concurrent)
         DispatchQueue.global(qos: .utility).async { [weak self] in
             while true {
                 let clientFd = accept(fd, nil, nil)
                 guard clientFd >= 0 else { continue }
-                self?.handleClient(clientFd)
+                var tv = timeval(tv_sec: 2, tv_usec: 0)
+                setsockopt(clientFd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
+                clientQueue.async { self?.handleClient(clientFd) }
             }
         }
         return true
@@ -436,9 +463,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     // MARK: - 看门狗
 
     private func startWatchdog() {
+        KimiConfigLeverSync.synchronizeManaged(switchState: nil)
         processDetector.start()
         let timer = DispatchSource.makeTimerSource(queue: .main)
-        timer.schedule(deadline: .now() + 30, repeating: 10)
+        timer.schedule(deadline: .now() + 10, repeating: 10)
         timer.setEventHandler { [weak self] in
             self?.checkWatchdog()
         }
@@ -447,6 +475,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     private func checkWatchdog() {
+        // Defaults require the same fresh binding proof as Hook grants.
+        let fresh = commandChar != nil && peripheral != nil
+            && lastDeviceStatusAt.map { Date().timeIntervalSince($0) < 5 } == true
+        if fresh, KimiConfigLeverSync.hasAhaKeyHooks(at: KimiConfigPolicySync.productionConfigURL) {
+            queryApprovalStatus { _ in }
+        } else { KimiConfigLeverSync.synchronizeManaged(switchState: nil) }
         guard let lastAt = lastHookStateAt else { return }
         let elapsed = Date().timeIntervalSince(lastAt)
         let threshold = watchdogTimeout(for: lastSentState)
@@ -718,6 +752,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     @MainActor
     func prepareForTermination() async {
+        KimiConfigLeverSync.synchronizeManaged(switchState: nil)
         await codexDesktopLever.shutdown()
         await presentationSession.quiesce()
     }
@@ -796,6 +831,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var lockRetryItem: DispatchWorkItem?
 
     private func invalidateBLEConnection() {
+        lastDeviceStatusAt = nil
+        KimiConfigLeverSync.synchronizeManaged(switchState: nil)
         presentationDrainID = nil
         legacyCommandDrain.reset()
         presentationSession.updateConnection(connected: false, generation: connectionGeneration)
@@ -1035,6 +1072,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     private func handleDeviceStatus(_ status: AgentDeviceStatus) {
+        let leverChanged = cachedSwitchState != UInt8(clamping: status.switchState)
         if let previous = lastLoggedStatus, previous.workMode != status.workMode {
             presentationSession.keyboardWorkModeChanged()
             foregroundReceiver?.revalidate()
@@ -1046,6 +1084,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         presentationSession.updateConnection(connected: !presentationPoisoned, generation: connectionGeneration)
         foregroundReceiver?.revalidate()
         cachedLightMode = UInt8(clamping: status.lightMode)
+        lastDeviceStatusAt = Date()
+        if leverChanged, KimiConfigLeverSync.hasAhaKeyHooks(at: KimiConfigPolicySync.productionConfigURL) {
+            queryApprovalStatus { _ in }
+        }
         if lastLoggedStatus != status {
             lastLoggedStatus = status
             emit("← status battery=\(status.battery) light=\(status.lightMode) switch=\(status.switchState)")

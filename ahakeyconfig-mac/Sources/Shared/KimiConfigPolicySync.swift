@@ -193,6 +193,15 @@ public enum KimiConfigPolicySync {
         } catch { return .writeFailed }
     }
     static func releaseOwnedAutomation(configURL: URL) -> Outcome {
+        if FileManager.default.fileExists(atPath: KimiManagedPermissionDefaults.journalURL(configURL).path) {
+            switch KimiManagedPermissionDefaults.restoreUnlocked(configURL: configURL) {
+            case .restored: return .updated
+            case .userOverride, .unmanaged: return .notOwned
+            case .missing: return .missing
+            case .writeFailed: return .writeFailed
+            default: return .invalid
+            }
+        }
         guard let data = try? Data(contentsOf: configURL), let text = String(data: data, encoding: .utf8) else {
             if FileManager.default.fileExists(atPath: configURL.path) { return .invalid }
             try? FileManager.default.removeItem(at: leaseURL(configURL))

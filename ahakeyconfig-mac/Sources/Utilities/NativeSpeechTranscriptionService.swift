@@ -558,10 +558,13 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         let completionTicket = recording.id
         Task { @MainActor in
             var cloudTimedOut = false
+            var cloudFailure: String?
             let result = await VoiceTranscriptCompletion.run(text: text, ticket: completionTicket,
                 currentTicket: { self.recordingGeneration }, process: { source in
                     if willUseAhaType {
-                        return await AhaTypeTextOptimizer.shared.processIfEnabled(source, enabledForRecording: true, onTimeout: { cloudTimedOut = true })
+                        let processed = await AhaTypeTextOptimizer.shared.processResultIfEnabled(source, enabledForRecording: true, onTimeout: { cloudTimedOut = true })
+                        cloudFailure = processed.failureReason
+                        return processed.text
                     }
                     return source
                 })
@@ -585,6 +588,9 @@ final class NativeSpeechTranscriptionService: ObservableObject {
                     self.statusMessage = NSLocalizedString("云端整理超时，已使用原始转写。", comment: "")
                     presentHUD(.init(kind: .warning, title: NSLocalizedString("已写入原文", comment: ""),
                         subtitle: NSLocalizedString("云端整理超时，请稍后重试", comment: "")), autoHideAfter: 3)
+                } else if let cloudFailure {
+                    self.statusMessage = cloudFailure
+                    presentHUD(.rawWritten, autoHideAfter: 2.4)
                 } else { presentHUD(.done, autoHideAfter: 1.4) }
                 self.appendDiagnostic("finalize success reason=\(reason) rawText=\(text) outputText=\(output)")
             } else {

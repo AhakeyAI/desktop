@@ -11,13 +11,16 @@ enum KimiConfigDiagnostic {
     /// 写入 `permission-request.log` 的 `kimiLeverDebug` 块。
     static func snapshotForLog() -> [String: Any] {
         let fm = FileManager.default
-        let path = configURL.path
+        let url = KimiConfigLocation.activeConfigURL()
+        let path = url.path
+        let legacy = KimiConfigLocation.isLegacy(url)
         var d: [String: Any] = [
             "kimiConfigPath": path,
             "kimiConfigExists": fm.fileExists(atPath: path),
-            "hookApprovalPolicy": KimiConfigPolicySync.productionLocation.layout == .nativeV2
-                ? "native_v2_observation_only_live_control_unavailable"
-                : "legacy_python_owned_patch_or_reload",
+            "kimiConfigGeneration": legacy ? "legacy_kimi_cli" : "kimi_code",
+            "hookApprovalPolicy": legacy
+                ? "dial_writes_default_yolo_kimi_reload_to_apply_upstream_deny_only"
+                : "dial_writes_default_permission_mode_new_sessions_apply_upstream_deny_only",
             "kimiConfigurationLayout": KimiConfigPolicySync.productionLocation.layout.rawValue,
         ]
         guard let data = fm.contents(atPath: path),

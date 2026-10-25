@@ -64,6 +64,7 @@ public enum CodexHookTrust {
 
     public static let blockStart = "# BEGIN AhaKey Codex Hooks"
     public static let blockEnd = "# END AhaKey Codex Hooks"
+    private static let managedComment = "# Managed by AhaKey Studio."
 
     /// The app and integration harness use this same command builder and installer.
     public static func installAgentHooks(in config: String, configPath: String, agentBinaryPath: String) throws -> String {
@@ -74,7 +75,7 @@ public enum CodexHookTrust {
         func shellQuote(_ value: String) -> String {
             "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
         }
-        var lines = [blockStart, "# Managed by AhaKey Studio."]
+        var lines = [blockStart, managedComment]
         var hashes: [(event: String, hash: String)] = []
         for item in events {
             let command = "/bin/zsh -lc \(shellQuote("\(shellQuote(agentBinaryPath)) hook Codex\(item.event)"))"
@@ -105,12 +106,16 @@ public enum CodexHookTrust {
         return try upsertTrustEntries(in: combined, configPath: configPath, entries: entries)
     }
 
-    /// Remove only groups inside our real comment markers. User groups after a
+    /// Remove only AhaKey-owned lines inside our real comment markers: the markers and the
+    /// hook groups. Codex appends new tables before a trailing comment, so anything else
+    /// found there (tui, projects, trust records…) is kept in place. User groups after a
     /// removed group shift index, so rename their state keys without changing hashes/enabled.
     public static func removingManagedHooks(in config: String, configPath: String) throws -> String {
         let layout = try Layout(config)
         guard !layout.managedRanges.isEmpty else { return config }
-        var edits = layout.managedRanges.map { Edit(range: $0, replacement: "") }
+        let bytes = Array(config.utf8)
+        func removal(_ range: Range<Int>) -> Edit { Edit(range: lineRange(range, in: bytes), replacement: "") }
+        var edits = layout.ownedRanges.map(removal)
         var retainedCounts: [String: Int] = [:]
         var mapping: [String: String] = [:]
         var removed = Set<String>()
@@ -127,9 +132,8 @@ public enum CodexHookTrust {
             }
         }
         for table in layout.trustTables {
-            guard !layout.isManaged(table.header.range.lowerBound) else { continue }
             if removed.contains(where: { table.key.hasPrefix($0) }) {
-                edits += table.statements.map { Edit(range: $0.range, replacement: "") }
+                edits += table.statements.map { removal($0.range) }
             } else if let old = mapping.keys.first(where: { table.key.hasPrefix($0) }), let new = mapping[old], old != new {
                 let key = new + table.key.dropFirst(old.count)
                 edits.append(Edit(range: table.header.range, replacement: "[hooks.state.\(quoted(key))]"))
@@ -167,6 +171,26 @@ public enum CodexHookTrust {
         let replacement: String
     }
 
+    /// Whole lines covering `range` plus blank lines directly above it, so removals leave no gaps.
+    private static func lineRange(_ range: Range<Int>, in bytes: [UInt8]) -> Range<Int> {
+        func isSpace(_ byte: UInt8) -> Bool { byte == 0x20 || byte == 0x09 }
+        func isNewline(_ byte: UInt8) -> Bool { byte == 0x0A || byte == 0x0D }
+        var upper = range.upperBound
+        while upper < bytes.count, isSpace(bytes[upper]) { upper += 1 }
+        if upper < bytes.count, bytes[upper] == 0x0D { upper += 1 }
+        if upper < bytes.count, bytes[upper] == 0x0A { upper += 1 }
+        var lower = range.lowerBound
+        while lower > 0, isSpace(bytes[lower - 1]) { lower -= 1 }
+        while lower > 0 {
+            var start = lower - 1 // newline ending the previous line
+            if start > 0, bytes[start] == 0x0A, bytes[start - 1] == 0x0D { start -= 1 }
+            while start > 0, isSpace(bytes[start - 1]) { start -= 1 }
+            guard start == 0 || isNewline(bytes[start - 1]) else { break }
+            lower = start
+        }
+        return lower..<upper
+    }
+
     private static func applying(_ edits: [Edit], to config: String) -> String {
         var bytes = Array(config.utf8)
         for edit in edits.sorted(by: { $0.range.lowerBound > $1.range.lowerBound }) {
@@ -189,6 +213,8 @@ public enum CodexHookTrust {
         var groups: [Group] = []
         var groupCounts: [String: Int] = [:]
         var managedRanges: [Range<Int>] = []
+        /// Statements inside the markers that AhaKey wrote: markers and `[[hooks.Event(.hooks)]]` tables.
+        var ownedRanges: [Range<Int>] = []
         var trustTables: [TrustTable] = []
 
         func isManaged(_ offset: Int) -> Bool { managedRanges.contains { $0.contains(offset) } }
@@ -199,6 +225,7 @@ public enum CodexHookTrust {
             var blockOffset: Int?
             var tablePath: [String] = []
             var activeTrustIndex: Int?
+            var inOwnedTable = false
             for statement in statements {
                 switch statement.kind {
                 case .comment:
@@ -207,14 +234,22 @@ public enum CodexHookTrust {
                     if comment == blockStart {
                         guard blockOffset == nil else { throw TomlPolicyLocator.Failure.unsupported("嵌套的 AhaKey hook 标记") }
                         blockOffset = statement.range.lowerBound
+                        ownedRanges.append(statement.range)
                     } else if comment == blockEnd {
                         guard let start = blockOffset else { throw TomlPolicyLocator.Failure.unsupported("缺少 AhaKey hook 起始标记") }
                         managedRanges.append(start..<statement.range.upperBound)
+                        ownedRanges.append(statement.range)
                         blockOffset = nil
+                        inOwnedTable = false
+                    } else if blockOffset != nil, comment == managedComment {
+                        ownedRanges.append(statement.range)
                     }
                 case let .table(path, isArray):
                     tablePath = path
                     activeTrustIndex = nil
+                    inOwnedTable = blockOffset != nil && isArray && path.first == "hooks" && path.count >= 2
+                        && path[1] != "state" && (path.count == 2 || path[2...] == ["hooks"])
+                    if inOwnedTable { ownedRanges.append(statement.range) }
                     if isArray, path.count == 2, path[0] == "hooks" {
                         let event = path[1]
                         let index = groupCounts[event, default: 0]
@@ -232,6 +267,7 @@ public enum CodexHookTrust {
                         throw TomlPolicyLocator.Failure.unsupported("请使用 [[hooks.Event]] 与 [hooks.state.\"key\"] 表形式")
                     }
                     if let index = activeTrustIndex { trustTables[index].statements.append(statement) }
+                    if inOwnedTable { ownedRanges.append(statement.range) }
                 }
             }
             guard blockOffset == nil else { throw TomlPolicyLocator.Failure.unsupported("AhaKey hook 标记未闭合") }

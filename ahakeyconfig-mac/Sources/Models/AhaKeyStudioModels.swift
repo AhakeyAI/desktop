@@ -919,17 +919,26 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
     var localAssetPath: String?
     var statusLine: String
     var framesPerSecond: Int
+    /// 本地已选/上次未传完的动图还没被设备确认（updatePicture ACK）。持久化，保证中断或重启后
+    /// 下一次「写入键盘」仍会重传，而不是因草稿与基线相同被跳过（AHK-064/065）。
+    var needsDeviceUpload: Bool
+
+    /// 上传开始时写入的临时状态行前缀；进程在上传中退出时会被持久化下来。
+    static let uploadInProgressStatusPrefix = "正在上传动图到 "
+    static let interruptedUploadStatusLine = "上次动图上传未完成，键盘上的动图可能是旧图或新旧帧混杂。请连接键盘后点击「写入键盘」重新上传。"
 
     private enum CodingKeys: String, CodingKey {
         case localAssetPath
         case statusLine
         case framesPerSecond
+        case needsDeviceUpload
     }
 
-    init(localAssetPath: String?, statusLine: String, framesPerSecond: Int = 12) {
+    init(localAssetPath: String?, statusLine: String, framesPerSecond: Int = 12, needsDeviceUpload: Bool = false) {
         self.localAssetPath = localAssetPath
         self.statusLine = statusLine
         self.framesPerSecond = framesPerSecond
+        self.needsDeviceUpload = needsDeviceUpload
     }
 
     init(from decoder: Decoder) throws {
@@ -938,6 +947,7 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
         statusLine = try container.decode(String.self, forKey: .statusLine)
         let storedFPS = try container.decodeIfPresent(Int.self, forKey: .framesPerSecond) ?? 12
         framesPerSecond = min(30, max(1, storedFPS))
+        needsDeviceUpload = try container.decodeIfPresent(Bool.self, forKey: .needsDeviceUpload) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -945,6 +955,7 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
         try container.encodeIfPresent(localAssetPath, forKey: .localAssetPath)
         try container.encode(statusLine, forKey: .statusLine)
         try container.encode(framesPerSecond, forKey: .framesPerSecond)
+        try container.encode(needsDeviceUpload, forKey: .needsDeviceUpload)
     }
 
     static func `default`(for mode: AhaKeyModeSlot) -> AhaKeyOLEDDraft {
@@ -1118,9 +1129,28 @@ struct AhaKeyStudioDraft: Codable, Equatable {
 
 enum AhaKeyStudioStore {
     private static let key = "ahakey.studio.draft.v1"
+    /// 最近一次经固件确认写入键盘的配置，作为"未同步改动"的基线；重启后据此恢复未下发计数。
+    private static let syncedKey = "ahakey.studio.synced.v1"
 
-    static func load() -> AhaKeyStudioDraft? {
-        guard let data = UserDefaults.standard.data(forKey: key),
+    static func load(from defaults: UserDefaults = .standard) -> AhaKeyStudioDraft? {
+        decode(forKey: key, from: defaults)
+    }
+
+    static func save(_ draft: AhaKeyStudioDraft, to defaults: UserDefaults = .standard) {
+        encode(draft, forKey: key, to: defaults)
+    }
+
+    /// 未记录过基线（首次安装或从旧版本升级）时返回 nil，由调用方决定回退值。
+    static func loadSynced(from defaults: UserDefaults = .standard) -> AhaKeyStudioDraft? {
+        decode(forKey: syncedKey, from: defaults)
+    }
+
+    static func saveSynced(_ draft: AhaKeyStudioDraft, to defaults: UserDefaults = .standard) {
+        encode(draft, forKey: syncedKey, to: defaults)
+    }
+
+    private static func decode(forKey key: String, from defaults: UserDefaults) -> AhaKeyStudioDraft? {
+        guard let data = defaults.data(forKey: key),
               var draft = try? JSONDecoder().decode(AhaKeyStudioDraft.self, from: data) else {
             return nil
         }
@@ -1131,9 +1161,9 @@ enum AhaKeyStudioStore {
         return migratedDraft(from: draft)
     }
 
-    static func save(_ draft: AhaKeyStudioDraft) {
+    private static func encode(_ draft: AhaKeyStudioDraft, forKey key: String, to defaults: UserDefaults) {
         guard let data = try? JSONEncoder().encode(draft) else { return }
-        UserDefaults.standard.set(data, forKey: key)
+        defaults.set(data, forKey: key)
     }
 
     static func migratedDraft(from draft: AhaKeyStudioDraft) -> AhaKeyStudioDraft {
@@ -1240,6 +1270,11 @@ enum AhaKeyStudioStore {
 
             if legacyOLEDStatusLines.contains(modeDraft.oled.statusLine) {
                 modeDraft.oled.statusLine = AhaKeyOLEDDraft.default(for: mode).statusLine
+            }
+            // 上传中途退出/崩溃（含 ≤0.2.3 卡死后重启）：状态行停在「正在上传…」，改为可执行的恢复提示并标记待重传。
+            if modeDraft.oled.statusLine.hasPrefix(AhaKeyOLEDDraft.uploadInProgressStatusPrefix) {
+                modeDraft.oled.statusLine = AhaKeyOLEDDraft.interruptedUploadStatusLine
+                modeDraft.oled.needsDeviceUpload = true
             }
 
             // LCD 素材路径自愈：用户没选过自定义 GIF（为 nil）或引用的是旧 bundle 路径时，

@@ -74,6 +74,19 @@ final class CloudAccountManager: ObservableObject {
         loginRequestID = UUID()
     }
 
+    /// 云端判定登录态失效时清掉本地会话，避免界面继续显示「已登录」而实际请求全部失败。
+    /// 只在失效的仍是当前 Token 时生效，防止旧请求晚到把刚重新登录的会话踢掉。
+    func expireSession(token: String) {
+        guard !token.isEmpty, token == accessToken else { return }
+        requireLogin(ifTokenMatches: token)
+        statusMessage = NSLocalizedString("登录已过期，请重新登录。", comment: "")
+    }
+
+    private func expireSessionIfNeeded(_ error: Error, token: String) {
+        guard (error as? CloudAccountError)?.statusCode == 401 else { return }
+        expireSession(token: token)
+    }
+
     func refreshProfile(showAlertOnFailure: Bool = true) {
         guard !accessToken.isEmpty else {
             logout()
@@ -81,27 +94,28 @@ final class CloudAccountManager: ObservableObject {
         }
         isBusy = true
         statusMessage = NSLocalizedString("正在刷新用户信息…", comment: "")
+        let token = accessToken
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
-                let object = try await request(path: "api/v1/auth/users/me", method: "GET", body: nil, authorized: true)
+                let object = try await request(path: "api/v1/auth/users/me", method: "GET", body: nil, authorized: true, token: token)
                 let data = try payloadData(from: object, fallbackError: "获取用户信息失败")
                 await MainActor.run {
+                    guard token == self.accessToken else { return }
                     self.applyProfile(data)
                     self.statusMessage = "用户信息已刷新。"
                 }
             } catch {
                 await MainActor.run {
-                    if !self.isLoggedIn { return }
+                    guard token == self.accessToken else { return }
+                    guard self.isLoggedIn else { return }
                     if showAlertOnFailure {
                         self.alertMessage = error.localizedDescription
                         self.statusMessage = "刷新失败。"
                     } else {
                         self.statusMessage = "已登录，用户信息稍后可刷新。"
                     }
-                    if showAlertOnFailure, (error as? CloudAccountError)?.statusCode == 401 {
-                        self.logout()
-                    }
+                    self.expireSessionIfNeeded(error, token: token)
                 }
             }
         }
@@ -115,12 +129,14 @@ final class CloudAccountManager: ObservableObject {
         }
         isBusy = true
         statusMessage = NSLocalizedString("正在兑换免费券…", comment: "")
+        let token = accessToken
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
-                let object = try await request(path: "api/v1/coupon/redeem", method: "POST", body: ["code": code], authorized: true)
+                let object = try await request(path: "api/v1/coupon/redeem", method: "POST", body: ["code": code], authorized: true, token: token)
                 let data = try payloadData(from: object, fallbackError: NSLocalizedString("兑换失败", comment: ""))
                 await MainActor.run {
+                    guard token == self.accessToken else { return }
                     self.couponCode = ""
                     self.applyProfile(data)
                     self.statusMessage = NSLocalizedString("兑换成功。", comment: "")
@@ -128,8 +144,10 @@ final class CloudAccountManager: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
+                    guard token == self.accessToken else { return }
                     self.alertMessage = error.localizedDescription
                     self.statusMessage = NSLocalizedString("兑换失败。", comment: "")
+                    self.expireSessionIfNeeded(error, token: token)
                 }
             }
         }
@@ -142,6 +160,7 @@ final class CloudAccountManager: ObservableObject {
         }
         isBusy = true
         statusMessage = NSLocalizedString("正在创建微信支付订单…", comment: "")
+        let token = accessToken
         Task {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
@@ -149,7 +168,7 @@ final class CloudAccountManager: ObservableObject {
                     path: "api/v1/payment/wechat/native",
                     method: "POST",
                     body: ["plan": plan.rawValue, "description": plan.orderDescription],
-                    authorized: true
+                    authorized: true, token: token
                 )
                 let data = try payloadData(from: object, fallbackError: NSLocalizedString("创建支付订单失败", comment: ""))
                 let codeURL = firstString(in: data, keys: ["code_url", "codeUrl"])
@@ -159,6 +178,7 @@ final class CloudAccountManager: ObservableObject {
                 guard !codeURL.isEmpty || !h5URL.isEmpty else { throw CloudAccountError(NSLocalizedString("云端未返回可支付链接。", comment: "")) }
                 let amountFen = firstInt(in: data, keys: ["amount_fen", "amountFen"])
                 await MainActor.run {
+                    guard token == self.accessToken else { return }
                     self.paymentOrder = CloudPaymentOrder(
                         plan: plan,
                         amountFen: amountFen,
@@ -172,8 +192,10 @@ final class CloudAccountManager: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
+                    guard token == self.accessToken else { return }
                     self.alertMessage = error.localizedDescription
                     self.statusMessage = NSLocalizedString("创建支付订单失败。", comment: "")
+                    self.expireSessionIfNeeded(error, token: token)
                 }
             }
         }
@@ -213,7 +235,7 @@ final class CloudAccountManager: ObservableObject {
         let validUntil = stringValue(profile["token_valid_until"])
         return [
             phone.isEmpty ? "" : "手机号：\(phone)",
-            validUntil.isEmpty ? "有效期：无" : "有效期：\(validUntil)",
+            validUntil.isEmpty ? "权益有效期：无" : "权益有效期：\(validUntil)",
         ].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
@@ -338,29 +360,26 @@ final class CloudAccountManager: ObservableObject {
             defaults.removeObject(forKey: passwordKey)
         }
         optimizer.patchCloudToken(token)
-        seedLocalProfile(token: token, authData: authData)
+        seedLocalProfile(authData: authData)
         isLoggedIn = true
     }
 
     private func applyProfile(_ profile: [String: Any]) {
-        let normalized = normalizedProfile(profile)
+        let normalized = Self.normalizedProfile(profile)
         self.profile = normalized
         isLoggedIn = true
         optimizer.patchCloudToken(accessToken)
         optimizer.setUserProfile(normalized)
     }
 
-    private func seedLocalProfile(token: String, authData: [String: Any]) {
-        var profile = normalizedProfile(authData)
+    private func seedLocalProfile(authData: [String: Any]) {
+        var profile = Self.normalizedProfile(authData)
         let phoneValue = firstString(in: authData, keys: ["phone", "mobile", "username"])
         profile["phone"] = phoneValue.isEmpty ? phone.trimmingCharacters(in: .whitespacesAndNewlines) : phoneValue
         let userID = firstString(in: authData, keys: ["id", "user_id", "userId"])
         if !userID.isEmpty {
             profile["user_id"] = userID
             profile["id"] = userID
-        }
-        if let validUntil = jwtExpirationString(token) {
-            profile["token_valid_until"] = validUntil
         }
         profile["limit_daily"] = firstInt(in: authData, keys: ["limit_daily", "limitDaily"])
         profile["limit_weekly"] = firstInt(in: authData, keys: ["limit_weekly", "limitWeekly"])
@@ -372,7 +391,9 @@ final class CloudAccountManager: ObservableObject {
         optimizer.setUserProfile(profile)
     }
 
-    private func normalizedProfile(_ raw: [String: Any]) -> [String: Any] {
+    /// 只透传服务端的权益字段；`token_valid_until` 为空时保持为空，
+    /// 不能用登录 JWT 的 exp 推算，否则会把会话有效期误显示成订阅权益到期时间。
+    nonisolated static func normalizedProfile(_ raw: [String: Any]) -> [String: Any] {
         var profile = raw
         let aliases: [(String, String)] = [
             ("id", "userId"),
@@ -389,9 +410,6 @@ final class CloudAccountManager: ObservableObject {
             if let value = raw[camel] {
                 profile[snake] = value
             }
-        }
-        if stringValue(profile["token_valid_until"]).isEmpty, let validUntil = jwtExpirationString(accessToken) {
-            profile["token_valid_until"] = validUntil
         }
         if var policy = profile["policy"] as? [String: Any] {
             let policyAliases: [(String, String)] = [
@@ -413,14 +431,14 @@ final class CloudAccountManager: ObservableObject {
         return profile
     }
 
-    private func request(path: String, method: String, body: [String: Any]?, authorized: Bool) async throws -> [String: Any] {
+    private func request(path: String, method: String, body: [String: Any]?, authorized: Bool, token: String? = nil) async throws -> [String: Any] {
         guard let url = URL(string: "\(apiBase)/\(path)") else {
             throw CloudAccountError(NSLocalizedString("云端地址无效。", comment: ""))
         }
         var request = URLRequest(url: url, timeoutInterval: 90)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let requestToken = accessToken
+        let requestToken = token ?? accessToken
         if authorized {
             guard !requestToken.isEmpty else {
                 requireLogin()
@@ -441,8 +459,8 @@ final class CloudAccountManager: ObservableObject {
         if authorized, requestToken != accessToken { throw URLError(.cancelled) }
         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
         let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-        if authorized, CloudAuthenticationFailure.matches(status: statusCode,
-            code: object.map { intValue($0["code"]) }, message: object.map { responseMessage($0) } ?? "") {
+        if authorized, (CloudAuthenticationFailure.matches(status: statusCode,
+            code: object.map { intValue($0["code"]) }, message: object.map { responseMessage($0) } ?? "") || AhaTypeCloudSession.isExpired(httpStatus: statusCode, object: object)) {
             requireLogin(ifTokenMatches: requestToken)
             throw CloudAccountError(NSLocalizedString("登录已失效，请重新登录。", comment: ""), statusCode: 401)
         }
@@ -551,30 +569,6 @@ final class CloudAccountManager: ObservableObject {
         firstString(in: object, keys: ["errorMsg", "msg", "message", "error"])
     }
 
-    private func jwtExpirationString(_ token: String) -> String? {
-        let parts = token.split(separator: ".")
-        guard parts.count >= 2 else { return nil }
-        var payload = String(parts[1])
-            .replacingOccurrences(of: "-", with: "+")
-            .replacingOccurrences(of: "_", with: "/")
-        let remainder = payload.count % 4
-        if remainder > 0 {
-            payload += String(repeating: "=", count: 4 - remainder)
-        }
-        guard let data = Data(base64Encoded: payload),
-              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-        let exp = Double(intValue(object["exp"]))
-        guard exp > 0 else { return nil }
-        let date = Date(timeIntervalSince1970: exp)
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        return formatter.string(from: date)
-    }
-
     private func intValue(_ value: Any?) -> Int {
         switch value {
         case let int as Int: return int
@@ -599,6 +593,27 @@ final class CloudAccountManager: ObservableObject {
             return NSLocalizedString("云端连接失败：当前网络无法访问 AhaType 服务，请检查网络后重试。", comment: "")
         default:
             return "云端连接失败：\(urlError.localizedDescription)"
+        }
+    }
+}
+
+/// 云端对失效 Token 返回 HTTP 200 + `{"code":500,"msg":"未登录或Token无效","data":401}`，
+/// 只看 HTTP 状态码会漏判，必须同时识别业务层的 401。
+enum AhaTypeCloudSession {
+    static func isExpired(httpStatus: Int, object: [String: Any]?) -> Bool {
+        if httpStatus == 401 { return true }
+        guard let object else { return false }
+        return code(object["code"]) == 401 || code(object["data"]) == 401
+    }
+
+    private static func code(_ value: Any?) -> Int? {
+        switch value {
+        case let number as NSNumber:
+            return number.intValue
+        case let string as String:
+            return Int(string.trimmingCharacters(in: .whitespacesAndNewlines))
+        default:
+            return nil
         }
     }
 }

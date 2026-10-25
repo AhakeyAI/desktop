@@ -1,5 +1,6 @@
 package com.example.ahakey.model;
 
+import com.example.ahakey.util.LanguageManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import javafx.beans.property.*;
@@ -17,7 +18,12 @@ public class DeviceStatus {
     private final IntegerProperty lightMode = new SimpleIntegerProperty(0);
     private final IntegerProperty lightBrightness = new SimpleIntegerProperty(35);
     private final IntegerProperty switchState = new SimpleIntegerProperty(-1);
-    private final StringProperty deviceName = new SimpleStringProperty("等待设备");
+    private final StringProperty deviceName = new SimpleStringProperty("");
+    private final StringProperty transport = new SimpleStringProperty("NONE");
+    private final BooleanProperty connectionReadinessKnown = new SimpleBooleanProperty(false);
+    private final BooleanProperty bleLinkConnected = new SimpleBooleanProperty(false);
+    private final BooleanProperty hidInputReady = new SimpleBooleanProperty(false);
+    private final BooleanProperty usbConfigReady = new SimpleBooleanProperty(false);
     
     // Getters
     public boolean isConnected() { return isConnected.get(); }
@@ -31,6 +37,11 @@ public class DeviceStatus {
     public int getLightBrightness() { return lightBrightness.get(); }
     public int getSwitchState() { return switchState.get(); }
     public String getDeviceName() { return deviceName.get(); }
+    public String getTransport() { return transport.get(); }
+    public boolean isConnectionReadinessKnown() { return connectionReadinessKnown.get(); }
+    public boolean isBleLinkConnected() { return bleLinkConnected.get(); }
+    public boolean isHidInputReady() { return hidInputReady.get(); }
+    public boolean isUsbConfigReady() { return usbConfigReady.get(); }
     
     // Property getters
     public BooleanProperty isConnectedProperty() { return isConnected; }
@@ -42,6 +53,11 @@ public class DeviceStatus {
     public IntegerProperty lightBrightnessProperty() { return lightBrightness; }
     public IntegerProperty switchStateProperty() { return switchState; }
     public StringProperty deviceNameProperty() { return deviceName; }
+    public StringProperty transportProperty() { return transport; }
+    public BooleanProperty connectionReadinessKnownProperty() { return connectionReadinessKnown; }
+    public BooleanProperty bleLinkConnectedProperty() { return bleLinkConnected; }
+    public BooleanProperty hidInputReadyProperty() { return hidInputReady; }
+    public BooleanProperty usbConfigReadyProperty() { return usbConfigReady; }
     
     // Setters
     public void setConnected(boolean value) { isConnected.set(value); }
@@ -58,6 +74,13 @@ public class DeviceStatus {
         switchState.set(value); 
     }
     public void setDeviceName(String value) { deviceName.set(value); }
+    public void setTransport(String value) {
+        transport.set(value == null || value.isBlank() ? "NONE" : value);
+    }
+    public void setConnectionReadinessKnown(boolean value) { connectionReadinessKnown.set(value); }
+    public void setBleLinkConnected(boolean value) { bleLinkConnected.set(value); }
+    public void setHidInputReady(boolean value) { hidInputReady.set(value); }
+    public void setUsbConfigReady(boolean value) { usbConfigReady.set(value); }
     
     // Convenience methods
     public boolean isAutoApproval() {
@@ -67,6 +90,21 @@ public class DeviceStatus {
     }
     
     public String getSwitchTitle() {
-        return isAutoApproval() ? "自动批准" : "手动批准";
+        if (!isConnected()) {
+            return LanguageManager.getInstance().getString("status.approval-disconnected");
+        }
+        return switch (getSwitchState()) {
+            case 0 -> LanguageManager.getInstance().getString("status.auto-approval");
+            case 1 -> LanguageManager.getInstance().getString("status.manual-approval");
+            default -> LanguageManager.getInstance().getString("status.approval-unknown");
+        };
+    }
+    
+    public String getDisplayDeviceName() {
+        String name = deviceName.get();
+        if (name == null || name.isBlank()) {
+            return LanguageManager.getInstance().getString("status.waiting-device");
+        }
+        return name;
     }
 }

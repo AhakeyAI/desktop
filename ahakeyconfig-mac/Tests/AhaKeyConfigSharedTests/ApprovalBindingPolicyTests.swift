@@ -34,4 +34,27 @@ final class ApprovalBindingPolicyTests: XCTestCase {
         XCTAssertEqual(ApprovalBindingPolicy.effectiveSwitchState(["switchState": 1, "approvalPolicyVersion": 1, "approvalAutoVerified": true]), 1)
         XCTAssertEqual(ApprovalBindingPolicy.effectiveSwitchState(["switchState": 0, "physicalSwitchState": 0, "approvalPolicyVersion": 1, "approvalAutoVerified": true]), 0)
     }
+    func testMalformedJSONProofCannotAuthorize() throws {
+        let valid = #"{"approvalPolicyVersion":1,"physicalSwitchState":0,"switchState":0,"approvalAutoVerified":true}"#
+        let mutations: [(String, [String])] = [
+            ("approvalPolicyVersion", ["true", "false", "1.5", #""1""#, "null"]),
+            ("physicalSwitchState", ["false", "true", "0.5", "-1", "2", #""0""#, "null"]),
+            ("switchState", ["false", "true", "0.5", "-1", "2", #""0""#, "null"]),
+            ("approvalAutoVerified", ["1", "0", #""true""#, "null"]),
+        ]
+        for (field, values) in mutations {
+            for value in values {
+                var object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(valid.utf8)) as? [String: Any])
+                let replacement = try JSONSerialization.jsonObject(with: Data(value.utf8), options: [.fragmentsAllowed])
+                object[field] = replacement
+                XCTAssertEqual(ApprovalBindingPolicy.effectiveSwitchState(object), 1, "\(field)=\(value)")
+            }
+        }
+        let validObject = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(valid.utf8)) as? [String: Any])
+        XCTAssertEqual(ApprovalBindingPolicy.effectiveSwitchState(validObject), 0)
+        var floating = validObject
+        floating["switchState"] = NSNumber(value: 0.0)
+        XCTAssertEqual(ApprovalBindingPolicy.effectiveSwitchState(floating), 1)
+    }
+
 }

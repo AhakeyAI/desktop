@@ -9,6 +9,21 @@ public enum KimiHooksConfiguration {
     public static let nativeEvents = events + ["PermissionRequest", "PermissionResult"]
     public enum Failure: Error { case malformed, unsafePath }
 
+    public static func containsManagedHook(in text: String) -> Bool {
+        guard let statements = try? TomlPolicyLocator.statements(in: text) else { return false }
+        let bytes = Array(text.utf8)
+        var inHooks = false
+        for item in statements {
+            switch item.kind {
+            case .table(let path, let array): inHooks = array && path == ["hooks"]
+            case .assignment(let key) where inHooks && key == ["command"]:
+                if let command = scalarString(bytes: bytes, statement: item), owns(command) { return true }
+            default: break
+            }
+        }
+        return false
+    }
+
     public static func installing(in text: String, location: KimiConfigPolicySync.Location, agentPath: String) throws -> String {
         guard location.isValid, agentPath.hasPrefix("/"), !agentPath.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { throw Failure.unsafePath }
         var result = try removing(in: text).trimmingCharacters(in: .whitespacesAndNewlines)

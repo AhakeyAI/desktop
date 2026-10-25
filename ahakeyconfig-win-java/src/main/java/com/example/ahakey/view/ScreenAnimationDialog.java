@@ -1,0 +1,431 @@
+package com.example.ahakey.view;
+
+import static com.example.ahakey.util.LanguageManager.localize;
+
+import com.example.ahakey.app.StudioController;
+import com.example.ahakey.firmware.FirmwareCapabilities;
+import com.example.ahakey.model.ModeSlot;
+import com.example.ahakey.model.StudioState;
+import com.example.ahakey.protocol.AhaKeyProtocol;
+import com.example.ahakey.service.BundledGifLibrary;
+import com.example.ahakey.service.OledUploadService;
+import com.example.ahakey.service.GifUploadRules;
+import com.example.ahakey.service.GifSelectionHistory;
+import com.example.ahakey.service.ScreenAnimationAssetStore;
+import com.example.ahakey.util.StudioStore;
+import com.example.ahakey.util.OLEDFrameEncoder;
+import javafx.application.Platform;
+import javafx.geometry.Insets;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.*;
+import javafx.stage.FileChooser;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import javafx.stage.Window;
+
+import java.io.File;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.TimeUnit;
+
+/** USB-only editor for the firmware fixed 4x4 GIF layout. */
+public final class ScreenAnimationDialog {
+    private static final String[] ASSETS = {localize("默认"), localize("运行中"), localize("等待/错误"), localize("已完成")};
+    private static final long JOB_TIMEOUT_MINUTES = 5;
+    private static final ScreenAnimationAssetStore ASSET_STORE = new ScreenAnimationAssetStore();
+
+    private ScreenAnimationDialog() {}
+
+    private static final class DialogState {
+        final AtomicBoolean busy = new AtomicBoolean();
+        final List<Button> operationButtons = new ArrayList<>();
+        final List<Job> allJobs = new ArrayList<>();
+
+        void register(Button button) {
+            operationButtons.add(button);
+        }
+
+        boolean begin() {
+            if (!busy.compareAndSet(false, true)) return false;
+            Platform.runLater(() -> operationButtons.forEach(button -> button.setDisable(true)));
+            return true;
+        }
+
+        void finish() {
+            busy.set(false);
+            Platform.runLater(() -> operationButtons.forEach(button -> button.setDisable(false)));
+        }
+    }
+
+    private record Job(
+        ModeSlot mode, int asset, Path path, Label status, Runnable onCommitted
+    ) {}
+
+    public static void show(Window owner, StudioController controller) {
+        show(owner, controller, null);
+    }
+
+    /** Opens the persistent screen-animation editor and focuses the selected mode tab. */
+    public static void show(Window owner, StudioController controller, ModeSlot initialMode) {
+        Stage stage = new Stage();
+        if (owner != null) stage.initOwner(owner);
+        stage.initModality(Modality.NONE);
+        stage.setTitle(localize("屏幕动画"));
+
+        DialogState dialogState = new DialogState();
+        Label flashInfo = new Label(localize("正在读取设备 Flash 与动画配置…"));
+        flashInfo.setWrapText(true);
+        TabPane profiles = new TabPane();
+        for (ModeSlot mode : ModeSlot.values())
+            profiles.getTabs().add(profileTab(stage, controller, mode, dialogState));
+        if (initialMode != null) {
+            profiles.getSelectionModel().select(initialMode.ordinal());
+        }
+
+        Button restoreAll = new Button(localize("恢复全部内置动画"));
+        dialogState.register(restoreAll);
+        restoreAll.setOnAction(event -> {
+            if (!confirm(localize("将依次覆盖四个模式的全部 16 个动画分区，是否继续？"))) return;
+            runJobs(controller, dialogState, new ArrayList<>(dialogState.allJobs), localize("全部内置动画恢复完成。"));
+        });
+
+        Label guidance = new Label(
+            localize("每个模式包含 4 个固定分区；仅支持 USB 写入。软件会先读取真实 Flash 容量，")
+                + localize("所有写入严格串行执行。GIF 建议 160×80；默认动画最多 8 帧，其他状态最多 12 帧。")
+        );
+        guidance.setWrapText(true);
+        VBox root = new VBox(10, guidance, flashInfo, restoreAll, profiles);
+        root.setPadding(new Insets(16));
+        stage.setScene(new Scene(root, 820, 620));
+        stage.show();
+
+        refreshDeviceSummary(controller, flashInfo);
+    }
+
+    private static Tab profileTab(Stage owner, StudioController controller, ModeSlot mode,
+                                  DialogState dialogState) {
+        FlowPane cards = new FlowPane(12, 12);
+        File[] selected = new File[ASSETS.length];
+        boolean[] dirty = new boolean[ASSETS.length];
+        Label[] statuses = new Label[ASSETS.length];
+        List<Job> modeDefaults = new ArrayList<>();
+        for (int asset = 0; asset < ASSETS.length; asset++) {
+            VBox card = assetCard(owner, controller, mode, asset, selected, dirty, statuses,
+                modeDefaults, dialogState);
+            cards.getChildren().add(card);
+        }
+
+        Button uploadAllSelected = new Button(localize("写入本模式全部已修改动画"));
+        Button restoreMode = new Button(localize("恢复本模式内置动画"));
+        dialogState.register(uploadAllSelected);
+        dialogState.register(restoreMode);
+        uploadAllSelected.setOnAction(event -> {
+            List<Job> jobs = new ArrayList<>();
+            for (int asset = 0; asset < selected.length; asset++) {
+                if (dirty[asset] && selected[asset] != null) {
+                    int committedAsset = asset;
+                    jobs.add(new Job(mode, asset, selected[asset].toPath(), statuses[asset],
+                        () -> dirty[committedAsset] = false));
+                }
+            }
+            if (jobs.isEmpty()) {
+                new Alert(Alert.AlertType.WARNING, localize("本模式没有可写入的动画。")).showAndWait();
+                return;
+            }
+            runJobs(controller, dialogState, jobs, localize("本模式全部已修改动画写入完成。"));
+        });
+        restoreMode.setOnAction(event -> {
+            if (confirm(localize("将覆盖 ") + mode.getShortName() + localize(" 的四个动画分区，是否继续？")))
+                runJobs(controller, dialogState, new ArrayList<>(modeDefaults), localize("本模式内置动画恢复完成。"));
+        });
+
+        ScrollPane scroll = new ScrollPane(cards);
+        scroll.setFitToWidth(true);
+        VBox content = new VBox(10, new HBox(8, uploadAllSelected, restoreMode), scroll);
+        Tab tab = new Tab(mode.getShortName(), content);
+        tab.setClosable(false);
+        return tab;
+    }
+
+    private static VBox assetCard(Stage owner, StudioController controller, ModeSlot mode, int asset,
+                                  File[] selected, boolean[] dirty, Label[] statuses,
+                                  List<Job> modeDefaults,
+                                  DialogState dialogState) {
+        Label title = new Label(ASSETS[asset]);
+        title.setStyle("-fx-font-weight:bold;");
+        ImageView preview = new ImageView();
+        preview.setFitWidth(160);
+        preview.setFitHeight(80);
+        preview.setPreserveRatio(true);
+        Label fileName = new Label(localize("内置动画"));
+        fileName.setMaxWidth(190);
+        Label status = new Label(localize("正在读取设备配置…"));
+        status.setWrapText(true);
+        statuses[asset] = status;
+
+        Path bundled = null;
+        try {
+            bundled = BundledGifLibrary.extract(mode, asset);
+            if (BundledGifLibrary.resource(mode, asset) != null)
+                preview.setImage(new Image(BundledGifLibrary.resource(mode, asset).toExternalForm(),
+                    160, 80, true, true));
+        } catch (Exception e) {
+            status.setText(localize("内置动画不可用：") + e.getMessage());
+        }
+
+        StudioState.PersistedDraft.ScreenAssetMetadata current =
+            controller.getStudioState().getScreenAssetMetadata(mode, asset);
+        if (ScreenAnimationAssetStore.isUsable(current)) {
+            try {
+                preview.setImage(new Image(Path.of(current.managedCachePath).toUri().toString(),
+                    160, 80, true, true));
+                fileName.setText(current.originalFileName == null
+                    ? localize("当前本地资源") : current.originalFileName);
+                status.setText(localize("当前本地资源（设备状态仅用于校验，不作为预览来源）"));
+            } catch (RuntimeException ignored) {
+                status.setText(localize("当前本地资源不可读，将显示内置动画"));
+            }
+        } else {
+            status.setText(localize("尚未记录当前本地资源，显示内置动画"));
+        }
+
+        Job defaultJob = bundled == null ? null : new Job(mode, asset, bundled, status, () -> {});
+        if (defaultJob != null) {
+            modeDefaults.add(defaultJob);
+            dialogState.allJobs.add(defaultJob);
+        }
+
+        Button choose = new Button(localize("选择 GIF"));
+        Button upload = new Button(localize("写入当前动画"));
+        Button restore = new Button(localize("写入内置动画"));
+        Button clear = new Button(localize("清空状态"));
+        dialogState.register(choose);
+        dialogState.register(upload);
+        dialogState.register(restore);
+        dialogState.register(clear);
+        upload.setDisable(selected[asset] == null);
+        restore.setDisable(defaultJob == null);
+
+        choose.setOnAction(event -> {
+            FileChooser picker = new FileChooser();
+            picker.setTitle(localize("选择 160×80 GIF"));
+            picker.getExtensionFilters().add(new FileChooser.ExtensionFilter(localize("GIF 动画"), "*.gif"));
+            File last = lastSelectedGif();
+            if (last != null) {
+                File directory = last.isDirectory() ? last : last.getParentFile();
+                if (directory != null && directory.isDirectory())
+                    picker.setInitialDirectory(directory);
+                if (last.isFile()) picker.setInitialFileName(last.getName());
+            }
+            File file = picker.showOpenDialog(owner);
+            if (file == null) return;
+            try {
+                GifUploadRules.Preflight preflight =
+                    OLEDFrameEncoder.preflight(file.toPath(), asset);
+                if (preflight.needsOptimization() && !confirm(String.format(
+                    localize("所选 GIF 不完全符合设备限制：%n文件 %.1f MB（建议不超过 2 MB）%n")
+                        + localize("尺寸 %d×%d（设备 %d×%d）%n帧数 %d（该状态上限 %d）%n%n")
+                        + localize("是否自动缩放、按时间轴抽帧并尽量保持原始总时长？"),
+                    preflight.fileBytes() / 1048576.0, preflight.width(), preflight.height(),
+                    GifUploadRules.WIDTH, GifUploadRules.HEIGHT, preflight.sourceFrames(),
+                    preflight.targetFrameLimit()))) {
+                    return;
+                }
+            } catch (Exception failure) {
+                new Alert(Alert.AlertType.ERROR,
+                    localize("GIF 预检失败：") + errorMessage(failure)).showAndWait();
+                return;
+            }
+            selected[asset] = file;
+            dirty[asset] = true;
+            GifSelectionHistory.remember(file.toPath());
+            fileName.setText(file.getName());
+            preview.setImage(new Image(file.toURI().toString(), 160, 80, true, true));
+            status.setText(localize("已选择本地 GIF，等待写入；设备原配置尚未改变。"));
+            upload.setDisable(false);
+        });
+        upload.setOnAction(event -> {
+            if (selected[asset] == null || !dirty[asset]) {
+                status.setText(localize("请先选择需要写入的自定义 GIF。"));
+                return;
+            }
+            runJobs(controller, dialogState,
+                List.of(new Job(mode, asset, selected[asset].toPath(), status,
+                    () -> dirty[asset] = false)), localize("动画写入完成。"));
+        });
+        restore.setOnAction(event -> {
+            if (defaultJob != null)
+                runJobs(controller, dialogState, List.of(defaultJob), localize("内置动画恢复完成。"));
+        });
+        clear.setOnAction(event -> {
+            if (!dialogState.begin()) {
+                status.setText(localize("已有动画操作正在进行，请等待完成。"));
+                return;
+            }
+            OledUploadService.clearAsset(controller.getBleManager(), mode, asset,
+                result -> Platform.runLater(() -> {
+                    status.setText(result + localize("；设备当前 0 帧"));
+                    dialogState.finish();
+                }),
+                error -> Platform.runLater(() -> {
+                    status.setText(localize("清空失败：") + error);
+                    dialogState.finish();
+                }));
+        });
+
+        VBox card = new VBox(7, title, preview, fileName, status,
+            new HBox(7, choose, upload), new HBox(7, restore, clear));
+        card.setPadding(new Insets(12));
+        card.setPrefWidth(370);
+        card.setStyle("-fx-background-color:#f4f6f8;-fx-background-radius:10;"
+            + "-fx-border-color:#d8dee8;-fx-border-radius:10;");
+        refreshAssetState(controller, mode, asset, status);
+        return card;
+    }
+
+    private static void runJobs(StudioController controller, DialogState dialogState,
+                                List<Job> jobs, String successMessage) {
+        if (!dialogState.begin()) {
+            new Alert(Alert.AlertType.WARNING, localize("已有动画操作正在进行，请等待完成。")).showAndWait();
+            return;
+        }
+        Thread worker = new Thread(() -> {
+            String failure = null;
+            for (Job job : jobs) {
+                CountDownLatch done = new CountDownLatch(1);
+                AtomicReference<String> error = new AtomicReference<>();
+                OledUploadService.UploadHandle handle = OledUploadService.uploadAsset(
+                    controller.getBleManager(), job.mode(), job.asset(),
+                    job.path(), 0,
+                    progress -> Platform.runLater(() -> job.status().setText(progress.detail())),
+                    result -> {
+                        Platform.runLater(() -> job.status().setText(result));
+                        done.countDown();
+                    },
+                    message -> {
+                        error.set(message);
+                        Platform.runLater(() -> job.status().setText(localize("写入失败：") + message));
+                        done.countDown();
+                    });
+                try {
+                    if (!done.await(JOB_TIMEOUT_MINUTES, TimeUnit.MINUTES)) {
+                        handle.cancel();
+                        failure = localize("写入超过 ") + JOB_TIMEOUT_MINUTES
+                            + localize(" 分钟，已请求取消；设备事务锁会保持到后台操作实际退出。");
+                        break;
+                    }
+                } catch (InterruptedException e) {
+                    handle.cancel();
+                    Thread.currentThread().interrupt();
+                    failure = localize("操作已中断");
+                    break;
+                }
+                if (error.get() != null) {
+                    failure = error.get();
+                    break;
+                }
+                try {
+                    persistSuccessfulAsset(controller, job);
+                } catch (Exception persistFailure) {
+                    failure = localize("设备已确认写入，但本地资源缓存保存失败：")
+                        + errorMessage(persistFailure);
+                    break;
+                }
+                if (job.onCommitted() != null) job.onCommitted().run();
+            }
+            String finalFailure = failure;
+            Platform.runLater(() -> {
+                dialogState.finish();
+                if (finalFailure == null)
+                    new Alert(Alert.AlertType.INFORMATION, successMessage).showAndWait();
+                else
+                    new Alert(Alert.AlertType.ERROR, localize("写入未完成：") + finalFailure).showAndWait();
+            });
+        }, "oled-dialog-sequence");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    private static void refreshDeviceSummary(StudioController controller, Label label) {
+        Thread thread = new Thread(() -> {
+            String text;
+            try {
+                var layout = controller.getBleManager().queryGifLayout();
+                if (layout == null) text = localize("设备未返回 Flash 布局。");
+                else if (!layout.hasPhysicalFlashDiagnostics())
+                    text = localize("固件仅返回旧版布局，写入前请升级到固件 ")
+                        + FirmwareCapabilities.MINIMUM_GIF_VERSION + "。";
+                else text = String.format(
+                    localize("Flash ID 0x%04X；实际容量 %.1f MiB；可用帧槽 %d；规划分区共 %d 个帧槽。"),
+                    layout.flashId(), layout.flashBytes() / 1048576.0, layout.frameSlots(),
+                    AhaKeyProtocol.GIF_TOTAL_PLANNED_FRAMES);
+            } catch (Exception e) {
+                text = localize("读取 Flash 布局失败：") + errorMessage(e);
+            }
+            String result = text;
+            Platform.runLater(() -> label.setText(result));
+        }, "oled-layout-read");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private static void refreshAssetState(StudioController controller, ModeSlot mode, int asset,
+                                          Label status) {
+        Thread thread = new Thread(() -> {
+            String text;
+            try {
+                var state = OledUploadService.readAssetState(controller.getBleManager(), mode, asset);
+                text = localize("设备当前参数：") + state.frameCount() + localize(" 帧，起始帧 ") + state.startIndex()
+                    + (state.frameCount() > 0 ? localize("，帧间隔 ") + state.frameInterval() + " ms" : "");
+                StudioState.PersistedDraft.ScreenAssetMetadata metadata =
+                    controller.getStudioState().getScreenAssetMetadata(mode, asset);
+                if (ScreenAnimationAssetStore.isUsable(metadata)) {
+                    text = localize("当前本地资源：")
+                        + (metadata.originalFileName == null ? localize("已管理文件") : metadata.originalFileName)
+                        + "；" + text;
+                } else {
+                    text = localize("尚未记录当前本地资源；") + text;
+                }
+            } catch (Exception e) {
+                text = localize("设备配置读取失败：") + errorMessage(e);
+            }
+            String result = text;
+            Platform.runLater(() -> status.setText(result));
+        }, "oled-state-read-" + mode.getIndex() + "-" + asset);
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private static boolean confirm(String message) {
+        return new Alert(Alert.AlertType.CONFIRMATION, message, ButtonType.OK, ButtonType.CANCEL)
+            .showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK;
+    }
+
+    private static void persistSuccessfulAsset(StudioController controller, Job job)
+        throws Exception {
+        GifUploadRules.Preflight preflight = OLEDFrameEncoder.preflight(job.path(), job.asset());
+        ScreenAnimationAssetStore.StoredAsset stored = ASSET_STORE.store(
+            job.path(), job.mode(), job.asset(), preflight.sourceFrames(),
+            preflight.width(), preflight.height());
+        controller.getStudioState().setScreenAssetMetadata(
+            job.mode(), job.asset(), stored.metadata());
+        if (!StudioStore.save(controller.getStudioState().toPersisted())) {
+            throw new java.io.IOException(localize("本地配置保存失败"));
+        }
+    }
+
+    private static File lastSelectedGif() {
+        return GifSelectionHistory.initialLocation();
+    }
+
+    private static String errorMessage(Throwable error) {
+        return error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
+    }
+}

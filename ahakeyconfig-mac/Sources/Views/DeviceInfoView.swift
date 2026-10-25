@@ -15,6 +15,7 @@ struct DeviceInfoView: View {
     @StateObject private var agentManager = AgentManager.shared
     @State private var isEditingName = false
     @State private var editableName = ""
+    @State private var nameError: String?
     @State private var showAgentLog = false
     @State private var agentLogPanel = 0
     @State private var logPanelContentTick = 0
@@ -254,7 +255,7 @@ struct DeviceInfoView: View {
                         Text("~/.cursor/cli-config.json").tag(3)
                         Text("~/.codex/config.toml").tag(4)
                         Text("Codex Hook（codex-hook.log）").tag(5)
-                        Text("~/.kimi/config.toml").tag(6)
+                        Text((agentManager.userKimiConfigFilePath as NSString).abbreviatingWithTildeInPath).tag(6)
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
@@ -321,17 +322,28 @@ struct DeviceInfoView: View {
                 }
                 CompatLabeledContent(NSLocalizedString("设备名", comment: "")) {
                     if isEditingName {
-                        HStack(spacing: 4) {
-                            TextField("最长 15 字节", text: $editableName)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 160)
-                                .onSubmit { submitNameChange() }
-                            Button("写入键盘") { submitNameChange() }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.small)
-                            Button("取消") { isEditingName = false }
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 4) {
+                                TextField("最长 15 字节", text: $editableName)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 160)
+                                    .onSubmit { submitNameChange() }
+                                    .onChange(of: editableName) { _ in nameError = nil }
+                                Button("写入键盘") { submitNameChange() }
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.small)
+                                Button("取消") {
+                                    nameError = nil
+                                    isEditingName = false
+                                }
                                 .buttonStyle(.bordered)
                                 .controlSize(.small)
+                            }
+                            if let nameError {
+                                Text(nameError)
+                                    .font(.caption)
+                                    .foregroundColor(.red)
+                            }
                         }
                     } else {
                         HStack(spacing: 6) {
@@ -340,6 +352,7 @@ struct DeviceInfoView: View {
                             if bleManager.isConnected {
                                 Button {
                                     editableName = bleManager.deviceName ?? ""
+                                    nameError = nil
                                     isEditingName = true
                                 } label: {
                                     Image(systemName: "pencil")
@@ -675,9 +688,17 @@ struct DeviceInfoView: View {
     }
 
     private func submitNameChange() {
-        let name = editableName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
-        bleManager.changeDeviceName(name)
-        isEditingName = false
+        switch bleManager.changeDeviceName(editableName) {
+        case .success:
+            nameError = nil
+            isEditingName = false
+        case .failure(.empty):
+            nameError = NSLocalizedString("设备名称不能为空，已保留原名称", comment: "")
+        case .failure(.tooLong(let byteCount)):
+            nameError = String(
+                format: NSLocalizedString("设备名称最长 %d 字节（当前 %d 字节），已保留原名称", comment: ""),
+                AhaKeyCommand.deviceNameMaxBytes, byteCount
+            )
+        }
     }
 }
