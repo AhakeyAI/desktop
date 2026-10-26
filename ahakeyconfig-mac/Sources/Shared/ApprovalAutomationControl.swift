@@ -4,6 +4,7 @@ import Darwin
 /// A shared lock serializes in-flight policy writes with stop/remove revocation.
 public enum ApprovalAutomationControl {
     public enum Client: String, CaseIterable { case claude, cursor, codex, kimi }
+    public enum RevocationOutcome: Equatable { case complete, recovering, failed }
     public static var productionDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/AhaKeyConfig/approval-control", isDirectory: true)
     }
@@ -37,13 +38,11 @@ public enum ApprovalAutomationControl {
             do { try FileManager.default.removeItem(at: path); return true } catch { return false }
         } ?? false
     }
-    /// Revoke first, while holding the same lock as policy writers, then clean
-    /// owned auto values. No full-file snapshot restoration.
-    @discardableResult
-    public static func revoke(_ client: Client? = nil, directory: URL = productionDirectory,
-                              codexURL: URL = CodexConfigLeverSync.productionConfigURL,
-                              kimiURL: URL = KimiConfigPolicySync.productionConfigURL,
-                              cursorDirectory: URL = CursorApprovalPolicySync.productionDirectory) -> Bool {
+    /// Start revocation without confusing its eventual native recovery with UI feedback.
+    public static func beginRevocation(_ client: Client? = nil, directory: URL = productionDirectory,
+                                       codexURL: URL = CodexConfigLeverSync.productionConfigURL,
+                                       kimiURL: URL = KimiConfigPolicySync.productionConfigURL,
+                                       cursorDirectory: URL = CursorApprovalPolicySync.productionDirectory) -> RevocationOutcome {
         let legacyCleanup = locked(directory: directory) {
             let path = directory.appendingPathComponent(client.map { $0.rawValue + ".paused" } ?? "all.paused")
             do { try Data([1]).write(to: path, options: .atomic) } catch { return false }
@@ -74,13 +73,25 @@ public enum ApprovalAutomationControl {
             }
             return success
         } ?? false
-        guard legacyCleanup else { return false }
+        guard legacyCleanup else { return .failed }
         // The daemon reconciles native sessions asynchronously after seeing the
         // pause. Do not report complete revocation while its recovery journal
         // still owns permissions, or recurse into the same file lock above.
         if client == nil || client == .codex {
-            return (try? CodexDesktopLeverState(directory: directory).hasPendingRecovery()) == false
+            do {
+                return try CodexDesktopLeverState(directory: directory).hasPendingRecovery() ? .recovering : .complete
+            } catch { return .failed }
         }
-        return true
+        return .complete
+    }
+    /// Revoke first, while holding the same lock as policy writers, then clean
+    /// owned auto values. No full-file snapshot restoration.
+    @discardableResult
+    public static func revoke(_ client: Client? = nil, directory: URL = productionDirectory,
+                              codexURL: URL = CodexConfigLeverSync.productionConfigURL,
+                              kimiURL: URL = KimiConfigPolicySync.productionConfigURL,
+                              cursorDirectory: URL = CursorApprovalPolicySync.productionDirectory) -> Bool {
+        beginRevocation(client, directory: directory, codexURL: codexURL, kimiURL: kimiURL,
+                        cursorDirectory: cursorDirectory) == .complete
     }
 }

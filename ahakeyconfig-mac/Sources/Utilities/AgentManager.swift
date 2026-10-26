@@ -64,6 +64,7 @@ final class AgentManager: ObservableObject {
     private let connectionQuery: @Sendable (String) -> Bool
     private var connectionHeartbeatTimer: Timer?
     private var connectionQueryID: UUID?
+    private var revocationFeedbackTask: Task<Void, Never>?
     private var connectionPublicationGeneration: UInt64 = 0
 
     private var launchAgentsDirectoryURL: URL {
@@ -494,8 +495,12 @@ final class AgentManager: ObservableObject {
     /// 从 launchd 卸载 Agent（比 `stop` 更彻底：`KeepAlive` 下 stop 会立刻重启进程，仍占着蓝牙）。
     private func unloadAgentLaunchJobRemovingSocket() {
         prepareForAgentUnload()
-        if !ApprovalAutomationControl.revoke() {
+        revocationFeedbackTask?.cancel()
+        let revocation = ApprovalAutomationControl.beginRevocation()
+        if revocation == .failed {
             agentUserAlert = "自动批准策略撤销未完全确认，请核对 Codex/Kimi 配置；已打开的 CLI 会话需重新加载或重开。"
+        } else if revocation == .recovering {
+            monitorRevocationFeedback(revocation, message: "自动批准策略撤销未完全确认，请核对 Codex/Kimi 配置；已打开的 CLI 会话需重新加载或重开。")
         }
         guard FileManager.default.fileExists(atPath: plistPath) else {
             removeStaleSocketIfNeeded()
@@ -503,6 +508,22 @@ final class AgentManager: ObservableObject {
         }
         _ = runLaunchctlQuiet(["unload", plistPath])
         removeStaleSocketIfNeeded()
+    }
+
+    /// An Inspector lease can return to Agent before recovery feedback is ready.
+    /// An old monitor must not inspect or alert about that newer ownership visit.
+    private func monitorRevocationFeedback(_ initial: ApprovalAutomationControl.RevocationOutcome,
+                                          message: String) {
+        let transition = ownershipTransitionGeneration
+        revocationFeedbackTask = Task { @MainActor [weak self] in
+            let completion = await ApprovalRevocationFeedback.wait(initial, isCurrent: { [weak self] in
+                guard let self, self.ownershipTransitionGeneration == transition else { return false }
+                return !ApprovalAutomationControl.isEnabled()
+            })
+            guard completion == .notConfirmed, let self,
+                  self.ownershipTransitionGeneration == transition else { return }
+            self.agentUserAlert = message
+        }
     }
 
     /// 只删除没有进程监听的残留 socket；仍有 Agent 在监听（如手动启动的实例）时不能删，
@@ -702,11 +723,8 @@ final class AgentManager: ObservableObject {
     }
 
     func uninstall(bleManager: AhaKeyBLEManager? = nil) {
-        if !ApprovalAutomationControl.revoke() {
-            agentUserAlert = "自动批准撤销未完全确认，请核对 Codex/Kimi；已有 CLI 会话需要重开。"
-        }
+        unloadAgentLaunchJobRemovingSocket()
         // 1. 卸载 LaunchAgent
-        _ = runLaunchctlQuiet(["unload", plistPath])
         try? FileManager.default.removeItem(atPath: plistPath)
 
         // 2. 清理老版本 shell hook 脚本（如果存在）

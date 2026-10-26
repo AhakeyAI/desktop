@@ -1,0 +1,34 @@
+{
+  "sourceBaseCommit": "e501c2111eca2b5835dbb6828cb2609be5226e80",
+  "testedSourceSHA256": {
+    "Sources/Shared/ApprovalAutomationControl.swift": "e35bff4b4a81869e36839884b52be6ee64061d6ea405a52c51d191ac3cb49fb0",
+    "Sources/Shared/ApprovalRevocationFeedback.swift": "1408cb097dbff9a2eb7c2bbfcd5890dc9c590ecbd157bcfc67c373ea84e94f5a",
+    "Sources/Utilities/AgentManager.swift": "d24d7ff38d1de1003524e3722e01b78a5976ea88f3e833d198aa35f2166ccefa",
+    "Tests/AhaKeyConfigSharedTests/ApprovalRevocationFeedbackTests.swift": "6d34d840f94f03c0bb6981bf052c87dc76209e3acc2a54d3815276c566eb076e"
+  },
+  "installedReproBuild": "504",
+  "installedReproSource": "d0dfc0a5fe23feba2467a0f31eb4e52ad302282a",
+  "oldBuildBackupRetained": true,
+  "installationSignatureVerified": true,
+  "semanticDraftPreserved": true,
+  "appliedVoiceBytesPreserved": true,
+  "readOnlyKeyProbe": {
+    "mode": 0,
+    "keyIndex": 3,
+    "description": "Backspace"
+  },
+  "otherKeysStillUnknown": 15,
+  "uiReproductionCountInNewCandidate": 2,
+  "redIsolatedTests": 6,
+  "redFailedTestCases": 3,
+  "redFailedAssertions": 5,
+  "finalTargetedTests": 7,
+  "finalSwiftTests": 877,
+  "finalSwiftResult": "passed",
+  "fullTestToolSession": 20058,
+  "configurationWritesToKeyboard": 0,
+  "additionalModelRequests": 0,
+  "originalUIRecheckAfterFix": false,
+  "candidateRebuildRequired": true,
+  "goalComplete": false
+}

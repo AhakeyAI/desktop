@@ -24,13 +24,15 @@
   "dmgSHA256": "fc37022263b353a1fd17ec1945a113c44e7d4a87a8756641822dd6563fe6c338",
   "mountedAppAndAgentBytesMatch": true,
   "mountedDeepStrictSignature": "passed",
-  "installed": false,
+  "installed": true,
   "notarized": false,
   "releaseComplete": false,
   "ciRun": "https://github.com/AhakeyAI/desktop/actions/runs/40279790063",
   "ciConclusion": "success",
   "swiftTests": 870,
   "followupTwoAxisReview": "passed",
-  "uiAcceptanceBlockedBy": "Mac lock confirmed after native control reset; unlock request pending",
-  "newCandidateInstalled": false
+  "uiAcceptanceBlockedBy": null,
+  "newCandidateInstalled": true,
+  "initialReadOnlyUIAcceptance": "Key4 readback works; native revocation warning reproduced twice; complete UI acceptance remains pending a fix",
+  "fullHardwareAcceptanceComplete": false
 }
