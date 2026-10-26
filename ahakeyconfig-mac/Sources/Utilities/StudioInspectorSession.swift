@@ -35,6 +35,8 @@ final class StudioInspectorSession: ObservableObject {
     }
 
     @Published private(set) var isBusy = false
+    @Published private(set) var editingDeviceID: String?
+    private var hasEditingScope = false
     private let access: Access
     private let timeout: Duration
     private var activeLease: UInt64?
@@ -42,6 +44,21 @@ final class StudioInspectorSession: ObservableObject {
     init(access: Access, timeout: Duration = .seconds(15)) {
         self.access = access
         self.timeout = timeout
+    }
+
+    /// Fix the device for an editing visit without taking the BLE lease. When
+    /// initially unknown, only this session's first connection may establish it.
+    @discardableResult
+    func beginEditing(deviceID: String?) -> Bool {
+        guard !isBusy, !hasEditingScope else { return false }
+        hasEditingScope = true
+        editingDeviceID = deviceID.flatMap { $0.isEmpty ? nil : $0 }
+        return true
+    }
+
+    func endEditing() {
+        hasEditingScope = false
+        editingDeviceID = nil
     }
 
     /// The caller captures a component target before entering. `Context` is
@@ -72,7 +89,9 @@ final class StudioInspectorSession: ObservableObject {
         }
         let context = Context(deviceID: access.deviceID(), generation: access.generation())
         guard !context.deviceID.isEmpty,
+              editingDeviceID.map({ $0 == context.deviceID }) ?? true,
               expectedDeviceID.map({ $0 == context.deviceID }) ?? true else { throw Failure.deviceChanged }
+        if hasEditingScope, editingDeviceID == nil { editingDeviceID = context.deviceID }
         let result = try await operation(context)
         try Task.checkCancellation()
         try validate(context)

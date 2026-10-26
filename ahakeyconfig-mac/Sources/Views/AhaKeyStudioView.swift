@@ -78,7 +78,6 @@ struct AhaKeyStudioView: View {
     @FocusState private var modeNameFieldFocused: Bool
     @State private var writeOutcome: KeyboardWriteOutcome?
     @State private var legacyComponentEditing = false
-    @State private var legacyEditorDeviceID: String?
     @State private var legacyWritePlan: StudioLegacyComponentPlan?
     @State private var legacyComponentTask: Task<Void, Never>?
 
@@ -194,8 +193,8 @@ struct AhaKeyStudioView: View {
         }
         .onChange(of: bleManager.firmwareCapabilityProfile?.identity) { identity in
             if isEditingInspector, identity == .legacy {
+                guard inspectorSession.editingDeviceID == bleManager.bleDeviceUUID else { return }
                 legacyComponentEditing = true
-                if !bleManager.bleDeviceUUID.isEmpty { legacyEditorDeviceID = bleManager.bleDeviceUUID }
                 inlineKeyTask?.cancel(); inlineKeyTask = nil; inlineKeyTarget = nil
             }
         }
@@ -221,7 +220,8 @@ struct AhaKeyStudioView: View {
         }
         .onChange(of: isEditingInspector) { editing in
             if !editing {
-                legacyComponentEditing = false; legacyEditorDeviceID = nil; legacyWritePlan = nil
+                legacyComponentEditing = false; legacyWritePlan = nil
+                inspectorSession.endEditing()
                 restoreInspectorModel.clearIntent()
                 confirmsRestoreInitialization = false
             }
@@ -587,7 +587,7 @@ struct AhaKeyStudioView: View {
             [.lightBar, .oledDisplay, .toggleSwitch, .modeButton].contains(selectedPart)
     }
     private var componentBusy: Bool {
-        inspectorSession.isBusy || resourceInspectorModel.isBusy || resourceInspectorModel.isPreparing || deviceInspectorModel.isBusy || restoreInspectorModel.isBusy || lcdInspectorModel.isReading || lcdInspectorModel.isWriting
+        isSyncing || inspectorSession.isBusy || resourceInspectorModel.isBusy || resourceInspectorModel.isPreparing || deviceInspectorModel.isBusy || restoreInspectorModel.isBusy || lcdInspectorModel.isReading || lcdInspectorModel.isWriting
     }
 
     private var canvasModeDraft: AhaKeyModeDraft {
@@ -792,7 +792,7 @@ struct AhaKeyStudioView: View {
                         HStack {
                             Spacer()
                             Button {
-                                enterEditingConfiguration()
+                                guard enterEditingConfiguration() else { return }
                                 withAnimation(.easeInOut(duration: 0.2)) { isEditingInspector = true }
                             } label: {
                                 Label(NSLocalizedString("修改", comment: ""), systemImage: "pencil")
@@ -845,18 +845,6 @@ struct AhaKeyStudioView: View {
                         Button(NSLocalizedString("取消当前操作", comment: "")) { lcdInspectorModel.cancelRead(); lcdInspectorModel.cancelWrite() }
                     } else if deviceInspectorModel.isBusy {
                         Button(NSLocalizedString("取消当前操作", comment: "")) { deviceInspectorModel.cancel(ble: bleManager) }
-                    }
-
-                    if selectedPart == .lightBar && usesLegacyEditor {
-                        Button {
-                            previewLightEffect(for: lightBarPreview)
-                        } label: {
-                            Label("预览到键盘", systemImage: "play.fill")
-                                .font(.callout.weight(.medium))
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.regular)
-                        .disabled(isSyncing || inspectorSession.isBusy || !usesLegacyEditor)
                     }
 
                     if usesInlineLightEditor {
@@ -1931,99 +1919,38 @@ struct AhaKeyStudioView: View {
     }
 
     private var legacyLightBarInspector: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        let busy = isSyncing || inspectorSession.isBusy
+        let current = currentModeDraft.lightBar
+        let baseline = lastSyncedDraft.draft(for: selectedMode).lightBar
+        return VStack(alignment: .leading, spacing: 16) {
             if bleManager.supportsConfigurableLighting == false {
-                StudioInspectorSection {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Label("当前键盘固件不支持可写灯效", systemImage: "exclamationmark.triangle.fill")
-                            .font(.callout.weight(.semibold))
-                            .foregroundStyle(.orange)
-                        Text("旧 v1.0 会对未实现的 0x84/0x85/0x91 返回“成功”，但不会改灯。请先刷入 2026-06-22 后的新固件；客户端已禁止把这种假 ACK 当作写入成功。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            } else if bleManager.supportsConfigurableLighting == true {
-                Label("新灯效协议已就绪（0x84 / 0x85 / 0x91）", systemImage: "checkmark.seal.fill")
-                    .font(.caption)
-                    .foregroundStyle(.green)
+                Label("当前键盘固件不支持可写灯效", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption).foregroundStyle(.orange)
             }
-
-            StudioInspectorSection(NSLocalizedString("状态灯效映射", comment: "")) {
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(IDEState.workflowOrder) { state in
-                        HStack {
-                            Text(state.shortLabel)
-                                .font(.callout.weight(.medium))
-                                .frame(width: 80, alignment: .leading)
-                            Picker("", selection: lightEffectBinding(for: state)) {
-                                ForEach(LightEffectStyle.allCases) { effect in
-                                    Text(effect.title).tag(effect)
-                                }
-                            }
-                            .labelsHidden()
-                            .frame(maxWidth: .infinity)
-                        }
+            StudioLightStateSelector(selectedState: lightBarPreview.rawValue,
+                dirtyStates: Set(IDEState.workflowOrder.compactMap { state in
+                    current.effect(for: state) != baseline.effect(for: state) ? state.rawValue : nil
+                }), enabled: !busy, select: { value in
+                    if let state = IDEState(rawValue: value) { lightBarPreview = state }
+                })
+            Text("选择灯效").font(.subheadline.weight(.semibold))
+            StudioLightEffectPicker(selection: current.effect(for: lightBarPreview),
+                enabled: !busy, previewEnabled: !busy && bleManager.supportsConfigurableLighting != false,
+                select: { lightEffectBinding(for: lightBarPreview).wrappedValue = $0 },
+                preview: { previewLightEffect($0) })
+            Divider().padding(.top, 2)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Text("亮度").font(.subheadline.weight(.semibold))
+                    Text("全部模式").font(.caption).foregroundStyle(.secondary)
+                    if current.brightness != baseline.brightness {
+                        Circle().fill(Color.orange).frame(width: 5, height: 5).accessibilityLabel("未保存")
                     }
+                    Spacer()
+                    Text("\(current.brightness)%").font(.caption.monospacedDigit())
                 }
-                .padding(.top, 4)
-            }
-
-            StudioInspectorSection(NSLocalizedString("亮度", comment: "")) {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Slider(value: brightnessBinding, in: 1...100, step: 1)
-                        Text("\(currentModeDraft.lightBar.brightness)%")
-                            .font(.callout.monospacedDigit())
-                            .frame(width: 44, alignment: .trailing)
-                    }
-                }
-                .padding(.top, 4)
-            }
-
-            StudioInspectorSection(NSLocalizedString("状态预览", comment: "")) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(lightBarPreview.shortLabel)
-                        .font(.system(.title3, design: .rounded).weight(.semibold))
-
-                    Text("画布预览：\(currentModeDraft.lightBar.effect(for: lightBarPreview).title)")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    Text(NSLocalizedString("点击状态会在虚拟键盘预览，并通过 0x91 临时预览到设备；保存请使用底部通用按钮。", comment: ""))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 8)], spacing: 8) {
-                        ForEach(IDEState.workflowOrder) { state in
-                            Button {
-                                lightBarPreview = state
-                                previewLightEffect(for: state)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(state.shortLabel)
-                                        .font(.caption.weight(.semibold))
-                                    Text(currentModeDraft.lightBar.effect(for: state).title)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(10)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(state == lightBarPreview ? Color.accentColor.opacity(0.14) : Color(nsColor: .controlBackgroundColor))
-                                )
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(state == lightBarPreview ? Color.accentColor : Color.black.opacity(0.08), lineWidth: 1)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .padding(.top, 4)
+                Slider(value: brightnessBinding, in: 1...100, step: 1)
+                    .disabled(busy).accessibilityLabel(NSLocalizedString("灯光亮度", comment: ""))
             }
         }
     }
@@ -2622,10 +2549,10 @@ struct AhaKeyStudioView: View {
         }
     }
 
-    private func enterEditingConfiguration() {
+    private func enterEditingConfiguration() -> Bool {
+        guard inspectorSession.beginEditing(deviceID: bleManager.bleDeviceUUID) else { return false }
         if usesLegacyEditor {
             legacyComponentEditing = true
-            if !bleManager.bleDeviceUUID.isEmpty { legacyEditorDeviceID = bleManager.bleDeviceUUID }
         }
         if usesInlineHardwareEditor {
             clearInlineKeyEditing()
@@ -2639,29 +2566,30 @@ struct AhaKeyStudioView: View {
                 deviceInspectorModel.read(lever: selectedPart == .toggleSwitch, ble: bleManager, session: inspectorSession)
             default: break
             }
-            return
+            return true
         }
         if usesInlineLightEditor {
             clearInlineKeyEditing()
-            return
+            return true
         }
         if let role = selectedPart.keyRole,
            !usesLegacyEditor {
             let target = StudioInlineKeyTarget(mode: UInt8(selectedMode.rawValue), index: UInt8(role.rawValue))
             inlineKeyTarget = target
             readInlineKey(target)
-            return
+            return true
         }
         clearInlineKeyEditing()
         isTransitioningToKeyboardControl = false
         syncStatusMessage = NSLocalizedString("草稿保存在本地，写入时临时连接键盘。", comment: "")
+        return true
     }
 
     private func writeToKeyboard() {
         if canInitializeInlineK1 { confirmsK1Initialization = true; return }
         if inlineKeyTarget != nil { saveInlineKey(); return }
         do {
-            guard let deviceID = legacyEditorDeviceID ?? (bleManager.bleDeviceUUID.isEmpty ? nil : bleManager.bleDeviceUUID) else {
+            guard let deviceID = inspectorSession.editingDeviceID else {
                 throw StudioLegacyComponentPlan.Failure.unsupported
             }
             let plan = try StudioLegacyComponentPlan(mode: selectedMode, part: selectedPart, submitted: currentModeDraft, deviceID: deviceID)
@@ -2921,12 +2849,8 @@ struct AhaKeyStudioView: View {
         )
     }
 
-    private func previewLightEffect(for state: IDEState) {
-        previewLightEffect(currentModeDraft.lightBar.effect(for: state))
-    }
-
     private func previewLightEffect(_ effect: LightEffectStyle) {
-        guard !isSyncing, !inspectorSession.isBusy, let deviceID = legacyEditorDeviceID ?? (bleManager.bleDeviceUUID.isEmpty ? nil : bleManager.bleDeviceUUID) else { return }
+        guard !isSyncing, !inspectorSession.isBusy, let deviceID = inspectorSession.editingDeviceID else { return }
         isSyncing = true
         Task { @MainActor in
             defer { isSyncing = false }

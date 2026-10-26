@@ -54,6 +54,44 @@ final class StudioInspectorSessionTests: XCTestCase {
         XCTAssertEqual(device.pauses, 0); XCTAssertFalse(session.isBusy)
     }
 
+    func testEditingVisitPinsDeviceWithoutHoldingConnectionAndRejectsAnotherKeyboard() async throws {
+        let device = Device()
+        let actual = StudioInspectorSession(access: device.access())
+        XCTAssertTrue(actual.beginEditing(deviceID: device.deviceID))
+        XCTAssertFalse(actual.beginEditing(deviceID: "keyboard-B"))
+        XCTAssertEqual(actual.editingDeviceID, "keyboard-A")
+        XCTAssertFalse(actual.isBusy)
+        XCTAssertEqual(device.begins, 0)
+        _ = try await actual.withConnection { _ in 1 }
+        device.deviceID = "keyboard-B"
+        // A fresh capability read outside the Inspector may see B. Even an
+        // explicit B expectation must not override this visit's captured A.
+        do {
+            _ = try await actual.withConnection(expectedDeviceID: "keyboard-B") { _ in XCTFail("Wrong keyboard"); return 1 }
+            XCTFail("Expected device change")
+        } catch { XCTAssertEqual(error as? StudioInspectorSession.Failure, .deviceChanged) }
+        XCTAssertEqual(actual.editingDeviceID, "keyboard-A")
+        XCTAssertEqual(device.releases, 2)
+        actual.endEditing()
+        XCTAssertTrue(actual.beginEditing(deviceID: "keyboard-B"))
+        _ = try await actual.withConnection { context in XCTAssertEqual(context.deviceID, "keyboard-B") }
+    }
+
+    func testInitiallyUnknownEditingTargetIsBoundOnlyByFirstInspectorConnection() async throws {
+        let device = Device()
+        let actual = StudioInspectorSession(access: device.access())
+        XCTAssertTrue(actual.beginEditing(deviceID: nil))
+        XCTAssertNil(actual.editingDeviceID)
+        _ = try await actual.withConnection { _ in XCTAssertEqual(actual.editingDeviceID, "keyboard-A") }
+        device.deviceID = "keyboard-B"
+        do {
+            _ = try await actual.withConnection { _ in XCTFail("Must retain first binding"); return 1 }
+            XCTFail("Expected device change")
+        } catch { XCTAssertEqual(error as? StudioInspectorSession.Failure, .deviceChanged) }
+        XCTAssertEqual(actual.editingDeviceID, "keyboard-A")
+        XCTAssertEqual(device.releases, 2)
+    }
+
     func testTimeoutDoesNotStartOperationAndReturnsLease() async {
         let device = Device(); device.ready = false
         let session = StudioInspectorSession(access: device.access(), timeout: .zero)

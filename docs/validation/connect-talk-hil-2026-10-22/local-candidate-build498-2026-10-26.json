@@ -25,5 +25,7 @@
   "dmgSHA256": "7eb534a5285bfc727f5ffc29ea144e19488dec39d926d9f3344814aae1e21435",
   "dmgReadOnlyMountedVerification": "passed",
   "mountedAppAndAgentBytesMatch": true,
-  "mountedDeepStrictSignature": "passed"
+  "mountedDeepStrictSignature": "passed",
+  "supersededForAcceptance": true,
+  "supersededReason": "Later editor device binding and legacy light layout fixes are absent; rebuild required."
 }

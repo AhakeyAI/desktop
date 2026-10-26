@@ -12,28 +12,14 @@ struct StudioLightInspectorView: View {
     private var target: StudioLightDrafts.Target { model.target(for: mode) }
     private var busy: Bool { model.isBusy || session.isBusy }
     private var editable: Bool { model.values.facts[target].map { target.accepts($0.value) } ?? false }
-    private let columns = [GridItem(.flexible(), spacing: 8, alignment: .top), GridItem(.flexible(), spacing: 8, alignment: .top)]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
-                ForEach(IDEState.workflowOrder) { item in
-                    Button { model.selectedState = item.rawValue } label: {
-                        Text(item.shortLabel)
-                            .font(.caption.weight(model.selectedState == item.rawValue ? .semibold : .regular))
-                            .frame(maxWidth: .infinity).padding(.vertical, 7)
-                            .background(model.selectedState == item.rawValue ? Color.accentColor.opacity(0.16) : Color.primary.opacity(0.05))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .overlay(alignment: .topTrailing) {
-                                let key = StudioLightDrafts.Target.effect(mode: UInt8(mode.rawValue), state: item.rawValue)
-                                if model.values.dirtyTargets.contains(key) || model.values.unconfirmed.contains(key) {
-                                    Circle().fill(Color.orange).frame(width: 5, height: 5).padding(5)
-                                }
-                            }
-                    }.buttonStyle(.plain).disabled(busy)
-                        .accessibilityAddTraits(model.selectedState == item.rawValue ? .isSelected : [])
-                }
-            }
+            StudioLightStateSelector(selectedState: model.selectedState,
+                dirtyStates: Set(IDEState.workflowOrder.compactMap { item in
+                    let key = StudioLightDrafts.Target.effect(mode: UInt8(mode.rawValue), state: item.rawValue)
+                    return model.values.dirtyTargets.contains(key) || model.values.unconfirmed.contains(key) ? item.rawValue : nil
+                }), enabled: !busy, select: { model.selectedState = $0 })
 
             HStack(spacing: 8) {
                 Text(readbackTitle).font(.caption).foregroundStyle(.secondary)
@@ -50,9 +36,11 @@ struct StudioLightInspectorView: View {
             }
 
             Text("选择灯效").font(.subheadline.weight(.semibold))
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
-                ForEach(LightEffectStyle.allCases) { effect in effectCard(effect) }
-            }
+            StudioLightEffectPicker(selection: model.values.drafts[target].flatMap(LightEffectStyle.init(firmwareIndex:)),
+                enabled: !busy && editable,
+                previewEnabled: !busy && editable && model.values.drafts[.brightness] != nil,
+                select: { model.values.edit(target, value: $0.firmwareIndex) },
+                preview: { model.previewEffect($0, mode: mode, ble: bleManager, session: session) })
 
             brightnessControls
             moreControls
@@ -89,44 +77,6 @@ struct StudioLightInspectorView: View {
     private var readbackTitle: String {
         guard let fact = model.values.facts[target] else { return NSLocalizedString("尚未读取", comment: "") }
         return String(format: NSLocalizedString("已读取：%@", comment: ""), label(fact.value, target: target))
-    }
-
-    private func effectCard(_ effect: LightEffectStyle) -> some View {
-        let selected = model.values.drafts[target] == effect.firmwareIndex
-        return ZStack(alignment: .bottomTrailing) {
-            Button { model.values.edit(target, value: effect.firmwareIndex) } label: {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Image(systemName: effect.symbolName).frame(width: 13).foregroundStyle(.secondary)
-                        Text(effect.title).fontWeight(.semibold)
-                    }.font(.caption)
-                    Text(effect.detail).font(.caption2).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.trailing, effect == .off ? 0 : 20)
-                }
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .padding(.horizontal, 9).padding(.vertical, 8)
-                .background(selected ? Color.accentColor.opacity(0.12) : Color(nsColor: .controlBackgroundColor).opacity(0.7))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(selected ? Color.accentColor : Color.primary.opacity(0.10), lineWidth: 1))
-            }
-            .buttonStyle(.plain).disabled(busy || !editable)
-            .accessibilityLabel(effect.title).accessibilityHint(effect.detail)
-            .accessibilityAddTraits(selected ? .isSelected : [])
-            if effect != .off {
-                Button {
-                    model.previewEffect(effect, mode: mode, ble: bleManager, session: session)
-                } label: {
-                    Image(systemName: "play.circle").font(.system(size: 17))
-                        .foregroundStyle(.white).frame(width: 24, height: 24)
-                        .background(Circle().fill(Color.black.opacity(0.55)).padding(3))
-                }
-                .buttonStyle(.plain).padding(.trailing, 5).padding(.bottom, 4)
-                .disabled(busy || !editable || model.values.drafts[.brightness] == nil)
-                .help(NSLocalizedString("预览到键盘", comment: ""))
-                .accessibilityLabel(String(format: NSLocalizedString("在键盘上预览 %@", comment: ""), effect.title))
-            }
-        }
     }
 
     private var brightnessControls: some View {

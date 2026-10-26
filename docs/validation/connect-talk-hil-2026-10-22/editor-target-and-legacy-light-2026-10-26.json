@@ -1,0 +1,35 @@
+{
+  "sourceBaseCommit": "533093415986f961ac16855c9b96c750b4d18d7c",
+  "testedSourceSHA256": {
+    "Sources/Utilities/StudioInspectorSession.swift": "d588b1c61688a19fe4cbf1c7953cb31f0c74bd360c5b0523bae39be699fde46c",
+    "Sources/Views/AhaKeyStudioView.swift": "4887250f201933fb3cd0e898b20fde232c964b35d1c26805cb22ce5dfce637bd",
+    "Sources/Views/StudioLightInspectorView.swift": "f99d35dfd102b172c37985680ab5a3ac02cfc6518b4520397bce6a96734e2082",
+    "Sources/Views/StudioLightEffectPicker.swift": "b0ce7a8a6cf40ac5e8b2cb5aebf84c0ab73c678af8ba2b4ce15e80555380603b",
+    "Tests/AhaKeyConfigTests/StudioInspectorSessionTests.swift": "9a73dffb642a3669843cf02e636dec08f563f22bdbd80123c53810a7296d2f5a"
+  },
+  "swiftTests": 868,
+  "result": "passed",
+  "newBindingTests": 2,
+  "targetedSessionTests": 13,
+  "testLog": "/tmp/ahakey-editor-light-integration-full-20261026.log",
+  "testLogSHA256": "8ff7e43bfb51ae03682cfd1a991e6082a29dfd8ea9dc71374ed948ad2b593d4c",
+  "specFindingsAddressed": [
+    "P1 legacy capability refresh could rebind an active edit from A to B",
+    "P2 legacy lighting retained dropdowns and duplicate preview actions"
+  ],
+  "behavior": [
+    "editing starts without BLE lease",
+    "device pinned at editing entry or first Inspector connection",
+    "outside capability reads cannot rebind editor",
+    "even explicit operation expectation cannot override bound device",
+    "end and reenter is required to change device",
+    "shared modern/legacy state selector and effect cards",
+    "selection local only; explicit play invokes preview",
+    "single bottom write action; no separate preview row",
+    "legacy busy flag blocks leaving during queued write or preview"
+  ],
+  "hardwareWrites": 0,
+  "newCandidateInstalled": false,
+  "visualAcceptanceComplete": false,
+  "fullWBSComplete": false
+}
