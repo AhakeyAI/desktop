@@ -33,8 +33,8 @@ final class StudioLCDInspectorModel: ObservableObject {
     }
 
     @Published private(set) var overview: WS3TaskOverview?
-    @Published private(set) var modeDraft: WS3PresentationMode?
-    @Published private(set) var followDraft: Bool?
+    @Published private(set) var modeDraft: WS3PresentationMode? { didSet { persistDrafts() } }
+    @Published private(set) var followDraft: Bool? { didSet { persistDrafts() } }
     @Published private(set) var actualFollow = false
     @Published private(set) var isReading = false
     @Published private(set) var isWriting = false
@@ -44,6 +44,32 @@ final class StudioLCDInspectorModel: ObservableObject {
     private var readID: UUID?
     private var readRevision: UInt64?
     private var writeTask: Task<Void, Never>?
+
+    private struct SavedDraft: Codable {
+        let mode: WS3PresentationMode?
+        let follow: Bool?
+    }
+    private static let storageKey = "ahakey.studio.lcd-display-draft.v1"
+    private let defaults: UserDefaults?
+
+    /// Restore pending choices only. Never revive a live overview, connection
+    /// generation, terminal permission, or an enabled following observer.
+    init(defaults: UserDefaults? = nil) {
+        self.defaults = defaults
+        if let bytes = defaults?.data(forKey: Self.storageKey), bytes.count <= 512,
+           let saved = try? JSONDecoder().decode(SavedDraft.self, from: bytes) {
+            modeDraft = saved.mode; followDraft = saved.follow
+        }
+    }
+    private func persistDrafts() {
+        guard let defaults else { return }
+        guard modeDraft != nil || followDraft != nil else {
+            defaults.removeObject(forKey: Self.storageKey); return
+        }
+        if let bytes = try? JSONEncoder().encode(SavedDraft(mode: modeDraft, follow: followDraft)) {
+            defaults.set(bytes, forKey: Self.storageKey)
+        }
+    }
 
     var selectedMode: WS3PresentationMode? { modeDraft ?? overview?.requestedMode }
     var followsTerminal: Bool { followDraft ?? actualFollow }

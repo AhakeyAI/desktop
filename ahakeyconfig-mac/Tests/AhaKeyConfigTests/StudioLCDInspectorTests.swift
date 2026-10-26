@@ -24,6 +24,55 @@ final class StudioLCDInspectorTests: XCTestCase {
         XCTFail("Inspector did not finish")
     }
 
+    func testRelaunchRestoresChoicesWithoutRevivingFactsOrFollowing() async throws {
+        let name = "StudioLCDInspectorTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let first = StudioLCDInspectorModel(defaults: defaults)
+        first.chooseMode(.multi); first.chooseFollow(true)
+        let next = StudioLCDInspectorModel(defaults: defaults)
+        XCTAssertEqual(next.modeDraft, .multi); XCTAssertEqual(next.followDraft, true)
+        XCTAssertNil(next.overview); XCTAssertFalse(next.actualFollow)
+        var writes = 0, following = 0
+        next.read(using: access(read: { self.report(.single) }, apply: { mode, _, _ in
+            writes += 1; return self.report(mode)
+        }, setFollow: { _ in following += 1 }))
+        try await finish(next)
+        XCTAssertEqual(writes, 0); XCTAssertEqual(following, 0)
+        XCTAssertEqual(next.modeDraft, .multi); XCTAssertEqual(next.followDraft, true)
+    }
+
+    func testConfirmedSubmissionClearsPersistedChoicesOnlyAfterSuccess() async throws {
+        let name = "StudioLCDInspectorTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let first = StudioLCDInspectorModel(defaults: defaults)
+        first.chooseMode(.multi); first.chooseFollow(true)
+        var followed = false
+        first.write(artwork: [], deviceID: device, using: access(setFollow: { followed = $0 }))
+        try await finish(first)
+        XCTAssertTrue(followed)
+        let next = StudioLCDInspectorModel(defaults: defaults)
+        XCTAssertFalse(next.hasSettingsDraft); XCTAssertFalse(next.actualFollow)
+        XCTAssertNil(next.overview)
+    }
+
+    func testFailedModeSubmissionRetainsBothChoicesAcrossRelaunch() async throws {
+        enum Lost: Error { case reply }
+        let name = "StudioLCDInspectorTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let first = StudioLCDInspectorModel(defaults: defaults)
+        first.chooseMode(.multi); first.chooseFollow(true)
+        var following = 0
+        first.write(artwork: [], deviceID: device, using: access(apply: { _, _, _ in throw Lost.reply },
+            setFollow: { _ in following += 1 }))
+        try await finish(first)
+        let next = StudioLCDInspectorModel(defaults: defaults)
+        XCTAssertEqual(next.modeDraft, .multi); XCTAssertEqual(next.followDraft, true)
+        XCTAssertEqual(following, 0); XCTAssertNil(next.overview)
+    }
+
     func testDisconnectedHeartbeatRevokesDelayedReadWithoutDiscardingDrafts() async throws {
         var delayed: CheckedContinuation<WS3TaskOverview?, Never>?
         let model = StudioLCDInspectorModel()

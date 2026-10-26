@@ -45,7 +45,7 @@ struct AhaKeyStudioView: View {
     @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
     @StateObject private var lightInspectorModel = StudioLightInspectorModel()
     @StateObject private var resourceInspectorModel = StudioResourceInspectorModel()
-    @StateObject private var lcdInspectorModel = StudioLCDInspectorModel()
+    @StateObject private var lcdInspectorModel = StudioLCDInspectorModel(defaults: .standard)
     @State private var confirmsLCDWrite = false
     @State private var lcdSubmittedEntry: UInt8?
     @StateObject private var deviceInspectorModel = StudioDeviceInspectorModel()
