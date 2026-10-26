@@ -1,7 +1,19 @@
 # Kimi 拨杆与会话权限
 
-macOS 的 Kimi Code 配置同步只影响**新建会话**。已打开和恢复的会话保留其会话权限；切回手动档后，要在这些会话中运行 `/permission` 选择手动模式，或用 `/yolo` 切换。PreToolUse 不替代 Kimi 自身的审批，手动档也不把所有调用改成 deny。
+本轮产品范围包括普通 Kimi／Work 桌面端、Kimi Code Desktop 和官方 CLI TUI。目标是：实体自动档为完全自动、不再询问；管理全部已明确授权的会话；键盘断连、暂停后台或退出 Studio 后恢复接管前的设置，并保留能识别到的用户后续主动修改。
 
-已安装 AhaKey Kimi hooks 时，实体自动档将 `default_permission_mode` 设为 `yolo`；已有 `auto` 值会保留。手动档、Agent 启动、断连和未知状态将新会话默认值设为 `manual`。Agent 每次收到实体状态都会核对配置，失败后下次确认重试；断连时定期重试恢复 manual。未安装 AhaKey hooks 的配置不参与这些自动改写。
+## 当前已实现：新会话默认配置
 
-配置优先使用显式 `KIMI_CODE_HOME/config.toml`，即使目录尚未创建；否则选择 `~/.kimi-code/config.toml`，仅在没有 Kimi Code 数据目录而存在旧配置时回落 `~/.kimi/config.toml`。旧版 Python kimi-cli 保留 `default_yolo` 同步与既有补丁流程。
+安装 AhaKey Kimi hooks、且有新鲜的实体档位与有效出厂绑定证明时，原生配置的 `default_permission_mode` 自动档写为 `auto`，手动档写为 `manual`。旧 Python 配置仍使用 `default_yolo` 的 true／false。这里同步的是新会话默认值，不能用它证明已经打开或恢复的会话也已切换。
+
+接管前的原始标量与写入意图保存在私有日志中，支持进程重开后核对。断连、暂停、退出及卸载按托管记录恢复原值；不会统一强制写成 manual。重复状态不会反复重写。若检测到用户另行修改，保留该值；下一次明确拨杆动作重新核对并以用户的新值作为恢复基线。没有有效实体状态不会凭空授予自动权限。
+
+配置优先使用显式 `KIMI_CODE_HOME/config.toml`，否则选择 `~/.kimi-code/config.toml`；仅在没有 Kimi Code 数据目录而存在旧配置时回落 `~/.kimi/config.toml`。未安装 AhaKey hooks 的配置不参与托管改写。
+
+## 尚未完成：三个产品的运行中原会话控制
+
+需要分别核实当前原会话持有者、权限读写及恢复接口。官方 web/server 的会话设置接口，不等于能控制用户独立运行的原版 TUI 或另一个桌面产品；不能另开托管副本冒充原会话。当前不能把默认配置同步标为三端实时权限控制已完成。
+
+PermissionRequest／PermissionResult Hook 用于观察等待和继续执行。PreToolUse 以及观察事件不替代 Kimi 原生审批；没有取得自动授权时继续原链路，不返回拒绝来拦截正常操作。
+
+源码与接口调查见 [2026-10-25 调研记录](ahastudio/kimi-runtime-permission-api-research-2026-10-25.md)。真实原会话跨档、下一轮执行、恢复原值和用户修改保护仍需完整验收。
