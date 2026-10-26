@@ -246,13 +246,6 @@ struct AhaKeyStudioView: View {
         .onReceive(NotificationCenter.default.publisher(for: .ahaKeyHardwareEditingFinished)) { _ in
             completeEditingAfterSuccessfulWrite()
         }
-        .onChange(of: agentManager.bluetoothConnectionOwner) { owner in
-            if owner == .agentDaemon, inlineKeyTarget == nil,
-               !(isEditingInspector && usesInlineHardwareEditor) {
-                isEditingInspector = false
-                syncStatusMessage = "已返回日常连接，未应用的画布草稿仍保留。"
-            }
-        }
         .onChange(of: studioDraft) { newValue in
             AhaKeyStudioStore.save(newValue)
         }
