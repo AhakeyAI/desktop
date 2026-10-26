@@ -301,7 +301,7 @@ struct AhaKeyStudioView: View {
             )
         }
         .sheet(isPresented: $showsDeviceInfo) {
-            DeviceInfoSheetContainer(bleManager: bleManager)
+            DeviceInfoSheetContainer(bleManager: bleManager, inspectorSession: inspectorSession)
                 .frame(width: min(960, (NSScreen.main?.visibleFrame.width ?? 1024) - 64),
                        height: min(760, (NSScreen.main?.visibleFrame.height ?? 840) - 80))
         }
@@ -4581,6 +4581,7 @@ private struct RestartToApplyPermissionsButton: View {
 private struct DeviceInfoSheetContainer: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var bleManager: AhaKeyBLEManager
+    @ObservedObject var inspectorSession: StudioInspectorSession
 
     var body: some View {
         VStack(spacing: 0) {
@@ -4596,7 +4597,8 @@ private struct DeviceInfoSheetContainer: View {
 
     @ViewBuilder
     private var sheetFormContent: some View {
-        DeviceInfoView(bleManager: bleManager)
+        DeviceInfoView(bleManager: bleManager, inspectorSession: inspectorSession)
+            .disabled(inspectorSession.isBusy)
             .padding(.horizontal, 18)
             .padding(.bottom, 18)
             .padding(.top, 6)
@@ -4612,6 +4614,7 @@ private struct DeviceInfoSheetContainer: View {
                 Button(NSLocalizedString("关闭", comment: "")) { dismiss() }
                 .buttonStyle(.bordered)
                 .keyboardShortcut(.escape, modifiers: [])
+                .disabled(inspectorSession.isBusy)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)

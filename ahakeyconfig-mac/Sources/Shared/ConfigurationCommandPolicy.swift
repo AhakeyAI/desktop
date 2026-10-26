@@ -3,7 +3,7 @@ import Foundation
 /// WS2 mode, standby and side-binding writes require a narrow confirmed-transaction
 /// grant. Other configuration writes stay closed; unknown builds allow probes.
 public enum ConfigurationCommandPolicy {
-    public enum ConfirmedWrite { case none, mode, standby, sideSwitch, ordinaryKey, voiceHandoff, ws3Display, ws3Resource, ws3ResourceRestore, ws3Presentation, k1Route, k1Initialization, restoreInitialization }
+    public enum ConfirmedWrite { case none, deviceName, mode, standby, sideSwitch, ordinaryKey, voiceHandoff, ws3Display, ws3Resource, ws3ResourceRestore, ws3Presentation, k1Route, k1Initialization, restoreInitialization }
     public static func permits(_ data: Data, profile: FirmwareCapabilityProfile?, confirmedWrite: ConfirmedWrite = .none,
                                ws3DisplayReadbackVerified: Bool = false, k1RouteReadbackVerified: Bool = false,
                                restoreReadbackVerified: Bool = false,
@@ -24,6 +24,11 @@ public enum ConfigurationCommandPolicy {
                     : confirmedWrite == .k1Route
             case .startRestore: return confirmedWrite == .restoreInitialization && restoreReadbackVerified
             }
+        }
+        if b[2] == 0x01 {
+            return confirmedWrite == .deviceName &&
+                (profile?.identity == .legacy || profile?.mayQueryOrdinaryKeys == true) &&
+                DeviceNameSubmission.validRequest(data)
         }
         if profile?.identity == .legacy { return true }
         switch b[2] {

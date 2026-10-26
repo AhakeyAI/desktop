@@ -2126,6 +2126,14 @@ TRANSLATIONS.update({'仅建立读到的方案，不同时保存当前按键草�
  '键盘的恢复尚未完成，请先在模式按钮的恢复区域处理。': "Keyboard recovery is unfinished. Resolve it in the mode button's reset "
                               'section first.'})
 
+TRANSLATIONS.update({
+    "设备改名回包无法确认，请重新连接核对名称。": "The name-change reply could not be verified. Reconnect to check the name.",
+    "键盘未接受新名称，请稍后再试。": "The keyboard did not accept the new name. Try again later.",
+    "改名结果未确认，可能已生效；请重新连接核对，不要重复提交。": "The name change is unconfirmed and may have taken effect. Reconnect to check before submitting again.",
+    "键盘已接收新名称。请正常关机再开机后核对；当前显示仍是上次发现的名称。": "The keyboard accepted the new name. Turn it off normally and on again to verify. The name shown is still the last discovered name.",
+    "设备名称不能包含换行或控制字符，已保留原名称": "Device names cannot contain line breaks or control characters. The original name is retained."
+})
+
 def escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 

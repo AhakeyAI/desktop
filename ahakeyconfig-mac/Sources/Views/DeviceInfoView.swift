@@ -3,10 +3,12 @@ import AhaKeyConfigShared
 
 struct DeviceInfoView: View {
     @ObservedObject var bleManager: AhaKeyBLEManager
+    @ObservedObject var inspectorSession: StudioInspectorSession
     @ObservedObject private var diagnosticsStore: BLEDeviceDiagnosticsStore
     @ObservedObject private var logStore: BLELogStore
 
-    init(bleManager: AhaKeyBLEManager) {
+    init(bleManager: AhaKeyBLEManager, inspectorSession: StudioInspectorSession) {
+        self.inspectorSession = inspectorSession
         self.bleManager = bleManager
         self.logStore = bleManager.logStore
         self.diagnosticsStore = bleManager.diagnosticsStore
@@ -16,6 +18,9 @@ struct DeviceInfoView: View {
     @State private var isEditingName = false
     @State private var editableName = ""
     @State private var nameError: String?
+    @State private var nameReceipt: String?
+    @State private var isSubmittingName = false
+    @State private var nameTask: Task<Void, Never>?
     @State private var showAgentLog = false
     @State private var agentLogPanel = 0
     @State private var logPanelContentTick = 0
@@ -329,7 +334,8 @@ struct DeviceInfoView: View {
                                     .frame(width: 160)
                                     .onSubmit { submitNameChange() }
                                     .onChange(of: editableName) { _ in nameError = nil }
-                                Button("写入键盘") { submitNameChange() }
+                                Button(isSubmittingName ? "处理中…" : "写入键盘") { submitNameChange() }
+                                    .disabled(isSubmittingName || inspectorSession.isBusy)
                                     .buttonStyle(.borderedProminent)
                                     .controlSize(.small)
                                 Button("取消") {
@@ -353,6 +359,7 @@ struct DeviceInfoView: View {
                                 Button {
                                     editableName = bleManager.deviceName ?? ""
                                     nameError = nil
+                                    nameReceipt = nil
                                     isEditingName = true
                                 } label: {
                                     Image(systemName: "pencil")
@@ -362,6 +369,9 @@ struct DeviceInfoView: View {
                             }
                         }
                     }
+                }
+                if let nameReceipt {
+                    Text(nameReceipt).font(.caption).foregroundStyle(.secondary)
                 }
                 CompatLabeledContent("UUID") {
                     Text(bleManager.bleDeviceUUID)
@@ -501,8 +511,12 @@ struct DeviceInfoView: View {
             }
         }
         .formStyle(.grouped)
+        .disabled(isSubmittingName)
         .onAppear { bleManager.setDiagnosticsWindowVisible(true) }
-        .onDisappear { bleManager.setDiagnosticsWindowVisible(false) }
+        .onDisappear {
+            nameTask?.cancel()
+            bleManager.setDiagnosticsWindowVisible(false)
+        }
         // 「设备信息」在 sheet 中展示时，父视图的 `.alert` 往往不会置顶显示，导致 Hooks 安装/报错像「无反应」。在此重复绑定以确保可见。
         .alert("Agent", isPresented: Binding(
             get: { agentManager.agentUserAlert != nil },
@@ -688,17 +702,28 @@ struct DeviceInfoView: View {
     }
 
     private func submitNameChange() {
-        switch bleManager.changeDeviceName(editableName) {
-        case .success:
-            nameError = nil
-            isEditingName = false
+        guard !isSubmittingName, !inspectorSession.isBusy else { return }
+        switch AhaKeyCommand.validateDeviceName(editableName) {
         case .failure(.empty):
             nameError = NSLocalizedString("设备名称不能为空，已保留原名称", comment: "")
+        case .failure(.invalidCharacters):
+            nameError = NSLocalizedString("设备名称不能包含换行或控制字符，已保留原名称", comment: "")
         case .failure(.tooLong(let byteCount)):
-            nameError = String(
-                format: NSLocalizedString("设备名称最长 %d 字节（当前 %d 字节），已保留原名称", comment: ""),
-                AhaKeyCommand.deviceNameMaxBytes, byteCount
-            )
+            nameError = String(format: NSLocalizedString("设备名称最长 %d 字节（当前 %d 字节），已保留原名称", comment: ""),
+                AhaKeyCommand.deviceNameMaxBytes, byteCount)
+        case .success(let name):
+            isSubmittingName = true; nameError = nil; nameReceipt = nil
+            let expectedDevice = bleManager.bleDeviceUUID
+            nameTask = Task { @MainActor in
+                defer { isSubmittingName = false; nameTask = nil }
+                do {
+                    _ = try await inspectorSession.withConnection(expectedDeviceID: expectedDevice) { _ in
+                        try await bleManager.changeDeviceName(name)
+                    }
+                    isEditingName = false
+                    nameReceipt = NSLocalizedString("键盘已接收新名称。请正常关机再开机后核对；当前显示仍是上次发现的名称。", comment: "")
+                } catch { nameError = error.localizedDescription }
+            }
         }
     }
 }

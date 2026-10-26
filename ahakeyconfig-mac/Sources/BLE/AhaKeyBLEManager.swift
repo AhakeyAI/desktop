@@ -132,6 +132,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var isChangingWorkMode = false
     @Published private(set) var isReadingStandby = false
     @Published private(set) var isSettingStandby = false
+    @Published private(set) var isChangingDeviceName = false
     @Published private(set) var isReadingSideSwitch = false
     @Published private(set) var isSettingSideSwitch = false
     @Published private(set) var isEditingOrdinaryKey = false
@@ -163,7 +164,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     private(set) var presentationRuntimeActive = false
     lazy var studioPresentation = StudioPresentationController(ble: self)
     var isConfigurationOperationInProgress: Bool {
-        isChangingPresentation || isUploadingOLED || isReadingWS3Display || isUpdatingWS3Display || isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey || isManagingVoiceHandoff || isManagingK1Route || isRestoringInitialization
+        isChangingDeviceName || isChangingPresentation || isUploadingOLED || isReadingWS3Display || isUpdatingWS3Display || isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey || isManagingVoiceHandoff || isManagingK1Route || isRestoringInitialization
     }
     @Published private(set) var firmwareCapabilityProfile: FirmwareCapabilityProfile?
     @Published private(set) var bluetoothPermissionGranted = true
@@ -1961,23 +1962,24 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         invalidateCommandResponseChannel()
     }
 
-    /// 修改设备蓝牙名称；名称不合法时不发送任何命令，设备保留原名。
-    @discardableResult
-    func changeDeviceName(_ rawName: String) -> Result<String, AhaKeyCommand.DeviceNameValidationError> {
-        let validation = AhaKeyCommand.validateDeviceName(rawName)
-        guard case .success(let name) = validation else {
-            appendLog("设备名不合法，未发送: \(rawName)", isError: true)
-            return validation
+    /// Wait for the actual name ACK; do not claim persistence or rewrite cached discovery facts.
+    func changeDeviceName(_ rawName: String) async throws -> DeviceNameSubmission.Receipt {
+        _ = try DeviceNameSubmission.validate(rawName).get()
+        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
+        let generation = commandSessionGeneration
+        try ensureConfigurationReadSession(generation)
+        isChangingDeviceName = true
+        defer { isChangingDeviceName = false }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.identity == .legacy || profile.mayQueryOrdinaryKeys else {
+            throw OLEDUploadError.unsupportedReadOnlyProfile
         }
-        let cmd = AhaKeyCommand.changeName(name)
-        appendLog("修改设备名: \(name)")
-        writeCommand(cmd)
-        // 修改后保存并刷新
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: UInt64(100) * 1_000_000)
-            self.saveConfig()
-        }
-        return validation
+        return try await DeviceNameSubmission.submit(rawName, checkSession: {
+            try self.ensureConfigurationReadSession(generation)
+        }, exchange: { request in
+            try await self.sendCommandAwaitingResponse(request, expectedCommand: 0x01,
+                allowDeviceError: true, confirmedWrite: .deviceName).frame
+        })
     }
 
     func clearLog() {

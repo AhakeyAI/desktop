@@ -6,7 +6,7 @@ final class FirmwareCommandNamespaceTests: XCTestCase {
     func testAllCommandBytesKeepSDKAndFactoryOutOfConfigurationTransport() {
         let profiles: [FirmwareCapabilityProfile?] = [nil, .legacyAfterStatusReadback(),
             .catalogResponse(Data([0xAA, 0xBB, 0x9F, 0]) + Data(FirmwareCapabilityProfile.ws2CatalogKey.utf8) + Data([0xCC, 0xDD]))]
-        let grants: [ConfigurationCommandPolicy.ConfirmedWrite] = [.none, .mode, .standby, .sideSwitch, .ordinaryKey,
+        let grants: [ConfigurationCommandPolicy.ConfirmedWrite] = [.none, .deviceName, .mode, .standby, .sideSwitch, .ordinaryKey,
             .voiceHandoff, .ws3Display, .ws3Resource, .ws3ResourceRestore, .ws3Presentation]
         for raw in 0...255 {
             let command = UInt8(raw)
