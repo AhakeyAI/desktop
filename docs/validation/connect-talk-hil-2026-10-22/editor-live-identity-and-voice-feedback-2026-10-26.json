@@ -1,0 +1,23 @@
+{
+  "sourceBaseCommit": "7db8e33163b3700323e46b985f251f803328f9ad",
+  "testedSourceSHA256": {
+    "Sources/Utilities/StudioInspectorSession.swift": "868067fc871a08da788419d8e057d58a98c2d4f72b9002147be0c6ff21e6cf06",
+    "Sources/Views/AhaKeyStudioView.swift": "34eae989f1c6b639395e20ac7403cff35a6b7ff1788a1579d958384dd14e5610",
+    "Tests/AhaKeyConfigTests/StudioInspectorSessionTests.swift": "950d1b3a8e4595270ba8d2bf9d22141ab74f583f9a527255a8cc5e0d6adc0fa2"
+  },
+  "swiftTests": 870,
+  "newConnectionIdentityTests": 2,
+  "targetedSessionTests": 15,
+  "result": "passed",
+  "testLog": "/tmp/ahakey-editor-live-identity-full-20261026.log",
+  "testLogSHA256": "048ebe5651ea22e08d9c691663c0481ee43d08aa90439d060ebcfece31c2d48c",
+  "findingsAddressed": [
+    "Unconnected historical UUID or initial placeholder must not pin an editing visit",
+    "Unread route facts must not assert legacy global Consumer or impossible restore"
+  ],
+  "legacyFirstConnection": "Explicit Modify starts a temporary read-only identity lease when no live target is known; it binds the actual device without writing configuration.",
+  "productionHardwareConfigurationWrites": 0,
+  "candidateInstalled": false,
+  "uiAcceptanceComplete": false,
+  "goalComplete": false
+}

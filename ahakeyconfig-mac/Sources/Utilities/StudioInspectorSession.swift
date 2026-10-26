@@ -49,10 +49,10 @@ final class StudioInspectorSession: ObservableObject {
     /// Fix the device for an editing visit without taking the BLE lease. When
     /// initially unknown, only this session's first connection may establish it.
     @discardableResult
-    func beginEditing(deviceID: String?) -> Bool {
+    func beginEditing(deviceID: String?, isConnected: Bool) -> Bool {
         guard !isBusy, !hasEditingScope else { return false }
         hasEditingScope = true
-        editingDeviceID = deviceID.flatMap { $0.isEmpty ? nil : $0 }
+        editingDeviceID = isConnected ? Self.normalizedDeviceID(deviceID) : nil
         return true
     }
 
@@ -88,7 +88,7 @@ final class StudioInspectorSession: ObservableObject {
             try await access.pause()
         }
         let context = Context(deviceID: access.deviceID(), generation: access.generation())
-        guard !context.deviceID.isEmpty,
+        guard Self.normalizedDeviceID(context.deviceID) != nil,
               editingDeviceID.map({ $0 == context.deviceID }) ?? true,
               expectedDeviceID.map({ $0 == context.deviceID }) ?? true else { throw Failure.deviceChanged }
         if hasEditingScope, editingDeviceID == nil { editingDeviceID = context.deviceID }
@@ -104,5 +104,11 @@ final class StudioInspectorSession: ObservableObject {
         guard let lease = activeLease, access.isCurrent(lease) else { throw Failure.ownershipChanged }
         guard access.isReady(), access.generation() == context.generation else { throw Failure.sessionChanged }
         guard access.deviceID() == context.deviceID else { throw Failure.deviceChanged }
+    }
+
+    private static func normalizedDeviceID(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty, value != "—", value != "-" else { return nil }
+        return value
     }
 }

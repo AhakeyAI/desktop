@@ -57,8 +57,8 @@ final class StudioInspectorSessionTests: XCTestCase {
     func testEditingVisitPinsDeviceWithoutHoldingConnectionAndRejectsAnotherKeyboard() async throws {
         let device = Device()
         let actual = StudioInspectorSession(access: device.access())
-        XCTAssertTrue(actual.beginEditing(deviceID: device.deviceID))
-        XCTAssertFalse(actual.beginEditing(deviceID: "keyboard-B"))
+        XCTAssertTrue(actual.beginEditing(deviceID: device.deviceID, isConnected: true))
+        XCTAssertFalse(actual.beginEditing(deviceID: "keyboard-B", isConnected: true))
         XCTAssertEqual(actual.editingDeviceID, "keyboard-A")
         XCTAssertFalse(actual.isBusy)
         XCTAssertEqual(device.begins, 0)
@@ -73,14 +73,14 @@ final class StudioInspectorSessionTests: XCTestCase {
         XCTAssertEqual(actual.editingDeviceID, "keyboard-A")
         XCTAssertEqual(device.releases, 2)
         actual.endEditing()
-        XCTAssertTrue(actual.beginEditing(deviceID: "keyboard-B"))
+        XCTAssertTrue(actual.beginEditing(deviceID: "keyboard-B", isConnected: true))
         _ = try await actual.withConnection { context in XCTAssertEqual(context.deviceID, "keyboard-B") }
     }
 
     func testInitiallyUnknownEditingTargetIsBoundOnlyByFirstInspectorConnection() async throws {
         let device = Device()
         let actual = StudioInspectorSession(access: device.access())
-        XCTAssertTrue(actual.beginEditing(deviceID: nil))
+        XCTAssertTrue(actual.beginEditing(deviceID: nil, isConnected: false))
         XCTAssertNil(actual.editingDeviceID)
         _ = try await actual.withConnection { _ in XCTAssertEqual(actual.editingDeviceID, "keyboard-A") }
         device.deviceID = "keyboard-B"
@@ -90,6 +90,36 @@ final class StudioInspectorSessionTests: XCTestCase {
         } catch { XCTAssertEqual(error as? StudioInspectorSession.Failure, .deviceChanged) }
         XCTAssertEqual(actual.editingDeviceID, "keyboard-A")
         XCTAssertEqual(device.releases, 2)
+    }
+
+    func testDisconnectedHistoricalIdentityCannotPinNextEditingVisit() async throws {
+        let device = Device(); device.deviceID = "keyboard-B"
+        let session = StudioInspectorSession(access: device.access())
+        XCTAssertTrue(session.beginEditing(deviceID: "keyboard-A", isConnected: false))
+        XCTAssertNil(session.editingDeviceID)
+        XCTAssertEqual(device.begins, 0)
+        _ = try await session.withConnection { context in XCTAssertEqual(context.deviceID, "keyboard-B") }
+        XCTAssertEqual(session.editingDeviceID, "keyboard-B")
+        XCTAssertEqual(device.releases, 1)
+    }
+
+    func testPlaceholderCannotBindEditorOrReachDeviceOperation() async throws {
+        for placeholder in ["", "-", "—", "  —  "] {
+            let device = Device()
+            let session = StudioInspectorSession(access: device.access())
+            XCTAssertTrue(session.beginEditing(deviceID: placeholder, isConnected: true))
+            XCTAssertNil(session.editingDeviceID)
+            device.deviceID = placeholder
+            do {
+                _ = try await session.withConnection { _ in XCTFail("Placeholder is not a keyboard"); return 1 }
+                XCTFail("Expected missing identity")
+            } catch { XCTAssertEqual(error as? StudioInspectorSession.Failure, .deviceChanged) }
+            XCTAssertNil(session.editingDeviceID)
+            XCTAssertEqual(device.releases, 1)
+            device.deviceID = "keyboard-A"
+            _ = try await session.withConnection { _ in 1 }
+            XCTAssertEqual(session.editingDeviceID, "keyboard-A")
+        }
     }
 
     func testTimeoutDoesNotStartOperationAndReturnsLease() async {

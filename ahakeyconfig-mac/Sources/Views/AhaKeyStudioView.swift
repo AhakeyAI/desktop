@@ -1328,11 +1328,16 @@ struct AhaKeyStudioView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        Text(NSLocalizedString(inlineCurrentK1Route == nil
-                            ? "仅修改当前模式键位；退出 Consumer 会全局生效，其他模式改发各自已保存的普通键位。"
-                            : "仅修改当前模式的语音方案和按键描述，其他模式保持不变。", comment: ""))
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
+                        if inlineCurrentK1Route != nil {
+                            Text(NSLocalizedString("仅修改当前模式的语音方案和按键描述，其他模式保持不变。", comment: ""))
+                                .font(.caption).foregroundStyle(.tertiary)
+                        } else if inlineKeyFact != nil, inlineVoiceState != nil {
+                            Text(NSLocalizedString("仅修改当前模式键位；退出 Consumer 会全局生效，其他模式改发各自已保存的普通键位。", comment: ""))
+                                .font(.caption).foregroundStyle(.tertiary)
+                        } else {
+                            Text(NSLocalizedString("尚未读取", comment: ""))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                         if let route = inlineCurrentK1Route, let fact = inlineKeyFact {
                             Text(NSLocalizedString("键盘当前：", comment: "") + StudioK1VoiceProposal.summary(route: route, actual: fact.value))
                                 .font(.caption).foregroundStyle(.secondary)
@@ -1340,7 +1345,8 @@ struct AhaKeyStudioView: View {
                             Text(NSLocalizedString(state == 2 ? "键盘当前：系统听写（Consumer，全局）" : "键盘当前：普通键绑定", comment: ""))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
-                        if key.voicePreset == .systemDictation, inlineVoiceState != 2, inlineCurrentK1Route == nil {
+                        if key.voicePreset == .systemDictation, let state = inlineVoiceState,
+                           state != 2, inlineKeyFact != nil, inlineCurrentK1Route == nil {
                             Text(NSLocalizedString("当前键盘已退出系统听写，此固件暂不支持客户端一键恢复。", comment: ""))
                                 .font(.caption).foregroundStyle(.orange)
                         }
@@ -2543,9 +2549,10 @@ struct AhaKeyStudioView: View {
     }
 
     private func enterEditingConfiguration() -> Bool {
-        guard inspectorSession.beginEditing(deviceID: bleManager.bleDeviceUUID) else { return false }
+        guard inspectorSession.beginEditing(deviceID: bleManager.bleDeviceUUID, isConnected: bleManager.isConnected) else { return false }
         if usesLegacyEditor {
             legacyComponentEditing = true
+            if inspectorSession.editingDeviceID == nil { readLegacyEditorIdentity() }
         }
         if usesInlineHardwareEditor {
             clearInlineKeyEditing()
@@ -2576,6 +2583,19 @@ struct AhaKeyStudioView: View {
         isTransitioningToKeyboardControl = false
         syncStatusMessage = NSLocalizedString("草稿保存在本地，写入时临时连接键盘。", comment: "")
         return true
+    }
+
+    private func readLegacyEditorIdentity() {
+        isSyncing = true
+        legacyComponentTask = Task { @MainActor in
+            defer { isSyncing = false; legacyComponentTask = nil }
+            do {
+                try await inspectorSession.withConnection { _ in
+                    let profile = try await bleManager.readFirmwareCapabilityProfile(forceStatusReadback: true)
+                    guard profile.identity == .legacy else { throw StudioLegacyComponentPlan.Failure.unsupported }
+                }
+            } catch { syncStatusMessage = error.localizedDescription }
+        }
     }
 
     private func writeToKeyboard() {

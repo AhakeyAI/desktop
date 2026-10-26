@@ -34,5 +34,7 @@
   "specReviewFindingsClosed": 3,
   "standardsBlockingFindings": 0,
   "uiAcceptanceBlockedBy": "Mac is locked; CUA listApps explicitly reported locked",
-  "latestFirmwareBranchCommit": "0a055ba95f857a1d32f05b79bcabd3ecfe78d4eb"
+  "latestFirmwareBranchCommit": "0a055ba95f857a1d32f05b79bcabd3ecfe78d4eb",
+  "supersededForAcceptance": true,
+  "supersededReason": "Later startup placeholder/stale disconnected device binding and unread Consumer feedback fixes are absent. Rebuild after review."
 }
