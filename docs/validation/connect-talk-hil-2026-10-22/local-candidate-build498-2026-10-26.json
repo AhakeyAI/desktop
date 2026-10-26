@@ -1,0 +1,23 @@
+{
+  "sourceCommit": "93573f5b9889427257943dbf1f319665a2efa397",
+  "version": "0.2.3",
+  "build": "498",
+  "appPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-93573f5/AhaKey Studio.app",
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "binarySHA256": {
+    "AhaKeyConfig": "0208ed18fbdde86da100074772d82a61cf16446ba222855215e4ae4c3870ddc3",
+    "ahakeyconfig-agent": "a5c9f4093b8d1cdc7a932941dc6e3dd19856aea0967358a4287a8e059b78be12"
+  },
+  "ciRun": "https://github.com/AhakeyAI/desktop/actions/runs/40273597308",
+  "ciConclusion": "success",
+  "developerIDSignatureVerifiedByBuild": true,
+  "bundleVerifier": "passed",
+  "installed": false,
+  "notarized": false,
+  "dmgCreated": false,
+  "containsLaterCredentialReader": false,
+  "releaseComplete": false
+}

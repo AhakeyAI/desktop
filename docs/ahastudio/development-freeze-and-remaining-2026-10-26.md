@@ -68,3 +68,12 @@ Harness记录的组合候选源为`292a49f`，HEX SHA256为`6EC0413CFC983788CDC9
 ### Kimi接入前置检查点
 
 Code Desktop发现与身份核验已落代码，856项最终回归通过；诊断仅显式读取本机登记/签名/监听元数据，无凭据或会话访问。官方REST是否允许恢复已授权会话已向用户确认，未答不启用该行为。仍不把发现完成当Kimi三端权限管理完成。详见kimi-code-desktop-bundle-research-2026-10-26.md。
+
+
+### 本地认证基础与 build498 检查点
+
+凭据读取基础模块已完成，5项隔离测试和861项完整Swift回归通过。仅测试临时生成的token；模块目前没有生产调用，不读取真实凭据、不发HTTP、不恢复会话、不写权限。调用者仍必须将文件绑定到已验证实例的可信home，并重新核对进程与监听端口。详见验证回执kimi-private-credential-2026-10-26.json。
+
+普通Kimi/Work静态调查找到Daimon本地WebSocket传输、App按会话权限设置，以及内部turn权限控制；它们尚未闭合为可供Studio安全调用的原会话控制接口，正在继续核查control.command。不能将默认值或UI显示当实际引擎权限。见kimi-work-local-control-research-2026-10-26.md。
+
+源码93573f5的CI40273597308成功；双架构0.2.3/build498已完成Developer ID签名构建及源码标识核验，包含旧组件写入修复和实例发现。该包不含随后新增的凭据读取基础；未安装、未公证、尚未制作DMG。它也不包含精确的新固件组合HEX。详见local-candidate-build498-2026-10-26.json。六类剩余开发/交付缺口和八组完整验收矩阵仍未全部关闭。
