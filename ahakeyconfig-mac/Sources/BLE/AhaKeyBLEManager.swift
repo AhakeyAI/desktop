@@ -1374,6 +1374,13 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         appendLog("灯效协议验证通过：0x84/0x85/0x91 可用")
     }
 
+    func legacyCommandWriteLimit() throws -> Int {
+        guard firmwareCapabilityProfile?.identity == .legacy,
+              let peripheral, let commandChar else { throw OLEDUploadError.channelNotReady }
+        let type: CBCharacteristicWriteType = commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+        return peripheral.maximumWriteValueLength(for: type)
+    }
+
     /// 严格串行发送并等待每一条设备 ACK。只有所有命令（包括最后的 0x04 保存）
     /// 都收到 status=0，调用方才能向用户报告“写入成功”。
     func writeCommandsConfirmingResponses(

@@ -62,7 +62,11 @@ struct AhaKeyStudioView: View {
     @State private var confirmsK1Initialization = false
     @State private var inlineKeyTask: Task<Void, Never>?
     @State private var inlineKeyOperationID = UUID()
-    @State private var inlineKeyUnconfirmed: Set<String> = []
+    @AppStorage("ahakey.studio.key-unconfirmed.v1") private var inlineKeyUnconfirmedData = Data()
+    private var inlineKeyUnconfirmed: Set<String> {
+        get { StudioWriteReceipts.decode(inlineKeyUnconfirmedData) }
+        nonmutating set { inlineKeyUnconfirmedData = StudioWriteReceipts.encode(newValue) }
+    }
     @State private var isEditingInspector = false
     @State private var showsDiagnostics = false
     @State private var showsKeyHelp = false
@@ -73,6 +77,10 @@ struct AhaKeyStudioView: View {
     @State private var editingModeName: String = ""
     @FocusState private var modeNameFieldFocused: Bool
     @State private var writeOutcome: KeyboardWriteOutcome?
+    @State private var legacyComponentEditing = false
+    @State private var legacyEditorDeviceID: String?
+    @State private var legacyWritePlan: StudioLegacyComponentPlan?
+    @State private var legacyComponentTask: Task<Void, Never>?
 
     init(bleManager: AhaKeyBLEManager) {
         self.bleManager = bleManager
@@ -184,6 +192,20 @@ struct AhaKeyStudioView: View {
         .onChange(of: agentManager.isAgentBLEConnected) { connected in
             if !connected, agentManager.bluetoothConnectionOwner == .agentDaemon { lcdInspectorModel.invalidateConnectionFacts() }
         }
+        .onChange(of: bleManager.firmwareCapabilityProfile?.identity) { identity in
+            if isEditingInspector, identity == .legacy {
+                legacyComponentEditing = true
+                if !bleManager.bleDeviceUUID.isEmpty { legacyEditorDeviceID = bleManager.bleDeviceUUID }
+                inlineKeyTask?.cancel(); inlineKeyTask = nil; inlineKeyTarget = nil
+            }
+        }
+        .confirmationDialog(NSLocalizedString("写入当前组件？", comment: ""),
+            isPresented: Binding(get: { legacyWritePlan != nil }, set: { if !$0 { legacyWritePlan = nil } }),
+            titleVisibility: .visible) {
+                legacyWriteConfirmationActions
+        } message: {
+            legacyWriteConfirmationMessage
+        }
         .onChange(of: bleManager.configurationSnapshot.generation) { _ in
             if agentManager.bluetoothConnectionOwner == .ahaKeyStudio { lcdInspectorModel.invalidateFacts() }
         }
@@ -199,6 +221,7 @@ struct AhaKeyStudioView: View {
         }
         .onChange(of: isEditingInspector) { editing in
             if !editing {
+                legacyComponentEditing = false; legacyEditorDeviceID = nil; legacyWritePlan = nil
                 restoreInspectorModel.clearIntent()
                 confirmsRestoreInitialization = false
             }
@@ -541,11 +564,26 @@ struct AhaKeyStudioView: View {
         }
     }
 
+    @ViewBuilder
+    private var legacyWriteConfirmationActions: some View {
+        if let plan = legacyWritePlan {
+            Button(NSLocalizedString("写入键盘", comment: "")) { legacyWritePlan = nil; writeLegacyComponent(plan) }
+        }
+        Button(NSLocalizedString("取消", comment: ""), role: .cancel) { legacyWritePlan = nil }
+    }
+    private var legacyWriteConfirmationMessage: Text {
+        let scope = legacyWritePlan.map { $0.mode.title + " · " + $0.part.title } ?? ""
+        return Text(NSLocalizedString("旧固件不能回读核对当前值。本次只写所选组件，其他草稿保留；灯条亮度是全局设置。收到确认不代表断电保持已验证。", comment: "") + "\n" + scope)
+    }
+
+    private var usesLegacyEditor: Bool {
+        legacyComponentEditing || bleManager.firmwareCapabilityProfile?.identity == .legacy
+    }
     private var usesInlineLightEditor: Bool {
-        selectedPart == .lightBar && bleManager.firmwareCapabilityProfile?.identity != .legacy
+        selectedPart == .lightBar && !usesLegacyEditor
     }
     private var usesInlineHardwareEditor: Bool {
-        bleManager.firmwareCapabilityProfile?.identity != .legacy &&
+        !usesLegacyEditor &&
             [.lightBar, .oledDisplay, .toggleSwitch, .modeButton].contains(selectedPart)
     }
     private var componentBusy: Bool {
@@ -554,7 +592,7 @@ struct AhaKeyStudioView: View {
 
     private var canvasModeDraft: AhaKeyModeDraft {
         var draft = currentModeDraft
-        guard bleManager.firmwareCapabilityProfile?.identity != .legacy else { return draft }
+        guard !usesLegacyEditor else { return draft }
         for index in draft.lightBar.stateMappings.indices {
             let state = draft.lightBar.stateMappings[index].state
             let target = StudioLightDrafts.Target.effect(mode: UInt8(selectedMode.rawValue), state: state.rawValue)
@@ -582,7 +620,7 @@ struct AhaKeyStudioView: View {
                     liveLightMode: liveCanvasLightMode,
                     liveIDEStateValue: liveCanvasIDEStateValue,
                     switchState: liveCanvasSwitchState,
-                    keyboardPictureFrameCount: bleManager.firmwareCapabilityProfile?.identity == .legacy
+                    keyboardPictureFrameCount: usesLegacyEditor
                         ? bleManager.keyboardPictureStates[selectedMode.rawValue]?.frameCount : nil
                 )
                 .aspectRatio(109.0 / 54.0, contentMode: .fit)
@@ -728,7 +766,7 @@ struct AhaKeyStudioView: View {
                             case .modeButton:
                                 StudioDeviceInspectorView(model: deviceInspectorModel, ble: bleManager, session: inspectorSession, lever: false)
                                     .disabled(restoreInspectorModel.intendsRestore)
-                                if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+                                if !usesLegacyEditor {
                                     StudioRestoreInspectorView(model: restoreInspectorModel, session: inspectorSession, access: restoreAccess)
                                 }
                             }
@@ -789,6 +827,12 @@ struct AhaKeyStudioView: View {
                     .disabled(componentBusy)
 
                     Spacer()
+                    if legacyComponentTask != nil {
+                        Button(NSLocalizedString("取消当前操作", comment: "")) {
+                            legacyComponentTask?.cancel()
+                            if bleManager.isConfigurationOperationInProgress { bleManager.cancelConfigurationOperation() }
+                        }
+                    }
                     if inlineKeyTarget != nil && inspectorSession.isBusy {
                         Button(NSLocalizedString("取消当前操作", comment: "")) {
                             inlineKeyTask?.cancel()
@@ -803,7 +847,7 @@ struct AhaKeyStudioView: View {
                         Button(NSLocalizedString("取消当前操作", comment: "")) { deviceInspectorModel.cancel(ble: bleManager) }
                     }
 
-                    if selectedPart == .lightBar && bleManager.firmwareCapabilityProfile?.identity == .legacy {
+                    if selectedPart == .lightBar && usesLegacyEditor {
                         Button {
                             previewLightEffect(for: lightBarPreview)
                         } label: {
@@ -812,7 +856,7 @@ struct AhaKeyStudioView: View {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.regular)
-                        .disabled(isSyncing || !bleManager.isConnected || !bleManager.commandCharReady || bleManager.firmwareCapabilityProfile?.identity != .legacy)
+                        .disabled(isSyncing || inspectorSession.isBusy || !usesLegacyEditor)
                     }
 
                     if usesInlineLightEditor {
@@ -839,7 +883,7 @@ struct AhaKeyStudioView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.regular)
-                        .disabled(isSyncing || inspectorSession.isBusy || (inlineKeyTarget != nil ? !(inlineKeyCanSave || canInitializeInlineK1) : !bleManager.isConnected))
+                        .disabled(isSyncing || inspectorSession.isBusy || (inlineKeyTarget != nil ? !(inlineKeyCanSave || canInitializeInlineK1) : (!usesLegacyEditor && !bleManager.isConnected)))
                     }
                 }
                 .padding(.horizontal, 24)
@@ -861,7 +905,7 @@ struct AhaKeyStudioView: View {
                 commitModeNameEdit()
             }
         }
-        .onDisappear { inlineKeyTask?.cancel() }
+        .onDisappear { inlineKeyTask?.cancel(); legacyComponentTask?.cancel() }
         .alert(NSLocalizedString("键盘当前值已变化", comment: ""), isPresented: Binding(get: { inlineKeyConflict != nil }, set: { if !$0 { inlineKeyConflict = nil } })) {
             if let conflict = inlineKeyConflict {
                 Button(NSLocalizedString("确认修改", comment: "")) { inlineKeyConflict = nil; saveInlineKey(overwrite: conflict) }
@@ -1138,7 +1182,7 @@ struct AhaKeyStudioView: View {
         case .key1:          voiceKeySummary
         case .key2, .key3, .key4: actionKeySummary
         case .oledDisplay:
-            if bleManager.firmwareCapabilityProfile?.identity == .legacy { oledSummary }
+            if usesLegacyEditor { oledSummary }
             else {
                 StudioScreenSummaryView(model: resourceInspectorModel, mode: selectedMode)
             }
@@ -1226,7 +1270,7 @@ struct AhaKeyStudioView: View {
 
     @ViewBuilder
     private var lightBarSummary: some View {
-        if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+        if !usesLegacyEditor {
             ForEach(IDEState.allCases) { state in
                 let item = StudioLightDrafts.Target.effect(mode: UInt8(selectedMode.rawValue), state: state.rawValue)
                 let value = lightInspectorModel.values.drafts[item]
@@ -1267,12 +1311,12 @@ struct AhaKeyStudioView: View {
                     TextField(NSLocalizedString("例如 Record / Accept / Reject / Backspace", comment: ""), text: selectedKeyDescriptionBinding)
                         .textFieldStyle(.roundedBorder)
                     if currentSelectedKey.description.containsNonASCII {
-                        Text(bleManager.firmwareCapabilityProfile?.identity == .legacy ? "设备 LCD 只稳定支持 ASCII。旧版保存会过滤中文、emoji 和全角字符。" : "键盘描述只支持英文字符。新设置不会自动过滤或截断，请修改后再保存。")
+                        Text("键盘描述只支持英文字符。新设置不会自动过滤或截断，请修改后再保存。")
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
                     if inlineKeyTarget == nil {
-                        Text(bleManager.firmwareCapabilityProfile?.identity == .legacy ? "旧版写入预览：\(currentSelectedKeySanitizedDescription.isEmpty ? "空白" : currentSelectedKeySanitizedDescription)" : "保存前会重新读取并核对，只修改当前选中的按键。")
+                        Text(usesLegacyEditor ? "旧固件无法回读当前值，写入前需明确确认覆盖所选组件。" : "保存前会重新读取并核对，只修改当前选中的按键。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Text("同步到键盘后，短按实体键切换模式时，LCD 会先短暂显示这里的描述，然后回到该模式的动图。")
@@ -1728,7 +1772,7 @@ struct AhaKeyStudioView: View {
     }
 
     @ViewBuilder private var oledInspector: some View {
-        if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+        if !usesLegacyEditor {
             VStack(alignment: .leading, spacing: 14) {
                 StudioLCDDisplayEditor(model: lcdInspectorModel)
                 StudioInspectorSection("图片与动图") {
@@ -1875,7 +1919,7 @@ struct AhaKeyStudioView: View {
 
     private var lightBarInspector: some View {
         Group {
-            if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+            if !usesLegacyEditor {
                 StudioLightInspectorView(model: lightInspectorModel, session: inspectorSession,
                                          bleManager: bleManager, mode: selectedMode, selectPreviewState: { value in
                                              if let state = IDEState(rawValue: value) { lightBarPreview = state }
@@ -2004,7 +2048,7 @@ struct AhaKeyStudioView: View {
             }
 
             switchEffectivenessBox
-            if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+            if !usesLegacyEditor {
                 StudioDeviceInspectorView(model: deviceInspectorModel, ble: bleManager, session: inspectorSession, lever: true)
             }
 
@@ -2348,7 +2392,7 @@ struct AhaKeyStudioView: View {
     }
 
     private var syncBaselineSummary: String {
-        let changes = dirtyCount + (bleManager.firmwareCapabilityProfile?.identity == .legacy ? 0 : lightInspectorModel.values.dirtyTargets.count)
+        let changes = dirtyCount + (usesLegacyEditor ? 0 : lightInspectorModel.values.dirtyTargets.count)
         let known = baselineDeviceID.map { deviceID in
             AhaKeyModeSlot.allCases.reduce(into: 0) { count, mode in
                 count += AhaKeyKeyRole.allCases.filter {
@@ -2357,7 +2401,9 @@ struct AhaKeyStudioView: View {
             }
         } ?? 0
         let status = String(format: NSLocalizedString("未同步改动 %d", comment: ""), changes)
-        return known == 16 ? status : status + " · " + String(format: NSLocalizedString("%d 键待核对", comment: ""), 16 - known)
+        let baselineStatus = known == 16 ? status : status + " · " + String(format: NSLocalizedString("%d 键待核对", comment: ""), 16 - known)
+        return inlineKeyUnconfirmed.isEmpty ? baselineStatus : baselineStatus + " · " +
+            String(format: NSLocalizedString("%d 项写入待确认", comment: ""), inlineKeyUnconfirmed.count)
     }
 
     private var hasUnsyncedChanges: Bool {
@@ -2371,13 +2417,13 @@ struct AhaKeyStudioView: View {
             for role in AhaKeyKeyRole.allCases where current.key(for: role) != baseline.key(for: role) {
                 count += 1
             }
-            if bleManager.firmwareCapabilityProfile?.identity == .legacy && (current.oled != baseline.oled || current.oled.needsDeviceUpload) {
+            if usesLegacyEditor && (current.oled != baseline.oled || current.oled.needsDeviceUpload) {
                 count += 1
             }
-            if bleManager.firmwareCapabilityProfile?.identity == .legacy && current.lightBar != baseline.lightBar {
+            if usesLegacyEditor && current.lightBar != baseline.lightBar {
                 count += 1
             }
-        } + (bleManager.firmwareCapabilityProfile?.identity == .legacy ? 0 :
+        } + (usesLegacyEditor ? 0 :
             resourceInspectorModel.dirtyEntries.count + (lcdInspectorModel.hasSettingsDraft ? 1 : 0) + (deviceInspectorModel.standbyDirty ? 1 : 0) + (deviceInspectorModel.leverDirty ? 1 : 0))
     }
 
@@ -2519,12 +2565,12 @@ struct AhaKeyStudioView: View {
             guard let role = part.keyRole else { return false }
             return current.key(for: role) != baseline.key(for: role)
         case .oledDisplay:
-            if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+            if !usesLegacyEditor {
                 return lcdInspectorModel.hasSettingsDraft || resourceInspectorModel.dirtyEntries.contains { $0 / 4 == UInt8(selectedMode.rawValue) || $0 >= 16 }
             }
             return current.oled != baseline.oled || current.oled.needsDeviceUpload
         case .lightBar:
-            if bleManager.firmwareCapabilityProfile?.identity != .legacy {
+            if !usesLegacyEditor {
                 return lightInspectorModel.values.isDirty(mode: UInt8(selectedMode.rawValue))
             }
             return current.lightBar != baseline.lightBar
@@ -2577,6 +2623,10 @@ struct AhaKeyStudioView: View {
     }
 
     private func enterEditingConfiguration() {
+        if usesLegacyEditor {
+            legacyComponentEditing = true
+            if !bleManager.bleDeviceUUID.isEmpty { legacyEditorDeviceID = bleManager.bleDeviceUUID }
+        }
         if usesInlineHardwareEditor {
             clearInlineKeyEditing()
             switch selectedPart {
@@ -2596,7 +2646,7 @@ struct AhaKeyStudioView: View {
             return
         }
         if let role = selectedPart.keyRole,
-           bleManager.firmwareCapabilityProfile?.identity != .legacy {
+           !usesLegacyEditor {
             let target = StudioInlineKeyTarget(mode: UInt8(selectedMode.rawValue), index: UInt8(role.rawValue))
             inlineKeyTarget = target
             readInlineKey(target)
@@ -2604,58 +2654,30 @@ struct AhaKeyStudioView: View {
         }
         clearInlineKeyEditing()
         isTransitioningToKeyboardControl = false
-        agentManager.setBluetoothConnectionOwner(.ahaKeyStudio, bleManager: bleManager)
-        syncStatusMessage = "已进入编辑配置，AhaKey Studio 将临时接管蓝牙。"
-    }
-
-    private func finishEditingConfiguration() {
-        guard hasUnsyncedChanges else {
-            returnToKeyboardControl()
-            return
-        }
-
-        if bleManager.firmwareCapabilityProfile?.identity != .legacy {
-            syncStatusMessage = "画布草稿等待核对，请读取当前键位后明确载入和应用。"
-            syncStatusMessage = NSLocalizedString("请在当前组件右侧读取并写入键盘。", comment: "")
-            return
-        }
-        if bleManager.isConnected && bleManager.commandCharReady {
-            syncAllModesToDevice(returnToKeyboardControlWhenDone: true)
-        } else {
-            syncStatusMessage = "设备连接中，连接成功后将自动同步并返回控制模式…"
-            bleManager.userInitiatedConnect()
-            waitForConnectionThenSync()
-        }
+        syncStatusMessage = NSLocalizedString("草稿保存在本地，写入时临时连接键盘。", comment: "")
     }
 
     private func writeToKeyboard() {
         if canInitializeInlineK1 { confirmsK1Initialization = true; return }
         if inlineKeyTarget != nil { saveInlineKey(); return }
-        performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: false, showResultAlert: true)
+        do {
+            guard let deviceID = legacyEditorDeviceID ?? (bleManager.bleDeviceUUID.isEmpty ? nil : bleManager.bleDeviceUUID) else {
+                throw StudioLegacyComponentPlan.Failure.unsupported
+            }
+            let plan = try StudioLegacyComponentPlan(mode: selectedMode, part: selectedPart, submitted: currentModeDraft, deviceID: deviceID)
+            if plan.part.keyRole == .voice { try checkInlineVoiceReady(plan.submitted.key(for: .voice)) }
+            legacyWritePlan = plan
+        } catch { writeOutcome = .init(succeeded: false, message: error.localizedDescription, wrote: false) }
     }
 
     private func completeEditingAfterSuccessfulWrite() {
         clearInlineKeyEditing()
+        legacyComponentEditing = false
         commitModeNameEdit()
         withAnimation(.easeInOut(duration: 0.18)) {
             isEditingInspector = false
         }
         returnToKeyboardControl()
-    }
-
-    // 轮询等待 BLE 连接且命令通道就绪（最多 10 秒），连接后自动同步并返回键盘控制。
-    private func waitForConnectionThenSync() {
-        Task { @MainActor in
-            for _ in 0..<20 {
-                try? await Task.sleep(nanoseconds: 500_000_000)
-                if bleManager.isConnected && bleManager.commandCharReady {
-                    syncAllModesToDevice(returnToKeyboardControlWhenDone: true)
-                    return
-                }
-            }
-            syncStatusMessage = "连接超时，本次未写入键盘；已释放蓝牙给 Agent，可再次进入编辑后重试保存。"
-            returnToKeyboardControl()
-        }
     }
 
     private func returnToKeyboardControl() {
@@ -2691,82 +2713,72 @@ struct AhaKeyStudioView: View {
         }
     }
 
-    private func syncAllModesToDevice(returnToKeyboardControlWhenDone: Bool = false) {
-        performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: returnToKeyboardControlWhenDone, showResultAlert: false)
+    private func applyCursorRejectMacroSelfHealIfNeeded() {
+        var next = studioDraft
+        var m1 = next.draft(for: .mode1)
+        var reject = m1.key(for: .reject)
+        let defaultR = AhaKeyModeDraft.default(for: .mode1).key(for: .reject)
+        guard !reject.macro.isEmpty, reject.shortcut == defaultR.shortcut else { return }
+        reject.macro = []
+        m1.updateKey(reject)
+        next.updateMode(m1)
+        studioDraft = next
     }
 
-    private func performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: Bool, showResultAlert: Bool) {
-        guard bleManager.isConnected && bleManager.commandCharReady else {
-            let message = showResultAlert ? "设备未连接，请先连接键盘后重试。" : "设备未连接或命令通道未就绪，当前只保存本地草稿。"
-            syncStatusMessage = message
-            if showResultAlert {
-                writeOutcome = .init(succeeded: false, message: message)
-            }
-            return
-        }
-
-        guard bleManager.firmwareCapabilityProfile?.identity == .legacy else {
-            syncStatusMessage = NSLocalizedString("请在当前组件右侧读取并写入键盘。", comment: "")
-            return
-        }
-        guard !studioDraft.modes.contains(where: { $0.key(for: .voice).voicePreset == .systemDictation }) else {
-            syncStatusMessage = NSLocalizedString("旧固件无法确认 Consumer 系统听写，本次未写入；请保留原方案或使用受支持的普通快捷键。", comment: "")
-            return
-        }
+    private func writeLegacyComponent(_ plan: StudioLegacyComponentPlan) {
+        guard !isSyncing, !inspectorSession.isBusy else { return }
+        let submittedVoice: StudioVoiceConfiguration?
         do {
-            for mode in studioDraft.modes where mode.key(for: .voice).voicePreset == .ahaTypeCloud {
-                try checkInlineVoiceReady(mode.key(for: .voice))
-            }
-        } catch { syncStatusMessage = error.localizedDescription; return }
-        applyCursorRejectMacroSelfHealIfNeeded()
+            submittedVoice = plan.part.keyRole == .voice
+                ? try voiceConfiguration.committingLegacyAcknowledgement(key: plan.submitted.key(for: .voice), mode: plan.mode) : nil
+        } catch {
+            writeOutcome = .init(succeeded: false, message: error.localizedDescription, wrote: false)
+            return
+        }
         isSyncing = true
-        syncStatusMessage = "正在准备写入设备…"
-        let returnAgent = returnToKeyboardControlWhenDone
-
-        Task { @MainActor in
+        let receiptID = "legacy:\(plan.deviceID ?? ""):\(plan.mode.rawValue):\(plan.part.rawValue)"
+        var attempted = false
+        legacyComponentTask = Task { @MainActor in
+            defer { isSyncing = false; legacyComponentTask = nil }
             do {
-                let desiredBrightness = UInt8(max(1, min(100, studioDraft.draft(for: .mode0).lightBar.brightness)))
-                syncStatusMessage = "正在验证键盘灯效固件…"
-                try await bleManager.verifyConfigurableLightingSupport(brightness: desiredBrightness)
-
-                let uploadedOLEDCount = try await uploadChangedOLEDsToDevice()
-                var commands = commandsForModes(AhaKeyModeSlot.allCases)
-                commands.append((data: AhaKeyCommand.saveConfig(), label: "保存全部配置到设备"))
-
-                let total = commands.count
-                if uploadedOLEDCount > 0 {
-                    self.syncStatusMessage = "已上传 \(uploadedOLEDCount) 个 LCD 动图，正在写入灯效与键位配置（约 \(total) 条）…"
-                } else {
-                    self.syncStatusMessage = "正在写入灯效与键位配置（约 \(total) 条）…"
+                let confirmedOLED = try await StudioLegacyComponentWriter.run(plan: plan, userConfirmed: true,
+                    session: inspectorSession,
+                    verifyLegacy: { try await bleManager.readFirmwareCapabilityProfile(forceStatusReadback: true).identity == .legacy },
+                    checkHost: {
+                        try plan.validateTransport(maximum: bleManager.legacyCommandWriteLimit())
+                        if plan.part.keyRole == .voice {
+                            try checkInlineVoiceReady(plan.submitted.key(for: .voice))
+                            if let applied = submittedVoice,
+                               VoiceRelayService.buildRoutes(from: applied.routeDraft).contains(where: { $0.mode == plan.mode && $0.action.isFunctionRelay }) {
+                                guard voiceRelay.inputMonitoringGranted, voiceRelay.accessibilityGranted, voiceRelay.isListening else {
+                                    throw ConfirmedVoiceHandoff.Failure.hostNotReady
+                                }
+                            }
+                            guard !voiceRelay.hasActiveFunctionRelayHold else { throw ConfirmedVoiceHandoff.Failure.hostNotReady }
+                        }
+                    }, verifyLighting: {
+                        try await bleManager.verifyConfigurableLightingSupport(brightness: UInt8(plan.submitted.lightBar.brightness))
+                    }, upload: {
+                        try await uploadLegacyOLED(mode: plan.mode, draft: plan.submitted)
+                    }, write: { data in
+                        try await bleManager.writeCommandsConfirmingResponses([(data, "Write selected component")])
+                    }, writeStarted: {
+                        attempted = true
+                        if !inlineKeyUnconfirmed.contains(receiptID) { inlineKeyUnconfirmed.insert(receiptID) }
+                    })
+                if let applied = submittedVoice {
+                    try StudioVoiceConfigurationStore.save(applied)
+                    voiceConfiguration = applied; voiceRelay.updateRoutes(from: applied.routeDraft)
+                    guard voiceRelay.hasPreparedRoutes(for: applied.routeDraft) else { throw ConfirmedVoiceHandoff.Failure.hostNotReady }
                 }
-                try await self.bleManager.writeCommandsConfirmingResponses(commands)
-                // 最后的 0x04 已收到固件 ACK，略等再交还蓝牙。
-                try? await Task.sleep(nanoseconds: UInt64(150) * 1_000_000)
-                let applied = StudioVoiceConfiguration(draft: self.studioDraft, fallback: .legacy())
-                try StudioVoiceConfigurationStore.save(applied)
-                self.voiceConfiguration = applied
-                self.lastSyncedDraft = self.studioDraft
-                AhaKeyStudioStore.saveSynced(self.lastSyncedDraft)
-                self.lastSyncDate = Date()
-                self.isSyncing = false
-                self.syncStatusMessage = "已全部写入设备并保存（所有命令已确认）。"
-                if showResultAlert {
-                    self.writeOutcome = .init(succeeded: true, message: NSLocalizedString("配置已成功写入键盘，并收到固件确认。", comment: ""))
-                }
-                if returnAgent {
-                    self.returnToKeyboardControl()
-                }
+                lastSyncedDraft = plan.persistExistingBaseline(lastSyncedDraft, confirmedOLED: confirmedOLED)
+                inlineKeyUnconfirmed.remove(receiptID)
+                lastSyncDate = Date()
+                syncStatusMessage = NSLocalizedString("所选组件已收到键盘确认；其他草稿保留，断电保持尚未验证。", comment: "")
+                writeOutcome = .init(succeeded: true, message: syncStatusMessage, wrote: attempted)
             } catch {
-                var message = Self.deviceWriteFailureMessage(for: error)
-                if case OLEDUploadError.uploadIncomplete = error {
-                    // 动图先于键位/灯效上传，失败时后续命令与 0x04 保存都未发送（AHK-022）。
-                    message += "键位与灯效配置本次未写入。"
-                }
-                self.isSyncing = false
-                self.syncStatusMessage = message
-                if showResultAlert {
-                    self.writeOutcome = .init(succeeded: false, message: message)
-                }
+                syncStatusMessage = Self.deviceWriteFailureMessage(for: error)
+                writeOutcome = .init(succeeded: false, message: syncStatusMessage, wrote: attempted)
             }
         }
     }
@@ -2780,186 +2792,51 @@ struct AhaKeyStudioView: View {
         return "写入键盘失败：\(error.localizedDescription)"
     }
 
-    private func uploadChangedOLEDsToDevice() async throws -> Int {
-        var uploadCount = 0
+    private func uploadLegacyOLED(mode: AhaKeyModeSlot, draft: AhaKeyModeDraft) async throws -> AhaKeyOLEDDraft {
         let generation = bleManager.configurationSnapshot.generation
         let deviceID = bleManager.bleDeviceUUID
         let ownershipRevision = agentManager.bluetoothOwnershipRevision
+        guard let assetPath = draft.oled.localAssetPath else { throw StudioLegacyComponentPlan.Failure.missingArtwork }
+        let assetURL = URL(fileURLWithPath: assetPath)
+        let preparation = Task.detached(priority: .userInitiated) { try OLEDFrameEncoder.adaptedFrames(at: assetURL) }
+        let prepared = try await withTaskCancellationHandler(operation: { try await preparation.value }, onCancel: { preparation.cancel() })
+        try Task.checkCancellation()
+        guard bleManager.isConnected, bleManager.configurationSnapshot.generation == generation,
+              bleManager.bleDeviceUUID == deviceID,
+              agentManager.bluetoothOwnershipRevision == ownershipRevision else { throw StudioInspectorSession.Failure.sessionChanged }
+        let frames = prepared.frames
 
-        for mode in AhaKeyModeSlot.allCases {
-            let draft = studioDraft.draft(for: mode)
-            guard let assetPath = draft.oled.localAssetPath else { continue }
+        updateMode(mode) { modeDraft in
+            modeDraft.oled.statusLine = "\(AhaKeyOLEDDraft.uploadInProgressStatusPrefix)\(mode.title)…"
+            modeDraft.oled.needsDeviceUpload = true
+        }
+        syncStatusMessage = "正在上传 \(mode.title) 的 LCD 动图…"
 
-            let baseline = lastSyncedDraft.draft(for: mode).oled
-            let deviceFrameCount = bleManager.keyboardPictureStates[mode.rawValue]?.frameCount ?? 0
-            guard draft.oled != baseline || deviceFrameCount == 0 || draft.oled.needsDeviceUpload else { continue }
-
-            let assetURL = URL(fileURLWithPath: assetPath)
-            let preparation = Task.detached(priority: .userInitiated) { try OLEDFrameEncoder.adaptedFrames(at: assetURL) }
-            let prepared = try await withTaskCancellationHandler(operation: { try await preparation.value }, onCancel: { preparation.cancel() })
-            try Task.checkCancellation()
-            guard bleManager.isConnected, bleManager.configurationSnapshot.generation == generation,
-                  bleManager.bleDeviceUUID == deviceID,
-                  agentManager.bluetoothOwnershipRevision == ownershipRevision else { throw StudioInspectorSession.Failure.sessionChanged }
-            let frames = prepared.frames
-
+        let startIndex: Int
+        do {
+            startIndex = try await resolveOLEDUploadStartIndex(for: mode, frameCount: frames.count)
+            try await bleManager.uploadOLEDFrames(
+                frames,
+                fps: draft.oled.framesPerSecond,
+                mode: UInt8(mode.rawValue),
+                startIndex: UInt16(startIndex)
+            )
+        } catch {
+            // 不能停在「正在上传…」：给出失败原因与恢复步骤，needsDeviceUpload 保持 true 以便下次重传（AHK-061/082）。
             updateMode(mode) { modeDraft in
-                modeDraft.oled.statusLine = "\(AhaKeyOLEDDraft.uploadInProgressStatusPrefix)\(mode.title)…"
-                modeDraft.oled.needsDeviceUpload = true
+                modeDraft.oled.statusLine = "\(mode.title) 动图上传失败：\(error.localizedDescription)。键盘上的动图可能是旧图或新旧帧混杂；请确认键盘已连接后点击「写入键盘」重新上传。"
             }
-            syncStatusMessage = "正在上传 \(mode.title) 的 LCD 动图…"
-
-            let startIndex: Int
-            do {
-                startIndex = try await resolveOLEDUploadStartIndex(for: mode, frameCount: frames.count)
-                try await bleManager.uploadOLEDFrames(
-                    frames,
-                    fps: draft.oled.framesPerSecond,
-                    mode: UInt8(mode.rawValue),
-                    startIndex: UInt16(startIndex)
-                )
-            } catch {
-                // 不能停在「正在上传…」：给出失败原因与恢复步骤，needsDeviceUpload 保持 true 以便下次重传（AHK-061/082）。
-                updateMode(mode) { modeDraft in
-                    modeDraft.oled.statusLine = "\(mode.title) 动图上传失败：\(error.localizedDescription)。键盘上的动图可能是旧图或新旧帧混杂；请确认键盘已连接后点击「写入键盘」重新上传。"
-                }
-                throw error
-            }
-
-            updateMode(mode) { modeDraft in
-                modeDraft.oled.statusLine = "已上传 \(frames.count) 帧到设备，槽位起点 \(startIndex)；切换模式时会先显示描述，再回到当前模式动图。"
-                modeDraft.oled.needsDeviceUpload = false
-            }
-            uploadCount += 1
+            throw error
         }
 
-        return uploadCount
-    }
-
-    private func resendCurrentModeToDevice() {
-        guard bleManager.isConnected && bleManager.commandCharReady else {
-            syncStatusMessage = "设备未连接或命令通道未就绪，当前只保存本地草稿。"
-            return
+        var confirmed = draft.oled
+        confirmed.needsDeviceUpload = false
+        confirmed.statusLine = "已上传 \(frames.count) 帧到设备，槽位起点 \(startIndex)；切换模式时会先显示描述，再回到当前模式动图。"
+        updateMode(mode) { modeDraft in
+            modeDraft.oled = StudioLegacyComponentPlan.reconcilingOLED(current: modeDraft.oled,
+                submitted: draft.oled, confirmed: confirmed)
         }
-
-        applyCursorRejectMacroSelfHealIfNeeded()
-        var commands = commandsForModes([selectedMode])
-        commands.append((data: AhaKeyCommand.saveConfig(), label: "保存 \(selectedMode.title) 当前配置"))
-
-        isSyncing = true
-        syncStatusMessage = "正在写入 \(selectedMode.title)…"
-        Task { @MainActor in
-            do {
-                let desiredBrightness = UInt8(max(1, min(100, currentModeDraft.lightBar.brightness)))
-                try await bleManager.verifyConfigurableLightingSupport(brightness: desiredBrightness)
-                try await bleManager.writeCommandsConfirmingResponses(commands)
-                self.lastSyncDate = Date()
-                self.isSyncing = false
-                self.syncStatusMessage = "已重新写入 \(self.selectedMode.title)（固件已确认）。"
-            } catch {
-                self.isSyncing = false
-                self.syncStatusMessage = Self.deviceWriteFailureMessage(for: error)
-            }
-        }
-    }
-
-    /// Cursor 档「取消键」若仍为默认 ⌫ 却残留宏，同步会走 0x74 而非单键。清掉误残留宏并与迁移逻辑一致。
-    private func applyCursorRejectMacroSelfHealIfNeeded() {
-        var next = studioDraft
-        var m1 = next.draft(for: .mode1)
-        var reject = m1.key(for: .reject)
-        let defaultR = AhaKeyModeDraft.default(for: .mode1).key(for: .reject)
-        guard !reject.macro.isEmpty, reject.shortcut == defaultR.shortcut else { return }
-        reject.macro = []
-        m1.updateKey(reject)
-        next.updateMode(m1)
-        studioDraft = next
-    }
-
-    private func commandsForModes(_ modes: [AhaKeyModeSlot]) -> [(data: Data, label: String)] {
-        var commands: [(data: Data, label: String)] = []
-
-        for mode in modes {
-            let draft = studioDraft.draft(for: mode)
-            for role in AhaKeyKeyRole.allCases {
-                let key = draft.key(for: role)
-                let keyIndex = UInt8(role.rawValue)
-                let modeByte = UInt8(mode.rawValue)
-
-                if key.usesMacro {
-                    // 固件对 0x73 快捷键、0x74 宏是分层存储的；从「快捷键」改「宏」时须先清掉旧快捷键，否则会残留。
-                    commands.append((
-                        data: AhaKeyCommand.setKeyMapping(
-                            mode: modeByte,
-                            keyIndex: keyIndex,
-                            hidCodes: []
-                        ),
-                        label: "清除 \(mode.title) \(key.title) 快捷键层（将写入宏）"
-                    ))
-                    commands.append((
-                        data: AhaKeyCommand.setKeyMacro(
-                            mode: modeByte,
-                            keyIndex: keyIndex,
-                            macroData: key.macro.flattenedBytes
-                        ),
-                        label: "写入 \(mode.title) \(key.title) 宏: \(key.macro.displaySummary)"
-                    ))
-                } else {
-                    // 从「宏」改「快捷键 / 无键」时须先发空 0x74，否则设备可能仍走旧宏（Cursor/其它 mode 上表现为改键不生效）。
-                    commands.append((
-                        data: AhaKeyCommand.setKeyMacro(
-                            mode: modeByte,
-                            keyIndex: keyIndex,
-                            macroData: []
-                        ),
-                        label: "清除 \(mode.title) \(key.title) 宏层（将写入快捷键）"
-                    ))
-                    if !key.shortcut.hidCodes.isEmpty {
-                        commands.append((
-                            data: AhaKeyCommand.setKeyMapping(
-                                mode: modeByte,
-                                keyIndex: keyIndex,
-                                hidCodes: key.shortcut.hidCodes
-                            ),
-                            label: "写入 \(mode.title) \(key.title) 快捷键: \(key.shortcut.displayLabel)"
-                        ))
-                    } else {
-                        commands.append((
-                            data: AhaKeyCommand.setKeyMapping(
-                                mode: modeByte,
-                                keyIndex: keyIndex,
-                                hidCodes: []
-                            ),
-                            label: "清除 \(mode.title) \(key.title) 快捷键"
-                        ))
-                    }
-                }
-
-                let sanitizedDescription = key.description.sanitizedASCII(maxLength: 20)
-                commands.append((
-                    data: AhaKeyCommand.setKeyDescription(
-                        mode: UInt8(mode.rawValue),
-                        keyIndex: keyIndex,
-                        text: key.description
-                    ),
-                    label: "写入 \(mode.title) \(key.title) 描述: \(sanitizedDescription.isEmpty ? "空白" : sanitizedDescription)"
-                ))
-            }
-        }
-
-        for mode in modes {
-            let lb = studioDraft.draft(for: mode).lightBar
-            let effects = IDEState.allCases.map { lb.effect(for: $0).firmwareIndex }
-            commands.append((
-                AhaKeyCommand.setLightMapping(mode: UInt8(mode.rawValue), stateEffects: effects),
-                "灯效映射 \(mode.title)"
-            ))
-        }
-
-        let brightness = UInt8(studioDraft.draft(for: modes[0]).lightBar.brightness)
-        commands.append((AhaKeyCommand.setBrightness(brightness), "亮度 \(brightness)%"))
-
-        return commands
+        return confirmed
     }
 
     private func resolveOLEDUploadStartIndex(for targetMode: AhaKeyModeSlot, frameCount: Int) async throws -> Int {
@@ -3024,7 +2901,6 @@ struct AhaKeyStudioView: View {
                 studioDraft = draft
                 AhaKeyStudioStore.save(studioDraft)
                 lightBarPreview = state
-                previewLightEffect(newEffect)
             }
         )
     }
@@ -3034,12 +2910,13 @@ struct AhaKeyStudioView: View {
             get: { Double(currentModeDraft.lightBar.brightness) },
             set: { newValue in
                 var draft = studioDraft
-                var mode = draft.draft(for: selectedMode)
-                mode.lightBar.brightness = Int(newValue)
-                draft.updateMode(mode)
+                for slot in AhaKeyModeSlot.allCases {
+                    var mode = draft.draft(for: slot)
+                    mode.lightBar.brightness = Int(newValue)
+                    draft.updateMode(mode)
+                }
                 studioDraft = draft
                 AhaKeyStudioStore.save(studioDraft)
-                previewBrightness(Int(newValue))
             }
         )
     }
@@ -3049,29 +2926,22 @@ struct AhaKeyStudioView: View {
     }
 
     private func previewLightEffect(_ effect: LightEffectStyle) {
-        guard bleManager.isConnected && bleManager.commandCharReady else {
-            syncStatusMessage = "已更新虚拟灯效预览；连接键盘后可预览到设备。"
-            return
+        guard !isSyncing, !inspectorSession.isBusy, let deviceID = legacyEditorDeviceID ?? (bleManager.bleDeviceUUID.isEmpty ? nil : bleManager.bleDeviceUUID) else { return }
+        isSyncing = true
+        Task { @MainActor in
+            defer { isSyncing = false }
+            do {
+                try await inspectorSession.withConnection(expectedDeviceID: deviceID) { context in
+                    let profile = try await bleManager.readFirmwareCapabilityProfile(forceStatusReadback: true)
+                    guard profile.identity == .legacy else { throw StudioLegacyComponentPlan.Failure.unsupported }
+                    try inspectorSession.validate(context)
+                    try await bleManager.writeCommandsConfirmingResponses([
+                        (AhaKeyCommand.previewLightEffect(effect.firmwareIndex), "Preview selected effect")])
+                    try inspectorSession.validate(context)
+                }
+                syncStatusMessage = NSLocalizedString("已发送灯效预览；未保存灯效或亮度。", comment: "")
+            } catch { syncStatusMessage = error.localizedDescription }
         }
-        guard bleManager.supportsConfigurableLighting != false else {
-            syncStatusMessage = "当前是旧协议固件，0x91 会假返回成功但不改灯；请先刷新固件。"
-            return
-        }
-        bleManager.previewLightEffect(effect.firmwareIndex)
-        syncStatusMessage = "正在预览灯效：\(effect.title)。"
-    }
-
-    private func previewBrightness(_ value: Int) {
-        guard bleManager.isConnected && bleManager.commandCharReady else {
-            syncStatusMessage = "已更新亮度为 \(value)%；连接键盘后可预览到设备。"
-            return
-        }
-        guard bleManager.supportsConfigurableLighting != false else {
-            syncStatusMessage = "当前是旧协议固件，亮度不会写入；请先刷新固件。"
-            return
-        }
-        bleManager.setBrightness(UInt8(max(1, min(100, value))))
-        syncStatusMessage = "正在预览灯光强度：\(value)% 。"
     }
 
     private func infoPill(title: String, subtitle: String, accent: Color, width: CGFloat = 86) -> some View {

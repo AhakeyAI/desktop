@@ -1,0 +1,20 @@
+{
+  "sourceBaseCommit": "c6ad805054b3388ffee947423d02bc3533238343",
+  "testedSourceSHA256": {
+    "Sources/BLE/AhaKeyBLEManager.swift": "9a5ff144dc247b6f4e26903818985af9a7e106745491270904e2f7526b0b602c",
+    "Sources/Models/StudioLegacyComponentPlan.swift": "ec1927a05354c141ee848b9bf9b85d0d9301977a31177149db5846d305eee283",
+    "Sources/Models/StudioVoiceConfiguration.swift": "35a56826b1fd7f34935ae4a18089d3936a5a487721c18992afd47f2e7ff65e10",
+    "Sources/Models/StudioWriteReceipts.swift": "240235091977fe426bc69ca73eaeb7d7d4dfd6433b9148b9be13df5663a6f551",
+    "Sources/Utilities/StudioLegacyComponentWriter.swift": "9d76dd437a9801a6042f2051556148b609e2f813d87c1e63d408e031fe25386b",
+    "Sources/Views/AhaKeyStudioView.swift": "295c5d0e2fb3874176a45c1d727befc7554f5769ab9e709186705f352c14cd43"
+  },
+  "swiftTests": 848,
+  "result": "passed",
+  "testLog": "/tmp/ahakey-legacy-component-complete-full-20261026.log",
+  "testLogSHA256": "512f3bb81123913e7ff07808b2ae1fa968276720157c17540abf1c7fb895dc55",
+  "keyboardWrites": 0,
+  "candidateInstalled": false,
+  "hil": "not_run",
+  "build494Superseded": true,
+  "goalComplete": false
+}

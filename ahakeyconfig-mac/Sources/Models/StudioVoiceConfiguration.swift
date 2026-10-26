@@ -89,6 +89,17 @@ struct StudioVoiceConfiguration: Codable, Equatable {
         return key
     }
 
+    /// Legacy firmware confirms delivery only. This changes one host route,
+    /// without manufacturing a hardware readback fact.
+    func committingLegacyAcknowledgement(key: AhaKeyKeyDraft, mode: AhaKeyModeSlot) throws -> Self {
+        let prepared = try preparing(key, mode: mode)
+        var next = self
+        let index = next.entries.firstIndex { $0.mode == mode }!
+        next.entries[index].key = prepared
+        next.entries[index].readOnlyBinding = nil
+        return next
+    }
+
     func committing(key: AhaKeyKeyDraft, mode: AhaKeyModeSlot,
                     actual: OrdinaryKeyReadback) throws -> Self {
         let prepared = try preparing(key, mode: mode)

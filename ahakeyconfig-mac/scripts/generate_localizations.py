@@ -2140,6 +2140,22 @@ TRANSLATIONS.update({
     "另一把键盘仍有未确认的素材上传，请先连接原键盘核对。": "An artwork upload on another keyboard is still unconfirmed. Connect that keyboard to verify it first."
 })
 
+TRANSLATIONS.update({
+    "旧固件不支持此组件的确认写入，本次未修改键盘。": "This firmware does not support confirmed writes for this component. The keyboard was not changed.",
+    "当前按键无法安全写入，请检查快捷键、宏释放和英文描述。": "This key cannot be written safely. Check the shortcut, macro key releases and English description.",
+    "请先为当前模式选择图片或 GIF。": "Choose an image or GIF for the current mode first.",
+    "写入当前组件？": "Write this component?",
+    "旧固件不能回读核对当前值。本次只写所选组件，其他草稿保留；灯条亮度是全局设置。收到确认不代表断电保持已验证。": "This firmware cannot read back the current value. Only the selected component will be written; other drafts are kept. Light brightness applies globally. An acknowledgment does not verify power-cycle persistence.",
+    "草稿保存在本地，写入时临时连接键盘。": "Drafts are saved locally. The keyboard is connected temporarily when writing.",
+    "所选组件已收到键盘确认；其他草稿保留，断电保持尚未验证。": "The keyboard acknowledged this component. Other drafts are kept. Power-cycle persistence has not been verified.",
+    "旧固件无法回读当前值，写入前需明确确认覆盖所选组件。": "This firmware cannot read back the current value. Confirm replacement of the selected component before writing.",
+    "已发送灯效预览；未保存灯效或亮度。": "Light preview sent. The effect and brightness were not saved."
+})
+
+TRANSLATIONS.update({"当前连接最多发送 %d 字节，请缩短按键描述或宏后重试。本次未写入。": "This connection accepts at most %d bytes. Shorten the key description or macro and try again. Nothing was written."})
+
+TRANSLATIONS.update({"%d 项写入待确认": "%d writes await confirmation"})
+
 def escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
