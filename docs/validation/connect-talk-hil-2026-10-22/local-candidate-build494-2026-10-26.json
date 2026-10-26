@@ -1,0 +1,85 @@
+{
+  "sourceCommit": "922b4e6d3b6f7c324e1ae3c55bd23bea512d98c2",
+  "version": "0.2.3",
+  "build": "494",
+  "installer": {
+    "path": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-922b4e6/AhaKey-Studio-0.2.3-build494-922b4e6-test.dmg",
+    "sha256": "cc6df0a4cde2210d82cbfead979f9884757ca994ab6831a3da39379e4065b4c8",
+    "byteCount": 18389569,
+    "signatureVerified": true
+  },
+  "components": {
+    "Contents/MacOS/AhaKeyConfig": {
+      "sha256": "0b587e7ddf879ecf190d69998cc34ba76683d5c8d4b770fc3f94bf93182a8505",
+      "architectures": "x86_64 arm64"
+    },
+    "Contents/MacOS/ahakeyconfig-agent": {
+      "sha256": "786f522c9e1c1cfc6397bf78863f74dffb95a681923ea1f59b931fd2e75b73a4",
+      "architectures": "x86_64 arm64"
+    },
+    "Contents/Resources/FirmwareFlasher/tools/arm64/wchisp": {
+      "sha256": "4105ba1369922fb280cb4f94f75d519a759e9c92f2dcfbee8651a206a6bcaca1",
+      "architectures": "arm64"
+    },
+    "Contents/Resources/FirmwareFlasher/tools/x86_64/wchisp": {
+      "sha256": "ba2a6c60a35cd8c6c6f6eeb7a648937498b76518d224654b112bb9c0a11b05f4",
+      "architectures": "x86_64"
+    }
+  },
+  "mountedReadOnly": true,
+  "componentBytesMatchBuiltApp": true,
+  "appDeepStrictSignatureVerified": true,
+  "staplerValidation": {
+    "exitCode": 65,
+    "output": "Processing: /Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-922b4e6/AhaKey-Studio-0.2.3-build494-922b4e6-test.dmg\nAhaKey-Studio-0.2.3-build494-922b4e6-test.dmg does not have a ticket stapled to it.\n"
+  },
+  "notarySubmissionPerformed": false,
+  "installed": false,
+  "candidateLaunched": false,
+  "keyboardWrites": 0,
+  "embeddedFirmware": "Existing engineering 1.4.6; no new combined CP2.6/Restore HEX included",
+  "tests": {
+    "swiftFull": 833,
+    "pythonReleaseGuards": 19,
+    "typescriptTests": 2,
+    "typescriptTypecheck": true
+  },
+  "firstSwiftAttempt": "Native terminal fixture timed out; isolated and final full runs passed, root cause unproven",
+  "goalComplete": false,
+  "ci": {
+    "runID": 40267742141,
+    "sourceCommit": "922b4e6d3b6f7c324e1ae3c55bd23bea512d98c2",
+    "conclusion": "success",
+    "jobs": [
+      "macOS build + package",
+      "Windows Java test + package",
+      "TypeScript SDK test + build"
+    ]
+  },
+  "existingInstalledApp": {
+    "version": "0.2.3",
+    "build": "376",
+    "sourceCommit": "e3e210ab3d5b571154a1726caa1f63ccd17c41f6",
+    "nativeUIReadable": true,
+    "observedUnsyncedChanges": 2,
+    "openedByUIDiscovery": true
+  },
+  "logs": {
+    "ahakey-light-read-scope-final-full-20261026.log": {
+      "localPath": "/tmp/ahakey-light-read-scope-final-full-20261026.log",
+      "sha256": "3024f5835a9908ca8256516f20d770e4eed8c18d28ce9e61a0528fdd02a0492b"
+    },
+    "ahakey-release-fixtures-922b4e6-20261026.log": {
+      "localPath": "/tmp/ahakey-release-fixtures-922b4e6-20261026.log",
+      "sha256": "34165a80534167f174eca167777e5d0bb290b587bb3a057d03e928f0f0045f04"
+    },
+    "ahakey-sdk-tests-922b4e6-20261026.log": {
+      "localPath": "/tmp/ahakey-sdk-tests-922b4e6-20261026.log",
+      "sha256": "5e414e65b1c8a9d0f3ba73cfc0a85fcb06017603849b6711d1f1bc200f45e108"
+    },
+    "ahakey-connect-talk-922b4e6-package-20261026.log": {
+      "localPath": "/tmp/ahakey-connect-talk-922b4e6-package-20261026.log",
+      "sha256": "17dbb65245a954a079c393965a70db820f4c4e4c34f358d2bc11e53b6dfd4ef0"
+    }
+  }
+}

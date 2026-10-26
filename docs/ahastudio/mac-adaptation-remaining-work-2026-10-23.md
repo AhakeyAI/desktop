@@ -1,6 +1,6 @@
 # Mac 适配剩余开发与验收索引
 
-核对日期：2026-10-25。上次核对的安装版0.2.3/build376（e3e210a），签名及CI通过、未公证。固件基线已改为用户指定的harness/x1-refactor-main/0a055ba；历史Fireware-harness/076382b的缺口结论不再直接作为现状。详见[新分支同步与接入顺序](firmware-x1-refactor-sync-2026-10-25.md)。
+核对日期：2026-10-26。当前开发源码检查点922b4e6，833项完整Swift回归通过；本机安装版重新读回仍为0.2.3/build376（e3e210a），本轮尚未覆盖。最新总览见[2026-10-26开发冻结清单](development-freeze-and-remaining-2026-10-26.md)。固件基线已改为用户指定的harness/x1-refactor-main/0a055ba；历史Fireware-harness/076382b的缺口结论不再直接作为现状。详见[新分支同步与接入顺序](firmware-x1-refactor-sync-2026-10-25.md)。
 
 ## 当前开发与能力依赖
 
