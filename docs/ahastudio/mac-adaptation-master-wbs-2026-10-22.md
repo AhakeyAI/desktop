@@ -1,17 +1,19 @@
 # Mac客户端适配总WBS v2 — Inspector、WS3与WS4/5
 
-[当前剩余开发与验收索引](mac-adaptation-remaining-work-2026-10-23.md)：2026-10-25新固件已提供Consumer分模式／恢复与Restore命令；当前先逐项确认main整合方案。Kimi三端权限范围及接口边界见[kimi调研](kimi-runtime-permission-api-research-2026-10-25.md)，main默认权限同步保留；独立短长按、完整验收及正式发行材料仍保留。
+[当前开发与验收总览](development-freeze-and-remaining-2026-10-26.md)：2026-10-26开发源码为`connect&talk@d0dfc0a`，已合入`main@0ddab17`并迁入修复，保留已确认的侧栏／单组件方案；870项完整Swift回归通过。已安装仍为build376；包含最新修复的双架构测试候选build504已签名打包，build502已被取代，尚未覆盖安装或公证。当前归并为6类开发／交付缺口、8组完整验收矩阵；下表29行包含父子工作包，不是29个独立待开发功能。
+
+Consumer分模式设置及反复恢复已接入客户端；可重复整机恢复仍受固件Issue #9限制，两者不能混淆。Kimi三端权限范围保持全部已授权原会话，默认权限同步已保留，当前会话控制仍缺分别验证的接口和授权输入，不能用默认值冒充。独立短长按、长宏完整读回、正式目录／镜像及最终发布仍保留。
 
 
 日期：2026-10-22。用户已要求将WS4/5纳入本轮开发，旧文档“另发/不在范围”不再适用。方案基线：connect&talk b0ce2ea（PR152），Inspector产品决定见inspector-integration-plan-2026-10-22.md。此表是当前执行总表；旧WBS和验收记录保留历史证据，不把已有功能重新计作全部待开发。
 
 ## 最新依据与范围纠正
 
-已重新读取Fireware-harness最新头076382b，与前次相同；EXECUTION明确architecture为stage_b_input_draft_not_accepted，全部checkpoint仍需细化。WS4/5的PRD是owner_approved_stage_b_input，不等于已完成固件实现或可发布目录。
+当前固件依据为用户指定的`harness/x1-refactor-main@0a055ba`。新分支已提供CP2.6分模式K1路由及WS45 Restore初始化合同，客户端协议、同连接事务和侧栏已接线；不能继续把旧`Fireware-harness@076382b`缺协议的结论当当前现状。精确组合HEX、正式信任目录、资源预算及完整真机组合验收仍缺，详见[新分支同步记录](firmware-x1-refactor-sync-2026-10-25.md)。
 
 WS4是协议/命令身份/持久化schema及冲突审计治理层；WS5承担版本身份、Desktop目录/兼容门控、候选UX、发布组合、稳定恢复HEX及刷后只读验证。独立长按属于输入能力扩展，不误标成WS4/5已定义功能；整机恢复出厂也与WS3资源恢复区分，另核验其实际合同。
 
-来源：[WS4/5 PRD](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/blob/076382b2214289ac7bc1735d669d7de78730c4da/.ahakey-harness/workstreams/X1-PLATFORMIZATION-RELEASE-COMPOSITION/PRD.md)。目录schema、信任校验和归档等仍有Stage B开放项，客户端可先做模型/门控/fixture，不能把自拟目录或测试HEX标为官方推荐稳定版本。
+历史范围来源：[WS4/5 PRD](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/blob/076382b2214289ac7bc1735d669d7de78730c4da/.ahakey-harness/workstreams/X1-PLATFORMIZATION-RELEASE-COMPOSITION/PRD.md)。当前客户端已具备目录模型、信任／兼容门控、候选准备和发布组合校验；正式材料未提供，不能把自拟目录或测试HEX标为官方推荐稳定版本。旧段落和较小测试计数仅保留历史证据，最新结论以本节和2026-10-26总览为准。
 
 ## 优先级
 
