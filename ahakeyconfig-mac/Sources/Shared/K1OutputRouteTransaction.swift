@@ -34,28 +34,11 @@ public enum K1OutputRouteTransaction {
         guard before.routes[Int(mode)] == baseline else { throw Failure.changedSinceRead(before.routes[Int(mode)]) }
         try prepareHost(); try checked(checkSession)
         guard baseline != target else { return before }
-        let bytes = target.serialized
-        let checksum = WS3ResourcePayload.checksum(bytes)
-        let token = nonce()
         writeStarted()
-        let begin = try await perform(.begin(nonce: token, selector: mode, length: 102, checksum: checksum),
-                                      checkSession: checkSession, exchange: exchange)
-        guard case .begun(nextOffset: 0) = begin else { throw Failure.invalidReply }
-        var offset = 0
-        let chunkSize = min(47, maximumRequestBytes - 15)
-        while offset < bytes.count {
-            let end = min(bytes.count, offset + chunkSize)
-            let reply = try await perform(.chunk(token: token, selector: mode, offset: UInt16(offset), bytes: bytes.subdata(in: offset..<end)),
-                                          checkSession: checkSession, exchange: exchange)
-            guard case .chunkAccepted(let next) = reply, Int(next) == end else { throw Failure.invalidReply }
-            offset = end
-        }
-        // Only COMMIT can publish the new route. If its acknowledgement is
-        // lost, independently read facts once; never replay a commit or begin.
         do {
-            let reply = try await perform(.commit(token: token, selector: mode), checkSession: checkSession, exchange: exchange)
-            guard reply == .committed(checksum: checksum) else { throw Failure.invalidReply }
-        } catch {
+            try await publish(selector: mode, bytes: target.serialized, maximumRequestBytes: maximumRequestBytes,
+                              checkSession: checkSession, exchange: exchange)
+        } catch PublicationFailure.commitUnconfirmed {
             if Task.isCancelled { throw CancellationError() }
             do {
                 let actual = try await readVerified(checkSession: checkSession, exchange: exchange)
@@ -68,8 +51,37 @@ public enum K1OutputRouteTransaction {
         return actual
     }
 
+    enum PublicationFailure: Error { case commitUnconfirmed }
+
     @MainActor
-    private static func verifyCapability(checkSession: () throws -> Void,
+    static func publish(selector: UInt8, bytes: Data, maximumRequestBytes: Int,
+                        checkSession: () throws -> Void,
+                        exchange: (K1OutputRouteCommand) async throws -> Data,
+                        beforeCommit: () async throws -> Void = {}) async throws {
+        guard maximumRequestBytes >= 18 else { throw Failure.transportLimit }
+        guard bytes.count == (selector == 0xFF ? 408 : 102) else { throw Failure.invalidTarget }
+        let checksum = WS3ResourcePayload.checksum(bytes), token = nonce()
+        let begin = try await perform(.begin(nonce: token, selector: selector, length: UInt16(bytes.count), checksum: checksum),
+                                      checkSession: checkSession, exchange: exchange)
+        guard case .begun(nextOffset: 0) = begin else { throw Failure.invalidReply }
+        var offset = 0
+        let chunkSize = min(47, maximumRequestBytes - 15)
+        while offset < bytes.count {
+            let end = min(bytes.count, offset + chunkSize)
+            let reply = try await perform(.chunk(token: token, selector: selector, offset: UInt16(offset), bytes: bytes.subdata(in: offset..<end)),
+                                          checkSession: checkSession, exchange: exchange)
+            guard case .chunkAccepted(let next) = reply, Int(next) == end else { throw Failure.invalidReply }
+            offset = end
+        }
+        try await beforeCommit()
+        do {
+            let reply = try await perform(.commit(token: token, selector: selector), checkSession: checkSession, exchange: exchange)
+            guard reply == .committed(checksum: checksum) else { throw Failure.invalidReply }
+        } catch { throw PublicationFailure.commitUnconfirmed }
+    }
+
+    @MainActor
+    static func verifyCapability(checkSession: () throws -> Void,
                                          exchange: (K1OutputRouteCommand) async throws -> Data) async throws {
         try checked(checkSession)
         let command = K1OutputRouteCommand.capability(nonce: nonce())
@@ -84,7 +96,7 @@ public enum K1OutputRouteTransaction {
     }
 
     @MainActor
-    private static func readVerified(checkSession: () throws -> Void,
+    static func readVerified(checkSession: () throws -> Void,
                                       exchange: (K1OutputRouteCommand) async throws -> Data) async throws -> Snapshot {
         var routes: [K1OutputRoute] = []
         for mode: UInt8 in 0..<4 {

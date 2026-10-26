@@ -137,6 +137,13 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var isEditingOrdinaryKey = false
     @Published private(set) var isManagingVoiceHandoff = false
     @Published private(set) var isManagingK1Route = false
+    private var isInitializingK1Routes = false
+    private var k1RouteOperationID: UUID?
+    private var k1UnavailableProofGeneration: UInt64?
+    private var hasCurrentK1InitializationProof: Bool {
+        isInitializingK1Routes && hasCurrentK1RouteProof &&
+            k1UnavailableProofGeneration == commandSessionGeneration
+    }
     @Published private(set) var isRestoringInitialization = false
     private(set) var restoreInitializationReadback: RestoreInitializationReadback?
     private var restoreOperationID: UUID?
@@ -642,7 +649,13 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 } == true))
             guard readOnly else { return }
         }
-        if isManagingK1Route, ![UInt8(0x00), 0x9F, 0x9E].contains(data.count > 2 ? data[2] : 0xFF) { return }
+        if isManagingK1Route {
+            let b = [UInt8](data)
+            let baseQuery = b.count >= 5 && [UInt8(0x00), 0x9F, 0x9E].contains(b[2])
+            let initializationQuery = isInitializingK1Routes && b.count >= 5 &&
+                ((b[2] == 0x87 && b.count == 7) || (b[2] == 0x96 && b.count == 5))
+            guard baseQuery || initializationQuery else { return }
+        }
         if data.count > 2 {
             if data[2] == 0x90, presentationBlocksLegacySingle, confirmedWrite != .ws3Presentation { return }
             if isChangingPresentation, confirmedWrite != .ws3Presentation,
@@ -661,7 +674,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite,
                                                ws3DisplayReadbackVerified: canEditWS3Display,
                                                k1RouteReadbackVerified: hasCurrentK1RouteProof,
-                                               restoreReadbackVerified: hasCurrentRestoreProof) else {
+                                               restoreReadbackVerified: hasCurrentRestoreProof,
+                                               k1InitializationReadbackVerified: hasCurrentK1InitializationProof) else {
             appendLog("当前固件配置写入尚未验证，已阻止写入", isError: true)
             return
         }
@@ -907,6 +921,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     /// A catalog probe is read-only. A legacy profile is assigned only after
     /// this connection has independently returned a valid status frame.
     func readFirmwareCapabilityProfile(forceStatusReadback: Bool = false) async throws -> FirmwareCapabilityProfile {
+        k1UnavailableProofGeneration = nil
         restoreStatusProof = nil
         k1RouteProofGeneration = nil
         let generation = commandSessionGeneration
@@ -1523,16 +1538,85 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     /// New routing is proved on every acquired connection, never inferred from
     /// the unchanged WS2 catalog key or the old global onboarding byte.
     func readK1RoutesForEditing() async throws -> K1OutputRouteTransaction.Snapshot {
-        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
+        let operation = try beginK1RouteOperation()
         let generation = commandSessionGeneration
-        try ensureConfigurationReadSession(generation)
-        isManagingK1Route = true; k1RouteProofGeneration = nil
-        defer { isManagingK1Route = false; k1RouteProofGeneration = nil }
+        defer { endK1RouteOperation(operation) }
         let profile = try await readFirmwareCapabilityProfile()
         guard profile.mayQueryOrdinaryKeys else { throw K1OutputRouteTransaction.Failure.unsupported }
         return try await K1OutputRouteTransaction.read(checkSession: {
             try self.ensureConfigurationReadSession(generation)
         }, exchange: { try await self.exchangeK1Route($0, generation: generation) })
+    }
+
+    func prepareK1RouteInitialization() async throws -> K1RouteInitialization.Preparation {
+        let operation = try beginK1RouteOperation(initializing: true)
+        let generation = commandSessionGeneration
+        defer { endK1RouteOperation(operation) }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.mayQueryOrdinaryKeys, profile.mayQueryVoiceOnboarding else {
+            throw OLEDUploadError.unsupportedReadOnlyProfile
+        }
+        return try await K1RouteInitialization.prepare(checkSession: {
+            try self.ensureK1RouteOperation(operation, generation: generation)
+        }, exchange: { try await self.exchangeK1Route($0, generation: generation) },
+        readInputs: { try await self.readK1InitializationInputs(operation, generation: generation) })
+    }
+
+    func initializeK1RoutesConfirmed(baseline: K1RouteInitialization.Preparation,
+        userConfirmed: Bool, expectedGeneration: UInt64, prepareHost: () throws -> Void,
+        writeStarted: () -> Void) async throws -> K1OutputRouteTransaction.Snapshot {
+        guard userConfirmed else { throw K1RouteInitialization.Failure.confirmationRequired }
+        guard expectedGeneration == commandSessionGeneration else { throw OLEDUploadError.channelNotReady }
+        let operation = try beginK1RouteOperation(initializing: true)
+        let generation = commandSessionGeneration
+        defer { endK1RouteOperation(operation) }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.mayQueryOrdinaryKeys, profile.mayQueryVoiceOnboarding,
+              let peripheral, let characteristic = commandChar else { throw OLEDUploadError.unsupportedReadOnlyProfile }
+        let type: CBCharacteristicWriteType = characteristic.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+        return try await K1RouteInitialization.initialize(baseline: baseline, userConfirmed: userConfirmed,
+            maximumRequestBytes: min(62, peripheral.maximumWriteValueLength(for: type)), checkSession: {
+                try self.ensureK1RouteOperation(operation, generation: generation)
+            }, exchange: { try await self.exchangeK1Route($0, generation: generation) },
+            readInputs: { try await self.readK1InitializationInputs(operation, generation: generation) },
+            prepareHost: prepareHost, writeStarted: writeStarted)
+    }
+
+    private func readK1InitializationInputs(_ operation: UUID, generation: UInt64) async throws -> K1RouteInitialization.Inputs {
+        try ensureK1RouteOperation(operation, generation: generation)
+        let state = try await readVoiceOnboardingState()
+        var keys: [OrdinaryKeyReadback] = []
+        if state != 2 {
+            for mode: UInt8 in 0..<4 {
+                try ensureK1RouteOperation(operation, generation: generation)
+                guard case .value(let key) = try await readOrdinaryKey(mode: mode, keyIndex: 0) else {
+                    throw K1RouteInitialization.Failure.sourceUnavailable
+                }
+                keys.append(key)
+            }
+        }
+        try ensureK1RouteOperation(operation, generation: generation)
+        guard let inputs = K1RouteInitialization.Inputs(voiceState: state, keys: keys) else {
+            throw K1RouteInitialization.Failure.sourceUnavailable
+        }
+        return inputs
+    }
+    private func beginK1RouteOperation(initializing: Bool = false) throws -> UUID {
+        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
+        try ensureConfigurationReadSession(commandSessionGeneration)
+        let id = UUID()
+        k1RouteOperationID = id; isManagingK1Route = true
+        isInitializingK1Routes = initializing; k1RouteProofGeneration = nil; k1UnavailableProofGeneration = nil
+        return id
+    }
+    private func endK1RouteOperation(_ id: UUID) {
+        guard k1RouteOperationID == id else { return }
+        k1RouteOperationID = nil; isManagingK1Route = false
+        isInitializingK1Routes = false; k1RouteProofGeneration = nil; k1UnavailableProofGeneration = nil
+    }
+    private func ensureK1RouteOperation(_ id: UUID, generation: UInt64) throws {
+        try ensureConfigurationReadSession(generation)
+        guard k1RouteOperationID == id else { throw OLEDUploadError.channelNotReady }
     }
 
     func readRestoreInitializationStatus() async throws -> RestoreInitializationTransaction.Snapshot {
@@ -1694,12 +1778,11 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     func setK1RouteConfirmed(mode: UInt8, baseline: K1OutputRoute, target: K1OutputRoute,
                              expectedGeneration: UInt64, prepareHost: () throws -> Void,
                              writeStarted: () -> Void) async throws -> K1OutputRouteTransaction.Snapshot {
-        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
         let generation = commandSessionGeneration
         try ensureConfigurationReadSession(generation)
         guard generation == expectedGeneration else { throw OLEDUploadError.channelNotReady }
-        isManagingK1Route = true; k1RouteProofGeneration = nil
-        defer { isManagingK1Route = false; k1RouteProofGeneration = nil }
+        let operation = try beginK1RouteOperation()
+        defer { endK1RouteOperation(operation) }
         let profile = try await readFirmwareCapabilityProfile()
         guard profile.mayQueryOrdinaryKeys, let peripheral, let characteristic = commandChar else {
             throw OLEDUploadError.unsupportedReadOnlyProfile
@@ -1720,11 +1803,17 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let type: CBCharacteristicWriteType = characteristic.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
         guard request.count <= peripheral.maximumWriteValueLength(for: type) else { throw K1OutputRouteTransaction.Failure.transportLimit }
         let isWrite = [UInt8(0x20), 0x21, 0x22].contains(command.subcommand)
+        if command.subcommand == 0x30 { k1UnavailableProofGeneration = nil }
+        defer { if command.subcommand == 0x22 { k1UnavailableProofGeneration = nil } }
         let reply = try await sendCommandAwaitingResponse(request, expectedCommand: 0x9E, allowDeviceError: true,
-            confirmedWrite: isWrite ? .k1Route : .none)
+            confirmedWrite: isWrite ? (isInitializingK1Routes ? .k1Initialization : .k1Route) : .none)
         try ensureConfigurationReadSession(generation)
         if command.subcommand == 0, K1OutputRouteReply.parse(reply.frame, for: command) == .capability {
             k1RouteProofGeneration = generation
+        }
+        if command.subcommand == 0x30,
+           K1OutputRouteReply.parse(reply.frame, for: command) == .restore(handled: false, state: .storageUnavailable, attempt: 0) {
+            k1UnavailableProofGeneration = generation
         }
         return reply.frame
     }
@@ -2219,6 +2308,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func resetCommandSession() {
+        k1UnavailableProofGeneration = nil
+        k1RouteOperationID = nil; isManagingK1Route = false; isInitializingK1Routes = false
         restoreStatusProof = nil
         restoreOperationID = nil; isRestoringInitialization = false
         restoreInitializationReadback = nil
@@ -2295,6 +2386,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func invalidateCommandResponseChannel() {
+        k1UnavailableProofGeneration = nil
         restoreStatusProof = nil
         k1RouteProofGeneration = nil
         commandTurns.invalidate()
@@ -2363,7 +2455,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite,
                                                ws3DisplayReadbackVerified: canEditWS3Display,
                                                k1RouteReadbackVerified: hasCurrentK1RouteProof,
-                                               restoreReadbackVerified: hasCurrentRestoreProof) else {
+                                               restoreReadbackVerified: hasCurrentRestoreProof,
+                                               k1InitializationReadbackVerified: hasCurrentK1InitializationProof) else {
             throw OLEDUploadError.unsupportedReadOnlyProfile
         }
         try Task.checkCancellation()

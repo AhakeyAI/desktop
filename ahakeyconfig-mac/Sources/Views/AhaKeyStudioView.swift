@@ -56,6 +56,10 @@ struct AhaKeyStudioView: View {
     @State private var inlineKeyFact: StudioInlineKeyFact?
     @State private var inlineKeyConflict: StudioInlineKeyConflict?
     @State private var inlineKeyMessage: String?
+    @State private var inlineK1InitializationNeeded = false
+    @State private var inlineK1InitializationFact: StudioK1InitializationFact?
+    @State private var inlineK1InitializationSelected = false
+    @State private var confirmsK1Initialization = false
     @State private var inlineKeyTask: Task<Void, Never>?
     @State private var inlineKeyOperationID = UUID()
     @State private var inlineKeyUnconfirmed: Set<String> = []
@@ -207,6 +211,13 @@ struct AhaKeyStudioView: View {
             Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
         } message: {
             Text(NSLocalizedString("将恢复所有模式的键位、语音路由、待机、拨杆与显示灯光，自定义画面将停止使用。本地草稿保留。请保持键盘 USB 供电；当前固件完成后暂不支持再次恢复。", comment: ""))
+        }
+        .confirmationDialog(NSLocalizedString("初始化四模式语音设置？", comment: ""),
+                            isPresented: $confirmsK1Initialization, titleVisibility: .visible) {
+            Button(NSLocalizedString("写入键盘", comment: "")) { initializeInlineK1Routes() }
+            Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
+        } message: {
+            Text(NSLocalizedString("将按刚读取的方案建立四个模式的语音路由，不修改其他按键、画面或灯光，也不同时保存当前按键草稿。原有 Mac 系统听写会保留为四模式 Consumer；其他方案保留各模式读到的普通键位。", comment: ""))
         }
         .onReceive(deviceInspectorModel.$message.compactMap { $0 }) { syncStatusMessage = $0 }
         .onReceive(NotificationCenter.default.publisher(for: .ahaKeyHardwareEditingFinished)) { _ in
@@ -828,7 +839,7 @@ struct AhaKeyStudioView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.regular)
-                        .disabled(isSyncing || inspectorSession.isBusy || (inlineKeyTarget != nil ? !inlineKeyCanSave : !bleManager.isConnected))
+                        .disabled(isSyncing || inspectorSession.isBusy || (inlineKeyTarget != nil ? !(inlineKeyCanSave || canInitializeInlineK1) : !bleManager.isConnected))
                     }
                 }
                 .padding(.horizontal, 24)
@@ -2618,6 +2629,7 @@ struct AhaKeyStudioView: View {
     }
 
     private func writeToKeyboard() {
+        if canInitializeInlineK1 { confirmsK1Initialization = true; return }
         if inlineKeyTarget != nil { saveInlineKey(); return }
         performUnifiedDeviceWrite(returnToKeyboardControlWhenDone: false, showResultAlert: true)
     }
@@ -5734,6 +5746,12 @@ private extension AhaKeyStudioView {
                     }
                 }
                 if let inlineKeyMessage { Text(inlineKeyMessage).font(.caption).textSelection(.enabled) }
+                if target.index == 0, inlineK1InitializationNeeded {
+                    StudioK1InitializationView(fact: inlineK1InitializationFact,
+                        selected: $inlineK1InitializationSelected, busy: inspectorSession.isBusy,
+                        modeTitle: { index in modeCustomNames[index] ?? AhaKeyModeSlot(rawValue: index)!.defaultName },
+                        read: readInlineK1Initialization)
+                }
             }.frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -5752,6 +5770,7 @@ private extension AhaKeyStudioView {
         inlineKeyConflict = nil
         voiceGlobalChange = nil
         inlineKeyMessage = nil
+        clearInlineK1Initialization()
     }
 
     func setInlineDraft(_ key: AhaKeyKeyDraft, target: StudioInlineKeyTarget) {
@@ -5766,6 +5785,7 @@ private extension AhaKeyStudioView {
     func readInlineKey(_ target: StudioInlineKeyTarget) {
         guard !inspectorSession.isBusy else { return }
         inlineKeyTask?.cancel()
+        clearInlineK1Initialization()
         let ticket = UUID()
         inlineKeyOperationID = ticket
         inlineKeyMessage = nil
@@ -5795,6 +5815,9 @@ private extension AhaKeyStudioView {
                 inlineKeyTask = nil
             } catch {
                 guard inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
+                if target.index == 0, error as? K1OutputRouteTransaction.Failure == .rejected {
+                    inlineK1InitializationNeeded = true
+                }
                 inlineKeyMessage = KeyboardSettingsFeedback.message(for: error)
                 inlineKeyTask = nil
             }
@@ -6285,5 +6308,84 @@ private extension AhaKeyStudioView {
                 return .init(result: result, readback: bleManager.restoreInitializationReadback)
             }
         })
+    }
+}
+
+// MARK: - Explicit four-mode bootstrap for missing/unavailable CP2.6 records
+private extension AhaKeyStudioView {
+    var canInitializeInlineK1: Bool {
+        inlineKeyTarget?.index == 0 && inlineK1InitializationSelected && inlineK1InitializationFact != nil &&
+            inlineKeyTask == nil && !componentBusy
+    }
+    func clearInlineK1Initialization() {
+        inlineK1InitializationNeeded = false
+        inlineK1InitializationFact = nil
+        inlineK1InitializationSelected = false
+        confirmsK1Initialization = false
+    }
+    func readInlineK1Initialization() {
+        guard !inspectorSession.isBusy, let target = inlineKeyTarget, target.index == 0 else { return }
+        inlineKeyTask?.cancel()
+        let expectedDevice = inlineK1InitializationFact?.deviceID ?? inlineKeyFact?.deviceID
+        inlineK1InitializationFact = nil; inlineK1InitializationSelected = false
+        let ticket = UUID(); inlineKeyOperationID = ticket
+        inlineKeyMessage = nil
+        inlineKeyTask = Task { @MainActor in
+            guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
+            do {
+                let fact = try await inspectorSession.withConnection(expectedDeviceID: expectedDevice) { context in
+                    StudioK1InitializationFact(deviceID: context.deviceID,
+                        preparation: try await bleManager.prepareK1RouteInitialization())
+                }
+                guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
+                inlineK1InitializationFact = fact
+                inlineKeyMessage = NSLocalizedString("已读取四模式初始化方案，尚未写入键盘。", comment: "")
+            } catch {
+                guard inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
+                inlineKeyMessage = error.localizedDescription
+                if let failure = error as? K1RouteInitialization.Failure,
+                   failure == .alreadyAvailable || failure == .restoreUnfinished {
+                    inlineK1InitializationNeeded = false
+                }
+            }
+            if inlineKeyOperationID == ticket { inlineKeyTask = nil }
+        }
+    }
+    func initializeInlineK1Routes() {
+        guard canInitializeInlineK1, let target = inlineKeyTarget, let fact = inlineK1InitializationFact else { return }
+        let ticket = UUID(); inlineKeyOperationID = ticket
+        inlineK1InitializationSelected = false
+        inlineKeyMessage = NSLocalizedString("正在初始化并核对四模式语音路由…", comment: "")
+        var attempted = false
+        inlineKeyTask = Task { @MainActor in
+            guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
+            do {
+                _ = try await inspectorSession.withConnection(expectedDeviceID: fact.deviceID) { context in
+                    try await bleManager.initializeK1RoutesConfirmed(baseline: fact.preparation,
+                        userConfirmed: true, expectedGeneration: context.generation, prepareHost: {
+                            guard !nativeSpeech.isRecording, !nativeSpeech.isStartingRecording,
+                                  !voiceRelay.hasActiveFunctionRelayHold else { throw K1RouteInitialization.Failure.hostBusy }
+                        }, writeStarted: { attempted = true })
+                }
+                guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
+                for mode in 0..<4 { inlineKeyUnconfirmed.remove("\(fact.deviceID):\(mode):0") }
+                clearInlineK1Initialization()
+                inlineKeyFact = nil
+                inlineKeyMessage = NSLocalizedString("四模式语音路由已建立并读回一致。按键草稿保留，请重新读取当前模式后编辑。", comment: "")
+                writeOutcome = .init(succeeded: true, message: inlineKeyMessage ?? "")
+            } catch {
+                if attempted {
+                    for mode in 0..<4 { inlineKeyUnconfirmed.insert("\(fact.deviceID):\(mode):0") }
+                }
+                guard inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
+                inlineKeyMessage = error.localizedDescription
+                if attempted {
+                    inlineK1InitializationFact = nil
+                    inlineKeyMessage = (inlineKeyMessage ?? "") + "\n" + NSLocalizedString("请重新读取键盘状态，不要直接重复初始化。", comment: "")
+                }
+                writeOutcome = .init(succeeded: false, message: inlineKeyMessage ?? "", wrote: attempted)
+            }
+            if inlineKeyOperationID == ticket { inlineKeyTask = nil }
+        }
     }
 }

@@ -2061,6 +2061,71 @@ TRANSLATIONS.update({
     "请先停止录音或松开语音键，再恢复键盘设置。本次尚未执行。": "Stop recording or release the voice key before resetting keyboard settings. No reset has been performed.",
 })
 
+# Explicit four-mode voice bootstrap.
+TRANSLATIONS.update({'仅建立读到的方案，不同时保存当前按键草稿。使用底部“写入键盘”确认。': 'Only the scheme read from the keyboard is initialized. Current key '
+                                       'drafts are not saved at the same time. Confirm using Write to '
+                                       'Keyboard below.',
+ '先读取并确认四模式方案，再建立语音路由；不会使用默认键位覆盖未知动作。': 'Read and confirm the four-mode scheme before creating voice routes. '
+                                        'Unknown actions are not replaced with defaults.',
+ '分模式语音记录暂不可用': 'Per-mode voice records are unavailable',
+ '初始化后的四模式语音读回不一致，尚未确认成功。': 'The four voice routes do not match after initialization. Success is '
+                            'unconfirmed.',
+ '初始化四模式语音设置？': 'Initialize voice settings for all four modes?',
+ '四模式语音设置已变化，请重新读取方案后确认。': 'The four-mode voice settings changed. Read the scheme again before confirming.',
+ '四模式语音路由已建立并读回一致。按键草稿保留，请重新读取当前模式后编辑。': 'All four voice routes were created and verified. Key drafts are '
+                                         'kept. Read the current mode again before editing.',
+ '将按刚读取的方案建立四个模式的语音路由，不修改其他按键、画面或灯光，也不同时保存当前按键草稿。原有 Mac 系统听写会保留为四模式 Consumer；其他方案保留各模式读到的普通键位。': 'The scheme '
+                                                                                                 'just read '
+                                                                                                 'will '
+                                                                                                 'create '
+                                                                                                 'voice '
+                                                                                                 'routes for '
+                                                                                                 'all four '
+                                                                                                 'modes. '
+                                                                                                 'Other '
+                                                                                                 'keys, '
+                                                                                                 'artwork, '
+                                                                                                 'lighting '
+                                                                                                 'and '
+                                                                                                 'current '
+                                                                                                 'key drafts '
+                                                                                                 'are '
+                                                                                                 'unchanged. '
+                                                                                                 'Existing '
+                                                                                                 'Mac system '
+                                                                                                 'dictation '
+                                                                                                 'stays '
+                                                                                                 'Consumer '
+                                                                                                 'in all '
+                                                                                                 'four '
+                                                                                                 'modes; '
+                                                                                                 'other '
+                                                                                                 'schemes '
+                                                                                                 'retain '
+                                                                                                 'each '
+                                                                                                 "mode's "
+                                                                                                 'ordinary '
+                                                                                                 'binding.',
+ '已读取四模式初始化方案，尚未写入键盘。': 'The four-mode initialization scheme was read. Nothing has been written.',
+ '无法完整读取现有语音键位，保持原设置，不使用默认值覆盖。': 'The existing voice bindings cannot be fully read. Settings are kept and '
+                                 'will not be replaced with defaults.',
+ '本次初始化四个模式的语音路由': 'Initialize voice routes for all four modes with this submission',
+ '正在初始化并核对四模式语音路由…': 'Initializing and checking all four voice routes…',
+ '系统听写（Consumer）': 'System dictation (Consumer)',
+ '语音初始化结果未确认，可能已生效；请重新连接后读取，不要重复提交。': 'Voice initialization is unconfirmed and may have taken effect. '
+                                      'Reconnect and read the settings instead of submitting again.',
+ '语音记录状态无法确认，本次未初始化。': 'Voice record status is unknown. No initialization was performed.',
+ '请先停止录音或松开语音键，再初始化语音设置。本次尚未写入。': 'Stop recording or release the voice key before initializing voice '
+                                  'settings. Nothing has been written.',
+ '请先确认四个模式的语音初始化方案，本次尚未写入。': 'Confirm the voice initialization scheme for all four modes first. Nothing has '
+                             'been written.',
+ '请重新读取键盘状态，不要直接重复初始化。': 'Read the keyboard status again instead of repeating initialization.',
+ '读取初始化方案': 'Read initialization scheme',
+ '键盘已有分模式语音记录，请重新读取后按模式修改，不要初始化覆盖。': 'Per-mode voice records already exist. Read them again and edit each '
+                                     'mode instead of overwriting them with initialization.',
+ '键盘的恢复尚未完成，请先在模式按钮的恢复区域处理。': "Keyboard recovery is unfinished. Resolve it in the mode button's reset "
+                              'section first.'})
+
 def escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 

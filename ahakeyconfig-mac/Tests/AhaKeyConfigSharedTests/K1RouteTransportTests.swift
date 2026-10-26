@@ -63,4 +63,25 @@ final class K1RouteTransportTests: XCTestCase {
         XCTAssertNil(K1OutputRouteReply.parse(frame, for: probe))
         XCTAssertFalse(DeviceResponseMatcher.matches(request: K1OutputRouteCommand.commit(token: 9, selector: 0).request!, expectedCommand: 0x9E, response: frame))
     }
+    func testFourModeBootstrapNeedsItsOwnUnavailableRecordProofAndGrant() throws {
+        let commands: [K1OutputRouteCommand] = [
+            .begin(nonce: 1, selector: 0xFF, length: 408, checksum: 0),
+            .chunk(token: 1, selector: 0xFF, offset: 0, bytes: Data([1])),
+            .commit(token: 1, selector: 0xFF)
+        ]
+        for command in commands {
+            let request = try XCTUnwrap(command.request)
+            XCTAssertFalse(ConfigurationCommandPolicy.permits(request, profile: profile, confirmedWrite: .k1Route,
+                k1RouteReadbackVerified: true, k1InitializationReadbackVerified: true))
+            XCTAssertFalse(ConfigurationCommandPolicy.permits(request, profile: profile, confirmedWrite: .k1Initialization,
+                k1RouteReadbackVerified: true))
+            XCTAssertFalse(ConfigurationCommandPolicy.permits(request, profile: profile, confirmedWrite: .k1Initialization,
+                k1InitializationReadbackVerified: true))
+            XCTAssertTrue(ConfigurationCommandPolicy.permits(request, profile: profile, confirmedWrite: .k1Initialization,
+                k1RouteReadbackVerified: true, k1InitializationReadbackVerified: true))
+        }
+        let single = try XCTUnwrap(K1OutputRouteCommand.commit(token: 1, selector: 0).request)
+        XCTAssertFalse(ConfigurationCommandPolicy.permits(single, profile: profile, confirmedWrite: .k1Initialization,
+            k1RouteReadbackVerified: true, k1InitializationReadbackVerified: true))
+    }
 }
