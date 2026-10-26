@@ -2134,6 +2134,12 @@ TRANSLATIONS.update({
     "设备名称不能包含换行或控制字符，已保留原名称": "Device names cannot contain line breaks or control characters. The original name is retained."
 })
 
+TRANSLATIONS.update({
+    "未能恢复本地素材草稿，请重新选择文件。本次未更改键盘。": "Local artwork drafts could not be restored. Select the files again. This operation did not change the keyboard.",
+    "素材草稿未能保存到本机，请保留当前窗口并重试。": "Artwork drafts could not be saved locally. Keep this window open and try again.",
+    "另一把键盘仍有未确认的素材上传，请先连接原键盘核对。": "An artwork upload on another keyboard is still unconfirmed. Connect that keyboard to verify it first."
+})
+
 def escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 

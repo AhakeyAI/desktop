@@ -44,7 +44,7 @@ struct AhaKeyStudioView: View {
     @AppStorage(VibeBarVisibilityPreference.enabledKey) private var vibeBarEnabled = true
     @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
     @StateObject private var lightInspectorModel = StudioLightInspectorModel()
-    @StateObject private var resourceInspectorModel = StudioResourceInspectorModel()
+    @StateObject private var resourceInspectorModel = StudioResourceInspectorModel(storeURL: StudioResourceDraftStore.productionURL)
     @StateObject private var lcdInspectorModel = StudioLCDInspectorModel(defaults: .standard)
     @State private var confirmsLCDWrite = false
     @State private var lcdSubmittedEntry: UInt8?
