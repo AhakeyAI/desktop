@@ -1,0 +1,38 @@
+{
+  "sourceCommit": "0708cc4e9e13c22ef53fe379258d73942a062ce2",
+  "version": "0.2.3",
+  "build": "502",
+  "minimumMacOS": "13.0",
+  "mainAndAgent": true,
+  "languages": [
+    "en",
+    "zh-Hans"
+  ],
+  "appPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-0708cc4/AhaKey Studio.app",
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "binarySHA256": {
+    "AhaKeyConfig": "07fe413d8b5c71f241244bf161810e84a5e77df2047ad70c6e56e0033cc632c6",
+    "ahakeyconfig-agent": "907a107197c5b04acf260a0f27753348bdc311aafcda9821ba412ee7a109db22"
+  },
+  "developerIDSignatureVerified": true,
+  "signedFlasherTools": 2,
+  "dmgPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-0708cc4/AhaKey-Studio-0.2.3-build502-0708cc4-test.dmg",
+  "dmgBytes": 18489018,
+  "dmgSHA256": "ce465dd597831883cb0cffa53abd12e5418cbab00115ec0043063764813fa3e5",
+  "mountedAppAndAgentBytesMatch": true,
+  "mountedDeepStrictSignature": "passed",
+  "installed": false,
+  "notarized": false,
+  "includesEditorAndLegacyLightFixes": true,
+  "releaseComplete": false,
+  "ciRun": "https://github.com/AhakeyAI/desktop/actions/runs/40277658600",
+  "ciConclusion": "success",
+  "swiftTests": 868,
+  "specReviewFindingsClosed": 3,
+  "standardsBlockingFindings": 0,
+  "uiAcceptanceBlockedBy": "Mac is locked; CUA listApps explicitly reported locked",
+  "latestFirmwareBranchCommit": "0a055ba95f857a1d32f05b79bcabd3ecfe78d4eb"
+}

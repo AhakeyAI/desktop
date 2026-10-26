@@ -98,3 +98,11 @@ Code Desktop的`/api/v1/meta`离线校验已实现：绑定已登记的server ID
 
 
 复查补充：发现相邻旧逻辑会在legacy预览或首次识别后交还Agent时自动退出编辑，现已移除连接归属驱动的自动退出。临时交接保留侧栏、设备绑定和草稿，由“返回／完成编辑”明确结束。最终868项完整Swift回归通过；真实候选界面交接仍待验证，不把模型测试冒充UI实测。
+
+### 当前可交接候选 build502
+
+源码0708cc4已推送connect&talk，CI40277658600三个job全通过；最终双轴复核确认原3项实质发现已关闭，无同范围新增阻断项。0.2.3/build502双架构App/Agent、Developer ID与两个烧录工具签名已核验，DMG只读挂载后程序字节与源码标识再次核对通过。DMG为18,489,018字节，SHA256 ce465dd597831883cb0cffa53abd12e5418cbab00115ec0043063764813fa3e5；未公证、未覆盖安装、未写真机，内置工程镜像仍不能代替精确组合HEX。详见local-candidate-build502-2026-10-26.json。
+
+继续界面/迁移验收时，CUA getApp返回cgWindowNotFound，listApps明确报告Mac已锁屏，已请求用户解锁；此门槛无法由Agent自动代替。只读核对仍安装build376/e3e210a；现有11项Studio草稿与语音偏好已在临时私密目录单独备份，未改账号或Kimi凭据。本次尚未安装、启动新候选或给予新权限。
+
+外部输入复查：固件Issue #9仍OPEN且无新评论；公开Release仅旧v1.0，Actions artifacts总数0，无法从仓库归档取得Harness记载的精确6EC0413C组合HEX。仍保留此前具体路径/链接请求，不使用其他HEX替代。
