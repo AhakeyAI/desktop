@@ -39,6 +39,10 @@ struct StudioLightDrafts: Codable {
         }
     }
 
+    func permitsReadback(deviceID: String) -> Bool {
+        !deviceID.isEmpty && unconfirmed.allSatisfy { facts[$0]?.deviceID == deviceID }
+    }
+
     mutating func observe(_ target: Target, fact: Fact, preservingDraft: Bool = false) {
         let wasClean = drafts[target] == nil || drafts[target] == facts[target]?.value
         facts[target] = fact

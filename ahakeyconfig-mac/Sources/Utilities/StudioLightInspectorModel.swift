@@ -66,11 +66,15 @@ final class StudioLightInspectorModel: ObservableObject {
             action = planned
         } else if let preview { action = .preview(preview) }
         else { action = .read }
-        let deviceID = baseline?.deviceID ?? values.facts[.brightness]?.deviceID
+        let deviceID = StudioInlineLightOperation.expectedDeviceID(for: action,
+            cached: baseline?.deviceID ?? values.facts[.brightness]?.deviceID)
         let scope = preview == .stop ? NSLocalizedString("临时预览", comment: "") : Self.scopeTitle(target)
         perform(scope: scope, session: session) { [self] in
             let result = try await StudioInlineLightOperation.run(target: target, action: action,
                 session: session, expectedDeviceID: deviceID, read: { selected, context in
+                    guard values.permitsReadback(deviceID: context.deviceID) else {
+                        throw StudioInspectorSession.Failure.deviceChanged
+                    }
                     // Re-establish the existing CP2 readback gate for every lease.
                     let display = try await ble.readWS3DisplayForEditing()
                     let actual: UInt8
@@ -187,9 +191,11 @@ final class StudioLightInspectorModel: ObservableObject {
     }
 
     func readCatalog(ble: AhaKeyBLEManager, session: StudioInspectorSession) {
-        let deviceID = values.facts[.brightness]?.deviceID
         perform(scope: NSLocalizedString("四模式灯效总览", comment: ""), session: session) { [self] in
-            let result = try await session.withConnection(expectedDeviceID: deviceID) { context in
+            let result = try await session.withConnection { context in
+                guard values.permitsReadback(deviceID: context.deviceID) else {
+                    throw StudioInspectorSession.Failure.deviceChanged
+                }
                 let display = try await ble.readWS3DisplayForEditing()
                 let catalog = try await ble.readWS3LightCatalogForEditing()
                 return (deviceID: context.deviceID, brightness: display.brightness, catalog: catalog)

@@ -17,6 +17,13 @@ enum StudioInlineLightOperation {
         case preview(WS3DisplayPreview)
     }
 
+    static func expectedDeviceID(for action: Action, cached: String?) -> String? {
+        // An explicit read discovers the current keyboard after re-pairing.
+        // Preview/save still target the device whose facts the user edited.
+        if case .read = action { return nil }
+        return cached
+    }
+
     enum Result {
         case read(Reading)
         case readOnly(Reading)

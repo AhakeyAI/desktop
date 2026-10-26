@@ -12,6 +12,35 @@ final class StudioInlineLightTests: XCTestCase {
                             deviceID: { "keyboard-A" }, release: { _ in release() }, pause: {}))
     }
 
+    func testExplicitReadDiscoversCurrentKeyboardWithoutSendingPreviewOrSave() async throws {
+        let host = StudioInspectorSession(access: .init(begin: { 1 }, isCurrent: { $0 == 1 },
+            isReady: { true }, generation: { 4 }, deviceID: { "keyboard-B" }, release: { _ in }, pause: {}))
+        let action = StudioInlineLightOperation.Action.read
+        let result = try await StudioInlineLightOperation.run(target: target, action: action, session: host,
+            expectedDeviceID: StudioInlineLightOperation.expectedDeviceID(for: action, cached: "keyboard-A"),
+            read: { _, context in .init(selected: .init(deviceID: context.deviceID, value: 5), brightness: 35) },
+            save: { _, _, _ in XCTFail("read cannot write") }, preview: { _ in XCTFail("read cannot preview") },
+            writeStarted: { XCTFail("read cannot mark a write") })
+        guard case .read(let value) = result else { return XCTFail("expected current readback") }
+        XCTAssertEqual(value.selected.deviceID, "keyboard-B")
+    }
+
+    func testPreviewAndSaveRemainBoundToEditedKeyboard() {
+        let preview = StudioInlineLightOperation.Action.preview(.stop)
+        let save = StudioInlineLightOperation.Action.save(baseline: baseline, desired: 3)
+        XCTAssertEqual(StudioInlineLightOperation.expectedDeviceID(for: preview, cached: "keyboard-A"), "keyboard-A")
+        XCTAssertEqual(StudioInlineLightOperation.expectedDeviceID(for: save, cached: "keyboard-A"), "keyboard-A")
+    }
+
+    func testUnconfirmedWriteCannotBeReattributedToNewKeyboard() {
+        var values = StudioLightDrafts()
+        values.observe(target, fact: baseline)
+        XCTAssertTrue(values.permitsReadback(deviceID: "keyboard-B"))
+        values.markUnconfirmed(target)
+        XCTAssertTrue(values.permitsReadback(deviceID: "keyboard-A"))
+        XCTAssertFalse(values.permitsReadback(deviceID: "keyboard-B"))
+    }
+
     func testSaveUsesOnlySelectedSettingAndCurrentLeaseThenReleases() async throws {
         var releases = 0, writes = 0, started = 0
         let host = session { releases += 1 }

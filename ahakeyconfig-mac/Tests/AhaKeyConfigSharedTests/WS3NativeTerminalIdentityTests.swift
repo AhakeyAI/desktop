@@ -32,12 +32,11 @@ final class WS3NativeTerminalIdentityTests: XCTestCase {
         try compiler.run()
         let errors = compilerOutput.fileHandleForReading.readDataToEndOfFile(); compiler.waitUntilExit()
         XCTAssertEqual(compiler.terminationStatus, 0, String(data: errors, encoding: .utf8) ?? "compiler failed")
-        let process = Process(), input = Pipe(), output = Pipe(), exited = expectation(description: "isolated terminal exits")
+        let process = Process(), input = Pipe(), output = Pipe()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/script")
         process.arguments = ["-q", "/dev/null", executable.path]
         process.standardInput = input; process.standardOutput = output; process.standardError = output
         _ = fcntl(input.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
-        process.terminationHandler = { _ in exited.fulfill() }
         try process.run()
         defer {
             try? input.fileHandleForWriting.close()
@@ -53,7 +52,9 @@ final class WS3NativeTerminalIdentityTests: XCTestCase {
             guard count > 0 else { break }
             data.append(contentsOf: buffer.prefix(count))
         }
-        guard data.contains(10) else { return XCTFail("No complete isolated terminal metadata") }
+        guard data.contains(10) else {
+            return XCTFail("No complete isolated terminal metadata: running=\(process.isRunning), bytes=\(data.count), output=\(String(data: data, encoding: .utf8) ?? "<non-UTF8>")")
+        }
         let text = try XCTUnwrap(String(data: data, encoding: .utf8))
         let fields = text.split(whereSeparator: \.isWhitespace)
         guard let start = fields.firstIndex(of: "READY"), fields.count >= start + 6,
@@ -64,6 +65,10 @@ final class WS3NativeTerminalIdentityTests: XCTestCase {
         XCTAssertEqual(WS3TerminalTaskIdentity.captureTTY(path), expected)
         XCTAssertTrue(expected.isAlive())
         try input.fileHandleForWriting.write(contentsOf: Data([10])); try input.fileHandleForWriting.close()
-        await fulfillment(of: [exited], timeout: 5)
+        let exitDeadline = Date().addingTimeInterval(5)
+        while process.isRunning && Date() < exitDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertFalse(process.isRunning, "Isolated terminal did not exit")
     }
 }
