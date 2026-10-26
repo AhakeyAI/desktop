@@ -17,7 +17,13 @@
   "bundleVerifier": "passed",
   "installed": false,
   "notarized": false,
-  "dmgCreated": false,
+  "dmgCreated": true,
   "containsLaterCredentialReader": false,
-  "releaseComplete": false
+  "releaseComplete": false,
+  "dmgPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-93573f5/AhaKey-Studio-0.2.3-build498-93573f5-test.dmg",
+  "dmgBytes": 18580611,
+  "dmgSHA256": "7eb534a5285bfc727f5ffc29ea144e19488dec39d926d9f3344814aae1e21435",
+  "dmgReadOnlyMountedVerification": "passed",
+  "mountedAppAndAgentBytesMatch": true,
+  "mountedDeepStrictSignature": "passed"
 }

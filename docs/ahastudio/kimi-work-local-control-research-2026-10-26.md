@@ -85,3 +85,46 @@ Info.plist登记kimi与kimi-work scheme；已核查的kimi-work路径处理插�
 4. main既有Code CLI默认同步应保留，但与普通Work独立标识。普通Work live接管在缺乏上述证据时保持未接管，用户正常操作继续原审批链路。
 
 本轮获得“普通Work确有本地控制传输、App设置层支持会话覆盖、内部turn权限setter与恢复存在”的新证据；尚未将它们闭合为可供Studio正式使用的原任务权限接口，未做生产实现或提交。
+
+
+## control.command与适配器补查
+
+继续只读同一3.2.18安装包。本次把Daimon `dist/_internal` 182个JavaScript chunk及src入口做了静态字符串表解码辅助检索，没有执行Daimon／内核代码。辅助文本保留在同一临时目录的`daimon-decoded/`；其并非官方发布源码，关键结论仍对应原始包文件的符号、常量和调用结构。
+
+### control.commands.list／control.command不能仅凭App方法别名当作能力
+
+主程序的`_0x213dc6`确实保留`commandsList → control.commands.list`及`command → control.command`别名，另有query／mutation分类。但在当前内嵌Daimon的`createDaimonControlRoutes`注册表和已检查路由工厂中，未找到这两个路径的实际注册，也未发现注册为权限命令的列表。现有明确路由包含capabilities、config、conversations及interaction等资源；`conversations.setModel/setThinking`存在，未见对应的`conversations.setPermission`工厂或注册。
+
+因此需要修正前节“继续查命令目录”的期待：**App残留命令名不能证明当前Daimon runtime实现了generic命令入口，更不能证明其中藏有permission／askMode命令。** 本轮静态结果没有闭合这条候选通路。若后续目标运行版本通过正式capabilities报告了新增入口，再按其schema核验；不能发送猜测命令或把method-not-found当作允许切档。
+
+`runControlCommand`确实存在于channel runtime接口及channel registry；其目标是指定channel插件／连接器的命令调度，不是全体Work会话内核权限setter。这与App的generic别名同名相近，不能混为同一能力。
+
+原始路由锚点：`dist/_internal/c-C4525LQC.js`，SHA256 `2c55fdbae1e5830a375266014fa35af71924a320d8f1e6da5ea28f48f7e03a45`，`createDaimonControlRoutes`字符偏移1759483，`createDaimonControlConfigSetRoute`偏移1166029。新证据摘要保存于临时`control-route-evidence.json`；没有读取或保存用户数据。
+
+### config.set也不能替代实时模式设置
+
+同一路由文件的`config.set`处理器解析配置键、读配置文件、写新值并校验；允许root包括control／credentials／features／experiments／kimiCode／mcp／model／pet／timeoutBudgets，未列runtime或agents为一般写入口。该处理器的返回明确对一般配置报告`requiresRestart=true`；只有step-limit具备独立即时失效机制。没有发现其为permission修改调用内核setPermission或遍历原任务。
+
+即使可经其他合法配置键改变默认，也不等于当前轮、下一轮或全部会话已改变；不应为切档执行重启Daimon，因为那会改变原任务生命周期。
+
+### 默认、下一轮、当前轮的实际边界
+
+| 动作 | 已证实作用 | 尚不能承诺 |
+| --- | --- | --- |
+| App `app.askMode.set`无conversationKey | 更新默认store、广播设置快照；会话覆盖继续优先 | 所有既有会话／当前轮立即跟随 |
+| 同方法带conversationKey | 更新该会话的App偏好和effectiveMode | 运行中内核权限读回；已接受turn的fallback快照改变 |
+| Renderer内存默认setter | 更新launcher使用的manual/yolo/auto变量 | 持久设置、当前任务或全部任务模式改变 |
+| 下一次`conversations.send`带permissionMode | Daimon请求结构接受该字段，内核`applyTurnRuntimeState`会在该轮设置权限 | 第三方无需发送新消息即可改下一轮偏好；自动覆盖已排队请求 |
+| 内部`core.setPermission` | 同内核实例内部具备会话模式设置 | 当前Daimon对外暴露、live owner绑定、CAS／恢复合同 |
+
+其中下一轮是**产品自己的正常发送路径**：主程序发起请求时取该conversation覆盖／默认，转成manual／yolo／auto；内核创建、恢复或applyTurnRuntimeState采用该字段。AhaKey不能为了触发该设置凭空发送一条消息。已有队列可能已捕获字段，不能把修改默认说成必然覆盖队列。App偏好广播仅能证明设置层变化，未证明正在运行的原turn会重新读取。
+
+某外层kernel adapter的setPermission返回unsupportedOperation，而Kimi Code专用内部fork/resume/turn路径直接调用core设置。不能绕开adapter假设所有sessionKind一致；不能启动第二个core去恢复同名任务作为补丁。
+
+### 发现、认证与恢复仍缺的合同
+
+已证实原Daimon启动后向父App输出control-ready，父App在内存记录endpoint、Bearer与runtime generation，按该generation忽略旧连接通知。README说明该Bearer供上位机连接，备用fd-RPC只能继承。**这证明现有监听与认证实现，但未证明外部Studio存在官方授权拿到现有实例凭据的发现入口。** 本轮未读取用户日志、runtime锁、token或ready输出，也没有探测监听端口。context.sock虽可返回账号token，和Daimon控制认证不是同一合同；不能调用它来绕过这一缺口。
+
+App设置层可读default/effective/byConversation并收changed，不能充当内核原权限／owner读回；Daimon内部有requestId/kernelSessionId/accountId绑定，但未发现正式外部权限setter同时支持原owner、已加载、预期版本、用户新修改保留与全部授权原任务范围。退出／暂停后恢复偏好也不能证明已接受auto turn的fallback及内核权限被撤回。
+
+补查结论：普通Work有真实本地控制服务器和内部权限实现，但在当前3.2.18／Daimon0.6.8中，**尚无已证实可直接落地“经用户授权的全部原任务实时切档并可靠恢复”的外部权限链路**。现阶段可做产品识别、能力探测设计及准确状态；不要以私有文件修改、Renderer注入、启用远控／调试或发送空消息代替缺失接口。对上游最具体的请求是：既有实例授权发现＋按conversation/kernelSession选择的permission get/set＋owner/revision前置条件及来源可辨的changed事件，并明确当前轮／下一轮与队列语义。

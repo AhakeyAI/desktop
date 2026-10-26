@@ -1,0 +1,28 @@
+{
+  "sourceBaseCommit": "425ba31db28c4b8ebd1a05d976efaaab991db592",
+  "testedSourceSHA256": {
+    "Sources/Shared/KimiDesktopServerMetadata.swift": "8c4bec79da5c8250187c7f2b3ba393e543883ce66013a89ac428a9bc24e39681",
+    "Tests/AhaKeyConfigSharedTests/KimiDesktopServerMetadataTests.swift": "becfede4a18aa1627fdc7436f526656e550f48529768d8a39551bb7ada16cf62"
+  },
+  "swiftTests": 866,
+  "newMetadataTests": 5,
+  "result": "passed",
+  "testLog": "/tmp/ahakey-kimi-metadata-full-20261026.log",
+  "testLogSHA256": "a9076558d441825bfce02bc67b47c7f9cd11ca62e0c68f5e4298d8f593e97fb4",
+  "officialStaticContract": "Kimi Code Desktop 1.1.3 embedded server 2.3.2 GET /api/v1/meta",
+  "checks": [
+    "business code zero (boolean rejected)",
+    "registered server ID and exact start time",
+    "inspected version 2.3.2, v2 backend",
+    "authentication bypass explicitly false",
+    "inspected capabilities",
+    "bounded response and JSON shape"
+  ],
+  "productionHTTPRequests": 0,
+  "productionCredentialReads": 0,
+  "permissionWrites": 0,
+  "sessionResumes": 0,
+  "productionCallerPresent": false,
+  "kimiLiveManagementComplete": false,
+  "goalComplete": false
+}
