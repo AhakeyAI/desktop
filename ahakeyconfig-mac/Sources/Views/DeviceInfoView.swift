@@ -695,7 +695,11 @@ struct DeviceInfoView: View {
         case 5:
             Text(agentManager.readCodexHookLog())
         case 6:
-            Text(agentManager.readUserKimiConfigForDisplay())
+            VStack(alignment: .leading, spacing: 12) {
+                StudioKimiInstanceInspectionView()
+                Divider()
+                Text(agentManager.readUserKimiConfigForDisplay())
+            }
         default:
             Text("")
         }

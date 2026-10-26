@@ -1,0 +1,21 @@
+{
+  "sourceBaseCommit": "e78381db81335cbf84da23af6a67d573402f7f63",
+  "testedSourceSHA256": {
+    "Sources/Shared/KimiDesktopInstanceDiscovery.swift": "f3f27d012acff68a7a99e046a5c11e09f7f3ba5b82a7ba95691fedc5e823ed9d",
+    "Sources/Views/StudioKimiInstanceInspectionView.swift": "1bf418d9ff86f603734c361fd631ab09fc839c4f17ca4b634ec4b5aa5565dbfa",
+    "Sources/Views/DeviceInfoView.swift": "8a0d411ef1a48e55a7fd1f930bb279dd7e021a0c63228ede4d62f419e994b80e"
+  },
+  "swiftTests": 856,
+  "result": "passed",
+  "newDiscoveryTests": 8,
+  "testLog": "/tmp/ahakey-kimi-discovery-verified-full-20261026.log",
+  "testLogSHA256": "706442d8877615698f416e86b415fc7f53371f34b0f02c8e2bd5b6a1b66ed3f4",
+  "productionCredentialReads": 0,
+  "productionHTTPRequests": 0,
+  "sessionResumes": 0,
+  "permissionWrites": 0,
+  "uiEntry": "Existing Device Info Kimi diagnostic; explicit invocation only",
+  "candidateInstalled": false,
+  "kimiLiveManagementComplete": false,
+  "goalComplete": false
+}

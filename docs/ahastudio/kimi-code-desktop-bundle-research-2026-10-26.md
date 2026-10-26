@@ -77,3 +77,55 @@ DMG仅以readonly、nobrowse、noautoopen挂载到任务临时目录。读取Inf
 5. 客户端将默认配置同步和已确认原会话切档分别展示。此次静态核验可推进Desktop适配开发，但不能将三端live验收整体标为完成。
 
 结论：Code Desktop公开官方安装包提供了此前缺失的发现与认证实现证据，**本地原Desktop会话接入值得继续做**；下一步是经授权的原实例只读识别与受控验收。本轮没有生产接入、实际权限写入或安装行为。
+
+
+## 原会话原子边界补查
+
+日期同上；仅补读已缓存官方`1011d8b63fcc150998a4710641563cd0f73369c9`源码及同一SHA256的Desktop1.1.3提取文本，未重新下载、运行App或调用实际API。**此次发现公开源码和Desktop bundle虽都标server2.3.2，局部实现并不相同，不能用版本字符串代替逐项能力核验。**
+
+### Loaded map证据：目录非空model意味着取样时已加载
+
+公开[v2目录实现](https://github.com/MoonshotAI/kimi-code/blob/1011d8b63fcc150998a4710641563cd0f73369c9/packages/kap-server/src/routes/v2/sessions.ts)的`factsOf`调用[resolveSessionFacts](https://github.com/MoonshotAI/kimi-code/blob/1011d8b63fcc150998a4710641563cd0f73369c9/packages/kap-server/src/routes/sessions.ts)，再经`getLiveSessionById`到[SessionManager.get](https://github.com/MoonshotAI/kimi-code/blob/1011d8b63fcc150998a4710641563cd0f73369c9/packages/agent-core-v2/src/app/sessionManager/sessionManagerService.ts)的`this.sessions.get(id)`。`activity.model`只来自该live handle的main Agent；没有从持久化model填回。故非null是“该server取样时确实有loaded main”的证据，null可能是冷会话、缺main或未绑定model，不是完整否定。该目录读路径没有为取样而resume目标。
+
+Desktop提取文本的`CH(accessor,id)`同样直接调用manager.get；`createSessionState`也在异步打开事件journal前后比较相同handle。这确认其内部认识loaded身份，但公开profile setter未接收该handle作为前置条件，外部仍不能把目录取样变成写时保证。
+
+### WebSocket订阅不提供统一保活或原子写保证
+
+公开[SessionEventBroadcaster.subscribe](https://github.com/MoonshotAI/kimi-code/blob/1011d8b63fcc150998a4710641563cd0f73369c9/packages/kap-server/src/transport/ws/v1/sessionEventBroadcaster.ts)先`resumeSessionById`，再登记subscriber；所以对冷会话subscribe不是无副作用的live探测。公开[IdleReaper](https://github.com/MoonshotAI/kimi-code/blob/1011d8b63fcc150998a4710641563cd0f73369c9/packages/kap-server/src/services/sessionIdleReaper.ts)默认30分钟、每分钟扫描，`closeIfIdle`只保留cron／busy／pending interaction，没有检查WebSocket订阅数量。其lease用于会话锁并在检查后释放，不是第三方可持有的“阻止卸载”租约。关闭事件会使broadcaster detach；订阅不能冻结生命周期。
+
+**Desktop1.1.3 bundle不同：**同一提取文件中的`async subscribe(e,t,n,r,i)`直接`ensureState`，没有先resume；其`createSessionState`仅获取live map并比较对象。对该已下载包，订阅实现是loaded候选探测通路，而不是公开1011d8b的cold-resume通路。完整提取文本中未检索到`closeIfIdle`／`KIMI_CODE_SESSION_IDLE_RECLAIM_MS`或reaper的识别文本，不能宣称该包一定有公开源码的30分钟回收，也不能据此保证无其他关闭路径。**两者订阅均没有给后续权限POST携带可校验handle／generation；无原子保证。**
+
+### 确有不cold-resume session的generic RPC，但属于显式调试端点
+
+[dispatcher.resolveScope](https://github.com/MoonshotAI/kimi-code/blob/1011d8b63fcc150998a4710641563cd0f73369c9/packages/kap-server/src/transport/dispatcher.ts)对session／agent scope先`getLiveSessionById`，找不到即报错而不resume会话。由[serviceDispatcherRoutes](https://github.com/MoonshotAI/kimi-code/blob/1011d8b63fcc150998a4710641563cd0f73369c9/packages/kap-server/src/transport/serviceDispatcherRoutes.ts)及[permissionMode服务标识](https://github.com/MoonshotAI/kimi-code/blob/1011d8b63fcc150998a4710641563cd0f73369c9/packages/agent-core-v2/src/agent/permissionMode/permissionMode.ts)可推导出如下调试路由形态：
+
+- `/api/v1/debug/session/{sid}/agent/{aid}/agentPermissionModeService/mode`
+- 同路径尾段`setMode`或`setModeAndBroadcast`，参数为模式。
+- `/api/v1/debug/channels`可反射服务描述。
+
+这是真实存在的内部generic分发能力，不能漏报成完全没有loaded-only实现；但[registerDebugRoutes](https://github.com/MoonshotAI/kimi-code/blob/1011d8b63fcc150998a4710641563cd0f73369c9/packages/kap-server/src/transport/registerDebugRoutes.ts)和[路由挂载条件](https://github.com/MoonshotAI/kimi-code/blob/1011d8b63fcc150998a4710641563cd0f73369c9/packages/kap-server/src/routes/registerApiV1Routes.ts)证明它仅在`debugEndpoints=true`时注册，启动再限定loopback。Desktop bundle也保留相同开关，普通引导只传`debugEndpoints===true`，不是默认开启。
+
+此调试通路不cold-resume session，仍可能`ensureMainAgent`或`getOrRestoreAgent`恢复Agent，且getter到setter有异步分发、生命周期释放竞态，没有CAS／expected owner generation。它不是普通发行可默认依赖的公开稳定合同。**不应为交付拨杆功能打开调试端点或调用任意服务反射。** 更合理的上游增强是把所需loaded-only条件做成窄的、鉴权且正式支持的权限端点。
+
+### POST无已证实CAS；固定profile的子Agent不跟随广播
+
+公开`updateSessionProfileRequestSchema`及对应处理器未包含expected owner、if_loaded、permission revision或If-Match校验；已下载bundle的profile路径也仅对permission_mode broadcast，未发现这些前置条件。接口外先检查目录或保持订阅不能补成服务端原子条件。这里结论限于已核查路径，不断言其他未来接口不存在。
+
+[hasPinnedPermissionMode](https://github.com/MoonshotAI/kimi-code/blob/1011d8b63fcc150998a4710641563cd0f73369c9/packages/agent-core-v2/src/features/tower/tower.ts)在当前版本具体为`profileName == tower-worker`；[broadcast](https://github.com/MoonshotAI/kimi-code/blob/1011d8b63fcc150998a4710641563cd0f73369c9/packages/agent-core-v2/src/session/agentLifecycle/agentLifecycleService.ts)跳过这类profile、closing及非active的Agent。Desktop bundle的`jR`同样只识别tower-worker。因此main切auto并不等于所有子Agent都切auto；不应绕过固定profile逐个强改。
+
+普通子Agent重建时，[AgentTool](https://github.com/MoonshotAI/kimi-code/blob/1011d8b63fcc150998a4710641563cd0f73369c9/packages/agent-core-v2/src/agent/tools/agent/agentTool.ts)及[swarm重建路径](https://github.com/MoonshotAI/kimi-code/blob/1011d8b63fcc150998a4710641563cd0f73369c9/packages/agent-core-v2/src/features/swarm/session/sessionSwarmService.ts)会继承caller当前模式，tower-worker例外。这意味着托管期间新建／重建的子Agent与先前已活动子Agent的恢复基线并不相同；只有main原值不能完整恢复各Agent历史状态。
+
+补查结论：**公开正常REST写路径尚无已证明满足原会话loaded-only＋CAS的能力；调试RPC存在可复用的内部实现思路，但不宜以开启debug的方式投入正常产品。** 可先继续实例解析和身份核验，保留权限写关闭；Desktop1.1.3可在明确授权后做原实例受控接口验收，但依旧不能把subscribe或目录结果当成原子写许可。向上游建议正式提供以server/owner generation、session/agent incarnation和expected revision为前置条件的读写接口，以及来源可区分的权限变更事件。
+
+
+## 上游公开问题交叉核对（2026-10-26）
+
+[Issue #914](https://github.com/MoonshotAI/kimi-code/issues/914)讨论的是运行中`/permission`等修改未同步为新会话默认值，方向不等于“写默认值能控制现有会话”。[Issue #2828](https://github.com/MoonshotAI/kimi-code/issues/2828)记录ACP呈现的mode可能与引擎实际permission不同；应据此设计真实状态读回，不能仅看UI/default标签。此次两项查询均为只读；问题报告不证明所有当前版本仍有同一缺陷，也没有发布新问题或评论。
+
+## 客户端发现模块检查点
+
+已实现KimiDesktopInstanceDiscovery和现有设备信息/Kimi诊断中的显式只读入口。读取范围限默认/显式KIMI_CODE_HOME的server/instances，不扫描用户其他目录，不读取token或对话、不建立HTTP连接、不恢复/写会话、不启用调试接口。登记需匹配规范server ID文件名、精确整数、仅loopback、有效端口和45秒内心跳；目录/文件所有者及写权限、软链接、读取时变化均核对。
+
+生产核验使用同用户进程起始身份、官方bundle ID、Apple运行代码签名Team 2J9472RW75及内核FD信息证明PID实际拥有登记的loopback TCP监听，并再次核对进程未复用。输出关联原配置目录，但不是任意session的owner证明或权限写入授权。安装版本与serverVersion也不被当成逐字协议等价证明。
+
+最终856项Swift测试通过，含8项发现/文件约束/真实IPv4和IPv6自有监听测试；没有生产token读取、HTTP或权限操作。此模块只完成接入前置发现与身份核验，不将三端原会话控制标为完成。是否允许官方REST在原Desktop中恢复已授权会话的产品范围已向用户确认；该选择到来前不启用依赖它的权限写。

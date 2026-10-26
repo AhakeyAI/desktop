@@ -2156,6 +2156,16 @@ TRANSLATIONS.update({"当前连接最多发送 %d 字节，请缩短按键描述
 
 TRANSLATIONS.update({"%d 项写入待确认": "%d writes await confirmation"})
 
+TRANSLATIONS.update({
+    "Kimi Code Desktop 运行检查": "Kimi Code Desktop runtime check",
+    "检测运行实例（只读）": "Check running instances (read-only)",
+    "检测核对本机应用身份，不读取对话或改变权限。": "This check verifies the local application identity. It does not read conversations or change permissions.",
+    "已核对 %d 个官方运行实例。当前会话权限尚未接管。": "Verified %d official running instances. Current session permissions are not managed yet.",
+    "发现运行登记，但尚未完成官方 Code Desktop 身份核对。": "Runtime registrations were found, but the official Code Desktop identity could not be verified.",
+    "当前配置目录中未发现可核对的 Code Desktop 运行实例。": "No verifiable Code Desktop runtime was found in the current configuration directories.",
+    "本次仅检查了部分登记，请缩小配置目录范围后再试。": "Only some registrations were checked. Narrow the configuration directories and try again."
+})
+
 def escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
