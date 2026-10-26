@@ -13,16 +13,75 @@ final class StudioDeviceInspectorModel: ObservableObject {
         let id = UUID()
         let value: Value
     }
-    @Published var standbyDraft: UInt16?
+    @Published var standbyDraft: UInt16? { didSet { persistDrafts() } }
     @Published private(set) var standbyFact: StudioConfirmedEdit.Fact<UInt16>?
-    @Published var leverDraft: SideSwitchBindingDraft?
+    @Published var leverDraft: SideSwitchBindingDraft? { didSet { persistDrafts() } }
     @Published private(set) var leverFact: StudioConfirmedEdit.Fact<[SideSwitchReadback.Position]>?
     @Published var conflict: Conflict?
     @Published var message: String?
     @Published private(set) var isBusy = false
-    @Published private(set) var unconfirmed: Set<Setting> = []
+    @Published private(set) var unconfirmed: Set<Setting> = [] { didSet { persistDrafts() } }
     let writeCompleted = PassthroughSubject<KeyboardWriteOutcome, Never>()
     private var operation: Task<Void, Never>?
+    private let defaults: UserDefaults
+    private var history: StudioDeviceDraftHistory
+    private var activeDeviceID: String?
+    private var isRestoringHistory = false
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        let history = StudioDeviceDraftHistory.load(from: defaults)
+        self.history = history
+        activeDeviceID = history.lastDeviceID
+        let record = history[activeDeviceID]
+        standbyDraft = record?.standby
+        leverDraft = record?.lever
+        if record?.unconfirmedStandby == true { unconfirmed.insert(.standby) }
+        if record?.unconfirmedLever == true { unconfirmed.insert(.lever) }
+        // Historical baselines intentionally do not populate standbyFact/leverFact.
+    }
+    private func persistDrafts() {
+        guard !isRestoringHistory, let deviceID = activeDeviceID else { return }
+        var record = history[deviceID] ?? .init()
+        record.standby = standbyDraft; record.lever = leverDraft
+        record.unconfirmedStandby = unconfirmed.contains(.standby)
+        record.unconfirmedLever = unconfirmed.contains(.lever)
+        history.save(record, deviceID: deviceID); history.persist(to: defaults)
+    }
+    private func activateDevice(_ deviceID: String) {
+        guard activeDeviceID != deviceID else { return }
+        persistDrafts()
+        isRestoringHistory = true
+        activeDeviceID = deviceID
+        let record = history[deviceID]
+        standbyDraft = record?.standby; leverDraft = record?.lever
+        standbyFact = nil; leverFact = nil; unconfirmed = []
+        if record?.unconfirmedStandby == true { unconfirmed.insert(.standby) }
+        if record?.unconfirmedLever == true { unconfirmed.insert(.lever) }
+        isRestoringHistory = false
+    }
+    func observeStandby(_ fact: StudioConfirmedEdit.Fact<UInt16>) {
+        activateDevice(fact.deviceID)
+        let previous = history[fact.deviceID]?.standbyBaseline
+        let clean = standbyDraft == nil || (previous != nil && standbyDraft == previous)
+        standbyFact = fact
+        if clean { standbyDraft = fact.value }
+        var record = history[fact.deviceID] ?? .init()
+        record.standbyBaseline = fact.value
+        history.save(record, deviceID: fact.deviceID); persistDrafts()
+    }
+    func observeLever(_ fact: StudioConfirmedEdit.Fact<[SideSwitchReadback.Position]>) {
+        activateDevice(fact.deviceID)
+        let previous = history[fact.deviceID]?.leverBaseline
+        let clean = leverDraft == nil || (previous != nil && leverDraft?.positions == previous)
+        leverFact = fact
+        if clean && leverDraft?.positions != fact.value {
+            leverDraft = .init(readback: .init(physicalState: 0, positions: fact.value))
+        }
+        var record = history[fact.deviceID] ?? .init()
+        record.leverBaseline = fact.value
+        history.save(record, deviceID: fact.deviceID); persistDrafts()
+    }
     var standbyDirty: Bool { standbyDraft != nil && standbyDraft != standbyFact?.value }
     var leverDirty: Bool { leverDraft != nil && leverDraft?.positions != leverFact?.value }
     var canWriteLever: Bool {
@@ -45,14 +104,12 @@ final class StudioDeviceInspectorModel: ObservableObject {
                 let fact = try await session.withConnection { context in
                     StudioConfirmedEdit.Fact(deviceID: context.deviceID, value: try await ble.readSideSwitchForEditing().positions)
                 }
-                self.leverFact = fact
-                if self.leverDraft == nil { self.leverDraft = .init(readback: .init(physicalState: 0, positions: fact.value)) }
+                self.observeLever(fact)
             } else {
                 let fact = try await session.withConnection { context in
                     StudioConfirmedEdit.Fact(deviceID: context.deviceID, value: try await ble.readStandbyForEditing())
                 }
-                self.standbyFact = fact
-                if self.standbyDraft == nil { self.standbyDraft = fact.value }
+                self.observeStandby(fact)
             }
             self.message = NSLocalizedString("已读取。", comment: "")
         }
@@ -69,9 +126,9 @@ final class StudioDeviceInspectorModel: ObservableObject {
                     })
                 switch result {
                 case .conflict(let actual): self.conflict = .init(value: .lever(actual, desired))
-                case .unconfirmed(let actual): self.leverFact = actual; self.persistenceUnconfirmed()
+                case .unconfirmed(let actual): self.observeLever(actual); self.persistenceUnconfirmed()
                 case .saved(let actual, let wrote):
-                    self.leverFact = actual
+                    self.observeLever(actual)
                     self.leverDraft = .init(readback: .init(physicalState: 0, positions: actual.value))
                     self.succeeded(setting: .lever, scope: NSLocalizedString("实体拨杆绑定", comment: ""), wrote: wrote)
                 }
@@ -87,9 +144,9 @@ final class StudioDeviceInspectorModel: ObservableObject {
                     })
                 switch result {
                 case .conflict(let actual): self.conflict = .init(value: .standby(actual, desired))
-                case .unconfirmed(let actual): self.standbyFact = actual; self.persistenceUnconfirmed()
+                case .unconfirmed(let actual): self.observeStandby(actual); self.persistenceUnconfirmed()
                 case .saved(let actual, let wrote):
-                    self.standbyFact = actual; self.standbyDraft = actual.value
+                    self.observeStandby(actual); self.standbyDraft = actual.value
                     self.succeeded(setting: .standby, scope: NSLocalizedString("待机时间", comment: ""), wrote: wrote)
                 }
             }
@@ -97,9 +154,9 @@ final class StudioDeviceInspectorModel: ObservableObject {
     }
     func adopt(_ conflict: Conflict, keepDraft: Bool) {
         switch conflict.value {
-        case .standby(let fact, let desired): standbyFact = fact; standbyDraft = keepDraft ? desired : fact.value
+        case .standby(let fact, let desired): observeStandby(fact); standbyDraft = keepDraft ? desired : fact.value
         case .lever(let fact, let desired):
-            leverFact = fact
+            observeLever(fact)
             leverDraft = .init(readback: .init(physicalState: 0, positions: keepDraft ? desired : fact.value))
         }
         self.conflict = nil

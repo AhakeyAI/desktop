@@ -65,7 +65,7 @@ public enum SideSwitchBindingConfiguration {
     }
 }
 
-public struct SideSwitchBindingDraft {
+public struct SideSwitchBindingDraft: Codable {
     public private(set) var positions: [SideSwitchReadback.Position]
     private var explicitlyEdited: Set<Int> = []
     public init(readback: SideSwitchReadback) { positions = readback.positions }

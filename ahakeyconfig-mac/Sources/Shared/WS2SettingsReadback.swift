@@ -47,7 +47,7 @@ public enum WS2SettingsReadback {
 }
 
 public struct SideSwitchReadback: Equatable {
-    public struct Position: Equatable {
+    public struct Position: Equatable, Codable {
         public let bindType: UInt8
         public let action: Data
 
