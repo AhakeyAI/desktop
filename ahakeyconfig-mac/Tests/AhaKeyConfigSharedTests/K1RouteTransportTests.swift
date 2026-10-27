@@ -7,7 +7,7 @@ final class K1RouteTransportTests: XCTestCase {
         let commands: [K1OutputRouteCommand] = [.capability(nonce: 1), .read(nonce: 2, mode: 3, offset: 84, count: 18),
             .begin(nonce: 3, selector: 2, length: 102, checksum: 0x12345678),
             .chunk(token: 3, selector: 2, offset: 0, bytes: Data([1, 2, 3])), .commit(token: 3, selector: 2),
-            .restoreStatus(nonce: 4), .startRestore(nonce: 5)]
+            .restoreStatus(nonce: 4), .startRestore(nonce: 5), .startRestoreV2(nonce: 6, expectedNextAttempt: 7)]
         for command in commands {
             let request = try XCTUnwrap(command.request)
             XCTAssertEqual(K1OutputRouteCommand(request: request), command)

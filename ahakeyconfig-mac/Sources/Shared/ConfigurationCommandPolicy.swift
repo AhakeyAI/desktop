@@ -22,7 +22,7 @@ public enum ConfigurationCommandPolicy {
                 return selector == 0xFF
                     ? confirmedWrite == .k1Initialization && k1InitializationReadbackVerified
                     : confirmedWrite == .k1Route
-            case .startRestore: return confirmedWrite == .restoreInitialization && restoreReadbackVerified
+            case .startRestore, .startRestoreV2: return confirmedWrite == .restoreInitialization && restoreReadbackVerified
             }
         }
         if b[2] == 0x01 {

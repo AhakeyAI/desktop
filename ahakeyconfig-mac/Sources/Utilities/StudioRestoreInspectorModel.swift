@@ -55,11 +55,18 @@ final class StudioRestoreInspectorModel: ObservableObject {
             let actual = try await access.read()
             guard !actual.deviceID.isEmpty else { throw StudioInspectorSession.Failure.deviceChanged }
             fact = actual
-            if actual.value.handled && [.never, .incomplete].contains(actual.value.state) {
+            let resolvedCompletedIntent = pending.contains(actual.deviceID) &&
+                actual.value.handled && actual.value.state == .complete
+            if actual.value.handled && [.never, .incomplete, .complete].contains(actual.value.state) {
+                // A fresh durable terminal read resolves an ambiguous submission;
+                // it does not verify defaults or send another reset. A new repeat
+                // still needs fresh intent/power/confirmation and an exact-next v2 token.
                 markPending(actual.deviceID, value: false)
             }
             message = pending.count >= 32
-                ? NSLocalizedString("还有其他键盘的恢复结果待核对，请先完成核对。", comment: "") : nil
+                ? NSLocalizedString("还有其他键盘的恢复结果待核对，请先完成核对。", comment: "")
+                : (resolvedCompletedIntent
+                    ? NSLocalizedString("键盘报告恢复已完成，请先核对设置。再次恢复需重新确认，不会自动执行。", comment: "") : nil)
         } catch { fact = nil; message = error.localizedDescription }
     }
     func start(using access: Access, userConfirmed: Bool) async {
@@ -71,7 +78,10 @@ final class StudioRestoreInspectorModel: ObservableObject {
         markPending(baseline.deviceID, value: true)
         message = NSLocalizedString("正在恢复并核对设置，请保持 USB 供电。", comment: "")
         defer { isBusy = false }
-        do { accept(try await access.start(baseline, userConfirmed, power), deviceID: baseline.deviceID, wrote: true) }
+        do {
+            accept(try await access.start(baseline, userConfirmed, power), deviceID: baseline.deviceID,
+                   wrote: true, baseline: baseline.value)
+        }
         catch Failure.voiceActive {
             markPending(baseline.deviceID, value: false)
             message = Failure.voiceActive.localizedDescription
@@ -94,9 +104,11 @@ final class StudioRestoreInspectorModel: ObservableObject {
             writeCompleted.send(.init(succeeded: false, message: message ?? "", wrote: false))
         }
     }
-    private func accept(_ output: Output, deviceID: String, wrote: Bool) {
+    private func accept(_ output: Output, deviceID: String, wrote: Bool,
+                        baseline: RestoreInitializationTransaction.Snapshot? = nil) {
         let snapshot: RestoreInitializationTransaction.Snapshot
         var succeeded = false
+        var refusedWithoutMutation = false
         switch output.result {
         case .verified(let value):
             snapshot = value
@@ -109,13 +121,14 @@ final class StudioRestoreInspectorModel: ObservableObject {
             message = NSLocalizedString("键盘报告已恢复，但部分设置与预期默认值不同，请重新核对。", comment: "")
         case .unfinished(let value):
             snapshot = value
-            message = NSLocalizedString("恢复尚未完成，请先读取状态，再明确选择是否重试。", comment: "")
+            message = NSLocalizedString("本次恢复结果尚未核对，请先读取状态，再明确选择是否重试。", comment: "")
         case .refused(let value):
             snapshot = value
-            message = NSLocalizedString("键盘未接受本次恢复，请检查 USB 供电并重新读取状态。", comment: "")
+            refusedWithoutMutation = !value.handled && value.attempt == baseline?.attempt && value.state == baseline?.state
+            message = NSLocalizedString("键盘未接受本次恢复，请检查 USB 供电和固件支持后重新读取状态。", comment: "")
         }
         fact = .init(deviceID: deviceID, value: snapshot)
-        if succeeded { markPending(deviceID, value: false) }
+        if succeeded || refusedWithoutMutation { markPending(deviceID, value: false) }
         writeCompleted.send(.init(succeeded: succeeded, message: message ?? "", wrote: wrote))
     }
     private func markPending(_ deviceID: String, value: Bool) {

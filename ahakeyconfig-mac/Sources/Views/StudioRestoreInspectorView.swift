@@ -13,12 +13,13 @@ struct StudioRestoreInspectorView: View {
                 if let fact = model.fact {
                     Text(statusTitle(fact.value.state)).font(.callout.weight(.medium))
                     if fact.value.state == .complete {
-                        Text(NSLocalizedString("此固件暂不支持再次恢复；分模式语音设置仍可反复修改。", comment: ""))
+                        Text(NSLocalizedString("再次恢复需要支持该功能的新固件；旧版本可能拒绝。每次操作都需重新确认。", comment: ""))
                             .font(.caption).foregroundStyle(.secondary)
                         Button(NSLocalizedString("核对恢复后的设置", comment: "")) {
                             Task { await model.verify(using: access) }
                         }.disabled(!model.canVerify || session.isBusy)
-                    } else if fact.value.canStart {
+                    }
+                    if fact.value.canStart {
                         Toggle(NSLocalizedString("本次选择恢复键盘设置", comment: ""), isOn: $model.intendsRestore)
                         if model.intendsRestore {
                             Toggle(NSLocalizedString("已连接键盘 USB 供电，并会保持连接", comment: ""), isOn: $model.usbPowerConfirmed)

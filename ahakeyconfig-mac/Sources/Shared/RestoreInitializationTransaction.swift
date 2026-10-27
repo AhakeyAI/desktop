@@ -14,7 +14,7 @@ public enum RestoreInitializationTransaction {
             }
             self.handled = handled; self.state = state; self.attempt = attempt
         }
-        public var canStart: Bool { handled && (state == .never || state == .incomplete) && attempt < UInt32.max }
+        public var canStart: Bool { handled && [.never, .incomplete, .complete].contains(state) && attempt < UInt32.max }
     }
     public enum Result: Equatable, Sendable {
         case verified(Snapshot)
@@ -24,7 +24,7 @@ public enum RestoreInitializationTransaction {
     }
     public enum Failure: Error, Equatable {
         case unsupported, invalidReply, confirmationRequired, externalPowerRequired
-        case changedSinceRead, unavailable, alreadyCompleted, writeUnconfirmed
+        case changedSinceRead, unavailable, writeUnconfirmed
     }
 
     @MainActor
@@ -43,19 +43,27 @@ public enum RestoreInitializationTransaction {
         guard usbPowerConfirmed else { throw Failure.externalPowerRequired }
         let before = try await read(checkSession: checkSession, exchange: exchange)
         guard before == baseline else { throw Failure.changedSinceRead }
-        // Current firmware rejects COMPLETE -> new restore; keep Issue #9 visible.
-        guard before.state != .complete else { throw Failure.alreadyCompleted }
         guard before.canStart else { throw Failure.unavailable }
         try checked(checkSession)
         writeStarted()
         let started: Snapshot
         do {
             // Exactly one mutation attempt. A lost response never schedules a retry.
-            started = try await perform(.startRestore(nonce: nonce()), checkSession: checkSession, exchange: exchange)
+            // Preserve v1 first/retry behavior on older firmware. Only an explicit
+            // repeat from COMPLETE uses the additive v2 exact-next-attempt contract.
+            // A status/catalog read does not prove v2 support; never downgrade on failure.
+            let command: K1OutputRouteCommand = before.state == .complete
+                ? .startRestoreV2(nonce: nonce(), expectedNextAttempt: before.attempt + 1)
+                : .startRestore(nonce: nonce())
+            started = try await perform(command, checkSession: checkSession, exchange: exchange)
         } catch {
             throw Failure.writeUnconfirmed
         }
-        guard started.handled else { return .refused(started) }
+        if !started.handled {
+            if started.attempt == before.attempt, started.state == before.state { return .refused(started) }
+            if started.attempt == before.attempt + 1 { return .unfinished(started) }
+            throw Failure.writeUnconfirmed
+        }
         guard started.attempt == before.attempt + 1 else { throw Failure.writeUnconfirmed }
         guard started.state == .complete else { return .unfinished(started) }
         return try await verify(baseline: started, checkSession: checkSession,
@@ -108,7 +116,6 @@ extension RestoreInitializationTransaction.Failure: LocalizedError {
         case .externalPowerRequired: return NSLocalizedString("请连接键盘 USB 供电并确认后再恢复。", comment: "")
         case .changedSinceRead: return NSLocalizedString("恢复状态已变化，请重新读取后确认。", comment: "")
         case .unavailable: return NSLocalizedString("当前状态无法开始恢复，请读取并处理未完成提示。", comment: "")
-        case .alreadyCompleted: return NSLocalizedString("此固件恢复完成后暂不支持再次发起；分模式语音设置仍可正常修改。", comment: "")
         case .writeUnconfirmed: return NSLocalizedString("恢复结果未确认，可能已执行；请重新连接并读取状态，不要重复恢复。", comment: "")
         }
     }

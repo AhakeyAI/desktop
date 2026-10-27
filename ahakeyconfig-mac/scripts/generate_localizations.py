@@ -7,6 +7,10 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    '键盘报告恢复已完成，请先核对设置。再次恢复需重新确认，不会自动执行。': 'The keyboard reports the reset completed. Verify the settings first. Repeating it requires new confirmation and never starts automatically.',
+    '再次恢复需要支持该功能的新固件；旧版本可能拒绝。每次操作都需重新确认。': 'Repeating a reset requires firmware that supports it; older versions may refuse. Confirm each operation separately.',
+    '本次恢复结果尚未核对，请先读取状态，再明确选择是否重试。': 'This reset result has not been verified. Read the status before explicitly choosing whether to retry.',
+    '键盘未接受本次恢复，请检查 USB 供电和固件支持后重新读取状态。': 'The keyboard refused this reset. Check USB power and firmware support, then read the status again.',
     'AhaType 登录状态已变化，已写入原始转写。': 'AhaType login changed; raw transcript written.',
     '图片第 %d 帧无法解码，文件可能已损坏。请重新导出图片后再试。': 'Image frame %d cannot be decoded. The file may be damaged. Export the image again and retry.',
     '允许拨杆管理 Codex 权限？': 'Let the lever manage Codex permissions?',

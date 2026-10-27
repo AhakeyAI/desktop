@@ -62,15 +62,14 @@ final class RestoreInitializationTransactionTests: XCTestCase {
         } catch { XCTAssertEqual(error as? Restore.Failure, .writeUnconfirmed) }
         XCTAssertEqual(mutations, 1)
     }
-    func testRepeatedRestoreAfterCompleteIsBlockedWithoutSendingMutation() async {
-        do {
-            _ = try await Restore.start(baseline: complete, userConfirmed: true, usbPowerConfirmed: true,
-                checkSession: {}, exchange: { command in
-                    XCTAssertEqual(command.subcommand, 0x30)
-                    return self.reply(command, state: .complete, attempt: 1)
-                }, writeStarted: { XCTFail("firmware Issue #9") }, verifyDefaults: { false })
-            XCTFail("expected current firmware limitation")
-        } catch { XCTAssertEqual(error as? Restore.Failure, .alreadyCompleted) }
+    func testCompleteReadDoesNotAutomaticallyStartAnotherRestore() async throws {
+        let result = try await Restore.read(checkSession: {}, exchange: { command in
+            XCTAssertEqual(command.subcommand, 0x30)
+            XCTAssertEqual(command.request?[3], 1, "status remains v1")
+            return self.reply(command, state: .complete, attempt: 1)
+        })
+        XCTAssertEqual(result, complete)
+        XCTAssertTrue(result.canStart, "a repeat still requires separate consent and power confirmation")
     }
     func testIncompleteRequiresExplicitRetryAndAdvanceOfAttempt() async throws {
         let incomplete = Restore.Snapshot(handled: true, state: .incomplete, attempt: 4)!
@@ -83,7 +82,7 @@ final class RestoreInitializationTransactionTests: XCTestCase {
                 }
                 return self.reply(command, state: .incomplete, attempt: 4)
             }, writeStarted: {}, verifyDefaults: { XCTFail("refused restore"); return false })
-        XCTAssertEqual(result, .refused(.init(handled: false, state: .incomplete, attempt: 5)!))
+        XCTAssertEqual(result, .unfinished(.init(handled: false, state: .incomplete, attempt: 5)!))
         XCTAssertEqual(mutations, 1)
     }
     func testLegacyACKMalformedStateAndStaleNonceNeverProveCapability() async {
