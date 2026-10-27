@@ -30,6 +30,6 @@ Code Desktop真实服务联调、底层网络/重定向/进程重启矩阵、安
 
 普通Kimi/Work与官方CLI TUI现有外部原会话接口仍未闭合，保留main的默认权限和任务状态同步，不以Code Desktop接线冒充三端完成。当前已安装build512/08a2865，双架构签名与安装字节核验通过，CI40474814309成功。设备信息入口默认收起、显式检测在无Code Desktop实例时正确返回未发现会话，后台报告授权/接管/待恢复均0；普通Kimi/TUI未被当作已接管。原2项草稿和Voice保留，只读待机60分钟正常，Agent已重新连接。真实Code Desktop权限联调仍未执行；未公证、未发布。
 
-## 固件链接输入
+## 固件链接输入（已解决文件依赖）
 
-Owner再次提供的链接确认仍为`harness/x1-refactor-main@0a055ba`源码分支。该分支UAT Brief列出组合HEX：`.ahakey-harness/evidence/builds/ws45-cp2_6-restore-combined-regate-20261025/HID_Keyboard_582m_vibe_coding.hex`，来源292a49f，SHA256以6EC0413CFC98开头；文件未纳入Git，40个本机HEX均不匹配，公开Release仍仅旧v1.0、Actions artifacts为0。源码URL不是缺失构建产物的下载链接；尚未刷机或执行恢复。
+2026-10-27已恢复源292a49f组合HEX，完整SHA256 `6EC0413CFC983788CDC99F628F0F8E2A64C6AF147D2A5E1727A03F036BF1123C` 与原门禁一致。文件已随connect&talk归档，不再等待用户提供下载链接。见[精确产物恢复](firmware-artifact-recovery-2026-10-27.md)。此进展不替代Kimi服务权限验证；本轮未刷机或执行Restore。

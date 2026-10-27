@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-27",
+  "firmwareSourceHead": "0a055ba95f857a1d32f05b79bcabd3ecfe78d4eb",
+  "existingIssueNumbers": [
+    7,
+    8,
+    9
+  ],
+  "updatedIssue": 7,
+  "commentURL": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6438787695",
+  "bodyFileInTemporaryEvidence": "ahakey-firmware-issue7-update-20261027.md",
+  "newIssueCreated": false,
+  "requests": [
+    "full 16-key action and description readback with snapshot consistency",
+    "independent short/long action contract",
+    "formal WS4/WS5 catalog and recovery-safe release inputs"
+  ],
+  "closedInput": "exact gate-bound WS45 HEX recovered",
+  "noNewProtocolInvented": true,
+  "hardwareWrites": 0
+}

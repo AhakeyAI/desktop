@@ -26,6 +26,8 @@ P1表示优先处理影响操作恢复、输入可靠性或已承诺功能的事
 | FW-10 | 已解决 · 待组合真机 | 已从292a49f源码恢复组合HEX，完整SHA256为6EC0413CFC983788CDC99F628F0F8E2A64C6AF147D2A5E1727A03F036BF1123C，与原13项门禁产物一致 | 无需Owner另找文件；后续正式目录应归档二进制与来源，避免只留下哈希 | Mac官方旧GCC8.2与已校验SDK构建一致，另两组host测试通过；未刷机、不替代原Owner UAT和正式recovery-safe镜像 |
 | FW-11 | P1 · 独立短/长按能力合同 | 当前K1路由扩展不等于任意键两套独立短长按动作；App语音短长按也不是该固件能力 | 给出动作/阈值/松开、容量、保存与完整读回、能力探测及旧设备降级合同 | 保持当前短长语音功能；独立动作编辑仍是未完成开发，不能仅放开UI就算适配 |
 
+2026-10-27已在原[固件Issue #7补充当前交接合同](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6438787695)：确认精确HEX已恢复、Consumer新源能力与旧限制区分、长宏完整事实读回、独立短/长按及WS4/5正式交付；保留原历史反馈，不重复创建相同问题。
+
 ## 当前最小交接请求
 
 Mac已经同步指定源码分支并接入Consumer可逆路由及现有Restore合同。此前缺失的组合HEX现已由Mac恢复并完整匹配，不再请求对方提供文件：`.ahakey-harness/evidence/builds/ws45-cp2_6-restore-combined-regate-20261025/HID_Keyboard_582m_vibe_coding.hex`，源`292a49f32939e2b778b15eceb194746133d3b2c7`，SHA256 `6EC0413CFC983788CDC99F628F0F8E2A64C6AF147D2A5E1727A03F036BF1123C`。后续请同步长宏完整读回、独立短长按、Issue #9及正式发布目录/镜像的现有合同或排期；不用再整理已经在Harness里的协议说明。
