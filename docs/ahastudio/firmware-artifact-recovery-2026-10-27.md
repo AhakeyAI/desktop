@@ -6,6 +6,7 @@
 
 - 源码：`292a49f32939e2b778b15eceb194746133d3b2c7`。
 - 最新分支：`harness/x1-refactor-main@0a055ba95f857a1d32f05b79bcabd3ecfe78d4eb`；与上述候选的 `APP`、`Profile` 和生产构建脚本无差异。
+- 随分支归档：[ws45-292a49f-6ec0413c.hex](../validation/connect-talk-hil-2026-10-22/firmware/ws45-292a49f-6ec0413c.hex)，用于固定组合验收；不替换App内置镜像，不作为正式推荐或recovery-safe固件。
 - 本机 HEX：`/Users/heartline/Documents/Codex/local-builds/firmware-ws45-292a49f-20261027/HID_Keyboard_582m_vibe_coding.hex`。
 - SHA256：`6EC0413CFC983788CDC99F628F0F8E2A64C6AF147D2A5E1727A03F036BF1123C`。
 - 同目录保存源码归档、ELF/BIN/MAP、完整构建命令与日志、原 gate receipt、SDK校验、Mac host检查及可传入路径的重建脚本。

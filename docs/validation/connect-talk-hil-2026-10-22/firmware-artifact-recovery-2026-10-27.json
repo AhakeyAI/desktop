@@ -63,5 +63,8 @@
     }
   ],
   "hexBytes": 758812,
-  "flasherHelpCheckPassed": true
+  "flasherHelpCheckPassed": true,
+  "repositoryArtifactPath": "docs/validation/connect-talk-hil-2026-10-22/firmware/ws45-292a49f-6ec0413c.hex",
+  "bundledInClient": false,
+  "officialRelease": false
 }
