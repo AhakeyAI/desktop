@@ -7,6 +7,7 @@ public enum ApprovalRevocationFeedback {
     @MainActor
     public static func wait(_ initial: ApprovalAutomationControl.RevocationOutcome,
                             directory: URL = ApprovalAutomationControl.productionDirectory,
+                            client: ApprovalAutomationControl.Client? = nil,
                             timeout: Duration = .seconds(8),
                             isCurrent: () -> Bool,
                             pause: () async throws -> Void = { try await Task.sleep(for: .milliseconds(250)) }) async -> Completion {
@@ -20,7 +21,9 @@ public enum ApprovalRevocationFeedback {
         while true {
             guard !Task.isCancelled, isCurrent() else { return .superseded }
             do {
-                if try !CodexDesktopLeverState(directory: directory).hasPendingRecovery() { return .confirmed }
+                let codexPending = (client == nil || client == .codex) ? try CodexDesktopLeverState(directory: directory).hasPendingRecovery() : false
+                let kimiPending = (client == nil || client == .kimi) ? try KimiDesktopLeverState(directory: directory).hasPendingRecovery() : false
+                if !codexPending && !kimiPending { return .confirmed }
             } catch { return .notConfirmed }
             guard ContinuousClock.now < deadline else { return .notConfirmed }
             do { try await pause() }

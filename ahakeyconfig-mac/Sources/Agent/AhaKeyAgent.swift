@@ -98,10 +98,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private final class DesktopAuthorityRelay: @unchecked Sendable {
         private weak var agent: AhaKeyAgent?
         init(_ agent: AhaKeyAgent) { self.agent = agent }
-        func read() async -> CodexDesktopLeverCoordinator.Authority {
+        func read(client: ApprovalAutomationControl.Client = .codex) async -> CodexDesktopLeverCoordinator.Authority {
             await withCheckedContinuation { continuation in
                 DispatchQueue.main.async {
-                    guard let agent = self.agent, ApprovalAutomationControl.isEnabled(.codex) else { continuation.resume(returning: .unmanaged); return }
+                    guard let agent = self.agent, ApprovalAutomationControl.isEnabled(client) else { continuation.resume(returning: .unmanaged); return }
                     agent.queryApprovalStatus { reply in
                         if ApprovalBindingPolicy.effectiveSwitchState(reply) == 0 { continuation.resume(returning: .verifiedAutomatic) }
                         else if reply["physicalSwitchState"] as? Int == 1 { continuation.resume(returning: .manual) }
@@ -114,6 +114,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private lazy var desktopAuthorityRelay = DesktopAuthorityRelay(self)
     private lazy var codexDesktopLever = CodexDesktopLeverAgent(authority: { [relay = desktopAuthorityRelay] in
         await relay.read()
+    })
+    private lazy var kimiDesktopLever = KimiDesktopLeverAgent(authority: { [relay = desktopAuthorityRelay] in
+        switch await relay.read(client: .kimi) {
+        case .verifiedAutomatic: return .automatic
+        case .manual: return .manual
+        case .unmanaged: return .unmanaged
+        }
     })
     /// 工具完成 / 用户提交等短暂态的自动回落。
     private var statusPollTimer: DispatchSourceTimer?
@@ -443,6 +450,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         listen(fd, SOMAXCONN)
         emit("监听 Unix socket: \(socketPath)")
         codexDesktopLever.start()
+        kimiDesktopLever.start()
 
         // accept 线程只负责收连接；读请求放到并发队列并设读超时，
         // 避免一个不发数据的客户端卡死 accept、塞满 backlog。
@@ -564,6 +572,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 在主队列执行的 JSON 命令分发。回包由 `replyAndClose` 负责异步写入 + 关 fd。
     private func handleJsonCommand(cmd: String, obj: [String: Any], clientFd: Int32) {
         codexDesktopLever.observe(obj)
+        if cmd == "kimi_desktop_control_changed" {
+            kimiDesktopLever.controlChanged()
+            Self.replyAndClose(clientFd, kimiDesktopLever.snapshot()); return
+        }
+        if cmd == "kimi_desktop_status" {
+            Self.replyAndClose(clientFd, kimiDesktopLever.snapshot()); return
+        }
         if cmd == "codex_desktop_status" {
             Self.replyAndClose(clientFd, codexDesktopLever.snapshot()); return
         }
@@ -754,6 +769,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     func prepareForTermination() async {
         KimiConfigLeverSync.synchronizeManaged(switchState: nil)
         await codexDesktopLever.shutdown()
+        await kimiDesktopLever.shutdown()
         await presentationSession.quiesce()
     }
 
@@ -855,6 +871,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         self.peripheral = nil
         cachedSwitchState = nil
         codexDesktopLever.status(physical: nil, generation: connectionGeneration)
+        kimiDesktopLever.status(physical: nil, generation: connectionGeneration)
         cachedLightMode = nil
         lastLoggedStatus = nil
         pendingStateReset?.cancel()
@@ -1081,6 +1098,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
         cachedSwitchState = UInt8(clamping: status.switchState)
         codexDesktopLever.status(physical: status.switchState, generation: connectionGeneration)
+        kimiDesktopLever.status(physical: status.switchState, generation: connectionGeneration)
         presentationSession.updateConnection(connected: !presentationPoisoned, generation: connectionGeneration)
         foregroundReceiver?.revalidate()
         cachedLightMode = UInt8(clamping: status.lightMode)

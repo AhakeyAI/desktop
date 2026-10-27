@@ -1,0 +1,24 @@
+{
+  "baseCommit": "11bff92c5d20b26d5778e2bb9331332de9470a7b",
+  "fullSwiftTests": 917,
+  "fullSwiftResult": "passed",
+  "targetedTests": 55,
+  "metadataRedFailures": 6,
+  "installedCandidateStill": "build508/fd33baa",
+  "realKimiCredentialReads": 0,
+  "realPermissionWrites": 0,
+  "additionalModelRequests": 0,
+  "physicalKeyboardOperations": 0,
+  "codeDesktopImplementedPendingRealIntegration": true,
+  "ordinaryWorkAndTUIPermissionControlComplete": false,
+  "sha256": {
+    "ahakeyconfig-mac/Sources/Agent/KimiDesktopLeverAgent.swift": "cf1b7bfb55a00d8786b2cd7204cc01a5abb5b150212cfbab632a759d60fb43fd",
+    "ahakeyconfig-mac/Sources/Shared/KimiDesktopLeverCoordinator+Desktop.swift": "2afdf7cddeb74dd58e48e44d60ff76df84c2ef4f5a79ed94baee29bef440f1ca",
+    "ahakeyconfig-mac/Sources/Shared/KimiDesktopLeverCoordinator.swift": "087141d29919e2eec1cf25fa4de89adf86209c9747b9f0d979e66eaf17af6f7c",
+    "ahakeyconfig-mac/Sources/Shared/KimiDesktopLeverState.swift": "9c9977a5389430de9da23e8cde6ca300de433a9a2538fa8d01179c7d5e1b4378",
+    "ahakeyconfig-mac/Sources/Shared/KimiDesktopPermissionBridge.swift": "f30efdb8fb80f0b0e0e542e5385b97d2006fe323608f673e1a6fd0efa7209698",
+    "ahakeyconfig-mac/Sources/Shared/KimiDesktopServerMetadata.swift": "a2a807b5a9588e10059070ca696166d354a08b6f8d5a2cdf4bc0fd3552c5bf35",
+    "ahakeyconfig-mac/Sources/Utilities/StudioKimiPermissionsModel.swift": "6eebf012ff87fa5dfba07ede3310fdea444952c4e68a5944bfb9dba49e39304a",
+    "ahakeyconfig-mac/Sources/Views/StudioKimiPermissionsView.swift": "2896027318b9b30d15ee15bd3a051c641e175d927c2e3c3436b29fedb6b6149c"
+  }
+}

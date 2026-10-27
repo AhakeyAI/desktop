@@ -77,12 +77,18 @@ public enum ApprovalAutomationControl {
         // The daemon reconciles native sessions asynchronously after seeing the
         // pause. Do not report complete revocation while its recovery journal
         // still owns permissions, or recurse into the same file lock above.
-        if client == nil || client == .codex {
-            do {
-                return try CodexDesktopLeverState(directory: directory).hasPendingRecovery() ? .recovering : .complete
-            } catch { return .failed }
-        }
-        return .complete
+        do {
+            var pending = false
+            if client == nil || client == .codex {
+                let codexPending = try CodexDesktopLeverState(directory: directory).hasPendingRecovery()
+                pending = pending || codexPending
+            }
+            if client == nil || client == .kimi {
+                let kimiPending = try KimiDesktopLeverState(directory: directory).hasPendingRecovery()
+                pending = pending || kimiPending
+            }
+            return pending ? .recovering : .complete
+        } catch { return .failed }
     }
     /// Revoke first, while holding the same lock as policy writers, then clean
     /// owned auto values. No full-file snapshot restoration.

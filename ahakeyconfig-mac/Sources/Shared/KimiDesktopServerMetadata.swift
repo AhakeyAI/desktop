@@ -16,7 +16,11 @@ struct KimiDesktopServerMetadata: Equatable {
               let id = body["server_id"] as? String, id == expected.serverID,
               let version = body["server_version"] as? String, version == "2.3.2",
               expected.serverVersion == nil || expected.serverVersion == version,
-              let started = integer(body["started_at"]), started == expected.startedMilliseconds,
+              let started = timestamp(body["started_at"]),
+              // Registration precedes the HTTP app's Date().toISOString().
+              // Bind the server ID/process separately; do not require identical clocks.
+              started >= expected.startedMilliseconds,
+              started - expected.startedMilliseconds <= 60_000,
               let bypass = body["dangerous_bypass_auth"] as? NSNumber,
               CFGetTypeID(bypass) == CFBooleanGetTypeID(), !bypass.boolValue,
               body["backend"] as? String == "v2",
@@ -26,6 +30,18 @@ struct KimiDesktopServerMetadata: Equatable {
                   return CFGetTypeID(flag) == CFBooleanGetTypeID() && flag.boolValue
               }) else { return nil }
         return Self(serverID: id, serverVersion: version, startedAt: started)
+    }
+
+    private static func timestamp(_ value: Any?) -> Int64? {
+        guard let text = value as? String,
+              text.range(of: #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$"#,
+                         options: .regularExpression) != nil else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let date = formatter.date(from: text), formatter.string(from: date) == text else { return nil }
+        let milliseconds = date.timeIntervalSince1970 * 1000
+        guard milliseconds.isFinite, milliseconds > 0, milliseconds <= 9_007_199_254_740_991 else { return nil }
+        return Int64(milliseconds.rounded())
     }
 
     private static func integer(_ value: Any?) -> Int64? {

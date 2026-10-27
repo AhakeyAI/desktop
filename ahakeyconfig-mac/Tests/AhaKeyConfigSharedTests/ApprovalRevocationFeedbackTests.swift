@@ -93,4 +93,37 @@ final class ApprovalRevocationFeedbackTests: XCTestCase {
         XCTAssertEqual(try f.state.snapshot().leases.count, 1)
     }
 
+    func testGlobalRecoveryWaitsForBothNativeClients() async throws {
+        let f = try Fixture(); defer { f.remove() }
+        let kimi = KimiDesktopLeverState(directory: f.root)
+        let target = try KimiDesktopLeverState.Target(home: "/tmp/kimi-fixture", sessionID: "session")
+        try kimi.authorize(target, title: "Fixture")
+        let lease = try kimi.prepare(target, baseline: .yolo, intended: .auto)
+        var pauses = 0
+        let initial = ApprovalAutomationControl.beginRevocation(directory: f.root, codexURL: f.config,
+            kimiURL: f.root.appendingPathComponent("kimi.toml"), cursorDirectory: f.root.appendingPathComponent("cursor"))
+        XCTAssertEqual(initial, .recovering)
+        let result = await ApprovalRevocationFeedback.wait(initial, directory: f.root, isCurrent: { true }, pause: {
+            pauses += 1
+            if pauses == 1 { XCTAssertTrue(try f.state.removeAfterVerifiedRestore(f.lease)) }
+            else { XCTAssertTrue(try kimi.removeAfterVerifiedRestore(lease)) }
+        })
+        XCTAssertEqual(result, .confirmed)
+        XCTAssertEqual(pauses, 2)
+    }
+    func testClientSpecificKimiRecoveryDoesNotWaitOnActiveCodexLeases() async throws {
+        let f = try Fixture(); defer { f.remove() }
+        let kimi = KimiDesktopLeverState(directory: f.root)
+        let target = try KimiDesktopLeverState.Target(home: "/tmp/kimi-fixture", sessionID: "session")
+        try kimi.authorize(target, title: "Fixture")
+        let lease = try kimi.prepare(target, baseline: .yolo, intended: .auto)
+        let initial = ApprovalAutomationControl.beginRevocation(.kimi, directory: f.root,
+            kimiURL: f.root.appendingPathComponent("kimi.toml"))
+        XCTAssertEqual(initial, .recovering)
+        let result = await ApprovalRevocationFeedback.wait(initial, directory: f.root, client: .kimi,
+            isCurrent: { true }, pause: { XCTAssertTrue(try kimi.removeAfterVerifiedRestore(lease)) })
+        XCTAssertEqual(result, .confirmed)
+        XCTAssertEqual(try f.state.snapshot().leases.count, 1)
+    }
+
 }

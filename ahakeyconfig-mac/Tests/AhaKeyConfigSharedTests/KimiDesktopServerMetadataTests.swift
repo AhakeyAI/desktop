@@ -12,7 +12,7 @@ final class KimiDesktopServerMetadataTests: XCTestCase {
             JSONSerialization.data(withJSONObject: object), filename: id + ".json", nowMilliseconds: started + 200))
     }
     private func body() -> [String: Any] {
-        ["server_id": id, "server_version": "2.3.2", "started_at": started,
+        ["server_id": id, "server_version": "2.3.2", "started_at": "2027-01-15T08:00:00.250Z",
          "dangerous_bypass_auth": false, "backend": "v2",
          "capabilities": Dictionary(uniqueKeysWithValues:
             ["websocket", "file_upload", "fs_query", "mcp", "tasks", "terminal"].map { ($0, true) })]
@@ -25,8 +25,23 @@ final class KimiDesktopServerMetadataTests: XCTestCase {
         let value = try XCTUnwrap(parse(body()))
         XCTAssertEqual(value.serverID, id)
         XCTAssertEqual(value.serverVersion, "2.3.2")
-        XCTAssertEqual(value.startedAt, started)
+        XCTAssertEqual(value.startedAt, started + 250)
     }
+    func testTimestampMustMatchOfficialDateShapeAndBoundedInstanceStartup() throws {
+        for time in ["2027-01-15T07:59:59.999Z", "2027-01-15T08:01:00.001Z",
+                     "2027-01-15T08:00:00Z", "2027-02-30T08:00:00.250Z", "not a date"] {
+            var changed = body(); changed["started_at"] = time
+            XCTAssertNil(try parse(changed), time)
+        }
+        for offset in [0, 1, 59_999, 60_000] {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            var changed = body()
+            changed["started_at"] = formatter.string(from: Date(timeIntervalSince1970: Double(started + Int64(offset)) / 1000))
+            XCTAssertNotNil(try parse(changed), "Legitimate instance startup delay")
+        }
+    }
+
     func testHTTPBusinessFailureAndBooleanCodeCannotBecomeSuccess() throws {
         for code: Any in [false, true, "0", 0.5, 401, 500] {
             XCTAssertNil(try parse(body(), code: code))
