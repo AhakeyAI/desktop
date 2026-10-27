@@ -237,13 +237,21 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
     @Published private(set) var runtimeVerificationMessage: String?
 
     private let bundle: Bundle
+    private let validateImage: @Sendable (URL, Bool) async throws -> FirmwareImageDescriptor
     private let processRunner = WCHISPProcessRunner()
-    private var validationTask: Task<Void, Never>?
-    private var flashTask: Task<Void, Never>?
+    private(set) var validationTask: Task<Void, Never>?
+    private var validationID: UUID?
+    private(set) var flashTask: Task<Void, Never>?
     private var systemActivity: NSObjectProtocol?
 
-    init(bundle: Bundle = .main) {
+    init(bundle: Bundle = .main,
+         validateImage: @escaping @Sendable (URL, Bool) async throws -> FirmwareImageDescriptor = { url, isBundled in
+             try await Task.detached(priority: .userInitiated) {
+                 try FirmwareImageValidator.validate(url: url, isBundled: isBundled)
+             }.value
+         }) {
         self.bundle = bundle
+        self.validateImage = validateImage
     }
 
     deinit {
@@ -324,6 +332,8 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
         appendLog("固件：\(firmware.fileName)")
         appendLog("SHA-256：\(firmware.sha256)")
         appendLog("目标芯片：CH582M")
+        // Lock the selected file and catalog identity before staging yields.
+        transition(to: .validating)
 
         flashTask = Task { [weak self] in
             await self?.performFlash(firmware: firmware)
@@ -332,17 +342,20 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
 
     func cancelSafely() {
         guard phase.canCancelSafely else { return }
+        validationID = nil
         validationTask?.cancel()
+        validationTask = nil
         flashTask?.cancel()
-        Task { await processRunner.cancel() }
         transition(to: .cancelled)
         appendLog("用户已取消；尚未执行擦除。")
     }
 
     private func validateFirmware(at url: URL, isBundled: Bool, candidate: FirmwareInstallCandidate? = nil,
         match: ((FirmwareImageDescriptor) -> FirmwareInstallCandidate?)? = nil) {
-        guard !phase.isBusy else { return }
+        guard !phase.isBusy, flashTask == nil else { return }
         validationTask?.cancel()
+        let id = UUID()
+        validationID = id
         transition(to: .validating)
         selectedFirmware = nil
         selectedCatalogCandidate = nil
@@ -352,10 +365,10 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
 
         validationTask = Task { [weak self] in
             do {
-                let descriptor = try await Task.detached(priority: .userInitiated) {
-                    try FirmwareImageValidator.validate(url: url, isBundled: isBundled)
-                }.value
+                guard let validateImage = self?.validateImage else { return }
+                let descriptor = try await validateImage(url, isBundled)
                 try Task.checkCancellation()
+                guard let self, self.validationID == id else { return }
 
                 let candidate = candidate ?? match?(descriptor)
                 if let candidate {
@@ -372,19 +385,22 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
                     )
                 }
 
-                guard let self else { return }
                 _ = try self.resolveToolURL()
                 self.selectedFirmware = descriptor
                 self.selectedCatalogCandidate = candidate
                 self.transition(to: .ready)
                 self.logLines = ["固件校验通过：\(descriptor.fileName)"]
             } catch is CancellationError {
-                guard let self else { return }
+                guard let self, self.validationID == id else { return }
                 self.transition(to: .cancelled)
             } catch {
-                self?.fail(error)
+                guard let self, self.validationID == id else { return }
+                self.fail(error)
             }
-            self?.validationTask = nil
+            if self?.validationID == id {
+                self?.validationID = nil
+                self?.validationTask = nil
+            }
         }
     }
 
@@ -405,10 +421,12 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
         }
 
         do {
+            try Task.checkCancellation()
             let flashImageURL = try await Task.detached(priority: .userInitiated) {
                 try FirmwareImageStager.stage(firmware)
             }.value
             stagedFirmwareURL = flashImageURL
+            try Task.checkCancellation()
             appendLog("已创建并锁定校验后的固件临时副本。")
 
             let toolURL = try resolveToolURL()
