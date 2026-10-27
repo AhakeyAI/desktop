@@ -4,7 +4,7 @@
   "redTests": 3,
   "redAssertions": 7,
   "targetedTestsPassed": 13,
-  "fullSwiftTestsPassed": 929,
+  "fullSwiftTestsPassed": 930,
   "hardwareWrites": 0,
   "installedCandidateIncludesFix": false,
   "behaviors": [
@@ -12,5 +12,19 @@
     "selection locked synchronously before firmware staging",
     "cancelled staging cannot proceed to probing"
   ],
-  "spec": "docs/ahastudio/firmware-validation-ownership-2026-10-27.md"
+  "spec": "docs/ahastudio/firmware-validation-ownership-2026-10-27.md",
+  "additionalDetectionCancellationRedTests": 1,
+  "additionalDetectionCancellationRedAssertions": 3,
+  "finalFirmwareCasesInFullSuite": 14,
+  "fakeToolCalls": [
+    "--usb info --chip CH582"
+  ],
+  "intermediateBuild514Superseded": true,
+  "reviewInitialRange": {
+    "base": "897324e",
+    "head": "00a8bdb",
+    "standardsFindings": 0,
+    "specIntroducedFindings": 0,
+    "preexistingBoundaryIdentifiedAndFixed": "cancellation after successful detection incorrectly marked erase started"
+  }
 }

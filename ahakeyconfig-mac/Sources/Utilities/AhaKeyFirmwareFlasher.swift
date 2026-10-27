@@ -438,6 +438,7 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
             appendLog("已检测到 CH582。")
             appendProcessOutput(info)
 
+            try Task.checkCancellation()
             hasStartedDestructiveOperation = true
             transition(to: .erasingDataFlash)
             appendLog("开始清空 DataFlash；从现在起请勿拔线或退出 App。")

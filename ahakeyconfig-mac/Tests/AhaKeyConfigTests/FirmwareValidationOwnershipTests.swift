@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import XCTest
 @testable import AhaKeyConfig
 
@@ -97,7 +98,34 @@ final class FirmwareValidationOwnershipTests: XCTestCase {
         XCTAssertNil(flasher.flashTask)
     }
 
-    private func temporaryToolBundle() throws -> (Bundle, URL) {
+    @MainActor
+    func testCancellationAfterDetectionDoesNotReportEraseOrLaunchEraseCommand() async throws {
+        let image = try temporaryHEX(byte: 1)
+        let (bundle, directory) = try temporaryToolBundle(infoSucceeds: true)
+        defer {
+            try? FileManager.default.removeItem(at: image)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let flasher = AhaKeyFirmwareFlasher(bundle: bundle)
+        flasher.selectCustomFirmware(at: image)
+        await flasher.validationTask?.value
+        XCTAssertEqual(flasher.phase, .ready)
+        let observation = flasher.$chipInfo.dropFirst().sink { info in
+            if info.contains("CH582") { flasher.cancelSafely() }
+        }
+        defer { observation.cancel() }
+        flasher.startFlashing()
+        await flasher.flashTask?.value
+        XCTAssertEqual(flasher.phase, .cancelled)
+        XCTAssertFalse(flasher.hasStartedDestructiveOperation)
+        XCTAssertFalse(flasher.logLines.contains { $0.contains("开始清空") || $0.contains("恢复建议") })
+        let receipts = try FileManager.default.subpathsOfDirectory(atPath: directory.path).filter { $0.hasSuffix(".calls") }
+        XCTAssertEqual(receipts.count, 1)
+        let calls = try String(contentsOf: directory.appendingPathComponent(try XCTUnwrap(receipts.first)), encoding: .utf8)
+        XCTAssertEqual(calls, "--usb info --chip CH582\n", "Only the isolated info command may execute")
+    }
+
+    private func temporaryToolBundle(infoSucceeds: Bool = false) throws -> (Bundle, URL) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("bundle")
         let contents = root.appendingPathComponent("Contents")
         try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
@@ -106,7 +134,8 @@ final class FirmwareValidationOwnershipTests: XCTestCase {
         for architecture in ["arm64", "x86_64"] {
             let tool = contents.appendingPathComponent("Resources/FirmwareFlasher/tools/\(architecture)/wchisp")
             try FileManager.default.createDirectory(at: tool.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try Data("#!/bin/sh\nexit 1\n".utf8).write(to: tool)
+            let script = infoSucceeds ? "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$0.calls\"\ncase \"$*\" in\n  '--usb info --chip CH582') printf 'Chip: CH582\\n'; exit 0;;\n  *) exit 9;;\nesac\n" : "#!/bin/sh\nexit 1\n"
+            try Data(script.utf8).write(to: tool)
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
         }
         return (try XCTUnwrap(Bundle(url: root)), root)
