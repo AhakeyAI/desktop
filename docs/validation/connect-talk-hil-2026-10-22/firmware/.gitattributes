@@ -1,0 +1,2 @@
+# Preserve gate-bound firmware bytes across platforms; CRLF is part of its SHA256.
+ws45-292a49f-6ec0413c.hex -text -diff
