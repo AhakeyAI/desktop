@@ -1,0 +1,63 @@
+{
+  "sourceCommit": "08a286512fec4ae00ef31ce0240e4ee77dcf1cf6",
+  "version": "0.2.3",
+  "build": "512",
+  "dmgPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-kimi-permissions/AhaKey-Studio-0.2.3-build512-08a2865-test.dmg",
+  "dmgBytes": 20184347,
+  "dmgSHA256": "ad6f57442f4d0b29b0fd815a279c6100d42f54bdf2973a12839a4b65ddd3aaeb",
+  "binarySHA256": {
+    "AhaKeyConfig": "ea3777e5d4c96469e3908326558b68092aeec45c6286e7e11e13a3031869f970",
+    "ahakeyconfig-agent": "56f5db412b861ebcb235e3f35c1204788958b932c22a25e9f90520baec0cfdea"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "installed": true,
+  "launched": true,
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "installedSignatureAndBytesVerified": true,
+  "ci": {
+    "run": 40474814309,
+    "result": "success"
+  },
+  "fullSwiftTests": 926,
+  "fullSwiftResult": "passed",
+  "UI": {
+    "permissionsDisclosureInitiallyCollapsed": true,
+    "unrequestedSessionsNotAuthorized": true,
+    "explicitInspectionResult": "未发现可核对的官方 Code Desktop 会话。请先在 Kimi Code Desktop 打开需要管理的会话。",
+    "ordinaryKimiOrTUIWasNotPresentedAsManaged": true,
+    "standbyReadMinutes": 60,
+    "standbyReadNoRevocationWarning": true,
+    "pendingDraftsAfterRead": 2,
+    "otherSidebarKeyBaselinesUnverified": 15,
+    "exitedEditing": true,
+    "agentBLEReconnected": true
+  },
+  "agentPermissionStatus": {
+    "phase": "noSessions",
+    "authorizedSessions": 0,
+    "managedSessions": 0,
+    "pendingRecovery": 0
+  },
+  "preservation": {
+    "draftJSONSemanticallyUnchanged": true,
+    "appliedVoiceBytesUnchanged": true,
+    "shortAndLongSpeechOptionsUnchanged": true
+  },
+  "realKimiCredentialReads": 0,
+  "realKimiPermissionWrites": 0,
+  "keyboardConfigurationWrites": 0,
+  "additionalModelRequests": 0,
+  "physicalKeyboardOperations": 0,
+  "limits": [
+    "Code Desktop not installed; only ordinary Kimi 3.2.18 is installed",
+    "Negative-instance UI path only; no real Code Desktop permission flow tested",
+    "Eight complete validation matrices remain open",
+    "Formal notarization and release composition incomplete"
+  ]
+}

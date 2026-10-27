@@ -4,7 +4,7 @@
   "fullSwiftResult": "passed",
   "targetedTests": 71,
   "metadataRedFailures": 6,
-  "installedCandidateStill": "build508/fd33baa",
+  "installedCandidateStill": "build512/08a2865",
   "realKimiCredentialReads": 0,
   "realPermissionWrites": 0,
   "additionalModelRequests": 0,
@@ -47,5 +47,6 @@
   "finalSpecSubstantiveFindings": 0,
   "reviewEvidence": "KIMI_CODE_DESKTOP_REVIEW_2026-10-27.md",
   "releaseBuildConcurrencyAnnotationsCorrected": true,
-  "finalFullTestLogSHA256": "8bb26ccdb4c0c00b8162ac4908fdc2e61040410214d49ad41e6f7f122173ffc1"
+  "finalFullTestLogSHA256": "8bb26ccdb4c0c00b8162ac4908fdc2e61040410214d49ad41e6f7f122173ffc1",
+  "installedEvidence": "local-candidate-build512-2026-10-27.json"
 }
