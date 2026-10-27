@@ -30,3 +30,5 @@ WBS G52/L03 的取消/换包边界在源码检查中发现实际竞态。本轮�
 新增实际模型+隔离假工具回归先得到1测试3失败，再在宣布破坏性阶段前检查取消。测试记录只执行一次 `--usb info --chip CH582`，不允许任何erase命令；最终状态是已取消、未开始擦除，无错误恢复建议。最终完整Swift回归930项通过（含14项固件相关用例）；日志 `/tmp/ahakey-firmware-detection-cancel-red-20261027.log`、`/tmp/ahakey-firmware-ownership-final-full-20261027.log`。
 
 build514为上一源码的已签名中间包，未安装；此补齐后视为被取代，最终候选须重新构建。Mac解锁请求仍待回复，未重复请求、未绕过锁屏。
+
+最终双轴复核已通过（Standards 0／Spec剩余0）。build516/20b5bd8双架构Developer ID签名与DMG挂载字节核对通过；DMG为20,159,988字节，SHA256 `9973cac2ca0d5e11a21ac08fd78afa198e32620c7cc6943035d5ec135f26b1f3`。未公证、未安装；当前仍运行build512。CI40486609820已全部成功，原UI需Mac手动解锁。

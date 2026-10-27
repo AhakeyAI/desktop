@@ -26,5 +26,15 @@
     "standardsFindings": 0,
     "specIntroducedFindings": 0,
     "preexistingBoundaryIdentifiedAndFixed": "cancellation after successful detection incorrectly marked erase started"
-  }
+  },
+  "reviewFinalRange": {
+    "base": "897324e",
+    "head": "20b5bd8",
+    "standardsFindings": 0,
+    "specRemainingFindings": 0
+  },
+  "candidateBuild": "516",
+  "candidateSignedAndPackaged": true,
+  "ciRun": 40486609820,
+  "ciConclusion": "success"
 }
