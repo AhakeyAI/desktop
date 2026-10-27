@@ -25,11 +25,12 @@
   },
   "standardsFindings": 0,
   "specRemainingFindings": 0,
-  "installed": false,
-  "installedBuildStill": "512",
+  "installed": true,
+  "installedBuildStill": "516",
   "hardwareConfigurationWrites": 0,
   "ciRun": 40486609820,
   "ciStateAtReceipt": "completed",
   "ciConclusion": "success",
-  "ciURL": "https://github.com/AhakeyAI/desktop/actions/runs/40486609820"
+  "ciURL": "https://github.com/AhakeyAI/desktop/actions/runs/40486609820",
+  "installedUIReceipt": "installed-build516-ui-2026-10-27.json"
 }

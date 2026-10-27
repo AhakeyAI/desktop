@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-27",
+  "checkedAtUTC": "2026-10-27T14:01:26.893784+00:00",
+  "build": "516",
+  "sourceCommit": "20b5bd8cbec43580e0c676cec838fc5ec97612ad",
+  "previousBuild": "512",
+  "deepSignatureAndInstalledBytesVerified": true,
+  "preferences": {
+    "checkedKeys": 13,
+    "unchangedKeys": 13,
+    "draftsVisibleAfterReadOnlyReconciliation": 2,
+    "appliedVoiceAndShortLongPreferencesUnchanged": true,
+    "ahaTypeGlobalToggleInitiallyChangedByMistakeThenRestored": true,
+    "ahaTypeGlobalToggleFinal": "on"
+  },
+  "firmwarePreparationUI": {
+    "exactHEXAccepted": true,
+    "hexBytes": 758812,
+    "sha256": "6ec0413cfc983788cdc99f628f0f8e2a64c6af147d2a5e1727a03f036bf1123c",
+    "cancelFilePickerPreservesSelection": true,
+    "badChecksumRejected": true,
+    "badFileClearsSelection": true,
+    "correctReselectionClearsFailure": true,
+    "startDisabledWithoutDataLossAcknowledgement": true,
+    "dataLossAcknowledgementChecked": false,
+    "flashConfirmationOpened": false,
+    "flashingStarted": false,
+    "validationRaceTestedInControlledModelNotClaimedAsManualUIRace": true,
+    "waitForISPThenCancelUIStillNotRun": true
+  },
+  "readOnlyChecks": {
+    "uniqueKeysRead": 16,
+    "unreadKeys": 0,
+    "readFailures": 0,
+    "standbyMinutes": 60,
+    "voiceOnboarding": "desktop takeover",
+    "currentKey1Hardware": "right Alt across four modes; preserve actual value, do not assume historical F18"
+  },
+  "finalState": {
+    "mainWindowNonEditing": true,
+    "appBLEConnected": false,
+    "agentBLEConnected": true,
+    "physicalLever": "automatic",
+    "agentSocketPresent": true
+  },
+  "hardwareConfigurationWrites": 0,
+  "firmwareFlashed": false,
+  "ownerVisualCoffeeCheckPerformed": false,
+  "newModelsRequested": 0,
+  "privateBackupsExcludedFromRepository": true
+}
