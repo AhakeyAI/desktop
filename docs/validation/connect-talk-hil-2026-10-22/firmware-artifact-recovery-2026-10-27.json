@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "status": "recovered-byte-identical-gated-artifact",
+  "sourceCommit": "292a49f32939e2b778b15eceb194746133d3b2c7",
+  "latestBranch": "harness/x1-refactor-main",
+  "latestBranchCommit": "0a055ba95f857a1d32f05b79bcabd3ecfe78d4eb",
+  "latestProductionSourceDiffFromCandidate": [],
+  "hexSha256": "6ec0413cfc983788cdc99f628f0f8e2a64c6af147d2a5e1727a03f036bf1123c",
+  "originalGateResult": "PASS",
+  "originalGateCheckCount": 13,
+  "newFormalGateRun": false,
+  "ownerUATComplete": false,
+  "macHostChecksPassed": [
+    "route-store",
+    "restore-state"
+  ],
+  "hardwareWrites": 0,
+  "toolchain": {
+    "officialSource": "https://www.mounriver.com/download/",
+    "package": "MRS_Toolchain_MAC_V240.zip",
+    "packageBytes": 1014339257,
+    "packageSha256": "c0a0c9cf9661e835c52b9170f08a1b45a97b076eb2947fe76006016699ffdad1",
+    "subtree": "Toolchain/RISC-V Embedded GCC",
+    "compiler": "riscv-none-embed-gcc 8.2.0 x86_64"
+  },
+  "memory": {
+    "flashBytes": 269756,
+    "ramBytes": 29124
+  },
+  "search": {
+    "accessibleHexCount": 329,
+    "distinctExactHashes": 143,
+    "matchesIncludingLineEndingVariants": [],
+    "readErrors": [],
+    "excludedByMacOSTCC": [
+      "/Users/heartline/Downloads"
+    ],
+    "notAnExhaustiveMachineSearch": true
+  },
+  "notes": [
+    "Restored artifact is byte-identical to the existing gate-bound HEX; this is recovery, not approval of a new candidate or a final release.",
+    "No production firmware source, Harness state, keys, Voice configuration or device flash was modified."
+  ],
+  "clientImageValidatorPreflight": [
+    {
+      "bytes": 758812,
+      "clientValidatorPassed": true,
+      "fileName": "HID_Keyboard_582m_vibe_coding.hex",
+      "sha256": "6ec0413cfc983788cdc99f628f0f8e2a64c6af147d2a5e1727a03f036bf1123c"
+    },
+    {
+      "bytes": 1276521,
+      "clientValidatorPassed": true,
+      "fileName": "HID_Keyboard_582m_vibe_coding.hex",
+      "sha256": "6f9759eb912ec067564c4e63558589ab9732126344d52c2d2a278383119516be"
+    },
+    {
+      "bytes": 1289666,
+      "clientValidatorPassed": true,
+      "fileName": "ws3-memory-fix.hex",
+      "sha256": "ffb9208f79084aa24a832ad2562a14dbbea5df4d114a135cb5b2eb98d4e05539"
+    }
+  ],
+  "hexBytes": 758812,
+  "flasherHelpCheckPassed": true
+}
