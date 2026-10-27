@@ -1,0 +1,68 @@
+{
+  "sourceCommit": "fd33baac77bac4cd709d0cf522467832b3ed3af2",
+  "version": "0.2.3",
+  "build": "508",
+  "dmgPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-restore-admission/AhaKey-Studio-0.2.3-build508-fd33baa-test.dmg",
+  "dmgBytes": 19604945,
+  "dmgSHA256": "027e4ba2206c965b7978f0f649c1a390e125f258a8e02352ae3cd406cf8c0cc4",
+  "binarySHA256": {
+    "AhaKeyConfig": "c32259c2d1cd0c1fc1a4f759595cc98a4ac51d6d77345386b24f597f0ed97d77",
+    "ahakeyconfig-agent": "5a279b0e3bd8c3b2955fad8948562684f7728f2dd0442246633ad753cce411c9"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "installed": true,
+  "launched": true,
+  "installedSignatureAndBytesVerified": true,
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "ci": {
+    "run": 40464289923,
+    "result": "success"
+  },
+  "fullSwiftTests": 882,
+  "fullSwiftResult": "passed",
+  "restoreUI": {
+    "oldBuild": "506",
+    "oldAttempts": 2,
+    "oldError": "BLE 数据通道还没准备好。",
+    "newAttempts": 2,
+    "newResult": "当前固件不支持恢复初始化。",
+    "originalRedAssertionNowPasses": true,
+    "actualResetExecuted": false
+  },
+  "configurationSnapshot": {
+    "uniqueKeySlotsRead": 16,
+    "unreadKeys": 0,
+    "unsupportedOrUnavailableOrFailedLabels": false,
+    "onlyRead": true,
+    "doesNotEstablishSidebarSaveBaselines": true
+  },
+  "preservation": {
+    "draftJSONSemanticallyUnchanged": true,
+    "appliedVoiceBytesUnchanged": true,
+    "shortAndLongSpeechOptionsUnchanged": true,
+    "pendingUserDrafts": 2,
+    "otherSidebarKeysUnverified": 15,
+    "note": "启动时因待机事实尚未读取暂计3，读取60分钟后回到2；未写入键盘。"
+  },
+  "finalUI": {
+    "editing": false,
+    "appBLEConnected": false,
+    "agentBLEConnected": true,
+    "physicalLever": "manual"
+  },
+  "additionalModelRequests": 0,
+  "hardwareConfigurationWrites": 0,
+  "limits": [
+    "Not notarized or a final release",
+    "Old firmware negative-capability path only; exact new combined HEX still missing",
+    "No physical voice/lever/reboot/ISP operation performed",
+    "No original Kimi permission control enabled",
+    "Eight complete validation matrices remain open"
+  ]
+}
