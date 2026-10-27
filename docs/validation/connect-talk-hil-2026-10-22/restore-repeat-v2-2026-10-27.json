@@ -22,7 +22,7 @@
   "formalRegateRunByThisClientTask": false,
   "newHEXBuilt": false,
   "hardwareWrites": 0,
-  "installedBuildIncludesV2": false,
+  "installedBuildIncludesV2": true,
   "firstAndIncompleteRetryVersion": 1,
   "explicitRepeatFromCompleteVersion": 2,
   "automaticFallbackOrResend": false,
@@ -35,10 +35,12 @@
   },
   "candidateBuild": "518",
   "candidateSignedAndPackaged": true,
-  "candidateInstalled": false,
+  "candidateInstalled": true,
   "issueCommentURL": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/9#issuecomment-6444850518",
   "ciRun": 40522581814,
   "ciStatus": "completed",
   "ciConclusion": "success",
-  "ciURL": "https://github.com/AhakeyAI/desktop/actions/runs/40522581814"
+  "ciURL": "https://github.com/AhakeyAI/desktop/actions/runs/40522581814",
+  "legacyUIUnsupportedNegativePassed": true,
+  "repeatV2HardwareVerified": false
 }

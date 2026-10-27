@@ -33,3 +33,10 @@ Code Desktop真实服务联调、底层网络/重定向/进程重启矩阵、安
 ## 固件链接输入（已解决文件依赖）
 
 2026-10-27已恢复源292a49f组合HEX，完整SHA256 `6EC0413CFC983788CDC99F628F0F8E2A64C6AF147D2A5E1727A03F036BF1123C` 与原门禁一致。文件已随connect&talk归档，不再等待用户提供下载链接。见[精确产物恢复](firmware-artifact-recovery-2026-10-27.md)。此进展不替代Kimi服务权限验证；本轮未刷机或执行Restore。
+
+
+### 晚间上游与真实环境补查
+
+公开上游更新至[68a2838](https://github.com/MoonshotAI/kimi-code/commit/68a283894163204e93b072cef20db164015a5cad)，较78b72fe仅新增两个提交：[完整比较](https://github.com/MoonshotAI/kimi-code/compare/78b72fe456ac730a1970ded9bb0d28f8b584ab95...68a283894163204e93b072cef20db164015a5cad)。实际Server API文档/API-surface差异为工作区文件树/外部软链接，其他为compaction缓存；未新增原版TUI权限控制接口，不扩大Desktop已核验的2.3.2版本门控。没有读真实Kimi凭据、请求模型或改实际权限。
+
+本机仍缺Code Desktop安装环境。已向Owner提出安装已核验官方1.1.3、仅启动和只读检测的具体确认；尚未收到答复，不安装、不创建会话或自动授权。当前build518实际安装完成，旧固件恢复负例及13项偏好保持通过，不代替Kimi真实服务联调。

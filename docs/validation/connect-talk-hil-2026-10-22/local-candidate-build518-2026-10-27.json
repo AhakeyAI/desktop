@@ -25,8 +25,8 @@
   },
   "standardsFindings": 0,
   "specFindings": 0,
-  "installed": false,
-  "currentlyInstalledBuild": "516",
+  "installed": true,
+  "currentlyInstalledBuild": "518",
   "hardwareConfigurationWrites": 0,
   "ciRun": 40522581814,
   "ciStatus": "completed",
@@ -34,5 +34,6 @@
   "old6ECArtifactIncludesV2": false,
   "firmwareIssueUpdate": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/9#issuecomment-6444850518",
   "ciConclusion": "success",
-  "ciURL": "https://github.com/AhakeyAI/desktop/actions/runs/40522581814"
+  "ciURL": "https://github.com/AhakeyAI/desktop/actions/runs/40522581814",
+  "installedUIReceipt": "installed-build518-ui-2026-10-27.json"
 }

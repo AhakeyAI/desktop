@@ -1,0 +1,36 @@
+{
+  "date": "2026-10-27",
+  "checkedAtUTC": "2026-10-27T15:13:30.045355+00:00",
+  "build": "518",
+  "sourceCommit": "617729efa189a2ccb8125e299cd09a4a99968c0d",
+  "previousBuild": "516",
+  "deepSignatureAndInstalledBytesVerified": true,
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "previousAppBackupRetainedPrivately": true,
+  "preferencesChecked": 13,
+  "preferencesUnchanged": 13,
+  "draftsVisibleAfterReadOnlyReconciliation": 2,
+  "ahaTypeGlobalTogglePreserved": "on",
+  "legacyFirmwareUI": {
+    "standbyReadMinutes": 60,
+    "restoreStatusReadOnly": true,
+    "unsupportedMessageVisible": true,
+    "restoreConsentControlsNotOffered": true,
+    "restoreStartSent": false,
+    "v2SupportNotInferredFromCatalog": true
+  },
+  "finalState": {
+    "mainWindowNonEditing": true,
+    "appBLEConnected": false,
+    "agentBLEConnected": true,
+    "physicalLever": "automatic",
+    "agentSocketPresent": true
+  },
+  "hardwareConfigurationWrites": 0,
+  "firmwareFlashed": false,
+  "repeatV2HardwareVerified": false,
+  "modelRequests": 0
+}
