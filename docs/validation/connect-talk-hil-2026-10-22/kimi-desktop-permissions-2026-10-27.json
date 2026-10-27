@@ -14,9 +14,9 @@
   "sha256": {
     "ahakeyconfig-mac/Sources/Agent/AhaKeyAgent.swift": "6c9a612aff8f6896026515c8e0bfcf2bf621b9d89b6e1c7217193a00407bb8d2",
     "ahakeyconfig-mac/Sources/Agent/KimiDesktopLeverAgent.swift": "0de0e04539db35f5df6c9dd2d6ee5ed2583e674fb469750d62ad209d2fc04217",
-    "ahakeyconfig-mac/Sources/Shared/ApprovalAutomationControl.swift": "4d287cc83319c32cd9c767fa665754ba3172d42034a59c1c348b1970498c90f4",
+    "ahakeyconfig-mac/Sources/Shared/ApprovalAutomationControl.swift": "84af854fcdb88a7c69e12c4cb5a3c9f99f20ae63315576b73bcd998058a52da9",
     "ahakeyconfig-mac/Sources/Shared/ApprovalRevocationFeedback.swift": "efdcd7a61c6a17a6e1ea65dcf5b6cb2e7f6444ad0cd1b1429e035888cb9d19f2",
-    "ahakeyconfig-mac/Sources/Shared/KimiDesktopLeverCoordinator+Desktop.swift": "913e8fe94e659f08d633fd94487704799da5cb3b616f8facb799462b937fd4ef",
+    "ahakeyconfig-mac/Sources/Shared/KimiDesktopLeverCoordinator+Desktop.swift": "d6ae879be513691d6c861b31873c4030cc3f3331d509f36a9069b617937fa876",
     "ahakeyconfig-mac/Sources/Shared/KimiDesktopLeverCoordinator.swift": "0dd9c97b5a024eaedf409817aae19bdc7c410723d17863e6440dd956db08af65",
     "ahakeyconfig-mac/Sources/Shared/KimiDesktopLeverState.swift": "9c9977a5389430de9da23e8cde6ca300de433a9a2538fa8d01179c7d5e1b4378",
     "ahakeyconfig-mac/Sources/Shared/KimiDesktopPermissionBridge.swift": "e183116cee315b69b6eb080e01903c9f17ce7623e19ae9b407a714841e17d8eb",
@@ -41,5 +41,11 @@
   "httpExchangeDeadlineSeconds": 5,
   "initialSpecP1Findings": 1,
   "initialStandardsHardViolations": 0,
-  "reviewFixRecheckPending": true
+  "reviewFixRecheckPending": false,
+  "reviewedThroughCommit": "5016b6c5c0622fd90087c9c065500722f64de157",
+  "finalStandardsSubstantiveFindings": 0,
+  "finalSpecSubstantiveFindings": 0,
+  "reviewEvidence": "KIMI_CODE_DESKTOP_REVIEW_2026-10-27.md",
+  "releaseBuildConcurrencyAnnotationsCorrected": true,
+  "finalFullTestLogSHA256": "8bb26ccdb4c0c00b8162ac4908fdc2e61040410214d49ad41e6f7f122173ffc1"
 }

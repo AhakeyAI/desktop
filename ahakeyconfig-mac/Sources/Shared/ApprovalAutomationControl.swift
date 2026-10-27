@@ -3,7 +3,7 @@ import Darwin
 
 /// A shared lock serializes in-flight policy writes with stop/remove revocation.
 public enum ApprovalAutomationControl {
-    public enum Client: String, CaseIterable { case claude, cursor, codex, kimi }
+    public enum Client: String, CaseIterable, Sendable { case claude, cursor, codex, kimi }
     public enum RevocationOutcome: Equatable { case complete, recovering, failed }
     public static var productionDirectory: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/AhaKeyConfig/approval-control", isDirectory: true)

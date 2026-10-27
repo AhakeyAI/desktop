@@ -4,7 +4,7 @@ extension KimiDesktopLeverCoordinator.Dependencies {
     public static func desktop(state: KimiDesktopLeverState = .init(),
         authority: @escaping @Sendable () async -> KimiDesktopLeverCoordinator.Authority,
         controlEnabled: @escaping @Sendable () -> Bool = { ApprovalAutomationControl.isEnabled(.kimi) }) -> Self {
-        func bridge(_ target: KimiDesktopLeverState.Target, operation: KimiDesktopLeverState.Lease? = nil,
+        @Sendable func bridge(_ target: KimiDesktopLeverState.Target, operation: KimiDesktopLeverState.Lease? = nil,
                     managing: Bool = false) throws -> KimiDesktopPermissionBridge {
             let snapshot = try state.snapshot()
             let preferred = snapshot.grants.first(where: { $0.target == target })?.preferredServerID ??
