@@ -1,0 +1,38 @@
+{
+  "sourceCommit": "617729efa189a2ccb8125e299cd09a4a99968c0d",
+  "version": "0.2.3",
+  "build": "518",
+  "dmgPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-restore-v2/AhaKey-Studio-0.2.3-build518-617729e-test.dmg",
+  "dmgBytes": 21666851,
+  "dmgSHA256": "de1bcfa42d3848acede1f4676c2c8124c9cb0608bc7dd0c6859331b65a1db239",
+  "binarySHA256": {
+    "AhaKeyConfig": "60440bec22a7d010391ef702b3a5cab8451334c4760dffdef1d8b25837159fb7",
+    "ahakeyconfig-agent": "65c7934ffedfef39bd0c4f86dd0f303e6dc718ed3ef3aa092fd06e390e8815cc"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "developerIDTeam": "P2VFVRZK7P",
+  "fullSwiftTestsPassed": 941,
+  "reviewRange": {
+    "base": "ae1c430",
+    "head": "617729efa189a2ccb8125e299cd09a4a99968c0d"
+  },
+  "standardsFindings": 0,
+  "specFindings": 0,
+  "installed": false,
+  "currentlyInstalledBuild": "516",
+  "hardwareConfigurationWrites": 0,
+  "ciRun": 40522581814,
+  "ciStatus": "completed",
+  "requiresNewFirmwareForRepeatV2": true,
+  "old6ECArtifactIncludesV2": false,
+  "firmwareIssueUpdate": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/9#issuecomment-6444850518",
+  "ciConclusion": "success",
+  "ciURL": "https://github.com/AhakeyAI/desktop/actions/runs/40522581814"
+}

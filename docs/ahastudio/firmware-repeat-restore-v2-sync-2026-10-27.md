@@ -36,4 +36,12 @@
 
 日志：`/tmp/ahakey-restore-v2-red-20261027.log`、`/tmp/ahakey-restore-v2-refusal-red-20261027.log`、`/tmp/ahakey-restore-v2-reopen-red-20261027.log`、`/tmp/ahakey-restore-v2-final-full-20261027.log`。新源码未生成HEX、未刷写、未恢复设备。已安装build516不含本轮v2；原2草稿、当前右Alt语音键、Coffee元数据/实际设备不写入。
 
-Mac仍需独立复核及签名候选。新固件实际READY→REGATE PASS→新HEX/SHA/UAT Brief，与对应Mac候选齐备后，再安排集中ISP与重复恢复验证。固定身份、备份/readout、牺牲样机/相邻页sentinel和恢复路径仍按固件UAT合同，不由本地host测试替代。
+Mac独立复核及签名候选现已完成（见下）。新固件实际READY→REGATE PASS→新HEX/SHA/UAT Brief，与对应Mac候选齐备后，再安排集中ISP与重复恢复验证。固定身份、备份/readout、牺牲样机/相邻页sentinel和恢复路径仍按固件UAT合同，不由本地host测试替代。
+
+## 客户端候选与门禁交接
+
+Mac双轴复核均无实质发现（Standards0、Spec0）。build518/617729e已双架构Developer ID签名、DMG只读挂载核对App/Agent字节一致；包21,666,851字节，SHA256 `de1bcfa42d3848acede1f4676c2c8124c9cb0608bc7dd0c6859331b65a1db239`。未公证、未安装；保持已验收build516运行。客户端CI40522581814现已全部通过。
+
+已在[固件Issue #9](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/9#issuecomment-6444850518)回填客户端接入/941回归/双审及门禁交付请求，不再把Mac未接v2当REGATE前置。新发现的固件 `build/20261026-repeat-v2-fix/checks.json` 中13项预跑退出0、工程产物SHA为07A8DF32…，但该记录明确 `pre_regate_execution_results_not_gate_receipt`；不当正式PASS，也未索要/刷写该未批准工程包。
+
+可交给固件原会话的下一步：基于ed426c9核对当前工作目录→重新Candidate Prep→实际READY_FOR_REGATE后使用新OutRoot执行正式REGATE→交付gate-receipt、精确源commit、HEX/完整SHA及UAT Brief。门禁若失败，按失败项修复/重跑；没有正式回执前不承诺具体刷写时间。不要重复旧owner-isolate脚本或改写历史产物。
