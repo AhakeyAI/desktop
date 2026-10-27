@@ -1,0 +1,61 @@
+{
+  "sourceCommit": "fb3a310e4b2c251eb9aece054afada4e8d64f873",
+  "version": "0.2.3",
+  "build": "506",
+  "minimumMacOS": "13.0",
+  "mainAndAgent": true,
+  "languages": [
+    "en",
+    "zh-Hans"
+  ],
+  "appPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-fb3a310/AhaKey Studio.app",
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "binarySHA256": {
+    "AhaKeyConfig": "3d44d2d28a800eff8616dc6c732c171d3027848cf9bb4e0c1824525a3947bd73",
+    "ahakeyconfig-agent": "8da34b84a8b093b957d9643026ded5523a403d79491416ec0df6715e1fa79ad7"
+  },
+  "developerIDSignatureVerified": true,
+  "signedFlasherTools": 2,
+  "dmgPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-fb3a310/AhaKey-Studio-0.2.3-build506-fb3a310-test.dmg",
+  "dmgBytes": 18522168,
+  "dmgSHA256": "ec4b3b9ed2f4a5ecb5839f18a4726ff9ae05d81bb34333351c2fd66064880242",
+  "mountedAppAndAgentBytesMatch": true,
+  "mountedDeepStrictSignature": "passed",
+  "installed": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "launched": true,
+  "installedSignatureAndBytesVerified": true,
+  "ci": {
+    "run": 40442380726,
+    "result": "success"
+  },
+  "ui": {
+    "key4ReadAndThreeRereads": "passed_no_revocation_warning",
+    "stopAndRestartAgent": "passed_no_warning_socket_removed_pause_set_journal_empty_reconnected",
+    "sameValueKey4Confirmation": "passed",
+    "finishEditingDefaultHighlighted": true,
+    "finishEditingReturnsToAgent": "passed_confirmed_in_device_info",
+    "pendingUserDraftCount": 2,
+    "otherKeyBaselinesUnknown": 15,
+    "lcdSummaryHasNoOuterEditControls": true,
+    "lcdScopeTabsAndFlatStatuses": true,
+    "lcdNoDraftWriteDisabled": true,
+    "lightFlatEffectsWhitePlayAndHelp": true,
+    "temporaryHostLightDraftRestored": true,
+    "modeStandbyReadMinutes": 60,
+    "restoreStatusRead": "failed_twice_channel_not_ready_followup_fix_not_in_this_build"
+  },
+  "limits": [
+    "Not notarized or a final release",
+    "Physical Coffee display was not observed; resource slot unchanged",
+    "No voice, lever or power-cycle action requested",
+    "Live native recovery positive-lease matrix remains open",
+    "Later RestoreChannelAdmission fix requires a new candidate"
+  ],
+  "additionalModelRequests": 0,
+  "hardwareConfigurationWrites": 0
+}

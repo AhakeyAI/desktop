@@ -28,7 +28,10 @@
   "fullTestToolSession": 20058,
   "configurationWritesToKeyboard": 0,
   "additionalModelRequests": 0,
-  "originalUIRecheckAfterFix": false,
-  "candidateRebuildRequired": true,
-  "goalComplete": false
+  "originalUIRecheckAfterFix": true,
+  "candidateRebuildRequired": false,
+  "goalComplete": false,
+  "recheckedInstalledBuild": "506",
+  "recheckedInstalledSource": "fb3a310e4b2c251eb9aece054afada4e8d64f873",
+  "uiRecheckReceipt": "local-candidate-build506-2026-10-27.json"
 }

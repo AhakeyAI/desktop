@@ -1628,7 +1628,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     func readRestoreInitializationStatus() async throws -> RestoreInitializationTransaction.Snapshot {
-        let operation = try beginRestoreOperation()
+        let operation = try await beginRestoreOperation()
         let generation = commandSessionGeneration
         defer { endRestoreOperation(operation) }
         let profile = try await readFirmwareCapabilityProfile()
@@ -1644,7 +1644,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         guard userConfirmed else { throw RestoreInitializationTransaction.Failure.confirmationRequired }
         guard usbPowerConfirmed else { throw RestoreInitializationTransaction.Failure.externalPowerRequired }
         guard expectedGeneration == commandSessionGeneration else { throw OLEDUploadError.channelNotReady }
-        let operation = try beginRestoreOperation()
+        let operation = try await beginRestoreOperation()
         let generation = commandSessionGeneration
         var attempted = false
         defer {
@@ -1673,7 +1673,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     func verifyRestoreInitializationReadback(baseline: RestoreInitializationTransaction.Snapshot,
         expectedGeneration: UInt64) async throws -> RestoreInitializationTransaction.Result {
         guard expectedGeneration == commandSessionGeneration else { throw OLEDUploadError.channelNotReady }
-        let operation = try beginRestoreOperation()
+        let operation = try await beginRestoreOperation()
         let generation = commandSessionGeneration
         defer { endRestoreOperation(operation) }
         let profile = try await readFirmwareCapabilityProfile()
@@ -1738,12 +1738,21 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         return facts
     }
 
-    private func beginRestoreOperation() throws -> UUID {
+    private func beginRestoreOperation() async throws -> UUID {
+        let generation = commandSessionGeneration
+        try await RestoreChannelAdmission.waitUntilIdle(isIdle: {
+            !self.isWriting && self.writeQueue.isEmpty && self.writeBatches.isEmpty &&
+                self.pendingCommandResponse == nil && self.pendingDataWrite == nil && !self.commandTurnOccupied
+        }, checkSession: {
+            try self.ensureConfigurationReadSession(generation)
+            guard !self.isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
+        })
+        // Recheck after the awaited admission; never weaken exclusive restore ownership.
+        try ensureConfigurationReadSession(generation)
         guard !isConfigurationOperationInProgress, !isWriting, writeQueue.isEmpty, writeBatches.isEmpty,
               pendingCommandResponse == nil, pendingDataWrite == nil, !commandTurnOccupied else {
             throw OLEDUploadError.channelNotReady
         }
-        try ensureConfigurationReadSession(commandSessionGeneration)
         let id = UUID()
         restoreOperationID = id; isRestoringInitialization = true; restoreStatusProof = nil
         restoreInitializationReadback = nil
