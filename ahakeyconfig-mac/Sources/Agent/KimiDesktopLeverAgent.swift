@@ -8,6 +8,7 @@ final class KimiDesktopLeverAgent: @unchecked Sendable {
     private var epoch: UInt64 = 0
     private var timer: DispatchSourceTimer?
     private var stopping = false
+    private var activeTasks: [UInt64: Task<Void, Never>] = [:]
     private var publication: UInt64 = 0
     private var report: [String: Any] = ["phase": "noSessions", "authorizedSessions": 0, "managedSessions": 0, "pendingRecovery": 0]
     init(authority: @escaping @Sendable () async -> KimiDesktopLeverCoordinator.Authority) {
@@ -38,11 +39,13 @@ final class KimiDesktopLeverAgent: @unchecked Sendable {
         guard !stopping, timer != nil else { return }
         publication &+= 1
         let publication = publication, hint = hint, epoch = epoch
-        Task {
+        activeTasks[publication] = Task {
             let outcomes = await worker.reconcile(hint: hint, epoch: epoch, retry: retry)
             let busy = await worker.isRunning
             DispatchQueue.main.async { [weak self] in
-                guard let self, !self.stopping, self.publication == publication else { return }
+                guard let self else { return }
+                self.activeTasks.removeValue(forKey: publication)
+                guard !self.stopping, self.publication == publication else { return }
                 guard let state = try? KimiDesktopLeverState().snapshot() else {
                     self.report = ["phase": "notSynchronized", "storageError": true]; return
                 }
@@ -62,8 +65,13 @@ final class KimiDesktopLeverAgent: @unchecked Sendable {
         }
     }
     func shutdown() async {
-        let epoch = await MainActor.run { self.stopping = true; self.timer?.cancel(); self.timer = nil; return self.epoch }
-        _ = await worker.reconcile(hint: .unmanaged, epoch: epoch &+ 1, retry: true)
-        await worker.waitUntilIdle()
+        let (epoch, active) = await MainActor.run {
+            self.stopping = true; self.timer?.cancel(); self.timer = nil
+            let active = Array(self.activeTasks.values); self.activeTasks.removeAll()
+            active.forEach { $0.cancel() }
+            return (self.epoch, active)
+        }
+        for task in active { await task.value }
+        await worker.restoreUntilDeadline(epoch: epoch &+ 1)
     }
 }

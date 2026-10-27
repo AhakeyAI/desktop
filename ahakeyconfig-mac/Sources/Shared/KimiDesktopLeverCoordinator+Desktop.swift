@@ -21,11 +21,8 @@ extension KimiDesktopLeverCoordinator.Dependencies {
                 guard let desired else { return granted || pending != nil }
                 guard let operation, pending?.operationID == operation.operationID else { return false }
                 let current = await authority()
-                if managing {
-                    guard granted, controlEnabled() else { return false }
-                    return desired == .auto ? current == .automatic : desired == .manual && current == .manual
-                }
-                return desired == operation.baseline && (!granted || !controlEnabled() || current == .unmanaged)
+                return Self.permitsWrite(lease: operation, desired: desired, granted: granted,
+                    controlEnabled: controlEnabled(), authority: current, managing: managing)
             })
         }
         return Self(authority: authority, controlEnabled: controlEnabled, read: { target in
@@ -35,4 +32,13 @@ extension KimiDesktopLeverCoordinator.Dependencies {
                 .setPermission(sessionID: lease.target.sessionID, expecting: expected, to: desired)
         })
     }
+    static func permitsWrite(lease: KimiDesktopLeverState.Lease, desired: KimiDesktopPermissionBridge.Mode,
+        granted: Bool, controlEnabled: Bool, authority: KimiDesktopLeverCoordinator.Authority, managing: Bool) -> Bool {
+        if managing {
+            guard granted, controlEnabled else { return false }
+            return desired == .auto ? authority == .automatic : desired == .manual && authority == .manual
+        }
+        return desired == lease.baseline && (!granted || !controlEnabled || authority == .unmanaged)
+    }
+
 }

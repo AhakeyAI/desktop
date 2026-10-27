@@ -126,4 +126,24 @@ final class KimiDesktopLeverCoordinatorTests: XCTestCase {
         let modes = await native.modes; XCTAssertEqual(modes[first], .manual); XCTAssertEqual(modes[second], .yolo)
         XCTAssertFalse(try state.hasPendingRecovery())
     }
+    func testShutdownDeadlineCancelsSlowReadAndPreservesRecoveryForNextRun() async throws {
+        let (root, state, target) = try setup(); defer { try? FileManager.default.removeItem(at: root) }
+        try state.authorize(target, title: "A")
+        let lease = try state.prepare(target, baseline: .yolo, intended: .auto)
+        XCTAssertTrue(try state.acknowledge(lease))
+        let engine = KimiDesktopLeverCoordinator(state: state, dependencies: .init(
+            authority: { .unmanaged }, controlEnabled: { false }, read: { _ in
+                try await Task.sleep(for: .seconds(30))
+                return .auto
+            }, write: { _, _, _, _ in XCTFail("Cancelled before write"); throw CancellationError() }))
+        let started = ContinuousClock.now
+        await engine.restoreUntilDeadline(epoch: 1, timeout: .milliseconds(20))
+        XCTAssertLessThan(started.duration(to: .now), .seconds(2))
+        XCTAssertTrue(try state.hasPendingRecovery())
+        let native = Native(state); await native.seed(target, .auto)
+        await worker(state, native).restoreUntilDeadline(epoch: 2)
+        XCTAssertFalse(try state.hasPendingRecovery())
+        let modes = await native.modes; XCTAssertEqual(modes[target], .yolo)
+    }
+
 }

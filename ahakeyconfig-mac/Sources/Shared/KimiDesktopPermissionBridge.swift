@@ -108,7 +108,7 @@ public actor KimiDesktopPermissionBridge {
     }
 }
 
-private enum KimiDesktopPermissionHTTP {
+enum KimiDesktopPermissionHTTP {
     typealias Failure = KimiDesktopPermissionBridge.Failure
     private final class RedirectBlocker: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
         func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
@@ -138,11 +138,18 @@ private enum KimiDesktopPermissionHTTP {
         config.urlCache = nil; config.connectionProxyDictionary = [:]
         config.timeoutIntervalForRequest = 3; config.timeoutIntervalForResource = 5
         let session = URLSession(configuration: config, delegate: RedirectBlocker(), delegateQueue: nil)
-        defer { session.invalidateAndCancel() }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        let expiry = Task {
+            do { try await Task.sleep(for: .seconds(5)) } catch { return }
+            session.invalidateAndCancel()
+        }
+        defer { expiry.cancel(); session.invalidateAndCancel() }
         func request(_ method: String, _ path: String, _ query: [URLQueryItem] = [], _ body: Data? = nil) async throws -> Data {
             try Task.checkCancellation()
+            guard ContinuousClock.now < deadline else { throw Failure.unavailable }
             guard await authorization(sessionID, writeMode) else { throw Failure.unauthorized }
             guard current() else { throw Failure.instanceChanged }
+            guard ContinuousClock.now < deadline else { throw Failure.unavailable }
             var parts = URLComponents()
             parts.scheme = "http"; parts.host = instance.registration.host; parts.port = Int(instance.registration.port)
             parts.path = path; parts.queryItems = query.isEmpty ? nil : query
@@ -158,6 +165,7 @@ private enum KimiDesktopPermissionHTTP {
                       response.statusCode == 200, response.expectedContentLength <= 262_144 else { throw Failure.rejected }
                 var data = Data()
                 for try await byte in bytes {
+                    guard ContinuousClock.now < deadline else { throw Failure.unavailable }
                     guard data.count < 262_144 else { throw Failure.invalidResponse }
                     data.append(byte)
                 }
@@ -167,8 +175,20 @@ private enum KimiDesktopPermissionHTTP {
             catch let failure as Failure { throw failure }
             catch { throw Failure.unavailable }
         }
-        let meta = try await request("GET", "/api/v1/meta")
-        guard KimiDesktopServerMetadata.parse(meta, expected: instance.registration) != nil else { throw Failure.instanceChanged }
-        return try await request(method, path, query, body)
+        return try await verifiedExchange(expected: instance.registration, method: method, path: path,
+            query: query, body: body, request: request)
     }
+    /// Same HTTP application must bracket the operation. Its ULID is independent
+    /// of the registry ULID; both are independently bound to the verified owner.
+    static func verifiedExchange(expected: KimiDesktopInstanceDiscovery.Registration,
+        method: String, path: String, query: [URLQueryItem] = [], body: Data? = nil,
+        request: (String, String, [URLQueryItem], Data?) async throws -> Data) async throws -> Data {
+        let before = try await request("GET", "/api/v1/meta", [], nil)
+        guard let identity = KimiDesktopServerMetadata.parse(before, expected: expected) else { throw Failure.instanceChanged }
+        let result = try await request(method, path, query, body)
+        let after = try await request("GET", "/api/v1/meta", [], nil)
+        guard KimiDesktopServerMetadata.parse(after, expected: expected) == identity else { throw Failure.instanceChanged }
+        return result
+    }
+
 }

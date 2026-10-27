@@ -27,6 +27,14 @@ final class KimiDesktopServerMetadataTests: XCTestCase {
         XCTAssertEqual(value.serverVersion, "2.3.2")
         XCTAssertEqual(value.startedAt, started + 250)
     }
+    func testOfficialAPIIdentityIsIndependentOfRegistryIdentity() throws {
+        var changed = body()
+        let apiID = "01" + String(repeating: "B", count: 24)
+        changed["server_id"] = apiID
+        let metadata = try XCTUnwrap(parse(changed))
+        XCTAssertEqual(metadata.serverID, apiID)
+    }
+
     func testTimestampMustMatchOfficialDateShapeAndBoundedInstanceStartup() throws {
         for time in ["2027-01-15T07:59:59.999Z", "2027-01-15T08:01:00.001Z",
                      "2027-01-15T08:00:00Z", "2027-02-30T08:00:00.250Z", "not a date"] {
@@ -48,7 +56,7 @@ final class KimiDesktopServerMetadataTests: XCTestCase {
         }
     }
     func testAnotherInstanceRestartOrUninspectedVersionFailsBinding() throws {
-        for (key, value): (String, Any) in [("server_id", "01" + String(repeating: "B", count: 24)),
+        for (key, value): (String, Any) in [("server_id", "not-an-api-id"),
                                           ("started_at", started + 1), ("server_version", "2.4.0"),
                                           ("backend", "v1")] {
             var changed = body(); changed[key] = value

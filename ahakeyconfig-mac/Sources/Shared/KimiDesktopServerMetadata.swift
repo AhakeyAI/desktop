@@ -13,7 +13,7 @@ struct KimiDesktopServerMetadata: Equatable {
               let envelope = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               integer(envelope["code"]) == 0,
               let body = envelope["data"] as? [String: Any],
-              let id = body["server_id"] as? String, id == expected.serverID,
+              let id = body["server_id"] as? String, validAPIIdentity(id),
               let version = body["server_version"] as? String, version == "2.3.2",
               expected.serverVersion == nil || expected.serverVersion == version,
               let started = timestamp(body["started_at"]),
@@ -32,6 +32,12 @@ struct KimiDesktopServerMetadata: Equatable {
         return Self(serverID: id, serverVersion: version, startedAt: started)
     }
 
+    // The HTTP app creates a different ULID from instanceRegistry.register().
+    // Endpoint ownership is bound by the signed process/listener, not ID equality.
+    private static func validAPIIdentity(_ value: String) -> Bool {
+        let bytes = Array(value.utf8), alphabet = Set("0123456789ABCDEFGHJKMNPQRSTVWXYZ".utf8)
+        return bytes.count == 26 && (UInt8(48)...55).contains(bytes[0]) && bytes.allSatisfy(alphabet.contains)
+    }
     private static func timestamp(_ value: Any?) -> Int64? {
         guard let text = value as? String,
               text.range(of: #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$"#,

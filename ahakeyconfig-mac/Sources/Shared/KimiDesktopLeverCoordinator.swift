@@ -47,6 +47,10 @@ public actor KimiDesktopLeverCoordinator {
         defer { running = false; let previous = waiters; waiters.removeAll(); previous.forEach { $0.resume() } }
         var processed: UInt64 = 0, passes = 0
         repeat {
+            guard !Task.isCancelled else {
+                for target in requested?.targets ?? [] { outcomes[target] = .notSynchronized }
+                break
+            }
             passes += 1
             guard passes <= 4 else {
                 for target in requested?.targets ?? [] { outcomes[target] = .notSynchronized }
@@ -56,12 +60,24 @@ public actor KimiDesktopLeverCoordinator {
             processed = revision
             outcomes = outcomes.filter { current.targets.contains($0.key) }
             for target in current.targets.sorted(by: { ($0.home, $0.sessionID) < ($1.home, $1.sessionID) }) {
-                guard processed == revision else { break }
+                guard processed == revision, !Task.isCancelled else { break }
                 do { try await synchronize(target, signal: current, token: processed) }
                 catch { if processed == revision { outcomes[target] = .notSynchronized } }
             }
         } while processed != revision
         return outcomes
+    }
+    /// The Agent first cancels/joins its old reconciliation owners. Remaining
+    /// leases survive a deadline; a timed-out shutdown must never erase them.
+    public func restoreUntilDeadline(epoch: UInt64, timeout: Duration = .seconds(5)) async {
+        guard !running else { return }
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { _ = await self.reconcile(hint: .unmanaged, epoch: epoch, retry: true) }
+            group.addTask { do { try await Task.sleep(for: timeout) } catch { } }
+            _ = await group.next()
+            group.cancelAll()
+        }
+        await waitUntilIdle()
     }
     private func synchronize(_ target: KimiDesktopLeverState.Target, signal: Signal, token: UInt64) async throws {
         var snapshot = try state.snapshot()
@@ -100,6 +116,7 @@ public actor KimiDesktopLeverCoordinator {
                   await dependencies.authority() == authority, token == revision else { revision &+= 1; return }
             lease = try state.prepare(target, baseline: baseline, intended: desired)
         }
+        try Task.checkCancellation()
         guard let operation = lease, token == revision else { return }
         let receipt = try await dependencies.write(operation, current, desired, authority != .unmanaged)
         guard token == revision, receipt.mode == desired else { throw KimiDesktopPermissionBridge.Failure.notApplied }

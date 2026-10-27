@@ -94,6 +94,13 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var approvalRequestID: UUID?
     private var approvalDrainToken: UUID?
     private var approvalWaiters: [([String: Any]) -> Void] = []
+    private var nativePermissionTerminationInProgress = false
+    static func desktopAuthority(terminating: Bool, enabled: Bool, reply: [String: Any]?) -> CodexDesktopLeverCoordinator.Authority {
+        guard !terminating, enabled else { return .unmanaged }
+        if ApprovalBindingPolicy.effectiveSwitchState(reply) == 0 { return .verifiedAutomatic }
+        if reply?["physicalSwitchState"] as? Int == 1 { return .manual }
+        return .unmanaged
+    }
     /// Only the weak reference crosses executors; Agent access stays on main.
     private final class DesktopAuthorityRelay: @unchecked Sendable {
         private weak var agent: AhaKeyAgent?
@@ -101,11 +108,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         func read(client: ApprovalAutomationControl.Client = .codex) async -> CodexDesktopLeverCoordinator.Authority {
             await withCheckedContinuation { continuation in
                 DispatchQueue.main.async {
-                    guard let agent = self.agent, ApprovalAutomationControl.isEnabled(client) else { continuation.resume(returning: .unmanaged); return }
+                    guard let agent = self.agent, !agent.nativePermissionTerminationInProgress, ApprovalAutomationControl.isEnabled(client) else { continuation.resume(returning: .unmanaged); return }
                     agent.queryApprovalStatus { reply in
-                        if ApprovalBindingPolicy.effectiveSwitchState(reply) == 0 { continuation.resume(returning: .verifiedAutomatic) }
-                        else if reply["physicalSwitchState"] as? Int == 1 { continuation.resume(returning: .manual) }
-                        else { continuation.resume(returning: .unmanaged) }
+                        continuation.resume(returning: AhaKeyAgent.desktopAuthority(
+                            terminating: agent.nativePermissionTerminationInProgress,
+                            enabled: ApprovalAutomationControl.isEnabled(client), reply: reply))
                     }
                 }
             }
@@ -323,7 +330,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     private func queryApprovalStatus(completion: @escaping ([String: Any]) -> Void) {
-        guard !presentationSession.isChangingMode, !presentationDraining, pendingPresentationRead == nil, !presentationPoisoned, ApprovalAutomationControl.isEnabled() else {
+        guard !nativePermissionTerminationInProgress, !presentationSession.isChangingMode, !presentationDraining,
+              pendingPresentationRead == nil, !presentationPoisoned, ApprovalAutomationControl.isEnabled() else {
             completion(["switchState": 1, "physicalSwitchState": NSNull(), "approvalAutoVerified": false, "approvalPolicyVersion": 1])
             return
         }
@@ -382,18 +390,19 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         let drainedApproval = approvalDrainToken
         approvalDrainToken = nil
         if let drainedApproval { legacyCommandDrain.complete(drainedApproval) }
-        let body = Self.approvalReply(status, profile: profile, binding: binding, fresh: status != nil && approvalChannelReady)
-        let kimiState: Int? = ApprovalBindingPolicy.effectiveSwitchState(body) == 0 ? 0
-            : (status?.switchState == 1 ? 1 : nil)
+        let body = Self.approvalReply(status, profile: profile, binding: binding,
+            fresh: status != nil && approvalChannelReady, terminating: nativePermissionTerminationInProgress)
+        let kimiState: Int? = nativePermissionTerminationInProgress ? nil :
+            (ApprovalBindingPolicy.effectiveSwitchState(body) == 0 ? 0 : (status?.switchState == 1 ? 1 : nil))
         KimiConfigLeverSync.synchronizeManaged(switchState: kimiState)
         let waiters = approvalWaiters
         approvalWaiters.removeAll()
         for waiter in waiters { waiter(body) }
     }
 
-    static func approvalReply(_ status: AgentDeviceStatus?, profile: FirmwareCapabilityProfile?, binding: SideSwitchReadback?, fresh: Bool) -> [String: Any] {
+    static func approvalReply(_ status: AgentDeviceStatus?, profile: FirmwareCapabilityProfile?, binding: SideSwitchReadback?, fresh: Bool, terminating: Bool = false) -> [String: Any] {
         var body = statusReply(status, cachedSwitch: nil, cachedLight: nil)
-        let allowed = ApprovalBindingPolicy.mayAutoApprove(physicalState: status?.switchState, fresh: fresh, profile: profile, binding: binding)
+        let allowed = !terminating && ApprovalBindingPolicy.mayAutoApprove(physicalState: status?.switchState, fresh: fresh, profile: profile, binding: binding)
         body["physicalSwitchState"] = status.map { $0.switchState } ?? NSNull()
         // Approval endpoints fail closed even for older clients that only read switchState.
         // The raw display endpoint remains unchanged.
@@ -767,9 +776,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     @MainActor
     func prepareForTermination() async {
+        nativePermissionTerminationInProgress = true
+        if let id = approvalRequestID { finishApproval(id: id, status: nil, profile: nil, binding: nil) }
         KimiConfigLeverSync.synchronizeManaged(switchState: nil)
-        await codexDesktopLever.shutdown()
-        await kimiDesktopLever.shutdown()
+        async let codexRecovery: Void = codexDesktopLever.shutdown()
+        async let kimiRecovery: Void = kimiDesktopLever.shutdown()
+        _ = await (codexRecovery, kimiRecovery)
         await presentationSession.quiesce()
     }
 
