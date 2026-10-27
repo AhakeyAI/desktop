@@ -1,0 +1,64 @@
+{
+  "id": "WD-006",
+  "reviewer_role": "DLA",
+  "decision": "pass",
+  "scope": "R13 Preview fix delta only; not formal UAT/Release",
+  "submission_token": "preview-fix-20261026T102238895659Z-065762",
+  "code_fingerprint": "c8c32aa1e9b82a761388b05664234e5e6f283eb4315ed7fc21f5160e1f4c6d57",
+  "per_file": [
+    {
+      "path": "src/main/java/com/example/ahakey/App.java",
+      "sha256": "846510bebe473bb4d3dd6f2df30aa26aed7e1f5c1da51e43bf8759f5fe9b1353",
+      "within_contract": true,
+      "review": "Read full close lifecycle and actual diff. X/minimize/explicit Exit share asynchronous preparation; X keeps tray semantics; automatic install still uses installation-token overload. UI-thread action de-duplicated; final hide synchronous after gate recheck; blocked feedback visible once."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/WchFlashAdapter.java",
+      "sha256": "098f53311c40b9b4aad03fa536e08a9c93d82b0ce90d1e97738434952c38016d",
+      "within_contract": true,
+      "review": "Read full parser, existing receipt and worker lifecycle. Strict independent JSON terminal objects, duplicate/type/error rejection, no field splicing. Exact Programming/Verifing percentage formats independently verified against pinned vendor binary; Timeout failure wins. operationId/ended/exit/timedOut gates retained; INI and worker unchanged."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/UpdateCenterService.java",
+      "sha256": "9720780ce8d8b7e131a95060d6a698c7e8213bfc4c6c51f6f45a6d5f54bfac7d",
+      "within_contract": true,
+      "review": "Read asynchronous preparation plus execute/exitFirmware/requestClose. Only FAILED simple attempt uses existing exitSimple on worker; no direct maintenance unlock or forced process stop. Readiness rechecked in UI callback. Nonfailed active operations remain blocked."
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/UpdateCenterDialog.java",
+      "sha256": "90b08f6b03bc13046a3a92043a3b1884d89719dc8605aa3e3f8b1862411689c3",
+      "within_contract": true,
+      "review": "Read constructor close wiring and refresh. Closing failed dialog now ends attempt safely instead of abandoning live maintenance ownership; ongoing work stays visible; one pending close and one notice."
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/WchAdapterChecks.java",
+      "sha256": "81c83aa98b1d4c1dc3055865ff469adccbcdf21398b6630c27e63d5916c5c66b",
+      "within_contract": true,
+      "review": "Actual captured records replay through production readResult; strict JSON and mixed progress negatives, operation identity and exit/timeout guard assertions. Vendor verify format case is template evidence, not real hardware verify success."
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/WindowCloseChecks.java",
+      "sha256": "deae35155a65ea0de49e002dc492d58d809c1e20c7f84c3d44dd0b25486a084f",
+      "within_contract": true,
+      "review": "Read isolated real App/window event handlers and fixture wiring. Asserts failed-ended close, active/unknown guard, FX responsiveness, deduplication, update-dialog closure and stale callback/new-operation race. No App.start/shutdown or real device write."
+    }
+  ],
+  "findings": [
+    {
+      "issue": "Verifier progress uses vendor spelling Verifing; initial parser omitted it",
+      "resolution": "fixed",
+      "evidence": "r13-terminal-diagnosis-20261026/VENDOR_OUTPUT_FORMATS.json; green4-terminal.log"
+    },
+    {
+      "issue": "Late queued hide could hide a new maintenance operation",
+      "resolution": "fixed",
+      "evidence": "App.minimizeToTray no longer queues an unchecked extra hide; green-close2.log race assertion"
+    }
+  ],
+  "verification": "206 focused assertions read with bound logs/commands and current source hashes; original red evidence checked; all other prior source hashes and frozen records unchanged; Git HEAD/index unchanged. No repeated real flashing or forced exit performed.",
+  "limitations": [
+    "Full EXE build and packaged checks pending.",
+    "Real download plus independent verify and physical reconnect/version read remain Owner test pending.",
+    "X still hides to tray; only explicit Exit terminates application."
+  ]
+}

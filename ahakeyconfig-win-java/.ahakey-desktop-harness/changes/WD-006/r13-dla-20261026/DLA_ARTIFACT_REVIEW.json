@@ -1,0 +1,37 @@
+{
+  "id": "WD-006",
+  "decision": "PASS_FOR_OWNER_PREVIEW",
+  "preview_token": "preview-20261026T105435810998Z-dfc116",
+  "preview_receipt": {
+    "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-006\\build-r13-evidence-20261026\\PREVIEW_RECEIPT_R13.json",
+    "sha256": "847dba30fb92de1ebec805ee46fdf8efcb3cc51deca50c448e3a36a37c460e30"
+  },
+  "build_report": {
+    "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-006\\BUILD_REPORT_R13_20261026.json",
+    "sha256": "e99b2fc6003cc93637b2cd86f7e92cd8f5da3cad6a3c49b6e79d2f71ce1f23bc"
+  },
+  "source_review": {
+    "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-006\\r13-dla-20261026\\DLA_PREVIEW_FIX_REVIEW.json",
+    "sha256": "ca16614a33a205cc927908aa2cf367b772cb572989f44a9af4bfd8e6dc8bbcd7"
+  },
+  "independent_bindings": {
+    "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-006\\r13-dla-20261026\\INDEPENDENT_PACKAGE_BINDING.json",
+    "sha256": "d0d5e19447590001bae76fcec159623c9f305ba5f770900e721455bc16695f66"
+  },
+  "exe": {
+    "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD006-R13-LocalModel-1.0.12\\installer\\AhaKeyStudio-1.0.12.exe",
+    "sha256": "21de9ab7c4e5c5b915cbd92c7f0f3d62b003ef90f9df20ceb962b46ae0b36af7",
+    "bytes": 296237624
+  },
+  "jar": {
+    "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD006-R13-LocalModel-1.0.12\\image\\AhaKeyStudio\\app\\ahakey-studio-1.0.0.jar",
+    "sha256": "7ec21ce3538cd5a1eb0efb6749118bba03567197d296933704b7c6ed3a54b340"
+  },
+  "verified": [
+    "Source snapshot and 13 unchanged approved recipe supplements matched actual build staging.",
+    "Actual embedded MSI contains the same final JAR; four changed production classes match approved full compile outputs.",
+    "Build and 313 payload / signature / DTF checks and all final probe command exit codes were read and verified.",
+    "Final packaged JVM: two actual WCH records replay success; 79 terminal checks and 23 isolated window-close assertions pass."
+  ],
+  "scope": "Limited manual installation/firmware/exit preview only. No actual hardware verify/reconnect or installation performed by agents. Formal candidate and full task UAT remain outstanding."
+}

@@ -1,0 +1,22 @@
+WiX Toolset Deployment Tools Foundation (DTF) 5.0.2
+Copyright (c) .NET Foundation and contributors. All rights reserved.
+License: Microsoft Reciprocal License (MS-RL), included in DTF-LICENSE.txt.
+
+The installer custom action contains the upstream x64 SfxCA bootstrap and
+WixToolset.Dtf.WindowsInstaller.dll. No upstream source code was modified;
+the custom action is assembled using the official MakeSfxCA packager.
+The WiX 3.14 candle/light toolchain is retained; only the custom action's DTF
+inputs use the version below.
+
+Official packages:
+https://www.nuget.org/packages/WixToolset.Dtf.CustomAction/5.0.2
+https://www.nuget.org/packages/WixToolset.Dtf.WindowsInstaller/5.0.2
+
+Corresponding upstream source (fixed package repository commit):
+https://github.com/wixtoolset/wix/tree/aa65968c419420d32e3e1b647aea0082f5ca5b78/src/dtf
+https://github.com/wixtoolset/wix/archive/aa65968c419420d32e3e1b647aea0082f5ca5b78.zip
+https://raw.githubusercontent.com/wixtoolset/wix/aa65968c419420d32e3e1b647aea0082f5ca5b78/LICENSE.TXT
+
+Exact package and extracted-file SHA256/SHA512 identities are recorded in
+dtf-toolchain.json. Packaging requires an explicit local DtfRoot, validates
+these bytes before use, and never downloads dependencies automatically.

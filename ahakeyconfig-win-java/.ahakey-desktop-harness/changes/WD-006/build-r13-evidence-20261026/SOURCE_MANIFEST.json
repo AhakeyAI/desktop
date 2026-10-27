@@ -1,0 +1,1095 @@
+{
+  "token": "preview-20261026T105435810998Z-dfc116",
+  "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-source-1.0.12",
+  "snapshot": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-006\\preview-20261026T105435810998Z-dfc116\\source",
+  "snapshot_fingerprint": "b827894b55be22c6fe5902074378798b1c7fcc083f347ce2def3f8b6a7aae360",
+  "code_fingerprint": "c8c32aa1e9b82a761388b05664234e5e6f283eb4315ed7fc21f5160e1f4c6d57",
+  "meaning": "Approved preview snapshot plus 13 unchanged previously reviewed installer recipe inputs; not a formal Git candidate",
+  "snapshot_files": [
+    {
+      "path": "ahakey.jpg",
+      "sha256": "a806907c934f0336b040741ecd88fb3381dedbea4b841a00e8bfb9c9ad17d9a9",
+      "bytes": 183002,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "ble_bridge.py",
+      "sha256": "7b8dfc7b44f130f7bcc34b3a5905dac50d73f602e765fbce9f9f4815a90aa705",
+      "bytes": 5631,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "build-exe.bat",
+      "sha256": "90a9053eeac118cc4c6914273689a78e21f193eec6afac8c14cd34de32588ef7",
+      "bytes": 5030,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "build-exe.ps1",
+      "sha256": "c025b434e2edad0d8d76618404b176c39b8b43a21d83681253b60b124af76367",
+      "bytes": 7609,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "build-installer.ps1",
+      "sha256": "cd7fcac9673d2ef55619f456d9e647bc06f03bf2ae2d2a1d1453cf1637303abd",
+      "bytes": 7760,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "pom.xml",
+      "sha256": "b6fa46812aa860758e2e54db7d44ccd224f1b3a8f16ea08ab5ccca73e9055b0b",
+      "bytes": 7076,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "scripts/ble-driver-fixes.patch",
+      "sha256": "621424176ee5d9fb014a8d985f8308401f634c592d7d73a957b01e65d4c0baf8",
+      "bytes": 46388,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "scripts/build-ble-driver.ps1",
+      "sha256": "b1f2a5f0b7ccbe1dd6ca10b916bfdb89d147243147305baf344377cc5b68bec8",
+      "bytes": 11511,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "scripts/package-local-model.ps1",
+      "sha256": "2543c5f826a61b710ac6ea79d710fad994070cc8f2b749eaa267bba81606ad44",
+      "bytes": 15648,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "scripts/sign-release-installer.ps1",
+      "sha256": "af9799e4fe47acda35d009ff6cd32e1cbf126ce359fd19e0f4dea1e42b4ce15d",
+      "bytes": 6219,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "scripts/test-ble-driver.ps1",
+      "sha256": "9c1086f210074804b26a7687efa185aa433f3afec4dac26228573f993d04305c",
+      "bytes": 33872,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "scripts/verify-update-package.ps1",
+      "sha256": "45e29aef844234ab7db3a4e19bfa60595bcb26ebbe552ae92b170bd10832165c",
+      "bytes": 7733,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "sha256": "4a3e54097f7d5b947dbe274f992a3cf7b2ce4b5033afb2111e46b09a920d036c",
+      "bytes": 57599,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/app/VoiceInputController.java",
+      "sha256": "6f387b8dcb3e51c4248f487946f0d02ba1a4e0b0595cf60901590482e285106f",
+      "bytes": 3985,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/App.java",
+      "sha256": "846510bebe473bb4d3dd6f2df30aa26aed7e1f5c1da51e43bf8759f5fe9b1353",
+      "bytes": 23344,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/config/ModelConfig.java",
+      "sha256": "d201444fc438db279fa88721239ab84e46390853791b7f358dd3cc7f52ba85d1",
+      "bytes": 7867,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/BootDeviceDetector.java",
+      "sha256": "537bbd87fcfecce8eb41677984d0cdceb22d387fecbf8dd28ef0d9912ce21f03",
+      "bytes": 9110,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/DeviceBackup.java",
+      "sha256": "6058c194865d84b674aec7594e0c24a539973a8f70d0936f4b9b9bb936a390dc",
+      "bytes": 4491,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/DeviceBackupStore.java",
+      "sha256": "f6fe62a662a46226ba104287c0dd78297b46c9423cec4e4b410d4f7a44d3a569",
+      "bytes": 1953,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/DeviceMaintenanceCoordinator.java",
+      "sha256": "c17ac12d7df1eebc6edc3729a34a6c22fbdcbea6a960d84d0bc5b3b3ab98063c",
+      "bytes": 7210,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/DeviceRestoreService.java",
+      "sha256": "17ab492ddece53532ccc391118db39abd9f251c4a7123c12aa87a381f4ef2276",
+      "bytes": 5149,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/FirmwareCatalog.java",
+      "sha256": "eb647f96e9fa415f397baba7376b690ef1ee38072fee33508f1a6b1915aafe9e",
+      "bytes": 4785,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/FirmwareUpdateService.java",
+      "sha256": "df25ca1b0ca962088a4cf7a858d429c6f3210416ef405c7726cca11faf477a6d",
+      "bytes": 32984,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/IntelHexValidator.java",
+      "sha256": "40a41e8068099861b3e20df823f0c73d1cf5a49be1adb94d97023f9e78102054",
+      "bytes": 3391,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/WchDriverService.java",
+      "sha256": "41b406db8f16a2d32fc0516c048d05a644d19f577044ee147d24bacbb155ce79",
+      "bytes": 4597,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/WchFlashAdapter.java",
+      "sha256": "098f53311c40b9b4aad03fa536e08a9c93d82b0ce90d1e97738434952c38016d",
+      "bytes": 16216,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/WchRuntimeLocator.java",
+      "sha256": "19a16cbae5c80d3acd4ff2a323502c8ddf646bbcad190bc6b3a3b21e80e60f93",
+      "bytes": 3706,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/Main.java",
+      "sha256": "4f8baf764d68008afecd3bfd0d205f00d9b7f05d139df9cfa52d05680da13850",
+      "bytes": 125,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/AiRuntimeDisplayMode.java",
+      "sha256": "5e1f333e6496e13c6c939d9598a8bc2de253065b17d56a407974abb3eff79b92",
+      "bytes": 780,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/AiRuntimeSession.java",
+      "sha256": "24dcb45e7f366768e1e87e985d956603b2b0e16ee9ed284e64751220d61765c5",
+      "bytes": 1679,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/AiRuntimeSlotBinding.java",
+      "sha256": "38e6e3d1acb840d9d73e166719b11a12920fb8ea64f6ef34b62540d68fd754ca",
+      "bytes": 3089,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/AiRuntimeSlotState.java",
+      "sha256": "93cdd02c9e4c6ca2d59cc332a86d38e1007a2434d6669054b2e536d35938a33c",
+      "bytes": 906,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/CodexSession.java",
+      "sha256": "ed96c592d99a1d060e0bcbd6ced42823975e3a243b741b79650044a7bbecfd6f",
+      "bytes": 703,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DeviceStatus.java",
+      "sha256": "ea9cf896738e39b8128f044a63f365d365b91dfe2bf11f231dbbba2a4a98124d",
+      "bytes": 5869,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+      "sha256": "753e059cab765aed628da04c1ef140656e1c38b8b0e3fc8d046a3dbc9f342fd6",
+      "bytes": 5737,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/HIDUsage.java",
+      "sha256": "f2f10de83ca93383b95a059f1fdecc03fdb97cb2ba999cbe9bd7af9222a22791",
+      "bytes": 7989,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/IDEState.java",
+      "sha256": "72fcf03c92657020050ff1b2a1d8dee43f2b41b086b0060b039c6e850856b557",
+      "bytes": 1690,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/K1Route.java",
+      "sha256": "bfeec3ec2e8169ab9e37cb2d5480f71e37ac498d62c82148fe3f4867c34fd3e4",
+      "bytes": 2167,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/K1RouteState.java",
+      "sha256": "69ca888dc3d57c2fd9f48dd120952b8cef6d69c7f278dfc7525ae74d161073c5",
+      "bytes": 2733,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/KeyConfig.java",
+      "sha256": "23fad023afa6d6065edc7e3d8309abd6e0d220fba1c03d27e3df4c1149389be2",
+      "bytes": 5518,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/LightBarPreviewState.java",
+      "sha256": "2269e7eb8dc77a7db3577f149b3cb571adc2b8c70b5e7b39aeff50b33d8002c7",
+      "bytes": 1406,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/LightEffectStyle.java",
+      "sha256": "d9fd3b240add3485233879e85bdbb6ca7f1b8f0fafd17571597531f6ca0aaf5a",
+      "bytes": 3363,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/MacroStep.java",
+      "sha256": "515aa6b78f3eab9022352e23afdd5d9c7f6dbd0800180189b79bb947da3975de",
+      "bytes": 1488,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/ModeSlot.java",
+      "sha256": "1069efebf0dbf1ba0331e45b520c010e08c02ee3d43270ea4332f43e0120b4d6",
+      "bytes": 1015,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/OledModeDraft.java",
+      "sha256": "e043d60b3f4e857d57a9b99151d8427703f487490a522ce2dbf237b746af3d7e",
+      "bytes": 1789,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/OledResourceState.java",
+      "sha256": "5336eb30fc1ef093efc9449877bf8b90b1d2a7c77f721d801151e91067f2fb0e",
+      "bytes": 6230,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioPart.java",
+      "sha256": "91b30de734e54e5b30a55e1c9991da7415c08436f8ef167aedbee1693846542f",
+      "bytes": 1351,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+      "sha256": "28bf8e9a1543846466448895628d602abc7b96590a6edba2573c323c40e93ebb",
+      "bytes": 30246,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/VoicePreset.java",
+      "sha256": "4370c15ce82c43a4ed26ca3e52963761f16103c662113a4ccbfa6c50e9632e8d",
+      "bytes": 1401,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/platform/VoiceRelayPlatform.java",
+      "sha256": "056967d1b20d98d720c769721850d28a307e204282d9ab3304dc3f9144af9ce2",
+      "bytes": 1889,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/platform/windows/WindowsVoiceRelayService.java",
+      "sha256": "8a14843b41d05061d33ae90b29a972c59af3081d41dbd7540b136994a1073f42",
+      "bytes": 19131,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/platform/windows/WindowsVoiceTyping.java",
+      "sha256": "61ad7c0d45a12de056af2a230a207b9bb507c7ea9382bbbf73fb8b3c2038bfc5",
+      "bytes": 1283,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+      "sha256": "02791d586bceb8f97e3e10b8ba7b9db449ecd97a00c2d9e1059a26a2ac011e59",
+      "bytes": 20423,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+      "sha256": "4211a9c0b0070f961b37351aa177aec77718f6a1336c04e048542e6fd817205c",
+      "bytes": 11153,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/BleTcpPacket.java",
+      "sha256": "83b89ad48a8eef461373420b9fc382a0b24d1c7125b79c93f52f4656de4f3573",
+      "bytes": 1409,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java",
+      "sha256": "f3bbc01a8e5e19c6e249bd6c0e647b6d79a55c22422434ba5809ea0eb36a659e",
+      "bytes": 3605,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AgentManager.java",
+      "sha256": "8b6898f805160f08a68f8f8bbd079c3fd1716c0507d3300e09ac452ecbf6abaf",
+      "bytes": 2430,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "sha256": "af5f51a1ae2b03a6b3d458cdf539f4f8c89340b7fceed45bf94ae001105bf07b",
+      "bytes": 27429,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "sha256": "187dc87de43498f0b1368909f584c9d4a082083459cc95bbec1c239cf24ff3c6",
+      "bytes": 84428,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CodexSessionDiscoveryService.java",
+      "sha256": "248c9f07352ac19567a5af28c85874126cbc7e53caf1cfeb5099b5ebf7ac406b",
+      "bytes": 9602,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CursorSessionDiscoveryService.java",
+      "sha256": "9b1ee008882c731f8c388e1e93f47abd812dcea2f3288b6a45a3af19c9101eec",
+      "bytes": 17975,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+      "sha256": "b489bbfb86c091c823e4fc7d745ada02c848277314b3fd4ac05b18b22db7eab9",
+      "bytes": 12536,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "sha256": "579ec633abdc038d7bbbdc1abe8b63180e16ee5e9f26f21b4c92e0f1ba1814be",
+      "bytes": 19903,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/FirmwareLightSimulator.java",
+      "sha256": "38362fdd55ea2852539633a5472715caac8c7a785ca4205c4c42639d2bd6bc1d",
+      "bytes": 6195,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookClient.java",
+      "sha256": "a9e31b9b98326b34ed73915d50aabc9cdcfbd0665fbb0b9d7705b75ba1f4ad17",
+      "bytes": 2789,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookDispatchServer.java",
+      "sha256": "b9e00be64194d0c756f6ed2020515a8f74780ba23369e6e2e6079f48d82e33f0",
+      "bytes": 14511,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookInstaller.java",
+      "sha256": "10dc03f35fa4d3e1bf89946cd518bf5be8faf08668669d0d51446f0d62294ecf",
+      "bytes": 35597,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/K1RouteService.java",
+      "sha256": "ae213ce011edc772712f9834c2ef60870aeffe8e076999cea64e5f5e889a6a81",
+      "bytes": 13007,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/KeyboardInjector.java",
+      "sha256": "962e2ad16d311417fd866ecb50b01ec8a5525531152eefa8a9fe113a069d6397",
+      "bytes": 9915,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/KimiAhaKeyBridge.java",
+      "sha256": "12db42e32c23f021fb739c47e346dd83334b15580e04669c6148cd96cac9a12e",
+      "bytes": 7008,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/KimiConfigLeverSync.java",
+      "sha256": "f487245afba58861d7375f1ec6215feb2039493f99983be91d354d5e318cb2ab",
+      "bytes": 3478,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+      "sha256": "7a6bc434109fa33e4a19088f0a56062621aa583fd226a6452b6bde0d03ad3a7c",
+      "bytes": 7661,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledUploadService.java",
+      "sha256": "a0be0d322a0c3aabd527329928c7801c5b8d4114e0819f87edb5f8dc639dd25e",
+      "bytes": 5514,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/SocketServer.java",
+      "sha256": "84209379928aa78225f661b8b2e7dd743bc1d9bcf8b2482487c95df454c1a579",
+      "bytes": 7363,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/SpeechService.java",
+      "sha256": "4f2551fcc3c519d30b3cfe84daf398bebc05078c77bec48facd17d2fcbd02b34",
+      "bytes": 13531,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "sha256": "a7c4e60f2f98b70ed5641df2a0d4ac8da107e6aa7c34eff427d96da4356ad612",
+      "bytes": 18529,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/VoiceInputManager.java",
+      "sha256": "f0e1c5438e0f7247334b0c362722b445ee9b375883ab2ab00cc61a2b662b1bfe",
+      "bytes": 9769,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/sherpa/LibraryLoader.java",
+      "sha256": "122336c83ed023b70452f25d137f323c3c1debaef1c1e31f8ca50f137fd60f79",
+      "bytes": 1164,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/SingleInstanceChecker.java",
+      "sha256": "0fe7ff989a3b8aa389e87ee6da093f3ff7422a3b1d0299262c56a3e9c61dca8c",
+      "bytes": 2886,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/InstalledAppIdentity.java",
+      "sha256": "abb5535430e2446ffac9a2dd554940b3124313d3af577572c3991f65709b7b32",
+      "bytes": 2337,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/InstallerTrustPolicy.java",
+      "sha256": "4e9bf41a65ffbd9fd190bbaa1c535857d111c72b69455b9a514b7257fc436504",
+      "bytes": 4645,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/ReleaseManifest.java",
+      "sha256": "29bb0b799cfdde798d1ad5e1440558046a8325effd9b8fff38b0744b93c58989",
+      "bytes": 6612,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/ReleaseManifestClient.java",
+      "sha256": "e5a645166ce5d3ba2b36d977ed4fe4be65e153f867dee8a531970cce6e563cd4",
+      "bytes": 4841,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/ReleaseSignature.java",
+      "sha256": "639e753dc86544c4cb4b6201da62107c1a4dc4363fd31bf1428f244476c44b50",
+      "bytes": 6510,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/UpdateCenterService.java",
+      "sha256": "9720780ce8d8b7e131a95060d6a698c7e8213bfc4c6c51f6f45a6d5f54bfac7d",
+      "bytes": 12688,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/VerifiedDownload.java",
+      "sha256": "78af91cf2d5cbcd8f375e8ad5cbb3351deb9181e46958ef30b44c5e3233f1199",
+      "bytes": 3893,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/WindowsInstalledApplication.java",
+      "sha256": "5ec42ad4fce16ec1e1a16d4340cbef717ddd9b13c92b32673195a63104d7f078",
+      "bytes": 2043,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/WindowsUpdateInstaller.java",
+      "sha256": "ed6600d05bac00994dc6f4fd997e7e628c2629481c5fc56dbeb9e2fa0659964b",
+      "bytes": 15334,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/AiRuntimeStore.java",
+      "sha256": "e224a56b1c89e84c7fe1636fe32db19216bcdba4a6f3e0bf569ef11a1fb94d0f",
+      "bytes": 4012,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/ConfigStore.java",
+      "sha256": "aaf7fd90625c9a8aaf988c708fcf4a30e293b16bad1af1a2c1802bd35216d1b8",
+      "bytes": 2761,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/Icons.java",
+      "sha256": "03a13295d30b22575d080cf75c07bdd94a9e3e36ee72972a926fa29af5c0e7df",
+      "bytes": 2876,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/LanguageManager.java",
+      "sha256": "7abfa661aaee09fdbc63df1fde38a354f3b673820e91dccf62143f2d3a514cf4",
+      "bytes": 5641,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+      "sha256": "b81855200e9029a0e76bf6ddbc35e3562e94e42af0044700c4497467cf92001b",
+      "bytes": 12624,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/StudioStore.java",
+      "sha256": "f3a0189620f76d956e1f868b09ceaefc11acea8ae4102c3a646f0ef798d5c7c7",
+      "bytes": 4646,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "sha256": "90d877aa0bde1cc1d86c89e1bbc5d5c050b1f57ebab2115411405fea589b5aec",
+      "bytes": 11053,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasPane.java",
+      "sha256": "812a37c770971d5e56eea62a9af4ddbc8bc0d9d0b0a1a8a57cb43dff96646995",
+      "bytes": 4552,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/FloatingVoiceNotification.java",
+      "sha256": "8ba8852c811d139d776afb2a33bf057d01b09485ac3f0a0308223c9561e9d272",
+      "bytes": 9207,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InfoPill.java",
+      "sha256": "0651484d3619e82996f3842e955955f241d1b4020e93c644dbe0c5631c2c3265",
+      "bytes": 1393,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "sha256": "858e79d4a0117fc195abb6b5cf43073857bdc78a3baae28ea54002607f5e3840",
+      "bytes": 93529,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/StatusBar.java",
+      "sha256": "034ac2932a9da2da370fed21b3874bc6c564d1554b23c61e995933b88312e4cc",
+      "bytes": 2316,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/TopBar.java",
+      "sha256": "dd13679b841bef5762a344647b226799954642e48d2e2ea6f68fb9777600ef16",
+      "bytes": 78748,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/UpdateCenterDialog.java",
+      "sha256": "90b08f6b03bc13046a3a92043a3b1884d89719dc8605aa3e3f8b1862411689c3",
+      "bytes": 12221,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/ahakey.jpg",
+      "sha256": "a806907c934f0336b040741ecd88fb3381dedbea4b841a00e8bfb9c9ad17d9a9",
+      "bytes": 183002,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/firmware/catalog.json",
+      "sha256": "6af612e00178b6685b0e81df32bcff382b40c0f9ef0f5fb0ac3b60c0a9bd6610",
+      "bytes": 388,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/firmware/wch/CH343PT.DLL",
+      "sha256": "4b7f30dfbc886e1359c7adc4d9fdcc3cb6543c373fc214e8641e314df41fe65a",
+      "bytes": 39440,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/firmware/wch/CH375DLL.dll",
+      "sha256": "0f019b958d4d3f6b8ec0d282ef848a57f0f92a0596d7405b6c58f5aa383a326c",
+      "bytes": 35712,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/firmware/wch/ChipType/chiplist_CH57x_CH59x.wcfg",
+      "sha256": "2e2369ed14f3c351c4404bdbfa45890e3b7562c7a201111e90f7004c4dc882a0",
+      "bytes": 2515,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/firmware/wch/CONFIG_CH57X59X.WCH",
+      "sha256": "f21f73360c7f650ab36cc4a0bbe2b88316c85bc1caf2e010139a47486abf5a8a",
+      "bytes": 66841,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375DLL.dll",
+      "sha256": "0f019b958d4d3f6b8ec0d282ef848a57f0f92a0596d7405b6c58f5aa383a326c",
+      "bytes": 35712,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375DLL64.dll",
+      "sha256": "5ed04e4a8eb9006e92907fdc105c4d8f915408409a02c157ca492a65d9163aa7",
+      "bytes": 45448,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375M64.sys",
+      "sha256": "9f40d09251f58be92ee2cb769c86900d52439a5b4f7e2ca2605e26cb464602b4",
+      "bytes": 58752,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375W64.sys",
+      "sha256": "5803220ed9da96b310397aa81db6612280f7c1a58948c02a5fe6aedf49065f5a",
+      "bytes": 68992,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375WDM.CAT",
+      "sha256": "08a8d8b21f42635243f0a7b4bd73195a4eea22a85508b3c4fce93a181054b4ba",
+      "bytes": 14232,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375WDM.INF",
+      "sha256": "76e5f3e96743b097c0d45d019b87c6dbef795934e2826fdade2b5e7b37b47fa4",
+      "bytes": 7799,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375WDM.sys",
+      "sha256": "840de6b498b8f3613eeb83ee6987d90229200be125925899df0c1beb2da62d1b",
+      "bytes": 52488,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/firmware/wch/WCH55xISPDLL.dll",
+      "sha256": "c56f1f2250c9e3862e3ef86887d7e81302bb008a722a3b18555f5cd0acd875ff",
+      "bytes": 139280,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/firmware/wch/WCHISPTool_CH57x-59x.exe",
+      "sha256": "7b5d84bfcc8786aabf74ba264de29c1e2eda7907fb8385426fda3270cd793f95",
+      "bytes": 4014096,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/firmware/wch-capture-worker.ps1",
+      "sha256": "ccf4bca761ffaa863280b7822e3ac3493be48f1c9795c0ff92fe378d8a25bbd6",
+      "bytes": 23077,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/firmware/wch-driver-worker.ps1",
+      "sha256": "f0f2736a0363bb4baf13dfa51b472785a4988ed02471b0ce19bfcc7a7bb39f02",
+      "bytes": 5138,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/firmware/wch-runtime-profiles.json",
+      "sha256": "866ecc4b87cebfb2d1faf7f4227f25c600aa9d8ed8e230a443f6d698dfedd1e6",
+      "bytes": 1414,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/firmware/x1-c582-hw1-p1-r001-cp2-memory-safety-20261018.hex",
+      "sha256": "ffb9208f79084aa24a832ad2562a14dbbea5df4d114a135cb5b2eb98d4e05539",
+      "bytes": 1289666,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/fxml/CanvasLayout.fxml",
+      "sha256": "b9b8bf3d86343f9dc0a3ec7a32194d7ebf000ac422080950495807be31d03908",
+      "bytes": 4624,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/fxml/VoiceInputPanel.fxml",
+      "sha256": "b6c5f658e60e6c0bfe06bbcaace30db2265e8045d8ac97250e1448ff3b75d291",
+      "bytes": 884,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/logback.xml",
+      "sha256": "47aef3936b40d7baa595aa77064c8f238bb296989f474dfa6cefc2b35b73e618",
+      "bytes": 1413,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/messages_en.properties",
+      "sha256": "6b02d6e36a755d46309815f3ea6faddfc40e3adc88d4ca31be0dc25c6df04ced",
+      "bytes": 13266,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/messages_zh.properties",
+      "sha256": "9fba4b972614d29cd9d9bd977be5c38b909bdf5a5e68761b88d4d4f1bba91fa8",
+      "bytes": 12645,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/model_config.properties",
+      "sha256": "bffbce2f84b05bc2cc328ada986bcf8d643e2b140b81642f35efdaef1155f91b",
+      "bytes": 227,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/style.css",
+      "sha256": "983a9f0001e8560216f4c445b75c8f4c40ccd993652bfc2e1d72bb291fb23881",
+      "bytes": 18440,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/update/app-release.properties",
+      "sha256": "f8c99fbdd490b7fd2974c9b9c4d4027b49cffe5d88aec325a652280a9b793f82",
+      "bytes": 119,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/update/InstalledApplication.cs",
+      "sha256": "496a7815ee8df38b54f0774889373c7792f123ed7e5694a5f151474ef0c33028",
+      "bytes": 16842,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/update/release-public-key.json",
+      "sha256": "0cf200b657c74f71e241c6b3991c205401e254c982986bb4830b99f43ec7b5ee",
+      "bytes": 621,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/update/trust-policy.json",
+      "sha256": "a3a513bd626a7846bab73cd1d208fd16985a8e5544686ed3299314166e0f3916",
+      "bytes": 116,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/main/resources/update/windows-update-worker.ps1",
+      "sha256": "cd95f8830710a6596f1bb8d517590d9672192147ae0588a30e8819a754c90e7d",
+      "bytes": 16512,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigCapabilityChecks.java",
+      "sha256": "fdb4c9404f55b7573b23c9cc0471f1f83eef7483b0a46d44793157a076060801",
+      "bytes": 22036,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigChecks.java",
+      "sha256": "585455f0ec2364ab412d1a1a202c2d119aad19108b82a2ce1ad6bfefaa9adc8c",
+      "bytes": 32157,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigEncodingProbe.java",
+      "sha256": "9143d4c5449dd4e56a9e381cd48b8a61b749635c57c36671a2dd821e7dbc65a0",
+      "bytes": 1133,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigFxChecks.java",
+      "sha256": "3aa6b3d363936052f001219d702deaf63191ff6e988e37284c7fdab242e2d4a8",
+      "bytes": 10459,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigIsolationChecks.java",
+      "sha256": "20ffaef9af18d9a03d31f4f159b4ea9e4dd3d6eb8e151a1b94892089aee4a116",
+      "bytes": 7815,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRaceChecks.java",
+      "sha256": "16a00f57a1d1da89b69436b006ba7944f4fd7573fcfe375701ad590badf3925c",
+      "bytes": 20249,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3Checks.java",
+      "sha256": "bf1a88ba7a7769eb36874be7401956fe3c6bb8ee681ee93d6a3335e823dd4c49",
+      "bytes": 17343,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3UiChecks.java",
+      "sha256": "083b03aa562069069b7cbfe9066f238603e0b38b601ecb753612c306e312ebc8",
+      "bytes": 5776,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRound5Checks.java",
+      "sha256": "29973ac0232804a78cabe858056f7d24eb05f28c432934f4c19891d86d51616c",
+      "bytes": 8816,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/OfflineBleManager.java",
+      "sha256": "ea6f8220f2dcacee0e185cdf359b336d4233a88a336cc7e45f5b6f7c7716a1a2",
+      "bytes": 2518,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/BackupRestoreChecks.java",
+      "sha256": "377fe1fc03363c252ba8f4e10944563b00d6f4e6babc971a82f87e0772d41332",
+      "bytes": 5140,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/DeviceMaintenanceChecks.java",
+      "sha256": "de5e88f22df0ef80e169f1253faa70aaf4c466f6098111bdeab588dc1dba37a2",
+      "bytes": 14455,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/FirmwareUpdateChecks.java",
+      "sha256": "d3ab3968b972ad7bb698f5bbf06f976af897d019d70590f3d8258a27ce49de98",
+      "bytes": 18025,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/SimpleFlashChecks.java",
+      "sha256": "ec9b7f7c3c7931425e6355c0c890eb75593c044b58782e0bab0b860bf829d595",
+      "bytes": 35983,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/WchAdapterChecks.java",
+      "sha256": "81c83aa98b1d4c1dc3055865ff469adccbcdf21398b6630c27e63d5916c5c66b",
+      "bytes": 9269,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/K1RouteEditorChecks.java",
+      "sha256": "909397763199e8a41b461b79149aa274f609815e67ff5b8a22b2327269385f34",
+      "bytes": 14342,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/PackagedStartupCheck.java",
+      "sha256": "26cf7a332868ac79dc60a12c1d038785fc05f6fed654d81969ec951de2fedd13",
+      "bytes": 1205,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/UpdatePackageCheck.java",
+      "sha256": "f996bb164bb07e348fdd27f07701f2844cdff4c7faeaecfcf0a43aaeb6187ac4",
+      "bytes": 20438,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/WindowCloseChecks.java",
+      "sha256": "deae35155a65ea0de49e002dc492d58d809c1e20c7f84c3d44dd0b25486a084f",
+      "bytes": 8442,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/protocol/K1RouteProtocolChecks.java",
+      "sha256": "f61538d7933aa14b85b2ad3daceb8ce2670e1927686da6dac05ff2ded7e24572",
+      "bytes": 14885,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/speech/SpeechLifecycleCheck.java",
+      "sha256": "3bd2ac4cef71b377d3e6561cfe0e36a38bc8537278d6bf3cad280ea4f6a4373b",
+      "bytes": 14062,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/speech/SpeechNativeCheck.java",
+      "sha256": "109ebcc661f673fba38dfe3d18eab8779da443c352052d3ebe62302a654b8ae4",
+      "bytes": 998,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/speech/SpeechNativeFailureCheck.java",
+      "sha256": "d6dfb2c07b1b0529a2dd1861dd2d0d7695edc6a2f01826792ebcd6499d0b6508",
+      "bytes": 681,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/transport/KimiBridgeLifecycleCheck.java",
+      "sha256": "e425edb5999ee2dd3ce24240c6fd63ae4fb0e7eb1c728d340a0f6c34bda5c407",
+      "bytes": 5527,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/update/InstallerTrustChecks.java",
+      "sha256": "15c157e0b91714f4061ec2c65defcb351c7d0d65972516e074e704adc6c0945d",
+      "bytes": 14049,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/update/ReleaseSignatureChecks.java",
+      "sha256": "b464f2f5c37c9520e85fe57d6decea0e78b3cdc2dee86af737df35e31209a348",
+      "bytes": 10487,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/update/UpdateCenterChecks.java",
+      "sha256": "fda0e2766d542a9ee8f53cfc669dcc5b4ff61b36be8531b11974b8b295277c50",
+      "bytes": 19106,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "third-party/sherpa-onnx-java-api-1.13.3.jar",
+      "sha256": "4a1fabf547d5e3bb5c9b0ddfc767142692cabe658da84f16adfafd519149b082",
+      "bytes": 175636,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "VibeCodeKeyboard.ico",
+      "sha256": "316514a13803807c5662c8d187075e720ef64ab04b57aab3aab54b548df2873c",
+      "bytes": 48897,
+      "origin": "approved_preview_snapshot"
+    },
+    {
+      "path": "VibeCodeKeyboard_preview.png",
+      "sha256": "a572ada08c25b196c9764a3675999bc6b17ba5c2fd29cd7f4d7f658ff57fd222",
+      "bytes": 26929,
+      "origin": "approved_preview_snapshot"
+    }
+  ],
+  "supplemental_recipe_files": [
+    {
+      "path": "scripts/installer/AhaKeyUpgradeUI.wxs",
+      "sha256": "7b4455adba6644e2c19172b14e110eaad151463749debe8205896eac1dc11eea",
+      "bytes": 448,
+      "origin": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\AhaKeyUpgradeUI.wxs",
+      "working_file": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\scripts\\installer\\AhaKeyUpgradeUI.wxs",
+      "working_sha256": "7b4455adba6644e2c19172b14e110eaad151463749debe8205896eac1dc11eea"
+    },
+    {
+      "path": "scripts/installer/CustomAction.config",
+      "sha256": "79b099c338b16bb1ea814c3726e469c9be971afddaf8ca8bc853ae55e3ddc283",
+      "bytes": 168,
+      "origin": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\CustomAction.config",
+      "working_file": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\scripts\\installer\\CustomAction.config",
+      "working_sha256": "79b099c338b16bb1ea814c3726e469c9be971afddaf8ca8bc853ae55e3ddc283"
+    },
+    {
+      "path": "scripts/installer/DTF-LICENSE.txt",
+      "sha256": "dfdf2048787635215a6baf3b9d461dee89a2904d246787258a44f072a98d4786",
+      "bytes": 3341,
+      "origin": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\DTF-LICENSE.txt",
+      "working_file": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\scripts\\installer\\DTF-LICENSE.txt",
+      "working_sha256": "dfdf2048787635215a6baf3b9d461dee89a2904d246787258a44f072a98d4786"
+    },
+    {
+      "path": "scripts/installer/DTF-NOTICE.txt",
+      "sha256": "81774536a329979fb48bc28e126be5b69de689123aec083974dec807db80ae3a",
+      "bytes": 1245,
+      "origin": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\DTF-NOTICE.txt",
+      "working_file": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\scripts\\installer\\DTF-NOTICE.txt",
+      "working_sha256": "81774536a329979fb48bc28e126be5b69de689123aec083974dec807db80ae3a"
+    },
+    {
+      "path": "scripts/installer/dtf-toolchain.json",
+      "sha256": "f3615cbd10b6256a886eeb8ae51c32b6c36c7d7e2cc8825cf5e5c12f7a8cef71",
+      "bytes": 5783,
+      "origin": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\dtf-toolchain.json",
+      "working_file": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\scripts\\installer\\dtf-toolchain.json",
+      "working_sha256": "f3615cbd10b6256a886eeb8ae51c32b6c36c7d7e2cc8825cf5e5c12f7a8cef71"
+    },
+    {
+      "path": "scripts/installer/InstalledApplicationActions.cs",
+      "sha256": "1a4d61b0edbc64dc7cc001b4b704de00d3152d19b3dc6b948a8926373ec89470",
+      "bytes": 4097,
+      "origin": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\InstalledApplicationActions.cs",
+      "working_file": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\scripts\\installer\\InstalledApplicationActions.cs",
+      "working_sha256": "1a4d61b0edbc64dc7cc001b4b704de00d3152d19b3dc6b948a8926373ec89470"
+    },
+    {
+      "path": "scripts/installer/prepare-upgrade-resources.ps1",
+      "sha256": "a9af215fd437477b974ea9b538c92b9c02e1056912efbf23408e75b2e27075a2",
+      "bytes": 5502,
+      "origin": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\prepare-upgrade-resources.ps1",
+      "working_file": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\scripts\\installer\\prepare-upgrade-resources.ps1",
+      "working_sha256": "a9af215fd437477b974ea9b538c92b9c02e1056912efbf23408e75b2e27075a2"
+    },
+    {
+      "path": "scripts/installer/resolve-dtf-toolchain.ps1",
+      "sha256": "74c8abe81f56fc82fa644780ef56358dce93ca40b2c3830bce112845ff8f3b18",
+      "bytes": 3079,
+      "origin": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\resolve-dtf-toolchain.ps1",
+      "working_file": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\scripts\\installer\\resolve-dtf-toolchain.ps1",
+      "working_sha256": "74c8abe81f56fc82fa644780ef56358dce93ca40b2c3830bce112845ff8f3b18"
+    },
+    {
+      "path": "scripts/installer/test-installer-upgrade.ps1",
+      "sha256": "de3bad830ad9b77cdd2005094fe373392fb60bd70c9cdf237a6a16d35ba86452",
+      "bytes": 5295,
+      "origin": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\test-installer-upgrade.ps1",
+      "working_file": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\scripts\\installer\\test-installer-upgrade.ps1",
+      "working_sha256": "de3bad830ad9b77cdd2005094fe373392fb60bd70c9cdf237a6a16d35ba86452"
+    },
+    {
+      "path": "scripts/installer/test-jpackage-template.ps1",
+      "sha256": "d0b5046158d049f381abaf22b0ebd9e1dda22062300ebe9ee2edceac4056420f",
+      "bytes": 3428,
+      "origin": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\test-jpackage-template.ps1",
+      "working_file": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\scripts\\installer\\test-jpackage-template.ps1",
+      "working_sha256": "d0b5046158d049f381abaf22b0ebd9e1dda22062300ebe9ee2edceac4056420f"
+    },
+    {
+      "path": "scripts/installer/tests/InstalledApplicationChecks.cs",
+      "sha256": "1fc423bfab8575ba0b9b0fba3a98cefa5041172c18dbcfda4ca88fbbb496fbf6",
+      "bytes": 5001,
+      "origin": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\tests\\InstalledApplicationChecks.cs",
+      "working_file": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\scripts\\installer\\tests\\InstalledApplicationChecks.cs",
+      "working_sha256": "1fc423bfab8575ba0b9b0fba3a98cefa5041172c18dbcfda4ca88fbbb496fbf6"
+    },
+    {
+      "path": "scripts/installer/tests/Test-DtfToolchain.ps1",
+      "sha256": "1a7e898de99ae614d80a769300510e41620c8a6730857220ad537d4bca750c64",
+      "bytes": 3137,
+      "origin": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\tests\\Test-DtfToolchain.ps1",
+      "working_file": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\scripts\\installer\\tests\\Test-DtfToolchain.ps1",
+      "working_sha256": "1a7e898de99ae614d80a769300510e41620c8a6730857220ad537d4bca750c64"
+    },
+    {
+      "path": "scripts/installer/verify-installer-structure.ps1",
+      "sha256": "6326ab060b60c6da4b56dc2a9689aefc628c31e5d646b13186ba2adf6df12da7",
+      "bytes": 8275,
+      "origin": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\verify-installer-structure.ps1",
+      "working_file": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\scripts\\installer\\verify-installer-structure.ps1",
+      "working_sha256": "6326ab060b60c6da4b56dc2a9689aefc628c31e5d646b13186ba2adf6df12da7"
+    }
+  ],
+  "product_code": "{E21DA129-27AB-4186-AC82-627016B26DD2}"
+}

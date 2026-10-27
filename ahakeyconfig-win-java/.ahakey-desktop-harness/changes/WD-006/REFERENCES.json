@@ -1,5 +1,28 @@
 {
-  "sources": [],
+  "sources": [
+    {
+      "id": "fw-cp26-immutable-gate",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP2.6/20261024T135107/gate-receipt.json",
+      "revision_or_commit": "2f7c54a927410c59479307c1ebc2b0d20f236d97",
+      "sha256": "bb0fa412f7c6fa32ebdf86506d22fcc4a2a12f8636586c35dd6219fba52a1d02",
+      "section": "Formal CP2.6 candidate binding; reviewed protocol/code exact Git blobs independently exported and hashed as approval_assets r9-firmware-snapshot-20261024. Not adopting mutable WS4 worktree.",
+      "kind": "protocol",
+      "maturity": "verified",
+      "observed_at": "2026-10-24"
+    },
+    {
+      "id": "fw-cp25-immutable-gate",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/evidence/checkpoints/X1-AI-WORKFLOW-PRESENTATION/CP2.5/20261023T103422/gate-receipt.json",
+      "revision_or_commit": "0cc3b0873f0fa6864e4226f9fb8e622771d0f756",
+      "sha256": "949e46557dd670813ed85284cb56592ab8b440ab2b18faedd63e47c004346c7d",
+      "section": "CP2.5 candidate and acceptance evidence; quantitative debts retained; protocol preserved in exact CP2.6 snapshot derived from this accepted baseline.",
+      "kind": "protocol",
+      "maturity": "verified",
+      "observed_at": "2026-10-24"
+    }
+  ],
   "git_source_manifest": "SOURCE_MANIFEST.json",
-  "note": "本轮不修改设备协议。参考来源为同仓库已合入main的Git固定对象，非外部eternal/Firmware绑定；Git对象与逐文件SHA见批准资产。"
+  "note": "Immutable gate references plus individually hashed exact Git protocol/source snapshots in approval_assets. No live working-tree drift is accepted or silently rehashed. Firmware changes require explicit intake/reconcile; B1 and combined UAT constraints remain."
 }

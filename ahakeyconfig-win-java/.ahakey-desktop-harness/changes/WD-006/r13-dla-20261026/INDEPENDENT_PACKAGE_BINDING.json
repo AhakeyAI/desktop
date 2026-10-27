@@ -1,0 +1,17 @@
+{
+  "source_snapshot_verified": true,
+  "unchanged_recipe_supplements_verified": true,
+  "critical_packaged_classes": {
+    "com/example/ahakey/App.class": "29aa24d42aef89d81c683fa807aad44cde9b69dd2f023515ae11278397f5634a",
+    "com/example/ahakey/firmware/WchFlashAdapter.class": "bd4dd24d08f136ff186fc714a3d8fcb9ec335c9a9f6af4da25af32b6cc0b9955",
+    "com/example/ahakey/update/UpdateCenterService.class": "8f027b50e390a9342d2635114bcfdbc8972902015c129a2d9f6e5b3592956b05",
+    "com/example/ahakey/view/UpdateCenterDialog.class": "8c13d7945e4b281073b6723dfed0540fd9348a6a62aa52e7069c9b6ce40707ad"
+  },
+  "jar_sha256": "7ec21ce3538cd5a1eb0efb6749118bba03567197d296933704b7c6ed3a54b340",
+  "exe_sha256": "21de9ab7c4e5c5b915cbd92c7f0f3d62b003ef90f9df20ceb962b46ae0b36af7",
+  "paired_hex": {
+    "path": "C:\\Users\\20825\\Desktop\\vibe-code\\.ahakey-harness\\evidence\\builds\\ws45-cp2_6-restore-combined-regate-20261025\\HID_Keyboard_582m_vibe_coding.hex",
+    "sha256": "6ec0413cfc983788cdc99f628f0f8e2a64c6af147d2a5e1727a03f036bf1123c"
+  },
+  "limits": "Does not claim actual hardware burn/verify/reconnect or installation success."
+}

@@ -1,0 +1,87 @@
+{
+  "id": "WD-006",
+  "preview_token": "preview-20261026T105435810998Z-dfc116",
+  "kind": "approved unchanged recipe dependencies omitted by preview snapshot product-file filter",
+  "supplements": [
+    {
+      "path": "scripts/installer/AhaKeyUpgradeUI.wxs",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\AhaKeyUpgradeUI.wxs",
+      "sha256": "7b4455adba6644e2c19172b14e110eaad151463749debe8205896eac1dc11eea",
+      "working_sha256": "7b4455adba6644e2c19172b14e110eaad151463749debe8205896eac1dc11eea"
+    },
+    {
+      "path": "scripts/installer/CustomAction.config",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\CustomAction.config",
+      "sha256": "79b099c338b16bb1ea814c3726e469c9be971afddaf8ca8bc853ae55e3ddc283",
+      "working_sha256": "79b099c338b16bb1ea814c3726e469c9be971afddaf8ca8bc853ae55e3ddc283"
+    },
+    {
+      "path": "scripts/installer/DTF-LICENSE.txt",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\DTF-LICENSE.txt",
+      "sha256": "dfdf2048787635215a6baf3b9d461dee89a2904d246787258a44f072a98d4786",
+      "working_sha256": "dfdf2048787635215a6baf3b9d461dee89a2904d246787258a44f072a98d4786"
+    },
+    {
+      "path": "scripts/installer/DTF-NOTICE.txt",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\DTF-NOTICE.txt",
+      "sha256": "81774536a329979fb48bc28e126be5b69de689123aec083974dec807db80ae3a",
+      "working_sha256": "81774536a329979fb48bc28e126be5b69de689123aec083974dec807db80ae3a"
+    },
+    {
+      "path": "scripts/installer/dtf-toolchain.json",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\dtf-toolchain.json",
+      "sha256": "f3615cbd10b6256a886eeb8ae51c32b6c36c7d7e2cc8825cf5e5c12f7a8cef71",
+      "working_sha256": "f3615cbd10b6256a886eeb8ae51c32b6c36c7d7e2cc8825cf5e5c12f7a8cef71"
+    },
+    {
+      "path": "scripts/installer/InstalledApplicationActions.cs",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\InstalledApplicationActions.cs",
+      "sha256": "1a4d61b0edbc64dc7cc001b4b704de00d3152d19b3dc6b948a8926373ec89470",
+      "working_sha256": "1a4d61b0edbc64dc7cc001b4b704de00d3152d19b3dc6b948a8926373ec89470"
+    },
+    {
+      "path": "scripts/installer/prepare-upgrade-resources.ps1",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\prepare-upgrade-resources.ps1",
+      "sha256": "a9af215fd437477b974ea9b538c92b9c02e1056912efbf23408e75b2e27075a2",
+      "working_sha256": "a9af215fd437477b974ea9b538c92b9c02e1056912efbf23408e75b2e27075a2"
+    },
+    {
+      "path": "scripts/installer/resolve-dtf-toolchain.ps1",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\resolve-dtf-toolchain.ps1",
+      "sha256": "74c8abe81f56fc82fa644780ef56358dce93ca40b2c3830bce112845ff8f3b18",
+      "working_sha256": "74c8abe81f56fc82fa644780ef56358dce93ca40b2c3830bce112845ff8f3b18"
+    },
+    {
+      "path": "scripts/installer/test-installer-upgrade.ps1",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\test-installer-upgrade.ps1",
+      "sha256": "de3bad830ad9b77cdd2005094fe373392fb60bd70c9cdf237a6a16d35ba86452",
+      "working_sha256": "de3bad830ad9b77cdd2005094fe373392fb60bd70c9cdf237a6a16d35ba86452"
+    },
+    {
+      "path": "scripts/installer/test-jpackage-template.ps1",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\test-jpackage-template.ps1",
+      "sha256": "d0b5046158d049f381abaf22b0ebd9e1dda22062300ebe9ee2edceac4056420f",
+      "working_sha256": "d0b5046158d049f381abaf22b0ebd9e1dda22062300ebe9ee2edceac4056420f"
+    },
+    {
+      "path": "scripts/installer/tests/InstalledApplicationChecks.cs",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\tests\\InstalledApplicationChecks.cs",
+      "sha256": "1fc423bfab8575ba0b9b0fba3a98cefa5041172c18dbcfda4ca88fbbb496fbf6",
+      "working_sha256": "1fc423bfab8575ba0b9b0fba3a98cefa5041172c18dbcfda4ca88fbbb496fbf6"
+    },
+    {
+      "path": "scripts/installer/tests/Test-DtfToolchain.ps1",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\tests\\Test-DtfToolchain.ps1",
+      "sha256": "1a7e898de99ae614d80a769300510e41620c8a6730857220ad537d4bca750c64",
+      "working_sha256": "1a7e898de99ae614d80a769300510e41620c8a6730857220ad537d4bca750c64"
+    },
+    {
+      "path": "scripts/installer/verify-installer-structure.ps1",
+      "source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\verify-installer-structure.ps1",
+      "sha256": "6326ab060b60c6da4b56dc2a9689aefc628c31e5d646b13186ba2adf6df12da7",
+      "working_sha256": "6326ab060b60c6da4b56dc2a9689aefc628c31e5d646b13186ba2adf6df12da7"
+    }
+  ],
+  "keyconfig": "Only newline byte difference versus R12 build staging; text identical; no new key routing change.",
+  "instruction": "Keep official source snapshot immutable. Copy to short build staging; add only these unchanged previously reviewed installer recipe dependencies. Record entire actual build input manifest. Do not claim these files were included in the helper snapshot."
+}

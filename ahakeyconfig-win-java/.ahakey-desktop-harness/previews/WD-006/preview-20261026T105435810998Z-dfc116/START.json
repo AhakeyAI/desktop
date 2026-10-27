@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "id": "WD-006",
+  "token": "preview-20261026T105435810998Z-dfc116",
+  "at": "2026-10-26T10:54:37+00:00",
+  "status": "build_authorized",
+  "preview_only": true,
+  "build_round": 14,
+  "approval_sha256": "dfd9e237746b930232f4821c835b58c8162b8cd78452b185188ca3eecc26ccc9",
+  "basis_kind": "preview_fix_review",
+  "basis_submission_sha256": "5492465fb5115c5ac526dc5a18e2d6e700b91b40b7e09352b141f488442ec254",
+  "basis_review_sha256": "ca16614a33a205cc927908aa2cf367b772cb572989f44a9af4bfd8e6dc8bbcd7",
+  "working_code_fingerprint": "c8c32aa1e9b82a761388b05664234e5e6f283eb4315ed7fc21f5160e1f4c6d57",
+  "snapshot_path": ".ahakey-desktop-harness/previews/WD-006/preview-20261026T105435810998Z-dfc116/source",
+  "snapshot_fingerprint": "b827894b55be22c6fe5902074378798b1c7fcc083f347ce2def3f8b6a7aae360",
+  "preserved_foreign": {
+    ".rollback-backups/20261010T084508/status-before.txt": "59e0a06546116d9f601d64817e19468564343e1ac497b2452dc9732fb8a887c3",
+    ".rollback-backups/20261010T084508/tracked-worktree.patch": "8262ee3d01a6883b76cc037244d65317b5afbd4caace826ae03cdcd5478a43e1",
+    ".rollback-backups/20261010T084508/untracked-before.txt": "6f6a3b1b99ff7a5ce2c0fe6d348bdcf074ca7f86fc85669f493f9ba490900640"
+  },
+  "meaning": "OWNER_PREVIEW only. May iterate via PREVIEW_FIX before formal candidate; never implies candidate/release/UAT PASS."
+}

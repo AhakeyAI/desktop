@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "id": "WD-006",
+  "hardware_model": "AhaKey X1 / CH582M / hw1",
+  "firmware_version": "CP2.6 + WS45 repaired combined candidate 292a49f32939e2b778b15eceb194746133d3b2c7",
+  "candidate_id": "292a49f32939e2b778b15eceb194746133d3b2c7",
+  "connection": "本轮同一USB口人工烧录、正常USB重连；不执行Restore测试。",
+  "eligible_for_owner_test": true,
+  "eligibility_scope": "仅已确认同一X1 hw1的有限人工联调；并非固件checkpoint accepted或Windows全任务UAT PASS。",
+  "installed_device_confirmation": "尚未证明本HEX已烧入实物；刚才boot只读检测仅核对设备实例/USB端口/驱动。开始实际烧录前由Owner确认同一硬件及可恢复条件。",
+  "artifact": {
+    "path": ".ahakey-harness/evidence/builds/ws45-cp2_6-restore-combined-regate-20261025/HID_Keyboard_582m_vibe_coding.hex",
+    "sha256": "6ec0413cfc983788cdc99f628f0f8e2a64c6af147d2a5e1727a03f036bf1123c"
+  },
+  "gate_evidence": {
+    "path": ".ahakey-harness/evidence/checkpoints/X1-PLATFORMIZATION-RELEASE-COMPOSITION/WS45_CP1_RESTORE_INITIALIZATION/20261025T133952/gate-receipt.json",
+    "sha256": "ba6342fbe1feeac6dc371e96ec8484246da669042d6b1ebd27c1ba13521c1ce2"
+  },
+  "protocol_decision": {
+    "path": ".ahakey-harness/evidence/design-reviews/X1-INPUT-CONTROL-CP2_6-WS4-CP1-20261024-revision9-independent-review-pass.md",
+    "sha256": "a79e8ae7dea105528b272522cd1469d578c9cd239038b02f12bba49489d68839"
+  },
+  "protocol_scope_note": "该外部设计决策绑定combined交付约束；Windows仅使用已批准CP2.5/CP2.6既有命令。精确candidate差异由独立R12配对审阅核对，不采纳Restore 0x30/0x31、ID01或新的Windows生产功能。",
+  "windows_pairing_review": {
+    "path": ".ahakey-desktop-harness/changes/WD-006/r11-review-20261025/r12-boot-pre-review-20261026/R12_FIRMWARE_PAIRING_REVIEW.json",
+    "sha256": "3a8f0fe301953598a82466055e1001f0a3ce8c8c59a68e85044d29a6ca1bc455"
+  },
+  "observed_date": "2026-10-26",
+  "limits": "Firmware目前Owner reported pass但证据不足、checkpoint未验收；CP2.5定量债务、物理存储证据和Windows空bank首次保存B1仍未由本轮闭合。内置catalog旧HEX不冒充本候选；必须从本路径选择外部HEX，版本字符串r001不能证明具体候选。",
+  "previous_hold": {
+    "path": ".ahakey-desktop-harness/changes/WD-006/R9_FIRMWARE_UAT_HOLD_20261024.md",
+    "sha256": "fa6d4ad4ffb93811449ad88e7d1ae3dc6ff21bdfef7b4d5a93dbdd1f9522a4a8"
+  },
+  "previous_identity": {
+    "path": ".ahakey-desktop-harness/changes/WD-006/delivery-history/20261026-r12-before-pairing/FIRMWARE_IDENTITY.json",
+    "sha256": "de96c9a9412e57f862690647381dfbec45a7a3905506d1964756cf73b648737a"
+  }
+}

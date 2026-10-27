@@ -1,0 +1,25 @@
+{
+  "schema": 2,
+  "profile": "wch-ch582-r9-bundled",
+  "files": {
+    "WCHISPTool_CH57x-59x.exe": "7b5d84bfcc8786aabf74ba264de29c1e2eda7907fb8385426fda3270cd793f95",
+    "WCH55xISPDLL.dll": "c56f1f2250c9e3862e3ef86887d7e81302bb008a722a3b18555f5cd0acd875ff",
+    "CH343PT.DLL": "4b7f30dfbc886e1359c7adc4d9fdcc3cb6543c373fc214e8641e314df41fe65a",
+    "CH375DLL.DLL": "0f019b958d4d3f6b8ec0d282ef848a57f0f92a0596d7405b6c58f5aa383a326c",
+    "ChipType/chiplist_CH57x_CH59x.wcfg": "2e2369ed14f3c351c4404bdbfa45890e3b7562c7a201111e90f7004c4dc882a0",
+    "CONFIG_CH57X59X.WCH": "f21f73360c7f650ab36cc4a0bbe2b88316c85bc1caf2e010139a47486abf5a8a"
+  },
+  "drivers": {
+    "CH375DLL.dll": "0f019b958d4d3f6b8ec0d282ef848a57f0f92a0596d7405b6c58f5aa383a326c",
+    "CH375DLL64.dll": "5ed04e4a8eb9006e92907fdc105c4d8f915408409a02c157ca492a65d9163aa7",
+    "CH375M64.sys": "9f40d09251f58be92ee2cb769c86900d52439a5b4f7e2ca2605e26cb464602b4",
+    "CH375W64.sys": "5803220ed9da96b310397aa81db6612280f7c1a58948c02a5fe6aedf49065f5a",
+    "CH375WDM.CAT": "08a8d8b21f42635243f0a7b4bd73195a4eea22a85508b3c4fce93a181054b4ba",
+    "CH375WDM.INF": "76e5f3e96743b097c0d45d019b87c6dbef795934e2826fdade2b5e7b37b47fa4",
+    "CH375WDM.sys": "840de6b498b8f3613eeb83ee6987d90229200be125925899df0c1beb2da62d1b"
+  },
+  "license_evidence": "authorization_not_verified",
+  "productBootIds": [
+    "USB\\VID_4348&PID_55E0"
+  ]
+}

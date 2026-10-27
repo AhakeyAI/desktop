@@ -1,0 +1,351 @@
+{
+  "task": "WD-006",
+  "label": "R12",
+  "contract_revision": 9,
+  "build_round": 14,
+  "candidate": "b21186cdece0e567a4b863c74fd6c0906776b6ab",
+  "token": "20261026T043634004157Z-0d2c22",
+  "status": "BUILD_AND_OFFLINE_CHECKS_PASS_NOT_INSTALLATION_UAT",
+  "completed_utc": "2026-10-26T04:46:57.649824+00:00",
+  "version": "1.0.12",
+  "variant": "local-model",
+  "final_exe": {
+    "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD006-R12-LocalModel-1.0.12\\installer\\AhaKeyStudio-1.0.12.exe",
+    "bytes": 296233528,
+    "sha256": "79dba91a2da3e12997a0318cac6c93e822bc887c490425a653797ad3bf11b1b1"
+  },
+  "image": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD006-R12-LocalModel-1.0.12\\image\\AhaKeyStudio",
+  "actual_msi": {
+    "upgradeCode": "{03E5A934-FFCA-3815-B455-7D49BF1CA1DC}",
+    "arch": "x64",
+    "certificateSha256": "",
+    "variant": "local-model",
+    "version": "1.0.12",
+    "productCode": "{5397F6E9-E543-4E8A-9270-706CC27A2C3E}",
+    "buildId": "e0304803ef8023f82a4e915b2b2f3ea7946104cb9d9f34594335854970ab2ddb",
+    "msiSha256": "9a529b4d48c92d76cc946bda890c97d8e5587c6dd9142a05329fe2fcc52c74f1",
+    "status": "NotSigned",
+    "productName": "AhaKeyStudio"
+  },
+  "package_code": "{AF42F0E8-FA67-4E24-92A4-29844D5B6F3A}",
+  "source_manifest": {
+    "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\source-manifest.json",
+    "bytes": 80559,
+    "sha256": "96bf37b6a4281279e6ff502a14ef7c12a2d912de7cd7dc45643a2ef0e58717ce"
+  },
+  "source_count": 169,
+  "reviewed_count": 106,
+  "critical_jar_binding": {
+    "status": "PASS",
+    "candidate": "b21186cdece0e567a4b863c74fd6c0906776b6ab",
+    "source_manifest": "source-manifest.json",
+    "jar": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD006-R12-LocalModel-1.0.12\\image\\AhaKeyStudio\\app\\ahakey-studio-1.0.0.jar",
+    "jar_sha256": "665455347f83458942490a151d2e0eae043a05598a5ed2f64749ab51cc947e65",
+    "entries": [
+      {
+        "entry": "com/example/ahakey/firmware/BootDeviceDetector$Capture.class",
+        "sha256": "ed6333cc0ce218e557acde607795d901cbec74ec4d2ad4a3424960a415b5d9e1"
+      },
+      {
+        "entry": "com/example/ahakey/firmware/BootDeviceDetector$Device.class",
+        "sha256": "47813fc694cf18ee1676d3d95ade78964e435131e61308514c16e24e7eb4f6f7"
+      },
+      {
+        "entry": "com/example/ahakey/firmware/BootDeviceDetector$Observation.class",
+        "sha256": "d91086977e41f2e2236bc983973b277de6d627689c9fb844242b4a03683920d5"
+      },
+      {
+        "entry": "com/example/ahakey/firmware/BootDeviceDetector$Probe.class",
+        "sha256": "4bb51c4d5cf6c92b5ed83e1496917a93aa62bafbc88424af4db083614687e3cf"
+      },
+      {
+        "entry": "com/example/ahakey/firmware/BootDeviceDetector$UsbIdentity.class",
+        "sha256": "2ca5a7190f68e3620e21b9734941c6a4f61eef207fed9f017ca52dcb82056491"
+      },
+      {
+        "entry": "com/example/ahakey/firmware/BootDeviceDetector.class",
+        "sha256": "1c7f0f979e29cfb4b93f8f75cd7e15219015b311ef227cb4b4469fe3de479c20"
+      },
+      {
+        "entry": "com/example/ahakey/service/UsbHidTransport$Guid$GUID.class",
+        "sha256": "010172d9368a4b7d4c3b5db1cf0a3b71fef58dbd03a3d1e592edc92611474b72"
+      },
+      {
+        "entry": "com/example/ahakey/service/UsbHidTransport$Guid.class",
+        "sha256": "30765212fcdce117fe4b156b8b620d73cb34622081b55697e1bf55f4f01afeb3"
+      },
+      {
+        "entry": "com/example/ahakey/service/UsbHidTransport$Hid.class",
+        "sha256": "74785da5f552097c2c4ffcaf05b33e6a47621987cfd7cd8f0917d8acab290594"
+      },
+      {
+        "entry": "com/example/ahakey/service/UsbHidTransport$Kernel32.class",
+        "sha256": "0809ddbc11d4214a74a835bcfac68b1c4c6b7ceb8a4df18433eca82746b84194"
+      },
+      {
+        "entry": "com/example/ahakey/service/UsbHidTransport$MaintenanceDevice.class",
+        "sha256": "e705d3ae5681e591577c521139ec3f1d67f47affecf4b510c409e5e3a354ab66"
+      },
+      {
+        "entry": "com/example/ahakey/service/UsbHidTransport$SetupApi.class",
+        "sha256": "689582ce45db9ce989d988956ad8e99de81ff0955adfc12b89442a8153625e44"
+      },
+      {
+        "entry": "com/example/ahakey/service/UsbHidTransport$SP_DEVICE_INTERFACE_DATA.class",
+        "sha256": "9aa7c08ffa5f92d957258ac39a9125c8725829083bbf64b525edf0f9f108f5ce"
+      },
+      {
+        "entry": "com/example/ahakey/service/UsbHidTransport$SP_DEVICE_INTERFACE_DETAIL_DATA.class",
+        "sha256": "0368f9d8d7d1b43974ec5f3c1005dba1e9f5d1252a36685fe9b73a9c7e0d8268"
+      },
+      {
+        "entry": "com/example/ahakey/service/UsbHidTransport.class",
+        "sha256": "5af05db5e20040207d8a50bddb8a2f59d47b7f70a1614fefcc24f184a38a039f"
+      },
+      {
+        "entry": "firmware/wch-capture-worker.ps1",
+        "sha256": "ccf4bca761ffaa863280b7822e3ac3493be48f1c9795c0ff92fe378d8a25bbd6"
+      }
+    ],
+    "meaning": "All BootDeviceDetector/UsbHidTransport class family bytes match current candidate isolated Maven outputs; shared worker exact candidate resource. Only staged model and build metadata overlays allowed separately."
+  },
+  "payload_count": 313,
+  "resource_count": 31,
+  "bridge_runtime_count": 96,
+  "wch_bundle_count": 13,
+  "dtf_payload": {
+    "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\dtf-payload-verification.json",
+    "bytes": 12066,
+    "sha256": "61e6fe0a3adfd6e148c2ef7c8d469a9504d140ce69e2d65fc74fb1e4ea22ee98"
+  },
+  "public_key_sha256": "0cf200b657c74f71e241c6b3991c205401e254c982986bb4830b99f43ec7b5ee",
+  "jar_stages": [
+    {
+      "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\target\\ahakey-studio-1.0.0.jar",
+      "bytes": 3559022,
+      "sha256": "c0960788e8697d35a56c4bf51b3dae0479c28d1748f5559edf5410974673c5f1"
+    },
+    {
+      "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\model-enabled-before-metadata.jar",
+      "bytes": 3559019,
+      "sha256": "5c1c5df7b728734f781ab8de79c9eaf0cbf03d529f079599831f8a29f49480e2"
+    },
+    {
+      "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD006-R12-LocalModel-1.0.12\\image\\AhaKeyStudio\\app\\ahakey-studio-1.0.0.jar",
+      "bytes": 3559094,
+      "sha256": "665455347f83458942490a151d2e0eae043a05598a5ed2f64749ab51cc947e65"
+    }
+  ],
+  "jar_changes": [
+    [
+      "model_config.properties"
+    ],
+    [
+      "update/app-release.properties"
+    ]
+  ],
+  "build_id_inputs": {
+    "productCode": "{5397f6e9-e543-4e8a-9270-706cc27a2c3e}",
+    "recipeFiles": [
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\package-local-model.ps1",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\AhaKeyUpgradeUI.wxs",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\CustomAction.config",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\DTF-LICENSE.txt",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\DTF-NOTICE.txt",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\dtf-toolchain.json",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\InstalledApplicationActions.cs",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\prepare-upgrade-resources.ps1",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\resolve-dtf-toolchain.ps1",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\test-installer-upgrade.ps1",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\test-jpackage-template.ps1",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\tests\\InstalledApplicationChecks.cs",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\tests\\Test-DtfToolchain.ps1",
+      "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-source-1.0.12\\scripts\\installer\\verify-installer-structure.ps1"
+    ],
+    "buildId": "e0304803ef8023f82a4e915b2b2f3ea7946104cb9d9f34594335854970ab2ddb",
+    "inputs": [
+      "5C1C5DF7B728734F781AB8DE79C9EAF0CBF03D529F079599831F8A29F49480E2",
+      "{5397f6e9-e543-4e8a-9270-706cc27a2c3e}",
+      "1.0.12",
+      "2543C5F826A61B710AC6EA79D710FAD994070CC8F2B749EAA267BBA81606AD44",
+      "7B4455ADBA6644E2C19172B14E110EAAD151463749DEBE8205896EAC1DC11EEA",
+      "79B099C338B16BB1EA814C3726E469C9BE971AFDDAF8CA8BC853AE55E3DDC283",
+      "DFDF2048787635215A6BAF3B9D461DEE89A2904D246787258A44F072A98D4786",
+      "81774536A329979FB48BC28E126BE5B69DE689123AEC083974DEC807DB80AE3A",
+      "F3615CBD10B6256A886EEB8AE51C32B6C36C7D7E2CC8825CF5E5C12F7A8CEF71",
+      "1A4D61B0EDBC64DC7CC001B4B704DE00D3152D19B3DC6B948A8926373EC89470",
+      "A9AF215FD437477B974EA9B538C92B9C02E1056912EFBF23408E75B2E27075A2",
+      "74C8ABE81F56FC82FA644780EF56358DCE93CA40B2C3830BCE112845FF8F3B18",
+      "DE3BAD830AD9B77CDD2005094FE373392FB60BD70C9CDF237A6A16D35BA86452",
+      "D0B5046158D049F381ABAF22B0EBD9E1DDA22062300EBE9EE2EDCEAC4056420F",
+      "1FC423BFAB8575BA0B9B0FBA3A98CEFA5041172C18DBCFDA4CA88FBBB496FBF6",
+      "1A7E898DE99AE614D80A769300510E41620C8A6730857220AD537D4BCA750C64",
+      "6326AB060B60C6DA4B56DC2A9689AEFC628C31E5D646B13186BA2ADF6DF12DA7"
+    ]
+  },
+  "signature": {
+    "unsigned": {
+      "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD006-R12-LocalModel-1.0.12\\unsigned-installer\\AhaKeyStudio-1.0.12.exe",
+      "bytes": 296232960,
+      "sha256": "ce46f88337a204cb8850acb5b390094f55f56fe192cfab1b9145d308a6ec392c"
+    },
+    "final": {
+      "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD006-R12-LocalModel-1.0.12\\installer\\AhaKeyStudio-1.0.12.exe",
+      "bytes": 296233528,
+      "sha256": "79dba91a2da3e12997a0318cac6c93e822bc887c490425a653797ad3bf11b1b1"
+    },
+    "unchanged_exe_prefix": true,
+    "unchanged_msi": true,
+    "payload_bytes": 168,
+    "signature_bytes": 384,
+    "footer_version": 1
+  },
+  "runs": {
+    "build": {
+      "command": {
+        "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\build-command.json",
+        "bytes": 661,
+        "sha256": "724225c92ea6d9d0930dd2422f7ad1d1a501616ba8844b2e2dfab03b83cc1e42"
+      },
+      "log": {
+        "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\build.log",
+        "bytes": 6670,
+        "sha256": "9e26f47502373a7be344f2a9957af913dea23e5edf87d64e43d88dccdbe9e6a2"
+      }
+    },
+    "dark": {
+      "command": {
+        "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\dark-command.json",
+        "bytes": 464,
+        "sha256": "03fcd99b967220177a0afee4494dc0a618776bf1e5a451513a37fe961dbd0e8e"
+      },
+      "log": {
+        "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\dark.log",
+        "bytes": 32,
+        "sha256": "24ce2a1b87cff3a2348b84d2e1602161bb0d987e92ce1e60a6b6e3680535b615"
+      }
+    },
+    "payload": {
+      "command": {
+        "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\payload-command.json",
+        "bytes": 463,
+        "sha256": "6fc3e2cf746b724edb5d2192ab3c7a0af418f9f217eced8bb065e2e6313bda60"
+      },
+      "log": {
+        "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\payload.log",
+        "bytes": 179,
+        "sha256": "8f7fc09718b0f8b32beb2a842bd1a3d44f459f3f6ad8ed876bb7097e653ac65a"
+      }
+    },
+    "dtf-payload": {
+      "command": {
+        "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\dtf-payload-command.json",
+        "bytes": 482,
+        "sha256": "f9f1b9542a198d1afb590ac9e53c6f08d4b60824e7322cf3055a103551bed1df"
+      },
+      "log": {
+        "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\dtf-payload.log",
+        "bytes": 156,
+        "sha256": "46a6c74206bcb4004569cc7976bfafc22e0b9f71d543878358cd1ddd36b00c66"
+      }
+    },
+    "probe-compile": {
+      "command": {
+        "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\probe-compile-command.json",
+        "bytes": 809,
+        "sha256": "d4c7c44e9bc3af4cf70ee8e7bad4fbff782f8810c8ada8f879c915fbaf9161c8"
+      },
+      "log": {
+        "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\probe-compile.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "identity": {
+      "command": {
+        "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\identity-command.json",
+        "bytes": 2375,
+        "sha256": "237f4ef81a828e0956e462589d7a417925424e57e56b0538c160428cc53f3782"
+      },
+      "log": {
+        "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\identity.log",
+        "bytes": 307,
+        "sha256": "98567211382c255c8d7bf9a3e6db2246dbc8955e2512660215133fedece27d27"
+      }
+    },
+    "process": {
+      "command": {
+        "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\process-command.json",
+        "bytes": 2072,
+        "sha256": "d6a1c77ef0b2808a134b547f5f2ed48c24a5aab6128c8f63720e40f647201da0"
+      },
+      "log": {
+        "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\process.log",
+        "bytes": 3043,
+        "sha256": "62bce2b17f327678589e3be1fd9c9cc84557e499bb12e005ce112f01ced73458"
+      }
+    },
+    "wav0": {
+      "command": {
+        "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\wav0-command.json",
+        "bytes": 2545,
+        "sha256": "c744f30fc209917d72bafbc263d5252e5b2a4b68481e349cb9462f2110d734cb"
+      },
+      "log": {
+        "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\wav0.log",
+        "bytes": 134,
+        "sha256": "db2301c036d46db78e5297bee103ebd7f6a2441da144e7a04d6e47edf9cc0bc9"
+      }
+    },
+    "wav1": {
+      "command": {
+        "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\wav1-command.json",
+        "bytes": 2545,
+        "sha256": "2ed26504fc7802cb1aa8c7a2ed08dd7752559ef6f0c802414e9d3c031fb5f8ba"
+      },
+      "log": {
+        "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\wav1.log",
+        "bytes": 122,
+        "sha256": "39924772da540cfa6542434ec727c904beb8d5e65728b9e2a436753876afed24"
+      }
+    }
+  },
+  "verification": {
+    "payload": {
+      "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\payload-verification.json",
+      "bytes": 418229,
+      "sha256": "fc9ffd85642d32855d2d5c4fbb90d7bcb2bb74eaae58d376c2c45569cd003ddb"
+    },
+    "msi_structure": {
+      "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD006-R12-LocalModel-1.0.12\\update-verification\\actual-msi-structure.json",
+      "bytes": 198698,
+      "sha256": "30969067909fae56be4e12d8a5c8392c94a114a22dc13f988ff62910ee417a51"
+    },
+    "critical_classes_and_worker": {
+      "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r12-validation-1.0.12\\r12-critical-jar-binding.json",
+      "bytes": 3493,
+      "sha256": "7b4916413f052e3a54f23940f6aa9583abf767e5d2eb635a767ef6130dab9435"
+    },
+    "postflight": {
+      "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-006\\build-r12-evidence-20261026\\POSTFLIGHT.json",
+      "bytes": 1559,
+      "sha256": "8ec51792b30d2551c5161d539db5ff4c82d1b69e3d00cf291e1477a951ee67b6"
+    }
+  },
+  "scope": {
+    "candidate_export": "169 exact Git blobs; all 106 reviewed hashes checked including 13 installer recipe files",
+    "critical_change": "Final BootDeviceDetector and UsbHidTransport class families match isolated candidate Maven output; worker exact reviewed resource; actual packaged runtime extracts only shared readonly literal.",
+    "installer_rules": "Actual MSI verification retains same-version upgrade, source installation-directory inheritance before costing, independent final path verification, first-install directory chooser, transaction removal ordering and no user-config ownership.",
+    "runtime": "Actual packaged Java/JAR metadata/query extraction,61 real harmless subprocess checks,2 fixed WAV repeat/release checks.",
+    "no_production_edits": true,
+    "no_app_start_or_install_or_device_execution": true
+  },
+  "limitations": [
+    "本轮未执行安装、同版本覆盖、烧录、正常HID重连或版本回读；最终Owner UAT待DLA交付。",
+    "包内真实运行时检查不启动App/GUI/Hook/麦克风；本轮未重跑界面截图。",
+    "旧1.0.11→1.0.12已由Owner测通，本轮只构建同版本完整修正版，未重建1.0.11或重新执行OTA。",
+    "固定公钥RSA发行封套已由Java/worker验证；Windows Authenticode仍NotSigned；私钥未初始化、轮换或输出。",
+    "之前只读真机通过绑定已审阅输入；本轮产物通过精确内容绑定，未要求Owner重复只读检测。",
+    "历史安全事件与残留ACL不触碰；不重跑原生CA探针。"
+  ]
+}

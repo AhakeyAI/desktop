@@ -17,3 +17,15 @@
 /.ahakey-desktop-harness/changes/*/delivery-history/
 /.ahakey-desktop-harness/changes/*/delivery-previews/
 # AHAKEY-DESKTOP-HARNESS:END
+
+# Local build caches and release signing material
+/target/
+/.m2repo/
+/.rollback-backups/
+/release-signing/
+**/private-key.xml
+*.pfx
+*.p12
+*.key
+.env
+.env.*

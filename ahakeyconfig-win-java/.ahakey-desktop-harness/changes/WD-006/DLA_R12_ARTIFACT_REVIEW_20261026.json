@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "WD-006",
+  "decision": "PASS_ARTIFACT_REVIEW_ONLY",
+  "candidate": "b21186cdece0e567a4b863c74fd6c0906776b6ab",
+  "build_round": 14,
+  "build_receipt": {
+    "path": ".ahakey-desktop-harness/changes/WD-006/BUILD_RECEIPT.json",
+    "sha256": "3c2d1a09b655b2232534ce3d9a4225e08e151cd646f84676369b0c156ce89d92"
+  },
+  "build_report": {
+    "path": ".ahakey-desktop-harness/changes/WD-006/BUILD_REPORT_R12_20261026.json",
+    "sha256": "40b402c1a81b8dcf64cfd1e7b448bcb6a1b8de78d6abd99751dcd76b7af2beb9"
+  },
+  "actual_byte_check": {
+    "path": ".ahakey-desktop-harness/changes/WD-006/r12-dla-20261026/ACTUAL_EXE_STATIC_CHECK.json",
+    "sha256": "2849ee70aaaf05743d7b1210fd72a724dfe6d7a2ad9ac2025c3ae884530305e5"
+  },
+  "artifact": {
+    "path": "target/WD006-R12-LocalModel-1.0.12/installer/AhaKeyStudio-1.0.12.exe",
+    "sha256": "79dba91a2da3e12997a0318cac6c93e822bc887c490425a653797ad3bf11b1b1",
+    "bytes": 296233528
+  },
+  "identity": {
+    "upgradeCode": "{03E5A934-FFCA-3815-B455-7D49BF1CA1DC}",
+    "arch": "x64",
+    "certificateSha256": "",
+    "variant": "local-model",
+    "version": "1.0.12",
+    "productCode": "{5397F6E9-E543-4E8A-9270-706CC27A2C3E}",
+    "buildId": "e0304803ef8023f82a4e915b2b2f3ea7946104cb9d9f34594335854970ab2ddb",
+    "msiSha256": "9a529b4d48c92d76cc946bda890c97d8e5587c6dd9142a05329fe2fcc52c74f1",
+    "status": "NotSigned",
+    "productName": "AhaKeyStudio"
+  },
+  "review": "DLA实际读验证实现并逐项重新hash313项解包载荷与image、16项关键JAR入口。MSI在costing前解析原路径，InstallInitialize后RemoveExistingProducts，固定UpgradeCode、新ProductCode；R11安装源字节保持。包内真实runtime身份/子进程/WAV和双端发行签名检查记录通过。",
+  "limitations": [
+    "真实安装同版本覆盖、真实烧录及正常重连读版本仍待Owner；不把只读boot成功当完整链通过。",
+    "Authenticode未签名；本次不修改原安全软件策略。",
+    "全任务正式验收尚未完成；旧R11实测OTA单独保留。"
+  ]
+}

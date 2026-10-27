@@ -1,0 +1,64 @@
+{
+  "kind": "read_only_firmware_intake",
+  "date": "2026-10-24",
+  "owner_request": "本轮 EXE 与 OTA 交付纳入 CP2.5/CP2.6 的 Windows 影响调查；最终提供两个包、环境变量修改说明和完整 OTA 测试方案。",
+  "scope_status": "discovery_complete_implementation_not_dispatched",
+  "firmware_root": "C:/Users/20825/Desktop/vibe-code",
+  "cp25": {
+    "status": "PASS_WITH_DEBT; explicit Owner acceptance recorded",
+    "candidate": "0cc3b0873f0fa6864e4226f9fb8e622771d0f756",
+    "gate": ".ahakey-harness/evidence/checkpoints/X1-AI-WORKFLOW-PRESENTATION/CP2.5/20261023T103422/gate-receipt.json",
+    "hex": ".ahakey-harness/evidence/builds/ws3-cp2_5-memory-ble-readiness/HID_Keyboard_582m_vibe_coding.hex",
+    "hex_sha256_verified": "8f941036b60a5f5e4dae713785cde5b7cbd8a87ab8f2eb213e0ee79affc0caeb",
+    "windows_impact": [
+      "固件内存、显示/上传协作、USB/BLE readiness 与响应背压变化；保留已批准资源格式、帧和现有协议，不额外发明新界面。",
+      "Windows 回归覆盖 USB/BLE 切换、实际 HID readiness、串行资源事务、响应匹配/超时、断线后重开上传；已连接配置服务不自动等于 HID 已可用。",
+      "仍需把具体候选与 Windows/BLE 驱动、chunk timeout 联调；三个固件定量债务 NOT_VERIFIED 不转为 PASS。"
+    ]
+  },
+  "cp26": {
+    "status": "formal REGATE PASS; combined CP2.6 + WS4 Restore Owner UAT pending",
+    "candidate": "2f7c54a927410c59479307c1ebc2b0d20f236d97",
+    "checkpoint_start_commit_not_candidate": "7c6dc75336d5b30faab87821381feabcd2d8428a",
+    "gate": ".ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP2.6/20261024T135107/gate-receipt.json",
+    "hex": ".ahakey-harness/evidence/builds/ws2-cp2_6-per-mode-k1-output-route/HID_Keyboard_582m_vibe_coding.hex",
+    "hex_sha256_verified": "d8e8584faee0ec59fa880df16347f36c578b0f9a67fb7727567d7eab62dc36bb",
+    "windows_gap": "当前生产 Java 搜索无 0x9E/K1 route 实现；DeviceSyncService 对 K1 仍使用普通键动作写入与全配置保存，不能代表新持久 route 已修改。",
+    "required_adaptation": [
+      "使用正式 0x9E v1 capability challenge，严格校验 version/subcommand/nonce/flags/mode-count；旧固件 generic 六字节 ACK 不能误判支持。",
+      "编辑 K1 前读取当前选中模式的键盘权威 route；ordinary shortcut/action 与 Consumer usage 分开表达，不能仅根据 Windows OS 或旧 onboarding 状态推断。",
+      "在 Windows 选择 F18 等普通动作时，通过 route 协议保存当前模式为 ordinary 并提交动作；不能只改旧绑定 RAM projection。",
+      "选择 Consumer 会清空该模式普通 K1 动作；切回 ordinary 必须提交明确动作，不能暗中恢复旧草稿。保持未编辑模式和 K2-K4 不变。",
+      "单模式保存采用 begin/chunk/commit 后读回校验；只有显式全局 onboarding 才写四个模式，不把普通编辑扩大为四模式重写。",
+      "当前实现 route record=102 bytes，全四模式=408 bytes；旧 revision6 提案中的412不是最终实现。完整帧<=62 bytes，读片<=42、写片<=47；精确ACK与CRC、超时断线不盲重放commit。",
+      "0x96 保持 onboarding 状态/抑制语义，不用它隐式覆盖新route；旧固件兼容路径保留，未知新能力不猜。",
+      "UI 应如实显示无有效route的 K1 未配置状态；不能把0x87读到的空普通绑定当成当前Consumer route的完整真相。",
+      "维护排他/读写许可、实际保存入口、重连与模式切换后的读回需一并接通，不新增泛化宏/动作体系。"
+    ],
+    "delivery_constraint": "当前正式 Firmware 路由要求 CP2.6 与 WS4 Restore 合并候选后做一次 Owner UAT；不能把单独 CP2.6 的机器PASS说成已验收或直接替换当前内置固件。Windows 可先完成接口设计/适配准备，最终交测须绑定正式允许交测的实际 HEX。"
+  },
+  "evidence": [
+    ".ahakey-harness/workstreams/X1-INPUT-CONTROL/STATE.yaml",
+    ".ahakey-harness/workstreams/X1-INPUT-CONTROL/PRD.md",
+    ".ahakey-harness/workstreams/X1-AI-WORKFLOW-PRESENTATION/STATE.yaml",
+    ".ahakey-harness/contracts/x1/protocol-commands.yaml reviewed_allocations (legacy commands table is investigation snapshot only)",
+    "APP/services/k1_restore_store.h",
+    "APP/sub_main/command_solve.c",
+    ".ahakey-harness/evidence/checkpoints/X1-INPUT-CONTROL/CP2.6/build/cp2_6-fix-verification-20261024.md",
+    ".ahakey-harness/evidence/audit/X1-INPUT-CONTROL-CP2_6-20261024-windows-client-protocol-inventory.md"
+  ],
+  "ota_delivery_requirement": {
+    "one_shared_latest_version": true,
+    "separate_lite_and_model_urls": true,
+    "configuration_source": "微信云托管环境变量，经网站公开接口返回必要信息，不公开完整环境配置",
+    "test_pair": "沿用此前手动安装升级起点包，再通过OTA升级到1.0.11的授权；两个包必须是同一安装形态的起点与目标，不能拿轻量版和模型版互相冒充升级测试。当前沿用本地模型版交付背景；两种形态共用版本号原则不变。",
+    "required_final_instructions": [
+      "两个实际 EXE 的版本、形态、用途、绝对路径、SHA256",
+      "网站接口部署前提与环境变量准确名称/完整非敏感示例、目标包上传位置和地址填写方法",
+      "先验证起点版本无更新，再发布目标版本、检查发现更新、下载、校验、退出安装、启动后确认新版、再次检查显示最新版",
+      "保留用户配置验证、下载失败/损坏或签名不符/取消安装等失败预期；真实执行与待Owner执行分开",
+      "HEX 另测用户确认的双区清除、未知HEX、boot检测、正常重连与读版本、onboarding不作为成功附加条件、统一失败退出重来"
+    ]
+  },
+  "mutations": "仅 Windows 侧调查记录；没有修改 Firmware/协议/生产 Java/网站，没有构建、运行参考脚本、安装或烧录。没有推进 Firmware consumed cursor，没有更改当前 Active Implementation。"
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "WD-006",
+  "token": "preview-fix-20261026T102238895659Z-065762",
+  "round": 2,
+  "at": "2026-10-26T10:54:13+00:00",
+  "status": "pass",
+  "review_record": ".ahakey-desktop-harness/changes/WD-006/r13-dla-20261026/DLA_PREVIEW_FIX_REVIEW.json",
+  "review_sha256": "ca16614a33a205cc927908aa2cf367b772cb572989f44a9af4bfd8e6dc8bbcd7",
+  "code_fingerprint": "c8c32aa1e9b82a761388b05664234e5e6f283eb4315ed7fc21f5160e1f4c6d57",
+  "submission_sha256": "c5ae2ced82a650f431222081c413e5999f750e530a354df7bc9d35773b75548f",
+  "scope": "PREVIEW_FIX_REVIEW_ONLY_NOT_FORMAL_REVIEW"
+}

@@ -1,0 +1,160 @@
+{
+  "schema_version": 1,
+  "id": "WD-006",
+  "contract_sha256": "1bd10b74442dcaf6d8daa8090876740e84121200eb66f766ba754fe7266deedb",
+  "reviewed_by_dla": true,
+  "review_note": "原6条逐项保留，新增R9按补充表和完整步骤映射；未把已被R9替代的备份/恢复方案作为新用户流程；硬件尚未放行。",
+  "rows": [
+    {
+      "id": "A001",
+      "line": 61,
+      "section": "## 验收与交付",
+      "source_text": "- 新旧像素/帧数/上传协议常量与编码路径保持；Java编译、已有显示/传输相关离线回归和Kimi生命周期隔离测试。",
+      "disposition": "existing_evidence",
+      "step_ids": [],
+      "evidence": [
+        {
+          "path": ".ahakey-desktop-harness/changes/WD-006/R9_IMPLEMENTATION_CHECKS_20261024.json",
+          "sha256": "2dd08f05d3c4d263331ae4e02cacf8939306d29fc0727e2be85e53003d494dbe",
+          "workspace": "windows",
+          "scope": "源码/编译和既有显示/Kimi回归适用性已核对。",
+          "explanation": "DLA已核对当前输入对应与实际执行边界",
+          "kind": "machine",
+          "result": "pass"
+        },
+        {
+          "path": ".ahakey-desktop-harness/changes/WD-006/REVIEW_R9_DLA_PASS_20261024.json",
+          "sha256": "469d22dab72a1e7e80f869366e8bc26c5510df38b83bbd8a16f30139a6074ba9",
+          "workspace": "windows",
+          "scope": "源码/编译和既有显示/Kimi回归适用性已核对。",
+          "explanation": "DLA已核对当前输入对应与实际执行边界",
+          "kind": "static",
+          "result": "pass"
+        }
+      ],
+      "reason": "源码/编译和既有显示/Kimi回归适用性已核对。",
+      "owner_exception": null
+    },
+    {
+      "id": "A002",
+      "line": 62,
+      "section": "## 验收与交付",
+      "source_text": "- 桥接MTU 23/62/203/247/517、59字节命令分片、队列上限/FIFO、部分失败停止、断连代次/迟到通知隔离测试；证明是当前源码执行，静态检查与行为测试分开描述。",
+      "disposition": "existing_evidence",
+      "step_ids": [],
+      "evidence": [
+        {
+          "path": ".ahakey-desktop-harness/changes/WD-006/PREVIEW_FIX1_CHECKS_20261023.json",
+          "sha256": "4f8389c9980f020ced9b9f97be6fcb3c996e63de18a55debd1924dbc316d9a85",
+          "workspace": "windows",
+          "scope": "桥接固定补丁既有行为检查仍匹配，实际两包96runtime逐项核对。",
+          "explanation": "DLA已核对当前输入对应与实际执行边界",
+          "kind": "static",
+          "result": "pass"
+        },
+        {
+          "path": ".ahakey-desktop-harness/changes/WD-006/DLA_R9_ARTIFACT_REVIEW_20261024.json",
+          "sha256": "467873cbcdf4ad6079de46f2c10d14af323c83beaea6767a7d0074c0659373a1",
+          "workspace": "windows",
+          "scope": "桥接固定补丁既有行为检查仍匹配，实际两包96runtime逐项核对。",
+          "explanation": "DLA已核对当前输入对应与实际执行边界",
+          "kind": "static",
+          "result": "pass"
+        }
+      ],
+      "reason": "桥接固定补丁既有行为检查仍匹配，实际两包96runtime逐项核对。",
+      "owner_exception": null
+    },
+    {
+      "id": "A003",
+      "line": 63,
+      "section": "## 验收与交付",
+      "source_text": "- 原DLA实际累计diff审阅及fresh独立审阅覆盖Java变化、打包配方和完整BRIDGE-01三文件累计变化；新包不复用旧fresh PASS。",
+      "disposition": "existing_evidence",
+      "step_ids": [],
+      "evidence": [
+        {
+          "path": ".ahakey-desktop-harness/changes/WD-006/REVIEW_R9_DLA_PASS_20261024.json",
+          "sha256": "469d22dab72a1e7e80f869366e8bc26c5510df38b83bbd8a16f30139a6074ba9",
+          "workspace": "windows",
+          "scope": "新累计DLA与独立实现审阅同pack通过，非UAT。",
+          "explanation": "DLA已核对当前输入对应与实际执行边界",
+          "kind": "static",
+          "result": "pass"
+        },
+        {
+          "path": ".ahakey-desktop-harness/changes/WD-006/r9-implementation-review-20261024/FINAL_REVIEW.json",
+          "sha256": "daec152cc4a05e32383493de5e56654c0971258b61477409eacd52a724274a03",
+          "workspace": "windows",
+          "scope": "新累计DLA与独立实现审阅同pack通过，非UAT。",
+          "explanation": "DLA已核对当前输入对应与实际执行边界",
+          "kind": "static",
+          "result": "pass"
+        }
+      ],
+      "reason": "新累计DLA与独立实现审阅同pack通过，非UAT。",
+      "owner_exception": null
+    },
+    {
+      "id": "A004",
+      "line": 64,
+      "section": "## 验收与交付",
+      "source_text": "- 完整本地模型EXE版本1.0.8或更高；新Java、新BLE驱动、模型/JNI/runtime逐项manifest。提取嵌入MSI并与实际payload核对；隔离真实打包GUI启动核验、原本地WAV检查。不启动用户设备连接、Hook安装或真实麦克风。",
+      "disposition": "existing_evidence",
+      "step_ids": [],
+      "evidence": [
+        {
+          "path": ".ahakey-desktop-harness/changes/WD-006/BUILD_REPORT_R9_20261024.json",
+          "sha256": "8b1ec086ac223a8240e5ac4e8e25738e74674f4a443998aaceacf3b2e87902ab",
+          "workspace": "windows",
+          "scope": "两完整模型EXE/MSI/runtime/GUI组件/WAV实际检查，不冒充安装或设备。",
+          "explanation": "DLA已核对当前输入对应与实际执行边界",
+          "kind": "machine",
+          "result": "pass"
+        },
+        {
+          "path": ".ahakey-desktop-harness/changes/WD-006/DLA_R9_ARTIFACT_REVIEW_20261024.json",
+          "sha256": "467873cbcdf4ad6079de46f2c10d14af323c83beaea6767a7d0074c0659373a1",
+          "workspace": "windows",
+          "scope": "两完整模型EXE/MSI/runtime/GUI组件/WAV实际检查，不冒充安装或设备。",
+          "explanation": "DLA已核对当前输入对应与实际执行边界",
+          "kind": "static",
+          "result": "pass"
+        }
+      ],
+      "reason": "两完整模型EXE/MSI/runtime/GUI组件/WAV实际检查，不冒充安装或设备。",
+      "owner_exception": null
+    },
+    {
+      "id": "A005",
+      "line": 65,
+      "section": "## 验收与交付",
+      "source_text": "- Owner真机：同一图片和GIF比较耗时与画面/帧数/播放；USB→BLE→USB；上传中断后不假成功，重连同步后可重传；原Kimi/键盘AI及本地语音操作。记录新包hash、设备身份、实际日志，旧包271498ms成功仅作为基线。",
+      "disposition": "planned_owner",
+      "step_ids": [
+        "T07",
+        "T08",
+        "T09",
+        "T10",
+        "T11"
+      ],
+      "evidence": [],
+      "reason": "保留所有真机要求；因固件正式FIX暂停，未豁免、未通过。",
+      "owner_exception": null
+    },
+    {
+      "id": "A006",
+      "line": 66,
+      "section": "## 验收与交付",
+      "source_text": "- 恢复：保留旧1.0.7安装包与用户配置；不自动覆盖安装、杀进程、设备写入或刷机。",
+      "disposition": "planned_owner",
+      "step_ids": [
+        "T02",
+        "T12"
+      ],
+      "evidence": [],
+      "reason": "保留原包/配置，不自动安装、擦写或删除；由Owner真实执行。",
+      "owner_exception": null
+    }
+  ]
+}

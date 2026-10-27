@@ -1,0 +1,166 @@
+{
+  "task": "WD-006",
+  "mode": "PREVIEW_FIX",
+  "request_token": "preview-fix-20261026T102238895659Z-065762",
+  "at": "2026-10-26T10:51:52.587769+00:00",
+  "status": "READY_FOR_DLA_PREVIEW_FIX_REVIEW",
+  "changed_files": [
+    {
+      "path": "src/main/java/com/example/ahakey/App.java",
+      "sha256": "846510bebe473bb4d3dd6f2df30aa26aed7e1f5c1da51e43bf8759f5fe9b1353"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/WchFlashAdapter.java",
+      "sha256": "098f53311c40b9b4aad03fa536e08a9c93d82b0ce90d1e97738434952c38016d"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/UpdateCenterService.java",
+      "sha256": "9720780ce8d8b7e131a95060d6a698c7e8213bfc4c6c51f6f45a6d5f54bfac7d"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/UpdateCenterDialog.java",
+      "sha256": "90b08f6b03bc13046a3a92043a3b1884d89719dc8605aa3e3f8b1862411689c3"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/WchAdapterChecks.java",
+      "sha256": "81c83aa98b1d4c1dc3055865ff469adccbcdf21398b6630c27e63d5916c5c66b"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/WindowCloseChecks.java",
+      "sha256": "deae35155a65ea0de49e002dc492d58d809c1e20c7f84c3d44dd0b25486a084f"
+    }
+  ],
+  "findings": [
+    "旧包将现场JSON成功终态拒绝；两份真实记录在旧包readResult红、修复后绿。",
+    "主窗口X和托盘Exit在FAILED已结束状态仍受维护锁阻止，现有exitSimple可以释放；关闭入口未执行该收口且无可见说明。"
+  ],
+  "changes": [
+    "按对象边界与严格JSON解析终态；重复字段、错类型、非零码、嵌套或数组、跨对象拼接均拒绝；唯一豁免为固定工具Programming/Verifing的0..100%进度块。",
+    "保留operationId/ended/exit/failed/timeout守卫和独立verify、重连实际版本流程；补Timeout优先失败。",
+    "App与更新中心关闭共用异步失败收口；仅FAILED简单链路调用既有exitSimple，成功后重新检查busy/maintenance，X仍收起、显式Exit仍走原退出通道。",
+    "未知进程仍拦截并显示单份说明；关闭去重，最终hide在FX内直接完成且再次检查维护状态，避免晚到回调隐藏新链路。"
+  ],
+  "checks": {
+    "terminal_and_receipt": 79,
+    "existing_wch_hex": 19,
+    "service_state_and_cleanup": 85,
+    "actual_isolated_close_handlers": 23,
+    "total_assertions": 206,
+    "source_compilation": "JDK17 focused compilation of all four changed production classes and two changed/new tests against immutable R12 dependency JAR/libs; actual packaged JVM executes checks",
+    "runs": {
+      "replay-red": {
+        "exit": 1,
+        "command": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\replay-red-command.json",
+        "command_sha256": "d10e6181af4fc025f6e0a628e1949ff449e19d18d8787984999d4be8ba4c644d",
+        "log": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\replay-red.log",
+        "log_sha256": "e7ad22570099c9d40136bd1358fcad1c78a4b9e1445b0bd131299f029ca9b6d4"
+      },
+      "red-compile": {
+        "exit": 0,
+        "command": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\red-compile-command.json",
+        "command_sha256": "ae5bcfdf563755f4e87c74827d38f78aaa9083ff231ca9f3c3d30c367df06d19",
+        "log": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\red-compile.log",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "red-terminal": {
+        "exit": 1,
+        "command": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\red-terminal-command.json",
+        "command_sha256": "e1b904bc774d699ec4adcaa3fbd2f46e7a1921993e31ca745988885b5c9f0776",
+        "log": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\red-terminal.log",
+        "log_sha256": "dd258aaa8fe2eacfda73d02a9345578203adf56040e5deb8dab15079e92f0fd6"
+      },
+      "red-close2-compile": {
+        "exit": 0,
+        "command": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\red-close2-compile-command.json",
+        "command_sha256": "d17cea1246f1c33ca537bd7fc194b89f44279bede374900f724a35eae3a3c5d3",
+        "log": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\red-close2-compile.log",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "red-close2": {
+        "exit": 1,
+        "command": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\red-close2-command.json",
+        "command_sha256": "e481236b466420ff1ad2575a2f4eea12156c364da72b4d568efb9f6f58879969",
+        "log": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\red-close2.log",
+        "log_sha256": "ac9bdfb7462f68e110cdbba4b54895132b6c1eeffa1e8c59f8a7afafd57f0e45"
+      },
+      "green4-compile": {
+        "exit": 0,
+        "command": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\green4-compile-command.json",
+        "command_sha256": "2a3c7991fbd02903c8f87490d286f43e81b53d572bf2a8a565f1af87057eefdf",
+        "log": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\green4-compile.log",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "green4-terminal": {
+        "exit": 0,
+        "command": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\green4-terminal-command.json",
+        "command_sha256": "fee34545ff5fb81ab6dae1adc75ea15050cb9ea43593a4c9521704f5f154ec09",
+        "log": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\green4-terminal.log",
+        "log_sha256": "8996cc22c962280763545f0feaf997442506284e280e47c46b2ad86a0c30c6b9"
+      },
+      "green4-legacy": {
+        "exit": 0,
+        "command": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\green4-legacy-command.json",
+        "command_sha256": "4b341d9d3d5a294b19223a1857ca31066bdc8c0a9295633f1fb2ecc0ae822731",
+        "log": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\green4-legacy.log",
+        "log_sha256": "b9f6842b3bf358fad4662a7200909995b413a71be8abd1bfa29bb1776e6839d6"
+      },
+      "green4-flow": {
+        "exit": 0,
+        "command": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\green4-flow-command.json",
+        "command_sha256": "be4da49457958bbb06b2cab896edd9ff699cf25031b2876cb19e94f6d2c900e8",
+        "log": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\green4-flow.log",
+        "log_sha256": "d04c5de08446d9cedd97bab8b033ed550a2c3e6cda640a7ae05435217847ef5a"
+      },
+      "green-close2": {
+        "exit": 0,
+        "command": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\green-close2-command.json",
+        "command_sha256": "e027b731e73ec149a0a63752fb869216d3ed8543d247a28a9615a9319db2e9e4",
+        "log": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\green-close2.log",
+        "log_sha256": "032744fccfba33830bf90ed04ffb701de9447619920fb687bf5222450069a476"
+      },
+      "replay-green": {
+        "exit": 0,
+        "command": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\replay-green-command.json",
+        "command_sha256": "cc15daddce02c79864d921d40143b1874fa5b9fb1dea8da5bad533aa1e422614",
+        "log": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r13-terminal-checks\\replay-green.log",
+        "log_sha256": "7f0b139cdf3525ca8ad2ec45635acc30ec6ced7e71ae460c5b3d4bd5f59ddbbe"
+      }
+    }
+  },
+  "preservation": {
+    "all_other_source_bytes_unchanged": true,
+    "frozen_reports_unchanged": true,
+    "git_head": "8c654c99a582d897d50698148e6c83cbe51c5d59",
+    "git_index_unchanged": true,
+    "ini_worker_firmware_ota_unchanged": true
+  },
+  "inputs": [
+    {
+      "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-006\\r13-terminal-diagnosis-20261026\\DLA_TRIAGE.md",
+      "sha256": "93b395bbd54de9af900b79aa31f259fdc42fafc4ff2cebe8de8dda513bd5b7a6"
+    },
+    {
+      "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-006\\r13-terminal-diagnosis-20261026\\OWNER_FAILURE.json",
+      "sha256": "688aa40c348a4908971fc841b68ea421cdd3d4752d5d68bfcb52633bc8b93be3"
+    },
+    {
+      "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-006\\r13-terminal-diagnosis-20261026\\OWNER_EXIT_ADDENDUM.json",
+      "sha256": "90e65f89198d9f4cea7bca061f9ff8935df4f9c26ee70433c30f33e489f2c260"
+    },
+    {
+      "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-006\\r13-terminal-diagnosis-20261026\\EXIT_LOG_OBSERVATION.json",
+      "sha256": "36b66de83d891c4368030368d5cd68037b1ce5cda38c3d8b8bfc672f5e3b74e7"
+    },
+    {
+      "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-006\\r13-terminal-diagnosis-20261026\\VENDOR_OUTPUT_FORMATS.json",
+      "sha256": "cd11fffd15f427caf54d6fe24a22e3aff6290499d0ea630aae1fdcfcdfe1cd3b"
+    }
+  ],
+  "limitations": [
+    "未执行WCH、安装、设备写入、驱动或真实App.start/shutdown/kill。",
+    "Verifing来自固定工具静态模板，不是实际verify成功证据；真实刷写/校验/重连回读仍待Owner。",
+    "UI验证启动独立JavaFX工具包和替身控制器，仅触发实际关闭处理函数；未运行应用启动/退出副作用。",
+    "最早close-red辅助探针未初始化FX产生后台Toolkit告警；red-close2补工具包后仅目标断言失败。早期green-flow漏传参数失败记录保留，改为仅调用既有stateChecks/lateCleanupChecks后通过；没有为测试修改生产状态机。",
+    "本轮未构建新EXE；提交后停止源码修改，待DLA轻量diff审阅与独立Preview构建派工。"
+  ]
+}

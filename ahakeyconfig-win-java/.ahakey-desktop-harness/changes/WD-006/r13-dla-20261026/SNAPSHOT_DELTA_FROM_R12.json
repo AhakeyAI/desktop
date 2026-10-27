@@ -1,0 +1,71 @@
+{
+  "snapshot": ".ahakey-desktop-harness/previews/WD-006/preview-20261026T105435810998Z-dfc116/source",
+  "files": 163,
+  "deltas": [
+    {
+      "path": "ahakey.jpg",
+      "old": null,
+      "new": "a806907c934f0336b040741ecd88fb3381dedbea4b841a00e8bfb9c9ad17d9a9"
+    },
+    {
+      "path": "ble_bridge.py",
+      "old": null,
+      "new": "7b8dfc7b44f130f7bcc34b3a5905dac50d73f602e765fbce9f9f4815a90aa705"
+    },
+    {
+      "path": "build-exe.bat",
+      "old": null,
+      "new": "90a9053eeac118cc4c6914273689a78e21f193eec6afac8c14cd34de32588ef7"
+    },
+    {
+      "path": "build-exe.ps1",
+      "old": null,
+      "new": "c025b434e2edad0d8d76618404b176c39b8b43a21d83681253b60b124af76367"
+    },
+    {
+      "path": "build-installer.ps1",
+      "old": null,
+      "new": "cd7fcac9673d2ef55619f456d9e647bc06f03bf2ae2d2a1d1453cf1637303abd"
+    },
+    {
+      "path": "VibeCodeKeyboard_preview.png",
+      "old": null,
+      "new": "a572ada08c25b196c9764a3675999bc6b17ba5c2fd29cd7f4d7f658ff57fd222"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/App.java",
+      "old": "6f6d3170caece072be34c6bd3ec93c419da2e533b46fcc6ea36c69ab4e1ec65e",
+      "new": "846510bebe473bb4d3dd6f2df30aa26aed7e1f5c1da51e43bf8759f5fe9b1353"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/WchFlashAdapter.java",
+      "old": "8e2421b10af79d65a722acf46942b9be8e4fac2c2f4b69181be6473fe88b9dae",
+      "new": "098f53311c40b9b4aad03fa536e08a9c93d82b0ce90d1e97738434952c38016d"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/KeyConfig.java",
+      "old": "ce57f2431940dba6d2831ac90caea76d45c1b9c779ee1496b2e159d40161e540",
+      "new": "23fad023afa6d6065edc7e3d8309abd6e0d220fba1c03d27e3df4c1149389be2"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/UpdateCenterService.java",
+      "old": "1303ea699e93b6a8dfddb91363aad7477505ef036239eb70c003536e493a49e2",
+      "new": "9720780ce8d8b7e131a95060d6a698c7e8213bfc4c6c51f6f45a6d5f54bfac7d"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/UpdateCenterDialog.java",
+      "old": "8fc68e3ed7025d6d818464607bf093183d2542221489d4ce6b4b32ddd67cb6ba",
+      "new": "90b08f6b03bc13046a3a92043a3b1884d89719dc8605aa3e3f8b1862411689c3"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/WchAdapterChecks.java",
+      "old": "c68c44e0f4e8567b42fcb84904f5fdbcbcf13d1cea58bc10d3a41bacdb3293e8",
+      "new": "81c83aa98b1d4c1dc3055865ff469adccbcdf21398b6630c27e63d5916c5c66b"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/WindowCloseChecks.java",
+      "old": null,
+      "new": "deae35155a65ea0de49e002dc492d58d809c1e20c7f84c3d44dd0b25486a084f"
+    }
+  ]
+}

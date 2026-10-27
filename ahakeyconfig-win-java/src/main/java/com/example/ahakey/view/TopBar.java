@@ -65,6 +65,7 @@ public class TopBar extends VBox {
     private final HookInstaller hookInstaller;
     private final LanguageManager languageManager;
     private MenuItem languageMenuItem;
+    private UpdateCenterDialog updateCenterDialog;
     private boolean hookUpdateSummaryShown;
     
     // 语音相关UI组件
@@ -312,6 +313,14 @@ public class TopBar extends VBox {
             );
         }
 
+        MenuItem updateCenter = new MenuItem(languageManager.getString("update.center"));
+        updateCenter.setId("update-center-entry");
+        updateCenter.setOnAction(event -> {
+            if (updateCenterDialog == null || !updateCenterDialog.stage().isShowing())
+                updateCenterDialog = new UpdateCenterDialog(getScene().getWindow(), controller.getUpdateCenter());
+            updateCenterDialog.show();
+        });
+        moreMenu.getItems().add(0, updateCenter);
         MenuBar menuBar = new MenuBar(moreMenu);
         menuBar.setUseSystemMenuBar(false);
         menuBar.getStyleClass().add("toolbar-menu");
@@ -379,6 +388,7 @@ public class TopBar extends VBox {
     private static final long BLE_BUTTON_CLICK_DELAY_MS = 2000;
     
     private void handleBleButtonClick() {
+        if (!controller.normalDeviceActionAllowed()) return;
         long now = System.currentTimeMillis();
         
         if (now - lastBleButtonClickTime < BLE_BUTTON_CLICK_DELAY_MS) {
@@ -393,7 +403,7 @@ public class TopBar extends VBox {
         bleButtonProcessing = true;
         
         new Thread(() -> {
-            try {
+            try (var transaction = controller.getBleManager().maintenance().normalTransaction()) {
                 boolean running = isBleDriverRunning();
                 
                 if (!running) {
@@ -421,8 +431,8 @@ public class TopBar extends VBox {
                         launchBleDriver();
                     }
                 }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+            } catch (Exception e) {
+                if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             } finally {
                 bleButtonProcessing = false;
             }
@@ -482,7 +492,9 @@ public class TopBar extends VBox {
      * 强制杀死所有 BLE_tcp_driver 进程（包括挂起的）
      */
     private void forceKillAllBleProcesses() {
+        if (!controller.normalDeviceActionAllowed()) return;
         new Thread(() -> {
+            try (var transaction = controller.getBleManager().maintenance().normalTransaction()) {
             int initialCount = countBleProcesses();
             if (initialCount == 0) {
                 Platform.runLater(() -> showAlert(languageManager.getString("dialog.ble-driver-title"), languageManager.getString("dialog.ble-no-process")));
@@ -510,6 +522,7 @@ public class TopBar extends VBox {
                     alert.showAndWait();
                 }
             });
+            } catch (Exception e) { addLog("BLE action deferred: " + e.getMessage()); }
         }, "ble-kill").start();
     }
     
@@ -1716,8 +1729,7 @@ public class TopBar extends VBox {
     }
     
     private void exitApplication() {
-        Platform.exit();
-        System.exit(0);
+        controller.requestApplicationExit();
     }
     
     private void setupLanguageChangeListener() {

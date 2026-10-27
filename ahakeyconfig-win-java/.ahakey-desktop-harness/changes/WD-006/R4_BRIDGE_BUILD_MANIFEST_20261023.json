@@ -1,0 +1,618 @@
+{
+  "tests_log": {
+    "sha256": "dcca652b4ebf926b7195093d504509cfc4b942d5fc064a65cbf1147382b56637",
+    "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r4-bridge-offline-01\\tests.log",
+    "bytes": 481
+  },
+  "resolved_references": {
+    "sha256": "70ae79c5bf74956c92d35a9d8c967f218a7a61ccc855e3c996274c16edea55df",
+    "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r4-bridge-offline-01\\RESOLVED_REFERENCES.json",
+    "bytes": 60453
+  },
+  "regression_log": {
+    "sha256": "dffa435ec9cfee69b7f428e85bedb82415f7a826cdb94d1d91370dc5109b662e",
+    "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r4-bridge-offline-01\\regression.log",
+    "bytes": 2565
+  },
+  "inputs": {
+    "sha256": "14087da929e552947205b2651ef61b14a380643f46e9f59480b7a998fb5d5516",
+    "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r4-bridge-offline-01\\BUILD_INPUTS.json",
+    "bytes": 41267
+  },
+  "output_root": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r4-bridge-offline-01\\bin",
+  "build_exit": 0,
+  "files": [
+    {
+      "runtime": true,
+      "sha256": "88883962125094a3941830d233fce78fa0517045e3d40b93ef60335cfc7af145",
+      "path": "BLE_tcp_driver.exe",
+      "bytes": 81408
+    },
+    {
+      "runtime": true,
+      "sha256": "47e5a0f101af4151d7f13d2d6bfa9b847d5b5e4a98d1f4674b7c015772746cdf",
+      "path": "BLE_tcp_driver.exe.config",
+      "bytes": 189
+    },
+    {
+      "runtime": false,
+      "sha256": "9ca60d5293d45f1ff7e0af33e6a2a8ad5fdb9b6dc61412a44ce7ba75c368bbf0",
+      "path": "BLE_tcp_driver.pdb",
+      "bytes": 167424
+    },
+    {
+      "runtime": true,
+      "sha256": "4c12ed0b0629c7e9f29fcd895c749f629985fd2a66892f2327ccaa7644ca2be8",
+      "path": "Windows.AI.Actions.ActionsContract.winmd",
+      "bytes": 29184
+    },
+    {
+      "runtime": true,
+      "sha256": "8048427178ba671c5922fcf6ab69dc3de29b3954cb0b73513cad34aba08f4f0f",
+      "path": "Windows.AI.Agents.AgentsContract.winmd",
+      "bytes": 4096
+    },
+    {
+      "runtime": true,
+      "sha256": "a42262a88f09fbd08bb2e3d143c3a8f53fc4a3844029b3943169a6c57226509a",
+      "path": "Windows.AI.MachineLearning.MachineLearningContract.winmd",
+      "bytes": 34816
+    },
+    {
+      "runtime": true,
+      "sha256": "5608086a947554aa9c6371bdd47565d6b9efd78ed043352a648c8ca38dc90493",
+      "path": "Windows.AI.MachineLearning.Preview.MachineLearningPreviewContract.winmd",
+      "bytes": 17920
+    },
+    {
+      "runtime": true,
+      "sha256": "0a76d6d7e339cb96c2762e5990d1a93944c1500a8edb8e94ed453fb873212132",
+      "path": "Windows.ApplicationModel.Activation.ActivatedEventsContract.winmd",
+      "bytes": 6144
+    },
+    {
+      "runtime": true,
+      "sha256": "970aff9fd673994175d6f49b28ab7b53fdedaa81716b47ae012a8ad8f260f05b",
+      "path": "Windows.ApplicationModel.Activation.ActivationCameraSettingsContract.winmd",
+      "bytes": 4096
+    },
+    {
+      "runtime": true,
+      "sha256": "0e00e5cf1216b538647716f3fc1b53d9dc2b31bbe77613bd2f300bac796de0fb",
+      "path": "Windows.ApplicationModel.Activation.ContactActivatedEventsContract.winmd",
+      "bytes": 9216
+    },
+    {
+      "runtime": true,
+      "sha256": "8f6f047b1292eb8fc960cb2079c7b8c80c20fbfd4d5f9367bac5090b44a6c35c",
+      "path": "Windows.ApplicationModel.Activation.WebUISearchActivatedEventsContract.winmd",
+      "bytes": 4096
+    },
+    {
+      "runtime": true,
+      "sha256": "26a146da862118e59547e98113662e48f6ccab40dad95c67dd0e4eee61f03678",
+      "path": "Windows.ApplicationModel.Background.BackgroundAlarmApplicationContract.winmd",
+      "bytes": 3584
+    },
+    {
+      "runtime": true,
+      "sha256": "bc6efe34fbe85c5c52b46b947bd65cecab727da53f6ed4eb9e835e86af657114",
+      "path": "Windows.ApplicationModel.Calls.Background.CallsBackgroundContract.winmd",
+      "bytes": 10240
+    },
+    {
+      "runtime": true,
+      "sha256": "cb40b6973655580a97b10b970fab22dbb3af6fa6923d153d7651e460c85ef74d",
+      "path": "Windows.ApplicationModel.Calls.CallsPhoneContract.winmd",
+      "bytes": 29696
+    },
+    {
+      "runtime": true,
+      "sha256": "480b393c0f05c7e01b8aadeebbe9bb236604b8d3467b8fadde6292cc54146dad",
+      "path": "Windows.ApplicationModel.Calls.CallsVoipContract.winmd",
+      "bytes": 19968
+    },
+    {
+      "runtime": true,
+      "sha256": "a2158fe374515ace772f8e6c8a02cf39a6ff8d1cee6b0921109c756ccbcae2e2",
+      "path": "Windows.ApplicationModel.Calls.LockScreenCallContract.winmd",
+      "bytes": 4608
+    },
+    {
+      "runtime": true,
+      "sha256": "dbd5596774ec6d94a8ef508398aac68383b72da173f59c714b5fd76b263613d8",
+      "path": "Windows.ApplicationModel.CommunicationBlocking.CommunicationBlockingContract.winmd",
+      "bytes": 5632
+    },
+    {
+      "runtime": true,
+      "sha256": "466a9bb4495a278d8e90575671eb69d4512361772927ef1ad1cb8c480eee0d1c",
+      "path": "Windows.ApplicationModel.FullTrustAppContract.winmd",
+      "bytes": 5120
+    },
+    {
+      "runtime": true,
+      "sha256": "83a2de74073c9e6ecaad345ab7354e4d8d7a3297948dd27c7e502098e6591c97",
+      "path": "Windows.ApplicationModel.Preview.InkWorkspace.PreviewInkWorkspaceContract.winmd",
+      "bytes": 4096
+    },
+    {
+      "runtime": true,
+      "sha256": "f399a8b2cca00c926a71a9664ae5d6a1046e89717fcaee7cf0312656fd73b172",
+      "path": "Windows.ApplicationModel.Preview.Notes.PreviewNotesContract.winmd",
+      "bytes": 7680
+    },
+    {
+      "runtime": true,
+      "sha256": "450e17c28739281be2e3d243e704b33d8fdcb873d69e81bec744a80e8a14de78",
+      "path": "Windows.ApplicationModel.Preview.StartupAppsPreviewContract.winmd",
+      "bytes": 4608
+    },
+    {
+      "runtime": true,
+      "sha256": "8ba9c43af2712c4b1c817684cff9967e8f7f37945dfabce1e02f9e839d805c87",
+      "path": "Windows.ApplicationModel.Resources.Management.ResourceIndexerContract.winmd",
+      "bytes": 6656
+    },
+    {
+      "runtime": true,
+      "sha256": "b84e210c32e39091243ff9b9bea305c6b734d70bf5e37279e64d2c5ae7430522",
+      "path": "Windows.ApplicationModel.Search.Core.SearchCoreContract.winmd",
+      "bytes": 7680
+    },
+    {
+      "runtime": true,
+      "sha256": "4000426b9f103be51eb7a02a9f23342d659245f61ee3c556d8847bf1f600ae07",
+      "path": "Windows.ApplicationModel.Search.SearchContract.winmd",
+      "bytes": 13312
+    },
+    {
+      "runtime": true,
+      "sha256": "08edd4ffb92e78a66603b548091463ab97aa9ddc5105f52ab284eca67d57eb79",
+      "path": "Windows.ApplicationModel.SocialInfo.SocialInfoContract.winmd",
+      "bytes": 17920
+    },
+    {
+      "runtime": true,
+      "sha256": "3e7a006ae8ba302ee302cfef6f385059760531bcd3f6b5356bf4e9fb702edf32",
+      "path": "Windows.ApplicationModel.StartupTaskContract.winmd",
+      "bytes": 4608
+    },
+    {
+      "runtime": true,
+      "sha256": "efcf52b6e714e56665686d909fa57baf0cd4db47d709b6e685ac1e57be51a43e",
+      "path": "Windows.ApplicationModel.Wallet.WalletContract.winmd",
+      "bytes": 5120
+    },
+    {
+      "runtime": true,
+      "sha256": "b77f08b3a33b07d42f266648dc1df999872f74b9e5ece99ddd982da1758e6475",
+      "path": "Windows.Devices.Custom.CustomDeviceContract.winmd",
+      "bytes": 6656
+    },
+    {
+      "runtime": true,
+      "sha256": "a7e41a0d144371f358c533985b0fc7178f05aa75521d91f5df7251e6fb1f6d4f",
+      "path": "Windows.Devices.DevicesLowLevelContract.winmd",
+      "bytes": 30720
+    },
+    {
+      "runtime": true,
+      "sha256": "3ea23a3e635270afeaf942e018318b36e160903b1fcf1743331a27c13a949301",
+      "path": "Windows.Devices.Portable.PortableDeviceContract.winmd",
+      "bytes": 4096
+    },
+    {
+      "runtime": true,
+      "sha256": "1d36ad76589cfd1742573863ae223ce084dc88188d10bcb3f4db39faf9fd7dd9",
+      "path": "Windows.Devices.Power.PowerGridApiContract.winmd",
+      "bytes": 4608
+    },
+    {
+      "runtime": true,
+      "sha256": "6e40c8889ffb0650121c8b5ed133d3ee4c269e118549651874c9d7c44a2de7bb",
+      "path": "Windows.Devices.Printers.Extensions.ExtensionsContract.winmd",
+      "bytes": 6144
+    },
+    {
+      "runtime": true,
+      "sha256": "323a3210f6014f2d5747ca637c9f8471506f32731c67ae340965774ab0fd628b",
+      "path": "Windows.Devices.Printers.PrintersContract.winmd",
+      "bytes": 4096
+    },
+    {
+      "runtime": true,
+      "sha256": "cad71d03e8c7d981671b222172bf28f45ad66e9158f9610a192fbb782d4804e4",
+      "path": "Windows.Devices.Scanners.ScannerDeviceContract.winmd",
+      "bytes": 13824
+    },
+    {
+      "runtime": true,
+      "sha256": "ab2cb282533566fe5a48e04632c653d035caa89871b1e8f35091c9ee9a27c02b",
+      "path": "Windows.Devices.SmartCards.SmartCardBackgroundTriggerContract.winmd",
+      "bytes": 6144
+    },
+    {
+      "runtime": true,
+      "sha256": "d4a656dd5cfff885f2882cafa79d538618b9fb77cc515bb8505bbf2769eb8c62",
+      "path": "Windows.Devices.SmartCards.SmartCardEmulatorContract.winmd",
+      "bytes": 31744
+    },
+    {
+      "runtime": true,
+      "sha256": "7aed68aa562edebc2bcb4b0b103744e2415175de19bcfb1dcb21875afe6eb73f",
+      "path": "Windows.Devices.Sms.LegacySmsApiContract.winmd",
+      "bytes": 16896
+    },
+    {
+      "runtime": true,
+      "sha256": "7c5b3538028d4aefe6ccd27225e51a63125a928fa64c18a2a07ee58f71002221",
+      "path": "Windows.Foundation.FoundationContract.winmd",
+      "bytes": 24576
+    },
+    {
+      "runtime": true,
+      "sha256": "f1e7994b13862b9f011ceb6a402eb964c5fed82a3fe15741c8fecf5d25fdcb8e",
+      "path": "Windows.Foundation.UniversalApiContract.winmd",
+      "bytes": 6147584
+    },
+    {
+      "runtime": true,
+      "sha256": "d19addca8667dff8e190bffe7154d027f967ad203ab6f9226139a06423c74684",
+      "path": "Windows.Gaming.Input.GamingInputPreviewContract.winmd",
+      "bytes": 8704
+    },
+    {
+      "runtime": true,
+      "sha256": "68af83e1f4b35cf89829990f2467b9d51ba45ba7f8f9a8cac86f3edda8aa8e9f",
+      "path": "Windows.Gaming.Preview.GamesEnumerationContract.winmd",
+      "bytes": 10752
+    },
+    {
+      "runtime": true,
+      "sha256": "d9cbd43e0ae50e6e5d055fe92cfa2a4b668f41b39af7c6f5b62ae1ceffe558de",
+      "path": "Windows.Gaming.UI.GameChatOverlayContract.winmd",
+      "bytes": 4608
+    },
+    {
+      "runtime": true,
+      "sha256": "37d6df996079d3fd1a3e12757290f79d9246d8482140d9b26d74f022e148c563",
+      "path": "Windows.Gaming.UI.GamingUIProviderContract.winmd",
+      "bytes": 3584
+    },
+    {
+      "runtime": true,
+      "sha256": "33b9996652ac2fe092f4f9abca8a4dc475df4fe1fa0f6e28ee2ccf98ff4aaa8a",
+      "path": "Windows.Gaming.XboxLive.StorageApiContract.winmd",
+      "bytes": 10752
+    },
+    {
+      "runtime": true,
+      "sha256": "61628cec8ff59c318d74d9af43d32ff5cddd1e4a7358115c485994e7e5559233",
+      "path": "Windows.Globalization.GlobalizationJapanesePhoneticAnalyzerContract.winmd",
+      "bytes": 4096
+    },
+    {
+      "runtime": true,
+      "sha256": "26aec4cfddcc639bd52d601d9b6d639390f2b1eccde914871f24402d75541397",
+      "path": "Windows.Graphics.Printing3D.Printing3DContract.winmd",
+      "bytes": 29696
+    },
+    {
+      "runtime": true,
+      "sha256": "ce9e16ee6d2c4fdb9d5ac95519a3362a475d3fc718c11851710b57a8942727c5",
+      "path": "Windows.Management.Deployment.Preview.DeploymentPreviewContract.winmd",
+      "bytes": 4096
+    },
+    {
+      "runtime": true,
+      "sha256": "5d24eb1eda7c1687d86e2b8d30bdfa4e9f0a79a79f89d60fbc4113894cf42769",
+      "path": "Windows.Management.Deployment.SharedPackageContainerContract.winmd",
+      "bytes": 10240
+    },
+    {
+      "runtime": true,
+      "sha256": "ed6c352d231b9fa7951d133176e4de75a14cd13b3c2cbd95fc6e96f11841303f",
+      "path": "Windows.Management.Update.WindowsUpdateContract.winmd",
+      "bytes": 43520
+    },
+    {
+      "runtime": true,
+      "sha256": "db39ffb4a92cd0da7caa1c93cd780b33fa9c2459fb424e6f37aacd06e85a95a3",
+      "path": "Windows.Management.Workplace.WorkplaceSettingsContract.winmd",
+      "bytes": 3584
+    },
+    {
+      "runtime": true,
+      "sha256": "f97e16bc3a9e87d0e48c53861467041d75c05cf5c2708705ba591de854296526",
+      "path": "Windows.Media.AppBroadcasting.AppBroadcastingContract.winmd",
+      "bytes": 6144
+    },
+    {
+      "runtime": true,
+      "sha256": "7458e1d190b2ce75afda82594d2804911078d529ce730b944e6e1276cebf7e95",
+      "path": "Windows.Media.AppRecording.AppRecordingContract.winmd",
+      "bytes": 8192
+    },
+    {
+      "runtime": true,
+      "sha256": "8dd6c0a509dcf1734fd4c49b348baa91e15662c0fe4db764350e2d2beae96271",
+      "path": "Windows.Media.Capture.AppBroadcastContract.winmd",
+      "bytes": 38400
+    },
+    {
+      "runtime": true,
+      "sha256": "7c9ecf688eaf21a68cdd7c61e1e1be2c54cc1bfd55720ad50f8e26a071a9dd47",
+      "path": "Windows.Media.Capture.AppCaptureContract.winmd",
+      "bytes": 20480
+    },
+    {
+      "runtime": true,
+      "sha256": "78eb1cd3894ddeb438a26ccc73cb650096707fd23309d7b0bd70eae43248a1bb",
+      "path": "Windows.Media.Capture.AppCaptureMetadataContract.winmd",
+      "bytes": 4608
+    },
+    {
+      "runtime": true,
+      "sha256": "140f5c4420598e9158ddb537eb5d08fd4632680fb24f04d7c8f834f9aed20bee",
+      "path": "Windows.Media.Capture.CameraCaptureUIContract.winmd",
+      "bytes": 3072
+    },
+    {
+      "runtime": true,
+      "sha256": "b24656cc3e6b7fc1612de180cd2911d7a58cb6b2af14a1a5f19c12b95b646e89",
+      "path": "Windows.Media.Capture.GameBarContract.winmd",
+      "bytes": 7680
+    },
+    {
+      "runtime": true,
+      "sha256": "27c9e9073b9fe43df16326977dcffcd22e8ce99d3c48d7e9bc539015cc32a14c",
+      "path": "Windows.Media.Devices.CallControlContract.winmd",
+      "bytes": 7168
+    },
+    {
+      "runtime": true,
+      "sha256": "4729bf814168e7583a7d014cf682faa69145e25930ee91cdc9747eaa1508603e",
+      "path": "Windows.Media.MediaControlContract.winmd",
+      "bytes": 7168
+    },
+    {
+      "runtime": true,
+      "sha256": "9a2e573afaf68f64d7ac17892bb50f1f6d3264691d428bacdbaad331534034ff",
+      "path": "Windows.Media.Playlists.PlaylistsContract.winmd",
+      "bytes": 4608
+    },
+    {
+      "runtime": true,
+      "sha256": "974948cc6211545ed717dc4c84fb3e3bebed9b3cb8fd53c54d296198ca41cc6d",
+      "path": "Windows.Media.Protection.ProtectionRenewalContract.winmd",
+      "bytes": 3584
+    },
+    {
+      "runtime": true,
+      "sha256": "2722670721cd5724f2037cc9095ad35d53fbf151ed1b7ce994ca58a3c19fe271",
+      "path": "Windows.Networking.Connectivity.WwanContract.winmd",
+      "bytes": 5120
+    },
+    {
+      "runtime": true,
+      "sha256": "99414618efc9d6b968f8cee070dbc1404cf35162327eda4ded28e0c0194a2849",
+      "path": "Windows.Networking.NetworkOperators.LegacyNetworkOperatorsContract.winmd",
+      "bytes": 4608
+    },
+    {
+      "runtime": true,
+      "sha256": "abeee397c00eea17cb7a0a0e4ab4c89b6f57187bff02c4c927c4f9142cacb708",
+      "path": "Windows.Networking.Sockets.ControlChannelTriggerContract.winmd",
+      "bytes": 6656
+    },
+    {
+      "runtime": true,
+      "sha256": "e025d21f37d8f2ee1c572dc77a9734f74868c1bfb0f39930be05a5cea5a49e1b",
+      "path": "Windows.Networking.XboxLive.XboxLiveSecureSocketsContract.winmd",
+      "bytes": 18432
+    },
+    {
+      "runtime": true,
+      "sha256": "88cba245aee0145355dfe35b3e00fbd5d04fb104d1bb5c8bd448ea421928ec3f",
+      "path": "Windows.Perception.Automation.Core.PerceptionAutomationCoreContract.winmd",
+      "bytes": 3584
+    },
+    {
+      "runtime": true,
+      "sha256": "be4401f6d6f5d53a750b1c07734cb8958dfaa3d81a31fc5a12f0971580cfe97f",
+      "path": "Windows.Security.EnterpriseData.EnterpriseDataContract.winmd",
+      "bytes": 24064
+    },
+    {
+      "runtime": true,
+      "sha256": "cd947180c09feebb37e5444023018b34ccb0eb32de53b41f7e03cf44acd8e355",
+      "path": "Windows.Security.ExchangeActiveSyncProvisioning.EasContract.winmd",
+      "bytes": 10752
+    },
+    {
+      "runtime": true,
+      "sha256": "a400fc65c19079bf0db87021e368efc8775142146e4a728ecffc78977d13a790",
+      "path": "Windows.Security.Isolation.Isolatedwindowsenvironmentcontract.winmd",
+      "bytes": 33792
+    },
+    {
+      "runtime": true,
+      "sha256": "aba9317570babe507ac59ba3c3e2037d616a284e6279690ca626b81c732f75fc",
+      "path": "Windows.Services.Maps.GuidanceContract.winmd",
+      "bytes": 20480
+    },
+    {
+      "runtime": true,
+      "sha256": "60d98f099d90a9ae9d577081fca6118cd1f92d32ba363226590f298bd29c4e93",
+      "path": "Windows.Services.Maps.LocalSearchContract.winmd",
+      "bytes": 16384
+    },
+    {
+      "runtime": true,
+      "sha256": "0fc7574cf6bfc5084e5f17a518bbac7839ad0d3f7c520e564cd6ede09119f820",
+      "path": "Windows.Services.Store.StoreContract.winmd",
+      "bytes": 34816
+    },
+    {
+      "runtime": true,
+      "sha256": "081d71ed68ddcdbd266b52afb927f862c14a93cfd0591cf23e8768022fec8120",
+      "path": "Windows.Services.TargetedContent.TargetedContentContract.winmd",
+      "bytes": 14848
+    },
+    {
+      "runtime": true,
+      "sha256": "fa502a10c56497dcb7978e78f660bf104fbfde4df2fc9e02703e3cbcdb93eb4d",
+      "path": "Windows.Storage.Provider.CloudFilesContract.winmd",
+      "bytes": 31232
+    },
+    {
+      "runtime": true,
+      "sha256": "1fb2e20a29e20d532dc2dba735fe7732b7eed6d56679e57b6e37973994278c7b",
+      "path": "Windows.System.Power.Thermal.PowerThermalApiContract.winmd",
+      "bytes": 8192
+    },
+    {
+      "runtime": true,
+      "sha256": "84fa0c92f65aab3d8f32feb103ead9a03b0a1189e4a4a3c9f9a694cb7302c4fd",
+      "path": "windows.system.profile.platformautomaticappsignincontract.winmd",
+      "bytes": 3584
+    },
+    {
+      "runtime": true,
+      "sha256": "23faa93c156fe0fd5365272b89bbb38fbcd0e63a4b79284793b7c9618b121c1b",
+      "path": "Windows.System.Profile.ProfileHardwareTokenContract.winmd",
+      "bytes": 4096
+    },
+    {
+      "runtime": true,
+      "sha256": "0fa959777e799f76de590aabf6b12970cc927a29a029c06d458881bc03f48e72",
+      "path": "Windows.System.Profile.ProfileRetailInfoContract.winmd",
+      "bytes": 6144
+    },
+    {
+      "runtime": true,
+      "sha256": "f8a92ec033efcb81876d2da111e649e9f6f1041b1978ed3873ae690dffd27ff4",
+      "path": "Windows.System.Profile.ProfileSharedModeContract.winmd",
+      "bytes": 3584
+    },
+    {
+      "runtime": true,
+      "sha256": "d660c48f59fca902df0479dfbbec04293981123019cd93f0bb52ffb7df8e10f9",
+      "path": "Windows.System.Profile.SystemManufacturers.SystemManufacturersContract.winmd",
+      "bytes": 6144
+    },
+    {
+      "runtime": true,
+      "sha256": "e588a84f74f55f238335df45de57521eaf618c54b93589be687748e31b01fa98",
+      "path": "Windows.System.SystemManagementContract.winmd",
+      "bytes": 14848
+    },
+    {
+      "runtime": true,
+      "sha256": "475f2f6b7909bf56676b0da0b60e2e5bf07dcf808b6ba728c2eb30d0267fd8d9",
+      "path": "Windows.System.UserProfile.UserProfileContract.winmd",
+      "bytes": 6144
+    },
+    {
+      "runtime": true,
+      "sha256": "64f513a0668c4e46ab003166ffca03d1f423d5923170e88a212c3e32c85317ef",
+      "path": "Windows.System.UserProfile.UserProfileLockScreenContract.winmd",
+      "bytes": 4096
+    },
+    {
+      "runtime": true,
+      "sha256": "34fcb96cefc9ab822a923cb712dafd6adfe1cab1530e4a04efdd37c18d87967c",
+      "path": "Windows.UI.ApplicationSettings.ApplicationsSettingsContract.winmd",
+      "bytes": 5632
+    },
+    {
+      "runtime": true,
+      "sha256": "fca6acbb50154a9438bd0cef98d93bd38c6c9a986aa20a46bb38999f0e525377",
+      "path": "Windows.UI.Core.AnimationMetrics.AnimationMetricsContract.winmd",
+      "bytes": 8192
+    },
+    {
+      "runtime": true,
+      "sha256": "259a0de47614548d207e7e8f53a11e594455e7acb9e7f888ee4fb46b8a98844b",
+      "path": "Windows.UI.Core.CoreWindowDialogsContract.winmd",
+      "bytes": 7168
+    },
+    {
+      "runtime": true,
+      "sha256": "d817d93497b9732aa3eb61f3bd38735043779dbdb499edd8da1939d34ce28fd5",
+      "path": "Windows.UI.Input.Preview.Text.PreviewTextContract.winmd",
+      "bytes": 19968
+    },
+    {
+      "runtime": true,
+      "sha256": "82db7f986f925ef239c3749a6483efd693086cbb978e097ec8526c4b9f42a4d8",
+      "path": "Windows.UI.Shell.CompanionWindows.CompanionWindowsContract.winmd",
+      "bytes": 6144
+    },
+    {
+      "runtime": true,
+      "sha256": "9e15220229360c793e7b15d45cf83b643c1e53824cca4ca55222d71fd5fd8df8",
+      "path": "Windows.UI.Shell.SecurityAppManagerContract.winmd",
+      "bytes": 4096
+    },
+    {
+      "runtime": true,
+      "sha256": "bc5121bd958630b9053c65d01e93f99fe31780bb89ce992b7c15f94f98962cef",
+      "path": "Windows.UI.Shell.Tasks.AppTaskContract.winmd",
+      "bytes": 7680
+    },
+    {
+      "runtime": true,
+      "sha256": "f7757103866e7dd25b942d7da36434a9dda710651d18fe1164faa3094fbca749",
+      "path": "Windows.UI.Shell.WindowTabManagerContract.winmd",
+      "bytes": 10752
+    },
+    {
+      "runtime": true,
+      "sha256": "be1a045c6789cc062d444649b37af797f344683ca97389cb657044f063c772b0",
+      "path": "Windows.UI.UIAutomation.UIAutomationContract.winmd",
+      "bytes": 12288
+    },
+    {
+      "runtime": true,
+      "sha256": "4e6e015d0cff10defc9ab2ec42d37b7d54b0d71ae0b77d494ed7d72d75040311",
+      "path": "Windows.UI.ViewManagement.ViewManagementViewScalingContract.winmd",
+      "bytes": 3584
+    },
+    {
+      "runtime": true,
+      "sha256": "5a270b1eeca1f29d33d2ac2b5d80f81e26dacd189e473a6cedbdc363f30259c9",
+      "path": "Windows.UI.Xaml.Core.Direct.XamlDirectContract.winmd",
+      "bytes": 102400
+    },
+    {
+      "runtime": true,
+      "sha256": "0d516ac52bcfc548e2f160f700881cad2f49c1db29c146a487b7881b6bf5805f",
+      "path": "Windows.UI.Xaml.Hosting.HostingContract.winmd",
+      "bytes": 13312
+    },
+    {
+      "runtime": true,
+      "sha256": "7fb6af18e4decf87357ef3457d2fe0314329ea596b0f5269f495d9d1caa63262",
+      "path": "Windows.Web.Http.Diagnostics.HttpDiagnosticsContract.winmd",
+      "bytes": 9728
+    },
+    {
+      "runtime": true,
+      "sha256": "249d4ebdcb399002f7b6dcb50384ad0df3ab6a7cf7087161eda4e43052128e6d",
+      "path": "Windows.WinMD",
+      "bytes": 174080
+    }
+  ],
+  "schema_version": 1,
+  "prerequisite": ".NET Framework 4.7.2 and supported Windows BLE stack; not installed by this script",
+  "build_log": {
+    "sha256": "acaada7f9d59cb30bd713b76c9dd590f4742632e48f9a583272a8b9aee7b17f8",
+    "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd006-r4-bridge-offline-01\\build.log",
+    "bytes": 70171
+  },
+  "regression_exit": 0,
+  "test_exit": 0,
+  "status": "OFFLINE_BUILD_ONLY_NOT_ADMITTED"
+}

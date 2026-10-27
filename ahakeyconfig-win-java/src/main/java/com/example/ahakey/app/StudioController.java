@@ -41,9 +41,53 @@ public class StudioController {
     private final AiRuntimeDisplayService aiRuntimeDisplayService;
     private final HookInstaller aiRuntimeHookInstaller;
     private final boolean simulateBle;
+    private final boolean platformServicesEnabled;
     private final HookDispatchServer hookDispatchServer;
     private final com.example.ahakey.service.KimiAhaKeyBridge kimiAhaKeyBridge;
     private Runnable hookManagerOpener;
+    private final com.example.ahakey.update.UpdateCenterService updateCenter;
+    private final com.example.ahakey.service.K1RouteService k1RouteService;
+    public com.example.ahakey.service.K1RouteService getK1RouteService() { return k1RouteService; }
+    private Runnable applicationExit = () -> {};
+    public com.example.ahakey.update.UpdateCenterService getUpdateCenter() { return updateCenter; }
+    public void setApplicationExit(Runnable action) { applicationExit = action; }
+    public void requestApplicationExit() { applicationExit.run(); }
+    public boolean normalDeviceActionAllowed() { return bleManager.maintenance().normalAllowed(); }
+    private void maintenanceChanged() {
+        aiRuntimeDisplayService.maintenanceChanged();
+        long epoch = bleManager.maintenance().epoch();
+        stopStatusPolling();
+        kimiAhaKeyBridge.stop();
+        Platform.runLater(() -> {
+            if (epoch != bleManager.maintenance().epoch()) return;
+            displayConfigService.maintenanceChanged();
+            firmwareCatalogKeyRequested = false; handledFirmwareIdentity = null;
+            enterEditingAfterConnect = false;
+            modeSwitchInProgress.set(false); studioState.modeSwitchingProperty().set(false); clearModeSwitchStatusGuard();
+            studioState.setCp4cInputConfigEnabled(false);
+            deviceStatus.clearFirmwareIdentity();
+            if (!bleManager.maintenance().normalAllowed()) { deviceStatus.setConnected(false); return; }
+            try (var transaction = bleManager.maintenance().normalTransaction()) {
+                if (epoch != bleManager.maintenance().epoch()) return;
+                // A reconnect performed inside maintenance does not emit the ordinary connected callback.
+                bleManager.clearCachedFirmwareIdentity();
+                reconcileCurrentConnection();
+            } catch (Exception busy) { logger.info("Maintenance handoff changed: {}", busy.getMessage()); }
+        });
+    }
+    private void reconcileCurrentConnection() {
+        if (!normalDeviceActionAllowed()) return;
+        boolean connected = bleManager.isConnected() && bleManager.getCachedStatus().isConnected();
+        if (connected) {
+            applyBleStatus(bleManager.getCachedStatus());
+            startStatusPolling(); kimiAhaKeyBridge.connectionChanged();
+        } else {
+            stopStatusPolling(); kimiAhaKeyBridge.connectionChanged();
+            firmwareCatalogKeyRequested = false; handledFirmwareIdentity = null;
+            deviceStatus.setConnected(false); deviceStatus.clearFirmwareIdentity();
+            studioState.setCp4cInputConfigEnabled(false); displayConfigService.connectionChanged();
+        }
+    }
 
     private int lastSyncedRevision = -1;
     
@@ -59,32 +103,44 @@ public class StudioController {
     private volatile long suppressModeStatusUntilMillis = 0;
     private final AtomicBoolean modeSwitchInProgress = new AtomicBoolean(false);
 
+    private static void closeTransaction(AutoCloseable lease) {
+        try { lease.close(); } catch (Exception e) { logger.warn("Transaction close failed", e); }
+    }
+    private void deviceFx(Runnable action) {
+        long epoch = bleManager.maintenance().epoch();
+        long generation = bleManager.connectionGeneration();
+        Platform.runLater(() -> {
+            if (epoch == bleManager.maintenance().epoch() && generation == bleManager.connectionGeneration()
+                    && bleManager.maintenance().normalAllowed()) action.run();
+        });
+    }
     public StudioController() {
+        this(BleManager::fromEnvironment, com.example.ahakey.service.KimiAhaKeyBridge::new, true);
+    }
+    /** Same controller callbacks with isolated transports; native services are started only by the application. */
+    public StudioController(java.util.function.Function<BleManager.BleCallback, BleManager> transportFactory,
+                            java.util.function.Function<BleManager, com.example.ahakey.service.KimiAhaKeyBridge> bridgeFactory,
+                            boolean startPlatformServices) {
+        platformServicesEnabled = startPlatformServices;
         String sim = System.getenv("AHAKEY_STUDIO_SIMULATE_BLE");
         simulateBle = sim != null && (sim.equals("1") || sim.equalsIgnoreCase("true"));
         studioState.loadFromPersisted(StudioStore.loadOrDefault());
         lastSyncedRevision = studioState.getRevision();
 
-        bleManager = BleManager.fromEnvironment(new BleManager.BleCallback() {
+        bleManager = transportFactory.apply(new BleManager.BleCallback() {
             @Override
             public void onConnected() {
                 logger.info("收到设备连接通知");
                 long generation = bleManager.connectionGeneration();
-                Platform.runLater(() -> {
+                deviceFx(() -> {
                     if (generation != bleManager.connectionGeneration() || !bleManager.isConnected()) return;
-                    DeviceStatus status = bleManager.getCachedStatus();
-                    applyBleStatus(status);
+                    reconcileCurrentConnection();
                     if (enterEditingAfterConnect) {
                         enterEditingAfterConnect = false;
                         activateConfigurationEditing();
                     }
                 });
                 // 有线（USB HID）连接时启动 Kimi AhaKey 桥接（无线模式下 9000 端口已由 BLE-TCP bridge 占用）
-                if (bleManager.isUsbConnected()) {
-                    kimiAhaKeyBridge.start();
-                }
-                // 启动定时轮询（BLE通知不可靠，需要主动查询）
-                startStatusPolling();
             }
 
             @Override
@@ -92,12 +148,9 @@ public class StudioController {
                 long generation = bleManager.connectionGeneration();
                 firmwareCatalogKeyRequested = false;
                 enterEditingAfterConnect = false;
-                Platform.runLater(() -> {
-                    if (generation != bleManager.connectionGeneration() || bleManager.getCachedStatus().isConnected()) return;
-                    displayConfigService.connectionChanged();
-                    deviceStatus.setConnected(false);
-                    deviceStatus.clearFirmwareIdentity();
-                    studioState.setCp4cInputConfigEnabled(false);
+                deviceFx(() -> {
+                    if (generation != bleManager.connectionGeneration()) return;
+                    reconcileCurrentConnection();
                     if (modeSwitchInProgress.getAndSet(false)) {
                         studioState.modeSwitchingProperty().set(false);
                         studioState.syncStatusProperty().set("连接中断，键盘模式未确认");
@@ -105,14 +158,14 @@ public class StudioController {
                     clearModeSwitchStatusGuard();
                 });
                 // 停止定时轮询
-                stopStatusPolling();
+                if (!normalDeviceActionAllowed() && !bleManager.isConnected()) { stopStatusPolling(); kimiAhaKeyBridge.stop(); }
             }
 
             @Override
             public void onStatusReceived(DeviceStatus status) {
                 var identity = bleManager.firmwareIdentity();
-                Platform.runLater(() -> {
-                    if (!bleManager.isCurrentIdentity(identity)) return;
+                deviceFx(() -> {
+                    if (!normalDeviceActionAllowed() || !bleManager.isCurrentIdentity(identity)) return;
                     applyBleStatus(status);
                     // 不再强制同步设备工作模式到UI选择，让用户自由选择要编辑的模式
                 });
@@ -121,15 +174,18 @@ public class StudioController {
             @Override
             public void onError(String message) {
                 enterEditingAfterConnect = false;
-                Platform.runLater(() -> studioState.syncStatusProperty().set(message));
+                deviceFx(() -> studioState.syncStatusProperty().set(message));
             }
         });
 
         displayConfigService = new com.example.ahakey.service.DisplayConfigService(studioState, bleManager);
+        k1RouteService = new com.example.ahakey.service.K1RouteService(studioState, bleManager);
         displayConfigService.setErrorHandler(message -> showOledWarning("显示配置", message));
-        voiceRelay.configure(() -> studioState, deviceStatus::getWorkMode);
-        refreshVoiceRoutes();
-        voiceRelay.start();
+        if (platformServicesEnabled) {
+            voiceRelay.configure(() -> studioState, deviceStatus::getWorkMode);
+            refreshVoiceRoutes();
+            voiceRelay.start();
+        }
 
         Runnable onDraftChange = () -> {
             persistDraft();
@@ -143,10 +199,13 @@ public class StudioController {
         hookDispatchServer = new HookDispatchServer(bleManager, aiRuntimeDisplayService);
         aiRuntimeHookInstaller = new HookInstaller(hookDispatchServer::getActualPort, msg -> logger.info("{}", msg));
         hookDispatchServer.setApprovalCallback(this::showApprovalDialog);
-        hookDispatchServer.start();
+        if (platformServicesEnabled) hookDispatchServer.start();
 
         // KimiAhaKeyBridge 在设备连接后按连接类型决定是否启动（见 onConnected）
-        kimiAhaKeyBridge = new com.example.ahakey.service.KimiAhaKeyBridge(bleManager);
+        kimiAhaKeyBridge = bridgeFactory.apply(bleManager);
+        Path updates = Path.of(System.getProperty("user.home"), ".ahakey", "updates");
+        var firmware = com.example.ahakey.firmware.FirmwareUpdateService.production(bleManager, updates.resolve("firmware"), this::maintenanceChanged);
+        updateCenter = new com.example.ahakey.update.UpdateCenterService(bleManager, firmware, updates);
     }
 
     public BleManager getBleManager() {
@@ -288,7 +347,7 @@ public class StudioController {
                     codexHookLatest,
                     cursorHookLatest
                 );
-                Platform.runLater(() -> {
+                deviceFx(() -> {
                     if (owner != null) {
                         javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.INFORMATION);
                         alert.initOwner(owner);
@@ -298,9 +357,9 @@ public class StudioController {
                         alert.show();
                     }
                 });
-                Platform.runLater(() -> studioState.syncStatusProperty().set("已应用到键盘。"));
+                deviceFx(() -> studioState.syncStatusProperty().set("已应用到键盘。"));
             } catch (Exception e) {
-                Platform.runLater(() -> {
+                deviceFx(() -> {
                     if (owner != null) {
                         javafx.scene.control.Alert alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR);
                         alert.initOwner(owner);
@@ -310,7 +369,7 @@ public class StudioController {
                         alert.showAndWait();
                     }
                 });
-                Platform.runLater(() -> studioState.syncStatusProperty().set("应用到键盘失败：" + e.getMessage()));
+                deviceFx(() -> studioState.syncStatusProperty().set("应用到键盘失败：" + e.getMessage()));
             }
         }, "ai-runtime-apply").start();
     }
@@ -320,7 +379,7 @@ public class StudioController {
     }
 
     public boolean canWriteToDevice() {
-        return simulateBle || deviceStatus.isConnected();
+        return normalDeviceActionAllowed() && (simulateBle || deviceStatus.isConnected());
     }
 
     public boolean hasUnsyncedChanges() {
@@ -328,17 +387,19 @@ public class StudioController {
     }
 
     public void shutdown() {
+        updateCenter.close();
         displayConfigService.close();
-        voiceRelay.stop();
+        k1RouteService.close();
+        if (platformServicesEnabled) voiceRelay.stop();
         stopStatusPolling();
         hookDispatchServer.stop();
-        kimiAhaKeyBridge.stop();
+        kimiAhaKeyBridge.close();
         if (!simulateBle) {
-            bleManager.disconnect();
+            bleManager.shutdownTransport();
         }
     }
     
-    private void startStatusPolling() {
+    private synchronized void startStatusPolling() {
         stopStatusPolling(); // 先停止之前的轮询
         statusPoller = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "status-poller");
@@ -349,7 +410,7 @@ public class StudioController {
         int pollPeriod = ModelConfig.getInstance().getStatusPollPeriodSeconds();
         logger.info("设备状态轮询周期: {}秒", pollPeriod);
         pollFuture = statusPoller.scheduleAtFixedRate(() -> {
-            if (!simulateBle && deviceStatus.isConnected()) {
+            if (normalDeviceActionAllowed() && !simulateBle && deviceStatus.isConnected()) {
                 try {
                     bleManager.queryStatus();
                     // 检查心跳超时：超过15秒没有收到状态更新，认为设备已断开
@@ -365,7 +426,7 @@ public class StudioController {
         }, 2, pollPeriod, TimeUnit.SECONDS); // 延迟2秒后开始，按配置周期执行
     }
     
-    private void stopStatusPolling() {
+    private synchronized void stopStatusPolling() {
         if (pollFuture != null) {
             pollFuture.cancel(true);
             pollFuture = null;
@@ -377,6 +438,7 @@ public class StudioController {
     }
 
     public void userConnect() {
+        if (!normalDeviceActionAllowed()) return;
         logger.info("用户请求连接 - simulateBle: {}", simulateBle);
         firmwareCatalogKeyRequested = false;
         deviceStatus.clearFirmwareIdentity();
@@ -391,10 +453,12 @@ public class StudioController {
         }
         logger.info("使用真实BLE连接");
         deviceStatus.setScanning(true);
+        kimiAhaKeyBridge.prepareForConnection();
         bleManager.connect();
     }
 
     public void userDisconnect() {
+        if (!normalDeviceActionAllowed()) return;
         enterEditingAfterConnect = false;
         bleManager.disconnect();
     }
@@ -406,13 +470,15 @@ public class StudioController {
     }
 
     public void clearDeviceInfoDetailsForRefresh() {
+        if (!normalDeviceActionAllowed()) return;
         firmwareCatalogKeyRequested = false;
         deviceStatus.clearFirmwareIdentity();
         bleManager.clearCachedFirmwareIdentity();
     }
 
     public void readFirmwareCatalogKeyForDeviceInfo() {
-        if (!simulateBle && deviceStatus.isConnected()) {
+        if (!normalDeviceActionAllowed()) return;
+        if (normalDeviceActionAllowed() && !simulateBle && deviceStatus.isConnected()) {
             firmwareCatalogKeyRequested = true;
             long generation = bleManager.connectionGeneration();
             firmwareCatalogRequestGeneration = generation;
@@ -426,12 +492,13 @@ public class StudioController {
     }
 
     public void refreshDeviceStatusSnapshot() {
-        if (!simulateBle && deviceStatus.isConnected()) {
+        if (normalDeviceActionAllowed() && !simulateBle && deviceStatus.isConnected()) {
             bleManager.queryStatusAndWait(1000);
         }
     }
 
     public void selectKeyboardMode(ModeSlot mode) {
+        if (!normalDeviceActionAllowed()) return;
         if (studioState.displayConfig().busy.get()) return;
         if (mode == null) {
             return;
@@ -468,7 +535,7 @@ public class StudioController {
             try {
                 int confirmedIndex = bleManager.setWorkModeAndVerify(mode.getIndex());
                 ModeSlot confirmedMode = ModeSlot.fromIndex(confirmedIndex);
-                Platform.runLater(() -> {
+                deviceFx(() -> {
                     deviceStatus.setWorkMode(confirmedIndex);
                     studioState.setSelectedMode(confirmedMode);
                     studioState.syncStatusProperty().set("已切换到 " + confirmedMode.getTitle() + "。");
@@ -479,7 +546,7 @@ public class StudioController {
                 });
             } catch (Exception e) {
                 logger.warn("Mode switch failed: target={}, previous={}, reason={}", mode, previousMode, e.getMessage());
-                Platform.runLater(() -> {
+                deviceFx(() -> {
                     ModeSlot authoritative = ModeSlot.fromIndex(deviceStatus.getWorkMode());
                     DeviceStatus cached = bleManager.getCachedStatus();
                     if (cached != null && cached.isConnected()) {
@@ -537,6 +604,13 @@ public class StudioController {
     }
 
     public void syncAllModes(boolean returnToAgentWhenDone) {
+        if (!normalDeviceActionAllowed()) return;
+        if (simulateBle) { syncAllModesAfterK1(returnToAgentWhenDone); return; }
+        k1RouteService.saveDirty(() -> syncAllModesAfterK1(returnToAgentWhenDone),
+                message -> studioState.syncStatusProperty().set(message));
+    }
+    private void syncAllModesAfterK1(boolean returnToAgentWhenDone) {
+        if (!normalDeviceActionAllowed()) return;
         if (studioState.displayConfig().busy.get() || bleManager.isDisplayWriteUncertain()) {
             studioState.syncStatusProperty().set("显示配置事务尚未结束，暂不能保存其他配置。");
             return;
@@ -555,17 +629,27 @@ public class StudioController {
             return;
         }
 
+        final AutoCloseable saveTransaction;
+        try { saveTransaction = bleManager.maintenance().normalTransaction(); }
+        catch (Exception busy) { studioState.syncStatusProperty().set(busy.getMessage()); return; }
         String transport;
         try {
             transport = bleManager.selectPreferredTransport();
         } catch (Exception e) {
+            closeTransaction(saveTransaction);
             studioState.syncStatusProperty().set("连接不可用，请重新连接键盘后再保存。");
             return;
         }
 
-        var commands = DeviceSyncService.commandsForModes(studioState, ModeSlot.values());
+        var legacyK1 = k1RouteService.legacySnapshot();
+        long saveGeneration = bleManager.connectionGeneration();
+        var commands = DeviceSyncService.commandsForModes(studioState,
+                studioState.k1Routes().capability.get() != com.example.ahakey.model.K1RouteState.Capability.LEGACY, ModeSlot.values());
         commands.removeIf(command -> command.data()[2] == AhaKeyProtocol.CMD_SET_AI_LIGHT_CONFIG
                 || command.data()[2] == AhaKeyProtocol.CMD_SET_LIGHT_BRIGHTNESS);
+        if(studioState.k1Routes().capability.get()==com.example.ahakey.model.K1RouteState.Capability.LEGACY)
+            commands.removeIf(command -> command.data()[2]==0x73 && command.data()[5]==0
+                    && legacyK1.stream().noneMatch(edit -> edit.mode()==(command.data()[4]&255)));
         studioState.syncingProperty().set(true);
         studioState.syncStatusProperty().set("正在通过 " + transport + " 写入设备配置...");
         studioState.syncStatusProperty().set("正在写入设备配置...");
@@ -578,7 +662,7 @@ public class StudioController {
                 Thread.currentThread().interrupt();
             }
             if (studioState.syncingProperty().get() && studioState.getRevision() == syncRevision) {
-                Platform.runLater(() -> {
+                deviceFx(() -> {
                     studioState.syncingProperty().set(false);
                     studioState.syncStatusProperty().set("保存超时，请重新连接键盘后再保存。");
                 });
@@ -587,22 +671,31 @@ public class StudioController {
         DeviceSyncService.writeSequentially(
             bleManager,
             commands,
-            () -> Platform.runLater(() -> {
+            () -> new Thread(() -> {
+                try { k1RouteService.verifyLegacy(legacyK1, saveGeneration); }
+                catch (Exception failure) {
+                    Platform.runLater(() -> { studioState.syncingProperty().set(false); studioState.syncStatusProperty().set("K1保存未确认：" + failure.getMessage()); closeTransaction(saveTransaction); });
+                    return;
+                }
+                Platform.runLater(() -> {
                 if (studioState.isCp4cInputConfigEnabled()) {
-                    verifyCp4cInputSave(returnToAgentWhenDone);
+                    verifyCp4cInputSave(returnToAgentWhenDone, saveTransaction, legacyK1, saveGeneration);
                 } else {
+                    k1RouteService.confirmLegacy(legacyK1, saveGeneration);
                     studioState.clearDirtyAfterSync();
                     lastSyncedRevision = studioState.getRevision();
                     studioState.syncingProperty().set(false);
-                    studioState.syncStatusProperty().set("已保存配置。");
+                    studioState.syncStatusProperty().set("已保存其他配置。" + k1SaveSummary());
+                    closeTransaction(saveTransaction);
                     bleManager.queryStatus();
                     if (returnToAgentWhenDone) {
                         returnToKeyboardControl();
                     }
                 }
-            }),
-            () -> Platform.runLater(() -> studioState.syncingProperty().set(false)),
-            msg -> Platform.runLater(() -> studioState.syncStatusProperty().set(msg))
+                });
+            }, "legacy-k1-save-verify").start(),
+            () -> Platform.runLater(() -> { studioState.syncingProperty().set(false); closeTransaction(saveTransaction); }),
+            msg -> deviceFx(() -> studioState.syncStatusProperty().set(msg))
         );
     }
     public void previewLightOnDevice() {
@@ -621,14 +714,16 @@ public class StudioController {
 
     public void refreshDisplayCapabilities() {
         long generation = bleManager.connectionGeneration();
+        long taskEpoch = bleManager.maintenance().epoch();
         new Thread(() -> {
-            try {
+            try (var readTransaction = bleManager.maintenance().normalTransaction()) {
+                if (taskEpoch != bleManager.maintenance().epoch()) return;
                 if (!bleManager.isDisplayAdmitted()) {
                     bleManager.readFirmwareCatalogKey(generation);
                     handleFirmwareCatalogKey(bleManager.firmwareIdentity(), generation);
                 }
                 var identity = bleManager.firmwareIdentity();
-                Platform.runLater(() -> {
+                deviceFx(() -> {
                     if (generation == bleManager.connectionGeneration() && bleManager.isCurrentIdentity(identity))
                         displayConfigService.capabilityChanged();
                 });
@@ -679,9 +774,12 @@ public class StudioController {
         if (!javafx.application.Platform.isFxApplicationThread()) {
             java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(1);
             final boolean[] result = {false};
+            long epoch = bleManager.maintenance().epoch();
             javafx.application.Platform.runLater(() -> {
-                result[0] = showApprovalDialog(platform, eventName);
-                latch.countDown();
+                try {
+                    if (bleManager.maintenance().normalAllowed() && bleManager.maintenance().epoch() == epoch)
+                        result[0] = showApprovalDialog(platform, eventName);
+                } finally { latch.countDown(); }
             });
             try { latch.await(30, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException e) { }
             return result[0];
@@ -761,7 +859,7 @@ public class StudioController {
     }
 
     private void refreshVoiceRoutes() {
-        voiceRelay.updateRoutes(studioState);
+        if (platformServicesEnabled) voiceRelay.updateRoutes(studioState);
     }
 
     private void applyBleStatus(DeviceStatus status) {
@@ -780,6 +878,7 @@ public class StudioController {
         deviceStatus.setSwitchState(status.getSwitchState());
         requestFirmwareCatalogKeyAfterConnect();
         displayConfigService.connectionChanged();
+        k1RouteService.connectionChanged();
         ModeSlot deviceMode = ModeSlot.fromIndex(status.getWorkMode());
         ModeSlot previousMode = studioState.getSelectedMode();
         boolean suppressModeStatus = status.isConnected() && shouldSuppressModeStatus(deviceMode);
@@ -818,6 +917,7 @@ public class StudioController {
     }
 
     private void requestFirmwareCatalogKeyAfterConnect() {
+        if (!normalDeviceActionAllowed()) return;
         long generation = bleManager.connectionGeneration();
         if (!deviceStatus.isConnected() || (firmwareCatalogKeyRequested && firmwareCatalogRequestGeneration == generation)
                 || !deviceStatus.getFirmwareCatalogKey().isBlank()) {
@@ -825,14 +925,16 @@ public class StudioController {
         }
         firmwareCatalogKeyRequested = true;
         firmwareCatalogRequestGeneration = generation;
+        long taskEpoch = bleManager.maintenance().epoch();
         new Thread(() -> {
-            try {
+            try (var readTransaction = bleManager.maintenance().normalTransaction()) {
+                if (taskEpoch != bleManager.maintenance().epoch()) return;
                 bleManager.readFirmwareCatalogKey(generation);
                 handleFirmwareCatalogKey(bleManager.firmwareIdentity(), generation);
             } catch (Exception e) {
                 logger.info("Firmware catalog key read skipped/fallback: {}", e.getMessage());
                 var identity = bleManager.firmwareIdentity();
-                Platform.runLater(() -> {
+                deviceFx(() -> {
                     if (generation == bleManager.connectionGeneration() && bleManager.isCurrentIdentity(identity)
                             && !bleManager.isDisplayAdmitted()) studioState.setCp4cInputConfigEnabled(false);
                 });
@@ -841,11 +943,12 @@ public class StudioController {
     }
 
     private void handleFirmwareCatalogKey(BleManager.FirmwareIdentity identity, long generation) {
-        Platform.runLater(() -> {
+        deviceFx(() -> {
             if (identity.generation() != generation || !bleManager.isCurrentIdentity(identity) || identity == handledFirmwareIdentity) return;
             handledFirmwareIdentity = identity;
             displayConfigService.capabilityChanged();
-            if (!bleManager.isDisplayAdmitted()) {
+            k1RouteService.refresh();
+            if (!bleManager.isFirmwareCapabilityAdmitted("keys") || !bleManager.isFirmwareCapabilityAdmitted("side")) {
                 studioState.setCp4cInputConfigEnabled(false);
                 return;
             }
@@ -857,14 +960,17 @@ public class StudioController {
     }
 
     private void startCp4cInputReadback(String catalogKey) {
+        if (!normalDeviceActionAllowed()) return;
         if (!cp4cInputReadbackInProgress.compareAndSet(false, true)) {
             return;
         }
+        long taskEpoch = bleManager.maintenance().epoch();
         new Thread(() -> {
-            try {
-                Platform.runLater(() -> studioState.setInputReadbackInProgress(true));
+            try (var readTransaction = bleManager.maintenance().normalTransaction()) {
+                if (taskEpoch != bleManager.maintenance().epoch()) return;
+                deviceFx(() -> studioState.setInputReadbackInProgress(true));
                 AhaKeyResponseParser.SideSwitchConfig sideSwitch = bleManager.readSideSwitchConfig();
-                Platform.runLater(() -> {
+                deviceFx(() -> {
                     studioState.applySideSwitchReadback(sideSwitch);
                     studioState.setInputFailureStatus("");
                     studioState.setInputReadbackStatus("已读取侧拨配置，正在读取当前模式普通键...");
@@ -878,7 +984,7 @@ public class StudioController {
                     }
                 }
                 boolean finalOrdinaryReadbackComplete = ordinaryReadbackComplete;
-                Platform.runLater(() -> {
+                deviceFx(() -> {
                     studioState.setInputReadbackInProgress(false);
                     if (!finalOrdinaryReadbackComplete) {
                         studioState.setInputReadbackStatus("已读取侧拨配置，部分普通键未完整读回。");
@@ -890,7 +996,7 @@ public class StudioController {
                 });
             } catch (Exception e) {
                 logCp4cInputIssue(catalogKey, "0x97/0x87", -1, -1, "connect-readback", e.getMessage());
-                Platform.runLater(() -> {
+                deviceFx(() -> {
                     studioState.setInputReadbackInProgress(false);
                     studioState.setInputFailureStatus("输入配置读取失败：" + e.getMessage());
                     studioState.syncStatusProperty().set("输入配置读取失败，旧草稿已保留。");
@@ -907,34 +1013,37 @@ public class StudioController {
             int keyIndex = StudioState.keyIndexFor(part);
             try {
                 AhaKeyResponseParser.OrdinaryKeyReadback readback = bleManager.readOrdinaryKeyConfig(mode.getIndex(), keyIndex);
-                Platform.runLater(() -> studioState.applyOrdinaryKeyReadback(readback));
+                deviceFx(() -> studioState.applyOrdinaryKeyReadback(readback));
             } catch (Exception e) {
                 logCp4cInputIssue(catalogKey, "0x87", mode.getIndex(), keyIndex, "connect-readback", e.getMessage());
                 complete = false;
             }
         }
         if (complete) {
-            Platform.runLater(() -> studioState.markInputModeRead(mode));
+            deviceFx(() -> studioState.markInputModeRead(mode));
         }
         return complete;
     }
 
-    private void verifyCp4cInputSave(boolean returnToAgentWhenDone) {
+    private void verifyCp4cInputSave(boolean returnToAgentWhenDone, AutoCloseable saveTransaction,
+                                   java.util.List<com.example.ahakey.service.K1RouteService.LegacyEdit> legacyK1, long saveGeneration) {
         new Thread(() -> {
             String catalogKey = deviceStatus.getFirmwareCatalogKey();
             try {
-                Platform.runLater(() -> studioState.syncStatusProperty().set("正在回读确认 CP4C 输入配置..."));
+                deviceFx(() -> studioState.syncStatusProperty().set("正在回读确认 CP4C 输入配置..."));
                 if (studioState.isDirty(StudioPart.TOGGLE_SWITCH)) {
                     bleManager.writeSideSwitchConfig(studioState.getSideSwitchConfig());
                 }
                 verifyCp4cSideSwitch(catalogKey);
                 verifyCp4cOrdinaryKeys(catalogKey);
                 Platform.runLater(() -> {
+                    k1RouteService.confirmLegacy(legacyK1, saveGeneration);
                     studioState.clearDirtyAfterSync();
                     lastSyncedRevision = studioState.getRevision();
                     studioState.syncingProperty().set(false);
                     studioState.setInputFailureStatus("");
-                    studioState.syncStatusProperty().set("已保存配置，并完成 CP4C 输入回读确认。");
+                    studioState.syncStatusProperty().set("已保存配置，并完成输入回读确认。" + k1SaveSummary());
+                    closeTransaction(saveTransaction);
                     bleManager.queryStatus();
                     if (returnToAgentWhenDone) {
                         returnToKeyboardControl();
@@ -943,6 +1052,7 @@ public class StudioController {
             } catch (Exception e) {
                 Platform.runLater(() -> {
                     studioState.syncingProperty().set(false);
+                    closeTransaction(saveTransaction);
                     studioState.setInputFailureStatus("保存后回读确认失败：" + e.getMessage());
                     studioState.syncStatusProperty().set("保存未确认：" + e.getMessage() + "。未确认草稿已保留。");
                 });
@@ -963,12 +1073,13 @@ public class StudioController {
             logCp4cInputIssue(catalogKey, "0x97", -1, -1, "save-compare", "side switch mismatch");
             throw new IllegalStateException("侧拨配置回读不匹配");
         }
-        Platform.runLater(() -> studioState.applySideSwitchReadback(actual));
+        deviceFx(() -> studioState.applySideSwitchReadback(actual));
     }
 
     private void verifyCp4cOrdinaryKeys(String catalogKey) throws Exception {
         for (ModeSlot mode : ModeSlot.values()) {
             for (StudioPart part : new StudioPart[]{StudioPart.KEY1, StudioPart.KEY2, StudioPart.KEY3, StudioPart.KEY4}) {
+                if (part == StudioPart.KEY1) continue; // Verified against the captured K1 revision, never a newer draft.
                 int keyIndex = StudioState.keyIndexFor(part);
                 AhaKeyResponseParser.OrdinaryKeyReadback readback;
                 try {
@@ -981,10 +1092,15 @@ public class StudioController {
                     logCp4cInputIssue(catalogKey, "0x87", mode.getIndex(), keyIndex, "save-compare", "ordinary key mismatch");
                     throw new IllegalStateException(mode.getTitle() + " " + part.getTitle() + " 回读不匹配");
                 }
-                Platform.runLater(() -> studioState.applyOrdinaryKeyReadback(readback));
+                deviceFx(() -> studioState.applyOrdinaryKeyReadback(readback));
             }
-            Platform.runLater(() -> studioState.markInputModeRead(mode));
+            deviceFx(() -> studioState.markInputModeRead(mode));
         }
+    }
+    private String k1SaveSummary() {
+        var routes = studioState.k1Routes();
+        if (routes.capability.get() == com.example.ahakey.model.K1RouteState.Capability.LEGACY) return "";
+        return routes.confirmed(studioState.getSelectedMode().getIndex()) ? "未编辑的K1路由保持。" : "K1尚未确认，未写入K1。";
     }
 
     private boolean sideSwitchConfigMatches(AhaKeyResponseParser.SideSwitchConfig expected, AhaKeyResponseParser.SideSwitchConfig actual) {
@@ -1009,4 +1125,5 @@ public class StudioController {
         StudioStore.save(studioState.toPersisted());
     }
 }
+
 

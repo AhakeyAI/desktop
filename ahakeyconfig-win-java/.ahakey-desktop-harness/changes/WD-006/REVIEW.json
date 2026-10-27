@@ -1,106 +1,690 @@
 {
   "schema_version": 1,
   "id": "WD-006",
-  "pack_sha256": "dce7f25c04590aa2db5e115d929a768b8ebe7af70ef76116eafa09a9adb63f74",
+  "pack_sha256": "8c9455e3f4bff2c738752ead32630c5fc89ec883d53afb3c0e80adbd13795759",
   "reviewer_role": "DLA",
-  "review_session": "/root DLA 20261023 WD-006",
-  "builder_session": "/root/voice_builder",
+  "review_session": "01a1684d-3953-79d0-9cc6-57f397a595f9",
+  "builder_session": "01a168eb-5370-79e3-a158-0eccbd2bb06c",
   "independence": "separate_dla_conversation",
   "decision": "pass",
-  "scope_conclusion": "12项变化全部属于批准的main模型方案适配/配方/验证范围，原始字节齐全；无scope外生产变更。",
+  "scope_conclusion": "实际审阅4项变化，并逐字节确认102项与R11候选不变。原Contract内只读设备查询修复；不增加驱动/运行时依赖、不放宽身份、不修改擦写或OTA规则。同一固定pack已完成独立最终绑定并通过源码审阅；新安装包及端到端实测尚待完成。",
   "per_file": [
     {
       "path": "pom.xml",
       "purpose": "替换旧ONNX Java依赖",
-      "reviewed_hunks": "固定官方1.13.3 API systemPath；独立打包显式补入API/native，旧onnxruntime不混入。",
+      "reviewed_hunks": "本轮累计范围亲读与既有实际审阅继续有效，当前字节对恢复提交独立核对；固定官方1.13.3 API systemPath；独立打包显式补入API/native，旧onnxruntime不混入。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/ble-driver-fixes.patch",
+      "purpose": "已复核本轮保留的修复补丁及实际应用源码",
+      "reviewed_hunks": "已复核本轮保留的修复补丁及实际应用源码：7340必需服务与7341/3/4必要特征、可选服务失败不清除ready、CCCD成功及15秒限时、最终UI/socket/write代次复核；连接成功仅在Ready后通知。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/build-ble-driver.ps1",
+      "purpose": "固定完整base与补丁hash，新隔离目录严格应用且校验全部输出",
+      "reviewed_hunks": "固定完整base与补丁hash，新隔离目录严格应用且校验全部输出；原外部桥接目录只读，fixture方法来自真实应用源码。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
       "within_contract": true
     },
     {
       "path": "scripts/package-local-model.ps1",
-      "purpose": "隔离本地模型EXE配方",
-      "reviewed_hunks": "全文复核：固定SHA、全新输出、离线Maven、源false/staging true、匹配资源JAR、jlink和Main入口；不安装/启动/kill；实际构建必须用snapshot，旧安装范围保留。",
+      "purpose": "R11安装临时目录缺陷最小修复及验证：package-local-model.ps1",
+      "reviewed_hunks": "实际R10差异：新增必需DtfRoot，在创建输出和调用工具前执行离线锁定校验；向 prepare 透传；包内加入固定版权/许可/来源说明。新ProductCode/buildId、原模型与桥接/完整运行时、发布签名、MSI检验流程保持。需最终对冻结版本及完整payload再核验。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/sign-release-installer.ps1",
+      "purpose": "发行RSA3072封装",
+      "reviewed_hunks": "全文核对固定密钥目录ACL、非初始化签名路径、只处理给定installer；EXE前缀hash/身份JSON签名、384字节签名及16字节footer。身份来自实际MSI调用方；私钥不进入产物，未读取内容；这不是Authenticode。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/test-ble-driver.ps1",
+      "purpose": "完整修复脚本已读",
+      "reviewed_hunks": "完整修复脚本已读：142项提取实际发现/回调/写入/状态方法动态检查，以及原6组与9项静态检查；明确WinRT替身边界。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/verify-update-package.ps1",
+      "purpose": "R11安装临时目录缺陷最小修复及验证：verify-update-package.ps1",
+      "reviewed_hunks": "实际差异亲读：AppImage中三个DTF许可/出处/锁定文件需逐字节匹配源，缺失或错误即失败；原JAR元数据、发行公钥、签名、MSI身份与payload验证仍保留。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
       "within_contract": true
     },
     {
       "path": "src/main/java/com/example/ahakey/App.java",
-      "purpose": "初始化可用性日志",
-      "reviewed_hunks": "两处日志diff，真实F18 start/stop回调及系统路由无改动。",
+      "purpose": "累计启动语音可用性日志及本轮更新服务startup仅检查",
+      "reviewed_hunks": "累计启动语音可用性日志及本轮更新服务startup仅检查；关闭/最小化取消下载并保护维护，托盘/菜单安装退出共同走shutdownApplication(op)，先通过共享门再清理。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "purpose": "K1真实控制器接线与维护恢复",
+      "reviewed_hunks": "逐hunk复核K1Service构造、连接代次/capability刷新、legacy四模式0x87重读和UNKNOWN提前回读拒绝；保存排除未确认K1和未修改route，只清除对应revision；K2–4原动作保存保留。维护释放恢复poll/Kimi和当前transport，旧回调不覆盖新连接。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
       "within_contract": true
     },
     {
       "path": "src/main/java/com/example/ahakey/config/ModelConfig.java",
       "purpose": "流式模型路径配置",
-      "reviewed_hunks": "默认类型与encoder/decoder getter；旧公开getter保留、默认enabled false不触发JNI。",
+      "reviewed_hunks": "本轮累计范围亲读与既有实际审阅继续有效，当前字节对恢复提交独立核对；默认类型与encoder/decoder getter；旧公开getter保留、默认enabled false不触发JNI。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/BootDeviceDetector.java",
+      "purpose": "修复只读设备检测链路：BootDeviceDetector.java",
+      "reviewed_hunks": "亲读完整检测和进程生命周期。改为仅提取随包worker中标记的只读literal，固定Boot/Maintenance选择；不执行worker入口。并发有界读取stdout/stderr，20秒限时，仅结束自身查询，try-with-resources保留主异常，拒绝非数组/null项/超限结果。Boot唯一目标与实例、物理端口、Problem0/CH375_A64/INF条件保持。新增维护身份接口返回同一事实，未写设备。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/DeviceBackup.java",
+      "purpose": "不可变副本、16键/36灯效完整选择器，动作与USB容量/描述合法性、侧拨绑定及亮度范围",
+      "reviewed_hunks": "不可变副本、16键/36灯效完整选择器，动作与USB容量/描述合法性、侧拨绑定及亮度范围；PC存在/缺失/损坏分离；协议无法可靠恢复的数据刷前拒绝。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/DeviceBackupStore.java",
+      "purpose": "严格PC文件读取，不调用吞异常默认回退",
+      "reviewed_hunks": "严格PC文件读取，不调用吞异常默认回退；临时写原子保存后重新读回/hash/结构验证，保留备份；路径来自自有operation UUID。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/DeviceMaintenanceCoordinator.java",
+      "purpose": "完整状态/operation/源身份/目标hash/backuphash",
+      "reviewed_hunks": "完整状态/operation/源身份/目标hash/backuphash；正常事务幂等close与begin互斥，阶段opcode和完整0x97帧限制；container冲突优先拒绝、epoch失效、进程未知或存活不释放。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/DeviceRestoreService.java",
+      "purpose": "只恢复明确支持集合",
+      "reviewed_hunks": "只恢复明确支持集合；普通键真实编码/ACK/save/0x87比对，侧拨ACK+读回，亮度灯效0x8E/0x88；第一个失败后剩余跳过不重试，空动作等价仅无payload。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/FirmwareCatalog.java",
+      "purpose": "固定内置r001正式HEXhash，official能力由允许清单裁剪",
+      "reviewed_hunks": "固定HTTPS manifest来的catalog/能力放入每BleManager会话内共享表，builtin仍固定r001；型号/协议/能力枚举和冲突声明检查，非猜数字。可信声明只提供keys/side/lights，不放开OLED；会话重启需重新获取目录，离线未知保持保守。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/FirmwareUpdateService.java",
+      "purpose": "boot-first简化烧录状态机",
+      "reviewed_hunks": "全文新simple链及实际DeviceIO/ToolIO复核：选择有效未知HEX也允许；冻结HEX/profile/operation，boot检测后才READY；不以正常连接/备份/onboarding为前置。双区清除、工具写入校验与真实重连版本三者共同成功；未知目标不声称版本相等。超时只清本operation Job，未知结束保持锁；晚到严格ended回执仅允许显式退出，不改变失败为成功。旧备份链保留但新UI不进入。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/IntelHexValidator.java",
+      "purpose": "checksum/record-length/EOF/重叠/非空检查，segment/linear地址与入口计算全用long，限定CH582448KiB代码区",
+      "reviewed_hunks": "checksum/record-length/EOF/重叠/非空检查，segment/linear地址与入口计算全用long，限定CH582448KiB代码区；真实固定HEX静态验证。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/WchDriverService.java",
+      "purpose": "随包驱动安装协调",
+      "reviewed_hunks": "全文核对固定驱动输入和独占operation目录、实际pnputil提升权限worker与receipt；预启动失败NotStarted证明后才释放，运行取消等待结束，晚到回执验证operation.id与严格boolean ended。生产安装需Owner实际操作。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/WchFlashAdapter.java",
+      "purpose": "固定随包WCH执行与结束判定",
+      "reviewed_hunks": "全文核对只读源复制到每operation工作目录，前后hash及取消点；固定CH582参数CodeFlash+DataFlash erase；worker拥有Job及目标绑定。Finished/Code0/Succeed/exit0才写入成功，错误优先；UTF8解码异常仍保留ended事实；迟到结束只能清理。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/WchRuntimeLocator.java",
+      "purpose": "随包运行时解析",
+      "reviewed_hunks": "全文核对6运行文件+7驱动文件hash/大小，schema2 profile；默认优先app/tools/wchisp与drivers/ch375，开发resources可核验，不再要求用户安装本地WCH；执行前重查且只复制不写源。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+      "purpose": "按操作分开的界面就绪状态",
+      "reviewed_hunks": "新增previewReady/runtimeReady与两个原因属性，默认false/disconnected；不改变原writeReady、草稿和预览数据。状态仅由原FX服务更新。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/K1Route.java",
+      "purpose": "固定102字节route模型",
+      "reviewed_hunks": "全文核对普通快捷/宏与Consumer只读解析、padding/动作长度98上界；普通写序列化不产生Consumer；valid空route和缺失bank严格区别。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/K1RouteState.java",
+      "purpose": "每模式草稿与设备权威状态",
+      "reviewed_hunks": "全文核对4模式route/descriptionKnown、capability、generation/revision分别管理；确认仅清匹配revision，新编辑保留；切代清权威，不把默认配置当设备事实。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+      "purpose": "K1精确dirty跟踪",
+      "reviewed_hunks": "逐hunk复核selectedMode+KEY1的动作/描述修改记录；设备回读不标dirty；save所有模式时snapshot revisions避免较晚编辑被清；其他键原语义保留。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java",
+      "purpose": "CP2.5/2.6 v1帧定义",
+      "reviewed_hunks": "全文对冻结固件CP26源码/协议核对nonce/token/mode/offset/CRC、102B记录、47B写片/42B读片、严格成功/FAIL/legacyACK长度。replyLength按sub及outstanding读请求求长度，禁止扫描二进制中CCDD；读请求边界/未知sub拒绝。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "purpose": "维护期Hook忽略、排队mode带epoch检查，snapshotSendLock内取消pending和liveFacts，最终传输门再次挡旧事实",
+      "reviewed_hunks": "维护期Hook忽略、排队mode带epoch检查，snapshotSendLock内取消pending和liveFacts，最终传输门再次挡旧事实；保留现有TTL和主槽逻辑。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "purpose": "K1串行传输及旧writer隔离",
+      "reviewed_hunks": "逐hunk复核K1事务持正常lease+command锁，普通写拒绝穿透；连接代次失效、0x9E独立reply解析，非法帧清buffer不在二进制内重同步。SINGLE Hook在事务中记最新事实，finally释放全部锁与lease后notify/flush，TTL/代次/维护再检查；K2–4/显示原准入保留。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+      "purpose": "旧键写入避开route K1",
+      "reviewed_hunks": "逐hunk核对模式/键过滤，不为未确认route发旧0x73，不触碰其他mode Consumer；描述保留原ASCII20B/trim规则，显式修改需可验证。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "purpose": "保留灯光读写并限制预览和运行动作",
+      "reviewed_hunks": "R6维护/可信lights读写链保持；亲读updateWriteReady、connection/capability/maintenance和work回调：新动作状态必须同时满足现有writeReady及BleManager.isDisplayAdmitted完整准入。preview入口自身也先检查新状态，故非r001不排队发送0x89；不改底层许可。未连接沿用原原因，其余未确认明确显示原因；原读取中/失败原因仍保留。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/K1RouteService.java",
+      "purpose": "K1能力探测、单mode事务与回读",
+      "reviewed_hunks": "全文复核能力探测仅exact legacy ACK走旧路；route缺失不fallback/初始化四mode。BEGIN/CHUNK/COMMIT token及CRC核对，不确定COMMIT只权威READ不盲重放；description与route权威分离，未改描述不写；53B联合回读上界在commit前拒绝不可验证描述修改；revision/generation保障较晚编辑。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/KimiAhaKeyBridge.java",
+      "purpose": "可终止的内部TCP会话",
+      "reviewed_hunks": "本轮累计范围亲读与既有实际审阅继续有效，当前字节对恢复提交独立核对；全文及旧实现核对。Session拥有listener/executor/clients，stop全部关闭，accept校验所属会话，关闭后不复活，切换阻止旧代次重开；查询包原字节保留，完整读请求体。275项临时端口测试覆盖30轮切换。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
       "within_contract": true
     },
     {
       "path": "src/main/java/com/example/ahakey/service/SpeechService.java",
       "purpose": "官方流式Paraformer适配",
-      "reviewed_hunks": "完整新实现及旧服务替换边界复核；单worker/session生命周期、松键flush、停止解阻塞、关闭先stream再recognizer；路径URI/中文内容缓存；真实JNI两段WAV重复识别通过。",
+      "reviewed_hunks": "本轮累计范围亲读与既有实际审阅继续有效，当前字节对恢复提交独立核对；完整新实现及旧服务替换边界复核；单worker/session生命周期、松键flush、停止解阻塞、关闭先stream再recognizer；路径URI/中文内容缓存；真实JNI两段WAV重复识别通过。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "purpose": "修复只读设备检测链路：UsbHidTransport.java",
+      "reviewed_hunks": "亲读maintenanceDevices替换及周边调用链。只将原系统PS5的PnP属性查询委托给共享只读查询并映射原MaintenanceDevice；ContainerId、物理端口、HID MI_01归属保持；其余普通HID枚举/openExact/读写代码逐字节不变，不修改设备协议。",
       "within_contract": true
     },
     {
       "path": "src/main/java/com/example/ahakey/service/VoiceInputManager.java",
       "purpose": "激活录音输出状态协调",
-      "reviewed_hunks": "完整实现和旧final路径复核；旧AhaType仅原文返回不丢云逻辑；partial不注入、generation取消、一次final、UI回调保留；fresh发现慢注入持锁已改为锁外，37项检查通过。",
+      "reviewed_hunks": "本轮累计范围亲读与既有实际审阅继续有效，当前字节对恢复提交独立核对；完整实现和旧final路径复核；旧AhaType仅原文返回不丢云逻辑；partial不注入、generation取消、一次final、UI回调保留；fresh发现慢注入持锁已改为锁外，37项检查通过。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
       "within_contract": true
     },
     {
       "path": "src/main/java/com/example/ahakey/sherpa/LibraryLoader.java",
       "purpose": "统一官方JNI加载",
-      "reviewed_hunks": "空OnlineStream触发官方once-only loader；javap ptr0确认；异常保持loaded false，官方JAR真实加载通过。",
+      "reviewed_hunks": "本轮累计范围亲读与既有实际审阅继续有效，当前字节对恢复提交独立核对；空OnlineStream触发官方once-only loader；javap ptr0确认；异常保持loaded false，官方JAR真实加载通过。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/InstalledAppIdentity.java",
+      "purpose": "产品族与每版MSI ProductCode分离，安装metadata版本/variant/arch/UpgradeCode/buildId严格验证，开发态不安装，三段数值版本比较拒绝同版降级。",
+      "reviewed_hunks": "产品族与每版MSI ProductCode分离，安装metadata版本/variant/arch/UpgradeCode/buildId严格验证，开发态不安装，三段数值版本比较拒绝同版降级。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/InstallerTrustPolicy.java",
+      "purpose": "R10原目录更新及安装身份修正：InstallerTrustPolicy.java",
+      "reviewed_hunks": "Evidence新增buildId，保留旧测试构造器；生产仍固定RSA签名、实际MSI交叉且复核文件未变；prepare阶段强制目标buildId，旧不完整包不被当成可升级R10包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/ReleaseManifest.java",
+      "purpose": "共享版本schema3",
+      "reviewed_hunks": "全文核对schema3公共version及windows双variantURL映射，缺variant不回退；URL之外身份由本机约束与包签名确定，旧schema2解析保持；版本缺失错误不能显示最新。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/ReleaseManifestClient.java",
+      "purpose": "固定公开endpoint和HTTPS边界",
+      "reviewed_hunks": "全文核对stable.json零重定向；下载最多3跳、每跳精确ahakey.com或指定腾讯云host/443/无userinfo及fragment；关闭旧响应，限制大小/超时，错误脱敏query。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/ReleaseSignature.java",
+      "purpose": "Java封装签名验证",
+      "reviewed_hunks": "全文核对RSA3072固定公开模数，文件最大2GiB、footer/长度溢出、固定384签名、严格JSON/产品身份；流式计算prefix hash，签名覆盖payload，拒绝尾随/篡改/错误key。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/UpdateCenterService.java",
+      "purpose": "真实更新和烧录入口",
+      "reviewed_hunks": "全文新接线及旧回执处理复核；installed variant选公共版本URL，数值比较仅更高可下载；下载无远端hash时必须内置key验证并MSI交叉，安装前重新校验。HEX detect一次准备+检测、无备份分叉，失败Exit清选择但不伪造已结束；后台结果与UI保持同operation。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/VerifiedDownload.java",
+      "purpose": "有界可取消下载",
+      "reviewed_hunks": "全文核对unknown length例外仅软件exe，2GiB与20分钟界、ContentLength截断验证，三跳安全fetch；取消关闭stream并删part；无远端hash不意味着可信，service后续RSA/MSI强制。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/WindowsInstalledApplication.java",
+      "purpose": "R10原目录更新及安装身份修正：WindowsInstalledApplication.java",
+      "reviewed_hunks": "独立只读PS Resolve进程，30秒超时仅清自身探测进程；严格Snapshot映射、原路径归一；不写注册表、不触发MSI维修。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/WindowsUpdateInstaller.java",
+      "purpose": "R10原目录更新及安装身份修正：WindowsUpdateInstaller.java",
+      "reviewed_hunks": "实际入口prepare先校验当前app对登记MSI/buildId/launcher，冻结目标并请求绑定源/目标；原ready/permit/父退出握手保留。receipt必须实际目标ProductCode/buildId/版本/形态/原目录/运行launcher一致，旧收据不补默认值；3010/1641继续要求实际系统重启，pending不称失败/成功。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/AiRuntimeStore.java",
+      "purpose": "仅增加strictSnapshot调用BackupStore，不修改既有默认加载或草稿保存行为。",
+      "reviewed_hunks": "仅增加strictSnapshot调用BackupStore，不修改既有默认加载或草稿保存行为。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/StudioStore.java",
+      "purpose": "仅增加strictSnapshot读取实际PC草稿",
+      "reviewed_hunks": "仅增加strictSnapshot读取实际PC草稿；不以默认值冒充设备备份、不写回用户草稿。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "purpose": "K1只读Consumer与F18提示",
+      "reviewed_hunks": "逐hunk核对Consumer展示无创作选项，route未确认禁K1编辑但其他键可用；描述未知单独禁，长route仍可编辑；模式编辑精确dirty。仅model.enabled的F18加本地语音输入括号，不重排/重映射；旧灯光能力门不变。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/TopBar.java",
+      "purpose": "唯一More入口位于模型版条件分支之后，两形态均可达",
+      "reviewed_hunks": "唯一More入口位于模型版条件分支之后，两形态均可达；BLE短长按使用普通事务避免维护交错；菜单退出统一Controller→App门。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/UpdateCenterDialog.java",
+      "purpose": "精简烧录UI",
+      "reviewed_hunks": "全文核对选择HEX、断USB关机、关机按住最左语音键插USB、检测、开始烧录、重连读版本；无额外prepare/backup选择。仅相关按钮显示，单一失败文案+显式Exit，活动关闭/最小化不取消烧录；未知HEX标签明确，成功使用实读版本。已查看真实JavaFX截图与按钮fixture证据。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/firmware/catalog.json",
+      "purpose": "固定正式r001 catalog/releaseId/hash/capabilities与legacy空表",
+      "reviewed_hunks": "固定正式r001 catalog/releaseId/hash/capabilities与legacy空表；当前内置代码常量与资源一致，未编造新Firmware gate。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch-capture-worker.ps1",
+      "purpose": "修复只读设备检测链路：wch-capture-worker.ps1",
+      "reviewed_hunks": "亲读共享C#及实际Test-FrozenBoot接线。四个cfgmgr32只读函数限定System32解析；PRESENT列表+NORMAL定位，没有PHANTOM生产回退；缓冲区上限/重试次数/类型长度/UTF16终止符检查，缺失problem=-1。boot实例与driver/port，normal容器到HID接口关联保持。worker复用同一literal并保留8秒预算及精确身份判断；未改WchOwnedSupervisor或擦写参数。原query清理未确认仍返回false，不放宽准入，作为已有非阻断风险记录。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch-driver-worker.ps1",
+      "purpose": "自有驱动安装worker",
+      "reviewed_hunks": "全文核对pnputil指定INF和目标重查、hidden UAC、operation绑定receipt；拒绝取消提升/驱动未就绪，退出码成功仍须boot驱动真实读取通过；未自动安装运行。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch-runtime-profiles.json",
+      "purpose": "随包WCH固定输入",
+      "reviewed_hunks": "核对schema2目标CH582、4348:55E0及13项大小hash对批准BUNDLE_INPUTS；config经过批准去本机路径，运行另写副本。license未知如实保留，不声称厂商再分发授权已确认。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/CH343PT.DLL",
+      "purpose": "随包固定WCH运行或驱动输入",
+      "reviewed_hunks": "对批准BUNDLE_INPUTS/源文件及profile固定hash核查；此项最终冻结sha256=4b7f30dfbc886e1359c7adc4d9fdcc3cb6543c373fc214e8641e314df41fe65a。对应二进制只做身份/静态输入验证，非逐源码审阅，运行行为依赖已亲读adapter/worker；CFG为已批准脱敏副本，INF/芯片配置与CH582及CH375目标相符。最终MSI payload仍需构建检查。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/CH375DLL.dll",
+      "purpose": "随包固定WCH运行或驱动输入",
+      "reviewed_hunks": "对批准BUNDLE_INPUTS/源文件及profile固定hash核查；此项最终冻结sha256=0f019b958d4d3f6b8ec0d282ef848a57f0f92a0596d7405b6c58f5aa383a326c。对应二进制只做身份/静态输入验证，非逐源码审阅，运行行为依赖已亲读adapter/worker；CFG为已批准脱敏副本，INF/芯片配置与CH582及CH375目标相符。最终MSI payload仍需构建检查。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/CONFIG_CH57X59X.WCH",
+      "purpose": "随包固定WCH运行或驱动输入",
+      "reviewed_hunks": "对批准BUNDLE_INPUTS/源文件及profile固定hash核查；此项最终冻结sha256=f21f73360c7f650ab36cc4a0bbe2b88316c85bc1caf2e010139a47486abf5a8a。对应二进制只做身份/静态输入验证，非逐源码审阅，运行行为依赖已亲读adapter/worker；CFG为已批准脱敏副本，INF/芯片配置与CH582及CH375目标相符。最终MSI payload仍需构建检查。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/ChipType/chiplist_CH57x_CH59x.wcfg",
+      "purpose": "随包固定WCH运行或驱动输入",
+      "reviewed_hunks": "对批准BUNDLE_INPUTS/源文件及profile固定hash核查；此项最终冻结sha256=2e2369ed14f3c351c4404bdbfa45890e3b7562c7a201111e90f7004c4dc882a0。对应二进制只做身份/静态输入验证，非逐源码审阅，运行行为依赖已亲读adapter/worker；CFG为已批准脱敏副本，INF/芯片配置与CH582及CH375目标相符。最终MSI payload仍需构建检查。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/WCH55xISPDLL.dll",
+      "purpose": "随包固定WCH运行或驱动输入",
+      "reviewed_hunks": "对批准BUNDLE_INPUTS/源文件及profile固定hash核查；此项最终冻结sha256=c56f1f2250c9e3862e3ef86887d7e81302bb008a722a3b18555f5cd0acd875ff。对应二进制只做身份/静态输入验证，非逐源码审阅，运行行为依赖已亲读adapter/worker；CFG为已批准脱敏副本，INF/芯片配置与CH582及CH375目标相符。最终MSI payload仍需构建检查。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/WCHISPTool_CH57x-59x.exe",
+      "purpose": "随包固定WCH运行或驱动输入",
+      "reviewed_hunks": "对批准BUNDLE_INPUTS/源文件及profile固定hash核查；此项最终冻结sha256=7b5d84bfcc8786aabf74ba264de29c1e2eda7907fb8385426fda3270cd793f95。对应二进制只做身份/静态输入验证，非逐源码审阅，运行行为依赖已亲读adapter/worker；CFG为已批准脱敏副本，INF/芯片配置与CH582及CH375目标相符。最终MSI payload仍需构建检查。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375DLL.dll",
+      "purpose": "随包固定WCH运行或驱动输入",
+      "reviewed_hunks": "对批准BUNDLE_INPUTS/源文件及profile固定hash核查；此项最终冻结sha256=0f019b958d4d3f6b8ec0d282ef848a57f0f92a0596d7405b6c58f5aa383a326c。对应二进制只做身份/静态输入验证，非逐源码审阅，运行行为依赖已亲读adapter/worker；CFG为已批准脱敏副本，INF/芯片配置与CH582及CH375目标相符。最终MSI payload仍需构建检查。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375DLL64.dll",
+      "purpose": "随包固定WCH运行或驱动输入",
+      "reviewed_hunks": "对批准BUNDLE_INPUTS/源文件及profile固定hash核查；此项最终冻结sha256=5ed04e4a8eb9006e92907fdc105c4d8f915408409a02c157ca492a65d9163aa7。对应二进制只做身份/静态输入验证，非逐源码审阅，运行行为依赖已亲读adapter/worker；CFG为已批准脱敏副本，INF/芯片配置与CH582及CH375目标相符。最终MSI payload仍需构建检查。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375M64.sys",
+      "purpose": "随包固定WCH运行或驱动输入",
+      "reviewed_hunks": "对批准BUNDLE_INPUTS/源文件及profile固定hash核查；此项最终冻结sha256=9f40d09251f58be92ee2cb769c86900d52439a5b4f7e2ca2605e26cb464602b4。对应二进制只做身份/静态输入验证，非逐源码审阅，运行行为依赖已亲读adapter/worker；CFG为已批准脱敏副本，INF/芯片配置与CH582及CH375目标相符。最终MSI payload仍需构建检查。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375W64.sys",
+      "purpose": "随包固定WCH运行或驱动输入",
+      "reviewed_hunks": "对批准BUNDLE_INPUTS/源文件及profile固定hash核查；此项最终冻结sha256=5803220ed9da96b310397aa81db6612280f7c1a58948c02a5fe6aedf49065f5a。对应二进制只做身份/静态输入验证，非逐源码审阅，运行行为依赖已亲读adapter/worker；CFG为已批准脱敏副本，INF/芯片配置与CH582及CH375目标相符。最终MSI payload仍需构建检查。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375WDM.CAT",
+      "purpose": "随包固定WCH运行或驱动输入",
+      "reviewed_hunks": "对批准BUNDLE_INPUTS/源文件及profile固定hash核查；此项最终冻结sha256=08a8d8b21f42635243f0a7b4bd73195a4eea22a85508b3c4fce93a181054b4ba。对应二进制只做身份/静态输入验证，非逐源码审阅，运行行为依赖已亲读adapter/worker；CFG为已批准脱敏副本，INF/芯片配置与CH582及CH375目标相符。最终MSI payload仍需构建检查。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375WDM.INF",
+      "purpose": "随包固定WCH运行或驱动输入",
+      "reviewed_hunks": "对批准BUNDLE_INPUTS/源文件及profile固定hash核查；此项最终冻结sha256=76e5f3e96743b097c0d45d019b87c6dbef795934e2826fdade2b5e7b37b47fa4。对应二进制只做身份/静态输入验证，非逐源码审阅，运行行为依赖已亲读adapter/worker；CFG为已批准脱敏副本，INF/芯片配置与CH582及CH375目标相符。最终MSI payload仍需构建检查。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375WDM.sys",
+      "purpose": "随包固定WCH运行或驱动输入",
+      "reviewed_hunks": "对批准BUNDLE_INPUTS/源文件及profile固定hash核查；此项最终冻结sha256=840de6b498b8f3613eeb83ee6987d90229200be125925899df0c1beb2da62d1b。对应二进制只做身份/静态输入验证，非逐源码审阅，运行行为依赖已亲读adapter/worker；CFG为已批准脱敏副本，INF/芯片配置与CH582及CH375目标相符。最终MSI payload仍需构建检查。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/firmware/x1-c582-hw1-p1-r001-cp2-memory-safety-20261018.hex",
+      "purpose": "二进制内容按固定Firmware正式gate/candidate/HEX全文件SHA比对",
+      "reviewed_hunks": "二进制内容按固定Firmware正式gate/candidate/HEX全文件SHA比对；Intel HEX解析458492字节、last458491；不声称设备已刷或远程hash。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/messages_en.properties",
+      "purpose": "匹配中文的动作能力提示",
+      "reviewed_hunks": "两项英文与中文含义一致：support has not been confirmed，保持未知语义，未修改其他更新中心或旧消息。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/messages_zh.properties",
+      "purpose": "新增动作能力原因提示",
+      "reviewed_hunks": "在此前亲读更新中心中英文资源基础上，仅增加两条中文提示；措辞尚未确认支持，不把unknown/reading/failed冒充明确不支持；说明灯光仍按已确认能力可用与SINGLE本地回退。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
       "within_contract": true
     },
     {
       "path": "src/main/resources/model_config.properties",
       "purpose": "显式默认关闭与路径",
-      "reviewed_hunks": "保留5秒status poll，主线false，外部三个模型路径与打包目录一致。",
+      "reviewed_hunks": "本轮累计范围亲读与既有实际审阅继续有效，当前字节对恢复提交独立核对；保留5秒status poll，主线false，外部三个模型路径与打包目录一致。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/update/InstalledApplication.cs",
+      "purpose": "R10原目录更新及安装身份修正：InstalledApplication.cs",
+      "reviewed_hunks": "全文核对MSI只读枚举/上下文/缓存属性/组件路径与最终句柄路径，唯一实例且机器范围；拒绝重解析、根目录、UNC、不一致或多个实例。普通升级要求启动器存在，同ProductCode维修可缺启动器；Snapshot跨UI/Execute，RemovalList只核实源，Quote回合测试含中文空格尾斜线；不比较目标缓存MSI与发行原MSI hash。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/update/app-release.properties",
+      "purpose": "开发态0.0.0/development/installed=false，不把pom版本冒充已安装版",
+      "reviewed_hunks": "开发态0.0.0/development/installed=false，不把pom版本冒充已安装版；正式staged包注入真实1.0.10身份。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/update/release-public-key.json",
+      "purpose": "固定发行公钥",
+      "reviewed_hunks": "核对schema算法RSA3072/keyId/公钥与签名脚本、worker常量一致；只含公开参数，bootstrap和target须相同；不读取私钥。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/update/trust-policy.json",
+      "purpose": "schema1 policies为空",
+      "reviewed_hunks": "schema1 policies为空；真实发布证书未提供，生产不安装，符合已批准边界。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/update/windows-update-worker.ps1",
+      "purpose": "R10原目录更新及安装身份修正：windows-update-worker.ps1",
+      "reviewed_hunks": "实际PS5路径新增共享Resolve；锁定包、签名/MSI/目标buildId、父PID/start/路径及源实例复查，只有子安装器RunAs；通过Quote传passive/norestart和源绑定，不自行预卸载。30分钟无结果写pending后继续等待，不终止MSI；实际结束后才核实旧或新登记实例再打开，退出码不冒充回滚证明。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/BackupRestoreChecks.java",
+      "purpose": "实际序列化/hash损坏/缺Mode/非法亮度/空PC快照与能力裁剪/首失败停止",
+      "reviewed_hunks": "实际序列化/hash损坏/缺Mode/非法亮度/空PC快照与能力裁剪/首失败停止；内存USB连接真实Ble恢复空动作ACK+save+readback链，明确未连接设备。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/DeviceMaintenanceChecks.java",
+      "purpose": "确定性latch+有限Future等待，覆盖实际USB/TCP底层旁路、normal lease幂等、帧阶段权限、epoch/container冲突/存活锁",
+      "reviewed_hunks": "增加真实控制器构造/回调、生产Firmware DeviceIO和内存USB链；7场景包括取消/成功恢复/保留清空/失败/错设备/迟到回调。核对poll执行和真实随机端口Kimi响应，不仅检查字段；28断言。关闭fixture资源，无Hook/设备。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/FirmwareUpdateChecks.java",
+      "purpose": "实际service配DeviceIO/ToolIO替身验证备份先于工具、download再verify、恢复显式、失败backup/错端口/错重连/NotStarted/timeout/cancel",
+      "reviewed_hunks": "真实生产DeviceIO/备份/恢复+BleManager/DisplayLease内存HID，r002/r003各54项恢复与再次维护；23断言覆盖子集/源不足/计划与目标篡改/连接generation/未知本地/读回失败，禁止OLED。原假工具终态边界明确。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/SimpleFlashChecks.java",
+      "purpose": "修复只读设备检测链路：SimpleFlashChecks.java",
+      "reviewed_hunks": "亲读新增实际子进程回归、live/maintenance只读入口、共享脚本反射属性和UTF16校验；历史PHANTOM仅诊断，明确不代表在线。覆盖空/单/多设备、无效JSON/null、非零退出、输出超限、超时、中断、仅清理自有PID；supervisor源码提取改按类标记定位，避免误取新增只读类。真实boot证据独立绑定，脚本大小写误判保留原件并离线重判；不是烧录或正常重连PASS。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/WchAdapterChecks.java",
+      "purpose": "固定HEX与校验/地址/EOF/重叠、INI值、严格终态+exit失败优先",
+      "reviewed_hunks": "固定HEX与校验/地址/EOF/重叠、INI值、严格终态+exit失败优先；读取实际无设备GUI fixture捕获结果，未执行供应商工具。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/K1RouteEditorChecks.java",
+      "purpose": "真实JavaFX/Controller内存设备测试",
+      "reviewed_hunks": "全文核对Consumer保持、A模式K1+B模式K2、四模式legacy连接顺序两种、新编辑revision、缺bank禁写、98B长动作和53B描述边界；用实际Inspector/Controller/Service/BleManager，设备内存wire，非真机。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/PackagedStartupCheck.java",
+      "purpose": "打包运行时主窗口探针",
+      "reviewed_hunks": "本轮累计范围亲读与既有实际审阅继续有效，当前字节对恢复提交独立核对；实际调用App.start、isShowing、CSS及layout，异常exit1避免生产stop掩盖失败。尚待在新包JVM/JAR/libs中执行，须隔离user.home及用户进程，不据开发JDK结果判安装包通过。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/UpdatePackageCheck.java",
+      "purpose": "更新中心真实按钮与截图",
+      "reviewed_hunks": "逐hunk复核实际按钮检测→写入→等待重连→完成/失败退出reset，未知HEX、动作显隐、活动关闭/最小化与取消下载；截图来自实际JavaFX，两形态语言覆盖但工具/网络fixture。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/protocol/K1RouteProtocolChecks.java",
+      "purpose": "二进制传输和事务交错回归",
+      "reviewed_hunks": "全文核对通过真实USB extract/BLE reassembly反射，内嵌CCDD/AABB任意split/coalesced/footer/读长；actualK1wait并发SINGLE Hook成功失败TTL换代及锁外回调，maintenance拒绝交错；固定fixture不证明无线质量。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
       "within_contract": true
     },
     {
       "path": "src/test/java/com/example/ahakey/speech/SpeechLifecycleCheck.java",
       "purpose": "离线生命周期并发回归",
-      "reviewed_hunks": "实际断言检查PCM、缺空模型、中文缓存、停止flush、关闭取消、JNI错误、第二次录音、慢注入不阻塞F18及取消先赢；37项通过。",
+      "reviewed_hunks": "本轮累计范围亲读与既有实际审阅继续有效，当前字节对恢复提交独立核对；实际断言检查PCM、缺空模型、中文缓存、停止flush、关闭取消、JNI错误、第二次录音、慢注入不阻塞F18及取消先赢；37项通过。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
       "within_contract": true
     },
     {
       "path": "src/test/java/com/example/ahakey/speech/SpeechNativeCheck.java",
       "purpose": "真实JNI模型探针",
-      "reviewed_hunks": "两段官方WAV各执行两次文本非空且一致，最终release重复安全；不打开麦克风。",
+      "reviewed_hunks": "本轮累计范围亲读与既有实际审阅继续有效，当前字节对恢复提交独立核对；两段官方WAV各执行两次文本非空且一致，最终release重复安全；不打开麦克风。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
       "within_contract": true
     },
     {
       "path": "src/test/java/com/example/ahakey/speech/SpeechNativeFailureCheck.java",
       "purpose": "缺JNI失败隔离",
-      "reviewed_hunks": "独立JVM无native资源，真实UnsatisfiedLinkError且loaded=false。",
+      "reviewed_hunks": "本轮累计范围亲读与既有实际审阅继续有效，当前字节对恢复提交独立核对；独立JVM无native资源，真实UnsatisfiedLinkError且loaded=false。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/transport/KimiBridgeLifecycleCheck.java",
+      "purpose": "切换与客户端释放回归",
+      "reviewed_hunks": "本轮累计范围亲读与既有实际审阅继续有效，当前字节对恢复提交独立核对；检查真实loopback套接字EOF、重绑定、旧代次拒绝、新USB不被迟到断开停掉、原响应及close永久；模拟Transport禁真实connect/HID，不占用用户9000。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/update/InstallerTrustChecks.java",
+      "purpose": "R10原目录更新及安装身份修正：InstallerTrustChecks.java",
+      "reviewed_hunks": "原握手及0/3010/1641保留，注入只读locator使测试隔离；增加错误ProductCode/路径/buildId/scope与旧收据不得成功，确认后登记改变不得复用成功。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/update/ReleaseSignatureChecks.java",
+      "purpose": "跨语言签名和MSI JSON回归",
+      "reviewed_hunks": "全文核对真实.NET vector↔Java、生产key拒绝fixture、封装篡改各边界、实际PS5 C#worker verifier、真实历史EXE只读MSI Inspect DTO且原hash不变；service READY后缓存篡改拒绝启动。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/update/UpdateCenterChecks.java",
+      "purpose": "R10原目录更新及安装身份修正：UpdateCenterChecks.java",
+      "reviewed_hunks": "旧收据在404下保持可见且不虚构成功；准备失败测试使用隔离source snapshot，真实服务入口保持，原下载/取消/错误/版本测试保留。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
       "within_contract": true
     },
     {
       "path": "third-party/sherpa-onnx-java-api-1.13.3.jar",
       "purpose": "固定官方API二进制",
-      "reviewed_hunks": "官方release digest一致；jar内容和javap入口核对，无eternal文件。",
+      "reviewed_hunks": "本轮累计范围亲读与既有实际审阅继续有效，当前字节对恢复提交独立核对；官方release digest一致；jar内容和javap入口核对，无eternal文件。 R6逐字节对本会话已亲读R5冻结after一致，沿用具体分析而非沿用R5失败/通过结论。 R7冻结after与本会话亲读R6逐字节一致，重新核对后保留该项具体分析。 R9冻结after对已亲读R7候选逐字节复核一致；本轮新的simple烧录UI不再调用旧备份恢复，旧App/维护/语音/桥接入口整合已另查，不自动继承R7总体通过。 R10固定pack对本会话此前亲读R9候选逐字节相同；本轮重新核对更新入口、安装流程和身份变化，未将R9总体PASS用于新实现或新包。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
       "within_contract": true
     }
   ],
-  "production_journey": "原启动入口读取ModelConfig，初始化VoiceInputManager；既有F18路由调用start/stop，SpeechService官方Paraformer单stream在松键flush，final经manager回调与原KeyboardInjector输出，错误反馈现有界面。",
-  "preserved_behavior_assessment": "WD-005范围外87项原字节完全相同；F18系统Win+H路由和OLED/灯光/协议未改。GUI、真实麦克风、注入、安装升级由Owner确认，未自动执行。",
-  "baseline_assessment": "WD-005 CLOSED的生产指纹与本任务起点相同；start恢复完整，不重用旧artifact的语音结论。新实际JNI检查不等于整机UAT。",
-  "protocol_assessment": "本轮无设备协议或Firmware改动；本地音频16k mono PCM与官方模型接口由真实WAV验证。",
+  "production_journey": "更新中心选择HEX→FirmwareUpdateService.detectBoot→BootDeviceDetector共享只读查询→唯一实例/端口/驱动判断；实际worker写入前复用同一query；正常重连inventory→UsbHidTransport.maintenanceDevices→共享Maintenance→原有HID身份关联。只读阶段未运行WCH或设备写入。",
+  "preserved_behavior_assessment": "已亲执行boot正例：Java961ms、worker690ms、boot态维护身份1295ms。150项真实进程/解码/模拟状态检查及旧HID/supervisor不变性核验通过；正常模式重连、烧录和安装包仍需实际交测，未扩大PASS。",
+  "baseline_assessment": "安装R11 1.0.11→1.0.12实际OTA已经日志和原目录D:\\ahakey重启确认。其boot查询真实超时，第一次预加载仅空设备通过、正例仍失败；这些失败均保留，本轮不能复用旧检测结论。",
+  "protocol_assessment": "不改变CP2.5/CP2.6协议、普通键路由、HEX双区清除语义、软件更新schema/共同版本号或安装路径策略。仅替换读取同一Windows设备事实的内部实现。",
   "risk_level": "high",
   "fresh_review_required": true,
-  "risk_rationale": "本地识别引擎替换与JNI生命周期为architecture_change，采用独立fresh审阅并修复其发现。",
+  "risk_rationale": "设备烧录前身份查询是写入准入，使用新的系统原生只读接口并联动重连；采用独立预审和固定pack最终绑定。",
   "findings": [
     {
-      "issue": "慢文本注入持有manager锁可能阻塞F18 Hook",
+      "issue": "旧系统PS5 PnP属性查询卡住，清理临时文件覆盖原异常",
       "resolution": "fixed",
-      "evidence": "DIB_CONCURRENCY_FIX_20261023.md、37项测试及FRESH_REVIEW_20261023.md复查"
-    },
-    {
-      "issue": "配方新增安装身份可能导致与原应用并存",
-      "resolution": "fixed",
-      "evidence": "移除新增UUID/per-user，沿用旧名称vendor默认安装范围；实际升级体验待Owner"
+      "evidence": "共享cfgmgr32只读查询实机正例及子进程清理回归；原失败保留。"
     }
   ],
   "baseline_gap_owner_record": null,
-  "fresh_review_record": ".ahakey-desktop-harness/changes/WD-006/FRESH_REVIEW_BINDING_20261023.json"
+  "fresh_review_record": ".ahakey-desktop-harness/changes/WD-006/FRESH_R12_BINDING_20261026.json",
+  "supplemental_reviewed_files": [
+    {
+      "path": "scripts/installer/AhaKeyUpgradeUI.wxs",
+      "sha256": "7b4455adba6644e2c19172b14e110eaad151463749debe8205896eac1dc11eea",
+      "purpose": "R10安装配方或检查",
+      "reviewed_hunks": "只在已核实升级时跳过Welcome和成功Exit；保留首次选择目录与原进度/Execute。实际链接后的表需最终包再核对。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/installer/CustomAction.config",
+      "sha256": "79b099c338b16bb1ea814c3726e469c9be971afddaf8ca8bc853ae55e3ddc283",
+      "purpose": "R10安装配方或检查",
+      "reviewed_hunks": "DTF自定义动作CLR4宿主配置，与固定Framework64编译输入一致。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/installer/DTF-LICENSE.txt",
+      "purpose": "R11安装临时目录缺陷最小修复及验证：DTF-LICENSE.txt",
+      "reviewed_hunks": "读取完整MS-RL与.NET Foundation版权，随包分发，未改上游库代码。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true,
+      "sha256": "dfdf2048787635215a6baf3b9d461dee89a2904d246787258a44f072a98d4786"
+    },
+    {
+      "path": "scripts/installer/DTF-NOTICE.txt",
+      "purpose": "R11安装临时目录缺陷最小修复及验证：DTF-NOTICE.txt",
+      "reviewed_hunks": "列出两包固定5.0.2、许可证及对应源码固定commit链接，说明只替换DTF、保留WiX3。最终源码交付安排由独立审阅复核。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true,
+      "sha256": "81774536a329979fb48bc28e126be5b69de689123aec083974dec807db80ae3a"
+    },
+    {
+      "path": "scripts/installer/InstalledApplicationActions.cs",
+      "purpose": "R11安装临时目录缺陷最小修复及验证：InstalledApplicationActions.cs",
+      "reviewed_hunks": "适配仅namespace由Microsoft.Deployment.WindowsInstaller变更到WixToolset.Dtf.WindowsInstaller；Resolve/Verify业务内容未改，保留初始快照、路径、源身份、回滚检查、卸载列表与拒绝行为。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true,
+      "sha256": "1a4d61b0edbc64dc7cc001b4b704de00d3152d19b3dc6b948a8926373ec89470"
+    },
+    {
+      "path": "scripts/installer/dtf-toolchain.json",
+      "purpose": "R11安装临时目录缺陷最小修复及验证：dtf-toolchain.json",
+      "reviewed_hunks": "核对官方包ID/5.0.2/固定repository commit、完整提取输入映射、net20运行库与x64stub；NuGet摘要对账不是独立签名链验证。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true,
+      "sha256": "f3615cbd10b6256a886eeb8ae51c32b6c36c7d7e2cc8825cf5e5c12f7a8cef71"
+    },
+    {
+      "path": "scripts/installer/prepare-upgrade-resources.ps1",
+      "purpose": "R11安装临时目录缺陷最小修复及验证：prepare-upgrade-resources.ps1",
+      "reviewed_hunks": "全文及R10差异亲读：仅将WiX3 SDK路径替换为已验证DTF对象，csc引用net20及固定x64 SfxCA/MakeSfxCA，输入记录绑定工具链。安装模板、两序列Resolve/Verify顺序、升级范围、原目录、事务移除、UI分流与CLR v4保持。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true,
+      "sha256": "a9af215fd437477b974ea9b538c92b9c02e1056912efbf23408e75b2e27075a2"
+    },
+    {
+      "path": "scripts/installer/resolve-dtf-toolchain.ps1",
+      "purpose": "R11安装临时目录缺陷最小修复及验证：resolve-dtf-toolchain.ps1",
+      "reviewed_hunks": "全文亲读：强制5.0.2双包，绝对路径/父级越界拒绝，整包SHA256/SHA512、每个解压文件SHA256与目录数量检查，在启动工具前返回固定runtime/packager/stub及出处；不下载、不安装、不回退。构建缓存可信边界为本机允许输入，不声称对抗同用户并发恶意改写。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true,
+      "sha256": "74c8abe81f56fc82fa644780ef56358dce93ca40b2c3830bce112845ff8f3b18"
+    },
+    {
+      "path": "scripts/installer/test-installer-upgrade.ps1",
+      "purpose": "R11安装临时目录缺陷最小修复及验证：test-installer-upgrade.ps1",
+      "reviewed_hunks": "实际差异仅DtfRoot透传与显式StaticOnly开关；默认测试能力仍保留。本轮托管38项、实际argv和静态表规则通过；静态fixture跳过ICE需明确NOT_RUN，不能伪称安装验证。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true,
+      "sha256": "de3bad830ad9b77cdd2005094fe373392fb60bd70c9cdf237a6a16d35ba86452"
+    },
+    {
+      "path": "scripts/installer/test-jpackage-template.ps1",
+      "purpose": "R11安装临时目录缺陷最小修复及验证：test-jpackage-template.ps1",
+      "reviewed_hunks": "实际差异仅必需DtfRoot参数与透传，正常jpackage包装器生成和真实MSI表检查保持；fixture不可安装且不执行。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true,
+      "sha256": "d0b5046158d049f381abaf22b0ebd9e1dda22062300ebe9ee2edceac4056420f"
+    },
+    {
+      "path": "scripts/installer/tests/InstalledApplicationChecks.cs",
+      "sha256": "1fc423bfab8575ba0b9b0fba3a98cefa5041172c18dbcfda4ca88fbbb496fbf6",
+      "purpose": "R10安装配方或检查",
+      "reviewed_hunks": "正常中文目录/无实例/多实例/错误scope状态/路径/组件、源缓存变动/引号、移除清单/跨阶段源变化/同产品缺启动器维修；fixture只证明共享纯逻辑，无注册写或安装。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/installer/tests/Test-DtfToolchain.ps1",
+      "purpose": "R11安装临时目录缺陷最小修复及验证：Test-DtfToolchain.ps1",
+      "reviewed_hunks": "全文亲读：独立新目录复制本地缓存，分别检验缺包/改archive/改runtime/config/新增相邻DLL，prepare必须在生成输出前失败；仅修改隔离fixture，不执行被篡改内容，不修改原缓存。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true,
+      "sha256": "1a7e898de99ae614d80a769300510e41620c8a6730857220ad537d4bca750c64"
+    },
+    {
+      "path": "scripts/installer/verify-installer-structure.ps1",
+      "sha256": "6326ab060b60c6da4b56dc2a9689aefc628c31e5d646b13186ba2adf6df12da7",
+      "purpose": "R10安装配方或检查",
+      "reviewed_hunks": "实际MSI只读Property/Upgrade/UI/Execute/CA/Binary/ControlEvent/RemoveFile/Registry检查；合法事务位置及源解析先于costing，wrapper在调用者检查，CA字节对编译输入；结构通过不等于安装回滚通过。 R11与本会话已亲读R10候选逐字节一致；本轮仅保留该文件具体分析，不沿用R10安装结果或总体PASS。 R12修复第二轮对已实际审阅R11候选逐字节核对不变；沿用具体文件分析，不沿用旧总体PASS或安装结论。",
+      "within_contract": true
+    }
+  ],
+  "supplemental_source_manifest": {
+    "path": ".ahakey-desktop-harness/changes/WD-006/r12-dla-20261026/SOURCE_HASHES.json",
+    "sha256": "5c9c9a6f0237e912b53b6b3386b23df690408a7182700d06493d4610bd0fbf82",
+    "reason": "通用pack忽略13项installer路径；均对R11固定候选逐字节确认未变。"
+  },
+  "remaining_validation": [
+    "实际安装包、烧录及正常模式重连是后续必测，不在源码准入阶段伪记PASS。"
+  ],
+  "existing_risk_assessment": "独立审阅识别原worker只读query清理未确认风险；超时/异常返回false，不放宽WCH准入。该代码未变，无本轮新增准入缺陷。风险保持公开记录；未声称Owner豁免验收或已接受风险。",
+  "reviewed_at": "2026-10-26T04:25:07.354598+00:00"
 }

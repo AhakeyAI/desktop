@@ -6,20 +6,20 @@
     "approval": null
   },
   "phase": "VERIFY",
-  "mode": "CANDIDATE_GIT",
-  "status": "awaiting_actual_diff_review",
+  "mode": "PREVIEW_REBUILD",
+  "status": "preview_fix_review_pass",
   "active_change": "WD-006",
-  "next_actor": "Owner",
-  "next_mode": "GIT_SAVE",
+  "next_actor": "DLA",
+  "next_mode": "PREVIEW_REBUILD",
   "owner_action": {
-    "required": true,
-    "action": "先审查本项 CANDIDATE_GIT_PLAN.ps1 的精确清单，暂存后检查diff，由Owner执行commit；Agent不自动Git写。"
+    "required": false,
+    "action": "DLA 可直接 preview-open；无需 fresh review/candidate 后才能让 Owner 再测。"
   },
   "test_action": {
     "required": false,
-    "reason": "候选或结果存档中；不是新测试任务。"
+    "reason": "等待下一轮 Preview build。"
   },
-  "revision": 105,
+  "revision": 190,
   "upgrade_history": [
     {
       "from": "0.2.0-pilot",
@@ -143,7 +143,7 @@
   "workflow": "V1_CHANGE_IMPLEMENT_VERIFY_RELEASE",
   "current_assignment": "WD-006",
   "current_investigation": null,
-  "updated_at": "2026-10-23T03:55:38+00:00",
+  "updated_at": "2026-10-26T10:54:13+00:00",
   "v1_runtime": {
     "installed": true,
     "version": "1.3.0",

@@ -808,6 +808,7 @@ def preview_request_fix(h,root,s,a):
          'meaning':'Owner Preview in-contract implementation defect. Fast lane: no Product Grill/Contract revision/fresh review/formal candidate required before re-preview.'}
     path=h.child(root,H+'/previews/'+a.id+'/fixes/'+token+'/REQUEST.json');h.write_json(path,rec)
     h.write_json(h.cp(root,a.id,'PREVIEW_FIX_REQUEST_LATEST.json'),rec)
+    c['phase']='IMPLEMENT'
     c['preview_fix_round']=n;c['preview_fix_request']={'path':path.relative_to(root).as_posix(),'sha256':h.ev_hash(root,path.relative_to(root).as_posix())}
     h.save_change(root,c)
     s.update(phase='IMPLEMENT',mode='PREVIEW_FIX',status='preview_fix_requested',next_actor='DIB',next_mode='PREVIEW_FIX')
@@ -834,6 +835,7 @@ def preview_fix_submit(h,root,s,a):
          'request_sha256':h.ev_hash(root,reqp.relative_to(root).as_posix()),'report':report,'evidence':evidence,
          'meaning':'Preview-only fix submission. Not formal builder_submission/candidate/UAT.'}
     h.write_json(path,rec);h.write_json(h.cp(root,a.id,'PREVIEW_FIX_LATEST.json'),rec)
+    c['phase']='VERIFY';h.save_change(root,c)
     s.update(phase='VERIFY',mode='PREVIEW_FIX_REVIEW',status='preview_fix_submitted',next_actor='DLA',next_mode='PREVIEW_FIX_REVIEW')
     s['owner_action']={'required':False,'action':'DLA 只审本轮 Preview fix；通过后直接重建 Preview。'}
     s['test_action']={'required':False,'reason':'尚未生成下一轮 Preview artifact。'}
@@ -862,6 +864,7 @@ def preview_fix_review(h,root,s,a):
         s['test_action']={'required':False,'reason':'等待下一轮 Preview build。'}
         print('PREVIEW FIX REVIEW PASS; open a new Preview build now.')
     else:
+        c['phase']='IMPLEMENT';h.save_change(root,c)
         s.update(phase='IMPLEMENT',mode='PREVIEW_FIX',status='preview_fix_review_fail',next_actor='DIB',next_mode='PREVIEW_FIX')
         s['owner_action']={'required':False,'action':'DIB 继续修同一 Preview defect；不扩大范围。'}
         s['test_action']={'required':False,'reason':'Preview fix review fail；修复后再次提交。'}

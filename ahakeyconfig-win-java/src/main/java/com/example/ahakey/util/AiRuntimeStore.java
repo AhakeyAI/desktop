@@ -17,6 +17,10 @@ public final class AiRuntimeStore {
     private static final ObjectMapper MAPPER = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
     private static final Path STORE_PATH = Path.of(System.getProperty("user.home"), ".ahakey", "ai-runtime.json");
 
+    public static com.example.ahakey.firmware.DeviceBackup.PcFile strictSnapshot() throws IOException {
+        return com.example.ahakey.firmware.DeviceBackupStore.snapshot(STORE_PATH);
+    }
+
     private AiRuntimeStore() {
     }
 

@@ -1,0 +1,468 @@
+--- r12/src/main/java/com/example/ahakey/App.java
++++ r13/src/main/java/com/example/ahakey/App.java
+@@ -254,21 +254,13 @@
+         
+         // 10. 设置窗口关闭时的逻辑：最小化到系统托盘
+         // 类比于 Web 中的 beforeunload 事件
+-        primaryStage.setOnCloseRequest(event -> {
+-            if (!allowWindowHide()) { event.consume(); return; }
+-            if (SystemTray.isSupported()) {
+-                event.consume(); // 阻止默认关闭行为
+-                minimizeToTray();
+-            } else {
+-                shutdownApplication();
+-            }
+-        });
++        installWindowCloseHandler();
+         
+         // 11. 设置窗口最小化时隐藏到托盘
+         primaryStage.iconifiedProperty().addListener((obs, oldVal, newVal) -> {
+             if (newVal && SystemTray.isSupported()) {
+-                if (!allowWindowHide()) { primaryStage.setIconified(false); return; }
+-                minimizeToTray();
++                primaryStage.setIconified(false);
++                requestWindowAction(this::minimizeToTray);
+             }
+         });
+     }
+@@ -357,11 +349,43 @@
+     private boolean allowWindowHide() {
+         if (controller == null) return true;
+         if (controller.getUpdateCenter().downloading()) { controller.getUpdateCenter().cancelDownload(); return false; }
+-        return !controller.getBleManager().maintenance().active();
++        return controller.getUpdateCenter().windowCloseReady();
++    }
++    private void installWindowCloseHandler() {
++        primaryStage.setOnCloseRequest(event -> {
++            event.consume();
++            requestWindowAction(()->{
++                if (SystemTray.isSupported()) minimizeToTray();
++                else shutdownApplication(null);
++            });
++        });
++    }
++    private javafx.scene.control.Alert closeBlockedAlert;
++    private boolean windowActionPending;
++    private void showCloseBlocked() {
++        if(primaryStage!=null){primaryStage.setIconified(false);primaryStage.show();primaryStage.toFront();}
++        if(closeBlockedAlert!=null && closeBlockedAlert.isShowing()) return;
++        boolean english="en".equals(LanguageManager.getInstance().getCurrentLanguage());
++        closeBlockedAlert=new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.INFORMATION);
++        if(primaryStage!=null)closeBlockedAlert.initOwner(primaryStage);
++        closeBlockedAlert.setHeaderText(english?"The window cannot close yet":"暂时无法关闭窗口");
++        closeBlockedAlert.setContentText(english?"An update or device operation is still active, or cleanup is not confirmed. Open Update Center to check its status and exit the attempt after the tool has ended.":"更新或设备操作尚未结束，或工具清理状态未确认。请打开更新中心查看状态，待工具结束后退出本次链路。");
++        closeBlockedAlert.show();
++    }
++    private void requestWindowAction(Runnable action) {
++        if(!Platform.isFxApplicationThread()){Platform.runLater(()->requestWindowAction(action));return;}
++        if(shuttingDown || windowActionPending)return;
++        if(controller==null){action.run();return;}
++        windowActionPending=true;
++        controller.getUpdateCenter().prepareWindowClose(allowed->Platform.runLater(()->{
++            windowActionPending=false;
++            if(shuttingDown)return;
++            if(allowed && allowWindowHide())action.run();else showCloseBlocked();
++        }));
+     }
+     private void minimizeToTray() {
+-        if (!allowWindowHide()) return;
+-        Platform.runLater(() -> {
++        // requestWindowAction runs on FX; do not defer hide past its final maintenance check.
++        if (!allowWindowHide()) { showCloseBlocked(); return; }
+             // 保存当前窗口尺寸
+             savedWidth = primaryStage.getWidth();
+             savedHeight = primaryStage.getHeight();
+@@ -371,7 +395,6 @@
+             if (trayIcon != null) {
+                 trayIcon.displayMessage("AhaKey Studio", "应用已最小化到托盘", TrayIcon.MessageType.INFO);
+             }
+-        });
+     }
+     
+     /**
+@@ -390,14 +413,14 @@
+         });
+     }
+     
+-    private void shutdownApplication() { shutdownApplication(null); }
++    private void shutdownApplication() { requestWindowAction(()->shutdownApplication(null)); }
+     private void shutdownApplication(com.example.ahakey.firmware.DeviceMaintenanceCoordinator.Operation installation) {
+         if (shuttingDown) {
+             return;
+         }
+         if (controller != null && !controller.getUpdateCenter().requestClose(installation)) {
+             logger.info("更新下载或设备维护尚未收口，保持应用运行。");
+-            Platform.runLater(() -> { if (primaryStage != null) { primaryStage.setIconified(false); primaryStage.show(); } });
++            Platform.runLater(this::showCloseBlocked);
+             return;
+         }
+         shuttingDown = true;
+--- r12/src/main/java/com/example/ahakey/firmware/WchFlashAdapter.java
++++ r13/src/main/java/com/example/ahakey/firmware/WchFlashAdapter.java
+@@ -1,6 +1,9 @@
+ package com.example.ahakey.firmware;
+ 
+ import com.example.ahakey.update.*;
++import com.fasterxml.jackson.core.JsonParser;
++import com.fasterxml.jackson.databind.JsonNode;
++import com.fasterxml.jackson.databind.DeserializationFeature;
+ import com.fasterxml.jackson.databind.ObjectMapper;
+ import java.io.IOException;
+ import java.nio.charset.StandardCharsets;
+@@ -49,9 +52,89 @@
+         catch(NotStartedException e){operations.remove(directory,id);throw e;}finally{activeDirectory=null;}
+     }
+     private void checkCancelled()throws IOException {if(cancelled.getAsBoolean()||(activeDirectory!=null&&Files.exists(activeDirectory.resolve("cancel.request"))))throw new IOException("本次链路已退出，工具未启动。");}
++    private static final Pattern FAILURE = Pattern.compile("(?i)\\b(?:error|fail|failed|failure|exception|timeout)\\b|\\bCode\\s*[:=]\\s*-?[1-9][0-9]*\\b");
++    private static final Pattern RESULT_FIELD = Pattern.compile("(?i)\\b(?:Status|Code|Message)\\b\\s*[:=]");
++    private static final Pattern PLAIN_TERMINAL = Pattern.compile("(?is)\\bStatus\\s*[:=]\\s*Finished\\s*[,;\\r\\n ]+Code\\s*[:=]\\s*0\\s*[,;\\r\\n ]+Message\\s*[:=]\\s*Succeed\\b");
++    // The vendor's percentage records are not JSON. Only this exact nonterminal shape is noise.
++    private static final Pattern PERCENT_PROGRESS = Pattern.compile("\\{\\s*\"Device\"\\s*:\\s*\"CH582\"\\s*,\\s*\"Status\"\\s*:\\s*\"(?:Programming|Verifing)\"\\s*,\\s*\"Progress\"\\s*:\\s*(?:100|[1-9]?[0-9])%\\s*}");
++    private static final ObjectMapper TERMINAL_JSON = new ObjectMapper()
++            .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
++            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
++
+     public static boolean terminalSuccess(String text, int exitCode) {
+-        if (exitCode != 0 || Pattern.compile("(?i)\\b(?:error|fail|failed|failure|exception)\\b|\\bCode\\s*[:=]\\s*[1-9][0-9]*\\b").matcher(text).find()) return false;
+-        return Pattern.compile("(?is)\\bStatus\\s*[:=]\\s*Finished\\s*[,;\\r\\n ]+Code\\s*[:=]\\s*0\\s*[,;\\r\\n ]+Message\\s*[:=]\\s*Succeed\\b").matcher(text).find();
++        if (text == null || text.length() > 6_100_000 || exitCode != 0 || FAILURE.matcher(text).find()) return false;
++        boolean success = false, structured = false;
++        StringBuilder outside = new StringBuilder();
++        try {
++            // Console capture can place several records on one line. Never combine their fields.
++            for (int i = 0; i < text.length();) {
++                char ch = text.charAt(i);
++                if (ch == '"') {
++                    int end = quotedEnd(text, i);
++                    outside.append(text, i, end); i = end;
++                } else if (ch == '{') {
++                    structured = true;
++                    int start = i++, depth = 1;
++                    while (i < text.length() && depth > 0) {
++                        ch = text.charAt(i);
++                        if (ch == '"') i = quotedEnd(text, i);
++                        else {
++                            if (ch == '{') depth++;
++                            if (ch == '}') depth--;
++                            i++;
++                        }
++                    }
++                    if (depth != 0) return false;
++                    String record = text.substring(start, i);
++                    if (PERCENT_PROGRESS.matcher(record).matches()) continue;
++                    JsonNode node = TERMINAL_JSON.readTree(record);
++                    if (!node.isObject()) return false;
++                    for (JsonNode value : node) if (value.isContainerNode()) return false;
++                    for (var names = node.fieldNames(); names.hasNext();) {
++                        String name = names.next();
++                        for (String reserved : List.of("Device", "Status", "Code", "Message"))
++                            if (reserved.equalsIgnoreCase(name) && !reserved.equals(name)) return false;
++                    }
++                    if (FAILURE.matcher(node.toString()).find()) return false;
++                    if (node.has("Status") && !node.get("Status").isTextual()) return false;
++                    if (node.has("Code") || node.has("Message") || "Finished".equalsIgnoreCase(node.path("Status").asText())) {
++                        if (!"Finished".equals(node.path("Status").textValue())
++                                || !node.path("Code").isIntegralNumber() || node.path("Code").bigIntegerValue().signum() != 0
++                                || !"Succeed".equals(node.path("Message").textValue())
++                                || (node.has("Device") && !"CH582".equals(node.get("Device").textValue()))) return false;
++                        success = true;
++                    }
++                    outside.append('\n');
++                } else {
++                    // Arrays/nested wrappers must not expose an inner object as a top-level result.
++                    if (ch == '[') {
++                        int end = text.indexOf(']', i + 1);
++                        if (end < 0) return false;
++                        String prefix = text.substring(i, end + 1);
++                        if (prefix.indexOf('{') >= 0 || prefix.indexOf('"') >= 0 || prefix.indexOf('[', 1) >= 0) return false;
++                        outside.append(prefix); i = end + 1; continue;
++                    }
++                    if (ch == ']' || ch == '}') return false;
++                    outside.append(ch); i++;
++                }
++            }
++        } catch (IOException e) { return false; }
++        String plain = outside.toString();
++        if (structured) return success && plain.indexOf('"') < 0 && plain.indexOf('\'') < 0 && !RESULT_FIELD.matcher(plain).find();
++        // Retain the historical plain-text fixture format, but not quoted or split records.
++        if (plain.indexOf('"') >= 0 || plain.indexOf('\'') >= 0) return false;
++        var terminal = PLAIN_TERMINAL.matcher(plain);
++        if (!terminal.find()) return false;
++        return !RESULT_FIELD.matcher(plain.substring(0, terminal.start()) + "\n" + plain.substring(terminal.end())).find();
++    }
++
++    private static int quotedEnd(String text, int start) throws IOException {
++        for (int i = start + 1; i < text.length(); i++) {
++            char ch = text.charAt(i);
++            if (ch == '\\') i++;
++            else if (ch == '"') return i + 1;
++        }
++        throw new IOException("WCH 记录包含未结束的字符串。");
+     }
+     public static String configuration(Path hex) throws IOException {
+         String path = hex.toAbsolutePath().toString(); if (path.contains("\n") || path.contains("\r") || path.contains("\"")) throw new IOException("HEX 路径无效。");
+--- r12/src/main/java/com/example/ahakey/update/UpdateCenterService.java
++++ r13/src/main/java/com/example/ahakey/update/UpdateCenterService.java
+@@ -135,6 +135,26 @@
+         worker.execute(()->{try{if(firmwareAction)firmwareError="";action.run();}catch(Exception e){if(firmwareAction)firmwareError=firmware.simpleActive()&&firmware.view().state()==FirmwareUpdateService.State.FAILED?"":reason(e);else view=new View(State.FAILED,reason(e),0,0,app.version());}finally{busy.set(false);}});
+     }
+     private static String reason(Exception e) {String message=e.getMessage()==null?e.getClass().getSimpleName():e.getMessage();return message.replaceAll("(?i)https?://[^\\s\"<>]+","[更新地址已隐藏]");}
++    public boolean windowCloseReady() {
++        return !busy.get() && !downloading() && !firmware.simpleActive() && !ble.maintenance().active();
++    }
++    /** Nonblocking preparation shared by window hide and explicit application exit. */
++    public void prepareWindowClose(Consumer<Boolean> completion) {
++        cancelDownload();
++        if (downloading() || !busy.compareAndSet(false,true)) { completion.accept(false); return; }
++        if (!firmware.simpleActive() || firmware.view().state()!=FirmwareUpdateService.State.FAILED) {
++            busy.set(false); completion.accept(windowCloseReady()); return;
++        }
++        // exitSimple alone decides whether owned processes have ended; never unlock the gate here.
++        worker.execute(()->{
++            try {
++                firmware.exitSimple();
++                if (firmware.view().state()==FirmwareUpdateService.State.IDLE) { selected=null;firmwareError=""; }
++            } catch(Exception e) { firmwareError=reason(e); }
++            finally { busy.set(false); }
++            completion.accept(windowCloseReady());
++        });
++    }
+     public boolean requestClose(DeviceMaintenanceCoordinator.Operation installation) {
+         cancelDownload();
+         if(downloading())return false;
+--- r12/src/main/java/com/example/ahakey/view/UpdateCenterDialog.java
++++ r13/src/main/java/com/example/ahakey/view/UpdateCenterDialog.java
+@@ -29,6 +29,8 @@
+     private String riskTargetHash = "";
+     private final boolean english;
+     private final TabPane tabs;
++    private boolean closePending;
++    private Alert closeNotice;
+     public UpdateCenterDialog(Window owner,UpdateCenterService service) {
+         this.service=service;english="en".equals(LanguageManager.getInstance().getCurrentLanguage());
+         if(owner!=null)stage.initOwner(owner);stage.setTitle(t("更新中心","Update Center"));
+@@ -58,14 +60,17 @@
+         tabs=new TabPane(new Tab(t("软件更新","Software update"),software),new Tab(t("键盘固件","Keyboard firmware"),scroll));tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);tabs.getSelectionModel().select(0);
+         stage.setScene(new Scene(tabs,900,660));stage.setMinWidth(760);stage.setMinHeight(520);
+         refresh=new Timeline(new KeyFrame(Duration.millis(200),e->refresh()));refresh.setCycleCount(Animation.INDEFINITE);
+-        stage.setOnCloseRequest(e->{if(!allowHide())e.consume();});
++        stage.setOnCloseRequest(e->{e.consume();if(closePending)return;closePending=true;service.prepareWindowClose(allowed->javafx.application.Platform.runLater(()->{
++            closePending=false;
++            if(allowed && service.windowCloseReady())stage.hide();
++            else {
++                if(closeNotice!=null && closeNotice.isShowing())return;
++                closeNotice=new Alert(Alert.AlertType.INFORMATION,t("更新或设备操作尚未结束，或工具清理状态未确认。请待工具结束后退出本次链路。","An update or device operation is still active, or cleanup is not confirmed. Exit this attempt after the tool has ended."));
++                closeNotice.initOwner(stage);closeNotice.setHeaderText(null);closeNotice.show();
++            }
++        }));});
+         stage.iconifiedProperty().addListener((o,a,b)->{if(b&&service.firmware().simpleActive())stage.setIconified(false);});
+         stage.setOnHidden(e->refresh.stop());refresh();
+-    }
+-    private boolean allowHide() {
+-        if(service.downloading()){service.cancelDownload();return false;}
+-        if(service.firmware().simpleActive()&&service.firmware().view().state()!=FirmwareUpdateService.State.FAILED)return false;
+-        return java.util.Set.of(FirmwareUpdateService.State.IDLE,FirmwareUpdateService.State.COMPLETE,FirmwareUpdateService.State.FAILED).contains(service.firmware().view().state());
+     }
+     public void show(){stage.show();stage.toFront();refresh.play();}
+     public TabPane content(){return tabs;}
+--- r12/src/test/java/com/example/ahakey/firmware/WchAdapterChecks.java
++++ r13/src/test/java/com/example/ahakey/firmware/WchAdapterChecks.java
+@@ -4,6 +4,7 @@
+ import static com.example.ahakey.update.UpdateCenterChecks.*;
+ public final class WchAdapterChecks {
+     public static void main(String[] args)throws Exception{
++        if(args.length>0 && args[0].equals("--terminal")) { terminalChecks(args); return; }
+         String terminal="Status=Finished\nCode=0\nMessage=Succeed";
+         check("complete terminal and exit",WchFlashAdapter.terminalSuccess(terminal,0));
+         check("exit alone insufficient",!WchFlashAdapter.terminalSuccess("",0));
+@@ -29,4 +30,73 @@
+         }
+         System.out.println("PASS WCH/HEX checks; no vendor executable started");
+     }
++
++    private static void terminalChecks(String[] args)throws Exception {
++        String good="{\"Device\":\"CH582\",\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}";
++        check("actual quoted JSON terminal",WchFlashAdapter.terminalSuccess(good,0));
++        check("JSON order independent",WchFlashAdapter.terminalSuccess("{\"Message\":\"Succeed\",\"Code\":0,\"Status\":\"Finished\"}",0));
++        check("prefix and actual non-JSON progress",WchFlashAdapter.terminalSuccess("CFG FILE PATH: C:\\fixture\\operation.ini "
++                +"{\"Device\":\"CH582\",\"Status\":\"Programming\",\"Progress\":100%}"+good,0));
++        check("repeated captured terminal",WchFlashAdapter.terminalSuccess(good+good,0));
++        check("pinned vendor Verifing percentage template",WchFlashAdapter.terminalSuccess(
++                "{\"Device\":\"CH582\",\"Status\":\"Verifing\",\"Progress\":0%}"
++                +"{\"Device\":\"CH582\",\"Status\":\"Verifing\",\"Progress\":100%}"+good,0));
++        check("bracketed console prefix",WchFlashAdapter.terminalSuccess("[WCH] "+good,0));
++        check("escaped braces remain in string",WchFlashAdapter.terminalSuccess("{\"Status\":\"Reading {chip} \\\"info\\\"\"}"+good,0));
++        String[] invalid={"", "Succeed", "Progress:100%", good.replace("Finished","Finishing"),
++            good.replace("Succeed","Not Succeed"), good.replace("CH582","CH583"),
++            good.replace("\"Code\":0,",""), good.replace("\"Message\":\"Succeed\"","\"other\":\"Succeed\""),
++            good.replace("\"Status\":\"Finished\",",""), good.replace("\"Code\":0","\"Code\":\"0\""),
++            good.replace("\"Code\":0","\"Code\":0.0"), good.replace("\"Code\":0","\"Code\":false"),
++            good.replace("\"Code\":0","\"Code\":null"), good.replace("\"Code\":0","\"Code\":-1"),
++            good.replace("\"Code\":0","\"Code\":4294967296"), good.replace("\"Code\":0","\"Code\":14"),
++            good.replace("\"Status\":\"Finished\"","\"Status\":true"),
++            good.replace("\"Message\":\"Succeed\"","\"Message\":[\"Succeed\"]"),
++            good.replace("\"Device\":\"CH582\"","\"Device\":null"),
++            good.replace("\"Code\":0","\"Code\":1,\"Code\":0"),
++            good.replace("\"Code\":0","\"Code\":0,\"Code\":0"),
++            "{\"wrapper\":"+good+"}", "["+good+"]", "{\"Status\":\"Finished\"}{\"Code\":0,\"Message\":\"Succeed\"}",
++            "{Status=Finished Code=0 Message=Succeed}", "\"Status=Finished Code=0 Message=Succeed\"",
++            new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(good),
++            good.substring(0,good.length()-1),good.replace(",\"Code\""," \"Code\""),
++            "{\"Device\":\"CH582\",\"Status\":\"Programming\",\"Progress\":100%,\"Code\":14}"};
++        for(int i=0;i<invalid.length;i++)check("reject malformed/fake terminal "+i,!WchFlashAdapter.terminalSuccess(invalid[i],0));
++        for(String conflict:new String[]{"Error", "Clear DataFlash Timeout...", "Write DataFlash Timeout...", "Code=-1", "Code=14", "{\"Code\":14}",
++                good.replace("\"Code\":0","\"Code\":1"),good.replace("Succeed","Failed"),
++                "{\"Status\":\"Finished\"}","{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\",}",
++                "{\"outer\":"+good+"}","{\"code\":14}","{\"Status\":\"Programming\",\"Progress\":100%,\"Code\":0}",
++                "{\"Status\":\"\\u0045rror\"}","{\"Status\":\"Programming\",\"Progress\":101%}"}) {
++            check("conflict before success "+conflict,!WchFlashAdapter.terminalSuccess(conflict+"\n"+good,0));
++            check("conflict after success "+conflict,!WchFlashAdapter.terminalSuccess(good+"\n"+conflict,0));
++        }
++        check("nonzero exit still fails",!WchFlashAdapter.terminalSuccess(good,1));
++        for(int i=1;i<args.length;i++) {
++            Path directory=Path.of(args[i]);
++            var replay=WchFlashAdapter.readResult(directory,false);
++            check("real captured download "+directory,replay.success()&&!replay.processAlive()&&!replay.timedOut()&&replay.exitCode()==0);
++        }
++        Path dir=Files.createTempDirectory("wch-result-only-");
++        try {
++            Files.writeString(dir.resolve("operation.id"),"fixture-operation");
++            Files.writeString(dir.resolve("console.txt"),good);
++            String receipt="{\"operationId\":\"fixture-operation\",\"ended\":true,\"failed\":false,\"exitCode\":0}";
++            Files.writeString(dir.resolve("result.json"),receipt);
++            check("receipt reconciles terminal",WchFlashAdapter.readResult(dir,false).success());
++            check("timeout wins",!WchFlashAdapter.readResult(dir,true).success());
++            check("expected operation mismatch",!WchFlashAdapter.readResult(dir,false,"other").success());
++            for(String changed:new String[]{receipt.replace("fixture-operation","other"),receipt.replace("\"ended\":true","\"ended\":false"),
++                    receipt.replace("\"failed\":false","\"failed\":true"),receipt.replace("\"exitCode\":0","\"exitCode\":3")}) {
++                Files.writeString(dir.resolve("result.json"),changed);
++                check("receipt guard "+changed,!WchFlashAdapter.readResult(dir,false).success());
++            }
++            Files.writeString(dir.resolve("result.json"),receipt);
++            Files.writeString(dir.resolve("stderr.txt"),"Error: unsuccessful operation");
++            check("stderr overrides successful console",!WchFlashAdapter.readResult(dir,false).success());
++            Files.delete(dir.resolve("result.json"));
++            check("missing receipt cannot release",WchFlashAdapter.readResult(dir,false).processAlive());
++        } finally {
++            try(var files=Files.list(dir)){for(Path file:files.toList())Files.delete(file);}Files.delete(dir);
++        }
++        System.out.println("PASS terminal/receipt checks="+com.example.ahakey.update.UpdateCenterChecks.checks+"; no vendor executable or device access");
++    }
+ }
+--- r12/src/test/java/com/example/ahakey/packaging/WindowCloseChecks.java
++++ r13/src/test/java/com/example/ahakey/packaging/WindowCloseChecks.java
+@@ -0,0 +1,114 @@
++package com.example.ahakey.packaging;
++
++import com.example.ahakey.App;
++import com.example.ahakey.app.StudioController;
++import com.example.ahakey.firmware.*;
++import com.example.ahakey.service.*;
++import com.example.ahakey.update.*;
++import com.example.ahakey.view.UpdateCenterDialog;
++import javafx.application.Platform;
++import javafx.scene.Scene;
++import javafx.scene.layout.Pane;
++import javafx.stage.*;
++import java.nio.file.*;
++import java.util.concurrent.*;
++import java.util.concurrent.atomic.*;
++import static com.example.ahakey.update.UpdateCenterChecks.check;
++
++/** Real close handlers and maintenance services with in-memory hardware, never App.start/shutdown. */
++public final class WindowCloseChecks {
++    private record Context(SimpleFlashChecks.Fixture fixture,UpdateCenterService service,App app,Stage stage) {}
++    private static <T>T fx(Callable<T> task)throws Exception {
++        var done=new CompletableFuture<T>();Platform.runLater(()->{try{done.complete(task.call());}catch(Throwable e){done.completeExceptionally(e);}});
++        return done.get(10,TimeUnit.SECONDS);
++    }
++    private static void set(Object target,String name,Object value)throws Exception {
++        var field=App.class.getDeclaredField(name);field.setAccessible(true);field.set(target,value);
++    }
++    private static void invoke(App app,String name)throws Exception {
++        var method=App.class.getDeclaredMethod(name);method.setAccessible(true);method.invoke(app);
++    }
++    private static void action(App app,Runnable action)throws Exception {
++        var method=App.class.getDeclaredMethod("requestWindowAction",Runnable.class);method.setAccessible(true);method.invoke(app,action);
++    }
++    private static void failed(SimpleFlashChecks.Fixture fixture)throws Exception {
++        fixture.writeFailure=true;fixture.service.prepareSimple(fixture.target,true);fixture.service.detectBoot();
++        try{fixture.service.flashSimple();throw new AssertionError("Expected failed fixture");}catch(java.io.IOException expected){}
++        check("actual failed service retains gate",fixture.service.view().state()==FirmwareUpdateService.State.FAILED&&fixture.gate.active());
++    }
++    private static Context context(SimpleFlashChecks.Fixture fixture)throws Exception {
++        var ble=new BleManager((BleManager.BleCallback)null);DeviceMaintenanceChecks.field(ble,"maintenance",fixture.gate);
++        var service=new UpdateCenterService(ble,fixture.service,Files.createTempDirectory("close-service-"));
++        return fx(()->{
++            var controller=new StudioController(cb->ble,KimiAhaKeyBridge::new,false) {
++                @Override public UpdateCenterService getUpdateCenter(){return service;}
++            };
++            var app=new App();var stage=new Stage();stage.setScene(new Scene(new Pane(),320,160));
++            set(app,"controller",controller);set(app,"primaryStage",stage);invoke(app,"installWindowCloseHandler");stage.show();
++            return new Context(fixture,service,app,stage);
++        });
++    }
++    private static void waitFor(Callable<Boolean> condition)throws Exception {
++        long end=System.nanoTime()+TimeUnit.SECONDS.toNanos(8);
++        while(System.nanoTime()<end){if(condition.call())return;Thread.sleep(10);}throw new AssertionError("close condition timed out");
++    }
++    private static void hideAll()throws Exception {fx(()->{for(Window w:java.util.List.copyOf(Window.getWindows()))w.hide();return null;});}
++    private static boolean noticeShowing(Stage owner){return Window.getWindows().stream().anyMatch(w->w instanceof Stage s&&s.getOwner()==owner&&s.isShowing());}
++    public static void main(String[] args)throws Exception {
++        Platform.startup(()->Platform.setImplicitExit(false));
++        try {
++            check("tray supported before testing production X",java.awt.SystemTray.isSupported());
++            var ended=new SimpleFlashChecks.Fixture();failed(ended);var c=context(ended);
++            fx(()->{c.stage.fireEvent(new WindowEvent(c.stage,WindowEvent.WINDOW_CLOSE_REQUEST));return null;});
++            waitFor(()->fx(()->!c.stage.isShowing()));
++            check("actual X hides after ended failed attempt cleanup",!ended.gate.active()&&ended.service.view().state()==FirmwareUpdateService.State.IDLE);
++            check("X does not reserve application exit",ended.gate.normalAllowed());
++            check("explicit tray exit gate admits ended cleanup",c.service.requestClose(null));c.service.close();
++
++            var dialogEnded=new SimpleFlashChecks.Fixture();failed(dialogEnded);var d=context(dialogEnded);
++            var dialog=fx(()->{var v=new UpdateCenterDialog(d.stage,d.service);v.show();v.stage().fireEvent(new WindowEvent(v.stage(),WindowEvent.WINDOW_CLOSE_REQUEST));return v;});
++            waitFor(()->fx(()->!dialog.stage().isShowing()));
++            check("update window close releases ended failed maintenance",!dialogEnded.gate.active());d.service.close();hideAll();
++
++            CountDownLatch cleanupEntered=new CountDownLatch(1),releaseCleanup=new CountDownLatch(1);
++            AtomicInteger cleanupCalls=new AtomicInteger();AtomicReference<String> cleanupThread=new AtomicReference<>();
++            var unknown=new SimpleFlashChecks.Fixture(){
++                @Override public boolean cleanupConfirmed(Path directory){
++                    cleanupCalls.incrementAndGet();cleanupThread.set(Thread.currentThread().getName());cleanupEntered.countDown();
++                    try{if(!releaseCleanup.await(5,TimeUnit.SECONDS))throw new AssertionError("fixture release missing");}catch(InterruptedException e){throw new RuntimeException(e);}return false;
++                }
++            };
++            unknown.alive=true;failed(unknown);var u=context(unknown);
++            fx(()->{u.stage.fireEvent(new WindowEvent(u.stage,WindowEvent.WINDOW_CLOSE_REQUEST));u.stage.fireEvent(new WindowEvent(u.stage,WindowEvent.WINDOW_CLOSE_REQUEST));return null;});
++            check("cleanup enters worker",cleanupEntered.await(3,TimeUnit.SECONDS));
++            check("FX remains responsive while cleanup waits",fx(()->true));
++            check("worker owns cleanup",!cleanupThread.get().contains("JavaFX"));releaseCleanup.countDown();
++            waitFor(()->fx(()->noticeShowing(u.stage)));
++            check("unknown process stays protected",unknown.gate.active()&&!u.service.requestClose(null));
++            check("duplicate X does not enqueue cleanup twice",cleanupCalls.get()==1);
++            check("blocked X keeps primary visible",fx(()->u.stage.isShowing()));hideAll();
++            var blockedDialog=fx(()->{var v=new UpdateCenterDialog(null,u.service);v.show();return v;});
++            for(int i=0;i<2;i++) {
++                fx(()->{blockedDialog.stage().fireEvent(new WindowEvent(blockedDialog.stage(),WindowEvent.WINDOW_CLOSE_REQUEST));return null;});
++                waitFor(()->!u.service.busy()&&fx(()->noticeShowing(blockedDialog.stage())));
++            }
++            check("blocked update dialog stays visible",fx(()->blockedDialog.stage().isShowing()));
++            check("blocked dialog notice does not stack",fx(()->Window.getWindows().stream().filter(w->w instanceof Stage s&&s.getOwner()==blockedDialog.stage()&&s.isShowing()).count()==1));
++            u.service.close();hideAll();
++
++            // A successful worker callback may be queued behind a new maintenance attempt on FX.
++            var raced=new SimpleFlashChecks.Fixture();failed(raced);var late=context(raced);AtomicInteger actions=new AtomicInteger();
++            fx(()->{
++                action(late.app,actions::incrementAndGet);
++                long end=System.nanoTime()+TimeUnit.SECONDS.toNanos(3);
++                while((raced.gate.active()||late.service.busy())&&System.nanoTime()<end)Thread.sleep(5);
++                check("cleanup completed before delayed callback",!raced.gate.active()&&!late.service.busy());
++                raced.service.prepareSimple(raced.target,true);raced.service.detectBoot();return null;
++            });
++            waitFor(()->fx(()->noticeShowing(late.stage)));
++            check("late callback cannot hide a new maintenance attempt",actions.get()==0&&raced.gate.active()&&fx(()->late.stage.isShowing()));
++            raced.service.exitSimple();late.service.close();hideAll();
++            System.out.println("PASS actual close handlers; checks="+UpdateCenterChecks.checks+"; no App.start/shutdown, WCH, device I/O or process kill");
++        } finally {hideAll();Platform.exit();}
++    }
++}

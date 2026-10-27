@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "WD-006",
+  "created_at": "2026-10-24T09:36:31.595706+00:00",
+  "build_receipt": {
+    "path": ".ahakey-desktop-harness/changes/WD-006/BUILD_RECEIPT.json",
+    "sha256": "b7aeef0d6631e7b17a561ac60b22151fe8efee4c34fa5177739f28aa04dd7c45"
+  },
+  "code_fingerprint": "e42a1b6a6a9e25d95b3cabf6e85e6ecf7956c465fd4b290f45d63aee6b17d543",
+  "build_round": 10,
+  "delivery_form": "installer_exe",
+  "product_variant": "model-bundled",
+  "primary": {
+    "path": "target/WD006-R9-LocalModel-1.0.11-attempt02/installer/AhaKeyStudio-1.0.11.exe",
+    "sha256": "7cb8cdcb72cfc6492591421d46d280742956d6a08827c74416519265708a81ab"
+  },
+  "ota_target": {
+    "path": "target/WD006-R9-LocalModel-1.0.12/installer/AhaKeyStudio-1.0.12.exe",
+    "sha256": "fc2c6fbc0abe8da2a722bf9e9c6d8b9c48c71a0ed18ac78122706aeb37051468"
+  },
+  "observation": {
+    "classification": "完整local-model x64两个版本；每包310项MSI内容与包内组件/JNI/离线OTA检查通过，未实际安装",
+    "model_enabled": true,
+    "evidence": {
+      "path": ".ahakey-desktop-harness/changes/WD-006/DLA_R9_ARTIFACT_REVIEW_20261024.json",
+      "sha256": "467873cbcdf4ad6079de46f2c10d14af323c83beaea6767a7d0074c0659373a1"
+    }
+  },
+  "entrypoint": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD006-R9-LocalModel-1.0.11-attempt02\\installer\\AhaKeyStudio-1.0.11.exe",
+  "runtime_roots": [
+    "target/WD006-R9-LocalModel-1.0.11-attempt02/installer/AhaKeyStudio-1.0.11.exe",
+    "target/WD006-R9-LocalModel-1.0.11-attempt02/image/AhaKeyStudio",
+    "target/WD006-R9-LocalModel-1.0.12/installer/AhaKeyStudio-1.0.12.exe",
+    "target/WD006-R9-LocalModel-1.0.12/image/AhaKeyStudio"
+  ],
+  "claim_scope": "Two exact local-model EXEs and offline checks; no Lite build, actual installation or hardware UAT"
+}

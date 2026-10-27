@@ -1,0 +1,897 @@
+--- a/Program.cs
++++ b/Program.cs
+@@ -24,7 +24,6 @@
+         static List<DeviceInformation> _deviceList = new List<DeviceInformation>();
+         static DeviceWatcher watcher;
+ 
+-        private bool asyncLock = false;
+         private long _connectionGeneration;
+         private long _nextDiscoveryId;
+         private readonly object _discoveryLock = new object();
+@@ -52,6 +51,13 @@
+ 
+         public event Action<long> ConnectionGenerationChanged;
+ 
++        // Discovery establishes the physical connection; identity must be valid before it exists.
++        private bool IsCurrentDevice(long generation, BluetoothLEDevice device)
++        {
++            return generation == ConnectionGeneration && device != null
++                && ReferenceEquals(CurrentDevice, device);
++        }
++
+         public bool IsCurrentConnection(long generation)
+         {
+             var device = CurrentDevice;
+@@ -72,29 +78,47 @@
+                 && BridgeRoundIdentity.Matches(generation, discoveryId,
+                     _activeDiscovery.Generation, _activeDiscovery.Id)
+                 && ReferenceEquals(CurrentDevice, _activeDiscovery.Device)
+-                && IsCurrentConnection(generation);
++                && IsCurrentDevice(generation, _activeDiscovery.Device);
+         }
+ 
+         public bool TryAcceptDiscoveredCharacteristic(GattCharacteristic characteristic, long generation, long discoveryId)
+         {
+             lock (_discoveryLock)
+-            {
+-                if (!IsCurrentDiscoveryLocked(generation, discoveryId))
+-                    return false;
+-
+-                switch (Utilities.ConvertUuidToShortId(characteristic.Uuid))
+-                {
+-                    case 0x7341:
+-                        CurrentDataCharacteristic = characteristic;
+-                        break;
+-                    case 0x7343:
+-                        CurrentWriteCharacteristic = characteristic;
+-                        break;
+-                    case 0x7344:
+-                        CurrentNotifyCharacteristic = characteristic;
+-                        break;
+-                }
++                return IsCurrentDiscoveryLocked(generation, discoveryId)
++                    && !_activeDiscovery.Failed && CharacteristicList.Contains(characteristic);
++        }
++
++        // Consume readiness and its UI/initial-write side effects under the same identity lock.
++        public bool TryConfirmReady(long generation, long discoveryId, Action<BluetoothLEDevice, GattCharacteristic> confirm)
++        {
++            lock (_discoveryLock)
++            {
++                if (!IsCurrentDiscoveryLocked(generation, discoveryId) || !_activeDiscovery.Ready
++                    || _activeDiscovery.ConfirmationConsumed || !IsCurrentConnection(generation)) return false;
++                _activeDiscovery.ConfirmationConsumed = true;
++                confirm(CurrentDevice, CurrentWriteCharacteristic);
+                 return true;
++            }
++        }
++
++        public BleStatusInfo GetBleStatusInfo()
++        {
++            lock (_discoveryLock)
++            {
++                var device = CurrentDevice;
++                bool physicalConnected = device != null && device.ConnectionStatus == BluetoothConnectionStatus.Connected;
++                bool ready = physicalConnected && _activeDiscovery != null && _activeDiscovery.Ready
++                    && IsCurrentDiscoveryLocked(_activeDiscovery.Generation, _activeDiscovery.Id);
++                string mac = "";
++                if (device != null)
++                {
++                    byte[] bytes = BitConverter.GetBytes(device.BluetoothAddress);
++                    Array.Reverse(bytes);
++                    mac = BitConverter.ToString(bytes, 2, 6).Replace('-', ':');
++                }
++                // Existing Java consumers use Connected as permission to issue commands.
++                return new BleStatusInfo { Connected = ready, IsTargetDevice = ready,
++                    DeviceName = device?.Name ?? "", MacAddress = mac };
+             }
+         }
+ 
+@@ -372,22 +396,32 @@
+             CancellationToken cancellationToken)
+         {
+             var completion = new TaskCompletionSource<GattWriteResult>(TaskCreationOptions.RunContinuationsAsynchronously);
++            long discoveryId = -1;
+             try
+             {
+-                var operation = characteristic.WriteValueAsync(
+-                    CryptographicBuffer.CreateFromByteArray(data),
+-                    GattWriteOption.WriteWithResponse);
++                IAsyncOperation<GattCommunicationStatus> operation;
+                 long operationId = Interlocked.Increment(ref _nextGattWriteId);
+-                lock (_activeWriteLock)
+-                {
+-                    if (!IsCurrentConnection(generation))
+-                    {
+-                        operation.Cancel();
+-                        completion.TrySetResult(new GattWriteResult(AsyncStatus.Canceled, null,
+-                            new OperationCanceledException("连接代次已变化")));
+-                        return completion.Task;
+-                    }
+-                    _activeGattWrites.Add(operationId, new ActiveGattWrite(operationId, generation, operation, completion));
++                lock (_discoveryLock)
++                {
++                    if (cancellationToken.IsCancellationRequested || !IsCurrentConnection(generation)
++                        || _activeDiscovery == null || !_activeDiscovery.Ready
++                        || (!ReferenceEquals(characteristic, CurrentWriteCharacteristic)
++                            && !ReferenceEquals(characteristic, CurrentDataCharacteristic)))
++                        return Task.FromResult(new GattWriteResult(AsyncStatus.Canceled, null,
++                            new OperationCanceledException("写入前连接、就绪状态或特征对象已失效")));
++                    discoveryId = _activeDiscovery.Id;
++                    operation = characteristic.WriteValueAsync(CryptographicBuffer.CreateFromByteArray(data), GattWriteOption.WriteWithResponse);
++                    lock (_activeWriteLock)
++                    {
++                        if (!IsCurrentConnection(generation))
++                        {
++                            operation.Cancel();
++                            completion.TrySetResult(new GattWriteResult(AsyncStatus.Canceled, null,
++                                new OperationCanceledException("连接代次已变化")));
++                            return completion.Task;
++                        }
++                        _activeGattWrites.Add(operationId, new ActiveGattWrite(operationId, generation, operation, completion));
++                    }
+                 }
+ 
+                 CancellationTokenRegistration cancellationRegistration = default(CancellationTokenRegistration);
+@@ -407,7 +441,10 @@
+                 {
+                     try
+                     {
+-                        if (cancellationToken.IsCancellationRequested || !IsCurrentConnection(generation))
++                        if (cancellationToken.IsCancellationRequested || !IsCurrentConnection(generation)
++                            || !IsCurrentDiscovery(generation, discoveryId)
++                            || (!ReferenceEquals(characteristic, CurrentWriteCharacteristic)
++                                && !ReferenceEquals(characteristic, CurrentDataCharacteristic)))
+                         {
+                             completion.TrySetResult(new GattWriteResult(AsyncStatus.Canceled, null,
+                                 new OperationCanceledException("GATT完成时事务或连接代次已失效")));
+@@ -423,8 +460,20 @@
+                         }
+ 
+                         GattCommunicationStatus communicationStatus = asyncInfo.GetResults();
+-                        if (communicationStatus == GattCommunicationStatus.Success && IsCurrentConnection(generation))
+-                            WriteDataSuccess?.Invoke(characteristic, data);
++                        lock (_discoveryLock)
++                        {
++                            if (!IsCurrentDiscoveryLocked(generation, discoveryId) || !_activeDiscovery.Ready
++                                || !IsCurrentConnection(generation)
++                                || (!ReferenceEquals(characteristic, CurrentWriteCharacteristic)
++                                    && !ReferenceEquals(characteristic, CurrentDataCharacteristic)))
++                            {
++                                completion.TrySetResult(new GattWriteResult(AsyncStatus.Canceled, null,
++                                    new OperationCanceledException("GATT结果消费前连接或特征已变化")));
++                                return;
++                            }
++                            if (communicationStatus == GattCommunicationStatus.Success)
++                                WriteDataSuccess?.Invoke(characteristic, data);
++                        }
+                         completion.TrySetResult(new GattWriteResult(asyncStatus, communicationStatus, null));
+                     }
+                     catch (Exception ex)
+@@ -534,6 +583,7 @@
+ 
+         private void InvalidateDiscoveryLocked()
+         {
++            _activeDiscovery?.Deadline?.Dispose();
+             _activeDiscovery = null;
+             RemoveNotifySubscriptionLocked();
+         }
+@@ -573,12 +623,12 @@
+             public BluetoothLEDevice Device { get; }
+             public int PendingServices { get; set; }
+             public bool Failed { get; set; }
+-
++            public bool ServicesReceived, NotificationStarted, NotificationSucceeded;
++            public bool Terminal, Ready, ConfirmationConsumed;
++            public System.Threading.Timer Deadline;
+             public DiscoveryRound(long id, long generation, BluetoothLEDevice device)
+             {
+-                Id = id;
+-                Generation = generation;
+-                Device = device;
++                Id = id; Generation = generation; Device = device;
+             }
+         }
+ 
+@@ -626,88 +676,63 @@
+         /// </summary>
+         public void FindService(BluetoothLEDevice dev, long generation)
+         {
+-            if (dev == null)
+-            {
+-                Console.WriteLine("当前没有打开设备");
+-                return;
+-            }
+-
+             var round = new DiscoveryRound(Interlocked.Increment(ref _nextDiscoveryId), generation, dev);
+             lock (_discoveryLock)
+             {
+-                if (!IsCurrentConnection(generation) || !ReferenceEquals(CurrentDevice, dev))
+-                    return;
++                if (!IsCurrentDevice(generation, dev)) return;
+                 InvalidateDiscoveryLocked();
+                 _activeDiscovery = round;
++                CurrentDataCharacteristic = CurrentWriteCharacteristic = CurrentNotifyCharacteristic = null;
+                 CharacteristicList.Clear();
+-            }
+-
+-            try
+-            {
+-                dev.GetGattServicesAsync(BluetoothCacheMode.Uncached).Completed = (asyncInfo, asyncStatus) =>
+-                {
+-                    List<GattDeviceService> services = new List<GattDeviceService>();
+-                    Exception error = null;
+-                    if (asyncStatus == AsyncStatus.Completed)
+-                    {
++                // One deadline bounds the entire required-discovery + CCCD attempt, not recursive retries.
++                round.Deadline = new System.Threading.Timer(_ => CompleteDiscovery(round, false, "发现或通知订阅超时"),
++                    null, 15000, Timeout.Infinite);
++                try
++                {
++                    dev.GetGattServicesAsync(BluetoothCacheMode.Uncached).Completed = (operation, status) =>
++                    {
++                        var services = new List<GattDeviceService>();
+                         try
+                         {
+-                            services.AddRange(asyncInfo.GetResults().Services);
++                            if (status != AsyncStatus.Completed) throw new InvalidOperationException("GATT服务发现: " + status);
++                            var result = operation.GetResults();
++                            if (result.Status != GattCommunicationStatus.Success)
++                                throw new InvalidOperationException("GATT服务发现: " + result.Status);
++                            services.AddRange(result.Services);
+                         }
+-                        catch (Exception ex) { error = ex; }
+-                    }
+-
+-                    lock (_discoveryLock)
+-                    {
+-                        if (!IsCurrentDiscoveryLocked(generation, round.Id))
+-                            return;
+-                        if (error != null || asyncStatus != AsyncStatus.Completed)
+-                            round.Failed = true;
+-                        CurrentService = services.FirstOrDefault();
+-                        round.PendingServices = services.Count;
+-                    }
+-
+-                    if (error != null || asyncStatus != AsyncStatus.Completed)
+-                    {
+-                        Console.WriteLine($"GATT服务发现失败 gen={generation} discovery={round.Id} status={asyncStatus} error={error?.Message}");
+-                        CharacteristicFinish?.Invoke(0, generation, round.Id);
+-                        AllCharacteristicsDiscovered?.Invoke(generation, round.Id, false);
+-                        return;
+-                    }
+-                    Console.WriteLine("GattServices size=" + services.Count);
+-                    for (int i = 0; i < services.Count; i++)
+-                        Console.WriteLine($"#{i:00}: {services[i].Uuid}");
+-
+-                    CharacteristicFinish?.Invoke(services.Count, generation, round.Id);
+-                    if (services.Count == 0)
+-                    {
+-                        AllCharacteristicsDiscovered?.Invoke(generation, round.Id, true);
+-                        return;
+-                    }
+-
+-                    foreach (GattDeviceService service in services)
+-                        FindCharacteristic(service, round);
+-                };
+-            }
+-            catch (Exception ex)
+-            {
+-                bool current;
+-                lock (_discoveryLock)
++                        catch (Exception ex) { CompleteDiscovery(round, false, ex.Message); return; }
++                        lock (_discoveryLock)
+                         {
+-                    current = IsCurrentDiscoveryLocked(generation, round.Id);
+-                    if (current)
+-                    {
+-                        round.PendingServices = 0;
+-                        round.Failed = true;
+-                    }
+-                    }
+-                if (current)
+-                {
+-                    Console.WriteLine($"GATT服务发现启动失败 gen={generation} discovery={round.Id}: {ex.Message}");
+-                    CharacteristicFinish?.Invoke(0, generation, round.Id);
+-                    AllCharacteristicsDiscovered?.Invoke(generation, round.Id, false);
+-                }
+-            }
++                            if (!IsCurrentDiscoveryLocked(generation, round.Id) || round.Terminal || round.ServicesReceived) return;
++                            round.ServicesReceived = true;
++                            // Only the AhaKey service owns required characteristics and readiness.
++                            var required = services.Where(s => s.Uuid == Guid.Parse("00007340-0000-1000-8000-00805f9b34fb")).ToList();
++                            CurrentService = required.FirstOrDefault();
++                            round.PendingServices = required.Count;
++                            if (required.Count == 0) { CompleteDiscovery(round, false, "缺少目标服务0x7340"); return; }
++                        }
++                        CharacteristicFinish?.Invoke(services.Count, generation, round.Id);
++                        foreach (var service in services) FindCharacteristic(service, round);
++                    };
++                }
++                catch (Exception ex) { CompleteDiscovery(round, false, "服务发现启动失败: " + ex.Message); }
++            }
++        }
++
++        private void CompleteDiscovery(DiscoveryRound round, bool success, string reason)
++        {
++            lock (_discoveryLock)
++            {
++                if (!IsCurrentDiscoveryLocked(round.Generation, round.Id) || round.Terminal) return;
++                if (success && (round.PendingServices != 0 || round.Failed || !round.NotificationSucceeded)) return;
++                round.Terminal = true;
++                round.Ready = success;
++                round.Failed = !success;
++                round.Deadline?.Dispose();
++                if (!success) RemoveNotifySubscriptionLocked();
++                Console.WriteLine($"目标连接{(success ? "就绪" : "失败")} gen={round.Generation} discovery={round.Id}: {reason}");
++            }
++            AllCharacteristicsDiscovered?.Invoke(round.Generation, round.Id, success);
+         }
+ 
+         /// <summary>
+@@ -800,73 +825,65 @@
+         /// <summary>
+         /// 获取特性
+         /// </summary>
+-        private void FindCharacteristic(GattDeviceService gattDeviceService, DiscoveryRound round)
+-        {
+-            lock (_discoveryLock)
+-            {
+-                if (!IsCurrentDiscoveryLocked(round.Generation, round.Id))
+-                    return;
+-            }
+-
+-            try
+-            {
+-                gattDeviceService.GetCharacteristicsAsync(BluetoothCacheMode.Uncached).Completed = (asyncInfo, asyncStatus) =>
+-                {
+-                    List<GattCharacteristic> characteristics = new List<GattCharacteristic>();
+-                    bool querySucceeded = asyncStatus == AsyncStatus.Completed;
+-                    if (asyncStatus == AsyncStatus.Completed)
+-                    {
+-                        try { characteristics.AddRange(asyncInfo.GetResults().Characteristics); }
+-                        catch (Exception ex)
++        private void FindCharacteristic(GattDeviceService service, DiscoveryRound round)
++        {
++            bool required = service.Uuid == Guid.Parse("00007340-0000-1000-8000-00805f9b34fb");
++            int delivered = 0;
++            Action<List<GattCharacteristic>, bool> complete = (characteristics, success) =>
++            {
++                if (Interlocked.Exchange(ref delivered, 1) != 0) return;
++                lock (_discoveryLock)
++                {
++                    if (!IsCurrentDiscoveryLocked(round.Generation, round.Id)) return;
++                    if (!required)
++                    {
++                        Console.WriteLine($"非必需服务 gen={round.Generation} discovery={round.Id} uuid={service.Uuid} success={success}; 不影响目标就绪");
++                        return;
++                    }
++                    if (round.Terminal) return;
++                    if (!success) { CompleteDiscovery(round, false, "目标服务特征读取失败"); return; }
++                    CharacteristicList.AddRange(characteristics);
++                    foreach (var characteristic in characteristics)
++                    {
++                        if (characteristic.Uuid == Guid.Parse("00007341-0000-1000-8000-00805f9b34fb")) CurrentDataCharacteristic = characteristic;
++                        if (characteristic.Uuid == Guid.Parse("00007343-0000-1000-8000-00805f9b34fb")) CurrentWriteCharacteristic = characteristic;
++                        if (characteristic.Uuid == Guid.Parse("00007344-0000-1000-8000-00805f9b34fb")) CurrentNotifyCharacteristic = characteristic;
++                        CharacteristicAdded?.Invoke(characteristic, round.Generation, round.Id);
++                    }
++                    round.PendingServices--;
++                    if (round.PendingServices != 0) return;
++                    if (CurrentDataCharacteristic == null || CurrentWriteCharacteristic == null || CurrentNotifyCharacteristic == null)
++                    { CompleteDiscovery(round, false, "缺少目标必需特征7341/7343/7344"); return; }
++                    EnableNotifications(CurrentNotifyCharacteristic, round.Generation, round.Id);
++                }
++            };
++            lock (_discoveryLock)
++            {
++                if (!IsCurrentDiscoveryLocked(round.Generation, round.Id) || (required && round.Terminal)) return;
++                try
++                {
++                    service.GetCharacteristicsAsync(BluetoothCacheMode.Uncached).Completed = (operation, status) =>
++                    {
++                        var characteristics = new List<GattCharacteristic>();
++                        bool success = false;
++                        try
+                         {
+-                            querySucceeded = false;
+-                            Console.WriteLine($"GATT特征读取失败 gen={round.Generation} discovery={round.Id}: {ex.Message}");
+-                        }
+-                    }
+-
+-                    bool completed;
+-                    bool succeeded;
+-                    lock (_discoveryLock)
+-                    {
+-                        if (!IsCurrentDiscoveryLocked(round.Generation, round.Id))
+-                            return;
+-                        if (!querySucceeded)
+-                            round.Failed = true;
+-                        CharacteristicList.AddRange(characteristics);
+-                        foreach (GattCharacteristic characteristic in characteristics)
+-                        {
+-                            switch (Utilities.ConvertUuidToShortId(characteristic.Uuid))
++                            if (status == AsyncStatus.Completed)
+                             {
+-                                case 0x7341: CurrentDataCharacteristic = characteristic; break;
+-                                case 0x7343: CurrentWriteCharacteristic = characteristic; break;
+-                                case 0x7344: CurrentNotifyCharacteristic = characteristic; break;
++                                var result = operation.GetResults();
++                                success = result.Status == GattCommunicationStatus.Success;
++                                if (success) characteristics.AddRange(result.Characteristics);
+                             }
+                         }
+-                        round.PendingServices--;
+-                        completed = round.PendingServices == 0;
+-                        succeeded = completed && !round.Failed;
+-                    }
+-
+-                    foreach (GattCharacteristic characteristic in characteristics)
+-                        CharacteristicAdded?.Invoke(characteristic, round.Generation, round.Id);
+-                    if (completed)
+-                        AllCharacteristicsDiscovered?.Invoke(round.Generation, round.Id, succeeded);
+-                };
+-            }
+-            catch (Exception ex)
+-            {
+-                bool completed;
+-                lock (_discoveryLock)
+-                {
+-                    if (!IsCurrentDiscoveryLocked(round.Generation, round.Id))
+-                        return;
+-                    round.Failed = true;
+-                    round.PendingServices--;
+-                    completed = round.PendingServices == 0;
+-                }
+-                Console.WriteLine($"GATT特征发现启动失败 gen={round.Generation} discovery={round.Id}: {ex.Message}");
+-                if (completed)
+-                    AllCharacteristicsDiscovered?.Invoke(round.Generation, round.Id, false);
++                        catch (Exception ex) { Console.WriteLine($"特征读取异常 uuid={service.Uuid}: {ex.Message}"); }
++                        complete(characteristics, success);
++                    };
++                }
++                catch (Exception ex)
++                {
++                    Console.WriteLine($"特征读取启动异常 uuid={service.Uuid}: {ex.Message}");
++                    complete(new List<GattCharacteristic>(), false);
++                }
+             }
+         }
+ 
+@@ -940,64 +957,40 @@
+         /// <returns></returns>
+         public void EnableNotifications(GattCharacteristic characteristic, long generation, long discoveryId)
+         {
+-            if (!IsCurrentDiscovery(generation, discoveryId)
+-                || !ReferenceEquals(CurrentNotifyCharacteristic, characteristic))
+-                return;
+-
+-            Console.WriteLine("收通知对象=" + CurrentDevice.Name + ":" + CurrentDevice.ConnectionStatus);
+-            try
+-            {
+-                characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(CHARACTERISTIC_NOTIFICATION_TYPE).Completed = (asyncInfo, asyncStatus) =>
+-                {
+-                    if (!IsCurrentDiscovery(generation, discoveryId)
+-                        || !ReferenceEquals(CurrentNotifyCharacteristic, characteristic))
+-                        return;
+-
+-                    if (asyncStatus != AsyncStatus.Completed)
+-                    {
+-                        Console.WriteLine($"通知订阅失败 gen={generation} discovery={discoveryId} async={asyncStatus}");
+-                        return;
+-                    }
+-
+-                    GattCommunicationStatus status;
+-                    try { status = asyncInfo.GetResults(); }
+-                    catch (Exception ex)
+-                    {
+-                        Console.WriteLine($"通知订阅结果读取失败 gen={generation} discovery={discoveryId}: {ex.Message}");
+-                        return;
+-                    }
+-
+-                    if (status == GattCommunicationStatus.Unreachable)
+-                    {
+-                        Console.WriteLine("设备不可用");
+-                        if (!asyncLock && IsCurrentDiscovery(generation, discoveryId))
+-                            EnableNotifications(characteristic, generation, discoveryId);
+-                        return;
+-                    }
+-                    if (status != GattCommunicationStatus.Success)
+-                    {
+-                        Console.WriteLine($"通知订阅返回失败状态 gen={generation} discovery={discoveryId}: {status}");
+-                        return;
+-                    }
+-
+-                    lock (_discoveryLock)
+-                    {
+-                        if (!IsCurrentDiscoveryLocked(generation, discoveryId)
+-                            || !ReferenceEquals(CurrentNotifyCharacteristic, characteristic))
+-                            return;
+-                        RemoveNotifySubscriptionLocked();
+-                        _notifySubscriptionCharacteristic = characteristic;
+-                        _notifySubscriptionHandler = (notifySender, eventArgs) =>
+-                            Characteristic_ValueChanged(notifySender, eventArgs, generation, discoveryId);
+-                        characteristic.ValueChanged += _notifySubscriptionHandler;
+-                    }
+-                    asyncLock = false;
+-                    Console.WriteLine("设备连接状态" + status);
+-                };
+-            }
+-            catch (Exception ex)
+-            {
+-                Console.WriteLine($"通知订阅启动失败 gen={generation} discovery={discoveryId}: {ex.Message}");
++            lock (_discoveryLock)
++            {
++                if (!IsCurrentDiscoveryLocked(generation, discoveryId)
++                    || !ReferenceEquals(CurrentNotifyCharacteristic, characteristic)) return;
++                var round = _activeDiscovery;
++                if (round.Terminal || round.NotificationStarted || round.PendingServices != 0) return;
++                round.NotificationStarted = true;
++                Console.WriteLine($"通知订阅排队 gen={generation} discovery={discoveryId}");
++                try
++                {
++                    characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(CHARACTERISTIC_NOTIFICATION_TYPE).Completed = (operation, status) =>
++                    {
++                        lock (_discoveryLock)
++                        {
++                            if (!IsCurrentDiscoveryLocked(generation, discoveryId) || round.Terminal
++                                || !ReferenceEquals(CurrentNotifyCharacteristic, characteristic)) return;
++                            try
++                            {
++                                if (status != AsyncStatus.Completed) throw new InvalidOperationException("通知订阅: " + status);
++                                var result = operation.GetResults();
++                                if (result != GattCommunicationStatus.Success) throw new InvalidOperationException("通知订阅: " + result);
++                                RemoveNotifySubscriptionLocked();
++                                _notifySubscriptionCharacteristic = characteristic;
++                                _notifySubscriptionHandler = (sender, args) => Characteristic_ValueChanged(sender, args, generation, discoveryId);
++                                characteristic.ValueChanged += _notifySubscriptionHandler;
++                                round.NotificationSucceeded = true;
++                                Console.WriteLine($"通知订阅成功 gen={generation} discovery={discoveryId}");
++                                CompleteDiscovery(round, true, "必需特征及CCCD已成功");
++                            }
++                            catch (Exception ex) { CompleteDiscovery(round, false, ex.Message); }
++                        }
++                    };
++                }
++                catch (Exception ex) { CompleteDiscovery(round, false, "通知订阅启动失败: " + ex.Message); }
+             }
+         }
+ 
+--- a/TcpServer.cs
++++ b/TcpServer.cs
+@@ -22,6 +22,8 @@
+         private volatile bool _running;
+ 
+         private DeviceStatusInfo _deviceStatus;
++        private long _deviceStatusGeneration = -1;
++        private long _deviceStatusDiscoveryId = -1;
+         private readonly object _statusLock = new object();
+         private const int MaxPendingBleTransactions = 24;
+         private readonly object _writeQueueLock = new object();
+@@ -182,15 +184,13 @@
+                     break;
+ 
+                 case PacketType.QueryBleStatus:
+-                    var status = BuildBleStatus();
+-                    SendToClient(client, ProtocolHelper.BuildBleStatusPacket(status));
++                    SendToClient(client, null, bleStatus: true);
+                     Log("响应BLE状态查询");
+                     break;
+ 
+                 case PacketType.QueryDeviceInfo:
+-                    DeviceStatusInfo info;
+-                    lock (_statusLock) info = _deviceStatus;
+-                    SendToClient(client, ProtocolHelper.BuildDeviceInfoPacket(info));
++                    // Resolve the cache only after acquiring the actual socket write lock.
++                    SendToClient(client, null, deviceInfo: true);
+                     Log("响应设备信息查询");
+                     break;
+ 
+@@ -205,31 +205,7 @@
+         /// </summary>
+         private BleStatusInfo BuildBleStatus()
+         {
+-            var dev = _bleCore.CurrentDevice;
+-            bool connected = dev != null &&
+-                dev.ConnectionStatus == BluetoothConnectionStatus.Connected;
+-
+-            string name = "";
+-            string mac = "";
+-            if (dev != null)
+-            {
+-                name = dev.Name ?? "";
+-                byte[] macBytes = BitConverter.GetBytes(dev.BluetoothAddress);
+-                Array.Reverse(macBytes);
+-                mac = BitConverter.ToString(macBytes, 2, 6).Replace('-', ':');
+-            }
+-
+-            bool isTarget = _bleCore.CurrentDataCharacteristic != null
+-                         && _bleCore.CurrentWriteCharacteristic != null
+-                         && _bleCore.CurrentNotifyCharacteristic != null;
+-
+-            return new BleStatusInfo
+-            {
+-                Connected = connected,
+-                DeviceName = name,
+-                MacAddress = mac,
+-                IsTargetDevice = isTarget
+-            };
++            return _bleCore.GetBleStatusInfo();
+         }
+ 
+         /// <summary>
+@@ -242,7 +218,16 @@
+             if (ProtocolHelper.IsDeviceStatusNotification(data))
+             {
+                 var newStatus = ProtocolHelper.ParseDeviceStatusFromNotification(data);
+-                lock (_statusLock) _deviceStatus = newStatus;
++                lock (_statusLock)
++                {
++                    // No discovery lock under _statusLock: disconnect callbacks use the reverse order.
++                    if (generation != _bleCore.ConnectionGeneration
++                        || generation < _deviceStatusGeneration
++                        || (generation == _deviceStatusGeneration && discoveryId < _deviceStatusDiscoveryId)) return;
++                    _deviceStatus = newStatus;
++                    _deviceStatusGeneration = generation;
++                    _deviceStatusDiscoveryId = discoveryId;
++                }
+                 Log($"设备状态更新: 电量={newStatus.BatteryLevel} 信号={newStatus.SignalStrength} " +
+                     $"固件={newStatus.FirmwareVersionMain}.{newStatus.FirmwareVersionSub} " +
+                     $"工作模式={newStatus.WorkMode} 灯光={newStatus.LightMode} 开关={newStatus.SwitchState}");
+@@ -250,29 +235,49 @@
+             }
+ 
+             byte[] packet = ProtocolHelper.BuildPacket(PacketType.BleNotify, data);
+-            BroadcastToAll(packet);
++            BroadcastToAll(packet, generation, discoveryId);
+         }
+ 
+         /// <summary>
+         /// 向所有已连接的TCP客户端广播数据
+         /// </summary>
+-        public void BroadcastToAll(byte[] packet)
++        private void BroadcastToAll(byte[] packet, long generation, long discoveryId)
+         {
+             List<TcpClient> snapshot;
+             lock (_clientLock) snapshot = new List<TcpClient>(_clients);
+             foreach (var c in snapshot)
+-                SendToClient(c, packet);
+-        }
+-
+-        private void SendToClient(TcpClient client, byte[] packet)
++                SendToClient(c, packet, generation, discoveryId);
++        }
++
++        private DeviceStatusInfo GetCurrentDeviceStatus()
++        {
++            DeviceStatusInfo info;
++            long generation, discoveryId;
++            lock (_statusLock)
++            {
++                info = _deviceStatus;
++                generation = _deviceStatusGeneration;
++                discoveryId = _deviceStatusDiscoveryId;
++            }
++            return _bleCore.IsCurrentDiscovery(generation, discoveryId) ? info : default(DeviceStatusInfo);
++        }
++
++        private void SendToClient(TcpClient client, byte[] packet, long? generation = null,
++            long? discoveryId = null, bool deviceInfo = false, bool bleStatus = false)
+         {
+             long startedAt = Stopwatch.GetTimestamp();
+             try
+             {
+                 lock (client)
+                 {
++                    // A notification may have waited here across disconnect/reconnect.
++                    if (generation.HasValue && !_bleCore.IsCurrentDiscovery(generation.Value, discoveryId.Value)) return;
++                    if (deviceInfo) packet = ProtocolHelper.BuildDeviceInfoPacket(GetCurrentDeviceStatus());
++                    if (bleStatus) packet = ProtocolHelper.BuildBleStatusPacket(BuildBleStatus());
+                     if (client.Connected)
+                     {
++                        // A slow peer cannot hold the output indefinitely; failure closes that stream.
++                        client.SendTimeout = 2000;
+                         var stream = client.GetStream();
+                         stream.Write(packet, 0, packet.Length);
+                     }
+@@ -439,6 +444,15 @@
+ 
+         private void OnConnectionGenerationChanged(long generation)
+         {
++            lock (_statusLock)
++            {
++                if (_deviceStatusGeneration != _bleCore.ConnectionGeneration)
++                {
++                    _deviceStatus = default(DeviceStatusInfo);
++                    _deviceStatusGeneration = -1;
++                    _deviceStatusDiscoveryId = -1;
++                }
++            }
+             lock (_writeQueueLock)
+             {
+                 int canceled = _writeQueue.CancelWhere(
+--- a/Form1.cs
++++ b/Form1.cs
+@@ -18,7 +18,6 @@
+         private AppConfig config;
+         private Timer retryTimer;
+         private bool autoConnecting = false;
+-        private bool targetConfirmed = false;
+         private bool _suppressInitialShow;
+         private bool _loaded;
+         List<DeviceInformation> devicesList = null;
+@@ -45,10 +44,11 @@
+             base.SetVisibleCore(value);
+         }
+ 
+-        private void log(Color c, string message)
+-        {
+-            BeginInvoke(new Action(() =>
+-            {
++        private void log(Color c, string message, Func<bool> isCurrent = null)
++        {
++            BeginInvoke(new Action(() =>
++            {
++                if (isCurrent != null && !isCurrent()) return;
+                 rtbMsg.SelectionColor = c;
+                 rtbMsg.AppendText(DateTime.Now.ToString("HH:mm:ss.fff") + "> ");
+                 rtbMsg.AppendText(message);
+@@ -144,12 +144,14 @@
+                 var info = ProtocolHelper.ParseDeviceStatusFromNotification(data);
+                 log(Color.DarkGreen, $"设备状态: 电量={info.BatteryLevel} 信号={info.SignalStrength} " +
+                     $"固件={info.FirmwareVersionMain}.{info.FirmwareVersionSub} " +
+-                    $"模式={info.WorkMode} 灯光={info.LightMode} 开关={info.SwitchState}");
++                    $"模式={info.WorkMode} 灯光={info.LightMode} 开关={info.SwitchState}",
++                    () => bleCore.IsCurrentDiscovery(generation, discoveryId));
+             }
+             else
+             {
+                 log(Color.FromArgb(0x00ff0000), Utilities.ConvertUuidToShortId(sender.Uuid).ToString() +
+-                    "receive :" + BitConverter.ToString(data));
++                    "receive :" + BitConverter.ToString(data),
++                    () => bleCore.IsCurrentDiscovery(generation, discoveryId));
+             }
+         }
+ 
+@@ -182,29 +184,29 @@
+ 
+         private void DeviceConnected(BluetoothLEDevice bluetoothLEDevice)
+         {
+-            BeginInvoke(new Action(() =>
+-            {
++            long generation = bleCore.ConnectionGeneration;
++            BeginInvoke(new Action(() =>
++            {
++                if (generation != bleCore.ConnectionGeneration
++                    || !ReferenceEquals(bluetoothLEDevice, bleCore.CurrentDevice)) return;
+                 log(Color.FromArgb(0x00ff00FF), "Connected:" + bluetoothLEDevice.Name);
+                 label_connected_devices.Text = "当前连接设备:" + bluetoothLEDevice.Name;
+                 retryTimer.Stop();
+                 autoConnecting = false;
+-                targetConfirmed = false;
+             }));
+         }
+ 
+         private void DeviceDisconnected(BluetoothLEDevice bluetoothLEDevice)
+         {
+-            BeginInvoke(new Action(() =>
+-            {
++            long generation = bleCore.ConnectionGeneration;
++            BeginInvoke(new Action(() =>
++            {
++                if (generation != bleCore.ConnectionGeneration
++                    || !ReferenceEquals(bluetoothLEDevice, bleCore.CurrentDevice)) return;
+                 log(Color.Red, "Disconnected:" + (bluetoothLEDevice?.Name ?? ""));
+                 label_connected_devices.Text = "当前连接设备:无";
+                 autoConnecting = false;
+-
+-                if (config.HasSavedDevice)
+-                {
+-                    log(Color.Gray, "将在数秒后尝试重连...");
+-                    retryTimer.Start();
+-                }
++                if (config.HasSavedDevice) retryTimer.Start();
+             }));
+         }
+ 
+@@ -213,48 +215,8 @@
+             BeginInvoke(new Action(() =>
+             {
+                 if (!bleCore.TryAcceptDiscoveredCharacteristic(gattCharacteristic, generation, discoveryId)) return;
+-                ushort shortId = Utilities.ConvertUuidToShortId(gattCharacteristic.Uuid);
+-                log(Color.Black, "Chara:0x" + shortId.ToString("X") +
+-                    ", des:" + gattCharacteristic.UserDescription);
+-
+-                if (shortId == 0x7341)
+-                {
+-                    log(Color.Green, "  → 数据特征(0x7341)已就绪");
+-                }
+-                if (shortId == 0x7343)
+-                {
+-                    log(Color.Green, "  → 命令特征(0x7343)已就绪");
+-                }
+-                if (shortId == 0x7344)
+-                {
+-                    bleCore.EnableNotifications(gattCharacteristic, generation, discoveryId);
+-                    log(Color.Green, "  → 通知特征(0x7344)已就绪");
+-                }
+-
+-                // 所有目标特征就绪 → 确认为目标设备, 保存配置 (仅触发一次)
+-                if (!targetConfirmed
+-                    && bleCore.CurrentDataCharacteristic != null
+-                    && bleCore.CurrentWriteCharacteristic != null
+-                    && bleCore.CurrentNotifyCharacteristic != null)
+-                {
+-                    targetConfirmed = true;
+-                    log(Color.Blue, "目标设备已确认, 所有特征就绪");
+-                    SaveCurrentDeviceToConfig();
+-
+-                    // 自动向命令特征写入设备状态查询指令
+-                    _ = tcpServer.QueueControlWrite(
+-                        bleCore.CurrentWriteCharacteristic,
+-                        ProtocolHelper.DeviceStatusQueryCommand);
+-                    log(Color.Blue, "已发送设备状态查询指令");
+-
+-                    if (ProtocolHelper.LastClaudeState !=  null)
+-                    {
+-                        _ = tcpServer.QueueControlWrite(
+-                            bleCore.CurrentWriteCharacteristic,
+-                            ProtocolHelper.LastClaudeState);
+-                        log(Color.Blue, "已发送设置claude状态指令");
+-                    }
+-                }
++                log(Color.Black, "已发现目标特征:0x" + Utilities.ConvertUuidToShortId(gattCharacteristic.Uuid).ToString("X"),
++                    () => bleCore.IsCurrentDiscovery(generation, discoveryId));
+             }));
+         }
+ 
+@@ -266,31 +228,31 @@
+             BeginInvoke(new Action(() =>
+             {
+                 if (!bleCore.IsCurrentDiscovery(generation, discoveryId)) return;
+-                if (targetConfirmed) return; // 已确认, 无需处理
+-
+                 if (!discoverySucceeded)
+                 {
+-                    log(Color.OrangeRed, "GATT服务/特征读取失败, 暂不判定为不支持目标设备");
++                    if (!bleCore.TryDisposeIncompleteDiscovery(generation, discoveryId)) return;
++                        autoConnecting = false;
++                    label_connected_devices.Text = "当前连接设备:无";
++                    log(Color.OrangeRed, "目标服务、必需特征或通知订阅失败，本轮连接已回收");
++                    if (config.HasSavedDevice) retryTimer.Start();
+                     return;
+                 }
+-
+-                bool allFound = bleCore.CurrentDataCharacteristic != null
+-                             && bleCore.CurrentWriteCharacteristic != null
+-                             && bleCore.CurrentNotifyCharacteristic != null;
+-
+-                if (!allFound)
++                bleCore.TryConfirmReady(generation, discoveryId, (device, writeCharacteristic) =>
+                 {
+-                    string devName = bleCore.CurrentDevice?.Name ?? "未知";
+-                    log(Color.OrangeRed, $"设备 [{devName}] 未找齐目标UUID, 断开连接");
+-                    if (!bleCore.TryDisposeIncompleteDiscovery(generation, discoveryId)) return;
+-                    label_connected_devices.Text = "当前连接设备:无";
+-
+-                    if (config.HasSavedDevice)
++                    retryTimer.Stop();
++                    log(Color.Blue, "目标设备已确认，必需特征及通知订阅成功",
++                        () => bleCore.IsCurrentDiscovery(generation, discoveryId));
++                    SaveCurrentDeviceToConfig();
++                    _ = tcpServer.QueueControlWrite(writeCharacteristic, ProtocolHelper.DeviceStatusQueryCommand);
++                    log(Color.Blue, "设备状态查询已提交写入队列，发送结果见GATT日志",
++                        () => bleCore.IsCurrentDiscovery(generation, discoveryId));
++                    if (ProtocolHelper.LastClaudeState != null)
+                     {
+-                        log(Color.Gray, "将继续尝试查找目标设备...");
+-                        retryTimer.Start();
++                        _ = tcpServer.QueueControlWrite(writeCharacteristic, ProtocolHelper.LastClaudeState);
++                        log(Color.Blue, "Claude状态已提交写入队列，发送结果见GATT日志",
++                            () => bleCore.IsCurrentDiscovery(generation, discoveryId));
+                     }
+-                }
++                });
+             }));
+         }
+ 

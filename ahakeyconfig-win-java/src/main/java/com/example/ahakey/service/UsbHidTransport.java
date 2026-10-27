@@ -40,6 +40,23 @@ public class UsbHidTransport implements Closeable {
     private volatile Thread readerThread;
     private volatile boolean running;
     private Consumer<byte[]> frameConsumer;
+    private volatile byte[] k1ReplyRequest;
+
+    public synchronized String devicePath() { return devicePath == null ? "" : devicePath; }
+    public record MaintenanceDevice(String instanceId, String container, String port, boolean download, List<String> interfaces) {
+        public boolean ownsHidPath(String path) {
+            String id = path.replace("\\\\?\\", "").replace('#', '\\');
+            int suffix = id.lastIndexOf("\\{"); if (suffix >= 0) id = id.substring(0, suffix);
+            String expected = id;
+            return interfaces.stream().anyMatch(i -> i.equalsIgnoreCase(expected));
+        }
+    }
+    /** Read-only PnP observation. Enumerates physical USB parents, not BLE addresses. */
+    public static List<MaintenanceDevice> maintenanceDevices() throws Exception {
+        return com.example.ahakey.firmware.BootDeviceDetector.observeUsbIdentities().stream()
+                .map(device -> new MaintenanceDevice(device.instanceId(),device.container(),device.port(),device.download(),device.interfaces()))
+                .toList();
+    }
 
     public static boolean isPresent() {
         return findDevicePath() != null;
@@ -49,8 +66,11 @@ public class UsbHidTransport implements Closeable {
         if (isOpen()) {
             return;
         }
-        String path = findDevicePath();
-        if (path == null) {
+        openExact(findDevicePath(), onFrame);
+    }
+    public synchronized void openExact(String path, Consumer<byte[]> onFrame) throws IOException {
+        if (isOpen()) { if (devicePath.equalsIgnoreCase(path)) return; throw new IOException("USB handle belongs to another device"); }
+        if (path == null || !listDevicePaths().contains(path)) {
             throw new IOException("USB HID device not found");
         }
         Pointer r = Kernel32.INSTANCE.CreateFile(
@@ -104,7 +124,8 @@ public class UsbHidTransport implements Closeable {
         payload[1] = (byte) frame.length;
         System.arraycopy(frame, 0, payload, 2, frame.length);
         int opcode = frame.length > 2 ? frame[2] & 255 : -1;
-        writeReport(payload, opcode < 0x88 || opcode > 0x8E);
+        k1ReplyRequest=opcode==0x9E?frame.clone():null;
+        writeReport(payload, (opcode < 0x88 || opcode > 0x8E)&&opcode!=0x9E);
     }
 
     public synchronized void sendData(byte[] data) throws IOException {
@@ -176,7 +197,7 @@ public class UsbHidTransport implements Closeable {
                         }
                         break;
                     }
-                    byte[] frame = extractFrame(report, read.getValue());
+                    byte[] frame = extractFrame(report, read.getValue(),k1ReplyRequest);
                     // 在调用回调前再次检查 running 状态
                     if (running && readerThread == Thread.currentThread() && frame != null && sessionConsumer != null) {
                         sessionConsumer.accept(frame);
@@ -220,6 +241,9 @@ public class UsbHidTransport implements Closeable {
     }
 
     private static byte[] extractFrame(byte[] data, int len) {
+        return extractFrame(data,len,null);
+    }
+    private static byte[] extractFrame(byte[] data, int len,byte[] request) {
         int start = -1;
         for (int i = 0; i + 1 < len; i++) {
             if (data[i] == (byte) 0xAA && data[i + 1] == (byte) 0xBB) {
@@ -230,6 +254,9 @@ public class UsbHidTransport implements Closeable {
         if (start < 0) {
             return null;
         }
+        int k1=com.example.ahakey.protocol.K1RouteProtocol.replyLength(data,start,len-start,request);
+        if(k1>0)return Arrays.copyOfRange(data,start,start+k1);
+        if(k1!=-1)return null;
         int fixed = com.example.ahakey.protocol.AhaKeyResponseParser.displayReplyLength(data, start, len - start);
         if (fixed > 0) return Arrays.copyOfRange(data, start, start + fixed);
         if (fixed != -1) return null;
@@ -249,6 +276,7 @@ public class UsbHidTransport implements Closeable {
 
     @Override
     public synchronized void close() {
+        k1ReplyRequest=null;
         logger.debug("USB close: 开始关闭 USB 传输");
         
         // 第一步：设置标志，让读取线程自行退出并关闭 handles
@@ -309,7 +337,7 @@ public class UsbHidTransport implements Closeable {
         return null;
     }
 
-    private static List<String> listDevicePaths() {
+    public static List<String> listDevicePaths() {
         Guid.GUID hidGuid = new Guid.GUID();
         Hid.INSTANCE.HidD_GetHidGuid(hidGuid);
         Pointer infoSet = SetupApi.INSTANCE.SetupDiGetClassDevs(hidGuid, Pointer.NULL, Pointer.NULL, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
