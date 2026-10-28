@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-28",
+  "clientSource": "617729efa189a2ccb8125e299cd09a4a99968c0d",
+  "productionSharedObjectsLinked": true,
+  "explicitSessionConsentConfirmedByUser": true,
+  "probe": {
+    "authorizationUnchanged": true,
+    "modelRequests": 0,
+    "permissionModes": [
+      "auto",
+      "auto",
+      "auto"
+    ],
+    "permissionWrites": 0,
+    "result": "passed",
+    "statusReads": 3
+  },
+  "agentStatus": {
+    "pendingRecovery": 0,
+    "phase": "synchronized",
+    "authorizedSessions": 1,
+    "managedSessions": 0
+  },
+  "physicalState": null,
+  "approvalAutoVerified": false,
+  "hardwareAuthoritySimulated": false,
+  "sessionTitlesIDsAndCredentialsRecorded": false,
+  "remaining": [
+    "physical lever changes and independent permission readback",
+    "normal and abnormal exit recovery",
+    "transport and instance restart matrix",
+    "ordinary Work and native TUI interface gaps"
+  ]
+}

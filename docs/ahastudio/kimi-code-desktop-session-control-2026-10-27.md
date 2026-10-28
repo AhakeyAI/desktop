@@ -49,3 +49,9 @@ Owner明确授权后，已安装官方Kimi Code Desktop 1.1.3（com.kimi.code.de
 未点击“允许拨杆管理”，未由Agent创建会话、提交模型请求或测试权限写入；后台只读状态为授权0、接管0、待恢复0。当前Mac蓝牙原本关闭，保持原样；Studio回到非编辑主界面，原2项草稿和AhaType开启状态保留。此次不需要实体键盘操作。
 
 本节替代旧“缺Code Desktop安装环境／等待安装授权”的阻塞；只关闭安装与真实只读发现子项。逐会话授权、实际manual/auto切换、退出恢复和网络／进程故障矩阵仍未验收，普通Kimi/Work及原版CLI TUI接口限制也未消失。源码无改动，无需重复构建或重跑941项测试。回执：[kimi-code-desktop-readonly-2026-10-28.json](../validation/connect-talk-hil-2026-10-22/kimi-code-desktop-readonly-2026-10-28.json)。
+
+### 随后收到具体会话授权，status接口实测通过
+
+Owner已在Studio选择测试会话并确认授权。后台实际报告授权1、接管0、待恢复0；没有实时键盘档位，approvalAutoVerified为false。使用当前生产Shared模块链接的只读探针，对精确已授权且仍由原官方实例加载的会话读取status：两轮各三次均返回auto，授权／租约记录前后一致。探针仅允许同一授权ID的mode=nil读取，拒绝所有写请求；未模拟拨杆authority、未发送模型、未POST权限。故这证明真实status字段和原会话权限读取可用，不能证明拨杆写入或恢复成功。
+
+WBS CSV的Consumer、Kimi、Restore和固件候选行已更新为当前状态，移除已过期的“Mac待接入／尚未安装／等待用户选择”等结论。权限写入和恢复留待真实档位测试，四组开发外部依赖、八组完整验收仍开放。回执：[kimi-authorized-readonly-2026-10-28.json](../validation/connect-talk-hil-2026-10-22/kimi-authorized-readonly-2026-10-28.json)。
