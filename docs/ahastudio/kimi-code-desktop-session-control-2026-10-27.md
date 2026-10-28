@@ -40,3 +40,12 @@ Code Desktop真实服务联调、底层网络/重定向/进程重启矩阵、安
 公开上游更新至[68a2838](https://github.com/MoonshotAI/kimi-code/commit/68a283894163204e93b072cef20db164015a5cad)，较78b72fe仅新增两个提交：[完整比较](https://github.com/MoonshotAI/kimi-code/compare/78b72fe456ac730a1970ded9bb0d28f8b584ab95...68a283894163204e93b072cef20db164015a5cad)。实际Server API文档/API-surface差异为工作区文件树/外部软链接，其他为compaction缓存；未新增原版TUI权限控制接口，不扩大Desktop已核验的2.3.2版本门控。没有读真实Kimi凭据、请求模型或改实际权限。
 
 本机仍缺Code Desktop安装环境。已向Owner提出安装已核验官方1.1.3、仅启动和只读检测的具体确认；尚未收到答复，不安装、不创建会话或自动授权。当前build518实际安装完成，旧固件恢复负例及13项偏好保持通过，不代替Kimi真实服务联调。
+
+
+## 官方 Code Desktop 已安装并完成只读联调（2026-10-28）
+
+Owner明确授权后，已安装官方Kimi Code Desktop 1.1.3（com.kimi.code.desktop，签名Team 2J9472RW75），源DMG和安装后深层签名核对通过，普通Kimi未替换。启动后通过已安装Studio build518的真实“检测可管理会话”入口，成功列出1个官方实例已加载会话：生产实例身份检查、兼容2.3.2合同的前后元数据核验、带鉴权的只读目录请求实际通过。未记录会话标题、ID、凭据或正文。官方应用启动可能自行初始化／加载本地状态，不能将启动说成完全无副作用。
+
+未点击“允许拨杆管理”，未由Agent创建会话、提交模型请求或测试权限写入；后台只读状态为授权0、接管0、待恢复0。当前Mac蓝牙原本关闭，保持原样；Studio回到非编辑主界面，原2项草稿和AhaType开启状态保留。此次不需要实体键盘操作。
+
+本节替代旧“缺Code Desktop安装环境／等待安装授权”的阻塞；只关闭安装与真实只读发现子项。逐会话授权、实际manual/auto切换、退出恢复和网络／进程故障矩阵仍未验收，普通Kimi/Work及原版CLI TUI接口限制也未消失。源码无改动，无需重复构建或重跑941项测试。回执：[kimi-code-desktop-readonly-2026-10-28.json](../validation/connect-talk-hil-2026-10-22/kimi-code-desktop-readonly-2026-10-28.json)。
