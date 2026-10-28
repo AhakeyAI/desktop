@@ -1,0 +1,32 @@
+{
+  "bytes": 759892,
+  "sha256": "07a8df32f86bd0b74c62f1c52d4217efe77ad9821d02b355cb96e163d1cd271a",
+  "validChecksums": true,
+  "eof": true,
+  "dataBytes": 270140,
+  "minimumAddress": "0x0",
+  "maximumAddress": "0x41f3b",
+  "recordTypes": {
+    "0": 16887,
+    "2": 4,
+    "1": 1
+  },
+  "matchesRecordedRepeatV2Build": true,
+  "date": "2026-10-28",
+  "origin": "Owner-supplied HEX from firmware developer",
+  "classification": "engineering build supplied for real-device verification; not formal release",
+  "preRegateChecks": {
+    "count": 13,
+    "allExitZero": true,
+    "kind": "pre_regate_execution_results_not_gate_receipt"
+  },
+  "sourceBinding": "Repeat-v2 build recorded under origin/harness/x1-refactor-main@ed426c9; exact artifact SHA matches, no claim of a new formal source/gate receipt",
+  "formalRegatePassed": false,
+  "hardwareWritten": false,
+  "configurationBackupComplete": false,
+  "productionValidatorPassed": true,
+  "sourceHEXArchived": true,
+  "localDraftAndVoicePreferenceBackupKeys": 13,
+  "keyboardReadbackBackupComplete": false,
+  "waitingFor": "Normal wireless connection before read-only configuration backup; not ISP yet"
+}
