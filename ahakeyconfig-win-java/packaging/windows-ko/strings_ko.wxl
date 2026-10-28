@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Korean WixUI dialogs; JDK 17 supplies the base jpackage string IDs. -->
+<WixLocalization Culture="ko-kr" xmlns="http://schemas.microsoft.com/wix/2006/localization" Codepage="949" />

@@ -14,6 +14,7 @@ public class LanguageManager {
     private Properties currentProperties;
     private String currentLanguage;
     private final Properties legacyRussian = readProperties("/legacy_ru.properties");
+    private final Properties legacyKorean = readProperties("/legacy_ko.properties");
     private static final String PREFERENCE_KEY = "AhaKeySelectedLanguage";
     
     private LanguageManager() {
@@ -28,7 +29,7 @@ public class LanguageManager {
 
     static String normalizeLanguage(String language) {
         String code = language == null ? "en" : language.toLowerCase(Locale.ROOT).split("[-_]", 2)[0];
-        return switch (code) { case "zh", "ru" -> code; default -> "en"; };
+        return switch (code) { case "zh", "ru", "ko" -> code; default -> "en"; };
     }
     
     public static synchronized LanguageManager getInstance() {
@@ -100,6 +101,7 @@ public class LanguageManager {
     }
 
     String localizeText(String source) {
+        if (isKorean()) return legacyKorean.getProperty(source, source);
         return isRussian() ? legacyRussian.getProperty(source, source) : source;
     }
     
@@ -172,6 +174,15 @@ public class LanguageManager {
 
     public boolean isRussian() {
         return "ru".equals(currentLanguage);
+    }
+
+    public boolean isKorean() {
+        return "ko".equals(currentLanguage);
+    }
+
+    /** Selects already-localized legacy display text instead of its English fallback. */
+    public boolean usesLocalizedLiterals() {
+        return isChinese() || isRussian() || isKorean();
     }
     
     public String getLanguageToggleText() {

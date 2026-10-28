@@ -61,7 +61,6 @@ public final class SupportPane {
     }
 
     private String text(String zh, String en) {
-        return com.example.ahakey.util.LanguageManager.getInstance().isChinese()
-            || com.example.ahakey.util.LanguageManager.getInstance().isRussian() ? zh : en;
+        return com.example.ahakey.util.LanguageManager.getInstance().usesLocalizedLiterals() ? zh : en;
     }
 }

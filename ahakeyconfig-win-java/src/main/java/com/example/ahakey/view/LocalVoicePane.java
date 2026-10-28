@@ -152,6 +152,6 @@ public final class LocalVoicePane {
 
     private static String text(String zh, String en) {
         var language = com.example.ahakey.util.LanguageManager.getInstance();
-        return language.isChinese() || language.isRussian() ? zh : en;
+        return language.usesLocalizedLiterals() ? zh : en;
     }
 }

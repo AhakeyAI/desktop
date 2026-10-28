@@ -1,5 +1,7 @@
 package com.example.ahakey.view;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 import com.example.ahakey.service.AhaTypeService;
 import com.example.ahakey.service.CloudAccountManager;
 import javafx.application.Platform;
@@ -63,7 +65,7 @@ public class CloudAccountDialog {
         this.account = account;
         this.ahaType = ahaType;
         this.stateChanged = stateChanged == null ? () -> { } : stateChanged;
-        this.stage.setTitle("云端账号 · AhaType");
+        this.stage.setTitle(localize("云端账号 · AhaType"));
         this.stage.setMinWidth(MIN_WIDTH);
         this.stage.setMinHeight(MIN_HEIGHT);
         this.stage.setWidth(INITIAL_WIDTH);
@@ -90,7 +92,7 @@ public class CloudAccountDialog {
         double renderedHeight = renderDimension(stage.getHeight(), preserveSize, INITIAL_HEIGHT);
         content.getChildren().clear();
         content.setPadding(new Insets(18));
-        Label title = new Label("AhaType 云端账号");
+        Label title = new Label(localize("AhaType 云端账号"));
         title.getStyleClass().add("section-title");
         content.getChildren().add(title);
         if (account.isLoggedIn()) {
@@ -98,7 +100,7 @@ public class CloudAccountDialog {
         } else {
             content.getChildren().add(loginSection());
         }
-        statusLabel.setText(account.getStatusMessage());
+        statusLabel.setText(localize(account.getStatusMessage()));
         content.getChildren().add(statusLabel);
         if (stage.getScene() == null) {
             stage.setScene(new Scene(content));
@@ -115,14 +117,14 @@ public class CloudAccountDialog {
     private VBox loginSection() {
         VBox section = new VBox(8);
         phoneField = new TextField(account.rememberedPhone());
-        phoneField.setPromptText("手机号");
+        phoneField.setPromptText(localize("手机号"));
         passwordField = new PasswordField();
         passwordField.setText(account.rememberPassword() ? account.rememberedPassword() : "");
-        passwordField.setPromptText("密码");
-        rememberCheckBox = new CheckBox("记住密码");
+        passwordField.setPromptText(localize("密码"));
+        rememberCheckBox = new CheckBox(localize("记住密码"));
         rememberCheckBox.setSelected(account.rememberPassword());
-        Button login = new Button("登录");
-        Button register = new Button("注册");
+        Button login = new Button(localize("登录"));
+        Button register = new Button(localize("注册"));
         login.setOnAction(event -> submit(false));
         register.setOnAction(event -> submit(true));
         section.getChildren().addAll(phoneField, passwordField, rememberCheckBox,
@@ -134,31 +136,31 @@ public class CloudAccountDialog {
         VBox section = new VBox(8);
         Map<String, Object> profile = account.getProfile();
         String phone = String.valueOf(profile.getOrDefault("phone", account.rememberedPhone()));
-        Label accountLabel = new Label("手机号：" + (phone.isBlank() ? "未提供" : phone));
+        Label accountLabel = new Label(localize("手机号：") + (phone.isBlank() ? localize("未提供") : phone));
         String validUntil = account.getTokenValidUntil();
-        Label validUntilLabel = new Label("有效期：" + (validUntil.isBlank() ? "无" : validUntil));
+        Label validUntilLabel = new Label(localize("有效期：") + (validUntil.isBlank() ? localize("无") : validUntil));
         VBox quotaBox = new VBox(4);
         for (CloudAccountManager.QuotaLine line : account.getVisibleQuotaLines()) {
             String title = switch (line.period()) {
-                case "daily" -> "每日额度";
-                case "weekly" -> "每周额度";
-                default -> "每月额度";
+                case "daily" -> localize("每日额度");
+                case "weekly" -> localize("每周额度");
+                default -> localize("每月额度");
             };
             String value = line.limit() <= 0
-                ? "已用 " + line.used() + " · 无上限"
+                ? localize("已用 ") + line.used() + localize(" · 无上限")
                 : line.used() + " / " + line.limit();
             quotaBox.getChildren().add(new Label(title + "：" + value));
         }
-        Button refresh = new Button("刷新账号");
+        Button refresh = new Button(localize("刷新账号"));
         refresh.setMinWidth(ACCOUNT_ACTION_MIN_WIDTH);
         refresh.setOnAction(event -> runAsync(account::refreshProfile));
-        Button recharge = new Button("微信充值");
+        Button recharge = new Button(localize("微信充值"));
         recharge.setMinWidth(ACCOUNT_ACTION_MIN_WIDTH);
         recharge.setOnAction(event -> chooseRechargePlan());
-        Button coupon = new Button("兑换码");
+        Button coupon = new Button(localize("兑换码"));
         coupon.setMinWidth(ACCOUNT_ACTION_MIN_WIDTH);
         coupon.setOnAction(event -> redeemCoupon());
-        Button logout = new Button("退出登录");
+        Button logout = new Button(localize("退出登录"));
         logout.setMinWidth(ACCOUNT_ACTION_MIN_WIDTH);
         logout.setOnAction(event -> {
             String error = account.logout();
@@ -169,7 +171,7 @@ public class CloudAccountDialog {
                 setStatus(error);
             }
         });
-        Label refreshHint = new Label("点击“刷新账号”，确认额度和套餐加载。");
+        Label refreshHint = new Label(localize("点击“刷新账号”，确认额度和套餐加载。"));
         section.getChildren().addAll(accountLabel, validUntilLabel, quotaBox,
             new HBox(8, refresh, recharge, coupon, logout), refreshHint);
         return section;
@@ -178,15 +180,15 @@ public class CloudAccountDialog {
     private void chooseRechargePlan() {
         List<CloudAccountManager.RechargePlan> plans = account.getRechargePlans();
         if (plans.isEmpty()) {
-            setStatus("服务端未下发可用的充值套餐");
+            setStatus(localize("服务端未下发可用的充值套餐"));
             return;
         }
         ChoiceDialog<CloudAccountManager.RechargePlan> dialog =
             new ChoiceDialog<>(plans.get(0), plans);
         dialog.initOwner(stage);
-        dialog.setTitle("微信充值");
-        dialog.setHeaderText("请选择充值套餐");
-        dialog.setContentText("套餐：");
+        dialog.setTitle(localize("微信充值"));
+        dialog.setHeaderText(localize("请选择充值套餐"));
+        dialog.setContentText(localize("套餐："));
         dialog.showAndWait().ifPresent(this::createPaymentOrder);
     }
 
@@ -197,7 +199,7 @@ public class CloudAccountDialog {
             paymentStage.close();
             paymentStage = null;
         }
-        setStatus("正在创建微信支付订单…");
+        setStatus(localize("正在创建微信支付订单…"));
         Thread request = new Thread(() -> {
             try {
                 CloudAccountManager.PaymentOrder order = account.createWechatOrder(plan.id());
@@ -221,11 +223,11 @@ public class CloudAccountDialog {
     private void showPaymentOrder(CloudAccountManager.PaymentOrder order, long generation) {
         paymentStage = new Stage();
         paymentStage.initOwner(stage);
-        paymentStage.setTitle("微信扫码支付");
+        paymentStage.setTitle(localize("微信扫码支付"));
         Label tip = new Label(String.format(java.util.Locale.ROOT,
-            "请使用微信扫码支付 %.2f 元", order.amountFen() / 100.0));
+            localize("请使用微信扫码支付 %.2f 元"), order.amountFen() / 100.0));
         ImageView qr = new ImageView(createQrImage(order.paymentUrl(), 260));
-        Button close = new Button("关闭");
+        Button close = new Button(localize("关闭"));
         close.setOnAction(event -> paymentStage.close());
         VBox box = new VBox(12, tip, qr, close);
         box.setPadding(new Insets(18));
@@ -243,9 +245,9 @@ public class CloudAccountDialog {
             paymentGeneration.incrementAndGet();
             paymentStage.close();
             String message = switch (result.outcome()) {
-                case PAID -> "充值成功，账号额度已刷新。";
-                case FAILED -> "订单支付失败，请重新发起充值。";
-                case TIMED_OUT -> "等待支付超时，请检查微信支付状态后重试。";
+                case PAID -> localize("充值成功，账号额度已刷新。");
+                case FAILED -> localize("订单支付失败，请重新发起充值。");
+                case TIMED_OUT -> localize("等待支付超时，请检查微信支付状态后重试。");
             };
             Alert.AlertType type = result.outcome() == CloudAccountManager.PaymentPollOutcome.PAID
                 ? Alert.AlertType.INFORMATION : Alert.AlertType.WARNING;
@@ -261,9 +263,9 @@ public class CloudAccountDialog {
     private void redeemCoupon() {
         TextInputDialog dialog = new TextInputDialog();
         dialog.initOwner(stage);
-        dialog.setTitle("兑换码");
-        dialog.setHeaderText("输入兑换码");
-        dialog.setContentText("兑换码：");
+        dialog.setTitle(localize("兑换码"));
+        dialog.setHeaderText(localize("输入兑换码"));
+        dialog.setContentText(localize("兑换码："));
         dialog.showAndWait().ifPresent(code -> runAsync(() -> account.redeemCoupon(code)));
     }
 
@@ -279,7 +281,7 @@ public class CloudAccountDialog {
             }
             return image;
         } catch (Exception exception) {
-            throw new IllegalStateException("无法生成支付二维码", exception);
+            throw new IllegalStateException(localize("无法生成支付二维码"), exception);
         }
     }
 
@@ -287,7 +289,7 @@ public class CloudAccountDialog {
         String phone = phoneField.getText();
         String password = passwordField.getText();
         boolean remember = rememberCheckBox.isSelected();
-        setStatus("请求中…");
+        setStatus(localize("请求中…"));
         new Thread(() -> {
             String error = register
                 ? account.register(phone, password, remember)
@@ -304,7 +306,7 @@ public class CloudAccountDialog {
     }
 
     private void runAsync(java.util.function.Supplier<String> action) {
-        setStatus("请求中…");
+        setStatus(localize("请求中…"));
         new Thread(() -> {
             String result = action.get();
             Platform.runLater(() -> {
@@ -316,6 +318,6 @@ public class CloudAccountDialog {
     }
 
     private void setStatus(String text) {
-        statusLabel.setText(text == null ? "" : text);
+        statusLabel.setText(text == null ? "" : localize(text));
     }
 }
