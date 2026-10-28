@@ -1290,22 +1290,24 @@ public class TopBar extends VBox {
     }
     
     private void toggleLanguage() {
-        var choices = java.util.List.of("Русский", "English", "中文");
+        var choices = java.util.List.of("Русский", "English", "中文", "한국어");
         String selected = switch (languageManager.getCurrentLanguage()) {
             case "ru" -> "Русский";
             case "zh" -> "中文";
+            case "ko" -> "한국어";
             default -> "English";
         };
         var chooser = new javafx.scene.control.ChoiceDialog<String>(selected, choices);
         chooser.initOwner(getScene().getWindow());
         chooser.setTitle(languageManager.getString("language.select"));
         chooser.setHeaderText(languageManager.getString("language.restart"));
-        chooser.setContentText("Language / Язык / 语言:");
+        chooser.setContentText("Language / Язык / 语言 / 언어:");
         var choice = chooser.showAndWait();
         if (choice.isEmpty()) return;
         String newLang = switch (choice.get()) {
             case "Русский" -> "ru";
             case "中文" -> "zh";
+            case "한국어" -> "ko";
             default -> "en";
         };
         if (newLang.equals(languageManager.getCurrentLanguage())) return;
@@ -1317,6 +1319,7 @@ public class TopBar extends VBox {
         alert.setContentText(languageManager.getString(switch (newLang) {
             case "ru" -> "language-change-russian";
             case "zh" -> "language-change-chinese";
+            case "ko" -> "language-change-korean";
             default -> "language-change-english";
         }));
         

@@ -897,7 +897,6 @@ public final class DeviceMaintenancePane {
     }
 
     private String text(String zh, String en) {
-        return com.example.ahakey.util.LanguageManager.getInstance().isChinese()
-            || com.example.ahakey.util.LanguageManager.getInstance().isRussian() ? localize(zh) : en;
+        return com.example.ahakey.util.LanguageManager.getInstance().usesLocalizedLiterals() ? localize(zh) : en;
     }
 }

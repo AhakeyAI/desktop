@@ -1611,3 +1611,20 @@ command excluded these platform tests explicitly and skipped the PowerShell pack
 No Windows-only test was removed; the read-only-DLL deletion test now declares its Windows OS
 requirement. Windows CI/full packaging, installer execution and real device verification remain
 separate from the successful local portable checks. No firmware or device configuration was written.
+## Korean community localization validation (2026-10-28)
+
+The Windows Java client now offers Korean (`ko`) using stable message keys and the existing
+legacy-literal localization path. TopBar persists the selected language; Korean OS locales
+select Korean when no explicit preference exists. Account dialog literals are localized at
+the display boundary only. See `windows-korean.md` for build, recovery and regression scope.
+
+The optional `build-korean-windows.ps1` packages the complete Maven JAR, JavaFX runtime and
+BLE bridge with Korean WiX UI. It does not contain voice models, firmware or WCHISP and does
+not replace the official release pipeline. A community MSI revision may differ from the
+source version; the verified package uses revision 1.5.5 from source 1.5.4.
+
+Validation: 404 tests passed with only two independently observed baseline firmware-test
+timeouts excluded; full baseline 403 and modified 406 runs both hit those same two timeouts.
+Release-artifact gates passed. Korean Windows installer, application UI and connected USB
+status were exercised. No device settings or firmware were written, no AI Hook was installed.
+Microphone, Bluetooth, cloud account and physical device-write acceptance remain unverified.
