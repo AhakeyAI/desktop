@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-29",
+  "purpose": "Owner requested return to new firmware and continue remaining WBS after old-firmware Voice A/B",
+  "currentInstalledClientBuild": "521",
+  "currentClientSource": "1f1583b5acd6a1be4f90fdb92b9d16adc18471cf",
+  "beforeFirmwareSHA256": "ffb9208f79084aa24a832ad2562a14dbbea5df4d114a135cb5b2eb98d4e05539",
+  "targetFirmwareSHA256": "07a8df32f86bd0b74c62f1c52d4217efe77ad9821d02b355cb96e163d1cd271a",
+  "refreshedSourceBranch": "harness/x1-refactor-main",
+  "refreshedSourceCommit": "ed426c97d4aad9a20c1585d6b15125252b6caa49",
+  "newSiriFixArtifactFound": false,
+  "productionHEXValidatorPassed": true,
+  "selectedFileSHAConfirmedInInstalledUI": true,
+  "backup": {
+    "keys": 16,
+    "lights": 36,
+    "resourceMetadata": 19,
+    "validCustomResourceMetadata": 0,
+    "brightness": 35,
+    "standbyMinutes": 60,
+    "voiceOnboardingState": 2,
+    "localDraftAndVoicePreferenceKeys": 14,
+    "deviceBackupSHA256": "3992132851011c88371a32c1bd4d322c8bd2d4394c8c2f46bc81c45dd58d809c",
+    "rawDataKeptPrivate": true,
+    "pixelBackupAvailable": false,
+    "credentialsCopied": false
+  },
+  "thisFlashEraseConsentReceived": false,
+  "flashStarted": false,
+  "stage": "new image selected and complete current read-only backup saved; awaiting this flash consent and USB ISP",
+  "nextWBS": [
+    "fresh connection and capabilities",
+    "repeat Restore initialization v2 and independent defaults readback, after its own explicit destructive confirmation and power checks",
+    "resource capacity and failure recovery matrices"
+  ],
+  "consumerSiriFunctionalIssueStillOpen": true,
+  "formalReleaseOrREGATEClaimed": false
+}
