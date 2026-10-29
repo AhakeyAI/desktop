@@ -1,0 +1,43 @@
+{
+  "sourceCommit": "fe10b2e6246ce8c0daaa02a75881c9f51d7148bd",
+  "version": "0.2.3",
+  "build": "519",
+  "dmgPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-flash-retry/AhaKey-Studio-0.2.3-build519-fe10b2e-test.dmg",
+  "dmgBytes": 20164567,
+  "dmgSHA256": "bb623e210a35506c0cc4d6e821c6bb81de6b6eb246808cd28945ec34ec3b19e5",
+  "binarySHA256": {
+    "AhaKeyConfig": "5fef245c57668bd30bad7cae6c90db304c09a7a11431d73fcb538b835c630cbc",
+    "ahakeyconfig-agent": "b1f4c62c1f95b9dc2182c3449e46549df8fb68467303a04d22c535acc31c501c"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "targetedSwiftTests": 10,
+  "fullSwiftTests": 947,
+  "specReviewFindings": 0,
+  "standardsReviewFindings": 0,
+  "installed": true,
+  "installedBuild": "519",
+  "uiRetryVerified": true,
+  "anotherHardwareFlashPerformed": false,
+  "uiEvidence": {
+    "controlledFailure": "isolated temporary HEX changed after validation; production staging rejected before USB",
+    "failedButtonEnabled": "Retry Flashing",
+    "retryWithoutReselectingOpenedConfirmation": true,
+    "retryConfirmationCancelled": true,
+    "realFirmwareSelectionRestored": true,
+    "realFirmwareSHA256": "07a8df32f86bd0b74c62f1c52d4217efe77ad9821d02b355cb96e163d1cd271a",
+    "actual180SecondWallWaitMeasured": false
+  },
+  "preservedPreferenceKeys": 13,
+  "preferenceContentEquivalentAfterLaunch": true,
+  "agentOwnershipRestored": true,
+  "currentKeyboardConfigConnectionConfirmed": false,
+  "ci": {
+    "runID": 40821553895,
+    "status": "success",
+    "url": "https://github.com/AhakeyAI/desktop/actions/runs/40821553895",
+    "sourceCommit": "fe10b2e6246ce8c0daaa02a75881c9f51d7148bd"
+  }
+}

@@ -18,8 +18,8 @@
   "resourcePixelBackupAvailable": false,
   "localDraftCountObserved": 2,
   "configurationWrites": 0,
-  "flashStarted": false,
-  "currentStage": "ISP entry not achieved; normal application USB enumerated",
+  "flashStarted": true,
+  "currentStage": "installed Studio reports code write and Verify OK; awaiting runtime reconnection",
   "explicitEraseAndFlashConsentReceived": true,
   "selectedFileSHAConfirmedInInstalledUI": true,
   "ispAttempts": [
@@ -36,6 +36,26 @@
       "matchesFirmwareNormalUSBDescriptor": true
     }
   ],
-  "hardwareWritten": false,
-  "waitingFor": "Owner clarification: software power button or physical power cut; PB22/GND confirmation"
+  "hardwareWritten": true,
+  "waitingFor": "Owner clarification: software power button or physical power cut; PB22/GND confirmation",
+  "flashResult": {
+    "installedUI": "Write and code verification passed, pending runtime verification",
+    "toolLogUTC": {
+      "writing": "2026-10-29T04:51:24Z",
+      "written": "2026-10-29T04:51:29Z",
+      "verifyOKAndReset": "2026-10-29T04:51:31Z"
+    },
+    "programmedBytes": 270336,
+    "verifyOK": true,
+    "deviceResetByTool": true
+  },
+  "runtimeVerificationPassed": false,
+  "userReportedAfterFlash": {
+    "normalWirelessBootAndConnection": true,
+    "voiceFirstPressNoResponseThenWorked": true,
+    "coffeeImageResetToCodexDefault": true
+  },
+  "clientRuntimeReadback": "Could not acquire configuration connection; full runtime verification remains pending",
+  "subsequentClientBuild": "519",
+  "additionalFirmwareFlashPerformed": false
 }
