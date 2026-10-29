@@ -25,6 +25,7 @@ P1表示优先处理影响操作恢复、输入可靠性或已承诺功能的事
 | FW-09 | 新源码已实现 · 门禁/联调待完成 | ed426c9新增0x31 v2及精确下一次attempt，允许COMPLETE再次恢复；旧0a限制保留，Consumer逐模式恢复不受此事影响 | 重新Candidate Prep后按新OutRoot正式REGATE并交付新HEX/SHA/UAT Brief；不覆盖旧6EC产物，不把旧包当新修复 | Mac v2请求/授权/侧栏/故障恢复接线、941回归/双审及签名候选518/CI通过，未安装/未真机；Issue #9未关闭 |
 | FW-10 | 已解决 · 待组合真机 | 已从292a49f源码恢复组合HEX，完整SHA256为6EC0413CFC983788CDC99F628F0F8E2A64C6AF147D2A5E1727A03F036BF1123C，与原13项门禁产物一致 | 无需Owner另找文件；后续正式目录应归档二进制与来源，避免只留下哈希 | Mac官方旧GCC8.2与已校验SDK构建一致，另两组host测试通过；未刷机、不替代原Owner UAT和正式recovery-safe镜像 |
 | FW-11 | P1 · 独立短/长按能力合同 | 当前K1路由扩展不等于任意键两套独立短长按动作；App语音短长按也不是该固件能力 | 给出动作/阈值/松开、容量、保存与完整读回、能力探测及旧设备降级合同 | 保持当前短长语音功能；独立动作编辑仍是未完成开发，不能仅放开UI就算适配 |
+| FW-12 | P1 · 新工程包真实缺尾 | 07A8固件0x9E读取42字节slice应回62字节，实收60字节缺CC DD，capability合法 | 核对默认ATT MTU下通知失败的有界续发/错误返回及晚到片归属；现场无UART返回码，不先断言内存/队列根因 | Mac改20字节slice保持102字节记录及CRC；build521共19组快照/456分片、两轮Consumer可逆通过；[现场反馈](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6491156613) |
 
 2026-10-27已在原[固件Issue #7补充当前交接合同](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6438787695)：确认精确HEX已恢复、Consumer新源能力与旧限制区分、长宏完整事实读回、独立短/长按及WS4/5正式交付；保留原历史反馈，不重复创建相同问题。
 

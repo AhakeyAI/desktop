@@ -219,3 +219,12 @@ Owner明确授权后，已安装官方Kimi Code Desktop 1.1.3（com.kimi.code.de
 未点击“允许拨杆管理”，未由Agent创建会话、提交模型请求或测试权限写入；后台只读状态为授权0、接管0、待恢复0。当前Mac蓝牙原本关闭，保持原样；Studio回到非编辑主界面，原2项草稿和AhaType开启状态保留。此次不需要实体键盘操作。
 
 本节替代旧“缺Code Desktop安装环境／等待安装授权”的阻塞；只关闭安装与真实只读发现子项。逐会话授权、实际manual/auto切换、退出恢复和网络／进程故障矩阵仍未验收，普通Kimi/Work及原版CLI TUI接口限制也未消失。源码无改动，无需重复构建或重跑941项测试。回执：[kimi-code-desktop-readonly-2026-10-28.json](../validation/connect-talk-hil-2026-10-22/kimi-code-desktop-readonly-2026-10-28.json)。
+
+
+## 2026-10-29：新固件逐模式Consumer可逆真机通过（build521）
+
+Owner提供的07A8DF32工程HEX已经烧录及代码校验通过；唤醒后普通16键和全局设置可读，恢复状态查询显示“尚未执行恢复”。真实发现并修复两处主机适配问题：42字节slice长回复缺最后2字节时，改用20字节slice保持完整记录/CRC；首次交接的自动图片查询与K1独占竞争，先排空已有命令再接管，后台元数据查询让位于显式编辑。950项完整回归、双审和CI通过，签名候选build521已安装。
+
+直接Agent→Key1原位读取连续3轮通过；本轮19组完整四模式快照、456个分片均核对CRC，0次配置超时。Codex单模式Consumer→普通F1→Consumer→普通F19/Fn桥→Consumer两轮往返读回通过；只提交selector2，其他三模式全程相同，最终四路由字节与初始完全一致，实际键描述恢复Voice。本地原草稿精确还原，保留新的设备确认记录；退出编辑交回Agent，详细日志已关闭。固件缺尾的现场事实和客户端措施已回填[Issue #7](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6491156613)，未将具体分配/队列错误当作已证明根因。
+
+此项只关闭逐模式协议读写与重复恢复子项：仍待正常重启保持、实际Consumer听写、四模式完整输入矩阵；整机Restore v2、长宏、独立短长按和正式发布交付均未因此通过。Coffee因本次已授权DataFlash擦除回到Codex默认画面，未自动重传图片。AhaType现有登录已失效，不读取凭据或代用户登录。[候选与验收回执](../validation/connect-talk-hil-2026-10-22/local-candidate-build521-2026-10-29.json)。

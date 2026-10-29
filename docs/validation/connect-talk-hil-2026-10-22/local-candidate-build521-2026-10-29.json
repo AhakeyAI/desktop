@@ -1,0 +1,54 @@
+{
+  "sourceCommit": "1f1583b5acd6a1be4f90fdb92b9d16adc18471cf",
+  "version": "0.2.3",
+  "build": "521",
+  "dmgPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-k1-admission/AhaKey-Studio-0.2.3-build521-1f1583b-test.dmg",
+  "dmgBytes": 20160869,
+  "dmgSHA256": "2c4b55b174b9ebbaa953813fcdc49052e57248fc943cea84d054612116e0e294",
+  "binarySHA256": {
+    "AhaKeyConfig": "c0783d934c41afd39186cbdbd86b5fe09b7cc488c0971bd04782e94f28fc1fc5",
+    "ahakeyconfig-agent": "40dd8744f782555ec1cc449bdb42dddf2e234701c41b27745138de8ec5ab596a"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "installed": true,
+  "fullSwiftTests": 950,
+  "specReviewFindings": 0,
+  "standardsReviewBlockingFindings": 0,
+  "ci": {
+    "runID": 40836125354,
+    "status": "success",
+    "url": "https://github.com/AhakeyAI/desktop/actions/runs/40836125354"
+  },
+  "hardwareFirmwareSHA256": "07a8df32f86bd0b74c62f1c52d4217efe77ad9821d02b355cb96e163d1cd271a",
+  "engineeringUATOnly": true,
+  "directAgentToKey1ReadRounds": 3,
+  "completeFourModeSnapshots": 19,
+  "validSliceResponses": 456,
+  "allRouteCRCsVerified": true,
+  "configurationTimeoutsInCapturedWindow": 0,
+  "routeCommitSelectors": [
+    2,
+    2,
+    2,
+    2
+  ],
+  "roundTrips": [
+    "Consumer -> ordinary F1 -> Consumer",
+    "Consumer -> ordinary F19/Fn bridge -> Consumer"
+  ],
+  "otherThreeModesByteIdenticalThroughout": true,
+  "finalAllFourRouteBytesEqualInitial": true,
+  "currentKeyDescriptionRestored": "Voice",
+  "originalLocalDraftRestored": true,
+  "freshAppliedDeviceFactsRetained": true,
+  "agentOwnershipRestored": true,
+  "verboseLoggingOff": true,
+  "hardwareRebootPersistenceVerified": false,
+  "actualConsumerDictationAfterRoundTripVerified": false,
+  "restoreInitializationExecuted": false,
+  "anotherFirmwareFlashPerformed": false,
+  "firmwareIssueComment": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6491156613"
+}
