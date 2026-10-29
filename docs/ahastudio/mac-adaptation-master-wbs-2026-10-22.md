@@ -300,3 +300,8 @@ Owner提供的07A8DF32工程HEX已经烧录及代码校验通过；唤醒后普�
 直接Agent→Key1原位读取连续3轮通过；本轮19组完整四模式快照、456个分片均核对CRC，0次配置超时。Codex单模式Consumer→普通F1→Consumer→普通F19/Fn桥→Consumer两轮往返读回通过；只提交selector2，其他三模式全程相同，最终四路由字节与初始完全一致，实际键描述恢复Voice。本地原草稿精确还原，保留新的设备确认记录；退出编辑交回Agent，详细日志已关闭。固件缺尾的现场事实和客户端措施已回填[Issue #7](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6491156613)，未将具体分配/队列错误当作已证明根因。
 
 此项只关闭逐模式协议读写与重复恢复子项：仍待正常重启保持、实际Consumer听写、四模式完整输入矩阵；整机Restore v2、长宏、独立短长按和正式发布交付均未因此通过。Coffee因本次已授权DataFlash擦除回到Codex默认画面，未自动重传图片。AhaType现有登录已失效，不读取凭据或代用户登录。[候选与验收回执](../validation/connect-talk-hil-2026-10-22/local-candidate-build521-2026-10-29.json)。
+
+
+### 2026-10-29追加：Consumer听写功能未通过
+
+Owner重启后屏幕正常、输入可用，但停止或稍慢按下多次唤起Siri。路由读写/两次恢复通过不变，实际语音功能标为FAIL。原始HID窗口17组完整按键中4组持续2～4秒以上；全部松开后Consumer/Command均0，第二窗口10组约0.11～0.19秒轻点配对，未证明持续漏释放。固件当前按下/松开透传时长，需按“Mac Consumer Voice仅切听写”的目标设计固定单次短脉冲及可靠释放，普通键/App按住录音保持原行为。未改固件或绕发快捷键；[诊断及修复诉求](consumer-siri-diagnosis-2026-10-29.md)。

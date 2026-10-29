@@ -182,3 +182,8 @@ Owner明确授权后，已安装官方Kimi Code Desktop 1.1.3（com.kimi.code.de
 未点击“允许拨杆管理”，未由Agent创建会话、提交模型请求或测试权限写入；后台只读状态为授权0、接管0、待恢复0。当前Mac蓝牙原本关闭，保持原样；Studio回到非编辑主界面，原2项草稿和AhaType开启状态保留。此次不需要实体键盘操作。
 
 本节替代旧“缺Code Desktop安装环境／等待安装授权”的阻塞；只关闭安装与真实只读发现子项。逐会话授权、实际manual/auto切换、退出恢复和网络／进程故障矩阵仍未验收，普通Kimi/Work及原版CLI TUI接口限制也未消失。源码无改动，无需重复构建或重跑941项测试。回执：[kimi-code-desktop-readonly-2026-10-28.json](../validation/connect-talk-hil-2026-10-22/kimi-code-desktop-readonly-2026-10-28.json)。
+
+
+### 2026-10-29追加：Consumer听写功能未通过
+
+Owner重启后屏幕正常、输入可用，但停止或稍慢按下多次唤起Siri。路由读写/两次恢复通过不变，实际语音功能标为FAIL。原始HID窗口17组完整按键中4组持续2～4秒以上；全部松开后Consumer/Command均0，第二窗口10组约0.11～0.19秒轻点配对，未证明持续漏释放。固件当前按下/松开透传时长，需按“Mac Consumer Voice仅切听写”的目标设计固定单次短脉冲及可靠释放，普通键/App按住录音保持原行为。未改固件或绕发快捷键；[诊断及修复诉求](consumer-siri-diagnosis-2026-10-29.md)。
