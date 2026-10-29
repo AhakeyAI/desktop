@@ -27,7 +27,7 @@
   "firstRestoreComplete": false,
   "repeatRestoreV2Complete": false,
   "externalUSBPowerConfirmed": false,
-  "twoRestoreConsentReceived": false,
-  "pending": "Owner normal USB power and explicit authorization for both destructive restore tests",
+  "twoRestoreConsentReceived": true,
+  "pending": "Two destructive restores authorized; finish selected two-step UI integration and confirm normal external USB power before any reset request",
   "consumerSiriIssueStillOpen": true
 }

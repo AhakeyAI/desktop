@@ -40,6 +40,10 @@ final class StudioDeviceInspectorModel: ObservableObject {
         if record?.unconfirmedLever == true { unconfirmed.insert(.lever) }
         // Historical baselines intentionally do not populate standbyFact/leverFact.
     }
+    /// A whole-device reset invalidates facts without replacing any local draft.
+    func invalidateReadbacks() {
+        standbyFact = nil; leverFact = nil; conflict = nil
+    }
     private func persistDrafts() {
         guard !isRestoringHistory, let deviceID = activeDeviceID else { return }
         var record = history[deviceID] ?? .init()
@@ -111,7 +115,7 @@ final class StudioDeviceInspectorModel: ObservableObject {
                 }
                 self.observeStandby(fact)
             }
-            self.message = NSLocalizedString("已读取。", comment: "")
+            self.message = lever ? NSLocalizedString("已读取。", comment: "") : nil
         }
     }
     func write(lever: Bool, ble: AhaKeyBLEManager, session: StudioInspectorSession) {

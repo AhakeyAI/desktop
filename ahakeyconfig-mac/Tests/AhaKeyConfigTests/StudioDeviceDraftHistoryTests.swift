@@ -57,6 +57,27 @@ final class StudioDeviceDraftHistoryTests: XCTestCase {
         model.observeStandby(.init(deviceID: "A", value: 60))
         XCTAssertEqual(model.standbyDraft, 30)
     }
+    func testWholeDeviceResetInvalidatesFactsButKeepsDraftsAndHistory() {
+        let store = defaults(), model = StudioDeviceInspectorModel(defaults: store)
+        model.observeStandby(.init(deviceID: "A", value: 60))
+        model.standbyDraft = 30
+        model.observeLever(.init(deviceID: "A", value: factory))
+        model.leverDraft?.set(.init(bindType: 2, action: Data()), at: 1)
+        model.invalidateReadbacks()
+        XCTAssertNil(model.standbyFact)
+        XCTAssertNil(model.leverFact)
+        XCTAssertFalse(model.canWriteLever)
+        XCTAssertEqual(model.standbyDraft, 30)
+        XCTAssertEqual(model.leverDraft?.positions[1].bindType, 2)
+        let reloaded = StudioDeviceInspectorModel(defaults: store)
+        XCTAssertEqual(reloaded.standbyDraft, 30)
+        XCTAssertEqual(reloaded.leverDraft?.positions[1].bindType, 2)
+        model.observeStandby(.init(deviceID: "A", value: 60))
+        model.observeLever(.init(deviceID: "A", value: factory))
+        XCTAssertEqual(model.standbyDraft, 30)
+        XCTAssertEqual(model.leverDraft?.positions[1].bindType, 2)
+    }
+
     func testExplicitPeerChoiceSurvivesRelaunch() {
         let defaults = defaults(), model = StudioDeviceInspectorModel(defaults: defaults)
         model.observeLever(.init(deviceID: "A", value: factory))

@@ -7,6 +7,23 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    '已读取当前设置：': 'Current keyboard setting:',
+    '尚未读取当前设置': 'Current setting has not been read',
+    '恢复出厂设置…': 'Reset keyboard…',
+    '2 / 2 · 准备恢复': '2 / 2 · Prepare to reset',
+    '1 / 2 · 确认恢复范围': '1 / 2 · Review what will reset',
+    '恢复整把键盘，应用于所有模式': 'Reset the entire keyboard, across all modes',
+    '键位与语音、待机与拨杆、屏幕与灯光将恢复默认设置。': 'Keys, voice routing, standby, lever, screen, and lighting will return to defaults.',
+    '自定义画面将停用，原素材无法从键盘导出。': 'Custom images will be disabled. Original assets cannot be exported from the keyboard.',
+    '本地草稿保留，不会自动写入键盘。': 'Local drafts are kept and will not be written automatically.',
+    '仅清除蓝牙配对，请使用键盘的“忘记主机”。': 'To clear only Bluetooth pairing, use Forget PC on the keyboard.',
+    '键盘恢复状态': 'Keyboard reset status',
+    '恢复设置已核对': 'Reset settings verified',
+    '请先核对恢复结果': 'Verify the reset result first',
+    '恢复期间请勿断电，也不要操作键盘。': 'Keep power connected and do not operate the keyboard during reset.',
+    '将恢复所有模式的键盘设置并停用自定义画面。本地草稿保留，请保持 USB 供电。': 'Reset keyboard settings across all modes and disable custom images. Local drafts are kept. Keep USB power connected.',
+    '正在读取键盘…': 'Reading keyboard…',
+    '尚未读取键盘': 'Keyboard has not been read',
     '键盘报告恢复已完成，请先核对设置。再次恢复需重新确认，不会自动执行。': 'The keyboard reports the reset completed. Verify the settings first. Repeating it requires new confirmation and never starts automatically.',
     '再次恢复需要支持该功能的新固件；旧版本可能拒绝。每次操作都需重新确认。': 'Repeating a reset requires firmware that supports it; older versions may refuse. Confirm each operation separately.',
     '本次恢复结果尚未核对，请先读取状态，再明确选择是否重试。': 'This reset result has not been verified. Read the status before explicitly choosing whether to retry.',
