@@ -1,5 +1,13 @@
 # Kimi Code Desktop 原会话权限接管 — 2026-10-27
 
+## 2026-10-29 上游2.4.0增量复查
+
+公开源码推进至[ebe14e1](https://github.com/MoonshotAI/kimi-code/commit/ebe14e111f064c632f1efe07f27bf005fb50f5e7)，较68a2838增加12个提交。GitHub compare文件列表恰好300条，不能据此宣称完整比较；已补取两端未截断的递归树，完整列出786个变化路径，再定点读取TUI config、外部Hook、Server启动/路由注册/会话/config和会话类型差异。不是整仓786文件的行为审查。
+
+官方[Server API](https://github.com/MoonshotAI/kimi-code/blob/ebe14e111f064c632f1efe07f27bf005fb50f5e7/docs/en/reference/server-api.md)的profile/status/runtime五个GET/POST小节与旧版逐段一致。实际Server增量主要移除旧snapshot/游标订阅，迁入subscribe_v2；全局config修改为secondary_model可清空，TUI配置页的变化也是模型池相关。已审阅部分没有建立外部附着原版TUI的权限控制路径，故仍不能关闭该能力依赖；不以新增公开Server版本推断普通Kimi/Work也可接管。
+
+本次没有启用WebSocket转录订阅、没有读取用户对话、没有模型请求或权限修改。现有客户端仅验证过Code Desktop1.1.3/server2.3.2，版本门控不扩大；本机尚待真实键盘恢复广播后完成后续实物测试。见[增量回执](../validation/connect-talk-hil-2026-10-22/kimi-upstream-contract-delta-2026-10-29.json)。
+
 ## 当前产品决定
 
 Owner已确认：允许官方Code Desktop加载已经授权但当前未加载的原会话；不新建会话、不另起Server或托管TUI。三端总目标仍包含普通Kimi/Work、Code Desktop、官方CLI TUI，自动档对应官方`auto`，手动档为`manual`；管理全部明确授权会话，停止接管恢复原设置并保留后续识别到的用户修改。新增授权仅从当次核对为已加载的官方Code Desktop会话中选择，首次授权前再次核对；授权与配置文件默认权限同步分开。

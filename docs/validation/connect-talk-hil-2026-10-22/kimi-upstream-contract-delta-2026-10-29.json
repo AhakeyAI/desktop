@@ -1,0 +1,55 @@
+{
+  "from": "68a283894163204e93b072cef20db164015a5cad",
+  "to": "ebe14e111f064c632f1efe07f27bf005fb50f5e7",
+  "commitCount": 12,
+  "apiSections": [
+    {
+      "section": "#### `GET /api/v1/sessions/{session_id}/profile`",
+      "unchanged": true,
+      "oldPresent": true,
+      "newPresent": true
+    },
+    {
+      "section": "#### `GET /api/v1/sessions/{session_id}/runtime`",
+      "unchanged": true,
+      "oldPresent": true,
+      "newPresent": true
+    },
+    {
+      "section": "#### `GET /api/v1/sessions/{session_id}/status`",
+      "unchanged": true,
+      "oldPresent": true,
+      "newPresent": true
+    },
+    {
+      "section": "#### `POST /api/v1/sessions/{session_id}/profile`",
+      "unchanged": true,
+      "oldPresent": true,
+      "newPresent": true
+    },
+    {
+      "section": "#### `POST /api/v1/sessions/{session_id}/runtime`",
+      "unchanged": true,
+      "oldPresent": true,
+      "newPresent": true
+    }
+  ],
+  "applicableDesktopServerContractNotExpanded": true,
+  "hardwareOrModelRequests": 0,
+  "date": "2026-10-29",
+  "allChangedFiles": 786,
+  "changedPathInventoryComplete": true,
+  "initialGitHubCompareWasCappedAt300": true,
+  "inspectedAdditionalSources": [
+    "apps/kimi-code/src/tui/commands/config.ts",
+    "packages/agent-core-v2/src/features/externalHooks/agent/agentExternalHooksService.ts",
+    "packages/kap-server/src/start.ts",
+    "packages/kap-server/src/routes/sessions.ts",
+    "packages/kap-server/src/routes/config.ts",
+    "packages/kap-server/src/routes/registerApiV1Routes.ts",
+    "packages/kap-server/src/protocol/session.ts"
+  ],
+  "nativeTUIAttachInterfaceEstablished": false,
+  "entireRepositorySecurityOrBehaviorAuditClaimed": false,
+  "codeDesktopInstalledVersionScope": "1.1.3 with verified server2.3.2 remains unchanged"
+}
