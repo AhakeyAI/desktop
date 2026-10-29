@@ -32,6 +32,8 @@
 
 旧版 macOS 客户端已接入按能力限制的配置读回、确认后的单键/工作模式/待机/拨杆绑定写入，以及明确选择后的 App 语音接管，不依赖 Runtime。当前为整合检查点，完整新固件版本仍待 WS3 显示资源、剩余界面/真机回归及 CLI 生命周期验收。详见[交接与验证记录](../handoff/CONNECT_AND_TALK_HANDOFF.md)。
 
+macOS 烧录器最多等待 180 秒检测 CH582 ISP。失败或取消后可直接点击“重试烧录”，保留所选 HEX，再次确认后重新检查文件哈希与目标芯片。当前安装版本情况见[实现与验证记录](../ahastudio/firmware-flash-wait-and-retry-2026-10-29.md)。
+
 
 ## <div align="center">概述</div>
 

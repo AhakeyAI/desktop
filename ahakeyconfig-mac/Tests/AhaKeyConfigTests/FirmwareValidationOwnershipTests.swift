@@ -4,6 +4,161 @@ import XCTest
 @testable import AhaKeyConfig
 
 final class FirmwareValidationOwnershipTests: XCTestCase {
+    @MainActor
+    func testFailedDetectionCanRetrySameImageWithoutReselecting() async throws {
+        let image = try temporaryHEX(byte: 1)
+        let (bundle, directory) = try temporaryToolBundle()
+        defer {
+            try? FileManager.default.removeItem(at: image)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        // Exercise a real terminal failure without waiting for a physical ISP.
+        for architecture in ["arm64", "x86_64"] {
+            let tool = directory.appendingPathComponent("Contents/Resources/FirmwareFlasher/tools/\(architecture)/wchisp")
+            try Data("#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$0.calls\"\nprintf 'Chip: CH579\\n'\n".utf8).write(to: tool)
+        }
+        let flasher = AhaKeyFirmwareFlasher(bundle: bundle)
+        flasher.selectCustomFirmware(at: image)
+        await flasher.validationTask?.value
+        let original = try XCTUnwrap(flasher.selectedFirmware)
+        flasher.startFlashing()
+        await flasher.flashTask?.value
+        guard case .failed = flasher.phase else { return XCTFail("Detection must fail before retry") }
+        XCTAssertFalse(flasher.hasStartedDestructiveOperation)
+        XCTAssertEqual(flasher.selectedFirmware, original)
+
+        flasher.startFlashing()
+        let retry = flasher.flashTask
+        XCTAssertNotNil(retry, "A failed attempt must accept an explicit retry without reselecting HEX")
+        XCTAssertTrue(flasher.phase.isBusy, "Retry must synchronously lock the selected image")
+        XCTAssertEqual(flasher.selectedFirmware, original)
+        flasher.cancelSafely()
+        await retry?.value
+        XCTAssertFalse(flasher.hasStartedDestructiveOperation)
+    }
+
+    @MainActor
+    func test180SecondDefaultAndTimeoutRetry() async throws {
+        XCTAssertEqual(FirmwareISPWait.timeoutSeconds, 180)
+        XCTAssertTrue(FirmwareFlasherError.deviceTimeout.errorDescription?.contains("180") == true)
+        let image = try temporaryHEX(byte: 1)
+        let (bundle, directory) = try temporaryToolBundle()
+        defer {
+            try? FileManager.default.removeItem(at: image)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let flasher = AhaKeyFirmwareFlasher(bundle: bundle, deviceWaitTimeout: 0.01)
+        flasher.selectCustomFirmware(at: image)
+        await flasher.validationTask?.value
+        flasher.startFlashing()
+        await flasher.flashTask?.value
+        guard case .failed(let message) = flasher.phase else { return XCTFail("Missing ISP must time out") }
+        XCTAssertEqual(message, FirmwareFlasherError.deviceTimeout.errorDescription)
+        XCTAssertTrue(flasher.canStartFlashing)
+        XCTAssertFalse(flasher.hasStartedDestructiveOperation)
+        flasher.startFlashing()
+        let retry = try XCTUnwrap(flasher.flashTask)
+        flasher.cancelSafely()
+        await retry.value
+    }
+
+    @MainActor
+    func testCancelMustFinishCleanupBeforeRetry() async throws {
+        let image = try temporaryHEX(byte: 1)
+        let (bundle, directory) = try temporaryToolBundle()
+        defer {
+            try? FileManager.default.removeItem(at: image)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let flasher = AhaKeyFirmwareFlasher(bundle: bundle)
+        flasher.selectCustomFirmware(at: image)
+        await flasher.validationTask?.value
+        flasher.startFlashing()
+        let old = try XCTUnwrap(flasher.flashTask)
+        flasher.cancelSafely()
+        XCTAssertFalse(flasher.canStartFlashing)
+        flasher.startFlashing()
+        XCTAssertEqual(flasher.phase, .cancelled)
+        await old.value
+        XCTAssertTrue(flasher.canStartFlashing)
+        flasher.startFlashing()
+        let retry = try XCTUnwrap(flasher.flashTask)
+        XCTAssertEqual(flasher.phase, .validating)
+        flasher.cancelSafely()
+        await retry.value
+        XCTAssertFalse(flasher.hasStartedDestructiveOperation)
+    }
+
+    @MainActor
+    func testChangedImageRetryStopsBeforeDeviceAccess() async throws {
+        let image = try temporaryHEX(byte: 1)
+        let changed = try temporaryHEX(byte: 2)
+        let (bundle, directory) = try temporaryToolBundle(infoSucceeds: true)
+        defer {
+            try? FileManager.default.removeItem(at: image)
+            try? FileManager.default.removeItem(at: changed)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let flasher = AhaKeyFirmwareFlasher(bundle: bundle)
+        flasher.selectCustomFirmware(at: image)
+        await flasher.validationTask?.value
+        let observation = flasher.$chipInfo.dropFirst().sink { info in
+            if info.contains("CH582") { flasher.cancelSafely() }
+        }
+        flasher.startFlashing()
+        await flasher.flashTask?.value
+        observation.cancel()
+        let before = try recordedToolCalls(in: directory)
+        try Data(contentsOf: changed).write(to: image)
+        flasher.startFlashing()
+        await flasher.flashTask?.value
+        guard case .failed(let message) = flasher.phase else { return XCTFail("Changed HEX must be rejected") }
+        XCTAssertEqual(message, FirmwareFlasherError.firmwareChanged.errorDescription)
+        XCTAssertEqual(try recordedToolCalls(in: directory), before)
+        XCTAssertFalse(flasher.hasStartedDestructiveOperation)
+    }
+
+    @MainActor
+    func testFailureAfterEraseAllowsNewAttempt() async throws {
+        let image = try temporaryHEX(byte: 1)
+        let (bundle, directory) = try temporaryToolBundle(infoSucceeds: true)
+        defer {
+            try? FileManager.default.removeItem(at: image)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        // The isolated fake tool accepts info, then fails the first erase.
+        let flasher = AhaKeyFirmwareFlasher(bundle: bundle)
+        flasher.selectCustomFirmware(at: image)
+        await flasher.validationTask?.value
+        flasher.startFlashing()
+        await flasher.flashTask?.value
+        guard case .failed = flasher.phase else { return XCTFail("Erase fixture must fail") }
+        XCTAssertTrue(flasher.hasStartedDestructiveOperation)
+        XCTAssertTrue(flasher.canStartFlashing)
+        XCTAssertEqual(try recordedToolCalls(in: directory), "--usb info --chip CH582\n--usb eeprom erase\n")
+        flasher.startFlashing()
+        let retry = try XCTUnwrap(flasher.flashTask)
+        XCTAssertEqual(flasher.phase, .validating)
+        flasher.cancelSafely()
+        await retry.value
+        XCTAssertFalse(flasher.hasStartedDestructiveOperation)
+    }
+
+    func testRetryEligibilityExcludesSuccessAndRuntimeVerification() {
+        for phase: FirmwareFlashPhase in [.ready, .failed("test"), .cancelled] {
+            XCTAssertTrue(phase.canStartAttempt)
+        }
+        for phase: FirmwareFlashPhase in [.idle, .validating, .waitingForDevice, .erasingDataFlash,
+            .erasingCodeFlash, .flashing, .awaitingRuntimeVerification, .verifyingRuntime, .success] {
+            XCTAssertFalse(phase.canStartAttempt)
+        }
+    }
+
+    private func recordedToolCalls(in directory: URL) throws -> String {
+        let paths = try FileManager.default.subpathsOfDirectory(atPath: directory.path).filter { $0.hasSuffix(".calls") }
+        return try paths.map { try String(contentsOf: directory.appendingPathComponent($0), encoding: .utf8) }.joined()
+    }
+
     actor ValidationGate {
         private var pending: [URL: CheckedContinuation<FirmwareImageDescriptor, Error>] = [:]
         private var started: Set<URL> = []

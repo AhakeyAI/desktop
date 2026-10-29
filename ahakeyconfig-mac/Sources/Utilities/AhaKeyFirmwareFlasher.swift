@@ -44,6 +44,10 @@ enum AhaKeyFirmwareFlasherResources {
     static let bundledFirmwareSHA256 = "f7df11438263aadedb5ad2c05e6f7162c66afc3d36193fac87d7399a7f25976e"
 }
 
+enum FirmwareISPWait {
+    static let timeoutSeconds: TimeInterval = 180
+}
+
 enum FirmwareFlashPhase: Equatable {
     case idle
     case validating
@@ -86,6 +90,20 @@ enum FirmwareFlashPhase: Equatable {
 
     var canCancelSafely: Bool {
         self == .validating || self == .waitingForDevice
+    }
+
+    var canStartAttempt: Bool {
+        switch self {
+        case .ready, .failed, .cancelled: return true
+        default: return false
+        }
+    }
+
+    var startButtonTitle: String {
+        switch self {
+        case .failed, .cancelled: return NSLocalizedString("重试烧录", comment: "")
+        default: return NSLocalizedString("开始等待设备", comment: "")
+        }
     }
 
     var isDestructive: Bool {
@@ -209,7 +227,7 @@ enum FirmwareFlasherError: LocalizedError, Equatable {
         case .bundledFirmwareIntegrity(let expected, let actual):
             return "内置固件校验失败。期望 \(expected)，实际 \(actual)。"
         case .deviceTimeout:
-            return "60 秒内未检测到 CH582 ISP。请检查数据线，以及 BOOT（PB22）与 GND 的短接和上电顺序。"
+            return NSLocalizedString("180 秒内未检测到 CH582 ISP。请检查数据线，以及 BOOT（PB22）与 GND 的短接和上电顺序。", comment: "")
         case .wrongChip(let output):
             return "检测到的目标不是 CH582，已在擦除前停止。\n\(output)"
         case .commandFailed(let step, let status, let output):
@@ -242,6 +260,8 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
     private(set) var validationTask: Task<Void, Never>?
     private var validationID: UUID?
     private(set) var flashTask: Task<Void, Never>?
+    @Published private(set) var isAttemptRunning = false
+    private let deviceWaitTimeout: TimeInterval
     private var systemActivity: NSObjectProtocol?
 
     init(bundle: Bundle = .main,
@@ -249,9 +269,10 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
              try await Task.detached(priority: .userInitiated) {
                  try FirmwareImageValidator.validate(url: url, isBundled: isBundled)
              }.value
-         }) {
+         }, deviceWaitTimeout: TimeInterval = FirmwareISPWait.timeoutSeconds) {
         self.bundle = bundle
         self.validateImage = validateImage
+        self.deviceWaitTimeout = deviceWaitTimeout
     }
 
     deinit {
@@ -324,8 +345,12 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
         }
     }
 
+    var canStartFlashing: Bool {
+        !isAttemptRunning && flashTask == nil && selectedFirmware != nil && phase.canStartAttempt
+    }
+
     func startFlashing() {
-        guard flashTask == nil, let firmware = selectedFirmware, phase == .ready else { return }
+        guard canStartFlashing, let firmware = selectedFirmware else { return }
         chipInfo = ""
         hasStartedDestructiveOperation = false
         logLines.removeAll(keepingCapacity: true)
@@ -333,6 +358,7 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
         appendLog("SHA-256：\(firmware.sha256)")
         appendLog("目标芯片：CH582M")
         // Lock the selected file and catalog identity before staging yields.
+        isAttemptRunning = true
         transition(to: .validating)
 
         flashTask = Task { [weak self] in
@@ -348,6 +374,7 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
         flashTask?.cancel()
         transition(to: .cancelled)
         appendLog("用户已取消；尚未执行擦除。")
+        // Keep the attempt handle until its cancellation and process cleanup finish.
     }
 
     private func validateFirmware(at url: URL, isBundled: Bool, candidate: FirmwareInstallCandidate? = nil,
@@ -418,6 +445,8 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
             if let stagedFirmwareURL {
                 try? FileManager.default.removeItem(at: stagedFirmwareURL)
             }
+            flashTask = nil
+            isAttemptRunning = false
         }
 
         do {
@@ -477,12 +506,11 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
         } catch {
             fail(error)
         }
-        flashTask = nil
     }
 
     private func waitForCH582(toolURL: URL) async throws -> String {
-        let deadline = Date().addingTimeInterval(60)
-        while Date() < deadline {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(deviceWaitTimeout))
+        while ContinuousClock.now < deadline {
             try Task.checkCancellation()
             let result = try await processRunner.run(
                 executable: toolURL,

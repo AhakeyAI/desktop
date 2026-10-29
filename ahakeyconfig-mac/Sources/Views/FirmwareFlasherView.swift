@@ -125,8 +125,8 @@ struct FirmwareFlasherView: View {
     }
 
     private var canStartSelectedFirmware: Bool {
-        guard !releases.isBusy, !session.isBusy, flasher.phase == .ready,
-              flasher.selectedFirmware != nil, acknowledgesDataLoss else { return false }
+        guard !releases.isBusy, !session.isBusy, flasher.canStartFlashing,
+              acknowledgesDataLoss else { return false }
         guard let candidate = flasher.selectedCatalogCandidate else { return true }
         return FirmwareCandidateSelection.isCurrent(candidate, in: releases.candidates)
     }
@@ -257,7 +257,7 @@ struct FirmwareFlasherView: View {
                                     .foregroundStyle(.orange)
                             }
                         } else if flasher.phase == .waitingForDevice {
-                            Text("最长等待 60 秒；在检测和确认 CH582 之前不会擦除任何数据。")
+                            Text("最长等待 180 秒；在检测和确认 CH582 之前不会擦除任何数据。")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         } else if flasher.phase.isDestructive {
@@ -314,7 +314,7 @@ struct FirmwareFlasherView: View {
                 Button("取消等待", role: .cancel) { flasher.cancelSafely() }
                     .buttonStyle(.bordered)
             }
-            Button("开始等待设备") {
+            Button(flasher.phase.startButtonTitle) {
                 showsFlashConfirmation = true
             }
             .buttonStyle(.borderedProminent)

@@ -32,6 +32,8 @@
 
 The legacy macOS client includes capability-gated configuration readback, confirmed per-key/mode/standby/lever-binding writes, and explicit App voice takeover without Runtime. This is an integration checkpoint, not a complete new-firmware release: WS3 display resources, remaining UI/device regression and CLI lifecycle validation are pending. See the [handoff and validation record](docs/handoff/CONNECT_AND_TALK_HANDOFF.md).
 
+The macOS firmware flasher waits up to 180 seconds for CH582 ISP. After a failed or cancelled attempt, **Retry Flashing** keeps the selected HEX and asks for confirmation again, then rechecks its hash and the target chip. See the [implementation and validation notes](docs/ahastudio/firmware-flash-wait-and-retry-2026-10-29.md) for the installed-version status.
+
 
 ## <div align="center">Overview</div>
 
