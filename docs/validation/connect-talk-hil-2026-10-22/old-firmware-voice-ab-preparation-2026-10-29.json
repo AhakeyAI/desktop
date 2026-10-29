@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-29",
+  "purpose": "Owner-requested old firmware Consumer Voice A/B reproduction",
+  "oldFirmwareFile": "X1_MEMORY_FIX_20261018.hex",
+  "oldFirmwareSHA256": "ffb9208f79084aa24a832ad2562a14dbbea5df4d114a135cb5b2eb98d4e05539",
+  "oldFirmwareGitBlob": "e72b550c3e943075ddbfd09272e2aec5b5c1378a",
+  "oldFirmwareDataBytes": 458492,
+  "oldFirmwareMaxAddress": "0x6fefb",
+  "productionValidatorPassed": true,
+  "selectedSHAConfirmedInInstalledUI": true,
+  "clientBuild": "521",
+  "currentFirmwareSHA256": "07a8df32f86bd0b74c62f1c52d4217efe77ad9821d02b355cb96e163d1cd271a",
+  "privateBackup": {
+    "keys": 16,
+    "lights": 36,
+    "resourcesMetadata": 19,
+    "validUserResources": 0,
+    "brightness": 35,
+    "standbyMinutes": 60,
+    "onboardingState": 2,
+    "deviceBackupSHA256": "574cadb7064a295382d982c2c49e7b58c5fa9c9f117bed7246080088b92f91f8",
+    "localDraftAndVoiceKeys": 14,
+    "latestVerifiedFourModeRouteRecordsRetained": true,
+    "resourcePixelsExported": false
+  },
+  "newEraseConfirmationReceived": false,
+  "dataFlashEraseStarted": false,
+  "codeFlashEraseStarted": false,
+  "flashStarted": false,
+  "stage": "validated old file selected; awaiting this downgrade erase confirmation and USB ISP"
+}

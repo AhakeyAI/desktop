@@ -32,7 +32,22 @@
     "codexAgentPhase": "synchronized"
   },
   "automatic": {
-    "pendingOwnerAction": true
+    "ownerConfirmedPhysicalLever": true,
+    "physicalSwitchState": 0,
+    "kimiPermissionModes": [
+      "auto",
+      "auto",
+      "auto"
+    ],
+    "kimiAgentPhase": "synchronized",
+    "kimiManagedSessions": 1,
+    "kimiPendingRecovery": 0,
+    "codexActualSettings": {
+      "approvalPolicy": "never",
+      "permissions": ":danger-full-access"
+    },
+    "codexAgentPhase": "synchronized",
+    "pendingOwnerAction": false
   },
   "permissionWriter": "installed Agent following actual physical lever",
   "independentProbesPermissionWrites": 0,
@@ -40,5 +55,18 @@
   "ordinaryKimiWorkAndNativeTUIVerified": false,
   "fullExceptionAndExitRecoveryMatrixComplete": false,
   "conversationIDsOrCredentialsIncluded": false,
-  "complete": false
+  "complete": false,
+  "basicBidirectionalNativePermissionSwitchVerified": true,
+  "normalStopAfterAutomatic": {
+    "trigger": "App takes BLE for pre-downgrade read-only backup; Agent gracefully stops",
+    "kimiAuthorizedGrantRetained": true,
+    "kimiActiveLeasesCleared": true,
+    "kimiActualPermissionModes": [
+      "auto",
+      "auto",
+      "auto"
+    ],
+    "baselineWasAuto": true,
+    "doesNotProveRestrictedBaselineRestoreOrCrashRecovery": true
+  }
 }

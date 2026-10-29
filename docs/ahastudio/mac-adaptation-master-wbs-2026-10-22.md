@@ -309,4 +309,4 @@ Owner重启后屏幕正常、输入可用，但停止或稍慢按下多次唤起
 
 ### 2026-10-29补验：路由断电保持与原会话手动档
 
-Owner重启后四个102字节路由记录和24分片CRC完整读回，与重启前逐字节一致，无写入；路由保持子项通过，Siri误触发的语音功能仍FAIL。实体手动档1后，已授权的同一Kimi Code Desktop原会话官方接口连续三次读回manual，Agent同步/接管1/待恢复0；当前Codex原会话IPC实际读回on-request/:workspace。没有模型请求，独立读回工具没有写权限；实际权限修改由已安装Agent响应实体拨杆完成。已请求Owner切回自动，尚待实际回读，不标三端控制及退出/故障矩阵全部通过。[分阶段回执](../validation/connect-talk-hil-2026-10-22/kimi-codex-lever-hil-2026-10-29.json)。
+Owner重启后四个102字节路由记录和24分片CRC完整读回，与重启前逐字节一致，无写入；路由保持子项通过，Siri误触发的语音功能仍FAIL。实体手动档1后，已授权的同一Kimi Code Desktop原会话官方接口连续三次读回manual，Agent同步/接管1/待恢复0；当前Codex原会话IPC实际读回on-request/:workspace。没有模型请求，独立读回工具没有写权限；实际权限修改由已安装Agent响应实体拨杆完成。Owner已切回自动0，同一Kimi原会话连续三次实际读回auto，当前Codex原会话never/:danger-full-access，双方Agent同步且待恢复0。随后为降级备份正常停止Agent，Kimi活动租约清除、授权保留、实际auto不变（原基线就是auto），不代替受限基线恢复或崩溃矩阵，不标三端全部通过。[分阶段回执](../validation/connect-talk-hil-2026-10-22/kimi-codex-lever-hil-2026-10-29.json)。
