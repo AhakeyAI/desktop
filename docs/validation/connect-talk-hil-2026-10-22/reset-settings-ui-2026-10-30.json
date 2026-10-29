@@ -1,0 +1,40 @@
+{
+  "date": "2026-10-30",
+  "sourceCommit": "69f0e242ad3bf328eca3ab5242c5e07cded2b7b7",
+  "clientBuild": "522",
+  "prototypeDecision": "B: two-step guided reset",
+  "swiftSuiteBeforeAddedTest": {
+    "passed": 950,
+    "failed": 0
+  },
+  "deviceDraftSuiteIncludingNewInvalidationTest": {
+    "passed": 7,
+    "failed": 0
+  },
+  "installedSignatureVerified": true,
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "oldAppBackupRetained": true,
+  "uiChecks": {
+    "oneSettingsResetEntry": true,
+    "scopeStepShown": true,
+    "preparationStepReadOnly": true,
+    "usbUncheckedResetDisabled": true,
+    "backAndCancelDoNotReset": true,
+    "inlineResetRemoved": true,
+    "standbyReadbackWithRefreshIcon": true,
+    "duplicateStandbyReadSuccessRemoved": true,
+    "standbyBrowseShows60MinutesAfterRead": true,
+    "agentConnectionReturned": true
+  },
+  "hardwareRestoreRequests": 0,
+  "normalSettingsWrites": 0,
+  "notarized": false,
+  "dmgVerification": "hdiutil verify returned resource temporarily unavailable; do not claim DMG verification passed",
+  "pending": [
+    "normal USB power confirmation",
+    "authorized first and repeat whole-device restore HIL"
+  ]
+}
