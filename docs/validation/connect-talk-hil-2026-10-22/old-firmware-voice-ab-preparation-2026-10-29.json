@@ -23,11 +23,11 @@
     "latestVerifiedFourModeRouteRecordsRetained": true,
     "resourcePixelsExported": false
   },
-  "newEraseConfirmationReceived": false,
-  "dataFlashEraseStarted": false,
-  "codeFlashEraseStarted": false,
-  "flashStarted": false,
-  "stage": "validated old file selected; awaiting this downgrade erase confirmation and USB ISP",
+  "newEraseConfirmationReceived": true,
+  "dataFlashEraseStarted": true,
+  "codeFlashEraseStarted": true,
+  "flashStarted": true,
+  "stage": "old ffb9208f image written and Verify OK; awaiting Owner unplug BOOT removal and wireless Mac selection",
   "oldAcceptedSource": "70ca334f65d73b6a2f20a0598e55c6da59f26526",
   "newSource": "ed426c97d4aad9a20c1585d6b15125252b6caa49",
   "staticFunctionComparisons": [
@@ -52,5 +52,18 @@
   ],
   "oldSourceConsumerFollowsPhysicalDownUp": true,
   "newSourceAddsPerModeCapturedRoute": true,
-  "staticComparisonProvesSameWholeFirmwareBehavior": false
+  "staticComparisonProvesSameWholeFirmwareBehavior": false,
+  "installedUIConfirmedOldSHA256": true,
+  "installedUIFullEraseConfirmationAccepted": true,
+  "flashFinished": true,
+  "programmedBytes": 458752,
+  "verifyOK": true,
+  "deviceResetByTool": true,
+  "runtimeConnectionVerified": false,
+  "oldConsumerFunctionalTestPerformed": false,
+  "dataFlashSectorsErased": 32,
+  "codeFlashSectorsErased": 448,
+  "chipFamilyVerified": "CH582M",
+  "thisAttemptWait180SecondsConsumed": false,
+  "deviceAlreadyInISPWhenConfirmedStart": true
 }
