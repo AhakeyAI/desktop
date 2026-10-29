@@ -1546,7 +1546,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     /// New routing is proved on every acquired connection, never inferred from
     /// the unchanged WS2 catalog key or the old global onboarding byte.
     func readK1RoutesForEditing() async throws -> K1OutputRouteTransaction.Snapshot {
-        let operation = try beginK1RouteOperation()
+        let operation = try await beginK1RouteOperation()
         let generation = commandSessionGeneration
         defer { endK1RouteOperation(operation) }
         let profile = try await readFirmwareCapabilityProfile()
@@ -1557,7 +1557,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     func prepareK1RouteInitialization() async throws -> K1RouteInitialization.Preparation {
-        let operation = try beginK1RouteOperation(initializing: true)
+        let operation = try await beginK1RouteOperation(initializing: true)
         let generation = commandSessionGeneration
         defer { endK1RouteOperation(operation) }
         let profile = try await readFirmwareCapabilityProfile()
@@ -1575,7 +1575,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         writeStarted: () -> Void) async throws -> K1OutputRouteTransaction.Snapshot {
         guard userConfirmed else { throw K1RouteInitialization.Failure.confirmationRequired }
         guard expectedGeneration == commandSessionGeneration else { throw OLEDUploadError.channelNotReady }
-        let operation = try beginK1RouteOperation(initializing: true)
+        let operation = try await beginK1RouteOperation(initializing: true)
         let generation = commandSessionGeneration
         defer { endK1RouteOperation(operation) }
         let profile = try await readFirmwareCapabilityProfile()
@@ -1609,9 +1609,26 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
         return inputs
     }
-    private func beginK1RouteOperation(initializing: Bool = false) throws -> UUID {
-        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
-        try ensureConfigurationReadSession(commandSessionGeneration)
+    private func beginK1RouteOperation(initializing: Bool = false) async throws -> UUID {
+        let generation = commandSessionGeneration
+        // Connection bootstrap may already own a picture-query turn. Do not
+        // block that reply by claiming exclusive K1 ownership before it drains.
+        do {
+            try await RestoreChannelAdmission.waitUntilIdle(isIdle: {
+                !self.isWriting && self.writeQueue.isEmpty && self.writeBatches.isEmpty &&
+                    self.pendingCommandResponse == nil && self.pendingDataWrite == nil && !self.commandTurnOccupied
+            }, checkSession: {
+                try self.ensureConfigurationReadSession(generation)
+                guard !self.isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
+            })
+        } catch is RestoreChannelAdmission.Failure {
+            throw OLEDUploadError.channelNotReady
+        }
+        try ensureConfigurationReadSession(generation)
+        guard !isConfigurationOperationInProgress, !isWriting, writeQueue.isEmpty, writeBatches.isEmpty,
+              pendingCommandResponse == nil, pendingDataWrite == nil, !commandTurnOccupied else {
+            throw OLEDUploadError.channelNotReady
+        }
         let id = UUID()
         k1RouteOperationID = id; isManagingK1Route = true
         isInitializingK1Routes = initializing; k1RouteProofGeneration = nil; k1UnavailableProofGeneration = nil
@@ -1798,7 +1815,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let generation = commandSessionGeneration
         try ensureConfigurationReadSession(generation)
         guard generation == expectedGeneration else { throw OLEDUploadError.channelNotReady }
-        let operation = try beginK1RouteOperation()
+        let operation = try await beginK1RouteOperation()
         defer { endK1RouteOperation(operation) }
         let profile = try await readFirmwareCapabilityProfile()
         guard profile.mayQueryOrdinaryKeys, let peripheral, let characteristic = commandChar else {
@@ -2304,7 +2321,12 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     private func queryAllPictureStates() {
         Task { [weak self] in
             guard let self else { return }
+            let generation = self.commandSessionGeneration
             for slot in 0..<4 {
+                // Explicit component reads take priority over optional bootstrap
+                // metadata. Never enqueue a command its owner will suppress.
+                guard generation == self.commandSessionGeneration,
+                      !self.isConfigurationOperationInProgress else { return }
                 do {
                     let state = try await self.readPictureState(mode: UInt8(slot))
                     self.keyboardPictureStates[slot] = KeyboardPictureState(
