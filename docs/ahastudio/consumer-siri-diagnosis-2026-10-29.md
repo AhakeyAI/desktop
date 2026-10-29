@@ -40,3 +40,8 @@ ed426c9的`APP/hardware/psk_multi_button.c:271`中`input_control_k1_route_event`
 ## 重启保持读回补证
 
 Owner已明确正常重启后，build521再从Agent交接读取完整四路由：24个分片、四个102字节记录及CRC全部有效，与重启前最终记录逐字节相同，无路由写入、无超时。随后交还Agent并关闭详细日志。关闭“本轮路由断电保持未验证”子项；Consumer实际听写误触发Siri仍为FAIL，不因保持通过而关闭。固件反馈已补[Issue #7 FW-13](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6492446474)。
+
+
+## 旧版对照与频次修正
+
+Owner要求降级后，ffb9208f已刷入Verify OK，旧版Mac预设2/Codex模式、Studio完全退出时也复现Siri。Owner明确旧版频次/概率更低，**不能用旧版也发生来否定新版本可能放大的回归**。无逐次Siri计数/时间，且App状态和按住时长未严格匹配，不计算概率。新增路由不可用时漏release的离线探针已红，但未证明现场进入该前置状态，不定为本轮根因。详见[新旧对照](consumer-siri-old-new-comparison-2026-10-29.md)。当前保留旧固件、Studio退出，未刷回新包。

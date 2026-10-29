@@ -310,3 +310,8 @@ Owner重启后屏幕正常、输入可用，但停止或稍慢按下多次唤起
 ### 2026-10-29补验：路由断电保持与原会话手动档
 
 Owner重启后四个102字节路由记录和24分片CRC完整读回，与重启前逐字节一致，无写入；路由保持子项通过，Siri误触发的语音功能仍FAIL。实体手动档1后，已授权的同一Kimi Code Desktop原会话官方接口连续三次读回manual，Agent同步/接管1/待恢复0；当前Codex原会话IPC实际读回on-request/:workspace。没有模型请求，独立读回工具没有写权限；实际权限修改由已安装Agent响应实体拨杆完成。Owner已切回自动0，同一Kimi原会话连续三次实际读回auto，当前Codex原会话never/:danger-full-access，双方Agent同步且待恢复0。随后为降级备份正常停止Agent，Kimi活动租约清除、授权保留、实际auto不变（原基线就是auto），不代替受限基线恢复或崩溃矩阵，不标三端全部通过。[分阶段回执](../validation/connect-talk-hil-2026-10-22/kimi-codex-lever-hil-2026-10-29.json)。
+
+
+### 2026-10-29旧版Voice对照完成，频次差异仍需定位
+
+按Owner授权刷回历史ffb9208f，458752字节Verify OK及正常无线开机/只读16键/预设2通过；App完全退出、原始HID确认Consumer，旧版也发生Siri，但Owner明确频次低于新版。不能据此关闭新版本回归；无定量概率数据。已增加分模式UP路由不可用的红色故障探针，未证明实物进入该分支。当前设备保留旧固件，后续新固件UAT需重新安排，所有未完成范围保留。[对照与边界](consumer-siri-old-new-comparison-2026-10-29.md)。
