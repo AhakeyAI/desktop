@@ -3,6 +3,11 @@ import Foundation
 /// One identified connection owns this transaction. Callers must not substitute
 /// a reconnected device for checkSession, or reuse facts across devices.
 public enum K1OutputRouteTransaction {
+    // A read reply adds 20 bytes. Keep normal reads to two notifications at
+    // the default ATT MTU, rather than requiring a fourth one-shot packet.
+    // The wire protocol still accepts 42-byte slices and every record is read
+    // in full with the same checksum consistency checks.
+    private static let readSliceBytes = 20
     public enum Failure: Error, Equatable {
         case unsupported, invalidReply, rejected, invalidTarget, transportLimit
         case changedSinceRead(K1OutputRoute), verificationMismatch, writeUnconfirmed
@@ -102,7 +107,7 @@ public enum K1OutputRouteTransaction {
         for mode: UInt8 in 0..<4 {
             var bytes = Data(), checksum: UInt32?
             while bytes.count < 102 {
-                let command = K1OutputRouteCommand.read(nonce: nonce(), mode: mode, offset: UInt8(bytes.count), count: UInt8(min(42, 102 - bytes.count)))
+                let command = K1OutputRouteCommand.read(nonce: nonce(), mode: mode, offset: UInt8(bytes.count), count: UInt8(min(readSliceBytes, 102 - bytes.count)))
                 let reply = try await perform(command, checkSession: checkSession, exchange: exchange)
                 guard case .slice(let receivedCRC, let slice) = reply,
                       checksum == nil || checksum == receivedCRC else { throw Failure.invalidReply }

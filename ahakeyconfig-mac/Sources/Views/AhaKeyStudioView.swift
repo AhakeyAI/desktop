@@ -5527,8 +5527,9 @@ private extension AhaKeyStudioView {
                         Text(NSLocalizedString("处理中…", comment: ""))
                     } else if let route = inlineCurrentK1Route, let fact = inlineKeyFact {
                         Text(String(format: NSLocalizedString("已读取：%@", comment: ""), StudioK1VoiceProposal.summary(route: route, actual: fact.value)))
-                    } else if target.index == 0, currentSelectedKey.voicePreset == .systemDictation {
-                        Text(NSLocalizedString(inlineVoiceState == 2 ? "已读取：Consumer（系统听写）" : "未启用 Consumer，当前为普通键绑定", comment: ""))
+                    } else if target.index == 0, currentSelectedKey.voicePreset == .systemDictation,
+                              let voiceState = inlineVoiceState {
+                        Text(NSLocalizedString(voiceState == 2 ? "已读取：Consumer（系统听写）" : "未启用 Consumer，当前为普通键绑定", comment: ""))
                     } else if let fact = inlineKeyFact {
                         Text(String(format: NSLocalizedString("已读取：%@", comment: ""), StudioKeyWriteProposal.actionSummary(fact.value)))
                             .textSelection(.enabled)
