@@ -35,3 +35,8 @@ ed426c9的`APP/hardware/psk_multi_button.c:271`中`input_control_k1_route_event`
 范围仅Mac Consumer CF语音；普通组合键/宏、App按住录音、Windows链路及其他Consumer用途保持各自语义，不能全局截断所有长按。该产品规则会取消该Voice路径的长按Siri，需固件方按Owner目标在现有Harness完成合同/实现与复验，不在Mac偷偷转发另一组快捷键补丁。
 
 重验：快按、正常按、1/3/5秒按住及停止听写均只切换一次，无Siri；重复20组、掉包/重连/休眠/模式切换后无卡住；App退出也通过。普通键/App语音长按和其他模式分别回归。当前未生成/烧录任何修复HEX。
+
+
+## 重启保持读回补证
+
+Owner已明确正常重启后，build521再从Agent交接读取完整四路由：24个分片、四个102字节记录及CRC全部有效，与重启前最终记录逐字节相同，无路由写入、无超时。随后交还Agent并关闭详细日志。关闭“本轮路由断电保持未验证”子项；Consumer实际听写误触发Siri仍为FAIL，不因保持通过而关闭。固件反馈已补[Issue #7 FW-13](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6492446474)。

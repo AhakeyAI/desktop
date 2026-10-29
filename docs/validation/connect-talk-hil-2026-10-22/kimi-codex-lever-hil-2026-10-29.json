@@ -1,0 +1,44 @@
+{
+  "clientBuild": "521",
+  "clientSourceCommit": "1f1583b5acd6a1be4f90fdb92b9d16adc18471cf",
+  "firmwareSHA256": "07a8df32f86bd0b74c62f1c52d4217efe77ad9821d02b355cb96e163d1cd271a",
+  "scope": "one Owner-authorized original Kimi Code Desktop session and current authorized original Codex desktop conversation",
+  "kimiCodeDesktopVersion": "1.1.3",
+  "preflight": {
+    "kimiPermissionModes": [
+      "auto",
+      "auto",
+      "auto"
+    ],
+    "authorizedSessions": 1,
+    "managedSessions": 0,
+    "pendingRecovery": 0
+  },
+  "manual": {
+    "ownerConfirmedPhysicalLever": true,
+    "physicalSwitchState": 1,
+    "kimiPermissionModes": [
+      "manual",
+      "manual",
+      "manual"
+    ],
+    "kimiAgentPhase": "synchronized",
+    "kimiManagedSessions": 1,
+    "kimiPendingRecovery": 0,
+    "codexActualSettings": {
+      "approvalPolicy": "on-request",
+      "permissions": ":workspace"
+    },
+    "codexAgentPhase": "synchronized"
+  },
+  "automatic": {
+    "pendingOwnerAction": true
+  },
+  "permissionWriter": "installed Agent following actual physical lever",
+  "independentProbesPermissionWrites": 0,
+  "modelRequests": 0,
+  "ordinaryKimiWorkAndNativeTUIVerified": false,
+  "fullExceptionAndExitRecoveryMatrixComplete": false,
+  "conversationIDsOrCredentialsIncluded": false,
+  "complete": false
+}

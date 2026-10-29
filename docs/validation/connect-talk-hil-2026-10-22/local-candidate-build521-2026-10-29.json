@@ -46,12 +46,17 @@
   "freshAppliedDeviceFactsRetained": true,
   "agentOwnershipRestored": true,
   "verboseLoggingOff": true,
-  "hardwareRebootPersistenceVerified": false,
+  "hardwareRebootPersistenceVerified": true,
   "actualConsumerDictationAfterRoundTripVerified": false,
   "restoreInitializationExecuted": false,
   "anotherFirmwareFlashPerformed": false,
   "firmwareIssueComment": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6491156613",
   "rebootScreenNormalReported": true,
   "actualConsumerDictationVerdict": "FAIL: slower press/stop can invoke Siri",
-  "consumerSiriEvidence": "consumer-siri-reproduction-2026-10-29.json"
+  "consumerSiriEvidence": "consumer-siri-reproduction-2026-10-29.json",
+  "postRebootFourModeRecordCount": 4,
+  "postRebootSliceResponses": 24,
+  "postRebootRecordBytesMatchBefore": true,
+  "postRebootRouteWrites": 0,
+  "consumerSiriFirmwareIssue": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6492446474"
 }
