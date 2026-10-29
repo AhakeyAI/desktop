@@ -27,5 +27,30 @@
   "dataFlashEraseStarted": false,
   "codeFlashEraseStarted": false,
   "flashStarted": false,
-  "stage": "validated old file selected; awaiting this downgrade erase confirmation and USB ISP"
+  "stage": "validated old file selected; awaiting this downgrade erase confirmation and USB ISP",
+  "oldAcceptedSource": "70ca334f65d73b6a2f20a0598e55c6da59f26526",
+  "newSource": "ed426c97d4aad9a20c1585d6b15125252b6caa49",
+  "staticFunctionComparisons": [
+    {
+      "function": "consumerSerializer",
+      "identical": true,
+      "oldSHA256": "87c8757bc194525b7b13e3a0749d7db17a6653bfc57f9af1cb46f5063713d2c8",
+      "newSHA256": "87c8757bc194525b7b13e3a0749d7db17a6653bfc57f9af1cb46f5063713d2c8"
+    },
+    {
+      "function": "consumerWrapper",
+      "identical": true,
+      "oldSHA256": "20afa9d8abb899048d4b1f85eccd32134759d6cba88b6e15eaf8480380661df5",
+      "newSHA256": "20afa9d8abb899048d4b1f85eccd32134759d6cba88b6e15eaf8480380661df5"
+    },
+    {
+      "function": "hidSender",
+      "identical": true,
+      "oldSHA256": "f14630e2d07195abbb064f0fceb2c24b63c2b65aaecd2166269416d6cf0993ad",
+      "newSHA256": "f14630e2d07195abbb064f0fceb2c24b63c2b65aaecd2166269416d6cf0993ad"
+    }
+  ],
+  "oldSourceConsumerFollowsPhysicalDownUp": true,
+  "newSourceAddsPerModeCapturedRoute": true,
+  "staticComparisonProvesSameWholeFirmwareBehavior": false
 }
