@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-29",
+  "clientBuild": "518",
+  "sourceCommit": "617729efa189a2ccb8125e299cd09a4a99968c0d",
+  "firmwareSHA256": "07a8df32f86bd0b74c62f1c52d4217efe77ad9821d02b355cb96e163d1cd271a",
+  "normalUSBPowerConfirmed": true,
+  "backupCompleted": {
+    "ordinaryKeys": 16,
+    "standbyMinutes": 60,
+    "voiceOnboardingState": 3,
+    "sideSwitchPositions": 2,
+    "lightEntries": 36,
+    "brightness": 35,
+    "resourceMetadata": 19
+  },
+  "rawDeviceBackupStoredPrivately": true,
+  "deviceBackupSHA256": "63e9e3ee21e8a19edcb8813c48d836890b1d9121e116d419bfb20d7512b4a4a4",
+  "resourcePixelBackupAvailable": false,
+  "localDraftCountObserved": 2,
+  "configurationWrites": 0,
+  "flashStarted": false,
+  "currentStage": "ISP entry not achieved; normal application USB enumerated",
+  "explicitEraseAndFlashConsentReceived": true,
+  "selectedFileSHAConfirmedInInstalledUI": true,
+  "ispAttempts": [
+    {
+      "installedUIWaitSeconds": 60,
+      "result": "noCH582ISP",
+      "dataFlashEraseStarted": false,
+      "codeFlashEraseStarted": false
+    },
+    {
+      "independentInfoReturnCode": 1,
+      "result": "noWCHISP",
+      "observedUSBVIDPID": "413c:2107",
+      "matchesFirmwareNormalUSBDescriptor": true
+    }
+  ],
+  "hardwareWritten": false,
+  "waitingFor": "Owner clarification: software power button or physical power cut; PB22/GND confirmation"
+}
