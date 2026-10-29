@@ -24,14 +24,38 @@
     "pixelBackupAvailable": false,
     "credentialsCopied": false
   },
-  "thisFlashEraseConsentReceived": false,
-  "flashStarted": false,
-  "stage": "new image selected and complete current read-only backup saved; awaiting this flash consent and USB ISP",
+  "thisFlashEraseConsentReceived": true,
+  "flashStarted": true,
+  "stage": "Owner reports flash complete; fresh new routing/restore/display contracts verified; awaiting separate power and consent for repeat-restore HIL",
   "nextWBS": [
     "fresh connection and capabilities",
     "repeat Restore initialization v2 and independent defaults readback, after its own explicit destructive confirmation and power checks",
     "resource capacity and failure recovery matrices"
   ],
   "consumerSiriFunctionalIssueStillOpen": true,
-  "formalReleaseOrREGATEClaimed": false
+  "formalReleaseOrREGATEClaimed": false,
+  "flashCompletionReportedByOwner": true,
+  "thisAttemptVerifyOKObservedByAgent": false,
+  "runtimeNewContractReadbackVerified": true,
+  "fullFirmwareImageIdentityVerifiedAfterFlash": false,
+  "runtimeReadback": {
+    "ordinaryKeys": 16,
+    "standbyMinutes": 60,
+    "voiceOnboardingState": 2,
+    "routes": 4,
+    "routeSlices": 24,
+    "allRouteCRCsVerified": true,
+    "routeKinds": [
+      "consumer",
+      "consumer",
+      "consumer",
+      "consumer"
+    ],
+    "lightEntries": 36,
+    "resourceMetadataEntries": 19,
+    "validCustomResources": 0,
+    "restoreState": "never",
+    "restoreAttempt": 0,
+    "restoreStatusReplyLength": 17
+  }
 }

@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-29",
+  "clientBuild": "521",
+  "expectedEngineeringFirmwareSHA256": "07a8df32f86bd0b74c62f1c52d4217efe77ad9821d02b355cb96e163d1cd271a",
+  "formalReleaseClaimed": false,
+  "preflight": {
+    "sameDeviceConnected": true,
+    "restoreState": "never",
+    "restoreAttempt": 0,
+    "validFreshRestoreStatus": true,
+    "keysRead": 16,
+    "routeRecordsRead": 4,
+    "routeRecordBytesEach": 102,
+    "routeCRCsVerified": true,
+    "lightsRead": 36,
+    "resourcesMetadataRead": 19,
+    "validCustomResourceMetadata": 0,
+    "standbyMinutes": 60,
+    "brightness": 35,
+    "codexNotificationActualEffect": 11,
+    "rawBackupPrivate": true,
+    "pixelBackupAvailable": false,
+    "deviceBackupSHA256": "857c5124cf603f6a8ca459bb1a2936f3221a28b654369b9e83ffdf14a469a21f",
+    "latestLocalDraftBackupSaved": true
+  },
+  "restoreRequestsSent": 0,
+  "firstRestoreComplete": false,
+  "repeatRestoreV2Complete": false,
+  "externalUSBPowerConfirmed": false,
+  "twoRestoreConsentReceived": false,
+  "pending": "Owner normal USB power and explicit authorization for both destructive restore tests",
+  "consumerSiriIssueStillOpen": true
+}
