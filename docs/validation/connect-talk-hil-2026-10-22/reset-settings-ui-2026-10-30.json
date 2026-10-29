@@ -32,7 +32,7 @@
   "hardwareRestoreRequests": 0,
   "normalSettingsWrites": 0,
   "notarized": false,
-  "dmgVerification": "hdiutil verify returned resource temporarily unavailable; do not claim DMG verification passed",
+  "dmgVerification": "PASS after detaching this build’s leftover disk image; checksum, read-only mounted nested signatures and App/Agent bytes verified",
   "pending": [
     "normal USB power confirmation",
     "authorized first and repeat whole-device restore HIL"

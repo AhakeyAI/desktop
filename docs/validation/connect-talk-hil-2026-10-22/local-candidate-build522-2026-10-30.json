@@ -1,0 +1,21 @@
+{
+  "sourceCommit": "69f0e242ad3bf328eca3ab5242c5e07cded2b7b7",
+  "version": "0.2.3",
+  "build": "522",
+  "dmgPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-reset-settings/AhaKey-Studio-0.2.3-build522-69f0e24-test.dmg",
+  "dmgBytes": 21704112,
+  "dmgSHA256": "164e7129ff502ec8d20105a511b5dd92187c58cbf820d916c4628bfa0d2b2c2e",
+  "binarySHA256": {
+    "AhaKeyConfig": "742514c6d2774c5cdf334f63721a84160400bd5e977320eb57f9fbd31811940a",
+    "ahakeyconfig-agent": "39832b7eb6f351915e3f5092d33a5f9bb394da8771e0423fd87f34e51be2944d"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "date": "2026-10-30",
+  "archivedDMGPath": "/Users/heartline/Documents/Codex/local-builds/connect-talk-build522-20261030/AhaKey-Studio-0.2.3-build522-69f0e24-test.dmg",
+  "installed": true,
+  "fullMatrixComplete": false,
+  "dmgChecksumVerified": true
+}
