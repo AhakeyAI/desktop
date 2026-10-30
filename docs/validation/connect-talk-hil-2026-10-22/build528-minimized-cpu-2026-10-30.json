@@ -1,0 +1,17 @@
+{
+  "atUTC": "2026-10-30T08:26:23.171078+00:00",
+  "clientBuild": 528,
+  "source": "c6e70ac0",
+  "failure": null,
+  "allMinimized": true,
+  "complete": true,
+  "seconds": 125.296035375,
+  "singleCoreCPUPercent": {
+    "studio": 1.0774482975136193,
+    "agent": 0.6544500770082722
+  },
+  "sampleCount": 25,
+  "rawSHA256": "4584883b6e546e00f93585943880474c8270da729a215022c853a67faae3152d",
+  "scope": "Current build minimized window with screen component selected; no foreground/long-session acceptance inferred.",
+  "hardwareConfigurationWrites": 0
+}

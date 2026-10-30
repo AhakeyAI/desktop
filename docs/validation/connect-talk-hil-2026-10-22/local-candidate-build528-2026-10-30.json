@@ -1,0 +1,28 @@
+{
+  "sourceCommit": "c6e70ac0daaee89b1b35d05ec4bf5201519e843b",
+  "version": "0.2.3",
+  "build": "528",
+  "installedBinarySHA256": {
+    "AhaKeyConfig": "ef054449275705d30ce836aadabbc1f853b2daf5c6036912ee5a213cdc3ac9b1",
+    "ahakeyconfig-agent": "593628d0c4dc2b7bad3c3db4f66873f01d0be96dd1303880619e8d26f27f264b"
+  },
+  "deepSignatureVerified": true,
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "hardwareConfigurationWrites": 0,
+  "atUTC": "2026-10-30T08:08:39.303252+00:00",
+  "original15PreferencesSemanticallyUnchanged": true,
+  "realUIStatusBarModeButtonAbsent": true,
+  "topModeTabsPresent": true,
+  "agentConnected": true,
+  "ci": {
+    "run": 41023482800,
+    "conclusion": "success"
+  },
+  "notarized": false,
+  "fullWBSComplete": false,
+  "minimizedCPUReceipt": "build528-minimized-cpu-2026-10-30.json",
+  "ownerConfirmedTabsBrowseOnly": true
+}

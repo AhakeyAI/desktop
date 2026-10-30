@@ -194,7 +194,7 @@
   "hostIdleSleepPreventedForTransfer": false,
   "sleepFaultAcceptanceClaimed": false,
   "fullMatrixComplete": false,
-  "next": "Finish working/waiting/done cross-mode visual mapping; restore all19 temporary resources to original defaults and verify. Short build527 foreground CPU case passed; long performance matrix remains open.",
+  "next": "Owner confirmation still needed for done cycle03→07→11→15; afterwards restore all19 temporary resources to original defaults and independently verify. Other full fault/old-firmware matrix remains open.",
   "checkpointAtUTC": "2026-10-30T05:36:44.013380+00:00",
   "committedEntries": [
     0,
@@ -259,10 +259,17 @@
   },
   "ownerConfirmedVisualEntries": [
     0,
+    1,
+    2,
     4,
+    5,
+    6,
     8,
+    9,
+    10,
     12,
     13,
+    14,
     15,
     16,
     17,
@@ -282,11 +289,25 @@
   "officialSocketRestored": true,
   "lastIsolationCleanupFailure": null,
   "allOriginal15PreferenceValuesStillUnchangedAfterBuild527": true,
-  "installedBuildNow": "527 / 22e57340",
+  "installedBuildNow": "528 / c6e70ac0",
   "defaultModeCycle": {
     "observed": "00 → 04 → 08",
     "ownerConfirmed": true
   },
   "activeVisualPhase": null,
-  "workingCycleAwaitingOwnerConfirmation": true
+  "workingCycleAwaitingOwnerConfirmation": false,
+  "workingModeCycle": {
+    "ownerConfirmedFirstSequence": true,
+    "firstSequence": "绿条动画 → 01 → 05 → 09",
+    "laterSequence": "03 → 07 → 11 → 15",
+    "laterSequenceMeaning": "Each mode completed-state resource; not accepted as fixed working-state stability proof.",
+    "physicalSwitchesObservedDuringFixedWindow": false,
+    "fixedWorkingStabilityAcrossModeSwitchesProven": false
+  },
+  "waitingModeCycle": {
+    "observed": "02 → 06 → 10 → 14",
+    "ownerConfirmed": true,
+    "physicalModeChangesRecordedDuringFixedWindow": true
+  },
+  "doneCycleAwaitingOwnerConfirmation": true
 }
