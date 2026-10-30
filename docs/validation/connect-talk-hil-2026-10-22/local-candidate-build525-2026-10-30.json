@@ -1,0 +1,38 @@
+{
+  "sourceCommit": "9824151c74e81a7c3afe4787b70259cf6ecbe4f7",
+  "version": "0.2.3",
+  "build": "525",
+  "dmgPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-restore-diagnostics/AhaKey-Studio-0.2.3-build525-9824151-test.dmg",
+  "dmgBytes": 20281481,
+  "dmgSHA256": "bbf4c6b8d438ede7e1181217be880e2d8b96131413c2d6666d4e7a0015c7885a",
+  "binarySHA256": {
+    "AhaKeyConfig": "8a4ec0470504405ac8b93caf5c8854019f9b5096a17d34e4f103418481f99f41",
+    "ahakeyconfig-agent": "4fb4a3bd952d14afdeebe064b23e86d40e555d42835d16487efdad935286ce95"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "date": "2026-10-30",
+  "archivedDMGPath": "/Users/heartline/Documents/Codex/local-builds/connect-talk-build525-20261030/AhaKey-Studio-0.2.3-build525-9824151-test.dmg",
+  "installed": true,
+  "previousInstalledBuild": "522",
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "expectedDeveloperTeamVerified": true,
+  "ciRun": "https://github.com/AhakeyAI/desktop/actions/runs/40996665452",
+  "ciConclusion": "success",
+  "swiftTests": 953,
+  "swiftTestFailures": 0,
+  "nativeChecks": {
+    "completedStateReadOnlyVerifyReopensWithoutUSBConfirmation": true,
+    "typedModeOnlyDifferenceDisplayed": true,
+    "modeOnlyCorrectionThenStrictDefaultsReadPass": true,
+    "modeTabsExposeNativeButtonsAndSelectedState": true,
+    "mode0AndMode2SwitchConfirmed": true,
+    "dailyMacBaselineRestoredAndMatches": true
+  },
+  "fullMatrixComplete": false
+}

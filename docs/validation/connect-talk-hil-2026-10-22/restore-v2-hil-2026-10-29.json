@@ -28,7 +28,7 @@
   "repeatRestoreV2Complete": true,
   "externalUSBPowerConfirmed": true,
   "twoRestoreConsentReceived": true,
-  "pending": "Owner normal power cycle, leave platform unselected; then verify durable attempt 2 and defaults before choosing Mac. Fault matrices still open.",
+  "pending": "Boot/default work-mode observation, new restore after reboot, modified-route repeat and fault matrices remain open. Daily configuration is fully restored. No third restore request was sent.",
   "consumerSiriIssueStillOpen": true,
   "powerConfirmationDate": "2026-10-30",
   "preflightRetryBuild": "522",
@@ -60,12 +60,65 @@
   "powerCyclePersistenceVerified": false,
   "evidenceSHA256": {
     "first-restore-complete.log": "c9fc8815f7537a7dc6a866ac932c338be5ec5bf6f80fe14537717a569d052b6f",
-    "second-restore-complete.log": "93ff8ecafa38e1a2ea3496fc49519ec495055b5de768f34d9c727efc74686ff1"
+    "second-restore-complete.log": "93ff8ecafa38e1a2ea3496fc49519ec495055b5de768f34d9c727efc74686ff1",
+    "post-power-diagnostic.log": "d890f3ff2ea52f35004891298c7b2743fc62f197ca5f90240540e535d398dc3b",
+    "post-power-mode0-verified.log": "2cb453b6060fb109c322615c81dbab4e443f19b432729c8af385578e547611f6",
+    "daily-baseline-readback.log": "f4062ef2ef12f55948d56cdd788e048154a0a136d4e169e1c83d74c5a6a38ba4"
   },
   "preferencesPreserved": {
     "trackedKeys": 14,
-    "unchangedKeys": 14,
+    "semanticallyUnchanged": 14,
+    "byteIdentical": 12,
+    "jsonReencodedWithoutValueChanges": 2,
     "pendingRestoreEntries": 0
   },
-  "firmwareIssueHILReport": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/9#issuecomment-6513634998"
+  "firmwareIssueHILReport": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/9#issuecomment-6513634998",
+  "currentInstalledBuild": "525",
+  "postPowerReadOnlyClientBuild": "525",
+  "postPowerReadOnlySource": "9824151c74e81a7c3afe4787b70259cf6ecbe4f7",
+  "ownerConfirmedNormalPowerCycle": true,
+  "restoreRecordPersistenceVerified": true,
+  "savedConfigurationPersistenceVerified": true,
+  "powerCyclePersistenceScopeNote": "Restore COMPLETE/attempt2 and all saved configuration domains persisted. First runtime mode was 1 (Mode2), not default 0; startup/default-mode preservation is not marked passed.",
+  "initialPostBootWorkMode": 1,
+  "initialDefaultDifferences": [
+    "workMode(actual: 1)"
+  ],
+  "onlyWorkModeAdjustedForRecheck": true,
+  "fullDefaultReadbackAfterMode0Adjustment": true,
+  "replayFeedback": {
+    "actualMode2CaptureExit": 2,
+    "mode0ControlCaptureExit": 0,
+    "productionDecodersAndCRC": true,
+    "strictDefaultComparisonUnchanged": true
+  },
+  "dailyMacPlatformRestoredByOwner": true,
+  "dailyBaselineComparison": {
+    "matched": {
+      "keys": true,
+      "standbyMinutes": true,
+      "voiceOnboardingState": true,
+      "sideSwitchPositions": true,
+      "brightness": true,
+      "lights": true,
+      "resourcesMetadataOnly": true,
+      "fourRoutesExact": true,
+      "codexWorkMode": true,
+      "restoreAttempt2": true,
+      "noRestoreRequestInDailyRead": true
+    },
+    "allMatch": true,
+    "readbackCounts": {
+      "keys": 16,
+      "routes": 4,
+      "lights": 36,
+      "resources": 19
+    }
+  },
+  "dailyWorkMode": 2,
+  "agentConnectedAfterCleanup": true,
+  "verboseLoggingDisabled": true,
+  "originalUnsyncedDraftCount": 3,
+  "finalUnsyncedDraftCount": 3,
+  "postTestConsumerAndCommandHIDValuesNeutral": true
 }
