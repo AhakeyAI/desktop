@@ -194,7 +194,7 @@
   "hostIdleSleepPreventedForTransfer": false,
   "sleepFaultAcceptanceClaimed": false,
   "fullMatrixComplete": false,
-  "next": "Unlock Mac to continue single-position cancellation test. No upload started;19-default cleanup checkpoint remains valid, a new local test draft18 is prepared. Remaining full upload fault/recovery and old-firmware matrix stays open.",
+  "next": "Owner normal power cycle required after cancelled entry18 upload; independently read all19, clear temporary entry18 and its local draft, disable verbose logs. Other18 defaults must remain unchanged. New-firmware cancellation recovery remains FAIL.",
   "checkpointAtUTC": "2026-10-30T05:36:44.013380+00:00",
   "committedEntries": [
     0,
@@ -367,13 +367,17 @@
   "interruptionRetest": {
     "firmware": "07a8df32",
     "target": 18,
-    "phase": "prepared-but-not-started-Mac-locked-before-confirmation",
-    "uploadBeginCommands": 0,
-    "uploadChunkCommands": 0,
-    "uploadCommitCommands": 0,
-    "restoreCommands": 0,
+    "phase": "cancelled-after-observed-29-percent-awaiting-normal-keyboard-restart",
     "localTemporaryDraftPending": true,
-    "all19DeviceDefaultsStillIntact": true,
-    "requiresUserUnlockNotKeyboardRestart": true
+    "uploadActuallyStarted": true,
+    "completePacketTraceAvailable": false,
+    "readRecoveryWithoutKeyboardRestartPassed": false,
+    "readAttemptsFailed": 2,
+    "recoveryRead0x00Succeeded": true,
+    "recoveryRead0x83And0x9FRejectedStatus1": true,
+    "requiresKeyboardRestart": true,
+    "cleanupPendingEntry": 18,
+    "receipt": "resource-cancel-new-firmware-2026-10-30.json",
+    "issueComment": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6519589952"
   }
 }

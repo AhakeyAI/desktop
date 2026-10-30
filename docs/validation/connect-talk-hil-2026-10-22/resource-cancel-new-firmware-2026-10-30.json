@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-30",
+  "clientBuild": 528,
+  "clientSource": "c6e70ac0",
+  "firmwareSource": "ed426c97d4aad9a20c1585d6b15125252b6caa49",
+  "firmwareHEX_SHA256": "07a8df32f86bd0b74c62f1c52d4217efe77ad9821d02b355cb96e163d1cd271a",
+  "targetEntry": 18,
+  "beforeAll19DefaultIndependentlyVerified": true,
+  "payloadFrames": 1,
+  "payloadBytes": 28672,
+  "observedUIProgressBeforeCancel": 0.2959866220735786,
+  "nativeCancelClicked": true,
+  "nativeCancelWarningVerified": true,
+  "readAttemptsAfterCancel": 2,
+  "readRecoveryWithoutKeyboardRestartPassed": false,
+  "firstFailureUI": "设备返回的配置内容无法解析。",
+  "capturedFreshReconnect": {
+    "status0x00": "success",
+    "imageInfo0x83": "status0x01",
+    "capability0x9F": "status0x01",
+    "rawSHA256": "4f16e46cc7480b07b0608ad41dbf1980ae998b57758679117ec0ec795a1af31b"
+  },
+  "uploadChunkTraceAvailable": false,
+  "uploadChunkTraceLimitation": "Verbose log auto-disabled during lock wait; upload progress and cancellation proven by real native UI, not a complete packet trace.",
+  "keyboardRestartRequested": true,
+  "postRestartReadPassed": false,
+  "temporaryEntryCleanupComplete": false,
+  "fullFaultMatrixComplete": false,
+  "firmwareIssueComment": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6519589952",
+  "verboseLoggingDisabledWhileAwaitingRestart": true
+}
