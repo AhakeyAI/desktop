@@ -190,11 +190,11 @@
   "unconfirmedTargetAtFirstCheckpoint": [
     13
   ],
-  "cleanupComplete": false,
+  "cleanupComplete": true,
   "hostIdleSleepPreventedForTransfer": false,
   "sleepFaultAcceptanceClaimed": false,
   "fullMatrixComplete": false,
-  "next": "Owner confirmation still needed for done cycle03→07→11→15; afterwards restore all19 temporary resources to original defaults and independently verify. Other full fault/old-firmware matrix remains open.",
+  "next": "Unlock Mac to continue single-position cancellation test. No upload started;19-default cleanup checkpoint remains valid, a new local test draft18 is prepared. Remaining full upload fault/recovery and old-firmware matrix stays open.",
   "checkpointAtUTC": "2026-10-30T05:36:44.013380+00:00",
   "committedEntries": [
     0,
@@ -261,12 +261,15 @@
     0,
     1,
     2,
+    3,
     4,
     5,
     6,
+    7,
     8,
     9,
     10,
+    11,
     12,
     13,
     14,
@@ -309,5 +312,68 @@
     "ownerConfirmed": true,
     "physicalModeChangesRecordedDuringFixedWindow": true
   },
-  "doneCycleAwaitingOwnerConfirmation": true
+  "doneCycleAwaitingOwnerConfirmation": false,
+  "doneModeCycle": {
+    "ownerResponse": "正常了",
+    "observed": "03 → 07 → 11 → 15",
+    "physicalModeChangesRecordedDuringFixedWindow": true
+  },
+  "all19OwnerVisualConfirmed": true,
+  "resourceDraftStoreAbsentAfterCleanup": true,
+  "original15PreferencesSemanticallyUnchangedAfterCleanup": true,
+  "agentConnectedAfterCleanup": true,
+  "physicalModeAfterCleanup": "Mode4 (last owner test position)",
+  "cleanupIndependentRead": {
+    "entries": 19,
+    "allDefault": true,
+    "valid": false,
+    "writeState": 0,
+    "frames": 0,
+    "bytes": 0,
+    "crc32": 0,
+    "brightness": 35,
+    "readOnlyNoUploadOrRestore": true,
+    "rawSHA256": "155374f2405774603374e3eafb9d2ed6b19e5ae2d9db3c6b7a5cc4b6658ad6e9"
+  },
+  "cleanupNativeSuccessBatches": [
+    [
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18
+    ],
+    [
+      0,
+      1,
+      2,
+      3
+    ],
+    [
+      4,
+      5,
+      6,
+      7
+    ],
+    [
+      8,
+      9,
+      10,
+      11
+    ]
+  ],
+  "interruptionRetest": {
+    "firmware": "07a8df32",
+    "target": 18,
+    "phase": "prepared-but-not-started-Mac-locked-before-confirmation",
+    "uploadBeginCommands": 0,
+    "uploadChunkCommands": 0,
+    "uploadCommitCommands": 0,
+    "restoreCommands": 0,
+    "localTemporaryDraftPending": true,
+    "all19DeviceDefaultsStillIntact": true,
+    "requiresUserUnlockNotKeyboardRestart": true
+  }
 }
