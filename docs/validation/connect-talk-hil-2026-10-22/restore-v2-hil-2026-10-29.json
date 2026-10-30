@@ -66,5 +66,6 @@
     "trackedKeys": 14,
     "unchangedKeys": 14,
     "pendingRestoreEntries": 0
-  }
+  },
+  "firmwareIssueHILReport": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/9#issuecomment-6513634998"
 }

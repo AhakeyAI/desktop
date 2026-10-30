@@ -1,5 +1,7 @@
 # Mac客户端适配总WBS v2 — Inspector、WS3与WS4/5
 
+> **2026-10-30 候选补充**：供电提示已改为连接失败时也可见。build524（`ba354f19`）双架构Developer ID与期望Team核验、DMG校验和／只读挂载字节核对通过；[CI40993624296](https://github.com/AhakeyAI/desktop/actions/runs/40993624296)三项成功，951项Swift测试零失败。候选已归档但未安装，保留build522正在进行的断电验收现场；整机恢复已实测两次通过，正常重启答复仍待。详见[候选回执](../validation/connect-talk-hil-2026-10-22/local-candidate-build524-2026-10-30.json)。
+
 > **2026-10-30 当前索引（优先于下方历史检查点）**：已安装 0.2.3/build522，源码 `69f0e242`；恢复设置按用户选择的 B 两步引导统一到设置弹窗，待机读回／浏览布局已在原UI通过。950项全量测试及包含新增用例的7项设备草稿测试通过；双架构签名、覆盖安装、DMG校验和／只读挂载／App及Agent字节复核通过，未公证。详见 [build522回执](../validation/connect-talk-hil-2026-10-22/local-candidate-build522-2026-10-30.json)。
 >
 > **未完成仍为：3类功能开发的外部接口依赖 + 1项Consumer/Siri固件回归 + 1类正式发布输入 + 8组未闭合的完整验收。** 长宏完整读回、任意键独立短／长按、普通Kimi/Work及原版TUI原会话权限接口仍缺。Code Desktop双向拨杆原权限已实际通过，不再列作未接线。重新fetch固件分支仍为 `ed426c9`，0x87仍为64字节。

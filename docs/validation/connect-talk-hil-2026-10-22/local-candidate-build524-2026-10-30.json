@@ -1,0 +1,44 @@
+{
+  "sourceCommit": "ba354f190b80ee1b6d06b40a320b4a3cedac1e35",
+  "version": "0.2.3",
+  "build": "524",
+  "dmgPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-reset-power-visible/AhaKey-Studio-0.2.3-build524-ba354f1-test.dmg",
+  "dmgBytes": 20192457,
+  "dmgSHA256": "e49cc823d2dcaf07e91dd69092d7733bf6c315f3a35b59abeb8df4a3eaa72bef",
+  "binarySHA256": {
+    "AhaKeyConfig": "241a2591b3758a49ed705a66d67e94ecb074cde159ec418c60048a38b2f7ba00",
+    "ahakeyconfig-agent": "796857c25edf38db3fea112bfd12d4fd8618c1245ef69d225629554bc6a40c93"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "archivedDMGPath": "/Users/heartline/Documents/Codex/local-builds/connect-talk-build524-20261030/AhaKey-Studio-0.2.3-build524-ba354f1-test.dmg",
+  "installed": false,
+  "currentInstalledBuildForOngoingHIL": "522",
+  "reason": "Power guidance is visible before BLE connects, including connection failures. Keep build522 running until power-cycle HIL completes.",
+  "firmwareHILComment": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/9#issuecomment-6513634998",
+  "ciRun": "https://github.com/AhakeyAI/desktop/actions/runs/40993624296",
+  "ciConclusion": "success",
+  "date": "2026-10-30",
+  "guidanceDebugCompilePassed": true,
+  "restoreModelSuite": {
+    "tests": 8,
+    "failures": 0,
+    "scope": "unchanged restore model; executed with guidance text update before visibility-only adjustment"
+  },
+  "ciTests": {
+    "swiftTests": 951,
+    "failures": 0,
+    "jobs": [
+      "macOS build/package",
+      "TypeScript SDK test/build",
+      "Windows Java test/package"
+    ]
+  },
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "expectedDeveloperTeamVerified": true
+}
