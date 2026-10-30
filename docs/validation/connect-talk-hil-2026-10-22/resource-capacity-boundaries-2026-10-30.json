@@ -1,0 +1,195 @@
+{
+  "date": "2026-10-30",
+  "clientBuild": "525",
+  "clientSource": "9824151c74e81a7c3afe4787b70259cf6ecbe4f7",
+  "firmwareSourceRechecked": "ed426c97d4aad9a20c1585d6b15125252b6caa49",
+  "before": {
+    "all19ResourcesDefault": true,
+    "resourceDraftStoreAbsent": true,
+    "presentationDraftAbsent": true,
+    "originalDraftPreferencesBackedUpPrivately": true
+  },
+  "uiBatchTargets": [
+    12,
+    13
+  ],
+  "prepared": [
+    {
+      "entry": 0,
+      "frames": 1,
+      "sourceFrames": 1,
+      "bytes": 28672,
+      "crc32": 2809225787,
+      "wasResized": true
+    },
+    {
+      "entry": 1,
+      "frames": 1,
+      "sourceFrames": 1,
+      "bytes": 28672,
+      "crc32": 3003185119,
+      "wasResized": false
+    },
+    {
+      "entry": 2,
+      "frames": 1,
+      "sourceFrames": 1,
+      "bytes": 28672,
+      "crc32": 2410572313,
+      "wasResized": false
+    },
+    {
+      "entry": 3,
+      "frames": 1,
+      "sourceFrames": 1,
+      "bytes": 28672,
+      "crc32": 3592901654,
+      "wasResized": false
+    },
+    {
+      "entry": 4,
+      "frames": 1,
+      "sourceFrames": 1,
+      "bytes": 28672,
+      "crc32": 2250218115,
+      "wasResized": false
+    },
+    {
+      "entry": 5,
+      "frames": 1,
+      "sourceFrames": 1,
+      "bytes": 28672,
+      "crc32": 488506107,
+      "wasResized": false
+    },
+    {
+      "entry": 6,
+      "frames": 1,
+      "sourceFrames": 1,
+      "bytes": 28672,
+      "crc32": 2603489503,
+      "wasResized": false
+    },
+    {
+      "entry": 7,
+      "frames": 1,
+      "sourceFrames": 1,
+      "bytes": 28672,
+      "crc32": 2473345663,
+      "wasResized": false
+    },
+    {
+      "entry": 12,
+      "frames": 8,
+      "sourceFrames": 9,
+      "bytes": 229376,
+      "crc32": 1039904684,
+      "wasResized": false
+    },
+    {
+      "entry": 13,
+      "frames": 12,
+      "sourceFrames": 13,
+      "bytes": 344064,
+      "crc32": 2938746853,
+      "wasResized": false
+    },
+    {
+      "entry": 14,
+      "frames": 1,
+      "sourceFrames": 1,
+      "bytes": 28672,
+      "crc32": 3976757340,
+      "wasResized": false
+    },
+    {
+      "entry": 15,
+      "frames": 1,
+      "sourceFrames": 1,
+      "bytes": 28672,
+      "crc32": 1398080495,
+      "wasResized": false
+    },
+    {
+      "entry": 16,
+      "frames": 1,
+      "sourceFrames": 1,
+      "bytes": 28672,
+      "crc32": 3052676821,
+      "wasResized": false
+    },
+    {
+      "entry": 17,
+      "frames": 1,
+      "sourceFrames": 1,
+      "bytes": 28672,
+      "crc32": 1553723579,
+      "wasResized": false
+    },
+    {
+      "entry": 18,
+      "frames": 1,
+      "sourceFrames": 1,
+      "bytes": 28672,
+      "crc32": 834914627,
+      "wasResized": false
+    }
+  ],
+  "autoAdaptationThroughRealFilePicker": {
+    "source9To8": true,
+    "source13To12": true,
+    "largePNG1600x800ToDevice": true
+  },
+  "max8": {
+    "nativeTransactionAndMetadataVerified": true,
+    "freshIndependentReconnectReadVerified": true,
+    "physicalVisualVerified": false,
+    "normalPowerCycleVerified": false
+  },
+  "max12": {
+    "nativeTransactionAndMetadataVerified": true,
+    "freshIndependentReconnectReadVerified": true,
+    "physicalVisualVerified": false,
+    "normalPowerCycleVerified": false
+  },
+  "unconfirmedTargetAtFirstCheckpoint": [
+    13
+  ],
+  "cleanupComplete": false,
+  "hostIdleSleepPreventedForTransfer": false,
+  "sleepFaultAcceptanceClaimed": false,
+  "fullMatrixComplete": false,
+  "next": "After unlock, inspect Mode2 result; prepare Mode3 entries8..11 through native UI, write and independently reread all19. Keep assets for final visual/power-cycle verification, then restore defaults and compare original preferences.",
+  "checkpointAtUTC": "2026-10-30T05:20:18.620937+00:00",
+  "committedEntries": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18
+  ],
+  "activeBatch": [],
+  "remainingEntries": [
+    8,
+    9,
+    10,
+    11
+  ],
+  "mode1NativeSuccessPopupVerified": true,
+  "mode2PersistedTransactionConfirmed": true,
+  "mode2NativeSuccessPopupVerified": false,
+  "currentUnconfirmedEntries": [],
+  "temporaryIdleSleepAssertionReleased": true,
+  "original15PreferenceValuesSemanticallyUnchanged": true,
+  "currentBlocker": "Mac locked: native UI cannot dismiss result or prepare Mode3. User unlock requested; no retry or cleanup initiated."
+}

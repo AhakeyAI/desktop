@@ -81,3 +81,15 @@
 5. 没有接口／未获管理权时继续用户原审批链路。保留任务状态与等待审批观察，不能新增拒绝或宣称已撤权。
 
 本报告保存调查结果；尚未开始生产live权限实现，也没有提交或推送。
+
+
+## 2026-10-30 定点复查
+
+官方main锁定`bd0d4de3f895446680bb7d46dcd7f0f299889735`，公开CLI变更记录最新仍2.4.0。本次与此前`ebe14e111f064c632f1efe07f27bf005fb50f5e7`定点比较CLI启动、TUI、externalHooks和server路由，没有将master源码当作本机已安装版本。
+
+- [PermissionRequest实现](https://github.com/MoonshotAI/kimi-code/blob/bd0d4de3f895446680bb7d46dcd7f0f299889735/packages/agent-core-v2/src/features/externalHooks/agent/agentExternalHooksService.ts)仍fireAndForget；新差异包括Hook失败提示，并未增加等待该Hook批准工具的合同。
+- [/web](https://github.com/MoonshotAI/kimi-code/blob/bd0d4de3f895446680bb7d46dcd7f0f299889735/apps/kimi-code/src/tui/commands/web.ts)仍停止TUI并移交前台server；[exec-server](https://github.com/MoonshotAI/kimi-code/blob/bd0d4de3f895446680bb7d46dcd7f0f299889735/apps/kimi-code/src/cli/exec-server.ts)仅stdio远程执行器，不等于现有TUI权限附着端点。
+- 当前检查的TUI启动、权限选择、上述移交/执行器路径，尚未闭合原版TUI原会话的外部控制接口。不能据有限搜索宣称所有私有路径绝对不存在，但也不能用内部Session setter或新建进程替代要求。
+- 只读安装元数据仍为普通Kimi3.2.18与Code Desktop1.1.3；没有启动模型、读取账号凭据、改权限或扩大已验证server版本范围。
+
+普通Work与原版TUI的接口依赖保留。固件分支同轮fetch仍ed426c9，公开Release仍旧v1.0，未发现新的正式发布目录/镜像输入。
