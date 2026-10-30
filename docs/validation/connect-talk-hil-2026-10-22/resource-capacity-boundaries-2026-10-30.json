@@ -79,6 +79,38 @@
       "wasResized": false
     },
     {
+      "entry": 8,
+      "frames": 1,
+      "sourceFrames": 1,
+      "bytes": 28672,
+      "crc32": 3358531397,
+      "wasResized": false
+    },
+    {
+      "entry": 9,
+      "frames": 1,
+      "sourceFrames": 1,
+      "bytes": 28672,
+      "crc32": 1481451401,
+      "wasResized": false
+    },
+    {
+      "entry": 10,
+      "frames": 1,
+      "sourceFrames": 1,
+      "bytes": 28672,
+      "crc32": 1572767833,
+      "wasResized": false
+    },
+    {
+      "entry": 11,
+      "frames": 1,
+      "sourceFrames": 1,
+      "bytes": 28672,
+      "crc32": 3877610397,
+      "wasResized": false
+    },
+    {
       "entry": 12,
       "frames": 8,
       "sourceFrames": 9,
@@ -159,8 +191,8 @@
   "hostIdleSleepPreventedForTransfer": false,
   "sleepFaultAcceptanceClaimed": false,
   "fullMatrixComplete": false,
-  "next": "After unlock, inspect Mode2 result; prepare Mode3 entries8..11 through native UI, write and independently reread all19. Keep assets for final visual/power-cycle verification, then restore defaults and compare original preferences.",
-  "checkpointAtUTC": "2026-10-30T05:20:18.620937+00:00",
+  "next": "Await requested normal keyboard power-cycle; independently reread all19, then visual playback with owner and cleanup. No factory reset or reflash.",
+  "checkpointAtUTC": "2026-10-30T05:36:44.013380+00:00",
   "committedEntries": [
     0,
     1,
@@ -170,6 +202,10 @@
     5,
     6,
     7,
+    8,
+    9,
+    10,
+    11,
     12,
     13,
     14,
@@ -179,17 +215,34 @@
     18
   ],
   "activeBatch": [],
-  "remainingEntries": [
-    8,
-    9,
-    10,
-    11
-  ],
+  "remainingEntries": [],
   "mode1NativeSuccessPopupVerified": true,
   "mode2PersistedTransactionConfirmed": true,
-  "mode2NativeSuccessPopupVerified": false,
+  "mode2NativeSuccessPopupVerified": true,
   "currentUnconfirmedEntries": [],
   "temporaryIdleSleepAssertionReleased": true,
   "original15PreferenceValuesSemanticallyUnchanged": true,
-  "currentBlocker": "Mac locked: native UI cannot dismiss result or prepare Mode3. User unlock requested; no retry or cleanup initiated."
+  "ciCheckpoint": {
+    "commit": "085f1cb41be70cd6293b655e6c602b4eb13abb98",
+    "run": 41007904832,
+    "result": "success",
+    "jobs": [
+      "macOS build/package",
+      "TypeScript SDK test/build",
+      "Windows Java test/package"
+    ]
+  },
+  "allFiveNativeSuccessPopupsVerified": true,
+  "all19FreshIndependentRead": {
+    "passed": true,
+    "brightness": 35,
+    "rawSHA256": "1f9659bdac1160d4abff065ee343eb28fdc8376f6ccd2f9d301d1527d8be8322",
+    "allValidWriteState2": true,
+    "allFrameCountsByteLengthsCRCMatch": true,
+    "readOnlyNoUploadOrRestore": true
+  },
+  "originalUserDraftCount": 3,
+  "verboseLoggingOff": true,
+  "agentConnectedAfterRead": true,
+  "physicalModeAfterRead": "Codex Mode3"
 }
