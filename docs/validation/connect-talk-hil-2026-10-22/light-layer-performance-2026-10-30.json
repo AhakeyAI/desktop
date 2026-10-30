@@ -1,6 +1,6 @@
 {
   "date": "2026-10-30",
-  "status": "implemented; 957 automated tests passed; native candidate performance pending",
+  "status": "installed build527; 957 tests and CI passed; real foreground short-sample passed; full performance matrix remains open",
   "before": {
     "source": "9824151c",
     "build": 525,
@@ -44,5 +44,39 @@
   },
   "temporaryGIFProbeRemovedFromSources": true,
   "fullPerformanceMatrixComplete": false,
-  "afterInstalledMeasurement": null
+  "afterInstalledMeasurement": {
+    "observer": "LaunchServices lsappinfo, no accessibility polling or focus forcing",
+    "warmupSeconds": 12,
+    "durationSeconds": 19.993123167,
+    "singleCoreCPUPercent": 2.550877097790277,
+    "diagnosticLimit": 5,
+    "validForeground": true,
+    "passed": true,
+    "foregroundSamples": 21,
+    "rawSHA256": "48a5caf2baef7ec9d5edf545947229067aec501cdfa872187eb5e2a1e6d16364",
+    "realOwnerForegroundActivationConfirmed": true
+  },
+  "ci": {
+    "run": 41015845339,
+    "conclusion": "success",
+    "jobs": 3
+  },
+  "otherAttempts": {
+    "AXPolling20s": {
+      "sampledForegroundAll": true,
+      "cpuPercent": 12.846145227266598,
+      "diagnosticPassed": false,
+      "observerOverheadPossibleButUnproven": true
+    },
+    "automaticActivationLowOverhead": {
+      "accepted": false,
+      "reason": "Foreground not held; no CPU verdict"
+    },
+    "manualActivationFirstWait": {
+      "accepted": false,
+      "reason": "120-second foreground wait expired"
+    }
+  },
+  "beforeAfterSameObserverComparisonAvailable": false,
+  "preciseReductionPercentageClaimed": false
 }

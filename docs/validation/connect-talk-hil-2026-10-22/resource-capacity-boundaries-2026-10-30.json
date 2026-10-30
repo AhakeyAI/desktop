@@ -182,9 +182,10 @@
   "max12": {
     "nativeTransactionAndMetadataVerified": true,
     "freshIndependentReconnectReadVerified": true,
-    "physicalVisualVerified": false,
-    "normalPowerCycleVerified": false,
-    "normalPowerCycleMetadataVerified": true
+    "physicalVisualVerified": true,
+    "normalPowerCycleVerified": true,
+    "normalPowerCycleMetadataVerified": true,
+    "ownerVisualResult": "复测持续循环，未切到数字，无异常"
   },
   "unconfirmedTargetAtFirstCheckpoint": [
     13
@@ -193,7 +194,7 @@
   "hostIdleSleepPreventedForTransfer": false,
   "sleepFaultAcceptanceClaimed": false,
   "fullMatrixComplete": false,
-  "next": "Await max12 visual reply. Fixed-input observation has a bounded five-minute automatic socket restore. Preserve test artwork until observation/cleanup complete.",
+  "next": "Finish working/waiting/done cross-mode visual mapping; restore all19 temporary resources to original defaults and verify. Short build527 foreground CPU case passed; long performance matrix remains open.",
   "checkpointAtUTC": "2026-10-30T05:36:44.013380+00:00",
   "committedEntries": [
     0,
@@ -255,5 +256,37 @@
     "brightness": 35,
     "rawSHA256": "edd9568875bf8b8fc1258d4135049ae23fb179bb216c9b0eb76d4c867d5da382",
     "noUploadOrRestoreDuringRead": true
-  }
+  },
+  "ownerConfirmedVisualEntries": [
+    0,
+    4,
+    8,
+    12,
+    13,
+    15,
+    16,
+    17,
+    18
+  ],
+  "otherVisualObservations": {
+    "entry14": "Owner saw14 in timed sequence, but timed14→18 sequence not accepted as complete."
+  },
+  "timedSequenceAccepted": false,
+  "individualHolds": {
+    "15": "清晰稳定",
+    "16": "清晰稳定",
+    "17": "清晰稳定",
+    "18": "清晰稳定"
+  },
+  "fixedInputIsolationEnded": true,
+  "officialSocketRestored": true,
+  "lastIsolationCleanupFailure": null,
+  "allOriginal15PreferenceValuesStillUnchangedAfterBuild527": true,
+  "installedBuildNow": "527 / 22e57340",
+  "defaultModeCycle": {
+    "observed": "00 → 04 → 08",
+    "ownerConfirmed": true
+  },
+  "activeVisualPhase": null,
+  "workingCycleAwaitingOwnerConfirmation": true
 }
