@@ -25,27 +25,45 @@ public struct RestoreInitializationReadback: Equatable {
         self.sideSwitch = sideSwitch; self.display = display; self.lights = lights
     }
 
-    public var matchesX1RefactorDefaults: Bool {
-        guard workMode == 0, standbyMinutes == 60, voiceState == 0, display.brightness == 35,
-              sideSwitch.positions == [
-                .init(bindType: 0, action: Data()), .init(bindType: 1, action: Data())
-              ],
-              display.resources.allSatisfy({
-                !$0.userValid && $0.writeState == .empty && $0.frames == 0 &&
-                    $0.payloadBytes == 0 && $0.crc32 == 0
-              }) else { return false }
+    public enum DefaultDifference: Equatable {
+        case workMode(actual: UInt8), standby, voice, sideSwitch, brightness
+        case resource(UInt8)
+        case light(mode: UInt8, state: UInt8)
+        case route(mode: UInt8)
+        case key(mode: UInt8, index: UInt8)
+    }
+
+    /// All comparisons remain strict. Reporting a runtime mode separately lets
+    /// the caller distinguish it from a changed persisted configuration domain.
+    public var defaultDifferences: [DefaultDifference] {
+        var differences: [DefaultDifference] = []
+        if workMode != 0 { differences.append(.workMode(actual: workMode)) }
+        if standbyMinutes != 60 { differences.append(.standby) }
+        if voiceState != 0 { differences.append(.voice) }
+        if sideSwitch.positions != [
+            .init(bindType: 0, action: Data()), .init(bindType: 1, action: Data())
+        ] { differences.append(.sideSwitch) }
+        if display.brightness != 35 { differences.append(.brightness) }
+        for resource in display.resources where resource.userValid || resource.writeState != .empty ||
+            resource.frames != 0 || resource.payloadBytes != 0 || resource.crc32 != 0 {
+            differences.append(.resource(resource.id))
+        }
         let effects: [UInt8] = [11, 5, 1, 1, 1, 6, 6, 7, 0]
-        guard lights.lights.allSatisfy({ $0.effect == effects[Int($0.state)] }) else { return false }
+        for light in lights.lights where light.effect != effects[Int(light.state)] {
+            differences.append(.light(mode: light.mode, state: light.state))
+        }
         for mode: UInt8 in 0..<4 {
             let route = routes.routes[Int(mode)]
-            guard route.kind == .ordinary,
-                  route.action == (mode < 3 ? Data([0x73, 1, 0x6D]) : Data()) else { return false }
+            if route.kind != .ordinary || route.action != (mode < 3 ? Data([0x73, 1, 0x6D]) : Data()) {
+                differences.append(.route(mode: mode))
+            }
         }
-        for key in keys {
-            guard key == Self.expectedKey(mode: key.mode, index: key.keyIndex) else { return false }
+        for key in keys where key != Self.expectedKey(mode: key.mode, index: key.keyIndex) {
+            differences.append(.key(mode: key.mode, index: key.keyIndex))
         }
-        return true
+        return differences
     }
+    public var matchesX1RefactorDefaults: Bool { defaultDifferences.isEmpty }
 
     private static func expectedKey(mode: UInt8, index: UInt8) -> OrdinaryKeyReadback {
         if mode == 3 {

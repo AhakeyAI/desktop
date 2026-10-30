@@ -656,6 +656,12 @@ struct AhaKeyStudioView: View {
                     commitModeNameEdit()
                     selectedMode = mode
                 }
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+                .accessibilityAction {
+                    commitModeNameEdit()
+                    selectedMode = mode
+                }
         }
     }
 

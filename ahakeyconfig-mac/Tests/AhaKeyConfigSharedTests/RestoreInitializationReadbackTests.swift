@@ -25,7 +25,7 @@ final class RestoreInitializationReadbackTests: XCTestCase {
     }
     private func facts(workMode: UInt8 = 0, changedKey: Bool = false, wrongLights: Bool = false,
                        customResource: Bool = false, standby: UInt16 = 60, voice: UInt8 = 0,
-                       consumer: Bool = false) -> RestoreInitializationReadback {
+                       consumer: Bool = false, brightness: UInt8 = 35, changedSide: Bool = false) -> RestoreInitializationReadback {
         var bindings = keys()
         if changedKey {
             bindings[0] = .init(mode: 0, keyIndex: 0, actionType: 0x73, action: Data([0x6D]), description: Data("changed".utf8))
@@ -56,8 +56,8 @@ final class RestoreInitializationReadbackTests: XCTestCase {
         return RestoreInitializationReadback(workMode: workMode, keys: bindings,
             routes: .init(routes: routes)!, standbyMinutes: standby, voiceState: voice,
             sideSwitch: .init(physicalState: 1, positions: [
-                .init(bindType: 0, action: Data()), .init(bindType: 1, action: Data())
-            ]), display: .init(generation: 5, brightness: 35, resources: resources),
+                .init(bindType: changedSide ? 2 : 0, action: Data()), .init(bindType: 1, action: Data())
+            ]), display: .init(generation: 5, brightness: brightness, resources: resources),
             lights: .init(generation: 5, lights: lights)!)!
     }
     func testFirmwareDefaultsMatchIncludingEmptyFourthModeAndFactoryF18Routes() {
@@ -71,6 +71,21 @@ final class RestoreInitializationReadbackTests: XCTestCase {
             facts(workMode: 1), facts(changedKey: true), facts(wrongLights: true),
             facts(customResource: true), facts(standby: 30), facts(voice: 2), facts(consumer: true)
         ] { XCTAssertFalse(value.matchesX1RefactorDefaults) }
+    }
+    func testDifferenceReportIdentifiesModeWithoutWeakeningStrictDefaults() {
+        let value = facts(workMode: 1)
+        XCTAssertEqual(value.defaultDifferences, [.workMode(actual: 1)])
+        XCTAssertFalse(value.matchesX1RefactorDefaults)
+        XCTAssertTrue(facts().defaultDifferences.isEmpty)
+    }
+    func testDifferenceReportIncludesEveryChangedDomain() {
+        let value = facts(workMode: 1, changedKey: true, wrongLights: true,
+                          customResource: true, standby: 30, voice: 2, consumer: true, brightness: 50, changedSide: true)
+        XCTAssertEqual(value.defaultDifferences, [
+            .workMode(actual: 1), .standby, .voice, .sideSwitch, .brightness, .resource(0),
+            .light(mode: 3, state: 8), .route(mode: 0), .key(mode: 0, index: 0)
+        ])
+        XCTAssertFalse(value.matchesX1RefactorDefaults)
     }
     func testMissingDuplicateOrMixedGenerationFactsAreNotCompleteReadback() {
         let value = facts()

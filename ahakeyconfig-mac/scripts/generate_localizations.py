@@ -7,6 +7,13 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    '屏幕亮度': 'Screen brightness',
+    '拨杆绑定': 'Lever bindings',
+    '当前模式为 Mode %d（默认 Mode 1）': 'Current mode: Mode %d (default: Mode 1)',
+    '平台选择': 'Platform selection',
+    '语音键绑定': 'Voice key bindings',
+    '按键与描述': 'Keys and descriptions',
+    '与默认值不同：%@': 'Different from defaults: %@',
     '已读取当前设置：': 'Current keyboard setting:',
     '尚未读取当前设置': 'Current setting has not been read',
     '恢复出厂设置…': 'Reset keyboard…',

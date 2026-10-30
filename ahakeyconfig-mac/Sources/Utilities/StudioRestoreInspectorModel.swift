@@ -119,6 +119,9 @@ final class StudioRestoreInspectorModel: ObservableObject {
         case .needsReadback(let value):
             snapshot = value
             message = NSLocalizedString("键盘报告已恢复，但部分设置与预期默认值不同，请重新核对。", comment: "")
+            if let readback = output.readback, let summary = Self.differenceSummary(readback.defaultDifferences) {
+                message = (message ?? "") + "\n" + summary
+            }
         case .unfinished(let value):
             snapshot = value
             message = NSLocalizedString("本次恢复结果尚未核对，请先读取状态，再明确选择是否重试。", comment: "")
@@ -131,6 +134,28 @@ final class StudioRestoreInspectorModel: ObservableObject {
         if succeeded || refusedWithoutMutation { markPending(deviceID, value: false) }
         writeCompleted.send(.init(succeeded: succeeded, message: message ?? "", wrote: wrote))
     }
+    static func differenceSummary(_ differences: [RestoreInitializationReadback.DefaultDifference]) -> String? {
+        var labels: [String] = []
+        for difference in differences {
+            let label: String
+            switch difference {
+            case .workMode(let actual):
+                label = String(format: NSLocalizedString("当前模式为 Mode %d（默认 Mode 1）", comment: ""), Int(actual) + 1)
+            case .standby: label = NSLocalizedString("待机时间", comment: "")
+            case .voice: label = NSLocalizedString("平台选择", comment: "")
+            case .sideSwitch: label = NSLocalizedString("拨杆绑定", comment: "")
+            case .brightness: label = NSLocalizedString("屏幕亮度", comment: "")
+            case .resource: label = NSLocalizedString("屏幕素材", comment: "")
+            case .light: label = NSLocalizedString("灯效", comment: "")
+            case .route: label = NSLocalizedString("语音键绑定", comment: "")
+            case .key: label = NSLocalizedString("按键与描述", comment: "")
+            }
+            if !labels.contains(label) { labels.append(label) }
+        }
+        guard !labels.isEmpty else { return nil }
+        return String(format: NSLocalizedString("与默认值不同：%@", comment: ""), labels.joined(separator: " · "))
+    }
+
     private func markPending(_ deviceID: String, value: Bool) {
         let previous = pending
         if value { pending.insert(deviceID) } else { pending.remove(deviceID) }

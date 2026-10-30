@@ -55,6 +55,7 @@ struct StudioFactoryResetSheet: View {
                 }
                 if model.fact?.value.canStart == true && outcome == nil {
                     Toggle(NSLocalizedString("已连接键盘 USB 供电，并会保持连接", comment: ""), isOn: $model.usbPowerConfirmed)
+                        .disabled(model.isBusy)
                 }
                 if outcome == nil {
                     Text(NSLocalizedString("建议连接充电器供电，并保持蓝牙连接。恢复期间请勿断电或操作键盘。", comment: ""))
@@ -76,16 +77,18 @@ struct StudioFactoryResetSheet: View {
                     Button(NSLocalizedString("下一步", comment: "")) {
                         preparation = true; readStatus()
                     }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
-                } else if outcome != nil {
+                } else {
                     if model.canVerify {
                         Button(NSLocalizedString("核对恢复后的设置", comment: "")) { verify() }
                             .disabled(model.isBusy)
                     }
-                    Button(NSLocalizedString("完成", comment: "")) { dismiss() }
-                        .buttonStyle(.borderedProminent).disabled(model.isBusy)
-                } else {
-                    Button(NSLocalizedString("恢复出厂设置", comment: ""), role: .destructive) { confirmsReset = true }
-                        .buttonStyle(.borderedProminent).tint(.red).disabled(!model.canSubmit)
+                    if outcome != nil {
+                        Button(NSLocalizedString("完成", comment: "")) { dismiss() }
+                            .buttonStyle(.borderedProminent).disabled(model.isBusy)
+                    } else {
+                        Button(NSLocalizedString("恢复出厂设置", comment: ""), role: .destructive) { confirmsReset = true }
+                            .buttonStyle(.borderedProminent).tint(.red).disabled(!model.canSubmit)
+                    }
                 }
             }
         }
