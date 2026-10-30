@@ -2106,11 +2106,6 @@ struct AhaKeyStudioView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             Spacer()
-            Button(bleManager.isChangingWorkMode ? "正在切换…" : "切换键盘到 \(selectedMode.title)") {
-                deviceInspectorModel.switchMode(UInt8(selectedMode.rawValue), ble: bleManager, session: inspectorSession)
-            }
-            .disabled(componentBusy)
-            .help(NSLocalizedString("只切换工作模式，不保存其他组件。", comment: ""))
             if let lastSyncDate {
                 Text("最近同步 \(Self.timeFormatter.string(from: lastSyncDate))")
                     .font(.callout)
