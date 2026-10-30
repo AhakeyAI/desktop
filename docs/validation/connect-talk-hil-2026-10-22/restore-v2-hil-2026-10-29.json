@@ -26,8 +26,11 @@
   "restoreRequestsSent": 0,
   "firstRestoreComplete": false,
   "repeatRestoreV2Complete": false,
-  "externalUSBPowerConfirmed": false,
+  "externalUSBPowerConfirmed": true,
   "twoRestoreConsentReceived": true,
-  "pending": "Two destructive restores authorized; finish selected two-step UI integration and confirm normal external USB power before any reset request",
-  "consumerSiriIssueStillOpen": true
+  "pending": "Owner confirmed normal USB power and both restores. macOS Bluetooth is on, keyboard not connected; temporary read-only lease timed out. Waiting for keyboard wake before fresh status query.",
+  "consumerSiriIssueStillOpen": true,
+  "powerConfirmationDate": "2026-10-30",
+  "preflightRetryBuild": "522",
+  "freshPreflightConnection": "timeout before status query"
 }
