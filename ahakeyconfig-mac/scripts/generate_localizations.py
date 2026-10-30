@@ -20,7 +20,7 @@ TRANSLATIONS = {
     '键盘恢复状态': 'Keyboard reset status',
     '恢复设置已核对': 'Reset settings verified',
     '请先核对恢复结果': 'Verify the reset result first',
-    '恢复期间请勿断电，也不要操作键盘。': 'Keep power connected and do not operate the keyboard during reset.',
+    '建议连接充电器供电，并保持蓝牙连接。恢复期间请勿断电或操作键盘。': 'Use a USB charger and keep Bluetooth connected. Keep power connected and do not operate the keyboard during reset.',
     '将恢复所有模式的键盘设置并停用自定义画面。本地草稿保留，请保持 USB 供电。': 'Reset keyboard settings across all modes and disable custom images. Local drafts are kept. Keep USB power connected.',
     '正在读取键盘…': 'Reading keyboard…',
     '尚未读取键盘': 'Keyboard has not been read',

@@ -1,6 +1,6 @@
 {
   "date": "2026-10-29",
-  "clientBuild": "521",
+  "clientBuild": "522",
   "expectedEngineeringFirmwareSHA256": "07a8df32f86bd0b74c62f1c52d4217efe77ad9821d02b355cb96e163d1cd271a",
   "formalReleaseClaimed": false,
   "preflight": {
@@ -23,14 +23,48 @@
     "deviceBackupSHA256": "857c5124cf603f6a8ca459bb1a2936f3221a28b654369b9e83ffdf14a469a21f",
     "latestLocalDraftBackupSaved": true
   },
-  "restoreRequestsSent": 0,
-  "firstRestoreComplete": false,
-  "repeatRestoreV2Complete": false,
+  "restoreRequestsSent": 2,
+  "firstRestoreComplete": true,
+  "repeatRestoreV2Complete": true,
   "externalUSBPowerConfirmed": true,
   "twoRestoreConsentReceived": true,
-  "pending": "Owner confirmed normal USB power and both restores. macOS Bluetooth is on, keyboard not connected; temporary read-only lease timed out. Waiting for keyboard wake before fresh status query.",
+  "pending": "Owner normal power cycle, leave platform unselected; then verify durable attempt 2 and defaults before choosing Mac. Fault matrices still open.",
   "consumerSiriIssueStillOpen": true,
   "powerConfirmationDate": "2026-10-30",
   "preflightRetryBuild": "522",
-  "freshPreflightConnection": "timeout before status query"
+  "freshPreflightConnection": "PASS after switching USB host to independent power",
+  "executionDate": "2026-10-30",
+  "clientSource": "69f0e242ad3bf328eca3ab5242c5e07cded2b7b7",
+  "externalPowerSource": "independent charger/powerbank (owner confirmed)",
+  "attemptSequence": [
+    0,
+    1,
+    2
+  ],
+  "firstRequestBytes": 11,
+  "repeatV2RequestBytes": 15,
+  "repeatExpectedAttempt": 2,
+  "completeIndependentDefaultsReadbackEachRestore": true,
+  "defaultsReadbackEach": {
+    "uniqueKeys": 16,
+    "routeRecords": 4,
+    "lightingEntries": 36,
+    "resourceMetadataEntries": 19,
+    "workMode": 0,
+    "standbyMinutes": 60,
+    "voiceOnboardingState": 0,
+    "brightnessPercent": 35,
+    "customResourcesValid": 0
+  },
+  "localDraftsNotWritten": true,
+  "powerCyclePersistenceVerified": false,
+  "evidenceSHA256": {
+    "first-restore-complete.log": "c9fc8815f7537a7dc6a866ac932c338be5ec5bf6f80fe14537717a569d052b6f",
+    "second-restore-complete.log": "93ff8ecafa38e1a2ea3496fc49519ec495055b5de768f34d9c727efc74686ff1"
+  },
+  "preferencesPreserved": {
+    "trackedKeys": 14,
+    "unchangedKeys": 14,
+    "pendingRestoreEntries": 0
+  }
 }

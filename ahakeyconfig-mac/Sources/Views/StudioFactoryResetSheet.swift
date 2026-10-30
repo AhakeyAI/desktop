@@ -55,7 +55,7 @@ struct StudioFactoryResetSheet: View {
                 }
                 if model.fact?.value.canStart == true && outcome == nil {
                     Toggle(NSLocalizedString("已连接键盘 USB 供电，并会保持连接", comment: ""), isOn: $model.usbPowerConfirmed)
-                    Text(NSLocalizedString("恢复期间请勿断电，也不要操作键盘。", comment: ""))
+                    Text(NSLocalizedString("建议连接充电器供电，并保持蓝牙连接。恢复期间请勿断电或操作键盘。", comment: ""))
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 if let message = model.message {
