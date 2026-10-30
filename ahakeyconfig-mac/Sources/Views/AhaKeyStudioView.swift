@@ -3884,59 +3884,22 @@ private struct AhaKeyKeyboardCanvasView: View {
         value / baseWidth * width
     }
 
-    private struct LightBarCanvas: View {
+    private struct LightBarCanvas: NSViewRepresentable {
         let effect: LightEffectStyle
         let baseColor: Color
         let framesPerSecond: Double?
 
-        var body: some View {
-            Group {
-                if let framesPerSecond {
-                    TimelineView(.periodic(from: .now, by: 1.0 / framesPerSecond)) { context in
-                        strip(colors: AhaKeyKeyboardCanvasView.lightBarColors(
-                            effect: effect,
-                            time: context.date.timeIntervalSince1970,
-                            count: 10,
-                            baseColor: baseColor
-                        ))
-                    }
-                } else {
-                    strip(colors: AhaKeyKeyboardCanvasView.lightBarColors(
-                        effect: effect,
-                        time: 0,
-                        count: 10,
-                        baseColor: baseColor
-                    ))
-                }
-            }
-            .accessibilityHidden(true)
-        }
+        func makeNSView(context: Context) -> LightBarLayerView { LightBarLayerView() }
 
-        private func strip(colors: [Color]) -> some View {
-            Canvas(opaque: false, rendersAsynchronously: false) { context, size in
-                let bounds = CGRect(origin: .zero, size: size)
-                context.fill(
-                    Path(roundedRect: bounds, cornerRadius: min(12, size.height / 2)),
-                    with: .color(Color.black.opacity(0.12))
-                )
-
-                let horizontalPadding = size.width * 0.04
-                let spacing = size.width * 0.026
-                let availableWidth = max(0, size.width - horizontalPadding * 2 - spacing * 9)
-                let barWidth = availableWidth / 10
-                let barHeight = size.height * (0.26 / 0.48)
-                let y = (size.height - barHeight) / 2
-
-                for index in 0..<min(10, colors.count) {
-                    let x = horizontalPadding + CGFloat(index) * (barWidth + spacing)
-                    let rect = CGRect(x: x, y: y, width: barWidth, height: barHeight)
-                    context.fill(
-                        Path(roundedRect: rect, cornerRadius: barHeight / 2),
-                        with: .color(colors[index])
-                    )
-                }
+        func updateNSView(_ view: LightBarLayerView, context: Context) {
+            let effect = effect, baseColor = baseColor
+            view.configure(framesPerSecond: framesPerSecond) { time in
+                AhaKeyKeyboardCanvasView.lightBarColors(effect: effect, time: time, count: 10,
+                                                      baseColor: baseColor).map { NSColor($0).cgColor }
             }
         }
+
+        static func dismantleNSView(_ view: LightBarLayerView, coordinator: ()) { view.dismantle() }
     }
 
     private static func lightBarColors(effect: LightEffectStyle, time: TimeInterval, count: Int,

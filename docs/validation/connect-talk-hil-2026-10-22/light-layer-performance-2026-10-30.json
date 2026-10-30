@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-30",
+  "status": "implemented; 957 automated tests passed; native candidate performance pending",
+  "before": {
+    "source": "9824151c",
+    "build": 525,
+    "frames": 120,
+    "fps": 12,
+    "sampleCount": 114,
+    "durationSeconds": 599.838262125,
+    "sampledForegroundAll": true,
+    "studio": {
+      "singleCoreCPUPercent": 19.69030778089765,
+      "rssStartKiB": 115104,
+      "rssEndKiB": 113104,
+      "rssPeakKiB": 120144
+    },
+    "agent": {
+      "singleCoreCPUPercent": 0.5634852281723308,
+      "rssStartKiB": 18000,
+      "rssEndKiB": 17584,
+      "rssPeakKiB": 18384
+    },
+    "privateSampleSHA256": "976e1e20bd5bad625f02ad01b7dbfb85e568e8ece5405682ee4cfc2235077233"
+  },
+  "controls": {
+    "diagnostic526WarmAnimationWithLightCPUPercent": 10.121,
+    "sameGIFWithLightPreviewOffCPUPercent": 0.987,
+    "originalBrowseGIF120CPUPercent": 17.716,
+    "originalBrowseStaticCPUPercent": 8.486,
+    "noDeviceConfigurationWrites": true
+  },
+  "diagnosis": {
+    "lightTimelineDependentLoadReproduced": true,
+    "freshGIFCacheHitsConfirmed": true,
+    "old525AdditionalGIFDecodeCauseStillUnresolved": true,
+    "old525Binary32MiBCacheConfirmed": true
+  },
+  "change": "Retain colors, geometry, 5/10fps and active/reduce-motion gating; move light ticks to ten reusable backing layers instead of SwiftUI TimelineView. Stop on background/minimize/teardown.",
+  "tests": {
+    "focusedLayerTests": 4,
+    "fullSwiftTests": 957,
+    "failures": 0
+  },
+  "temporaryGIFProbeRemovedFromSources": true,
+  "fullPerformanceMatrixComplete": false,
+  "afterInstalledMeasurement": null
+}
