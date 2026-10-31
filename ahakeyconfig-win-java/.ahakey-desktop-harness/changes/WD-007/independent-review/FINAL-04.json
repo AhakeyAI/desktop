@@ -1,0 +1,282 @@
+{
+  "schema_version": 1,
+  "id": "WD-007",
+  "report": "FINAL-04",
+  "created_at": "2026-10-31T03:58:15.209709+00:00",
+  "session": "01a18fc8-37c7-7741-8ad4-60366ce83f94",
+  "reviewer_thread_id": "01a18fc8-37c7-7741-8ad4-60366ce83f94",
+  "decision": "pass",
+  "analysis": "IR06(A04/G10)已关闭：openSelected持commandLock创建USB新会话时无条件分配新草稿UUID，主动断开后即使同path且无absence也不会自动恢复旧实体dirty草稿。现有selectDevice将旧草稿保存为独立记录并读新设备实际配置；当前连续会话轮询不换身份。BLE及资源恢复隔离未改，R2终止原因和迟到回调护栏保留。目标红测日志在指定断言失败，修复后12套执行结果/日志哈希一致，USB111检查覆盖主动断开同path读7、再次重连读6、旧草稿保留、当前dirty保留和不伪造absence。累计53路径仅3项增量，其余50字节不变；未独立重跑测试或认证R3产物/UAT。",
+  "pack_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-007\\reviews\\20261031T035646842103Z-df80ba\\PACK.json",
+  "pack_sha256": "dac7bbb555ef2030fd10316abbb91c1b6e55e66c3060e0afb514ae98046efa79",
+  "code_fingerprint": "9c9dd321bcc7a984e34047aa854b4e0cb344fc4789f5e965315cbd06d4251f58",
+  "approval_sha256": "45632a756db0b790831efe9c760aca6deec8582e200e6de1841094b48f1f47fc",
+  "submission_sha256": "7983f3ce0e37b12c1e3fc3cd6ba5c776b512a83a681453f668abffa381ee79a2",
+  "diff_sha256": "557aea4b7a2da2811a0a629bb37da7059b52d010e38f63f8e56eab004f793dd6",
+  "missing_start_bytes": [],
+  "findings": [],
+  "closed_findings": [
+    "IR06",
+    "IR05",
+    "IR01-R",
+    "IR02",
+    "IR03",
+    "IR04"
+  ],
+  "requirement_ids": [
+    "A04",
+    "G10"
+  ],
+  "cumulative_review": {
+    "inherited": [
+      "FINAL-01",
+      "FINAL-02",
+      "FINAL-03",
+      "POST-PASS-01"
+    ],
+    "total_paths": 53,
+    "changed_since_R2": [
+      "src/main/java/com/example/ahakey/service/BleManager.java",
+      "src/test/java/com/example/ahakey/service/Wd007SafetyChecks.java",
+      "src/test/java/com/example/ahakey/service/Wd007UsbTerminationChecks.java"
+    ],
+    "unchanged_paths_byte_verified": 50,
+    "before_bytes_unchanged": true,
+    "live_matches_at_observation": true
+  },
+  "source_files": [
+    {
+      "path": "scripts/ble-driver-fixes.patch",
+      "sha256": "4ba1540d9a37c93c251aa21117dad4b87e3567fe3d566889d2d5f020b8bfbc37"
+    },
+    {
+      "path": "scripts/build-ble-driver.ps1",
+      "sha256": "a78a287bf1327cb51d561eb23e8b7346c942c52a3d64e2427f2d9c9038e0a197"
+    },
+    {
+      "path": "scripts/test-wd007.ps1",
+      "sha256": "86b27f692ba66b9220d149375445e0eb9d02bd7af3d38789b6cd3cecccd24560"
+    },
+    {
+      "path": "scripts/wd007/ManagedBridge.cs",
+      "sha256": "9f99b4990cfbf5e3d62fcd20bd4ac0f95cfb9fad3ad3869fd8dcf493d341d2c5"
+    },
+    {
+      "path": "scripts/wd007/fixtures/legacy-claude.ps1",
+      "sha256": "0d90c6a7e5fc68e97efb6cec57fda74cafba2699b351003663ff9ea1a37f9c30"
+    },
+    {
+      "path": "scripts/wd007/fixtures/legacy-codex.ps1",
+      "sha256": "aa5c340af397050f746d977a02ab8c4cf58b42c9d4bf4cd5dcd548835ee56075"
+    },
+    {
+      "path": "scripts/wd007/run-checks.py",
+      "sha256": "6ae08856c44d8c25fc19766c61a506fa367af928d1326995b64c2928fde147dd"
+    },
+    {
+      "path": "scripts/wd007/test-kimi-consumer.py",
+      "sha256": "e13cbf3ce74858cf7be953527fafa9a958fe74ce8c0718f313248ee39a5adbdb"
+    },
+    {
+      "path": "scripts/wd007/test-managed-ipc.py",
+      "sha256": "190faedfeaf89ddc8cd1eac5eb9cfb00a16c8ee6c226abcaaffbada1b4a60d17"
+    },
+    {
+      "path": "scripts/wd007/test-managed-selection.ps1",
+      "sha256": "8f77473742f6d00e9648ef1a1f36c8c6aad679ca0b46927cb255d16a3bbf2e41"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/App.java",
+      "sha256": "d8bc3800af37733219243e117c6eb470acf91ba4e38e8b369c6aefd3c4dbd3cf"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "sha256": "c89c68a0019f40d4ca7d511431bbed5547caad86f96cad9ce13bec2d944a1768"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DeviceStatus.java",
+      "sha256": "9d5d5b9ce06c2214a98d2913f3c25287de1cf59f9a87dbb1e36c47ae8664d465"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/HIDUsage.java",
+      "sha256": "1be59124f59c675318cdc383742f9083c063e53d6d00c2174f28085311100212"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/K1RouteState.java",
+      "sha256": "cbf38a53982ee336286dcf5183a500e5052ac5584ab72b3c52e86ccfbd955ebb"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/KeyConfig.java",
+      "sha256": "4ca36d7daa60a272376c79c2635358dcf9204b3ce9c4aed8462bd17b497245bb"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+      "sha256": "5e13eef655040702cf64b17565ef094991989f967ed8c9f05ebe52a84def473b"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/connection/DeviceTarget.java",
+      "sha256": "ea2ae7392dbb7c5c3e5049dc00fd2f3788238aac1837023610e74acaff72b664"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/platform/VoiceRelayPlatform.java",
+      "sha256": "f3a1e16ae389f66558ec6eae35052abe5b868c82e8ea3abcfb09282f80315737"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/platform/windows/WindowsVoiceRelayService.java",
+      "sha256": "80284ab7009bc3363ae015238cdea46d05b865d32ecd9acdf626c30f296f9abd"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "sha256": "cc4b434f6cf0f0a4f6435c6e1902c71a3e81278a1c6d4b540f7a127f6d45c1d5"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+      "sha256": "57bf8aa0a137046a32335d0d0bb1ec02ad76025e9ec94b0b4d59fcb2094876fb"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "sha256": "ed7a2f0cd8e58e99a99302492796e760a9ea289f0eaed593f3a92e680f529283"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookDispatchServer.java",
+      "sha256": "a92332e4a701c2481a739a480bee89491fe600706beb462f0fed0650a502b922"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookInstaller.java",
+      "sha256": "d9d0cf7fb8c37820196a824c89f3c551f2c4dd10b9350fec9d9b843b99def278"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/KeySimulationService.java",
+      "sha256": "60620bc468f354a6b6e495ed14c63f133b3485feac2aadeeb3498b041ca99ae4"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/KimiAhaKeyBridge.java",
+      "sha256": "95fd3134a69a39111dc2c87dc934cf52a985ad00d2c5677b8379d8f0454ffdba"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledUploadService.java",
+      "sha256": "37da1566a2db30a97eb277414deebe6522fcb5364d52d16d83aed30499bbc88d"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/SocketServer.java",
+      "sha256": "6184507a49865bcfc3aae1da7f46da28fe48b08b03995a9e6c1ef8cc967ba965"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "sha256": "fd70890d8120ecfb9c0f5c87d970c2128edc4990f4c6e28258707bdf4b53243b"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/connection/DeviceRecoveryRegistry.java",
+      "sha256": "491b84f12cf4fac1e73cbed5f8e5e2a53ecfd140d89e283fc2515a6dd78724e0"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/connection/ManagedBridgeClient.java",
+      "sha256": "6e36c02379ded81970a2335d94b8f282059b76070c16db0f6b6535d983fd4801"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "sha256": "e7dc7a16c16d566fdb44b8fef4fcde7175d19ec6885ee9775175b57b6ed2bb33"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "sha256": "0c9cc6ddda647d632798b844191d5a9dc8e6c47055a3ffcb2b2d10b02156bd6f"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/TopBar.java",
+      "sha256": "556b642e6c0a04cb1934bdb30cdc73229e4f6ac9727f1754b9d5e19450246f35"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigCapabilityChecks.java",
+      "sha256": "4770546ce18ad332cbb88cecedecba1e0355e1db5abea42fd2f7d6cb38119cde"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigChecks.java",
+      "sha256": "13a475b3fc4a18c59e75a6eea27d77828a17fcd481f42cc6fb2a4d738aec9dc7"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigIsolationChecks.java",
+      "sha256": "462b5bae61441a80e5880d8feae1f1c10d5ee7402ffc87707bd2af573a618ef7"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3Checks.java",
+      "sha256": "0f721a03ae04e91eab9b3c61a0589e298247fad86c6761bd27583dc8a1075014"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRound5Checks.java",
+      "sha256": "a7bb309bb2457e27a4007cbacc299593463314421df148afdf7165759aeb217b"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/OfflineBleManager.java",
+      "sha256": "fc25df0726ae0857e6012f2f41d5c31034996d6b703bf4b3d51dc9350c3e4564"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/DeviceMaintenanceChecks.java",
+      "sha256": "df611ad496009778585c1f687d5c1059259371ad5b94cc0d55c1309d5bf58e9e"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/K1RouteEditorChecks.java",
+      "sha256": "7a8843f68f6d3176b12b92a14710b4082f157631caf1d50cbef9a4ec8082bc4e"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/Wd007DraftReadbackChecks.java",
+      "sha256": "b0c6e1999936eb26de823e14923cbe54835bafa80047765c92e7f2c4bfadaba0"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/protocol/K1RouteProtocolChecks.java",
+      "sha256": "c4ba3779abfe8f01db919876140e15ab9c809ccc9ef103679f8d1efe7bef2994"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007BehaviorChecks.java",
+      "sha256": "4419a654eec543d38d45ae338c11cebc218129ca31f6ac627377a7c28b8ab592"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007BridgeRetirementChecks.java",
+      "sha256": "2445015beb339f729f77fcd73d0d93505fec392407a0076e65040afc078d8542"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007RecoveryControllerChecks.java",
+      "sha256": "e0a6e7b3ff441f9dd1b2333001fa9a8a5290ceb2d48af3474eb71dce626d40a1"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007SafetyChecks.java",
+      "sha256": "5704a98894ebaa2d6d279adfc3b8d21cdb98c457d1bf786a8050458a89540576"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007UsbTerminationChecks.java",
+      "sha256": "5179d230e885de000d133823498830c56cdb180e0d7a170ed434884eccfc4121"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007WindowExitChecks.java",
+      "sha256": "20831677f92e281e44c8dee576b3660ad709533ebf45d736633934e8213160c8"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/connection/ManagedBridgeClientChecks.java",
+      "sha256": "e0a210d90b23a4ba68a8504dfbbe671396ed3e7991030051f8e20ed3ea884d96"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/transport/KimiBridgeLifecycleCheck.java",
+      "sha256": "556b328a060ec92ebaf09654cbfd2c810b75e7e9127c7ff0ca249a81f3166d03"
+    }
+  ],
+  "test_evidence": {
+    "independently_rerun": false,
+    "suites": 12,
+    "all_exit_zero": true,
+    "all_log_hashes_match": true,
+    "results_sha256": "3f663b068ed30556d5c1e36af9538e1095e4969446560619a040e8e62828b6db",
+    "red_results_sha256": "8fcb31f331f996122ce426ac141c60d9efe16d7a36ba52922742760adc388760",
+    "red_exit": 1,
+    "red_class_bytes_independently_rebuilt": false,
+    "usb_checks_reported": 111,
+    "results_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r3-checks-01\\RESULTS.json"
+  },
+  "limitations": [
+    "Code review and evidence inspection only, no independent product execution.",
+    "R3 candidate/artifact validation, native devices and Owner UAT remain separate.",
+    "Same physical no-serial USB does not automatically regain prior-session draft; records are preserved without a new restore UI."
+  ],
+  "report_path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\changes\\WD-007\\independent-review\\FINAL-04.md",
+  "report_sha256": "1bf969392f790e08a2de1b60fcf9dff7188403eec086f7bd9c588d267528796e",
+  "production_modified": false,
+  "state_or_gate_mutated": false
+}

@@ -534,6 +534,8 @@ public class BleManager {
             activeTarget=target; displayWriteUncertain=recoveryTargets.contains(target.key());
             generation=connectionGeneration; release=bridgeRelease;releaseOwner=bridgeReleaseOwner;
             if(target.transport().equals("USB")){
+                // A path without a unique serial cannot prove the same keyboard survived a closed session.
+                usbAttachments.put(target.id(),java.util.UUID.randomUUID().toString());
                 usbTransport=openedUsb;
                 openedUsb.onUnexpectedDisconnect(()->usbSessionTerminated(openedUsb,generation));
             }

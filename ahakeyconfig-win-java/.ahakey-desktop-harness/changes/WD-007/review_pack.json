@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "id": "WD-007",
-  "created_at": "2026-10-31T03:31:31+00:00",
-  "build_round": 3,
-  "code_fingerprint": "0238ca53e8a583c8ef920aaab5c68c7932f94e4e3c39fc9798bcb1fa7764b8f2",
+  "created_at": "2026-10-31T03:56:47+00:00",
+  "build_round": 4,
+  "code_fingerprint": "9c9dd321bcc7a984e34047aa854b4e0cb344fc4789f5e965315cbd06d4251f58",
   "approval_sha256": "45632a756db0b790831efe9c760aca6deec8582e200e6de1841094b48f1f47fc",
-  "submission_sha256": "d683ba1c77920626f8925eacdf47446747e945c201292134cd71d0c446925df0",
+  "submission_sha256": "7983f3ce0e37b12c1e3fc3cd6ba5c776b512a83a681453f668abffa381ee79a2",
   "start_sha256": "8ec75c3a8dbc1cfd5949bb595732203544ce6db15a82cf6c6d8142dbe9153be4",
   "changed_paths": [
     "scripts/ble-driver-fixes.patch",
@@ -63,8 +63,8 @@
     "src/test/java/com/example/ahakey/transport/KimiBridgeLifecycleCheck.java"
   ],
   "missing_start_bytes": [],
-  "diff_path": ".ahakey-desktop-harness/changes/WD-007/reviews/20261031T033130978942Z-6f3166/ACTUAL_DIFF.txt",
-  "diff_sha256": "2a1486211a11b217498ef9bf5d2e4faae2aed7f5d636827653f191c687d475fb",
+  "diff_path": ".ahakey-desktop-harness/changes/WD-007/reviews/20261031T035646842103Z-df80ba/ACTUAL_DIFF.txt",
+  "diff_sha256": "557aea4b7a2da2811a0a629bb37da7059b52d010e38f63f8e56eab004f793dd6",
   "policy_sha256": "0aa750d4347e5f041eacde0381ec5607af0e33136eb88fe36ca3e7b2c03d31de",
   "last_verified_baseline": {
     "id": "WD-005",

@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "id": "WD-007",
-  "pack_sha256": "a2974f1471fe9f96e3f4be3644ca884cff034afd3a84744fd154f3088a6f7adb",
+  "pack_sha256": "dac7bbb555ef2030fd10316abbb91c1b6e55e66c3060e0afb514ae98046efa79",
   "reviewer_role": "DLA",
   "review_session": "01a1684d-3953-79d0-9cc6-57f397a595f9",
   "builder_session": "01a18f9a-913a-7212-a37f-d29aa168a189",
   "independence": "separate_dla_conversation",
   "decision": "pass",
-  "scope_conclusion": "53个累计路径在批准范围；保留R0/R1逐文件审阅，R2四个真实增量完整复核，原IR05锁交错缺陷已修。",
+  "scope_conclusion": "53个累计路径在批准范围；R0/R1/R2逐文件审阅保留。R3仅USB新会话草稿身份2行生产及2个测试增量，已实际读取；无协议或产品范围扩展。",
   "per_file": [
     {
       "path": "scripts/ble-driver-fixes.patch",
@@ -132,7 +132,7 @@
     {
       "path": "src/main/java/com/example/ahakey/service/BleManager.java",
       "purpose": "完整审阅连接意图、session/generation、USB观察、释放barrier、串行全ACK、取消epoch及隔离持久化、19槽恢复probe、审批即时状态和保存事实。",
-      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；完整审阅连接意图、session/generation、USB观察、释放barrier、串行全ACK、取消epoch及隔离持久化、19槽恢复probe、审批即时状态和保存事实。 R1全部增量已读，对照真实12套针对性日志；当前source/旧generation精确断连，捕获旧owner确认退出才退休release屏障。 R2锁内先取消旧transport，消费不可变UNEXPECTED原因后退休旧attachment，再替换；排队旧回调仍由source/generation隔离，不伪造absence。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；完整审阅连接意图、session/generation、USB观察、释放barrier、串行全ACK、取消epoch及隔离持久化、19槽恢复probe、审批即时状态和保存事实。 R1全部增量已读，对照真实12套针对性日志；当前source/旧generation精确断连，捕获旧owner确认退出才退休release屏障。 R2锁内先取消旧transport，消费不可变UNEXPECTED原因后退休旧attachment，再替换；排队旧回调仍由source/generation隔离，不伪造absence。 R3在openSelected持锁USB分支分配新UUID，不以可复用HID path证明物理连续；BLE不变，原草稿在StudioState按旧身份单独保留，不伪造absence。",
       "within_contract": true
     },
     {
@@ -294,7 +294,7 @@
     {
       "path": "src/test/java/com/example/ahakey/service/Wd007SafetyChecks.java",
       "purpose": "排队取消和timeout真实物理发送日志，lateACK无解锁，完整枚举错误不算absence，实际生成脚本执行。",
-      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；排队取消和timeout真实物理发送日志，lateACK无解锁，完整枚举错误不算absence，实际生成脚本执行。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；排队取消和timeout真实物理发送日志，lateACK无解锁，完整枚举错误不算absence，实际生成脚本执行。 R3原same-path自动恢复断言改为新USB配置会话身份不同，不取消原断开/物理移除/隔离检测。",
       "within_contract": true
     },
     {
@@ -324,12 +324,12 @@
     {
       "path": "src/test/java/com/example/ahakey/service/Wd007UsbTerminationChecks.java",
       "purpose": "实际reader terminal seam到coordinator/controller：同路径B读回、A草稿保留、旧callback不影响B、主动close不误报、IO错误不能解除资源隔离，20检查。",
-      "reviewed_hunks": "完整新增文件已审阅。实际reader terminal seam到coordinator/controller：同路径B读回、A草稿保留、旧callback不影响B、主动close不误报、IO错误不能解除资源隔离，20检查。 R1全部增量已读，对照真实12套针对性日志；当前source/旧generation精确断连，捕获旧owner确认退出才退休release屏障。 R2共106断言，实际commandLock控制旧reader已锁存但排队，openSelected先替换，新B读回8、旧dirty44另存且late回调无效；40轮并发终止及不可变性。",
+      "reviewed_hunks": "完整新增文件已审阅。实际reader terminal seam到coordinator/controller：同路径B读回、A草稿保留、旧callback不影响B、主动close不误报、IO错误不能解除资源隔离，20检查。 R1全部增量已读，对照真实12套针对性日志；当前source/旧generation精确断连，捕获旧owner确认退出才退休release屏障。 R2共106断言，实际commandLock控制旧reader已锁存但排队，openSelected先替换，新B读回8、旧dirty44另存且late回调无效；40轮并发终止及不可变性。 R3新增主动断开无absence同pathB实际读7、再次重连读6、旧draft分别保留及当前会话dirty不丢，原R2锁交错/原子原因保留。111断言；先旧实现红测后绿测。",
       "within_contract": true
     }
   ],
   "production_journey": "主窗口Connect经USB优先选择/ManagedBridge枚举到唯一会话，所有配置和上传worker绑定generation；响应确认后FX显示实际设备，原生审批由已保存绑定加即时物理状态决定。",
-  "preserved_behavior_assessment": "25套最终Java检查及真实C# IPC/Hook/Kimi消费者全通过。保留显示配置、CP2.6 K1、维护、烧录、OTA签名和本地语音生命周期；未执行实物键盘、安装、SendInput或UAT。 R1增量后12套相关检查全部PASS，明确不称再次全跑25套；新EXE仍待构建和Owner实测。 R2相关12套检查退出0且各日志hash已独立核实，R2其余49累计路径与R1冻结after相同。",
+  "preserved_behavior_assessment": "25套最终Java检查及真实C# IPC/Hook/Kimi消费者全通过。保留显示配置、CP2.6 K1、维护、烧录、OTA签名和本地语音生命周期；未执行实物键盘、安装、SendInput或UAT。 R1增量后12套相关检查全部PASS，明确不称再次全跑25套；新EXE仍待构建和Owner实测。 R2相关12套检查退出0且各日志hash已独立核实，R2其余49累计路径与R1冻结after相同。 R3最后12套targeted退出0，逐日志SHA已核实；BLE可靠target草稿恢复保留。",
   "baseline_assessment": "原WD005通过范围和WD006暂停未验收历史保留；9365911输入savepoint只是保全，非整体产品PASS。pack missing_start_bytes为空，最终输入与checks06绑定；外部dirty不纳入。",
   "protocol_assessment": "固定Firmware command_solve/psk证据：单命令O_EMPTY完整ACK串行，取消不造ABORT；新bridge control v1获批，observationOnly按DLA补充记录不改变选择语义。恢复仅确证absence后0x9F及19槽0x88只读idle探测。",
   "risk_level": "high",
@@ -365,8 +365,13 @@
       "issue": "IR05-R 锁等待中的reader意外终止会被替换先行吞掉，attachment仍可复用",
       "resolution": "fixed",
       "evidence": "R2原子终止原因+锁内消费，实际Wd007UsbTerminationChecks 106检查及12套targeted logs，MACHINE_EVIDENCE_R2_20261031.json"
+    },
+    {
+      "issue": "IR06主动断开后同路径USB无唯一身份仍复用旧草稿",
+      "resolution": "fixed",
+      "evidence": "R3 openSelected新USB UUID；target/wd007-r3-red 红测及wd007-r3-checks-01 实际controller绿测，独立POST-PASS-01所述缺陷闭环。"
     }
   ],
   "baseline_gap_owner_record": null,
-  "fresh_review_record": ".ahakey-desktop-harness/changes/WD-007/independent-review/FINAL-03.json"
+  "fresh_review_record": ".ahakey-desktop-harness/changes/WD-007/independent-review/FINAL-04.json"
 }

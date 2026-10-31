@@ -54,8 +54,17 @@ public final class Wd007UsbTerminationChecks {
         try{
             Wire w=wires[0];connected(controller,w);String a=w.draftIdentity();
             fx(()->{controller.getStudioState().getKeyConfig(ModeSlot.MODE0,StudioPart.KEY2).setHidCode(31);controller.getStudioState().markDirty(StudioPart.KEY2);return null;});
-            w.disconnect();check(!w.isConnected(),"explicit disconnect stays disconnected");connected(controller,w);
-            check(a.equals(w.draftIdentity())&&fx(()->controller.getStudioState().getKeyConfig(ModeSlot.MODE0,StudioPart.KEY2).getHidCode()==31),"manual disconnect/reconnect of still-observed attachment retains A draft");
+            w.pollUsbCandidates();
+            check(a.equals(w.draftIdentity())&&fx(()->controller.getStudioState().getKeyConfig(ModeSlot.MODE0,StudioPart.KEY2).getHidCode()==31),"current USB session retains dirty draft during unchanged observation");
+            var drafts=StudioState.class.getDeclaredField("deviceDrafts");drafts.setAccessible(true);
+            w.disconnect();check(!w.isConnected(),"explicit disconnect stays disconnected");
+            w.readbackHid=7;connected(controller,w);String manualReplacement=w.draftIdentity();
+            check(!a.equals(manualReplacement)&&fx(()->controller.getStudioState().getKeyConfig(ModeSlot.MODE0,StudioPart.KEY2).getHidCode()==7&&!controller.getStudioState().isDirty(StudioPart.KEY2)),"same-path B after intentional disconnect reads B actual configuration without A draft");
+            check(w.candidates.equals(List.of("A"))&&fx(()->((Map<?,?>)drafts.get(controller.getStudioState())).containsKey(a)),"no observed absence or serial; A draft remains separately preserved");
+            fx(()->{controller.getStudioState().getKeyConfig(ModeSlot.MODE0,StudioPart.KEY2).setHidCode(32);controller.getStudioState().markDirty(StudioPart.KEY2);return null;});
+            w.disconnect();w.readbackHid=6;connected(controller,w);
+            check(!manualReplacement.equals(w.draftIdentity())&&fx(()->controller.getStudioState().getKeyConfig(ModeSlot.MODE0,StudioPart.KEY2).getHidCode()==6&&!controller.getStudioState().isDirty(StudioPart.KEY2)&&((Map<?,?>)drafts.get(controller.getStudioState())).containsKey(manualReplacement)),"each explicit USB reconnect reads actual values and preserves old draft without automatic reuse");
+            check(!((DeviceRecoveryRegistry)field(w,"recoveryTargets")).absenceObserved("USB:A"),"intentional reconnect does not manufacture physical absence");
             Memory old=w.opened.get("A");Runnable late=callback(old);old.failReader();
             check(!w.isConnected()&&w.getCachedStatus().getSavedBindings()==null,"reader terminal synchronously revokes current connection and approval facts");
             fx(()->null);check(!fx(()->controller.getDeviceStatus().isConnected()),"actual controller shows disconnected after reader failure");
@@ -63,7 +72,6 @@ public final class Wd007UsbTerminationChecks {
             w.pollUsbCandidates();check(!w.isConnected(),"same-path observation never auto reconnects failed reader");
             w.readbackHid=7;connected(controller,w);String b=w.draftIdentity();long generation=w.connectionGeneration();
             check(!a.equals(b)&&fx(()->controller.getStudioState().getKeyConfig(ModeSlot.MODE0,StudioPart.KEY2).getHidCode()==7&&!controller.getStudioState().isDirty(StudioPart.KEY2)),"same-path replacement B displays actual readback, not A dirty draft");
-            var drafts=StudioState.class.getDeclaredField("deviceDrafts");drafts.setAccessible(true);
             check(fx(()->((Map<?,?>)drafts.get(controller.getStudioState())).containsKey(a)),"A draft record remains preserved");
             late.run();check(w.isConnected()&&w.connectionGeneration()==generation&&w.draftIdentity().equals(b),"late old-reader callback cannot disconnect or retire B");
             fx(()->{controller.getStudioState().getKeyConfig(ModeSlot.MODE0,StudioPart.KEY2).setHidCode(44);controller.getStudioState().markDirty(StudioPart.KEY2);return null;});

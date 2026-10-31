@@ -39,7 +39,7 @@ public final class Wd007SafetyChecks {
             await(()->w.isConnected()&&w.targetIdentity().equals("USB:B"),"dead owned bridge does not permanently block USB B");
             w.observeUsbCandidates(Set.of("A","B"));
             w.connectSelected(new DeviceTarget("USB","A","A"));await(()->w.isConnected()&&w.targetIdentity().equals("USB:A"),"manual return same attachment");
-            check(w.draftIdentity().equals(attachment),"same attachment retains draft identity");
+            check(!w.draftIdentity().equals(attachment),"new USB configuration session never reuses identity based only on same path");
             w.observeUsbCandidates(Set.of("B"));check(!w.isConnected(),"physical remove disconnects without fallback");
             w.observeUsbCandidates(Set.of("A","B"));check(!w.isConnected(),"new insertion while disconnected never opens");
             w.connectSelected(new DeviceTarget("USB","A","replacement"));await(w::isConnected,"replacement explicitly selected");
