@@ -12,7 +12,8 @@ public final class KimiBridgeLifecycleCheck {
         long generation = 1;
         boolean connected = true;
         boolean usb = true;
-        Transport() { super(null); getCachedStatus().setSwitchState(0); }
+        Transport() { super(null);getCachedStatus().setConnected(true);getCachedStatus().setSavedBindings(Wd007BehaviorChecks.side(true));getCachedStatus().setSwitchState(0); }
+        @Override public boolean refreshAutoApproval(){return connected&&getCachedStatus().isAutoApproval();}
         @Override public long connectionGeneration() { return generation; }
         @Override public boolean isConnected() { return connected; }
         @Override public boolean isUsbConnected() { return usb; }
@@ -45,6 +46,18 @@ public final class KimiBridgeLifecycleCheck {
         return in.readNBytes(length);
     }
     public static void main(String[] args) throws Exception {
+        if(args.length==2 && args[0].equals("consumer-probe")) {
+            Transport fixture=new Transport();
+            switch(args[1]) {
+                case "swapped-auto" -> {fixture.getCachedStatus().setSavedBindings(Wd007BehaviorChecks.side(false));fixture.getCachedStatus().setSwitchState(1);}
+                case "custom" -> fixture.getCachedStatus().setSwitchState(1);
+                case "unknown" -> fixture.getCachedStatus().clearSavedBindings();
+                case "disconnected" -> fixture.connected=false;
+                case "auto" -> {}
+                default -> throw new IllegalArgumentException();
+            }
+            KimiAhaKeyBridge probe=new KimiAhaKeyBridge(fixture,0);try{probe.start();System.out.println("KIMI_PROBE_PORT="+port(probe));System.out.flush();System.in.read();}finally{probe.close();}return;
+        }
         Transport transport = new Transport();
         KimiAhaKeyBridge bridge = new KimiAhaKeyBridge(transport, 0);
         try {
@@ -65,7 +78,7 @@ public final class KimiBridgeLifecycleCheck {
                         transport.generation++;
                         transport.usb = false;
                         bridge.connectionChanged();
-                        check(field(bridge,"session") == null, "BLE keeps internal listener stopped");
+                        check(field(bridge,"session") != null, "BLE now uses Java compatibility listener too");
                     }
                     transport.generation++;
                     transport.usb = true;

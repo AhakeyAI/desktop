@@ -57,7 +57,7 @@ public class KimiAhaKeyBridge {
     /** Reconcile current transport, rather than replaying a possibly delayed callback. */
     public synchronized void connectionChanged() {
         if (!closed && bleManager.connectionGeneration() > blockedThroughGeneration
-                && bleManager.isConnected() && bleManager.isUsbConnected()) start();
+                && bleManager.isConnected()) start();
         else stop();
     }
 
@@ -143,17 +143,14 @@ public class KimiAhaKeyBridge {
 
                 if (type == (PKT_QUERY_STATUS & 0xFF)) {
                     // Respond 0x82: status[0]==1, status[-1]==1, len>=4
-                    byte[] data = {1, 0, 0, 1};
+                    byte[] data = bleManager.refreshAutoApproval() ? new byte[]{1,0,0,1} : new byte[]{0,0,0,0};
                     sendPacket(out, RSP_STATUS, data);
                 } else if (type == (PKT_QUERY_INFO & 0xFF)) {
                     // Respond 0x83: data[6] = switchState (0=auto, 1=manual)
-                    int switchState = bleManager.getCachedStatus().getSwitchState();
-                    if (switchState < 0) switchState = 1; // default to manual if unknown
-                    byte[] data = new byte[10];
-                    data[6] = (byte) switchState;
-                    sendPacket(out, RSP_INFO, data);
-                    logger.debug("KimiAhaKeyBridge: query → switchState={} isAuto={}",
-                            switchState, switchState == 0);
+                    // A nonzero value would impose Kimi manual_lock. Unavailable yields native defer.
+                    boolean auto=bleManager.refreshAutoApproval();
+                    byte[] data=auto?new byte[10]:new byte[0];
+                    sendPacket(out,RSP_INFO,data);
                 }
             }
         } catch (IOException e) {
@@ -164,11 +161,11 @@ public class KimiAhaKeyBridge {
     }
 
     private void sendPacket(DataOutputStream out, byte type, byte[] data) throws IOException {
-        out.writeByte(type);
-        // length as little-endian uint16
-        out.writeByte(data.length & 0xFF);
-        out.writeByte((data.length >> 8) & 0xFF);
-        out.write(data);
+        // The installed consumer reads its three-byte header in one recv().
+        byte[] packet = new byte[data.length + 3];
+        packet[0] = type; packet[1] = (byte)data.length; packet[2] = (byte)(data.length >>> 8);
+        System.arraycopy(data, 0, packet, 3, data.length);
+        out.write(packet);
         out.flush();
     }
 }

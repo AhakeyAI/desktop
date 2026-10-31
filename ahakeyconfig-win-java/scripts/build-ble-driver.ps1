@@ -96,11 +96,15 @@ foreach ($name in $names) {
     if ((Get-FileHash -LiteralPath $destination).Hash.ToLowerInvariant() -ne $expected) { throw "Snapshot mismatch: $name" }
 }
 Apply-BridgePatch $snapshot $Patch
-$patchedInputs = @($names | ForEach-Object { File-Identity (Join-Path $snapshot $_) })
+$managedSource = Join-Path $PSScriptRoot 'wd007/ManagedBridge.cs'
+Copy-Item -LiteralPath $managedSource -Destination (Join-Path $snapshot 'ManagedBridge.cs')
+$patchedInputs = @($names | ForEach-Object { File-Identity (Join-Path $snapshot $_) }) + @((File-Identity (Join-Path $snapshot 'ManagedBridge.cs')))
+$managedIdentity = File-Identity $managedSource
 # Classic csproj requires explicit references to the already restored SDK. No csproj/framework changes.
 $targets = Join-Path $OutputRoot 'OfflineContracts.targets'
 $refs = ($contracts | ForEach-Object { '<Reference Include="' + [Security.SecurityElement]::Escape($_.FullName) + '" />' }) -join "`n"
 $resolvedReferences = Join-Path $OutputRoot 'resolved-references.txt'
+$refs += '<Reference Include="System.Web.Extensions" /><Compile Include="' + [Security.SecurityElement]::Escape((Join-Path $snapshot 'ManagedBridge.cs')) + '" />'
 $captureReferences = '<Target Name="CaptureBridgeReferences" AfterTargets="ResolveReferences"><WriteLinesToFile File="' + [Security.SecurityElement]::Escape($resolvedReferences) + '" Lines="@(ReferencePath)" Overwrite="true" /></Target>'
 $imports = ($packageImports | ForEach-Object { '<Import Project="' + [Security.SecurityElement]::Escape($_) + '" />' }) -join "`n"
 ('<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">' + $imports + '<ItemGroup>' + $refs + '</ItemGroup>' + $captureReferences + '</Project>') |
@@ -112,7 +116,7 @@ $arguments = @((Join-Path $snapshot 'BLE_tcp_driver.csproj'), '/t:Build', '/p:Co
     "/p:CustomAfterMicrosoftCommonTargets=$targets", '/p:GenerateResourceMSBuildArchitecture=CurrentArchitecture', '/v:normal')
 @{ schema_version=1; source_root=$BridgeRoot; approved_manifest=(File-Identity $InputManifest); sources=$sourceInputs;
     build_script=(File-Identity $MyInvocation.MyCommand.Path);
-    patch=$patchIdentity; patched_sources=$patchedInputs; regression_script=(File-Identity $regressionScript);
+    patch=$patchIdentity; managed_source=$managedIdentity; patched_sources=$patchedInputs; regression_script=(File-Identity $regressionScript);
     package_imports=$importInputs;
     contracts=@($contracts | ForEach-Object { File-Identity $_.FullName }); msbuild=(File-Identity $MSBuild);
     targets=(File-Identity $targets); arguments=$arguments } | ConvertTo-Json -Depth 8 |
@@ -135,6 +139,7 @@ foreach ($file in @($patchedInputs) + @($patchIdentity)) {
 foreach ($file in $sourceInputs) {
     if ((Get-FileHash -LiteralPath $file.path).Hash.ToLowerInvariant() -ne $file.sha256) { throw "Bridge source changed during build: $($file.path)" }
 }
+@{protocolVersion=1;sha256=(Get-FileHash -LiteralPath (Join-Path $bin 'BLE_tcp_driver.exe')).Hash.ToLowerInvariant()} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $bin 'bridge-managed.json') -Encoding UTF8
 $files = @(Get-ChildItem -LiteralPath $bin -Recurse -File | ForEach-Object {
     @{path=$_.FullName.Substring($bin.Length+1); bytes=$_.Length; sha256=(Get-FileHash -LiteralPath $_.FullName).Hash.ToLowerInvariant(); runtime=($_.Extension -ne '.pdb')}
 })

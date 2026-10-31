@@ -73,6 +73,34 @@ public class StudioState {
     private final EnumSet<ModeSlot> inputReadModes = EnumSet.noneOf(ModeSlot.class);
     private AhaKeyResponseParser.SideSwitchConfig sideSwitchConfig = defaultSideSwitchConfig();
 
+    private record DeviceDraft(Map<ModeSlot,EnumMap<StudioPart,KeyConfig>> keys,
+            AhaKeyResponseParser.SideSwitchConfig side,EnumSet<StudioPart> parts,EnumSet<ModeSlot> modes,K1RouteState.Draft k1) {}
+    private final Map<String,DeviceDraft> deviceDrafts=new java.util.HashMap<>();
+    private String draftTarget="";
+    /** Input drafts belong to an exact transport identity; the image library remains global. */
+    public void selectDevice(String identity) {
+        if(identity==null || identity.isBlank() || identity.equals(draftTarget))return;
+        Map<ModeSlot,EnumMap<StudioPart,KeyConfig>> saved=new EnumMap<>(ModeSlot.class);
+        for(var item:keyConfigs.entrySet()) {
+            var keys=new EnumMap<StudioPart,KeyConfig>(StudioPart.class);
+            item.getValue().forEach((part,key)->keys.put(part,key.copy()));saved.put(item.getKey(),keys);
+        }
+        deviceDrafts.put(draftTarget,new DeviceDraft(saved,sideSwitchConfig,dirtyParts.clone(),dirtyModes.clone(),k1Routes.draft()));
+        DeviceDraft draft=deviceDrafts.get(identity);draftTarget=identity;
+        dirtyParts.clear();dirtyModes.clear();
+        for(ModeSlot mode:ModeSlot.values()) {
+            var keys=keyConfigs.get(mode);keys.clear();
+            for(StudioPart part:new StudioPart[]{StudioPart.KEY1,StudioPart.KEY2,StudioPart.KEY3,StudioPart.KEY4})
+                keys.put(part,draft==null?new KeyConfig(0,"未读回"):draft.keys().get(mode).get(part).copy());
+        }
+        sideSwitchConfig=draft==null?defaultSideSwitchConfig():draft.side();
+        if(draft!=null){dirtyParts.addAll(draft.parts());dirtyModes.addAll(draft.modes());}
+        k1Routes.restore(draft==null?null:draft.k1());
+        dirtyCount.set(dirtyParts.size());inputReadModes.clear();syncing.set(false);modeSwitching.set(false);
+        inputReadbackInProgress.set(false);inputFailureStatus.set("");inputReadbackStatus.set("正在读取当前键盘配置...");
+        revision.set(revision.get()+1);markInputBaselineChanged();
+    }
+
     public StudioState() {
         seedDefaults();
     }
@@ -231,7 +259,6 @@ public class StudioState {
             inputReadModes.clear();
             inputReadbackStatus.set("");
             inputFailureStatus.set("");
-            sideSwitchConfig = defaultSideSwitchConfig();
         }
         markInputBaselineChanged();
     }
@@ -658,16 +685,16 @@ public class StudioState {
             KeyConfig k4 = getKeyConfig(mode, StudioPart.KEY4);
             md.key1Hid = k1.getHidCode();
             md.key1Desc = k1.getDescription();
-            md.key1Macro = k1.getMacro();
+            md.key1Macro = k1.getMacro().stream().map(MacroStep::clone).toList();
             md.key2Hid = k2.getHidCode();
             md.key2Desc = k2.getDescription();
-            md.key2Macro = k2.getMacro();
+            md.key2Macro = k2.getMacro().stream().map(MacroStep::clone).toList();
             md.key3Hid = k3.getHidCode();
             md.key3Desc = k3.getDescription();
-            md.key3Macro = k3.getMacro();
+            md.key3Macro = k3.getMacro().stream().map(MacroStep::clone).toList();
             md.key4Hid = k4.getHidCode();
             md.key4Desc = k4.getDescription();
-            md.key4Macro = k4.getMacro();
+            md.key4Macro = k4.getMacro().stream().map(MacroStep::clone).toList();
             md.oledSummary = oledSummaries.get(mode).get();
             md.oledCaption = oledCaptions.get(mode).get();
             OledModeDraft od = getOledDraft(mode);

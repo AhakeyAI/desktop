@@ -81,8 +81,8 @@ public final class DisplayConfigIsolationChecks {
         invoke(w.ble, "resetDisplaySession");
         check("reset-real-generation", w.ble.connectionGeneration() == generation + 1);
         check("reset-keeps-fake-USB", field(w.ble, "usbTransport") == w.ble.usb);
-        check("reset-keeps-BLE-discovery-policy", w.ble.sendRuntimeState((byte)4)
-                && w.ble.discoveries.get() > discoveries && sent.get(sent.size()-1)[3] == 4);
+        check("reset-does-not-implicitly-discover-or-switch-transport", w.ble.sendRuntimeState((byte)4)
+                && w.ble.discoveries.get() == discoveries && sent.get(sent.size()-1)[3] == 4);
         check("reset-does-not-forge-quarantine", !(boolean)field(w.ble, "displayReadUncertain") && !w.ble.isDisplayWriteUncertain());
         w.ble.requireDisplayRecovery(w.ble.connectionGeneration());
         int count = sent.size();
@@ -100,11 +100,10 @@ public final class DisplayConfigIsolationChecks {
         List<byte[]> sent = new ArrayList<>();
         var w = wire(sent);
         w.ble.usbPresent = true;
-        if (initialConnectPath) check("try-connect-present", (boolean)invoke(w.ble, "tryConnectUsb"));
-        else check("ensure-connect-present", w.ble.sendRuntimeState((byte)1));
-        check("fake-discovery-and-open-" + initialConnectPath, w.ble.discoveries.get() == 1
-                && w.ble.usb.opens.get() == 1 && w.ble.usb.isOpen());
-        check("USB-real-send-branch-" + initialConnectPath, w.ble.usb.sent.size() == 1 && sent.size() == 1);
+        if(!initialConnectPath)check("command-keeps-existing-transport",w.ble.sendRuntimeState((byte)1)&&w.ble.usb.opens.get()==0);
+        sent.clear();w.useUsb();
+        check("explicit-memory-USB-open-" + initialConnectPath,w.ble.usb.opens.get()==1&&w.ble.usb.isOpen());
+        check("USB-real-send-branch-" + initialConnectPath,w.ble.sendRuntimeState((byte)1)&&w.ble.usb.sent.size()==1&&sent.size()==1);
         noConnectionObjects(w.ble);
         w.ble.usb.sendData(new byte[]{7,8});
         check("raw-data-memory-only", w.ble.usb.data.size() == 1 && w.ble.usb.data.get(0)[1] == 8);
@@ -114,8 +113,8 @@ public final class DisplayConfigIsolationChecks {
         boolean closedRejected = false;
         try { w.ble.usb.sendCommand(new byte[]{1}); } catch (IOException expected) { closedRejected = true; }
         check("closed-USB-send-rejected", closedRejected);
-        check("closed-USB-rediscovered-in-memory", w.ble.sendRuntimeState((byte)3)
-                && w.ble.usb.opens.get() == 2 && w.ble.discoveries.get() == 2);
+        check("closed-USB-never-implicitly-reopened", w.ble.sendRuntimeState((byte)3)
+                && w.ble.usb.opens.get() == 1 && w.ble.discoveries.get() == 0);
         blockedConnect(w.ble);
         w.ble.disconnect();
         check("real-disconnect-fake-close", !w.ble.usb.isOpen() && !w.ble.isConnected());

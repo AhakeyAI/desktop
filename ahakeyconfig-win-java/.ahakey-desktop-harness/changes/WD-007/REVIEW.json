@@ -1,0 +1,372 @@
+{
+  "schema_version": 1,
+  "id": "WD-007",
+  "pack_sha256": "a2974f1471fe9f96e3f4be3644ca884cff034afd3a84744fd154f3088a6f7adb",
+  "reviewer_role": "DLA",
+  "review_session": "01a1684d-3953-79d0-9cc6-57f397a595f9",
+  "builder_session": "01a18f9a-913a-7212-a37f-d29aa168a189",
+  "independence": "separate_dla_conversation",
+  "decision": "pass",
+  "scope_conclusion": "53个累计路径在批准范围；保留R0/R1逐文件审阅，R2四个真实增量完整复核，原IR05锁交错缺陷已修。",
+  "per_file": [
+    {
+      "path": "scripts/ble-driver-fixes.patch",
+      "purpose": "Managed入口在Form/旧9000监听前分流；仅添加受控Connect入口，原WCH及MTU/FIFO修正保留。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；Managed入口在Form/旧9000监听前分流；仅添加受控Connect入口，原WCH及MTU/FIFO修正保留。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/build-ble-driver.ps1",
+      "purpose": "固定桥基线复制后应用补丁，显式编译ManagedBridge及System.Web.Extensions；产物协议manifest绑定实际EXE SHA。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；固定桥基线复制后应用补丁，显式编译ManagedBridge及System.Web.Extensions；产物协议manifest绑定实际EXE SHA。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/test-wd007.ps1",
+      "purpose": "新证据目录、离线编译、25套检查和C#/IPC/Kimi实际消费者，任一非零退出阻断；不安装/探测硬件。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；新证据目录、离线编译、25套检查和C#/IPC/Kimi实际消费者，任一非零退出阻断；不安装/探测硬件。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/wd007/ManagedBridge.cs",
+      "purpose": "逐段核对loopback token、实例/会话/代次、当前连接设备枚举、前后台快照、GATT串行和撤销；原Form不启动。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；逐段核对loopback token、实例/会话/代次、当前连接设备枚举、前后台快照、GATT串行和撤销；原Form不启动。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/wd007/fixtures/legacy-claude.ps1",
+      "purpose": "精确旧生成脚本fixture用于验证迁移hash与原生defer；不是写入实际用户配置。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；精确旧生成脚本fixture用于验证迁移hash与原生defer；不是写入实际用户配置。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/wd007/fixtures/legacy-codex.ps1",
+      "purpose": "旧Codex生成脚本fixture及已知hash匹配，只在临时USERPROFILE运行。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；旧Codex生成脚本fixture及已知hash匹配，只在临时USERPROFILE运行。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/wd007/run-checks.py",
+      "purpose": "最多四个隔离home并行运行，180秒期限、逐命令exit和log SHA；不是只统计编译。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；最多四个隔离home并行运行，180秒期限、逐命令exit和log SHA；不是只统计编译。 R1全部增量已读，对照真实12套针对性日志；当前source/旧generation精确断连，捕获旧owner确认退出才退休release屏障。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/wd007/test-kimi-consumer.py",
+      "purpose": "提取实际安装consumer只读函数，执行五状态并检查原生defer/AUTO；独立Java测试端口。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；提取实际安装consumer只读函数，执行五状态并检查原生defer/AUTO；独立Java测试端口。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/wd007/test-managed-ipc.py",
+      "purpose": "真实编译桥只用自有子进程测试hello/token/重复ID/实例/帧/退出，不枚举或接硬件。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；真实编译桥只用自有子进程测试hello/token/重复ID/实例/帧/退出，不枚举或接硬件。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/wd007/test-managed-selection.ps1",
+      "purpose": "实际C#选择快照类逆序观察与前台选择测试，不只是复刻模型。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；实际C#选择快照类逆序观察与前台选择测试，不只是复刻模型。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/App.java",
+      "purpose": "×仍旧托盘，实际菜单退出先取消上传；维护门禁后才启用五秒终止限时，仅停止自有桥。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；×仍旧托盘，实际菜单退出先取消上传；维护门禁后才启用五秒终止限时，仅停止自有桥。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "purpose": "所有设备异步worker绑定代次及FX检查；B选中先切草稿再实际回读；保存使用快照，审批弹窗移除，恢复探测先于普通初始化。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；所有设备异步worker绑定代次及FX检查；B选中先切草稿再实际回读；保存使用快照，审批弹窗移除，恢复探测先于普通初始化。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DeviceStatus.java",
+      "purpose": "物理位置与确认绑定分离，断开清事实；图文取当前位置已保存动作；完整版本优先。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；物理位置与确认绑定分离，断开清事实；图文取当前位置已保存动作；完整版本优先。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/HIDUsage.java",
+      "purpose": "组合修饰位与既有协议映射一致，显示Ctrl/Shift/Alt/Win及基础键，不改键值。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；组合修饰位与既有协议映射一致，显示Ctrl/Shift/Alt/Win及基础键，不改键值。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/K1RouteState.java",
+      "purpose": "草稿dirty/edit/description可独立复制恢复，能力和设备确认在新会话清空。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；草稿dirty/edit/description可独立复制恢复，能力和设备确认在新会话清空。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/KeyConfig.java",
+      "purpose": "宏深拷贝可变列表修复编辑异常；未知步骤NO_OP不能误模拟按下；copy隔离旧草稿。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；宏深拷贝可变列表修复编辑异常；未知步骤NO_OP不能误模拟按下；copy隔离旧草稿。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+      "purpose": "按可靠设备/attachment分离内存键/侧拨草稿；B无旧草稿先空态再读回，持久快照宏深拷贝；图片库保持原逻辑。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；按可靠设备/attachment分离内存键/侧拨草稿；B无旧草稿先空态再读回，持久快照宏深拷贝；图片库保持原逻辑。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/connection/DeviceTarget.java",
+      "purpose": "显式USB/BLE与稳定寻址ID，显示名称不作为唯一键。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；显式USB/BLE与稳定寻址ID，显示名称不作为唯一键。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/platform/VoiceRelayPlatform.java",
+      "purpose": "模拟动作API转发完整KeyConfig，无更改语音长短按或onboarding。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；模拟动作API转发完整KeyConfig，无更改语音长短按或onboarding。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/platform/windows/WindowsVoiceRelayService.java",
+      "purpose": "立即快照模拟完整宏，JNA每键检查返回数，异常释放自身按键；本地语音现有路由不变。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；立即快照模拟完整宏，JNA每键检查返回数，异常释放自身按键；本地语音现有路由不变。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "purpose": "完整审阅连接意图、session/generation、USB观察、释放barrier、串行全ACK、取消epoch及隔离持久化、19槽恢复probe、审批即时状态和保存事实。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；完整审阅连接意图、session/generation、USB观察、释放barrier、串行全ACK、取消epoch及隔离持久化、19槽恢复probe、审批即时状态和保存事实。 R1全部增量已读，对照真实12套针对性日志；当前source/旧generation精确断连，捕获旧owner确认退出才退休release屏障。 R2锁内先取消旧transport，消费不可变UNEXPECTED原因后退休旧attachment，再替换；排队旧回调仍由source/generation隔离，不伪造absence。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+      "purpose": "写序列和失败回调继承源代次，不将旧保存结果送到B。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；写序列和失败回调继承源代次，不将旧保存结果送到B。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "purpose": "取消/换设备中止worker且不续传，操作代次过滤后续UI，保留本地资源；菜单退出可取消。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；取消/换设备中止worker且不续传，操作代次过滤后续UI，保留本地资源；菜单退出可取消。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookDispatchServer.java",
+      "purpose": "各审批请求仅可信AUTO自动允许，其他不自建弹窗；Kimi返回原生空对象。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；各审批请求仅可信AUTO自动允许，其他不自建弹窗；Kimi返回原生空对象。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookInstaller.java",
+      "purpose": "只迁移两种精确生成hash的脚本，备份/竞争复核/atomic替换，用户编辑不覆盖；非AUTO移除ask。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；只迁移两种精确生成hash的脚本，备份/竞争复核/atomic替换，用户编辑不覆盖；非AUTO移除ask。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/KeySimulationService.java",
+      "purpose": "不可变完整动作/延时3ms协议、宏优先残留shortcut、异常逆序释放自身按键。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；不可变完整动作/延时3ms协议、宏优先残留shortcut、异常逆序释放自身按键。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/KimiAhaKeyBridge.java",
+      "purpose": "USB/BLE均由Java兼容9000提供真实审批事实；非AUTO不可用避免manual_lock，响应一次write。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；USB/BLE均由Java兼容9000提供真实审批事实；非AUTO不可用避免manual_lock，响应一次write。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledUploadService.java",
+      "purpose": "BEGIN/各片/COMMIT前检查中止；失败隔离且不新造ABORT，明确不撤回已发送内容。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；BEGIN/各片/COMMIT前检查中止；失败隔离且不新造ABORT，明确不撤回已发送内容。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/SocketServer.java",
+      "purpose": "状态增加确认事实/代次，延迟状态复位不能跨会话；现有请求响应结构保留。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；状态增加确认事实/代次，延迟状态复位不能跨会话；现有请求响应结构保留。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "purpose": "配置接口精确过滤、失败枚举不作absence、每handle-set取消nativeIO与独立关闭；不复用旧handle给B。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；配置接口精确过滤、失败枚举不作absence、每handle-set取消nativeIO与独立关闭；不复用旧handle给B。 R1全部增量已读，对照真实12套针对性日志；当前source/旧generation精确断连，捕获旧owner确认退出才退休release屏障。 R2以单一AtomicReference OPEN/INTENTIONAL/UNEXPECTED线性化主动close及reader失败，原因不可覆盖；通知和消费同一事实。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/connection/DeviceRecoveryRegistry.java",
+      "purpose": "原子持久隔离，确证离线与只读探测后解除；损坏记录拒绝写入，非重启自动清除。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；原子持久隔离，确证离线与只读探测后解除；损坏记录拒绝写入，非重启自动清除。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/connection/ManagedBridgeClient.java",
+      "purpose": "真实loopback帧、token/EXEhash、connection局部pending/events、总deadline含发送、失败release只结束捕获自有Process。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；真实loopback帧、token/EXEhash、connection局部pending/events、总deadline含发送、失败release只结束捕获自有Process。 R1全部增量已读，对照真实12套针对性日志；当前source/旧generation精确断连，捕获旧owner确认退出才退休release屏障。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "purpose": "拨杆位置来自physicalState，label监听保存事实及连接，未知居中。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；拨杆位置来自physicalState，label监听保存事实及连接，未知居中。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "purpose": "四键shortcut/macro F18首项，模拟当前KeyConfig；上传取消位于未禁用header；未确认侧拨只读提示。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；四键shortcut/macro F18首项，模拟当前KeyConfig；上传取消位于未禁用header；未确认侧拨只读提示。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/TopBar.java",
+      "purpose": "菜单删除两项并重排，language/Exit末尾；版本统一InstalledAppIdentity；桥按钮只管理自有实例。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；菜单删除两项并重排，language/Exit末尾；版本统一InstalledAppIdentity；桥按钮只管理自有实例。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigCapabilityChecks.java",
+      "purpose": "旧隐式重连断言改为已确认显式连接合同；未知/隔离禁止能力冒认，timeout不再盲重试。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；旧隐式重连断言改为已确认显式连接合同；未知/隔离禁止能力冒认，timeout不再盲重试。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigChecks.java",
+      "purpose": "原175检查保留，只为真实统一发送器fixture补充匹配ACK。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；原175检查保留，只为真实统一发送器fixture补充匹配ACK。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigIsolationChecks.java",
+      "purpose": "旧隐式发现断言替换为禁止隐式切换/重连，内存USB仍验证发送分支和维护隔离。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；旧隐式发现断言替换为禁止隐式切换/重连，内存USB仍验证发送分支和维护隔离。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3Checks.java",
+      "purpose": "异步queryStatus等实际完成再计数，仍要求coalesce及显式刷新不合并。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；异步queryStatus等实际完成再计数，仍要求coalesce及显式刷新不合并。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRound5Checks.java",
+      "purpose": "发送失败必须隔离，新fixture会话才可恢复；旧TTL、最新事件和slot语义保留。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；发送失败必须隔离，新fixture会话才可恢复；旧TTL、最新事件和slot语义保留。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/OfflineBleManager.java",
+      "purpose": "唯一虚拟物理发送seam接真实firmwareExchange，避免实际bridge及USB，同时保留旧fixture响应。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；唯一虚拟物理发送seam接真实firmwareExchange，避免实际bridge及USB，同时保留旧fixture响应。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/DeviceMaintenanceChecks.java",
+      "purpose": "held物理write提供完整ACK；maintenance从等待锁改为拒绝未完成wire，不削弱维护互斥。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；held物理write提供完整ACK；maintenance从等待锁改为拒绝未完成wire，不削弱维护互斥。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/K1RouteEditorChecks.java",
+      "purpose": "真实controller可先完成能力读取，断言仍要求已确认route；未知能力不能覆盖旧编辑。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；真实controller可先完成能力读取，断言仍要求已确认route；未知能力不能覆盖旧编辑。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/Wd007DraftReadbackChecks.java",
+      "purpose": "实际controller BLE A/B/A、同路径USB更换、四键两种编辑入口F18第一项。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；实际controller BLE A/B/A、同路径USB更换、四键两种编辑入口F18第一项。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/protocol/K1RouteProtocolChecks.java",
+      "purpose": "非held9E命令补完整ACK，原过期/换代/成功/失败测试保留。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；非held9E命令补完整ACK，原过期/换代/成功/失败测试保留。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007BehaviorChecks.java",
+      "purpose": "真实coordinator和发送器内存transport，切换/旧响应/旧worker/恢复19槽/宏/草稿/脚本精确迁移。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；真实coordinator和发送器内存transport，切换/旧响应/旧worker/恢复19槽/宏/草稿/脚本精确迁移。 R1全部增量已读，对照真实12套针对性日志；当前source/旧generation精确断连，捕获旧owner确认退出才退休release屏障。 R2 Memory fixture取消调用真实基类CAS，避免测试绕过生产终止语义。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007RecoveryControllerChecks.java",
+      "purpose": "实际controller恢复顺序，普通identity不能污染隔离probe，19槽完成后才开始普通输入读回。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；实际controller恢复顺序，普通identity不能污染隔离probe，19槽完成后才开始普通输入读回。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007SafetyChecks.java",
+      "purpose": "排队取消和timeout真实物理发送日志，lateACK无解锁，完整枚举错误不算absence，实际生成脚本执行。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；排队取消和timeout真实物理发送日志，lateACK无解锁，完整枚举错误不算absence，实际生成脚本执行。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007WindowExitChecks.java",
+      "purpose": "实际App关闭按钮与菜单出口，pending上传继续/取消，FX响应及限时，不替实物和System.exit测试。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；实际App关闭按钮与菜单出口，pending上传继续/取消，FX响应及限时，不替实物和System.exit测试。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/connection/ManagedBridgeClientChecks.java",
+      "purpose": "真实loopback乱序响应/旧事件、阻塞发送deadline、失败旧release不能关闭新桥。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；真实loopback乱序响应/旧事件、阻塞发送deadline、失败旧release不能关闭新桥。 R1全部增量已读，对照真实12套针对性日志；当前source/旧generation精确断连，捕获旧owner确认退出才退休release屏障。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/transport/KimiBridgeLifecycleCheck.java",
+      "purpose": "实际Java兼容socket的BLE生命周期及consumer五状态fixture，不启动真实设备。",
+      "reviewed_hunks": "已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；实际Java兼容socket的BLE生命周期及consumer五状态fixture，不启动真实设备。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007BridgeRetirementChecks.java",
+      "purpose": "实际release future与可控Process：旧owner活着继续拒绝，迟到退出后再次明确连接成功，replacement保留，7检查。",
+      "reviewed_hunks": "完整新增文件已审阅。实际release future与可控Process：旧owner活着继续拒绝，迟到退出后再次明确连接成功，replacement保留，7检查。 R1全部增量已读，对照真实12套针对性日志；当前source/旧generation精确断连，捕获旧owner确认退出才退休release屏障。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007UsbTerminationChecks.java",
+      "purpose": "实际reader terminal seam到coordinator/controller：同路径B读回、A草稿保留、旧callback不影响B、主动close不误报、IO错误不能解除资源隔离，20检查。",
+      "reviewed_hunks": "完整新增文件已审阅。实际reader terminal seam到coordinator/controller：同路径B读回、A草稿保留、旧callback不影响B、主动close不误报、IO错误不能解除资源隔离，20检查。 R1全部增量已读，对照真实12套针对性日志；当前source/旧generation精确断连，捕获旧owner确认退出才退休release屏障。 R2共106断言，实际commandLock控制旧reader已锁存但排队，openSelected先替换，新B读回8、旧dirty44另存且late回调无效；40轮并发终止及不可变性。",
+      "within_contract": true
+    }
+  ],
+  "production_journey": "主窗口Connect经USB优先选择/ManagedBridge枚举到唯一会话，所有配置和上传worker绑定generation；响应确认后FX显示实际设备，原生审批由已保存绑定加即时物理状态决定。",
+  "preserved_behavior_assessment": "25套最终Java检查及真实C# IPC/Hook/Kimi消费者全通过。保留显示配置、CP2.6 K1、维护、烧录、OTA签名和本地语音生命周期；未执行实物键盘、安装、SendInput或UAT。 R1增量后12套相关检查全部PASS，明确不称再次全跑25套；新EXE仍待构建和Owner实测。 R2相关12套检查退出0且各日志hash已独立核实，R2其余49累计路径与R1冻结after相同。",
+  "baseline_assessment": "原WD005通过范围和WD006暂停未验收历史保留；9365911输入savepoint只是保全，非整体产品PASS。pack missing_start_bytes为空，最终输入与checks06绑定；外部dirty不纳入。",
+  "protocol_assessment": "固定Firmware command_solve/psk证据：单命令O_EMPTY完整ACK串行，取消不造ABORT；新bridge control v1获批，observationOnly按DLA补充记录不改变选择语义。恢复仅确证absence后0x9F及19槽0x88只读idle探测。",
+  "risk_level": "high",
+  "fresh_review_required": true,
+  "risk_rationale": "跨主线程/Java/私有桥/USB native会话隔离和审批语义属于高影响架构协议变动，独立实际审阅与真实多设备UAT必需。",
+  "findings": [
+    {
+      "issue": "IR02排队请求取消/timeout后仍可发送",
+      "resolution": "fixed",
+      "evidence": "cancellationEpoch发送准入及Wd007SafetyChecks两种真实排队发送用例"
+    },
+    {
+      "issue": "IR03侧拨写ACK后未读回仍缓存AUTO",
+      "resolution": "fixed",
+      "evidence": "写前clearSavedBindings及生成wrapper实际执行native defer"
+    },
+    {
+      "issue": "IR04后台枚举覆盖选择快照",
+      "resolution": "fixed",
+      "evidence": "observationOnly实际C#SelectionSnapshot测试与bridge源码"
+    },
+    {
+      "issue": "IR05 USB reader失效后attachment未退休",
+      "resolution": "fixed",
+      "evidence": "R2原子终止原因+锁内消费，实际Wd007UsbTerminationChecks 106检查及12套targeted logs，MACHINE_EVIDENCE_R2_20261031.json"
+    },
+    {
+      "issue": "IR01/IR01-R桥release失败后迟到退出仍无法恢复",
+      "resolution": "fixed",
+      "evidence": "ownerRetired确认捕获owner已退出才退休异常Future；Wd007BridgeRetirementChecks7条及R1证据"
+    },
+    {
+      "issue": "IR05-R 锁等待中的reader意外终止会被替换先行吞掉，attachment仍可复用",
+      "resolution": "fixed",
+      "evidence": "R2原子终止原因+锁内消费，实际Wd007UsbTerminationChecks 106检查及12套targeted logs，MACHINE_EVIDENCE_R2_20261031.json"
+    }
+  ],
+  "baseline_gap_owner_record": null,
+  "fresh_review_record": ".ahakey-desktop-harness/changes/WD-007/independent-review/FINAL-03.json"
+}

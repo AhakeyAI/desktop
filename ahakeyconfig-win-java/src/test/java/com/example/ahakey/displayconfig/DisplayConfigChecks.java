@@ -305,7 +305,7 @@ public final class DisplayConfigChecks {
         var restored=new com.example.ahakey.model.StudioState();
         restored.loadFromPersisted(new com.fasterxml.jackson.databind.ObjectMapper().readValue(before,com.example.ahakey.model.StudioState.PersistedDraft.class));
         check("A10-key-draft-roundtrip",restored.getKeyConfig(com.example.ahakey.model.StudioPart.KEY2).getDescription().equals("retained-key"));
-        FakeSession session=new FakeSession(); List<byte[]> requests=new ArrayList<>(); session.respond=requests::add;
+        FakeSession session=new FakeSession(); List<byte[]> requests=new ArrayList<>(); session.respond=request->{requests.add(request);session.reply(ack(request[2]&255,0));};
         try(var lease=session.ble.openDisplayLease(true)) {
             session.ble.sendCommand(AhaKeyProtocol.queryDeviceStatus());
             for(int opcode:new int[]{0x84,0x85,0x87,0x90,0x91,0x92,0x95,0x96,0x97,0x98,0x99,0x9f})

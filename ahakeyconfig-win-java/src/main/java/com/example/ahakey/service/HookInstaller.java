@@ -33,7 +33,7 @@ public class HookInstaller {
 
     // Hook 配置路径常量
     public static final String CODEX_SIDECAR_NAME = ".ahakey_codex_hooks_v1";
-    public static final String AHAKEY_HOOK_VERSION = "ws3-cp1-v1";
+    public static final String AHAKEY_HOOK_VERSION = "wd007-native-defer-v2";
     public enum HookStatus { DETECTING, APP_NOT_FOUND, NOT_INSTALLED, OUTDATED, LATEST, ERROR }
     public record HookWriteResult(boolean success, String reason) {}
     public static final String CODEX_HOOK_BLOCK_START = "# BEGIN AhaKey Codex Hooks";
@@ -86,6 +86,30 @@ public class HookInstaller {
     public HookInstaller(IntSupplier portSupplier, Consumer<String> logger) {
         this.portSupplier = portSupplier;
         this.logger = logger;
+    }
+
+    /** Only exact prior generated wrappers are migrated. User edits and all platform configuration stay untouched. */
+    public void migrateOwnedApprovalScripts() {
+        Path hooks=Paths.get(System.getProperty("user.home"),".ahakey","hooks");
+        if(!Files.isDirectory(hooks))return;
+        String[] names={CLAUDE_SCRIPT_NAME,CODEX_SCRIPT_NAME};
+        String[] known={"0d90c6a7e5fc68e97efb6cec57fda74cafba2699b351003663ff9ea1a37f9c30","aa5c340af397050f746d977a02ab8c4cf58b42c9d4bf4cd5dcd548835ee56075"};
+        for(int i=0;i<names.length;i++) {
+            Path file=hooks.resolve(names[i]);Path staging=null;
+            try {
+                if(!Files.isRegularFile(file) || Files.isSymbolicLink(file))continue;
+                byte[] before=Files.readAllBytes(file);
+                String hash=java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(before));
+                if(!hash.equals(known[i]))continue;
+                staging=Files.createTempDirectory(hooks,"approval-migration-");
+                if(i==0)generateClaudeScript(staging);else generateCodexScript(staging);
+                if(!Arrays.equals(before,Files.readAllBytes(file)))throw new java.io.IOException("Hook changed during migration");
+                Files.write(hooks.resolve(names[i]+".wd007-"+java.util.UUID.randomUUID()+".bak"),before,java.nio.file.StandardOpenOption.CREATE_NEW);
+                Files.move(staging.resolve(names[i]),file,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
+                log("已备份并迁移自有审批脚本："+names[i]);
+            } catch(Exception failure){log("审批脚本未迁移："+names[i]+"，"+failure.getMessage());}
+            finally{if(staging!=null)try{Files.deleteIfExists(staging.resolve(names[i]));Files.deleteIfExists(staging);}catch(Exception ignored){}}
+        }
     }
 
     private int currentPort() {
@@ -284,7 +308,7 @@ public class HookInstaller {
             "    if ($isAuto) {\n" +
             "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}')\n" +
             "    } else {\n" +
-            "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"ask\"}}}')\n" +
+            "        [Console]::WriteLine('{}')\n" +
             "    }\n" +
             "    exit 0\n" +
             "}\n" +
@@ -301,21 +325,21 @@ public class HookInstaller {
             "# ahakey-hook-version: " + AHAKEY_HOOK_VERSION + "\n" +
             "param([Parameter(Position=0)][string]$EventName)\n" +
             ". (Join-Path $env:USERPROFILE '.ahakey\\hooks\\ahakey-core.ps1')\n" +
-            "# Codex PreToolUse: 拨杆手动模式 → ask 用户确认\n" +
+            "# Codex PreToolUse: 未确认 AUTO 时由平台自身审批\n" +
             "if ($EventName -eq 'CodexPreToolUse') {\n" +
             "    if ($response -match '\"autoApproved\"\\s*:\\s*true') {\n" +
             "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"decision\":{\"behavior\":\"allow\"}}}')\n" +
             "    } else {\n" +
-            "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"decision\":{\"behavior\":\"ask\"}}}')\n" +
+            "        [Console]::WriteLine('{}')\n" +
             "    }\n" +
             "    exit 0\n" +
             "}\n" +
-            "# Codex PermissionRequest: 拨杆手动模式 → ask 用户确认\n" +
+            "# Codex PermissionRequest: 未确认 AUTO 时由平台自身审批\n" +
             "if ($EventName -eq 'CodexPermissionRequest') {\n" +
             "    if ($response -match '\"autoApproved\"\\s*:\\s*true') {\n" +
             "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"allow\"}}}')\n" +
             "    } else {\n" +
-            "        [Console]::WriteLine('{\"hookSpecificOutput\":{\"hookEventName\":\"PermissionRequest\",\"decision\":{\"behavior\":\"ask\"}}}')\n" +
+            "        [Console]::WriteLine('{}')\n" +
             "    }\n" +
             "    exit 0\n" +
             "}\n" +

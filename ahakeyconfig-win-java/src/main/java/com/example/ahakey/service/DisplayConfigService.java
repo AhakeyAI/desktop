@@ -27,6 +27,8 @@ public final class DisplayConfigService implements AutoCloseable {
     private long observedConnection = -1;
     private boolean wasConnected;
     private boolean closed;
+    private volatile Thread uploadThread;
+    private volatile long uploadConnection=-1;
     private Consumer<String> errorHandler = message -> {};
 
     public DisplayConfigService(StudioState studio, BleManager ble) {
@@ -75,6 +77,8 @@ public final class DisplayConfigService implements AutoCloseable {
         boolean connected = ble.isConnected() && ble.getCachedStatus().isConnected();
         if (generation != observedConnection || connected != wasConnected) {
             if (observedConnection >= 0) state.message.set("键盘连接已改变，本地草稿已保留。");
+            if(uploadThread!=null)uploadThread.interrupt();
+            operationGeneration++;state.busy.set(false);studio.uploadingOledProperty().set(false);
             observedConnection = generation; wasConnected = connected; loadGeneration++;
             state.loading.set(false);
             state.resources.replaceAll((entry, resource) -> resource.unknown());
@@ -146,19 +150,22 @@ public final class DisplayConfigService implements AutoCloseable {
         studio.uploadingOledProperty().set(true);
         state.message.set("上传中...");
         work(true, operation -> {
+            uploadThread=Thread.currentThread();uploadConnection=connection;
             OledResourceState result;
             try {
                 store.save(frozen.uploading());
                 fx(() -> state.put(frozen.uploading()));
                 OledUploadService.uploadResource(ble, connection, frozen.entry(), frozen.asset(),
                         percent -> {}, () -> store.save(frozen.committing()),
-                        progress -> deviceFx(operation, () -> state.progress.set(progress.text())));
+                        progress -> deviceFx(operation, () -> state.progress.set(progress.text())),
+                        () -> operation.id()!=operationGeneration || connection!=ble.connectionGeneration());
                 result = frozen.applied();
             } catch (OledUploadService.UploadFailure e) {
                 result = frozen.failed(reason(e), e.commitUncertain());
             } catch (Exception e) {
                 result = frozen.failed(reason(e), false);
             }
+            uploadThread=null;uploadConnection=-1;
             OledResourceState finalResult = result;
             try { store.save(result); }
             catch (IOException e) {
@@ -166,12 +173,22 @@ public final class DisplayConfigService implements AutoCloseable {
             }
             fx(() -> {
                 state.put(connection == ble.connectionGeneration() && wasConnected ? finalResult : finalResult.unknown());
+                if(operation.id()!=operationGeneration)return;
                 state.message.set(finalResult.localStatus() == OledResourceState.LocalStatus.APPLIED
                         ? "已应用到 " + finalResult.targetName() + "。" : finalResult.notice());
             });
         });
     }
 
+    public void cancelUpload() {
+        if(!studio.uploadingOledProperty().get())return;
+        long connection=uploadConnection;
+        operationGeneration++;
+        Thread active=uploadThread;if(active!=null)active.interrupt();
+        if(connection>=0){Thread revoke=new Thread(()->ble.cancelDeviceOperation(connection),"upload-cancel");revoke.setDaemon(true);revoke.start();}
+        state.busy.set(false);studio.uploadingOledProperty().set(false);
+        state.message.set("上传已中止，已发出的写入未撤回；原设备需物理重连后确认。");updateWriteReady();
+    }
     public void maintenanceChanged() {
         loadGeneration++; operationGeneration++;
         state.loading.set(false); state.busy.set(false); studio.uploadingOledProperty().set(false);
@@ -330,5 +347,5 @@ public final class DisplayConfigService implements AutoCloseable {
     private void error(String message) { state.message.set(message); errorHandler.accept(message); }
     private static String reason(Exception e) { return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage(); }
     private void fx(Runnable runnable) { Platform.runLater(() -> { if (!closed) runnable.run(); }); }
-    @Override public void close() { closed = true; loadGeneration++; worker.shutdownNow(); }
+    @Override public void close() { cancelUpload();closed = true; loadGeneration++; worker.shutdownNow(); }
 }

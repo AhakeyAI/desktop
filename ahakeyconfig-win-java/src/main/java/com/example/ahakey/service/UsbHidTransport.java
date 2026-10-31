@@ -34,15 +34,48 @@ public class UsbHidTransport implements Closeable {
     private static final byte USB_COMMAND_PACKET = (byte) 0xA1;
     private static final byte USB_DATA_PACKET = (byte) 0xA2;
 
-    private Pointer readHandle;
-    private Pointer writeHandle;
-    private String devicePath;
+    private volatile Pointer readHandle;
+    private volatile Pointer writeHandle;
+    private volatile String devicePath;
     private volatile Thread readerThread;
     private volatile boolean running;
     private Consumer<byte[]> frameConsumer;
+    private volatile Runnable disconnectHandler=()->{};
+    private enum Termination { OPEN, INTENTIONAL, UNEXPECTED }
+    private final java.util.concurrent.atomic.AtomicReference<Termination> termination=new java.util.concurrent.atomic.AtomicReference<>(Termination.OPEN);
+    public final void onUnexpectedDisconnect(Runnable handler){disconnectHandler=java.util.Objects.requireNonNull(handler);}
+    public final boolean terminatedUnexpectedly(){return termination.get()==Termination.UNEXPECTED;}
+    /** Reader terminal seam; notify before waiting for native writer cleanup. */
+    protected final void readerTerminatedUnexpectedly(){
+        if(!termination.compareAndSet(Termination.OPEN,Termination.UNEXPECTED))return;
+        cancelled=true;running=false;
+        try{disconnectHandler.run();}catch(RuntimeException failure){logger.warn("USB disconnect notification failed",failure);}
+    }
     private volatile byte[] k1ReplyRequest;
 
-    public synchronized String devicePath() { return devicePath == null ? "" : devicePath; }
+    private final Object cancellationLock=new Object();
+    private Pointer readThreadHandle,writeThreadHandle;
+    private volatile boolean cancelled;
+    private final java.util.concurrent.atomic.AtomicBoolean cancelling=new java.util.concurrent.atomic.AtomicBoolean();
+    /** Revoke this handle set permanently; caller never waits for the synchronous native writer's monitor. */
+    public void cancelPendingIo() {
+        termination.compareAndSet(Termination.OPEN,Termination.INTENTIONAL);
+        cancelled=true;running=false;
+        if(!cancelling.compareAndSet(false,true))return;
+        Thread cancel=new Thread(()->{
+            long deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(2);
+            do {
+                synchronized(cancellationLock) {
+                    if(!isInvalidHandle(readThreadHandle))Kernel32.INSTANCE.CancelSynchronousIo(readThreadHandle);
+                    if(!isInvalidHandle(writeThreadHandle))Kernel32.INSTANCE.CancelSynchronousIo(writeThreadHandle);
+                    if(isInvalidHandle(readThreadHandle)&&isInvalidHandle(writeThreadHandle))return;
+                }
+                try{Thread.sleep(25);}catch(InterruptedException ignored){return;}
+            }while(System.nanoTime()<deadline);
+            logger.warn("USB cancellation requested; native completion not confirmed before cleanup deadline");
+        },"usb-io-cancel");cancel.setDaemon(true);cancel.start();
+    }
+    public String devicePath() { return devicePath == null ? "" : devicePath; }
     public record MaintenanceDevice(String instanceId, String container, String port, boolean download, List<String> interfaces) {
         public boolean ownsHidPath(String path) {
             String id = path.replace("\\\\?\\", "").replace('#', '\\');
@@ -69,8 +102,9 @@ public class UsbHidTransport implements Closeable {
         openExact(findDevicePath(), onFrame);
     }
     public synchronized void openExact(String path, Consumer<byte[]> onFrame) throws IOException {
+        if(cancelled)throw new IOException("USB session was revoked");
         if (isOpen()) { if (devicePath.equalsIgnoreCase(path)) return; throw new IOException("USB handle belongs to another device"); }
-        if (path == null || !listDevicePaths().contains(path)) {
+        if (path == null || !configurationPaths().contains(path)) {
             throw new IOException("USB HID device not found");
         }
         Pointer r = Kernel32.INSTANCE.CreateFile(
@@ -99,6 +133,7 @@ public class UsbHidTransport implements Closeable {
             throw new IOException("Open USB HID write failed: " + Native.getLastError());
         }
 
+        if(cancelled){Kernel32.INSTANCE.CloseHandle(r);Kernel32.INSTANCE.CloseHandle(w);throw new IOException("USB session revoked while opening");}
         readHandle = r;
         writeHandle = w;
         devicePath = path;
@@ -108,8 +143,8 @@ public class UsbHidTransport implements Closeable {
         logger.info("USB HID connected: {}", path);
     }
 
-    public synchronized boolean isOpen() {
-        return devicePath != null && !devicePath.isBlank()
+    public boolean isOpen() {
+        return !cancelled && devicePath != null && !devicePath.isBlank()
             && readHandle != null && !isInvalidHandle(readHandle)
             && writeHandle != null && !isInvalidHandle(writeHandle);
     }
@@ -165,13 +200,22 @@ public class UsbHidTransport implements Closeable {
         if (h == null || isInvalidHandle(h)) {
             throw new IOException("USB HID write handle not connected");
         }
-        boolean ok = Kernel32.INSTANCE.WriteFile(h, reportWithId, reportWithId.length, written, Pointer.NULL);
-        if (!ok && allowLegacyFallback) {
-            written.setValue(0);
-            ok = Kernel32.INSTANCE.WriteFile(h, payload64, payload64.length, written, Pointer.NULL);
+        synchronized(cancellationLock){
+            if(cancelled)throw new IOException("USB write cancelled");
+            writeThreadHandle=Kernel32.INSTANCE.OpenThread(1,false,Kernel32.INSTANCE.GetCurrentThreadId());
+            if(isInvalidHandle(writeThreadHandle))throw new IOException("Cannot obtain cancellable USB writer");
         }
-        if (!ok || (!allowLegacyFallback && written.getValue() != reportWithId.length)) {
-            throw new IOException("USB HID write failed: " + Native.getLastError());
+        try {
+            if(cancelled)throw new IOException("USB write cancelled");
+            boolean ok = Kernel32.INSTANCE.WriteFile(h, reportWithId, reportWithId.length, written, Pointer.NULL);
+            if (!ok && allowLegacyFallback && !cancelled) {
+                written.setValue(0);
+                ok = Kernel32.INSTANCE.WriteFile(h, payload64, payload64.length, written, Pointer.NULL);
+            }
+            if (cancelled || !ok || (!allowLegacyFallback && written.getValue() != reportWithId.length))
+                throw new IOException("USB HID write unconfirmed: " + Native.getLastError());
+        } finally {
+            synchronized(cancellationLock){Kernel32.INSTANCE.CloseHandle(writeThreadHandle);writeThreadHandle=null;}
         }
     }
 
@@ -180,10 +224,12 @@ public class UsbHidTransport implements Closeable {
         final Pointer sessionWrite = writeHandle;
         final Consumer<byte[]> sessionConsumer = frameConsumer;
         readerThread = new Thread(() -> {
+            synchronized(cancellationLock){readThreadHandle=Kernel32.INSTANCE.OpenThread(1,false,Kernel32.INSTANCE.GetCurrentThreadId());}
             byte[] report = new byte[REPORT_SIZE + 1];
             while (running && readerThread == Thread.currentThread()) {
                 Pointer h = sessionRead;
                 if (h == null || isInvalidHandle(h)) {
+                    readerTerminatedUnexpectedly();
                     break;
                 }
                 try {
@@ -195,6 +241,7 @@ public class UsbHidTransport implements Closeable {
                         if (running) {
                             logger.warn("USB HID read stopped: {}", err);
                         }
+                        readerTerminatedUnexpectedly();
                         break;
                     }
                     byte[] frame = extractFrame(report, read.getValue(),k1ReplyRequest);
@@ -206,9 +253,11 @@ public class UsbHidTransport implements Closeable {
                     if (running) {
                         logger.warn("USB HID read error: {}", e.getMessage());
                     }
+                    readerTerminatedUnexpectedly();
                     break;
                 }
             }
+            synchronized(cancellationLock){if(!isInvalidHandle(readThreadHandle))Kernel32.INSTANCE.CloseHandle(readThreadHandle);readThreadHandle=null;}
             // 线程退出时自行关闭 handles（避免主线程在 ReadFile 阻塞时关闭）
             logger.debug("USB reader: 线程退出，自行关闭 handles");
             synchronized (UsbHidTransport.this) {
@@ -275,32 +324,12 @@ public class UsbHidTransport implements Closeable {
     }
 
     @Override
-    public synchronized void close() {
+    public void close() {
         k1ReplyRequest=null;
-        logger.debug("USB close: 开始关闭 USB 传输");
-        
-        // 第一步：设置标志，让读取线程自行退出并关闭 handles
-        logger.debug("USB close: 设置 running=false");
-        running = false;
-        
-        // 第二步：等待读取线程退出（最多等待2秒）
-        if (readerThread != null && readerThread.isAlive()) {
-            logger.debug("USB close: 等待读取线程退出");
-            try {
-                readerThread.join(2000);
-                logger.debug("USB close: 读取线程已退出");
-            } catch (InterruptedException e) {
-                logger.warn("USB close: 等待线程退出被中断");
-                Thread.currentThread().interrupt();
-            }
-        }
-        
-        // 第三步：清理引用（handles 已由读取线程关闭）
-        readHandle = null;
-        writeHandle = null;
-        devicePath = null;
-        readerThread = null;
-        logger.debug("USB close: 关闭完成");
+        cancelPendingIo();
+        Thread reader=readerThread;
+        if(reader!=null && reader!=Thread.currentThread())try{reader.join(500);}catch(InterruptedException e){Thread.currentThread().interrupt();}
+        // Handles are closed only by their owner after native I/O returns; a late completion cannot affect B.
     }
 
     private synchronized void closeQuietly() {
@@ -338,11 +367,20 @@ public class UsbHidTransport implements Closeable {
     }
 
     public static List<String> listDevicePaths() {
+        try { return enumerateDevicePaths(); }
+        catch(RuntimeException failure){logger.warn("USB HID enumerate failed: {}",failure.getMessage());return List.of();}
+    }
+    public static List<String> configurationPaths() { return configurationPaths(enumerateDevicePaths()); }
+    static List<String> configurationPaths(List<String> paths) {
+        return paths.stream().filter(path->{String p=path.toLowerCase(Locale.ROOT);return p.contains("vid_413c")&&p.contains("pid_2107")&&p.contains("mi_01");}).toList();
+    }
+    /** A failed/partial enumeration must never become evidence that a quarantined device is absent. */
+    private static List<String> enumerateDevicePaths() {
         Guid.GUID hidGuid = new Guid.GUID();
         Hid.INSTANCE.HidD_GetHidGuid(hidGuid);
         Pointer infoSet = SetupApi.INSTANCE.SetupDiGetClassDevs(hidGuid, Pointer.NULL, Pointer.NULL, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
         if (isInvalidHandle(infoSet)) {
-            return List.of();
+            throw new LastErrorException(Native.getLastError());
         }
 
         List<String> paths = new ArrayList<>();
@@ -370,6 +408,7 @@ public class UsbHidTransport implements Closeable {
                     required,
                     Pointer.NULL
                 );
+                if (!ok || detail.DevicePath == null) throw new LastErrorException(Native.getLastError());
                 if (ok && detail.DevicePath != null) {
                     String path = Native.toString(detail.DevicePath);
                     if (path != null && !path.isBlank()) {
@@ -377,8 +416,6 @@ public class UsbHidTransport implements Closeable {
                     }
                 }
             }
-        } catch (Exception e) {
-            logger.warn("USB HID enumerate failed: {}", e.getMessage());
         } finally {
             SetupApi.INSTANCE.SetupDiDestroyDeviceInfoList(infoSet);
         }
@@ -430,5 +467,8 @@ public class UsbHidTransport implements Closeable {
         boolean WriteFile(Pointer file, byte[] buffer, int bytesToWrite, IntByReference bytesWritten, Pointer overlapped);
         boolean ReadFile(Pointer file, byte[] buffer, int bytesToRead, IntByReference bytesRead, Pointer overlapped);
         boolean CloseHandle(Pointer object);
+        Pointer OpenThread(int access,boolean inherit,int threadId);
+        int GetCurrentThreadId();
+        boolean CancelSynchronousIo(Pointer thread);
     }
 }

@@ -202,6 +202,13 @@ public class HIDUsage {
     }
     
     public static String getName(int code) {
+        if((code & 0xFF00)!=0) {
+            var parts=new java.util.ArrayList<String>();
+            int[] bits={0x200,0x100,0x400,0x800,0x2000,0x1000,0x4000,0x8000};
+            String[] names={"Ctrl","Shift","Alt","Win","RCtrl","RShift","RAlt","RWin"};
+            for(int i=0;i<bits.length;i++)if((code&bits[i])!=0)parts.add(names[i]);
+            if((code&255)!=0)parts.add(getName(code&255));return String.join("+",parts);
+        }
         return codeToName.getOrDefault(code, String.format("0x%02X", code));
     }
     

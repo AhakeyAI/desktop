@@ -256,8 +256,9 @@ public final class DeviceSyncService {
         Runnable onError,
         Consumer<String> onProgress
     ) {
+        long generation=ble.operationGeneration();
         new Thread(() -> {
-            try (var transaction = ble.maintenance().normalTransaction()) {
+            try (var binding=ble.bindGeneration(generation);var transaction = ble.maintenance().normalTransaction()) {
                 int i = 0;
                 for (LabeledCommand cmd : commands) {
                     i++;
@@ -272,12 +273,14 @@ public final class DeviceSyncService {
                     onComplete.run();
                 }
             } catch (Exception e) {
+                try(var failedBinding=ble.bindGeneration(generation)){
                 if (onProgress != null) {
                     onProgress.accept("保存失败：" + e.getMessage());
                 }
                 if (onError != null) {
                     onError.run();
                 }
+                }catch(Exception callbackFailure){throw new IllegalStateException(callbackFailure);}
             }
         }, "aha-device-sync").start();
     }

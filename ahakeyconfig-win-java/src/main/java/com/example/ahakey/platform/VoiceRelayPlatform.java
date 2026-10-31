@@ -44,6 +44,8 @@ public final class VoiceRelayPlatform {
         windows.simulateVoiceKeyTap(mode, preset);
     }
 
+    public void simulateAction(com.example.ahakey.model.KeyConfig key) { windows.simulateAction(key); }
+
     public void simulateKeyByHid(int hidCode) {
         windows.simulateKeyByHid(hidCode);
     }

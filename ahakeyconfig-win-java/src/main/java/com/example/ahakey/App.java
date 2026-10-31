@@ -414,53 +414,41 @@ public class App extends Application {
     }
     
     private void shutdownApplication() { requestWindowAction(()->shutdownApplication(null)); }
+    private boolean preparingExit;
+    private final java.util.concurrent.atomic.AtomicBoolean exitFinished=new java.util.concurrent.atomic.AtomicBoolean();
+    protected void exitRuntime() {Platform.exit();System.exit(0);}
+    private void finishExit(){if(exitFinished.compareAndSet(false,true))exitRuntime();}
     private void shutdownApplication(com.example.ahakey.firmware.DeviceMaintenanceCoordinator.Operation installation) {
-        if (shuttingDown) {
-            return;
-        }
-        if (controller != null && !controller.getUpdateCenter().requestClose(installation)) {
-            logger.info("更新下载或设备维护尚未收口，保持应用运行。");
-            Platform.runLater(this::showCloseBlocked);
-            return;
-        }
-        shuttingDown = true;
-        try {
-            // 移除系统托盘图标（使用局部变量避免竞态条件）
-            TrayIcon iconToRemove = trayIcon;
-            trayIcon = null;
-            if (iconToRemove != null) {
-                try {
-                    SystemTray.getSystemTray().remove(iconToRemove);
-                } catch (Exception e) {
-                    logger.warn("移除系统托盘图标失败: {}", e.getMessage());
-                }
-            }
-            
-            shutdownVoiceInputManager();
-            if (controller != null) {
-                controller.shutdown();
-            }
-            
-            stopBleDriverProcess();
-        } catch (Exception e) {
-            logger.warn("Application shutdown cleanup failed: {}", e.getMessage());
-        } finally {
-            Platform.exit();
-            System.exit(0);
-        }
+        if(shuttingDown || preparingExit)return;
+        preparingExit=true;
+        if(controller!=null && controller.normalDeviceActionAllowed())controller.cancelOledUpload();
+        Thread cleanup=new Thread(()->{
+            long admissionDeadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(2);
+            boolean allowed=controller==null;
+            do {
+                if(controller!=null)allowed=controller.getUpdateCenter().requestClose(installation);
+                if(allowed || controller.getBleManager().maintenance().active())break;
+                try{Thread.sleep(25);}catch(InterruptedException e){Thread.currentThread().interrupt();break;}
+            }while(System.nanoTime()<admissionDeadline);
+            if(!allowed){Platform.runLater(()->{preparingExit=false;showCloseBlocked();});return;}
+            shuttingDown=true;
+            // The irreversible firmware gate has admitted exit before any deadline can terminate the app.
+            Thread deadline=new Thread(()->{try{Thread.sleep(5000);}catch(InterruptedException ignored){}finishExit();},"exit-deadline");
+            deadline.setDaemon(true);deadline.start();
+            try {
+                TrayIcon old=trayIcon;trayIcon=null;if(old!=null)SystemTray.getSystemTray().remove(old);
+                shutdownVoiceInputManager();
+                if(controller!=null)controller.shutdown();
+                stopBleDriverProcess();
+            }catch(Exception failure){logger.warn("Application shutdown cleanup failed",failure);}
+            finally{finishExit();}
+        },"application-cleanup");cleanup.setDaemon(true);cleanup.start();
     }
-    
+
     private void stopBleDriverProcess() {
-        try {
-            logger.info("停止 BLE_tcp_driver.exe 进程...");
-            new ProcessBuilder("taskkill", "/F", "/IM", "BLE_tcp_driver.exe").redirectErrorStream(true).start().waitFor();
-            Thread.sleep(300);
-            logger.info("BLE_tcp_driver.exe 进程已停止");
-        } catch (Exception e) {
-            logger.warn("停止 BLE_tcp_driver.exe 进程失败: {}", e.getMessage());
-        }
+        if(controller!=null)controller.getBleManager().closeManagedBridge();
     }
-    
+
     /**
      * 初始化语音输入管理器
      */

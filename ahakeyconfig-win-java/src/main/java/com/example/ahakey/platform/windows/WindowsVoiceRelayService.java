@@ -184,6 +184,7 @@ public final class WindowsVoiceRelayService {
     }
 
     public void stop() {
+        Thread simulation=simulationThread;if(simulation!=null)simulation.interrupt();
         if (hookThreadId != 0) {
             User32.INSTANCE.PostThreadMessage(hookThreadId, WinUser.WM_QUIT, new WPARAM(0), new LPARAM(0));
         }
@@ -251,58 +252,38 @@ public final class WindowsVoiceRelayService {
     /**
      * 根据 HID 组合键码模拟一次按键（修饰键在高位 0x100-0x8000，基础键在低位）
      */
+    private volatile Thread simulationThread;
     public void simulateKeyByHid(int hidCode) {
-        if (hidCode == 0) {
-            lastSimulateHint.set("未设置按键，无法模拟。");
-            return;
+        simulateAction(new com.example.ahakey.model.KeyConfig(hidCode, ""));
+    }
+    public synchronized void simulateAction(com.example.ahakey.model.KeyConfig key) {
+        if (simulationThread != null && simulationThread.isAlive()) {
+            lastSimulateHint.set("正在模拟，请等待本次动作结束。"); return;
         }
-        java.util.List<Integer> modVks = new java.util.ArrayList<>();
-        // Left 修饰键
-        if ((hidCode & 0x100) != 0) modVks.add(0x10);  // VK_SHIFT
-        if ((hidCode & 0x200) != 0) modVks.add(0x11);  // VK_CONTROL
-        if ((hidCode & 0x400) != 0) modVks.add(0x12);  // VK_MENU (Alt)
-        if ((hidCode & 0x800) != 0) modVks.add(0x5B);  // VK_LWIN
-        // Right 修饰键
-        if ((hidCode & 0x1000) != 0) modVks.add(0xA1); // VK_RSHIFT
-        if ((hidCode & 0x2000) != 0) modVks.add(0xA3); // VK_RCONTROL
-        if ((hidCode & 0x4000) != 0) modVks.add(0xA5); // VK_RMENU
-        if ((hidCode & 0x8000) != 0) modVks.add(0x5C); // VK_RWIN
-
-        int baseHid = hidCode & 0xFF;
-        int baseVk = hidBaseToVk(baseHid);
-        if (baseVk < 0 && modVks.isEmpty()) {
-            lastSimulateHint.set("无法识别 HID 0x" + String.format("%02X", baseHid) + " 对应的虚拟键码。");
-            return;
-        }
-
-        int total = modVks.size() * 2 + (baseVk >= 0 ? 2 : 0);
-        WinUser.INPUT[] inputs = (WinUser.INPUT[]) new WinUser.INPUT().toArray(total);
-        int idx = 0;
-        // modifiers down
-        for (int vk : modVks) { fillKey(inputs[idx++], vk, false); }
-        // base key down + up
-        if (baseVk >= 0) { fillKey(inputs[idx++], baseVk, false); fillKey(inputs[idx++], baseVk, true); }
-        // modifiers up (reverse)
-        for (int i = modVks.size() - 1; i >= 0; i--) { fillKey(inputs[idx++], modVks.get(i), true); }
-
-        User32.INSTANCE.SendInput(new WinUser.DWORD(total), inputs, inputs[0].size());
-        String desc = com.example.ahakey.model.HIDUsage.getName(baseHid);
-        if (!modVks.isEmpty()) {
-            java.util.List<String> names = new java.util.ArrayList<>();
-            if ((hidCode & 0x100) != 0) names.add("LShift");
-            if ((hidCode & 0x1000) != 0) names.add("RShift");
-            if ((hidCode & 0x200) != 0) names.add("LCtrl");
-            if ((hidCode & 0x2000) != 0) names.add("RCtrl");
-            if ((hidCode & 0x400) != 0) names.add("LAlt");
-            if ((hidCode & 0x4000) != 0) names.add("RAlt");
-            if ((hidCode & 0x800) != 0) names.add("LWin");
-            if ((hidCode & 0x8000) != 0) names.add("RWin");
-            desc = String.join("+", names) + "+" + desc;
-        }
-        lastSimulateHint.set("已模拟 " + desc);
+        final com.example.ahakey.service.KeySimulationService.Action action;
+        try { action = com.example.ahakey.service.KeySimulationService.snapshot(key); }
+        catch (IllegalArgumentException e) { lastSimulateHint.set(e.getMessage()); return; }
+        simulationThread = new Thread(() -> {
+            String result;
+            try {
+                com.example.ahakey.service.KeySimulationService.execute(action, (hid, down) -> {
+                    int vk = hidBaseToVk(hid);
+                    if (vk < 0) throw new IllegalArgumentException("不支持的模拟键: " + hid);
+                    WinUser.INPUT input = new WinUser.INPUT();
+                    fillKey(input, vk, !down);
+                    int count = User32.INSTANCE.SendInput(new WinUser.DWORD(1), new WinUser.INPUT[]{input}, input.size()).intValue();
+                    if (count != 1) throw new IllegalStateException("系统未接受按键输入");
+                }, Thread::sleep);
+                result = "模拟输入已发送；目标应用是否执行请实际确认。";
+            } catch (Exception e) { result = "模拟未完成：" + e.getMessage(); }
+            String message = result;
+            Platform.runLater(() -> lastSimulateHint.set(message));
+        }, "key-simulation");
+        simulationThread.setDaemon(true); simulationThread.start();
     }
 
     private static int hidBaseToVk(int hid) {
+        if (hid >= 0xE0 && hid <= 0xE7) return new int[]{0xA2,0xA0,0xA4,0x5B,0xA3,0xA1,0xA5,0x5C}[hid - 0xE0];
         // 字母 A(0x04)–Z(0x1D) → VK 0x41–0x5A
         if (hid >= 0x04 && hid <= 0x1D) return 0x41 + (hid - 0x04);
         // 数字 1(0x1E)–9(0x26) → VK 0x31–0x39; 0(0x27) → 0x30
