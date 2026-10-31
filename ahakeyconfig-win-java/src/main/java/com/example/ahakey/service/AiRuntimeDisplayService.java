@@ -200,14 +200,23 @@ public class AiRuntimeDisplayService {
         }
     }
 
+    public void maintenanceChanged() {
+        synchronized (snapshotSendLock) {
+            snapshotPending = false; snapshotRevision.incrementAndGet(); liveFacts.clear();
+            singleOwner = null; singleOwnerConnection = -1;
+        }
+    }
     public void onDeviceReady() {
+        if (!bleManager.maintenance().normalAllowed()) return;
         if (!isDeviceSupported()) {
             return;
         }
         long connection = bleManager.connectionGeneration();
         AiRuntimeDisplayMode preference = displayMode.get();
+        long maintenanceEpoch = bleManager.maintenance().epoch();
         new Thread(() -> {
             try {
+                if (maintenanceEpoch != bleManager.maintenance().epoch() || !bleManager.maintenance().normalAllowed()) return;
                 bleManager.setRuntimeDisplayMode(preference, connection);
             } catch (Exception e) {
                 logger.warn("Apply runtime display preference on connect failed: {}", e.getMessage());
@@ -289,6 +298,7 @@ public class AiRuntimeDisplayService {
     private long singleOwnerConnection = -1;
 
     public Delivery handleHookEventResult(String platform, IDEState state, JsonNode payload) {
+        if (!bleManager.maintenance().normalAllowed()) return Delivery.IGNORED;
         String id = "Cursor".equals(platform)
                 ? firstNonBlank(text(payload, "conversation_id"), text(payload, "conversationId"),
                     text(payload, "composerId"), text(payload, "composer_id"))
@@ -519,6 +529,7 @@ public class AiRuntimeDisplayService {
     private boolean sendAppliedSnapshot(long connection) throws Exception {
         synchronized (snapshotSendLock) {
         if (connection != bleManager.connectionGeneration()) return false;
+        if (!bleManager.maintenance().normalAllowed()) { snapshotPending = false; return false; }
         snapshotPending = true;
         snapshotConnection = connection;
         if (bleManager.isDisplayBusy() || bleManager.isDisplayWriteUncertain()) return false;

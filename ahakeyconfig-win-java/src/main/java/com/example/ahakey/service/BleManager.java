@@ -24,6 +24,88 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class BleManager {
+    private final com.example.ahakey.firmware.FirmwareCatalog firmwareCatalog = new com.example.ahakey.firmware.FirmwareCatalog();
+    private volatile FirmwareIdentity exactCatalogIdentity;
+    public com.example.ahakey.firmware.FirmwareCatalog firmwareCatalog() { return firmwareCatalog; }
+    public boolean isFirmwareCapabilityAdmitted(String capability) {
+        FirmwareIdentity identity = firmwareIdentity;
+        return isConnected && cachedStatus.isConnected() && isCurrentIdentity(identity)
+                && (isDisplayAdmitted() || identity == exactCatalogIdentity)
+                && firmwareCatalog.capabilities(identity.catalogKey()).contains(capability);
+    }
+    private final com.example.ahakey.firmware.DeviceMaintenanceCoordinator maintenance = new com.example.ahakey.firmware.DeviceMaintenanceCoordinator();
+    public com.example.ahakey.firmware.DeviceMaintenanceCoordinator maintenance() { return maintenance; }
+    public com.example.ahakey.firmware.DeviceMaintenanceCoordinator.Operation beginMaintenance(
+            com.example.ahakey.firmware.DeviceMaintenanceCoordinator.Identity identity, String hash, String profile, boolean install) throws IOException {
+        synchronized (commandTransactionLock) {
+            commandLock.lock();
+            try {
+                if (isScanning || displayLease != null || legacyWaiters != 0 || displayWriteUncertain || displayReadUncertain)
+                    throw new IOException("设备事务未结束或结果未确认，请先重新连接并同步。");
+                if (!install && (identity == null || identity.generation() != connectionGeneration || !isConnected || !usbTransport.isOpen()
+                        || !java.util.Objects.equals(identity.devicePath(), usbTransport.devicePath()))) throw new IOException("请先连接并确认唯一 USB 键盘。");
+                var op = maintenance.begin(identity, hash, profile, install);
+                deferredRuntimeState = null; pendingNotifyFramesByCommand.clear();
+                return op;
+            } finally { commandLock.unlock(); }
+        }
+    }
+    public String usbDevicePath() { return usbTransport.devicePath(); }
+    public com.example.ahakey.firmware.DeviceMaintenanceCoordinator.Operation beginBootMaintenance(
+            com.example.ahakey.firmware.DeviceMaintenanceCoordinator.Identity observed,String hash,String profile)throws IOException {
+        synchronized(commandTransactionLock) {
+            commandLock.lock();
+            try {
+                if(isScanning||displayLease!=null||legacyWaiters!=0||k1RouteOwner!=null||displayWriteUncertain||displayReadUncertain)
+                    throw new IOException("设备事务未结束，请稍后重新检测下载设备。");
+                if(observed.port().isBlank()||!observed.devicePath().toUpperCase(java.util.Locale.ROOT).startsWith("USB\\VID_4348&PID_55E0\\"))throw new IOException("下载目标身份无效。");
+                var source=new com.example.ahakey.firmware.DeviceMaintenanceCoordinator.Identity(connectionGeneration,"USB",observed.devicePath(),"",observed.port(),"");
+                var operation=maintenance.begin(source,hash,profile,false);
+                deferredRuntimeState=null;pendingNotifyFramesByCommand.clear();return operation;
+            } finally {commandLock.unlock();}
+        }
+    }
+    protected List<UsbHidTransport.MaintenanceDevice> observeMaintenanceDevices() throws Exception { return UsbHidTransport.maintenanceDevices(); }
+    private void sendUsbCommand(byte[] frame) throws IOException {
+        commandLock.lock();
+        try { maintenance.admitFrame(frame, connectionGeneration); usbTransport.sendCommand(frame); }
+        finally { commandLock.unlock(); }
+    }
+    public void maintenanceDisconnect(com.example.ahakey.firmware.DeviceMaintenanceCoordinator.Operation op) throws Exception {
+        maintenance.within(op, () -> { disconnectInternal(); return null; });
+    }
+    public void maintenanceReconnect(com.example.ahakey.firmware.DeviceMaintenanceCoordinator.Operation op,
+            com.example.ahakey.firmware.DeviceMaintenanceCoordinator.Identity observed) throws Exception {
+        synchronized (commandTransactionLock) {
+            commandLock.lock();
+            try {
+                if (maintenance.current() != op || op.stage() != com.example.ahakey.firmware.DeviceMaintenanceCoordinator.Stage.RECONNECT
+                        || !op.source().samePhysicalDevice(observed)) throw new IOException("重连设备身份不匹配。");
+                resetDisplaySession();
+                long generation = connectionGeneration;
+                var candidates = observeMaintenanceDevices();
+                if (candidates.size() != 1 || candidates.get(0).download()
+                        || !candidates.get(0).container().equalsIgnoreCase(observed.container())
+                        || !candidates.get(0).port().equalsIgnoreCase(observed.port())) throw new IOException("USB 目标已改变。");
+                usbTransport.openExact(observed.devicePath(), data -> onSessionNotify(generation, data));
+                var after = observeMaintenanceDevices();
+                if (after.size() != 1 || !after.get(0).ownsHidPath(usbTransport.devicePath())
+                        || !after.get(0).container().equalsIgnoreCase(observed.container()) || !after.get(0).port().equalsIgnoreCase(observed.port())) {
+                    usbTransport.close(); throw new IOException("打开期间 USB 身份改变。");
+                }
+                isConnected = true; cachedStatus.setConnected(true);
+                maintenance.bindReconnection(op, new com.example.ahakey.firmware.DeviceMaintenanceCoordinator.Identity(generation,
+                        "USB", usbTransport.devicePath(), observed.container(), observed.port(), ""));
+            } finally { commandLock.unlock(); }
+        }
+    }
+    public boolean requestApplicationExit(com.example.ahakey.firmware.DeviceMaintenanceCoordinator.Operation installation) {
+        commandLock.lock();
+        try { return displayLease == null && legacyWaiters == 0 && !isScanning && !displayWriteUncertain && !displayReadUncertain && maintenance.requestExit(installation); }
+        finally { commandLock.unlock(); }
+    }
+    public void shutdownTransport() { disconnectInternal(); }
+
     private static final Logger logger = LoggerFactory.getLogger(BleManager.class);
     private static final String DEFAULT_HOST = "127.0.0.1";
     private static final int DEFAULT_PORT = 9000;
@@ -61,6 +143,40 @@ public class BleManager {
     private byte[] displayReply;
     private byte displayExpected;
     private int legacyWaiters;
+    private Thread k1RouteOwner;
+    private volatile byte[] k1ReplyRequest;
+
+    public <T> T k1RouteTransaction(long generation, com.example.ahakey.firmware.DeviceMaintenanceCoordinator.Task<T> task) throws Exception {
+        boolean released=false;
+        try (var normal = maintenance.normalTransaction()) {
+            synchronized (commandTransactionLock) {
+                commandLock.lockInterruptibly();
+                try {
+                    if (generation != connectionGeneration || !isConnected || !cachedStatus.isConnected()
+                            || displayLease != null || displayWriteUncertain || legacyWaiters != 0 || k1RouteOwner != null)
+                        throw new IOException("K1事务不可用或连接已改变。");
+                    k1RouteOwner = Thread.currentThread();
+                    T result = task.run();
+                    if (generation != connectionGeneration) throw new IOException("K1连接已改变。");
+                    return result;
+                } finally { if(k1RouteOwner==Thread.currentThread()){k1RouteOwner=null;released=true;}commandLock.unlock(); }
+            }
+        } finally { if(released)notifyDisplayIdle(); }
+    }
+    public byte[] exchangeK1Route(byte[] frame, long generation) throws Exception {
+        if (k1RouteOwner != Thread.currentThread() || generation != connectionGeneration
+                || frame == null || frame.length > 62 || frame.length < 7 || frame[2] != (byte)0x9E)
+            throw new IOException("K1事务权限无效。");
+        pendingNotifyFramesByCommand.clear();
+        synchronized(notifyReassemblyBuffer){notifyReassemblyLength=0;}
+        k1ReplyRequest=frame.clone();
+        try {
+            sendCommand(frame);
+            byte[] reply = waitForResponseFrame((byte)0x9E, false, false);
+            if (generation != connectionGeneration) throw new IOException("K1连接已改变。");
+            return reply;
+        } finally { k1ReplyRequest=null; }
+    }
     private volatile Byte deferredRuntimeState;
     private long deferredRuntimeAt;
     private volatile long lastOptionalQueryNanos;
@@ -114,6 +230,7 @@ public class BleManager {
                 && identity.state() == DeviceStatus.IdentityState.SUPPORTED;
     }
     private void publishIdentity(DeviceStatus.IdentityState state, String key) {
+        exactCatalogIdentity = null;
         firmwareIdentity = new FirmwareIdentity(connectionGeneration, firmwareIdentity.ticket() + 1, state, key);
         cachedStatus.setFirmwareCatalogKey(key);
         cachedStatus.setIdentityState(state);
@@ -130,6 +247,7 @@ public class BleManager {
             displayWriteUncertain = false;
             displayReadUncertain = false;
             displayReply = null;
+            k1ReplyRequest = null;
             displayLease = null;
             deferredRuntimeState = null;
             pendingNotifyFramesByCommand.clear();
@@ -177,10 +295,11 @@ public class BleManager {
     public DisplayLease openDisplayLease(boolean writing, long expectedGeneration) throws IOException {
         commandLock.lock();
         try {
+            maintenance.admit(writing ? 0x8E : 0x88, connectionGeneration);
             if (expectedGeneration != connectionGeneration) throw new IOException("键盘连接已改变。");
             if (!isConnected || !cachedStatus.isConnected()) throw new IOException("键盘连接已断开。");
-            if (displayLease != null || legacyWaiters != 0) throw new IOException("设备正在处理其他事务。");
-            if (writing && (!isDisplayAdmitted() || displayWriteUncertain))
+            if (displayLease != null || legacyWaiters != 0 || k1RouteOwner != null) throw new IOException("设备正在处理其他事务。");
+            if (writing && ((!isDisplayAdmitted() && !isFirmwareCapabilityAdmitted("lights")) || displayWriteUncertain))
                 throw new IOException(displayWriteUncertain ? "设备保存结果未确认，请重新连接后同步。" : "当前连接尚未识别到支持的固件版本。");
             if (!writing && displayReadUncertain) throw new IOException("上次读取结果未确认，请重新连接后同步。");
             displayLease = new DisplayLease(writing);
@@ -197,17 +316,20 @@ public class BleManager {
         boolean sent = false;
         try {
             checkDisplayLease(lease);
-            requireCapability();
+            maintenance.admitFrame(request, connectionGeneration);
             int opcode = request[2] & 255;
+            boolean lighting = (opcode == 0x88 || opcode == 0x8E) && request.length >= 6 && (request[3] & 255) <= 1;
+            boolean admitted = isDisplayAdmitted() || (lighting && isFirmwareCapabilityAdmitted("lights"));
+            if (!admitted) throw new IOException("当前 catalog 未声明此项能力。");
             if (opcode != 0x88 && opcode != 0x89 && opcode != 0x8A && opcode != 0x8B && opcode != 0x8C && opcode != 0x8E)
                 throw new IllegalArgumentException("CP2 opcode");
-            if (opcode != 0x88 && (!lease.writing || displayWriteUncertain || !isDisplayAdmitted())) throw new IOException("显示配置写入未准入。");
+            if (opcode != 0x88 && (!lease.writing || displayWriteUncertain || !admitted)) throw new IOException("显示配置写入未准入。");
             if (opcode == 0x88 && displayReadUncertain) throw new IOException("读取结果未确认，请重新连接。");
             displayExpected = request[2];
             displayReply = null;
             sent = true;
             outcome = "WRITE_ATTEMPTED_UNKNOWN";
-            if (lease.usb) usbTransport.sendCommand(request);
+            if (lease.usb) sendUsbCommand(request);
             else writePacket(BleTcpPacket.WRITE_COMMAND, request);
             sentAt = System.nanoTime();
             outcome = "ACK_UNKNOWN";
@@ -290,16 +412,20 @@ public class BleManager {
     }
 
     public void connect() {
+        final AutoCloseable connecting;
+        try { connecting = maintenance.normalTransaction(); } catch (IOException busy) { return; }
         long startTime = System.currentTimeMillis();
         logger.info("[BLE] === 开始连接 (第{}次尝试) ===", ++connectAttemptCount);
         
         if (isScanning) {
             logger.warn("[BLE] 正在扫描中，忽略连接请求");
+            try { connecting.close(); } catch (Exception ignored) {}
             return;
         }
         isScanning = true;
         
         new Thread(() -> {
+            try (connecting) {
             logger.info("[BLE] 连接线程启动，耗时={}ms", System.currentTimeMillis() - startTime);
             
             long phaseStart = System.currentTimeMillis();
@@ -354,11 +480,16 @@ public class BleManager {
                     host, port, e.getMessage(), System.currentTimeMillis() - startTime);
                 callback.onError("BLE bridge connect failed (" + host + ":" + port + "): " + e.getMessage());
             }
+            } catch (Exception e) { callback.onError(e.getMessage()); }
         }, "device-connect").start();
     }
     
     private int connectAttemptCount = 0;
     public void disconnect() {
+        try (var transaction = maintenance.normalTransaction()) { disconnectInternal(); }
+        catch (Exception busy) { logger.debug("Disconnect deferred: {}", busy.getMessage()); }
+    }
+    private void disconnectInternal() {
         resetDisplaySession();
         long startTime = System.currentTimeMillis();
         logger.info("[BLE] === 开始断开连接 ===");
@@ -459,7 +590,11 @@ public class BleManager {
     public void sendCommand(byte[] command) throws IOException {
         if (!commandLock.tryLock()) throw new IOException("设备正在处理其他命令。");
         try {
+        maintenance.admitFrame(command, connectionGeneration);
         int opcode = command[2] & 255;
+        if ((k1RouteOwner != null && k1RouteOwner != Thread.currentThread())
+                || (opcode == 0x9E && k1RouteOwner != Thread.currentThread()))
+            throw new IOException("K1命令必须通过独占路由事务发送。");
         if (opcode == 0x88 || opcode == 0x89 || opcode == 0x8A || opcode == 0x8B || opcode == 0x8C || opcode == 0x8E)
             throw new IOException("显示配置命令必须通过已准入事务发送。");
         if (opcode == 0x98 || opcode == 0x99) requireCapability();
@@ -468,14 +603,14 @@ public class BleManager {
             throw new IOException("显示配置事务占用或保存结果未确认。");
         if (displayLease != null) {
             checkDisplayTransport();
-            if (displayLease.usb) usbTransport.sendCommand(command);
+            if (displayLease.usb) sendUsbCommand(command);
             else writePacket(BleTcpPacket.WRITE_COMMAND, command);
             return;
         }
         logger.debug("发送命令: {}", bytesToHex(command, Math.min(20, command.length)));
         if (ensureUsbConnected()) {
             if (opcode == 0x98 || opcode == 0x99) requireCapability();
-            usbTransport.sendCommand(command);
+            sendUsbCommand(command);
         } else {
             writePacket(BleTcpPacket.WRITE_COMMAND, command);
         }
@@ -526,6 +661,7 @@ public class BleManager {
     }
 
     public String readFirmwareCatalogKey(long generation) throws Exception {
+        maintenance.admit(0x9F, generation);
         FirmwareIdentity queued = firmwareIdentity;
         synchronized (commandTransactionLock) {
             commandLock.lock();
@@ -566,6 +702,7 @@ public class BleManager {
                 if (!isCurrentIdentity(reading)) throw new IOException("键盘连接已改变。");
                 publishIdentity(AhaKeyProtocol.isDisplayCapabilityResponse(frame)
                         ? DeviceStatus.IdentityState.SUPPORTED : DeviceStatus.IdentityState.UNKNOWN, catalogKey);
+                if (exactCatalogResponse(frame, catalogKey)) exactCatalogIdentity = firmwareIdentity;
                 callback.onStatusReceived(cachedStatus);
                 return catalogKey;
             } catch (Exception e) {
@@ -578,6 +715,15 @@ public class BleManager {
                 commandLock.unlock();
             }
         }
+    }
+
+    private boolean exactCatalogResponse(byte[] frame, String catalogKey) {
+        int offset = frame[3] == 0 ? 4 : 3;
+        byte[] key = catalogKey.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        if (frame.length - 2 - offset < key.length) return false;
+        for (byte value : key) if (frame[offset++] != value) return false;
+        while (offset < frame.length - 2) if (frame[offset++] != 0) return false;
+        return true;
     }
 
     private byte[] waitForIdentityResponse(FirmwareIdentity reading) throws Exception {
@@ -657,8 +803,8 @@ public class BleManager {
                     throw new IOException(ordinaryKeyReadbackStatusMessage(status));
                 }
                 AhaKeyResponseParser.OrdinaryKeyReadback parsed = AhaKeyResponseParser.parseOrdinaryKeyReadback(frame);
-                if (parsed == null) {
-                    throw new IOException("无法解析普通键配置回读");
+                if (parsed == null || parsed.mode() != mode || parsed.keyIndex() != keyIndex) {
+                    throw new IOException("无法解析普通键配置回读或目标不匹配");
                 }
                 return parsed;
             } finally {
@@ -709,11 +855,13 @@ public class BleManager {
     }
 
     public void writeData(byte[] chunk) throws IOException {
+        maintenance.admit(-1, connectionGeneration);
         commandLock.lock();
         try {
         if (displayLease != null || displayWriteUncertain) throw new IOException("显示配置事务占用或保存结果未确认。");
         logger.debug("发送数据块: {} 字节", chunk.length);
         if (ensureUsbConnected()) {
+            maintenance.admit(-1, connectionGeneration);
             usbTransport.sendData(chunk);
         } else {
             writePacket(BleTcpPacket.WRITE_DATA, chunk);
@@ -771,6 +919,7 @@ public class BleManager {
     }
 
     public void queryStatus() {
+        if (!maintenance.normalAllowed()) return;
         try {
             // Coalesce poller/status callers only; explicit approval refresh uses the forced path.
             if (commandLock.isLocked()) return;
@@ -781,6 +930,7 @@ public class BleManager {
     }
 
     private void queryStatusNow() {
+        if (!maintenance.normalAllowed()) return;
         try {
             if (commandLock.isLocked()) {
                 return;
@@ -834,21 +984,23 @@ public class BleManager {
     public boolean sendRuntimeState(byte state) throws IOException {
         commandLock.lock();
         try {
+            if (!maintenance.normalAllowed()) { deferredRuntimeState = null; return false; }
             if (!isConnected || !cachedStatus.isConnected()) return false;
             deferredRuntimeState = state;
             deferredRuntimeAt = System.nanoTime();
-            if (displayLease != null || displayWriteUncertain) return false;
+            if (displayLease != null || displayWriteUncertain || k1RouteOwner != null) return false;
             sendCommand(AhaKeyProtocol.updateState(state));
             deferredRuntimeState = null;
             return true;
         } finally { commandLock.unlock(); }
     }
     private void flushDeferredRuntimeState() {
+        if (!maintenance.normalAllowed()) { deferredRuntimeState = null; return; }
         commandLock.lock();
         try {
             if (deferredRuntimeState != null && System.nanoTime() - deferredRuntimeAt >= TimeUnit.MINUTES.toNanos(5))
                 deferredRuntimeState = null;
-            if (displayLease != null || displayWriteUncertain) return;
+            if (displayLease != null || displayWriteUncertain || k1RouteOwner != null) return;
             if (deferredRuntimeState != null && isConnected && cachedStatus.isConnected()) {
                 // Retry the original fact; only a newly received event may advance its TTL.
                 sendCommand(AhaKeyProtocol.updateState(deferredRuntimeState));
@@ -1003,7 +1155,7 @@ public class BleManager {
 
     private void requestModeReadbackStatus() throws IOException {
         if (ensureUsbConnected()) {
-            usbTransport.sendCommand(AhaKeyProtocol.queryDeviceStatus());
+            sendUsbCommand(AhaKeyProtocol.queryDeviceStatus());
             return;
         }
         writePacket(BleTcpPacket.QUERY_BLE_STATUS, null);
@@ -1069,6 +1221,7 @@ public class BleManager {
     }
 
     private boolean tryConnectUsb() {
+        if (!maintenance.normalAllowed()) return false;
         try {
             if (!isUsbDevicePresent()) {
                 return false;
@@ -1094,6 +1247,7 @@ public class BleManager {
     }
 
     private boolean ensureUsbConnected() {
+        if (!maintenance.normalAllowed()) return usbTransport.isOpen();
         if (displayLease != null || displayWriteUncertain || displayReadUncertain) return usbTransport.isOpen();
         if (usbTransport.isOpen()) {
             return true;
@@ -1120,6 +1274,10 @@ public class BleManager {
         }
     }
     private void writePacket(byte type, byte[] data) throws IOException {
+        commandLock.lock();
+        try {
+        if (type == BleTcpPacket.WRITE_COMMAND) maintenance.admitFrame(data, connectionGeneration);
+        else maintenance.admit(-1, connectionGeneration);
         if (!isConnected || outputStream == null) {
             throw new IOException("BLE 桥未连接");
         }
@@ -1129,6 +1287,7 @@ public class BleManager {
             outputStream.write(BleTcpPacket.encode(type, data));
             outputStream.flush();
         }
+        } finally { commandLock.unlock(); }
     }
 
     private static final long RECONNECT_WAIT_MS = 30000;  // 重连等待时间30秒
@@ -1208,7 +1367,7 @@ public class BleManager {
             try {
                 pendingNotifyFramesByCommand.clear();
                 if (ensureUsbConnected()) {
-                    usbTransport.sendCommand(AhaKeyProtocol.queryDeviceStatus());
+                    sendUsbCommand(AhaKeyProtocol.queryDeviceStatus());
                 } else {
                     writePacket(BleTcpPacket.WRITE_COMMAND, AhaKeyProtocol.queryDeviceStatus());
                 }
@@ -1433,6 +1592,8 @@ public class BleManager {
                 }
 
                 int end = findFrameEnd(notifyReassemblyBuffer, notifyReassemblyLength);
+                // An invalid binary K1 frame has no safe interior delimiter to resynchronize on.
+                if(end==-2){notifyReassemblyLength=0;return frames;}
                 if (end < 0) {
                     return frames;
                 }
@@ -1458,6 +1619,9 @@ public class BleManager {
     }
 
     private int findFrameEnd(byte[] buffer, int len) {
+        int k1 = com.example.ahakey.protocol.K1RouteProtocol.replyLength(buffer,0,len,k1ReplyRequest);
+        if(k1>0)return k1-2;
+        if(k1!=-1)return k1==0?-1:-2;
         int fixed = AhaKeyResponseParser.displayReplyLength(buffer, 0, len);
         if (fixed > 0) return fixed - 2;
         if (fixed != -1) return -1;

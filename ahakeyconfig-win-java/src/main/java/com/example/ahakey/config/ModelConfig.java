@@ -38,7 +38,7 @@ public class ModelConfig {
     private static final boolean DEFAULT_MODEL_ENABLED = false;
     private static final String DEFAULT_MODEL_PATH = "model_q8.onnx";
     private static final String DEFAULT_TOKENS_PATH = "tokens.txt";
-    private static final String DEFAULT_MODEL_TYPE = "SENSE_VOICE_SMALL";
+    private static final String DEFAULT_MODEL_TYPE = "STREAMING_PARAFORMER";
     private static final int DEFAULT_NUM_THREADS = 4;
     private static final int DEFAULT_SAMPLE_RATE = 16000;
     private static final int DEFAULT_N_FFT = 512;
@@ -117,6 +117,14 @@ public class ModelConfig {
      */
     public String getModelType() {
         return properties.getProperty(MODEL_TYPE, DEFAULT_MODEL_TYPE);
+    }
+
+    public String getEncoderPath() {
+        return properties.getProperty("encoder.path", "models/encoder.int8.onnx");
+    }
+
+    public String getDecoderPath() {
+        return properties.getProperty("decoder.path", "models/decoder.int8.onnx");
     }
     
     /**

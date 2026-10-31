@@ -85,6 +85,7 @@ public class InspectorPane extends ScrollPane {
 
         studioState.selectedPartProperty().addListener((obs, oldValue, newValue) -> rebuild());
         studioState.selectedModeProperty().addListener((obs, oldValue, newValue) -> rebuild());
+        studioState.k1Routes().capability.addListener((o,a,b)->rebuild());
         studioState.displayConfig().revision.addListener((o, a, b) -> {
             if (studioState.getSelectedPart() == StudioPart.OLED) rebuild();
         });
@@ -136,9 +137,31 @@ public class InspectorPane extends ScrollPane {
             if (key1.getVoicePreset() != com.example.ahakey.model.VoicePreset.CUSTOM) {
                 key1.setVoicePreset(com.example.ahakey.model.VoicePreset.CUSTOM);
             }
-            body.getChildren().add(createKeyBindingGroup(part));
+            var routeState = studioState.k1Routes();
+            int routeMode = mode.getIndex();
+            Label routeStatus = new Label();
+            routeStatus.setWrapText(true);
+            routeStatus.textProperty().bind(Bindings.createStringBinding(() -> {
+                var route = routeState.route(routeMode);
+                if (routeState.confirmed(routeMode) && route != null && route.consumer())
+                    return String.format("键盘当前输出：Consumer usage 0x%04X（只读）。下方是普通动作草稿；明确修改并保存才替换当前模式。", route.usage())+(routeState.descriptionKnown(routeMode)?"":" 描述暂不可读，保持设备端描述。");
+                return routeState.message.get();
+            }, routeState.revision, routeState.message));
+            Button readRoute = new Button("重新读取K1");
+            readRoute.disableProperty().bind(routeState.busy.or(studioState.syncingProperty()));
+            readRoute.setOnAction(e -> controller.getK1RouteService().refresh());
+            body.getChildren().addAll(routeStatus, readRoute);
+            VBox keyEditor = createKeyBindingGroup(part);
+            keyEditor.disableProperty().bind(Bindings.createBooleanBinding(() -> routeState.busy.get()
+                    || studioState.syncingProperty().get() || !routeState.confirmed(routeMode), routeState.busy, routeState.capability, routeState.revision, studioState.syncingProperty()));
+            body.getChildren().add(keyEditor);
             body.getChildren().add(createSimulateKeyGroup(part));
-            body.getChildren().add(createDescriptionGroup(part));
+            VBox description = createDescriptionGroup(part);
+            description.disableProperty().bind(Bindings.createBooleanBinding(() -> keyEditor.isDisabled()
+                    || (routeState.capability.get()==com.example.ahakey.model.K1RouteState.Capability.ROUTE&&!routeState.descriptionKnown(routeMode))
+                    || (routeState.route(routeMode) != null && routeState.route(routeMode).consumer() && !routeState.dirty(routeMode)),
+                    keyEditor.disabledProperty(), routeState.revision));
+            body.getChildren().add(description);
         } else if (part.isKey()) {
             body.getChildren().add(createKeyBindingGroup(part));
             body.getChildren().add(createDescriptionGroup(part));
@@ -194,6 +217,7 @@ public class InspectorPane extends ScrollPane {
                             key.addMacroStep("DOWN_KEY", 40); // 添加一个默认步骤
                         }
                     }
+                    studioState.markDirty(part);
                     rebuild();
                 });
 
@@ -377,6 +401,7 @@ public class InspectorPane extends ScrollPane {
         keyItems.add("KP . (0x63)");
         
         keySelector.getItems().addAll(keyItems);
+        configureLocalVoiceKeyLabel(keySelector);
         keySelector.getStyleClass().addAll("combo-box", "combo-box-small");
         keySelector.setValue("--- 修饰键 ---");
 
@@ -678,6 +703,7 @@ public class InspectorPane extends ScrollPane {
             keyItems.add("Left");
             keyItems.add("Right");
             keyCombo.getItems().addAll(keyItems);
+            configureLocalVoiceKeyLabel(keyCombo);
             keyCombo.getStyleClass().add("combo-box-small");
             keyCombo.setValue(com.example.ahakey.model.HIDUsage.getName(key.getMacroStepParam(index)));
             keyCombo.valueProperty().addListener((obs, old, newValue) -> {
@@ -762,7 +788,7 @@ public class InspectorPane extends ScrollPane {
             Spinner<Integer> spinner = brightnessSpinner(display);
 
             Button test = new Button(languageManager.getString("display.preview"));
-            test.disableProperty().bind(display.writeReady.not().or(display.busy)
+            test.disableProperty().bind(display.previewReady.not().or(display.busy)
                     .or(controller.getAiRuntimeDisplayService().modeChangePendingProperty()));
             test.setOnAction(e -> { spinner.commitValue(); controller.sendLightBrightnessToDevice(); });
 
@@ -813,8 +839,8 @@ public class InspectorPane extends ScrollPane {
 
                 Button test = new Button(languageManager.getString("display.preview"));
                 test.disableProperty().bind(Bindings.createBooleanBinding(
-                        () -> !display.writeReady.get() || display.busy.get() || combo.getValue() == null || combo.getValue() == LightEffectStyle.OFF,
-                        display.writeReady, display.busy, combo.valueProperty()));
+                        () -> !display.previewReady.get() || display.busy.get() || combo.getValue() == null || combo.getValue() == LightEffectStyle.OFF,
+                        display.previewReady, display.busy, combo.valueProperty()));
                 test.setOnAction(e -> controller.previewLightEffectOnDevice(combo.getValue()));
 
                 top.getChildren().addAll(title, help, spacer, combo, test);
@@ -847,6 +873,8 @@ public class InspectorPane extends ScrollPane {
 
         addDisplayReason(brightnessBox, null);
         addDisplayReason(statesBox, AiRuntimeDisplayMode.SINGLE);
+        brightnessBox.getChildren().add(actionCapabilityReason(display.previewDisabledReasonKey));
+        statesBox.getChildren().add(actionCapabilityReason(display.previewDisabledReasonKey));
         root.getChildren().addAll(createAiRuntimeGroup(true), brightnessBox, statesBox, createAiRuntimeGroup(false), displayActions());
         return root;
     }
@@ -928,7 +956,7 @@ public class InspectorPane extends ScrollPane {
             multi.setSelected(service.getDisplayMode() == AiRuntimeDisplayMode.MULTI);
             single.disableProperty().bind(studioState.displayConfig().busy.or(studioState.displayConfig().loading)
                     .or(service.modeChangePendingProperty()).or(studioState.displayConfig().capabilityReady.and(studioState.displayConfig().writeReady.not())));
-            multi.disableProperty().bind(single.disableProperty().or(studioState.displayConfig().writeReady.not()));
+            multi.disableProperty().bind(single.disableProperty().or(studioState.displayConfig().runtimeReady.not()));
             single.setOnAction(e -> {
                 controller.setAiRuntimeDisplayMode(AiRuntimeDisplayMode.SINGLE);
                 single.setSelected(service.getDisplayMode() == AiRuntimeDisplayMode.SINGLE);
@@ -956,7 +984,7 @@ public class InspectorPane extends ScrollPane {
             manage.setOnAction(e -> showAiRuntimeSlotDialog());
             Button apply = new Button("应用到键盘");
             apply.getStyleClass().add("button-prominent");
-            apply.disableProperty().bind(studioState.displayConfig().writeReady.not().or(studioState.displayConfig().busy)
+            apply.disableProperty().bind(studioState.displayConfig().runtimeReady.not().or(studioState.displayConfig().busy)
                     .or(studioState.displayConfig().loading).or(service.modeChangePendingProperty()));
             apply.setOnAction(e -> controller.applyAiRuntimeToKeyboard(getScene() == null ? null : getScene().getWindow()));
             actions.getChildren().addAll(manage, apply);
@@ -967,7 +995,19 @@ public class InspectorPane extends ScrollPane {
             return box;
         });
         addDisplayReason(group, modeOnly ? null : AiRuntimeDisplayMode.MULTI);
+        group.getChildren().add(actionCapabilityReason(studioState.displayConfig().runtimeDisabledReasonKey));
         return group;
+    }
+
+    private static Label actionCapabilityReason(javafx.beans.property.StringProperty reasonKey) {
+        Label reason = new Label();
+        reason.setWrapText(true);
+        reason.getStyleClass().add("display-disabled-reason");
+        reason.textProperty().bind(Bindings.createStringBinding(() -> reasonKey.get().isEmpty() ? ""
+                : LanguageManager.getInstance().getString(reasonKey.get()), reasonKey));
+        reason.visibleProperty().bind(reason.textProperty().isNotEmpty());
+        reason.managedProperty().bind(reason.visibleProperty());
+        return reason;
     }
 
     private static Label runtimeSlotSupport() {
@@ -1026,7 +1066,7 @@ public class InspectorPane extends ScrollPane {
         Button apply = new Button("应用到键盘");
         apply.getStyleClass().add("button-prominent");
         apply.setOnAction(e -> controller.applyAiRuntimeToKeyboard(dialog.getDialogPane().getScene().getWindow()));
-        apply.disableProperty().bind(studioState.displayConfig().writeReady.not()
+        apply.disableProperty().bind(studioState.displayConfig().runtimeReady.not()
                 .or(studioState.displayConfig().loading).or(service.modeChangePendingProperty()));
 
         Button hookManager = new Button("去 Hook 管理");
@@ -1036,7 +1076,8 @@ public class InspectorPane extends ScrollPane {
         note.getStyleClass().add("group-note");
         note.setWrapText(true);
         HBox actionRow = new HBox(8, apply, hookManager);
-        root.getChildren().addAll(dirBox, tree, slotGuide, slotsBox, lightGuide, actionRow, note);
+        root.getChildren().addAll(dirBox, tree, slotGuide, slotsBox, lightGuide, actionRow, note,
+                actionCapabilityReason(studioState.displayConfig().runtimeDisabledReasonKey));
         bindRuntimeSection(root, service, AiRuntimeDisplayMode.MULTI);
         dialog.getDialogPane().setContent(root);
         Task<RuntimeTreeLoad> loadTask = new Task<>() {
@@ -1552,6 +1593,7 @@ public class InspectorPane extends ScrollPane {
 
         ComboBox<String> selector = new ComboBox<>();
         selector.getItems().addAll(sideSwitchKeyChoices());
+        configureLocalVoiceKeyLabel(selector);
         selector.setValue("--- 修饰键 ---");
         selector.getStyleClass().add("combo-box-small");
 
@@ -1672,6 +1714,7 @@ public class InspectorPane extends ScrollPane {
         } else {
             ComboBox<String> key = new ComboBox<>();
             key.getItems().addAll(sideSwitchKeyChoices());
+            configureLocalVoiceKeyLabel(key);
             key.setValue(com.example.ahakey.model.HIDUsage.getName(action.getMacroStepParam(index)));
             key.getStyleClass().add("combo-box-small");
             key.valueProperty().addListener((obs, oldValue, newValue) -> {
@@ -1693,6 +1736,29 @@ public class InspectorPane extends ScrollPane {
         });
         row.getChildren().add(delete);
         return row;
+    }
+
+    private void configureLocalVoiceKeyLabel(ComboBox<String> selector) {
+        if (!com.example.ahakey.config.ModelConfig.getInstance().isEnabled()) return;
+        // Decorate display cells only; keep key names and HID parsing unchanged.
+        selector.setCellFactory(list -> createLocalVoiceKeyCell());
+        selector.setButtonCell(createLocalVoiceKeyCell());
+    }
+
+    private javafx.scene.control.ListCell<String> createLocalVoiceKeyCell() {
+        return new javafx.scene.control.ListCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                } else if (item.equals("F18") || item.equals("F18 (0x6D)")) {
+                    setText("F18（本地语音输入）" + item.substring(3));
+                } else {
+                    setText(item);
+                }
+            }
+        };
     }
 
     private List<String> sideSwitchKeyChoices() {

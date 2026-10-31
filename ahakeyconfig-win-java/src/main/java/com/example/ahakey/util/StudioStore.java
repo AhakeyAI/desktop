@@ -22,6 +22,10 @@ public final class StudioStore {
         System.getProperty("user.home"), ".ahakey", "studio-draft.json"
     );
 
+    public static com.example.ahakey.firmware.DeviceBackup.PcFile strictSnapshot() throws IOException {
+        return com.example.ahakey.firmware.DeviceBackupStore.snapshot(DRAFT_PATH);
+    }
+
     private StudioStore() {
     }
 

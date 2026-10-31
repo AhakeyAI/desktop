@@ -21,12 +21,16 @@ public final class DeviceSyncService {
     }
 
     public static List<LabeledCommand> commandsForModes(StudioState state, ModeSlot... modes) {
+        return commandsForModes(state, false, modes);
+    }
+    public static List<LabeledCommand> commandsForModes(StudioState state, boolean omitK1, ModeSlot... modes) {
         List<LabeledCommand> out = new ArrayList<>();
         for (ModeSlot mode : modes) {
             int modeIndex = mode.getIndex();
             for (StudioPart part : List.of(
                 StudioPart.KEY1, StudioPart.KEY2, StudioPart.KEY3, StudioPart.KEY4
             )) {
+                if (omitK1 && part == StudioPart.KEY1) continue;
                 var key = state.getKeyConfig(mode, part);
                 int keyIndex = StudioState.keyIndexFor(part);
                 
@@ -59,6 +63,15 @@ public final class DeviceSyncService {
         return out;
     }
 
+    public static List<byte[]> restoreKeyCommands(com.example.ahakey.firmware.DeviceBackup.Key key) {
+        byte[] payload = java.util.HexFormat.of().parseHex(key.payloadHex());
+        if (key.actionType() != AhaKeyProtocol.ORDINARY_KEY_ACTION_EMPTY && key.actionType() != (AhaKeyProtocol.SUB_MACRO & 255) && key.actionType() != (AhaKeyProtocol.SUB_SHORTCUT & 255))
+            throw new IllegalArgumentException("不支持的按键动作类型");
+        return List.of(key.actionType() == (AhaKeyProtocol.SUB_MACRO & 255)
+                ? AhaKeyProtocol.setKeyMacro(key.mode(), key.index(), payload)
+                : AhaKeyProtocol.setKeyMapping(key.mode(), key.index(), payload),
+                AhaKeyProtocol.setKeyDescription(key.mode(), key.index(), key.description()), AhaKeyProtocol.saveConfig());
+    }
     public static byte[] encodeKeyActionPayload(KeyConfig key) {
         if (key.usesMacro()) {
             List<Byte> macroBytes = new ArrayList<>();
@@ -224,7 +237,7 @@ public final class DeviceSyncService {
         return modifiers | baseCode;
     }
 
-    private static String sanitizeDescription(String value) {
+    public static String sanitizeDescription(String value) {
         if (value == null) {
             return "";
         }
@@ -233,7 +246,7 @@ public final class DeviceSyncService {
             .limit(20)
             .collect(StringBuilder::new, StringBuilder::appendCodePoint, StringBuilder::append)
             .toString();
-        return ascii.stripTrailing();
+        return ascii.strip(); // Firmware readback strips ASCII padding at both ends.
     }
 
     public static void writeSequentially(
@@ -244,7 +257,7 @@ public final class DeviceSyncService {
         Consumer<String> onProgress
     ) {
         new Thread(() -> {
-            try {
+            try (var transaction = ble.maintenance().normalTransaction()) {
                 int i = 0;
                 for (LabeledCommand cmd : commands) {
                     i++;

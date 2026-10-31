@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.*;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -27,53 +29,105 @@ public class KimiAhaKeyBridge {
     private static final byte RSP_INFO          = (byte) 0x83;
 
     private final BleManager bleManager;
-    private ServerSocket serverSocket;
-    private ExecutorService executor;
-    private volatile boolean running;
+    private final int port;
+    private Session session;
+    private long blockedThroughGeneration = Long.MIN_VALUE;
+    private boolean closed;
 
-    public KimiAhaKeyBridge(BleManager bleManager) {
-        this.bleManager = bleManager;
-    }
-
-    public void start() {
-        if (running) return;
-        try {
-            serverSocket = new ServerSocket();
-            serverSocket.setReuseAddress(true);
-            serverSocket.bind(new InetSocketAddress("127.0.0.1", PORT));
-            running = true;
-            logger.info("KimiAhaKeyBridge started on 127.0.0.1:{}", PORT);
-        } catch (IOException e) {
-            logger.warn("KimiAhaKeyBridge: port {} unavailable: {}", PORT, e.getMessage());
-            return;
-        }
-        executor = Executors.newCachedThreadPool(r -> {
+    private static final class Session {
+        final ServerSocket listener;
+        final ExecutorService executor = Executors.newCachedThreadPool(r -> {
             Thread t = new Thread(r, "kimi-bridge");
             t.setDaemon(true);
             return t;
         });
-        executor.submit(this::acceptLoop);
+        final Set<Socket> clients = new HashSet<>(); // guarded by the bridge monitor
+        Session(ServerSocket listener) { this.listener = listener; }
     }
 
-    public void stop() {
-        running = false;
-        try { if (serverSocket != null) serverSocket.close(); } catch (IOException ignored) {}
-        if (executor != null) executor.shutdownNow();
+    public KimiAhaKeyBridge(BleManager bleManager) {
+        this(bleManager, PORT);
     }
 
-    private void acceptLoop() {
-        while (running && !serverSocket.isClosed()) {
+    KimiAhaKeyBridge(BleManager bleManager, int port) {
+        this.bleManager = bleManager;
+        this.port = port;
+    }
+
+    /** Reconcile current transport, rather than replaying a possibly delayed callback. */
+    public synchronized void connectionChanged() {
+        if (!closed && bleManager.connectionGeneration() > blockedThroughGeneration
+                && bleManager.isConnected() && bleManager.isUsbConnected()) start();
+        else stop();
+    }
+
+    /** Release our listener before the connection worker can attempt the BLE TCP port. */
+    public synchronized void prepareForConnection() {
+        blockedThroughGeneration = bleManager.connectionGeneration();
+        stop();
+    }
+
+    public synchronized void close() {
+        closed = true;
+        stop();
+    }
+
+    public synchronized void start() {
+        if (closed || session != null) return;
+        ServerSocket listener = null;
+        try {
+            listener = new ServerSocket();
+            listener.setReuseAddress(true);
+            listener.bind(new InetSocketAddress("127.0.0.1", port));
+            Session started = new Session(listener);
+            session = started;
+            started.executor.submit(() -> acceptLoop(started));
+            logger.info("KimiAhaKeyBridge started on 127.0.0.1:{}", listener.getLocalPort());
+        } catch (IOException e) {
+            closeSocket(listener);
+            logger.warn("KimiAhaKeyBridge: port {} unavailable: {}", port, e.getMessage());
+        }
+    }
+
+    public synchronized void stop() {
+        Session stopped = session;
+        session = null;
+        if (stopped == null) return;
+        closeSocket(stopped.listener);
+        for (Socket client : stopped.clients) closeSocket(client);
+        stopped.clients.clear();
+        stopped.executor.shutdownNow();
+    }
+
+    private static void closeSocket(Closeable socket) {
+        try { if (socket != null) socket.close(); } catch (IOException ignored) { }
+    }
+
+    private synchronized boolean isCurrent(Session expected) { return session == expected; }
+
+    private void acceptLoop(Session expected) {
+        while (isCurrent(expected)) {
             try {
-                Socket client = serverSocket.accept();
-                client.setSoTimeout(500);
-                executor.submit(() -> handle(client));
+                Socket client = expected.listener.accept();
+                synchronized (this) {
+                    if (session != expected) { closeSocket(client); return; }
+                    try {
+                        client.setSoTimeout(500);
+                        expected.clients.add(client);
+                        expected.executor.submit(() -> handle(expected, client));
+                    } catch (IOException | RuntimeException e) {
+                        expected.clients.remove(client);
+                        closeSocket(client);
+                        throw e;
+                    }
+                }
             } catch (IOException e) {
-                if (running) logger.debug("KimiAhaKeyBridge accept: {}", e.getMessage());
+                if (isCurrent(expected)) logger.debug("KimiAhaKeyBridge accept: {}", e.getMessage());
             }
         }
     }
 
-    private void handle(Socket client) {
+    private void handle(Session expected, Socket client) {
         try (client) {
             DataInputStream in  = new DataInputStream(client.getInputStream());
             DataOutputStream out = new DataOutputStream(client.getOutputStream());
@@ -84,7 +138,8 @@ public class KimiAhaKeyBridge {
                 in.readFully(header);
                 int type   = header[0] & 0xFF;
                 int length = ((header[2] & 0xFF) << 8) | (header[1] & 0xFF); // little-endian
-                if (length > 0) in.readNBytes(length); // discard body
+                if (length > 0) in.readFully(new byte[length]); // discard complete body
+                if (!isCurrent(expected)) return;
 
                 if (type == (PKT_QUERY_STATUS & 0xFF)) {
                     // Respond 0x82: status[0]==1, status[-1]==1, len>=4
@@ -103,6 +158,8 @@ public class KimiAhaKeyBridge {
             }
         } catch (IOException e) {
             logger.debug("KimiAhaKeyBridge client: {}", e.getMessage());
+        } finally {
+            synchronized (this) { expected.clients.remove(client); }
         }
     }
 

@@ -16,6 +16,10 @@ public final class DisplayConfigState {
     public final BooleanProperty loading = new SimpleBooleanProperty();
     public final BooleanProperty ready = new SimpleBooleanProperty();
     public final BooleanProperty writeReady = new SimpleBooleanProperty();
+    public final BooleanProperty previewReady = new SimpleBooleanProperty();
+    public final BooleanProperty runtimeReady = new SimpleBooleanProperty();
+    public final StringProperty previewDisabledReasonKey = new SimpleStringProperty("display.identity-disconnected");
+    public final StringProperty runtimeDisabledReasonKey = new SimpleStringProperty("display.identity-disconnected");
     public final BooleanProperty capabilityReady = new SimpleBooleanProperty();
     public final StringProperty disabledReasonKey = new SimpleStringProperty("display.identity-disconnected");
     public final StringProperty message = new SimpleStringProperty("");

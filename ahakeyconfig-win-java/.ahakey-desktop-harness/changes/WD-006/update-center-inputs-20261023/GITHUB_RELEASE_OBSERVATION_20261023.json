@@ -1,0 +1,134 @@
+{
+  "observed_date": "2026-10-23",
+  "url": "https://api.github.com/repos/AhakeyAI/desktop/releases?per_page=20",
+  "source": "GitHub connector read-only GET; asset digests are GitHub-reported, not locally downloaded verification",
+  "releases": [
+    {
+      "tag": "v0.2.3",
+      "published": "2026-10-16T04:20:50Z",
+      "prerelease": false,
+      "assets": [
+        {
+          "name": "AhaKey-Studio-macOS.dmg",
+          "size": 11812986,
+          "digest": "sha256:30be2a012e08014979dc9aa87b0d4d3734e4fe793c216beef3c27fc13578026e",
+          "url": "https://github.com/AhakeyAI/desktop/releases/download/v0.2.3/AhaKey-Studio-macOS.dmg"
+        }
+      ]
+    },
+    {
+      "tag": "v0.2.2",
+      "published": "2026-09-30T05:58:13Z",
+      "prerelease": false,
+      "assets": [
+        {
+          "name": "AhaKey-Studio-macOS.dmg",
+          "size": 11516041,
+          "digest": "sha256:b6ee3d4c322b5502eeee4da0b788467680ce806a8d6829c9b240b94295dc40fb",
+          "url": "https://github.com/AhakeyAI/desktop/releases/download/v0.2.2/AhaKey-Studio-macOS.dmg"
+        }
+      ]
+    },
+    {
+      "tag": "v0.2.1",
+      "published": "2026-09-01T09:17:05Z",
+      "prerelease": false,
+      "assets": [
+        {
+          "name": "AhaKey-Studio-macOS.dmg",
+          "size": 11000655,
+          "digest": "sha256:e6d98217c273b60ae559ea0a4be089efaf192fa2b974d9a1d63ffb881e0973d9",
+          "url": "https://github.com/AhakeyAI/desktop/releases/download/v0.2.1/AhaKey-Studio-macOS.dmg"
+        }
+      ]
+    },
+    {
+      "tag": "v0.2.0",
+      "published": "2026-08-23T14:17:31Z",
+      "prerelease": false,
+      "assets": [
+        {
+          "name": "AhaKey-Studio-macOS.dmg",
+          "size": 8468752,
+          "digest": "sha256:922230c8d002cd90ad82e16d803e6012acdb98a3c32ca5dbf067b8f4dc564cff",
+          "url": "https://github.com/AhakeyAI/desktop/releases/download/v0.2.0/AhaKey-Studio-macOS.dmg"
+        }
+      ]
+    },
+    {
+      "tag": "v0.1.1",
+      "published": "2026-05-30T08:00:32Z",
+      "prerelease": false,
+      "assets": [
+        {
+          "name": "AhaKey-Desktop-v0.1.1-macOS.dmg",
+          "size": 9358899,
+          "digest": "sha256:97d61b17bd9ab6f6e518a2cc7ce225f27c72b573f904a8e74aa73153c00d47ab",
+          "url": "https://github.com/AhakeyAI/desktop/releases/download/v0.1.1/AhaKey-Desktop-v0.1.1-macOS.dmg"
+        },
+        {
+          "name": "AhaKey-Desktop-v0.1.1-Windows.zip",
+          "size": 87141532,
+          "digest": "sha256:6c25ca4ed846fb6115a69714d207518c0b5ba75f4803fe0ccefb99f0052f57a7",
+          "url": "https://github.com/AhakeyAI/desktop/releases/download/v0.1.1/AhaKey-Desktop-v0.1.1-Windows.zip"
+        },
+        {
+          "name": "AhaKey-Studio-macOS.dmg",
+          "size": 5480588,
+          "digest": "sha256:5dc49697fed8d3899e2d702036900f78df0a94fa18c61a1728591999b6320657",
+          "url": "https://github.com/AhakeyAI/desktop/releases/download/v0.1.1/AhaKey-Studio-macOS.dmg"
+        }
+      ]
+    },
+    {
+      "tag": "v0.1.0",
+      "published": "2026-05-03T00:51:00Z",
+      "prerelease": false,
+      "assets": [
+        {
+          "name": "AhaKey-Studio-macOS12-15-prod-20260511-onboarding-ui-v2.dmg",
+          "size": 4081662,
+          "digest": "sha256:242aab8d1040202d2aa6fbb72618267a78d142ed9522da2be17934d257e52601",
+          "url": "https://github.com/AhakeyAI/desktop/releases/download/v0.1.0/AhaKey-Studio-macOS12-15-prod-20260511-onboarding-ui-v2.dmg"
+        },
+        {
+          "name": "VibecodingKeyboard_Setup.exe",
+          "size": 83569924,
+          "digest": "sha256:cb2b41276b5575cdfccd33170eb9b49bc34a91ace0f0384c5ddf71894272275a",
+          "url": "https://github.com/AhakeyAI/desktop/releases/download/v0.1.0/VibecodingKeyboard_Setup.exe"
+        }
+      ]
+    },
+    {
+      "tag": "v0.1.0-alpha",
+      "published": "2026-04-26T04:31:59Z",
+      "prerelease": true,
+      "assets": [
+        {
+          "name": "AhaKey-Studio-macOS-test.dmg",
+          "size": 3696597,
+          "digest": "sha256:a3e87fd959c8d2e1c6a5827c4bdf95f5aa8c3fb0b985da0286d8984033424784",
+          "url": "https://github.com/AhakeyAI/desktop/releases/download/v0.1.0-alpha/AhaKey-Studio-macOS-test.dmg"
+        },
+        {
+          "name": "BLE_tcp_driver.exe",
+          "size": 55296,
+          "digest": "sha256:1fb3be220df72651e9061118647623a203f4e3324a2afb35ff5f954b1ff8c267",
+          "url": "https://github.com/AhakeyAI/desktop/releases/download/v0.1.0-alpha/BLE_tcp_driver.exe"
+        },
+        {
+          "name": "hook_install.exe",
+          "size": 10944501,
+          "digest": "sha256:f584f0586db98c33f1229d987db98634e726d73aaf152222fe0b2aadf6bcf53d",
+          "url": "https://github.com/AhakeyAI/desktop/releases/download/v0.1.0-alpha/hook_install.exe"
+        },
+        {
+          "name": "VibecodingKeyboard_Setup.exe",
+          "size": 1969431072,
+          "digest": "sha256:65cbd248d88cc035061fc08e21389d6e130855dd9403563f243a1724f707b00f",
+          "url": "https://github.com/AhakeyAI/desktop/releases/download/v0.1.0-alpha/VibecodingKeyboard_Setup.exe"
+        }
+      ]
+    }
+  ]
+}

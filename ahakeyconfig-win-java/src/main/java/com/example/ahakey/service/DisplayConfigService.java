@@ -23,7 +23,7 @@ public final class DisplayConfigService implements AutoCloseable {
         Thread thread = new Thread(r, "display-config"); thread.setDaemon(true); return thread;
     });
     private volatile long loadGeneration;
-    private long operationGeneration;
+    private volatile long operationGeneration;
     private long observedConnection = -1;
     private boolean wasConnected;
     private boolean closed;
@@ -64,7 +64,7 @@ public final class DisplayConfigService implements AutoCloseable {
         studio.selectedModeProperty().addListener((o, a, b) -> {
             state.select(b.getIndex(), state.group.get(), state.substate.get()); refresh();
         });
-        studio.selectedPartProperty().addListener((o, a, b) -> refresh());
+        studio.selectedPartProperty().addListener((o, a, b) -> { updateWriteReady(); refresh(); });
         studio.modeSwitchingProperty().addListener((o, a, b) -> { updateWriteReady(); refresh(); });
     }
     public void setErrorHandler(Consumer<String> handler) { errorHandler = handler; }
@@ -87,7 +87,8 @@ public final class DisplayConfigService implements AutoCloseable {
         updateWriteReady(); refresh();
     }
     private void updateWriteReady() {
-        state.capabilityReady.set(ble.isDisplayAdmitted());
+        boolean admitted = selectedCapabilityAdmitted();
+        state.capabilityReady.set(admitted);
         String identity = switch (ble.firmwareIdentity().state()) {
             case READING -> "display.identity-reading";
             case FAILED -> "display.identity-failed";
@@ -95,12 +96,22 @@ public final class DisplayConfigService implements AutoCloseable {
             default -> "display.identity-unknown";
         };
         state.disabledReasonKey.set(!ble.isConnected() || !ble.getCachedStatus().isConnected() ? "display.identity-disconnected"
-                : !ble.isDisplayAdmitted() ? identity
+                : !admitted ? identity
                 : ble.isDisplayWriteUncertain() ? "display.recovery-required"
                 : state.busy.get() ? (studio.uploadingOledProperty().get() ? "display.upload-busy" : "display.operation-busy")
                 : studio.modeSwitchingProperty().get() ? "display.mode-pending" : "");
-        state.writeReady.set(ble.isDisplayAdmitted() && !ble.isDisplayWriteUncertain()
+        state.writeReady.set(ble.maintenance().normalAllowed() && admitted && !ble.isDisplayWriteUncertain()
                 && !state.busy.get() && !studio.modeSwitchingProperty().get());
+        // Trusted lights catalogs admit read/save only. Preview and runtime commands retain the full display gate.
+        boolean fullDisplay = ble.isDisplayAdmitted();
+        state.previewReady.set(state.writeReady.get() && fullDisplay);
+        state.runtimeReady.set(state.writeReady.get() && fullDisplay);
+        boolean connected = ble.isConnected() && ble.getCachedStatus().isConnected();
+        state.previewDisabledReasonKey.set(!connected || fullDisplay ? state.disabledReasonKey.get() : "display.preview-unsupported");
+        state.runtimeDisabledReasonKey.set(!connected || fullDisplay ? state.disabledReasonKey.get() : "display.runtime-unsupported");
+    }
+    private boolean selectedCapabilityAdmitted() {
+        return ble.isDisplayAdmitted() || (studio.getSelectedPart() == StudioPart.LIGHT_BAR && ble.isFirmwareCapabilityAdmitted("lights"));
     }
 
     public void select(int group, int substate) { state.select(studio.getSelectedMode().getIndex(), group, substate); }
@@ -161,11 +172,17 @@ public final class DisplayConfigService implements AutoCloseable {
         });
     }
 
+    public void maintenanceChanged() {
+        loadGeneration++; operationGeneration++;
+        state.loading.set(false); state.busy.set(false); studio.uploadingOledProperty().set(false);
+        state.endPreview(); updateWriteReady();
+    }
     public void refresh() {
+        if (!ble.maintenance().normalAllowed()) return;
         long ticket = ++loadGeneration;
         state.loading.set(false);
         StudioPart part = studio.getSelectedPart();
-        if (state.busy.get() || studio.modeSwitchingProperty().get() || !wasConnected || !ble.isDisplayAdmitted() || (part != StudioPart.OLED && part != StudioPart.LIGHT_BAR)) return;
+        if (state.busy.get() || studio.modeSwitchingProperty().get() || !wasConnected || !selectedCapabilityAdmitted() || (part != StudioPart.OLED && part != StudioPart.LIGHT_BAR)) return;
         if (part == StudioPart.OLED && !state.ready.get()) return;
         int mode = studio.getSelectedMode().getIndex();
         long connection = ble.connectionGeneration();
@@ -223,7 +240,7 @@ public final class DisplayConfigService implements AutoCloseable {
         return parsed;
     }
     public void preview(Integer effect) {
-        if (!state.writeReady.get() || state.busy.get() || (effect != null && (effect < 1 || effect > 16))) return;
+        if (!state.previewReady.get() || state.busy.get() || (effect != null && (effect < 1 || effect > 16))) return;
         int brightness = state.brightness.get();
         long connection = ble.connectionGeneration();
         work(true, operation -> {
@@ -290,10 +307,11 @@ public final class DisplayConfigService implements AutoCloseable {
         fx(() -> { if (current(operation)) action.run(); });
     }
     private void work(boolean device, Work work) {
+        if (device && !ble.maintenance().normalAllowed()) { error("键盘维护中，请等待完成。"); return; }
         Operation operation = new Operation(++operationGeneration, ble.connectionGeneration(), device);
         loadGeneration++; state.loading.set(false); state.busy.set(true); state.progress.set(""); updateWriteReady();
         worker.execute(() -> {
-            try { work.run(operation); }
+            try { if (operation.id() != operationGeneration) return; work.run(operation); }
             catch (Exception e) {
                 logger.warn("Display operation ended: connection={}, operation={}, reason={}", operation.connection(), operation.id(), reason(e));
                 fx(() -> {

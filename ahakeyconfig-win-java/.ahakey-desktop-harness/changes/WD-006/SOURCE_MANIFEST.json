@@ -1,0 +1,56 @@
+{
+  "repository": "https://github.com/AhakeyAI/desktop",
+  "branch": "main",
+  "commit": "a2dae1a1772507b4d74201f045342599ebbf0603",
+  "import_commit": "f1fbbbe1dfae020527cd593d958c0b6b08635f87",
+  "pr": 172,
+  "author": "ShawnyinsGit",
+  "files": [
+    {
+      "path": "pom.xml",
+      "sha256": "0c5739846dfbf4447ad3f6a7ad0ed81f8359ba49ab6faf35b999fc9fbcc8e0cd",
+      "git_object": "3c0ccde2fde0a965d91eed18be569c762a169b59"
+    },
+    {
+      "path": "build-installer.ps1",
+      "sha256": "74972da938c612875049425b1a46c9ebeccd90d789fc865fb013cdeb9f4c50a1",
+      "git_object": "ba7ce8c12ef029c7eeaafb8fd5eff6fc72d9f6d5"
+    },
+    {
+      "path": "src/main/resources/model_config.properties",
+      "sha256": "78c8992507851930ed0a9ee6db74f76d8c0f1806593ff3d92b67e457671783f0",
+      "git_object": "07c7f0520deb06d9afb736455d32d43677705b87"
+    },
+    {
+      "path": "src/main/resources/models/tokens.txt",
+      "sha256": "59aba8873a2ed1e122c25fee421e25f283b63290efbde85c1f01a853d83cb6e6",
+      "git_object": "57bc045ddda0434ed4440c38e14287c595b258d9"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/config/ModelConfig.java",
+      "sha256": "2e5bc704a8dbe08d7d103e223672781622bff8a6c45a9f71a24c869c646e0705",
+      "git_object": "d2dc8c5f90886d1136e02b1ba60d031678c9d335"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/SpeechService.java",
+      "sha256": "feb859b55ddf2834a158142bcd080c27719e8c9443b3da161837c349696267f8",
+      "git_object": "afe25490421a2de613de9f8bcb82d99333a5dca4"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/VoiceInputManager.java",
+      "sha256": "af1b4552a4740a0ed1886c9a1018feb03c34dd16a0cc5a05378c7168cc409f61",
+      "git_object": "4563a449be91319f590847f3867b23439d98df1f"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/sherpa/LibraryLoader.java",
+      "sha256": "e5429617e79050d08a99baedd0b1cd7528ed3e052759931ec124ca8413a760ef",
+      "git_object": "82b8ca8dc1e38147056229714b36a6a860480788"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/LocalVoiceService.java",
+      "sha256": "6d2e49016b8af00091e91aae46299f17e5566cf6b4d39e221c4cf7932dec0aec",
+      "git_object": "6bf4c63987be8f5f0056fd856292728e23c2c60b"
+    }
+  ],
+  "eternal_used": false
+}

@@ -20,6 +20,23 @@ import java.util.List;
 import java.util.Map;
 
 public class StudioState {
+    private final K1RouteState k1Routes = new K1RouteState();
+    public K1RouteState k1Routes() { return k1Routes; }
+    public void applyK1Route(int mode, K1Route route) {
+        applyK1Route(mode,route,getKeyConfig(ModeSlot.fromIndex(mode),StudioPart.KEY1).getDescription());
+    }
+    public void applyK1Route(int mode, K1Route route, String description) {
+        k1Routes.observed(mode, route);
+        k1Routes.observedDescription(mode,description);
+        if (!k1Routes.dirty(mode)) {
+            ModeSlot slot = ModeSlot.fromIndex(mode);
+            KeyConfig previous = getKeyConfig(slot, StudioPart.KEY1);
+            KeyConfig key = route.consumer() ? previous : DeviceSyncService.keyConfigFromActionPayload(route.action(), route.actionType() == 0x74);
+            key.setDescription(description==null?previous.getDescription():description);
+            keyConfigs.get(slot).put(StudioPart.KEY1, key);
+        }
+        markInputBaselineChanged();
+    }
     private final DisplayConfigState displayConfig = new DisplayConfigState();
     public DisplayConfigState displayConfig() { return displayConfig; }
     private static final DateTimeFormatter SYNC_TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
@@ -313,12 +330,13 @@ public class StudioState {
     }
 
     public void applyOrdinaryKeyReadback(AhaKeyResponseParser.OrdinaryKeyReadback readback) {
+        if (readback.keyIndex() == 0 && k1Routes.capability.get() != K1RouteState.Capability.LEGACY) return;
         ModeSlot mode = ModeSlot.fromIndex(readback.mode());
         StudioPart part = partForKeyIndex(readback.keyIndex());
         if (part == null) {
             return;
         }
-        if (!hasUnsavedDraft(mode)) {
+        if (part == StudioPart.KEY1 ? !k1Routes.dirty(mode.getIndex()) : !hasUnsavedDraft(mode)) {
             keyConfigs.get(mode).put(part, DeviceSyncService.keyConfigFromReadback(readback));
         }
         markInputBaselineChanged();
@@ -458,6 +476,7 @@ public class StudioState {
             return;
         }
         getKeyConfig(part).setDescription(description);
+        if(part==StudioPart.KEY1)k1Routes.markDescriptionEdited(getSelectedMode().getIndex());
         markDirty(part);
     }
 
@@ -490,6 +509,7 @@ public class StudioState {
     }
 
     public void markDirty(StudioPart part) {
+        if (part == StudioPart.KEY1) k1Routes.markEdited(getSelectedMode().getIndex());
         dirtyParts.add(part);
         dirtyModes.add(getSelectedMode());
         dirtyCount.set(dirtyParts.size());
@@ -499,6 +519,7 @@ public class StudioState {
 
     public void restoreCurrentModeDefaults() {
         resetModeDefaults(getSelectedMode());
+        k1Routes.markEdited(getSelectedMode().getIndex());
         dirtyParts.add(StudioPart.KEY1);
         dirtyParts.add(StudioPart.KEY2);
         dirtyParts.add(StudioPart.KEY3);
@@ -526,6 +547,10 @@ public class StudioState {
         dirtyParts.clear();
         dirtyModes.clear();
         dirtyCount.set(0);
+        for (ModeSlot mode : ModeSlot.values()) if (k1Routes.dirty(mode.getIndex())) {
+            dirtyParts.add(StudioPart.KEY1); dirtyModes.add(mode);
+        }
+        dirtyCount.set(dirtyParts.size());
         revision.set(revision.get() + 1);
         lastSyncSummary.set("最近保存 " + LocalDateTime.now().format(SYNC_TIME_FORMAT));
     }
