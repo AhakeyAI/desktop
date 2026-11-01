@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "version": "5.0.2",
+  "repository": "https://github.com/wixtoolset/wix",
+  "commit": "aa65968c419420d32e3e1b647aea0082f5ca5b78",
+  "license": "MS-RL",
+  "licenseUrl": "https://licenses.nuget.org/MS-RL",
+  "packages": [
+    {
+      "id": "wixtoolset.dtf.customaction",
+      "version": "5.0.2",
+      "archive": "wixtoolset.dtf.customaction.5.0.2.nupkg",
+      "directory": "wixtoolset.dtf.customaction",
+      "url": "https://api.nuget.org/v3-flatcontainer/wixtoolset.dtf.customaction/5.0.2/wixtoolset.dtf.customaction.5.0.2.nupkg",
+      "sha256": "0e0a762db83e9dea9aadb1c0ec3cb80a8757cef1efca6d579682abc2fa7d779a",
+      "sha512": "fcWhkR1zSWFeROJMZqyOMwkc2GlXk43uIBE0nM/RK7dG+MI/4hKfMLglMGCovFtWijfVcpi5Kq+CWUxCu1SR4g==",
+      "files": [
+        {
+          "path": "_rels/.rels",
+          "sha256": "84d3db31556f1d9da7ed144adac37bebdf906fe6503ad7ef74ef473020978f17"
+        },
+        {
+          "path": "WixToolset.Dtf.CustomAction.nuspec",
+          "sha256": "4a50ebcd3d549a73498a9df95be738c120b02780db513fff3a3936e155a4ec0f"
+        },
+        {
+          "path": "build/WixToolset.Dtf.CustomAction.targets",
+          "sha256": "4685393a5b3c88e36b6448cc04f35216d8a59f6dc35a18b82a1517f87bd8a20f"
+        },
+        {
+          "path": "wix.png",
+          "sha256": "3d0c1a3717a0a4f9be927805456a24afdcd343bc79f143ae146bdd2b96c2e37c"
+        },
+        {
+          "path": "tools/WixToolset.Dtf.MakeSfxCA.exe",
+          "sha256": "3fe304e0177b534ef69e446f836acb0123711b2f74bd144b83d731a4d70d5318"
+        },
+        {
+          "path": "tools/WixToolset.Dtf.MakeSfxCA.exe.config",
+          "sha256": "cd1439491a4fa8aeb8f80cbc4ebde49fd6bc56e9186d1672f981efbd219ef7b1"
+        },
+        {
+          "path": "tools/WixToolset.Dtf.Compression.dll",
+          "sha256": "cca79dc9af52900c9dea80496e5b22e431d5ac6aa0c61598c5f37dab462cb3d3"
+        },
+        {
+          "path": "tools/WixToolset.Dtf.Compression.Cab.dll",
+          "sha256": "9a6574f73c7aaebbaaac7cd37a988077a608b6e840efb568d356f2f5581a9349"
+        },
+        {
+          "path": "tools/WixToolset.Dtf.Resources.dll",
+          "sha256": "fa0da818a26bed96e0416977d65663821eb90c6dbc039bf0b506668b95cc1e50"
+        },
+        {
+          "path": "tools/x64/SfxCA.dll",
+          "sha256": "2f25295967a1feb5899af2f2fb7ceafe54ce146ed84a9e44bbde774f3cf627a9"
+        },
+        {
+          "path": "tools/x86/SfxCA.dll",
+          "sha256": "7e08226fc58768eb943003e518810d716ea44625d852d7d950e1474cf798fca4"
+        },
+        {
+          "path": "tools/arm64/SfxCA.dll",
+          "sha256": "e6c66e384397f1285a0e5e65a6335c03d7cddebd1136a403a92bb710a8dee1e4"
+        },
+        {
+          "path": "[Content_Types].xml",
+          "sha256": "65c8f90b6ca20ae71f5a98ad7f0fa0c8aea2702e9932d486f8ca93b6bc0d2e73"
+        },
+        {
+          "path": "package/services/metadata/core-properties/34bea4cf3f5846e294cf19ae8b51b2d3.psmdcp",
+          "sha256": "5e4d0f4a377290457d12f033bab7ba41b9d445d6cb814326f67937df356474d9"
+        },
+        {
+          "path": ".signature.p7s",
+          "sha256": "58cefae56f87b82959d98baa9a6820052fd881c96c9c223bdb95894f11311358"
+        }
+      ]
+    },
+    {
+      "id": "wixtoolset.dtf.windowsinstaller",
+      "version": "5.0.2",
+      "archive": "wixtoolset.dtf.windowsinstaller.5.0.2.nupkg",
+      "directory": "wixtoolset.dtf.windowsinstaller",
+      "url": "https://api.nuget.org/v3-flatcontainer/wixtoolset.dtf.windowsinstaller/5.0.2/wixtoolset.dtf.windowsinstaller.5.0.2.nupkg",
+      "sha256": "9afbc9c8f0dd5bcb82f50055b5feff036e8bf28bd7f3fa8bd6442347b610cca9",
+      "sha512": "aXwzr4ga/+BoIdVAW86RexfpUIYbZp8ajsvByRacl5/4cc4ku6HQDE3s8sngOpmHq14lt9ecK06KqXdvX8LFHw==",
+      "files": [
+        {
+          "path": "_rels/.rels",
+          "sha256": "cc39fc79a67f7754d67a540eeec1cc939a9f48c63be41ccde1ac0feb4cb0a69d"
+        },
+        {
+          "path": "WixToolset.Dtf.WindowsInstaller.nuspec",
+          "sha256": "31177b4e062e315d0e5492adb06b06e4323c949c52f5f3499991f6bf094b6db0"
+        },
+        {
+          "path": "lib/net20/WixToolset.Dtf.WindowsInstaller.dll",
+          "sha256": "a614884ea627da1925131ebf41e8ae202caeac0fe543b86384f5eb2bfaf1aa75"
+        },
+        {
+          "path": "lib/net20/WixToolset.Dtf.WindowsInstaller.xml",
+          "sha256": "63188e655d9899cbdd183d1e323d2123dd87471bed5c34720bf627d391a0aa14"
+        },
+        {
+          "path": "lib/netstandard2.0/WixToolset.Dtf.WindowsInstaller.dll",
+          "sha256": "a2e2a61d4350c76cc7f4e1d48d69b0edffc37c9074ef8445acdc3735209b1962"
+        },
+        {
+          "path": "lib/netstandard2.0/WixToolset.Dtf.WindowsInstaller.xml",
+          "sha256": "63188e655d9899cbdd183d1e323d2123dd87471bed5c34720bf627d391a0aa14"
+        },
+        {
+          "path": "wix.png",
+          "sha256": "3d0c1a3717a0a4f9be927805456a24afdcd343bc79f143ae146bdd2b96c2e37c"
+        },
+        {
+          "path": "[Content_Types].xml",
+          "sha256": "d9f372d8f2820bcf3543cfd114c21b789374da9d42e23506da1d97f97752fa58"
+        },
+        {
+          "path": "package/services/metadata/core-properties/824194e8fc21413abed16b7366c18bb9.psmdcp",
+          "sha256": "3236b37fd3b708377cde108e73f1e5a15a516094673fc540b0d13665987d81ba"
+        },
+        {
+          "path": ".signature.p7s",
+          "sha256": "a3ea3406aacc99015950cfde1d7516c32fd20b437bb0ebdbbe1bc797330b50d1"
+        }
+      ]
+    }
+  ],
+  "runtime": "wixtoolset.dtf.windowsinstaller/lib/net20/WixToolset.Dtf.WindowsInstaller.dll",
+  "packager": "wixtoolset.dtf.customaction/tools/WixToolset.Dtf.MakeSfxCA.exe",
+  "stub": "wixtoolset.dtf.customaction/tools/x64/SfxCA.dll"
+}

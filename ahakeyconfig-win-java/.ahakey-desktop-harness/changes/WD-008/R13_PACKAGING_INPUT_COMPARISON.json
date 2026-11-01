@@ -1,0 +1,320 @@
+[
+  {
+    "path": "pom.xml",
+    "kind": "newline_only",
+    "r13_sha256": "b6fa46812aa860758e2e54db7d44ccd224f1b3a8f16ea08ab5ccca73e9055b0b",
+    "derived_sha256": "34cda19b4a4bc8358f31a151d61b39890b0f3d7e5b207abaa5ff6b3522b0084a"
+  },
+  {
+    "path": "scripts/build-ble-driver.ps1",
+    "kind": "newline_only",
+    "r13_sha256": "b1f2a5f0b7ccbe1dd6ca10b916bfdb89d147243147305baf344377cc5b68bec8",
+    "derived_sha256": "7a8b90f2f498b05e17272c78c91c58df7360ccbf337f509326a962b54ad7ee10"
+  },
+  {
+    "path": "scripts/package-local-model.ps1",
+    "kind": "newline_only",
+    "r13_sha256": "2543c5f826a61b710ac6ea79d710fad994070cc8f2b749eaa267bba81606ad44",
+    "derived_sha256": "932d29a7ed654e06792ec7e87a99a58e0d34384dc73b74ff6c5eb623bbf979e2"
+  },
+  {
+    "path": "scripts/test-ble-driver.ps1",
+    "kind": "newline_only",
+    "r13_sha256": "9c1086f210074804b26a7687efa185aa433f3afec4dac26228573f993d04305c",
+    "derived_sha256": "6db7dfa5b5d021c7ef33620c53abc364c704433db6ff6a23ee529aad2a4a8438"
+  },
+  {
+    "path": "scripts/verify-update-package.ps1",
+    "kind": "newline_only",
+    "r13_sha256": "45e29aef844234ab7db3a4e19bfa60595bcb26ebbe552ae92b170bd10832165c",
+    "derived_sha256": "1fbaa651384f744e6634611afa02daa835b30a4705e408c5c97e1609e370e0d4"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/App.java",
+    "kind": "newline_only",
+    "r13_sha256": "846510bebe473bb4d3dd6f2df30aa26aed7e1f5c1da51e43bf8759f5fe9b1353",
+    "derived_sha256": "d1bab2ed5f75fd2da187907e72d96df88339ded8617bc4c5cc72d4c9bbbd2f73"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+    "kind": "newline_only",
+    "r13_sha256": "4a3e54097f7d5b947dbe274f992a3cf7b2ce4b5033afb2111e46b09a920d036c",
+    "derived_sha256": "a14e147ea603bf9af15f9fc5a2ff635e11de4d6884babddb8170c836ae2f45b4"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/config/ModelConfig.java",
+    "kind": "newline_only",
+    "r13_sha256": "d201444fc438db279fa88721239ab84e46390853791b7f358dd3cc7f52ba85d1",
+    "derived_sha256": "e5cedf1f856b132a6bd05fc97a206b89b1b768cee586b0e2c090f963eafe35f5"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/firmware/BootDeviceDetector.java",
+    "kind": "newline_only",
+    "r13_sha256": "537bbd87fcfecce8eb41677984d0cdceb22d387fecbf8dd28ef0d9912ce21f03",
+    "derived_sha256": "6e1127e6c4457a0a2c905752c19544f5e6b5673a74796821590e6fe21113435f"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/firmware/DeviceBackup.java",
+    "kind": "newline_only",
+    "r13_sha256": "6058c194865d84b674aec7594e0c24a539973a8f70d0936f4b9b9bb936a390dc",
+    "derived_sha256": "8339b5dc96af4ca90eabd3ea09d8508204f1d13403dbbfd61ae78fd39cb636c3"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/firmware/DeviceMaintenanceCoordinator.java",
+    "kind": "newline_only",
+    "r13_sha256": "c17ac12d7df1eebc6edc3729a34a6c22fbdcbea6a960d84d0bc5b3b3ab98063c",
+    "derived_sha256": "41d7861b66b0ac469ca5368923f3b62a798f18332962e8026fe15b3761af6228"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/firmware/DeviceRestoreService.java",
+    "kind": "newline_only",
+    "r13_sha256": "17ab492ddece53532ccc391118db39abd9f251c4a7123c12aa87a381f4ef2276",
+    "derived_sha256": "5cfddf5b5cbd5dcda95b2d0b38bfdb20ce5f9a38af230bb385e06b07db21d026"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/firmware/FirmwareCatalog.java",
+    "kind": "content_changed",
+    "r13_sha256": "eb647f96e9fa415f397baba7376b690ef1ee38072fee33508f1a6b1915aafe9e",
+    "derived_sha256": "b2830cd907c32673f7ba3334b4e9a259bb0306d87eaecee9cbb2725962e25794"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/firmware/FirmwareUpdateService.java",
+    "kind": "newline_only",
+    "r13_sha256": "df25ca1b0ca962088a4cf7a858d429c6f3210416ef405c7726cca11faf477a6d",
+    "derived_sha256": "4f4338df81c6e549b2e33469bc20eb4c7c477bd4e9751a98ba0e3a1f308117d1"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/firmware/WchFlashAdapter.java",
+    "kind": "newline_only",
+    "r13_sha256": "098f53311c40b9b4aad03fa536e08a9c93d82b0ce90d1e97738434952c38016d",
+    "derived_sha256": "f508c9f87595e738df786654a24b2059b4bd22bb5df6258173be45dccae356ad"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/model/DeviceStatus.java",
+    "kind": "newline_only",
+    "r13_sha256": "ea9cf896738e39b8128f044a63f365d365b91dfe2bf11f231dbbba2a4a98124d",
+    "derived_sha256": "bb054264d9f75fcba0d437e8b6747077f4b7eb8c5ef5b8559f57e76e648a993e"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/model/KeyConfig.java",
+    "kind": "newline_only",
+    "r13_sha256": "23fad023afa6d6065edc7e3d8309abd6e0d220fba1c03d27e3df4c1149389be2",
+    "derived_sha256": "ce57f2431940dba6d2831ac90caea76d45c1b9c779ee1496b2e159d40161e540"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+    "kind": "newline_only",
+    "r13_sha256": "28bf8e9a1543846466448895628d602abc7b96590a6edba2573c323c40e93ebb",
+    "derived_sha256": "037d3712dd56b34f70569de05435246c890f89e022e90990c1f750b66c452d67"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+    "kind": "content_changed",
+    "r13_sha256": "02791d586bceb8f97e3e10b8ba7b9db449ecd97a00c2d9e1059a26a2ac011e59",
+    "derived_sha256": "37282165fd0e7c25a170afd0eddc1fc81e5c5c9dee9d0704817c72a115ea55c6"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+    "kind": "newline_only",
+    "r13_sha256": "af5f51a1ae2b03a6b3d458cdf539f4f8c89340b7fceed45bf94ae001105bf07b",
+    "derived_sha256": "27a6ce129fd46d2092e8615dfe36d58f1748cc6add2c1d8aa84a638a48b938c0"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+    "kind": "content_changed",
+    "r13_sha256": "187dc87de43498f0b1368909f584c9d4a082083459cc95bbec1c239cf24ff3c6",
+    "derived_sha256": "1b5fbe996e912c7166ebfeb34c557dc13153dd37e245bac91572e27ec65fbe4b"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+    "kind": "newline_only",
+    "r13_sha256": "b489bbfb86c091c823e4fc7d745ada02c848277314b3fd4ac05b18b22db7eab9",
+    "derived_sha256": "f97bbe93c3a3899a031106e968ab4ea56b5525fb96a4e5ec16d3df7abfabd7b7"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+    "kind": "newline_only",
+    "r13_sha256": "579ec633abdc038d7bbbdc1abe8b63180e16ee5e9f26f21b4c92e0f1ba1814be",
+    "derived_sha256": "6cd3f799f0df7967525516994ae3a8fb00166446f54f2e44d6a11aff671f9700"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/service/KimiAhaKeyBridge.java",
+    "kind": "newline_only",
+    "r13_sha256": "12db42e32c23f021fb739c47e346dd83334b15580e04669c6148cd96cac9a12e",
+    "derived_sha256": "310c3b41aa692cbb8df58550a6aa8a507d0dd74481174c15dbf7c7de936739aa"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/service/SpeechService.java",
+    "kind": "newline_only",
+    "r13_sha256": "4f2551fcc3c519d30b3cfe84daf398bebc05078c77bec48facd17d2fcbd02b34",
+    "derived_sha256": "77da7ddb23605ada9db36e0c6e164c41f004611cd6fab4135612cf035fa516c5"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+    "kind": "newline_only",
+    "r13_sha256": "a7c4e60f2f98b70ed5641df2a0d4ac8da107e6aa7c34eff427d96da4356ad612",
+    "derived_sha256": "5467ca2d96a95c06e042093cda4bc3f5673db56c35a929ff3bcc96f1afbab73b"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/service/VoiceInputManager.java",
+    "kind": "newline_only",
+    "r13_sha256": "f0e1c5438e0f7247334b0c362722b445ee9b375883ab2ab00cc61a2b662b1bfe",
+    "derived_sha256": "da7b9708eea1476f08928700c32e85b15a3d48e9bf2e9368149cf8e414c91716"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/sherpa/LibraryLoader.java",
+    "kind": "newline_only",
+    "r13_sha256": "122336c83ed023b70452f25d137f323c3c1debaef1c1e31f8ca50f137fd60f79",
+    "derived_sha256": "d45130efcb98d71494ac3fbdc39a3943ba6b8f01671cfd1d7f87a4139acd487d"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/update/UpdateCenterService.java",
+    "kind": "newline_only",
+    "r13_sha256": "9720780ce8d8b7e131a95060d6a698c7e8213bfc4c6c51f6f45a6d5f54bfac7d",
+    "derived_sha256": "3da1a3c10d4c7b06c568eb1406cdf2a00e9f6a0e33bed556c288ac0a85b844c6"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/update/VerifiedDownload.java",
+    "kind": "newline_only",
+    "r13_sha256": "78af91cf2d5cbcd8f375e8ad5cbb3351deb9181e46958ef30b44c5e3233f1199",
+    "derived_sha256": "a5ae5fc735e1cade6ebda51945fe0555eb51ea6e7629737867a9980388b26bab"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/update/WindowsUpdateInstaller.java",
+    "kind": "newline_only",
+    "r13_sha256": "ed6600d05bac00994dc6f4fd997e7e628c2629481c5fc56dbeb9e2fa0659964b",
+    "derived_sha256": "075ca71ec8492fad46097fc46b55f1f771bc866af49d7e81a102ae7ed55b2f5a"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/util/AiRuntimeStore.java",
+    "kind": "newline_only",
+    "r13_sha256": "e224a56b1c89e84c7fe1636fe32db19216bcdba4a6f3e0bf569ef11a1fb94d0f",
+    "derived_sha256": "7e50bb077ccd8fee9568dfbaef6b5f5246cdc63fc6c31440e8c7f0d29087f195"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/util/StudioStore.java",
+    "kind": "newline_only",
+    "r13_sha256": "f3a0189620f76d956e1f868b09ceaefc11acea8ae4102c3a646f0ef798d5c7c7",
+    "derived_sha256": "d9fdfc2bafd93cc05c98aeb8cfeeefa12f26e21f4205cfdd63f3f62d72fe70f3"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+    "kind": "newline_only",
+    "r13_sha256": "858e79d4a0117fc195abb6b5cf43073857bdc78a3baae28ea54002607f5e3840",
+    "derived_sha256": "43963a2a400224966ec32175c03d8dd32041aea1e99e5993bcabef676ad6d60c"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/view/TopBar.java",
+    "kind": "newline_only",
+    "r13_sha256": "dd13679b841bef5762a344647b226799954642e48d2e2ea6f68fb9777600ef16",
+    "derived_sha256": "e22b0165c03e874300f08cf8017c41724baae674d9875ab1e2c5c757f5222691"
+  },
+  {
+    "path": "src/main/java/com/example/ahakey/view/UpdateCenterDialog.java",
+    "kind": "newline_only",
+    "r13_sha256": "90b08f6b03bc13046a3a92043a3b1884d89719dc8605aa3e3f8b1862411689c3",
+    "derived_sha256": "21e7c7b7d9f22e4ce200c70d14bf2e7072137064087bb178c080333484426592"
+  },
+  {
+    "path": "src/main/resources/messages_en.properties",
+    "kind": "newline_only",
+    "r13_sha256": "6b02d6e36a755d46309815f3ea6faddfc40e3adc88d4ca31be0dc25c6df04ced",
+    "derived_sha256": "d276d55ab502f7757c6b61a0589536d378643f58b18fcf9ba2ba60b0fd12d784"
+  },
+  {
+    "path": "src/main/resources/messages_zh.properties",
+    "kind": "newline_only",
+    "r13_sha256": "9fba4b972614d29cd9d9bd977be5c38b909bdf5a5e68761b88d4d4f1bba91fa8",
+    "derived_sha256": "c058a0ea3f59501d180bd7533ea5ecffdb46510215705dd4977148ccb1aab33e"
+  },
+  {
+    "path": "src/main/resources/model_config.properties",
+    "kind": "newline_only",
+    "r13_sha256": "bffbce2f84b05bc2cc328ada986bcf8d643e2b140b81642f35efdaef1155f91b",
+    "derived_sha256": "aa31731af390141f2d987938fa337bb2b13c89aa96d92d4c16ec476c37732d0e"
+  },
+  {
+    "path": "src/main/resources/style.css",
+    "kind": "newline_only",
+    "r13_sha256": "983a9f0001e8560216f4c445b75c8f4c40ccd993652bfc2e1d72bb291fb23881",
+    "derived_sha256": "3b2894aa3b907bcea77e66197bbb27d47b2958eca3e5959a77fa91ca4a723ad6"
+  },
+  {
+    "path": "src/main/resources/firmware/wch-capture-worker.ps1",
+    "kind": "newline_only",
+    "r13_sha256": "ccf4bca761ffaa863280b7822e3ac3493be48f1c9795c0ff92fe378d8a25bbd6",
+    "derived_sha256": "a40ef90b0bc7f64e7192ce5f688d6db16ba03be3e649e3c3d203ee7e3288dfda"
+  },
+  {
+    "path": "src/main/resources/firmware/wch-runtime-profiles.json",
+    "kind": "newline_only",
+    "r13_sha256": "866ecc4b87cebfb2d1faf7f4227f25c600aa9d8ed8e230a443f6d698dfedd1e6",
+    "derived_sha256": "4638d32f0905e475aa19c7b678ee079adb72a94b69c2f706ec71531531673da1"
+  },
+  {
+    "path": "src/main/resources/update/release-public-key.json",
+    "kind": "newline_only",
+    "r13_sha256": "0cf200b657c74f71e241c6b3991c205401e254c982986bb4830b99f43ec7b5ee",
+    "derived_sha256": "ba95228ac0a3331b6004e7b2b68270daea35b345decc351ab67bc15a7e055c25"
+  },
+  {
+    "path": "src/main/resources/update/windows-update-worker.ps1",
+    "kind": "newline_only",
+    "r13_sha256": "cd95f8830710a6596f1bb8d517590d9672192147ae0588a30e8819a754c90e7d",
+    "derived_sha256": "da562d504761cb3949fd9f5fa2faba9a324be84d320dfe37012333ff3ab3b574"
+  },
+  {
+    "path": "src/test/java/com/example/ahakey/firmware/DeviceMaintenanceChecks.java",
+    "kind": "newline_only",
+    "r13_sha256": "de5e88f22df0ef80e169f1253faa70aaf4c466f6098111bdeab588dc1dba37a2",
+    "derived_sha256": "8ce8bb4009fb625a1ff4a656323be40537e60d867f30bc2ad2ab31f97efcaa98"
+  },
+  {
+    "path": "src/test/java/com/example/ahakey/firmware/FirmwareUpdateChecks.java",
+    "kind": "newline_only",
+    "r13_sha256": "d3ab3968b972ad7bb698f5bbf06f976af897d019d70590f3d8258a27ce49de98",
+    "derived_sha256": "091e9bed869b7e1187c8c51a2e703688c3455d4f327e514231010ca129894ac2"
+  },
+  {
+    "path": "src/test/java/com/example/ahakey/firmware/SimpleFlashChecks.java",
+    "kind": "newline_only",
+    "r13_sha256": "ec9b7f7c3c7931425e6355c0c890eb75593c044b58782e0bab0b860bf829d595",
+    "derived_sha256": "c425ce3e8ccc3c06a2419849db278be4ebecfe89b530fe5f51b7c6c693e7d0f0"
+  },
+  {
+    "path": "src/test/java/com/example/ahakey/speech/SpeechLifecycleCheck.java",
+    "kind": "newline_only",
+    "r13_sha256": "3bd2ac4cef71b377d3e6561cfe0e36a38bc8537278d6bf3cad280ea4f6a4373b",
+    "derived_sha256": "701b339f5c5735c35ade567fdad3c1050ba2b6163b46e1d14acc4759f0e587b3"
+  },
+  {
+    "path": "src/test/java/com/example/ahakey/speech/SpeechNativeCheck.java",
+    "kind": "newline_only",
+    "r13_sha256": "109ebcc661f673fba38dfe3d18eab8779da443c352052d3ebe62302a654b8ae4",
+    "derived_sha256": "a55f84c900c0acc9bc9280d58e20aba5ea8231d1557c1c5255c6ec36134af3b8"
+  },
+  {
+    "path": "src/test/java/com/example/ahakey/transport/KimiBridgeLifecycleCheck.java",
+    "kind": "newline_only",
+    "r13_sha256": "e425edb5999ee2dd3ce24240c6fd63ae4fb0e7eb1c728d340a0f6c34bda5c407",
+    "derived_sha256": "7db07199ae2fd89a379b4f98506d7a636a78c465402162dbbbcb853e2a05259b"
+  },
+  {
+    "path": "src/test/java/com/example/ahakey/update/InstallerTrustChecks.java",
+    "kind": "newline_only",
+    "r13_sha256": "15c157e0b91714f4061ec2c65defcb351c7d0d65972516e074e704adc6c0945d",
+    "derived_sha256": "843aed56c12ba3cc801548d53d36d6a2f97183ca9621fc006669c0802a1056f6"
+  },
+  {
+    "path": "src/test/java/com/example/ahakey/update/ReleaseSignatureChecks.java",
+    "kind": "newline_only",
+    "r13_sha256": "b464f2f5c37c9520e85fe57d6decea0e78b3cdc2dee86af737df35e31209a348",
+    "derived_sha256": "c16274987e10edda1183d35a48a4ea32571cf6900906bb3ebc80ee04aa4f6c9b"
+  },
+  {
+    "path": "src/test/java/com/example/ahakey/update/UpdateCenterChecks.java",
+    "kind": "newline_only",
+    "r13_sha256": "fda0e2766d542a9ee8f53cfc669dcc5b4ff61b36be8531b11974b8b295277c50",
+    "derived_sha256": "d698b47ac6b2c1561f253778db48f86891bce173c6b43c47947661c7d848007d"
+  }
+]

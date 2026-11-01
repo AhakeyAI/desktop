@@ -1,0 +1,13 @@
+{
+  "commit": "42696a6bdf0ed72df8d0a416c22e8e3d82e3fb96",
+  "repository": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop",
+  "prefix": "ahakeyconfig-win-java/",
+  "source_fingerprint": "6036053598d4881a52efc04571c6417f266dd80ae7632f5645b8ba973f3e2306",
+  "nonproduction_recovery_evidence": {
+    ".rollback-backups/20261010T084508/status-before.txt": "59e0a06546116d9f601d64817e19468564343e1ac497b2452dc9732fb8a887c3",
+    ".rollback-backups/20261010T084508/tracked-worktree.patch": "8262ee3d01a6883b76cc037244d65317b5afbd4caace826ae03cdcd5478a43e1",
+    ".rollback-backups/20261010T084508/untracked-before.txt": "6f6a3b1b99ff7a5ce2c0fe6d348bdcf074ca7f86fc85669f493f9ba490900640"
+  },
+  "text_eol_equivalent": [],
+  "comparison": "Git blobs vs working bytes; UTF-8 CRLF/LF equivalence only; no filters/hooks executed."
+}

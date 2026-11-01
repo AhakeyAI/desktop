@@ -1,0 +1,37 @@
+# WD-008 独立固件兼容与实际差异审阅
+
+结论：PASS（仅实际差异及离线证据；真机未验收）。
+
+审阅会话：`/root/wd008_firmware_review`
+
+Review pack SHA256：`54ecf33bb72d3c9ffc1a34202d00eaa776971eab59aa3c1c09f05992824e8e9f`
+
+产品指纹：`354c86ba4e73ae2a88e2adf11daa313ce60377865d3faab3c48afbfe06cc5c70`
+
+1. 已逐项审阅冻结 ACTUAL_DIFF 五文件全部差异，生产只有四文件身份能力接线，不恢复 WD007，不修改桥、传输、K1、安装、Hook或语音。
+
+2. 统一不可变集合精确匹配旧 HW1 1.0.0 与正式 HW1/HW2 1.0.1；无前缀泛化，null/未知/profile错误/畸形和错误状态不新增能力。9F 原无status响应和尾零填充保持兼容。
+
+3. BleManager 保留连接状态、代次及当前 identity 对象校验，仅将能力查询换成 connectionCapabilities。正式身份可沿现有 Controller 路径启动 97/87 自动读回及显示能力服务。
+
+4. 早期审阅发现 trustedCapabilities 扩大会影响 freezePlan 自动恢复候选，最终已修正：维护 capabilities/knownCapabilities/compatible 全部维持基线，新增运行能力独立；原官方manifest能力fallback保留。
+
+5. 无ID旧固件维持WD006既有基础写入分支；不把六字节旧ACK或timeout视作正式能力，不虚构旧固件新版读回。K1真实9E探测及原legacy分支未改。
+
+6. 只读核对 HW1 09633824d5b19492e5256078187e89849e74e7ce 与 HW2 fb59582bf1ca65afa9ba1a843452815530e79012：command_solve.c 差异仅身份及诊断日志，87/97/88/9E处理器一致；参数与现有Windows协议匹配。
+
+7. 核对DIB五组测试exit0及85项能力矩阵、175项显示检查；补充日志8项含无status、错误status及官方manifest原语义。独立执行git diff --check -- src退出0，并验证冻结diff SHA256匹配PACK。
+
+8. 审阅通过仅覆盖源码与离线证据，不是EXE安装验收或六组真机验收。蓝牙通知、实际读回持久化、设备切换及旧固件真实支持仍需Owner测试。
+
+## 覆盖文件
+
+- `src/main/java/com/example/ahakey/firmware/FirmwareCatalog.java`
+- `src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java`
+- `src/main/java/com/example/ahakey/protocol/FirmwareCapabilities.java`
+- `src/main/java/com/example/ahakey/service/BleManager.java`
+- `src/test/java/com/example/ahakey/compatibility/FirmwareIdentityCompatibilityChecks.java`
+
+## 真实限制
+
+本审阅者未修改生产代码、未构建产品、未启动应用或桥、未读写真实键盘、未运行固件脚本或烧录。两正式固件与无完整ID旧固件的 USB/BLE 六组真机测试均未执行，不能宣称全部稳定可用。

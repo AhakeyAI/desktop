@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "id": "WD-008",
+  "pack_sha256": "54ecf33bb72d3c9ffc1a34202d00eaa776971eab59aa3c1c09f05992824e8e9f",
+  "reviewer_role": "DLA",
+  "review_session": "/root",
+  "builder_session": "/root/wd008_builder",
+  "independence": "separate_dla_conversation",
+  "decision": "pass",
+  "scope_conclusion": "实际累计仅4生产文件加1测试，符合WD006身份兼容bug_fix；未恢复WD007、未变传输/Hook/语音/菜单/安装配方。",
+  "per_file": [
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/FirmwareCatalog.java",
+      "purpose": "区分连接能力与原维护目录",
+      "reviewed_hunks": "新增connectionCapabilities仅支持三完整标识，否则保留原官方目录回退；构造器、knownCapabilities、capabilities、compatible和内置HEX不变。逐一追踪FirmwareUpdateService179/195/204，未扩张备份恢复目标。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+      "purpose": "统一三处身份门禁",
+      "reviewed_hunks": "完整集合替代单字符串；先校验帧和9F，再逐项精确匹配，长度、零padding及旧无status规则保留。非零状态、前后空白、截断和尾junk不授予display。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/FirmwareCapabilities.java",
+      "purpose": "离线三身份唯一表",
+      "reviewed_hunks": "不可变Set包含旧HW1 1.0.0与正式HW1/HW2 1.0.1，仅exactcontains且null拒绝，不按前缀或数值猜未来版本。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "purpose": "真实入口使用连接能力",
+      "reviewed_hunks": "仅替换isFirmwareCapabilityAdmitted最后查询，连接状态、cachedStatus、当前代次与identity证明保持；9F读成功驱动SUPPORTED再让StudioController945普通键/拨杆自动读回。DisplayConfigService沿原isDisplayAdmitted。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/compatibility/FirmwareIdentityCompatibilityChecks.java",
+      "purpose": "真实服务离线故障矩阵",
+      "reviewed_hunks": "完整读147行测试，USB和TCP输入都内存替换，调用实际readFirmwareCatalogKey/readOrdinaryKeyConfig/side/display事务；检查85项，含断连换代旧通知、timeout FAILED、无ID基础写入保持、维护目录和HW2烧录拒绝。模拟不代表硬件持久化。",
+      "within_contract": true
+    }
+  ],
+  "production_journey": "9F有效响应经统一身份表→BleManager发布SUPPORTED与连接能力→StudioController handleFirmwareCatalogKey启用keys/side并执行87/97读回；DisplayConfigService与runtime沿原支持判断；K1真实9E不变，保存仍按原ACK和回读验证。",
+  "preserved_behavior_assessment": "旧HW1 1.0.0三能力不变，最早无ID的基础K2-K4保存分支不变但不授予新版读回。五组现有/新增离线测试exit0，额外8项确认statusless/error/official fallback。USB/BLE真实六组合待Owner。",
+  "baseline_assessment": "起点42696a6产品等价WD006 R13；历史Preview并非全产品验收。guard无缺失原字节，本次只证明代码与离线范围，当前installed注册表1.0.12；不借历史WD007结果认定通过。",
+  "protocol_assessment": "两正式候选见FIRMWARE_FACTS：9F标识更新；87/97/88/9E命令经独立只读核对一致，保持帧分片/notify/nonce/token/CRC；不改固件。",
+  "risk_level": "high",
+  "fresh_review_required": true,
+  "risk_rationale": "设备写入能力准入影响多个入口，采用独立审阅核对两固件协议及范围外溢。运行能力集合不能修改备份恢复策略。",
+  "findings": [
+    {
+      "issue": "初版扩大trustedCapabilities会连带旧维护恢复候选",
+      "resolution": "fixed",
+      "evidence": "最终connectionCapabilities独立；原维护集合未变，最终85项及actual diff可核对"
+    }
+  ],
+  "baseline_gap_owner_record": null,
+  "fresh_review_record": ".ahakey-desktop-harness/changes/WD-008/independent-review/REVIEW.json"
+}

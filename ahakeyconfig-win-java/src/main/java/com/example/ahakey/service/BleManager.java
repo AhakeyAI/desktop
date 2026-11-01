@@ -31,7 +31,7 @@ public class BleManager {
         FirmwareIdentity identity = firmwareIdentity;
         return isConnected && cachedStatus.isConnected() && isCurrentIdentity(identity)
                 && (isDisplayAdmitted() || identity == exactCatalogIdentity)
-                && firmwareCatalog.capabilities(identity.catalogKey()).contains(capability);
+                && firmwareCatalog.connectionCapabilities(identity.catalogKey()).contains(capability);
     }
     private final com.example.ahakey.firmware.DeviceMaintenanceCoordinator maintenance = new com.example.ahakey.firmware.DeviceMaintenanceCoordinator();
     public com.example.ahakey.firmware.DeviceMaintenanceCoordinator maintenance() { return maintenance; }

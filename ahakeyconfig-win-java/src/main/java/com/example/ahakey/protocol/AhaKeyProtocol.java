@@ -122,7 +122,6 @@ public class AhaKeyProtocol {
     public static final int SIDE_SWITCH_BINDING_CUSTOM = 3;
     public static final int SIDE_SWITCH_ACTION_BIND_LEN = 100;
     public static final int SIDE_SWITCH_READBACK_ACTION_TOTAL_MAX = 52;
-    private static final String CP4C_CATALOG_KEY = "x1-c582-hw1-p1-1.0.0-r001";
     public static final int MULTI_RUNTIME_SNAPSHOT_VERSION = 1;
     
     // 按键子类型
@@ -189,21 +188,25 @@ public class AhaKeyProtocol {
     }
 
     public static boolean isCp4cCatalogKey(String catalogKey) {
-        return CP4C_CATALOG_KEY.equals(catalogKey);
+        return FirmwareCapabilities.supportsConfiguration(catalogKey);
     }
 
     public static boolean isWs3Cp1RuntimeDisplaySupported(String catalogKey) {
-        return CP4C_CATALOG_KEY.equals(catalogKey);
+        return FirmwareCapabilities.supportsConfiguration(catalogKey);
     }
 
     public static boolean isDisplayCapabilityResponse(byte[] frame) {
         if (!isValidFrame(frame) || frame.length < 6 || frame[2] != CMD_FIRMWARE_CATALOG_KEY) return false;
-        int offset = frame[3] == 0 ? 4 : 3;
-        byte[] key = CP4C_CATALOG_KEY.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
-        if (frame.length - 2 - offset < key.length) return false;
-        for (byte value : key) if (frame[offset++] != value) return false;
-        while (offset < frame.length - 2) if (frame[offset++] != 0) return false;
-        return true;
+        for (String identity : FirmwareCapabilities.configurationIdentities()) {
+            int offset = frame[3] == 0 ? 4 : 3;
+            byte[] key = identity.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+            if (frame.length - 2 - offset < key.length) continue;
+            boolean matches = true;
+            for (byte value : key) if (frame[offset++] != value) matches = false;
+            while (offset < frame.length - 2) if (frame[offset++] != 0) matches = false;
+            if (matches) return true;
+        }
+        return false;
     }
 
     public static byte[] setRuntimeDisplayMode(AiRuntimeDisplayMode mode) {

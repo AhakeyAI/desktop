@@ -1,0 +1,61 @@
+{
+  "checks": [
+    {
+      "path": "src/main/resources/firmware/wch/WCHISPTool_CH57x-59x.exe",
+      "match": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/WCH55xISPDLL.dll",
+      "match": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/CH343PT.DLL",
+      "match": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/CH375DLL.DLL",
+      "match": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/ChipType/chiplist_CH57x_CH59x.wcfg",
+      "match": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/CONFIG_CH57X59X.WCH",
+      "match": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375DLL.dll",
+      "match": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375DLL64.dll",
+      "match": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375M64.sys",
+      "match": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375W64.sys",
+      "match": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375WDM.CAT",
+      "match": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375WDM.INF",
+      "match": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375WDM.sys",
+      "match": true
+    },
+    {
+      "path": "src/main/resources/firmware/x1-c582-hw1-p1-r001-cp2-memory-safety-20261018.hex",
+      "match": true
+    }
+  ],
+  "all_match": true
+}

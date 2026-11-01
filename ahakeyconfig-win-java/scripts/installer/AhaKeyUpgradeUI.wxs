@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Include xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <UI>
+    <InstallUISequence>
+      <!-- Override the standard overridable dialogs. Registered upgrades go directly to progress. -->
+      <Show Dialog="WelcomeDlg" Before="ProgressDlg">NOT Installed AND NOT AHAKEY_UPGRADE</Show>
+      <Show Dialog="ExitDialog" OnExit="success">NOT AHAKEY_UPGRADE</Show>
+    </InstallUISequence>
+  </UI>
+</Include>
