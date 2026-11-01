@@ -58,7 +58,7 @@ public final class ManagedBridgeClient implements AutoCloseable {
         int port;
         try (ServerSocket reservation = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) { port = reservation.getLocalPort(); }
         String token = UUID.randomUUID() + "-" + UUID.randomUUID();
-        ProcessBuilder builder = new ProcessBuilder(executable.toString(), "--studio", "--minimized", "--port", Integer.toString(port));
+        ProcessBuilder builder = new ProcessBuilder(executable.toString(), "--studio", "--port", Integer.toString(port));
         builder.directory(root.toFile());
         builder.environment().put("AHAKEY_BRIDGE_TOKEN", token);
         builder.redirectOutput(ProcessBuilder.Redirect.DISCARD); builder.redirectError(ProcessBuilder.Redirect.DISCARD);
@@ -99,6 +99,7 @@ public final class ManagedBridgeClient implements AutoCloseable {
         return request(connection, op, fields, timeoutMillis);
     }
     public Object ownerIdentity() { return connection; }
+    public void showWindow() throws Exception { start(); request("showWindow", 2000); }
     public boolean ownerRetired(Object identity) {
         Connection captured=(Connection)identity;
         return captured==null || (captured.socket.isClosed() && (captured.owner==null || !captured.owner.isAlive()));

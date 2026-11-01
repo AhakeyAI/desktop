@@ -33,7 +33,7 @@ public class AiRuntimeDisplayService {
 
     private final BleManager bleManager;
     private final CodexSessionDiscoveryService codexDiscovery = new CodexSessionDiscoveryService();
-    private final CursorSessionDiscoveryService cursorDiscovery = new CursorSessionDiscoveryService();
+    private final CursorSessionDiscoveryService cursorDiscovery;
     private final ObjectProperty<AiRuntimeDisplayMode> displayMode =
         new SimpleObjectProperty<>(AiRuntimeDisplayMode.SINGLE);
     private final ObservableList<AiRuntimeSlotBinding> slots = FXCollections.observableArrayList();
@@ -44,13 +44,53 @@ public class AiRuntimeDisplayService {
     private String cursorDataDir;
     private int primarySlotIndex = -1;
     private volatile boolean snapshotPending;
+    // Only protects in-memory intent. Device locks and ACK waits must never hold this lock.
+    private boolean snapshotSending;
     private volatile long snapshotConnection = -1;
     private final BooleanProperty modeChangePending = new SimpleBooleanProperty();
     private final Object snapshotSendLock = new Object();
+    private final Object singleSendLock = new Object();
+    private final java.util.concurrent.atomic.AtomicLong singleRevision = new java.util.concurrent.atomic.AtomicLong();
     private final java.util.concurrent.atomic.AtomicLong snapshotRevision = new java.util.concurrent.atomic.AtomicLong();
 
+    // Native Cursor observations are a MULTI-only overlay, never synthetic Hook events.
+    private final Map<String, CursorTracking> cursorTracking = new HashMap<>();
+    private final Object cursorLifecycleLock = new Object();
+    private java.util.concurrent.ScheduledExecutorService cursorMonitor;
+    private java.util.concurrent.ScheduledExecutorService snapshotRetry;
+    private boolean snapshotRetryQueued;
+    private volatile boolean cursorClosed;
+    private volatile long cursorEpoch;
+    private long cursorSample, cursorConnection = -1;
+    private long cursorClearPendingConnection = -1, cursorMaintenance = -1;
+    private String cursorProcess = "";
+    private record CursorOverlay(long connection, Map<String, String> states) {}
+    private volatile CursorOverlay cursorOverlay = new CursorOverlay(-1, Map.of());
+    private static final class CursorTracking {
+        Boolean lastValue;
+        boolean waiting, unknown, anchored, confirmed;
+        long hookRevision, acceptedSample;
+        String generation = "";
+        boolean terminal, pendingStartedFromFalse, generationStartedFromFalse, nativeIdentityContext;
+        final java.util.Set<String> retiredGenerations = new java.util.HashSet<>();
+        final java.util.LinkedHashMap<String, IDEState> pendingHooks = new java.util.LinkedHashMap<>();
+    }
+    private record CursorRead(long epoch, long connection, long maintenance, long sequence, String process,
+                              String directory, Map<String, Long> hooks) {}
+
     public AiRuntimeDisplayService(BleManager bleManager) {
+        this(bleManager, new CursorSessionDiscoveryService());
+    }
+
+    AiRuntimeDisplayService(BleManager bleManager, CursorSessionDiscoveryService cursorDiscovery) {
         this.bleManager = bleManager;
+        this.cursorDiscovery = cursorDiscovery;
+        displayMode.addListener((observable, before, after) -> {
+            synchronized (snapshotSendLock) {
+                invalidateCursorContext(); snapshotPending = false; snapshotRevision.incrementAndGet();
+                singleRevision.incrementAndGet();
+            }
+        });
         bleManager.setDisplayIdleListener(() -> {
             long connection = snapshotConnection;
             if (snapshotPending && connection == bleManager.connectionGeneration()
@@ -73,6 +113,226 @@ public class AiRuntimeDisplayService {
             appliedSlots[i] = new AiRuntimeSlotBinding(i);
         }
         repairPrimarySlot(true, true);
+    }
+
+    public void startCursorMonitoring() {
+        synchronized (cursorLifecycleLock) {
+            if (cursorClosed || cursorMonitor != null) return;
+            cursorMonitor = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread thread = new Thread(r, "cursor-waiting-observer"); thread.setDaemon(true); return thread;
+            });
+            cursorMonitor.scheduleWithFixedDelay(() -> {
+                try { pollCursorWaiting(); }
+                catch (Exception e) { logger.debug("Cursor waiting observation unavailable"); }
+            }, 0, 500, java.util.concurrent.TimeUnit.MILLISECONDS);
+        }
+    }
+
+    public void close() {
+        synchronized (cursorLifecycleLock) {
+            cursorClosed = true;
+            cursorOverlay = new CursorOverlay(-1, Map.of());
+            if (cursorMonitor != null) { cursorMonitor.shutdownNow(); cursorMonitor = null; }
+            if (snapshotRetry != null) { snapshotRetry.shutdownNow(); snapshotRetry = null; }
+        }
+    }
+
+    private void invalidateCursorContext() {
+        cursorEpoch++; cursorTracking.clear(); cursorProcess = ""; cursorConnection = -1; cursorMaintenance = -1;
+        cursorOverlay = new CursorOverlay(-1, Map.of());
+    }
+
+    private Map<String, Long> cursorTargets() {
+        Map<String, Long> result = new HashMap<>();
+        java.util.Set<String> duplicates = new java.util.HashSet<>();
+        for (AiRuntimeSlotBinding slot : appliedSlots) {
+            if (slot != null && slot.isBound() && "Cursor".equals(slot.getProvider())) {
+                String id = slot.getStableId();
+                if (result.put(id, cursorTracking.computeIfAbsent(id, key -> new CursorTracking()).hookRevision) != null)
+                    duplicates.add(id);
+            }
+        }
+        duplicates.forEach(result::remove);
+        cursorTracking.keySet().retainAll(result.keySet());
+        return result;
+    }
+
+    // Package-visible deterministic seam: the same method is used by the production scheduler.
+    void pollCursorWaiting() {
+        try { observeCursorWaiting(); }
+        finally {
+            if (snapshotPending) {
+                try { sendAppliedSnapshot(snapshotConnection); }
+                catch (Exception e) { logger.debug("Cursor waiting snapshot remains pending"); }
+            }
+        }
+    }
+
+    private void observeCursorWaiting() {
+        synchronized (snapshotSendLock) { if (cursorClosed || displayMode.get() != AiRuntimeDisplayMode.MULTI) return; }
+        var process = cursorDiscovery.runningCursor();
+        String processIdentity = process.generation() + ":" + process.version();
+        CursorRead read;
+        synchronized (snapshotSendLock) {
+            if (cursorClosed || displayMode.get() != AiRuntimeDisplayMode.MULTI) return;
+            if (!bleManager.maintenance().normalAllowed() || !isDeviceSupported()) { invalidateCursorContext(); return; }
+            long connection = bleManager.connectionGeneration();
+            long maintenance = bleManager.maintenance().epoch();
+            if (cursorConnection != connection || cursorMaintenance != maintenance) {
+                invalidateCursorContext(); cursorConnection = connection; cursorMaintenance = maintenance;
+            }
+            if (cursorClearPendingConnection == connection) { cursorClearPendingConnection = -1; sendCursorSnapshot(); }
+            else cursorClearPendingConnection = -1;
+            if (!process.supported() || !processIdentity.equals(cursorProcess)) {
+                boolean changed = false;
+                for (CursorTracking tracking : cursorTracking.values()) {
+                    if (tracking.confirmed) { tracking.unknown = true; changed = true; }
+                    if (!tracking.generation.isEmpty()) tracking.retiredGenerations.add(tracking.generation);
+                    tracking.generation = ""; tracking.pendingHooks.clear(); tracking.terminal = false;
+                    tracking.waiting = false; tracking.confirmed = false; tracking.anchored = false; tracking.lastValue = null; tracking.hookRevision++;
+                }
+                cursorEpoch++; cursorProcess = process.supported() ? processIdentity : "";
+                if (changed) sendCursorSnapshot();
+            }
+            if (!process.supported()) return;
+            Map<String, Long> hooks = cursorTargets();
+            if (hooks.isEmpty()) return;
+            read = new CursorRead(cursorEpoch, connection, maintenance, ++cursorSample, cursorProcess, cursorDataDir, Map.copyOf(hooks));
+        }
+        // No FX thread, snapshot lock or device transaction is held during the bounded SQLite read.
+        var observations = cursorDiscovery.readRuntimeStates(Path.of(read.directory()), read.hooks().keySet(), process.version());
+        var after = cursorDiscovery.runningCursor();
+        synchronized (snapshotSendLock) {
+            if (cursorClosed || read.epoch() != cursorEpoch || read.connection() != bleManager.connectionGeneration()
+                    || read.maintenance() != bleManager.maintenance().epoch()
+                    || displayMode.get() != AiRuntimeDisplayMode.MULTI || !bleManager.maintenance().normalAllowed()
+                    || !Objects.equals(read.directory(), cursorDataDir) || !after.supported()
+                    || !read.process().equals(after.generation() + ":" + after.version())) return;
+            boolean changed = false;
+            for (var entry : read.hooks().entrySet()) {
+                CursorTracking tracking = cursorTracking.get(entry.getKey());
+                if (tracking == null || tracking.hookRevision != entry.getValue() || read.sequence() <= tracking.acceptedSample) continue;
+                tracking.acceptedSample = read.sequence(); tracking.nativeIdentityContext = true;
+                boolean wasWaiting = tracking.waiting, wasUnknown = tracking.unknown;
+                var state = observations.get(entry.getKey());
+                if (state == null || state.state() == CursorSessionDiscoveryService.Waiting.UNKNOWN
+                        || state.generation().isEmpty() || tracking.retiredGenerations.contains(state.generation())) {
+                    // Unknown cannot manufacture a green/done recovery from a previous yellow.
+                    tracking.unknown |= tracking.confirmed;
+                    tracking.waiting = false;
+                    if (!tracking.confirmed) tracking.lastValue = null;
+                } else {
+                    if (!state.generation().equals(tracking.generation)) {
+                        boolean previousFalse = Boolean.FALSE.equals(tracking.lastValue) && !tracking.unknown;
+                        boolean candidateFalse = tracking.pendingStartedFromFalse;
+                        boolean hadGeneration = !tracking.generation.isEmpty();
+                        if (hadGeneration) tracking.retiredGenerations.add(tracking.generation);
+                        tracking.generation = state.generation(); tracking.terminal = false;
+                        tracking.waiting = false; tracking.confirmed = false; tracking.unknown = false;
+                        tracking.anchored = false; tracking.lastValue = null;
+                        boolean removedFact = liveFacts.remove("Cursor:" + entry.getKey()) != null;
+                        IDEState pending = tracking.pendingHooks.get(tracking.generation);
+                        tracking.pendingHooks.clear(); tracking.pendingStartedFromFalse = false;
+                        tracking.generationStartedFromFalse = pending != null ? candidateFalse : previousFalse;
+                        if (pending != null) {
+                            if (tracking.generationStartedFromFalse) tracking.lastValue = false;
+                            acceptCursorHook(tracking, pending);
+                            liveFacts.put("Cursor:" + entry.getKey(), new RuntimeFact(pending, System.nanoTime(), read.connection()));
+                        }
+                        changed |= hadGeneration || removedFact || pending != null;
+                    }
+                    if (!tracking.pendingHooks.isEmpty()) {
+                        // A different turn has arrived before its composerData save. The header
+                        // may already describe that turn: do not attach it to the older identity.
+                        tracking.unknown = true; tracking.waiting = false; tracking.confirmed = false;
+                        tracking.anchored = false; tracking.lastValue = null;
+                        changed |= !wasUnknown || wasWaiting;
+                        continue;
+                    }
+                    boolean waiting = state.state() == CursorSessionDiscoveryService.Waiting.WAITING;
+                    if (!waiting) { tracking.waiting = false; tracking.confirmed = false; tracking.unknown = false; }
+                    else if (tracking.confirmed || (Boolean.FALSE.equals(tracking.lastValue) && tracking.anchored)) {
+                        tracking.waiting = true; tracking.confirmed = true; tracking.unknown = false;
+                    }
+                    // Historical first true never proves activity. An established native wait has no guessed time limit.
+                    tracking.lastValue = waiting;
+                }
+                changed |= wasWaiting != tracking.waiting || wasUnknown != tracking.unknown;
+            }
+            if (changed) sendCursorSnapshot();
+        }
+    }
+
+    private void sendCursorSnapshot() {
+        publishCursorOverlay();
+        snapshotRevision.incrementAndGet();
+        snapshotPending = true;
+        snapshotConnection = bleManager.connectionGeneration();
+    }
+
+    private void publishCursorOverlay() {
+        Map<String, String> states = new HashMap<>();
+        cursorTracking.forEach((id, tracking) -> {
+            if (tracking.unknown) states.put(id, "");
+            else if (tracking.waiting) states.put(id, IDEState.NOTIFICATION.name());
+        });
+        cursorOverlay = new CursorOverlay(cursorConnection, Map.copyOf(states));
+    }
+
+    private Delivery cursorHook(String id, IDEState state, JsonNode payload) {
+        CursorTracking tracking = cursorTracking.computeIfAbsent(id, key -> new CursorTracking());
+        JsonNode identity = payload == null ? null : payload.get("generation_id");
+        if (identity == null && payload != null) identity = payload.path("hookInput").get("generation_id");
+        String generation = identity != null && identity.isTextual() ? identity.textValue() : "";
+        if ((identity == null || identity.isNull()) && !tracking.nativeIdentityContext
+                && tracking.generation.isEmpty() && tracking.pendingHooks.isEmpty()
+                && !tracking.confirmed && !tracking.unknown && !tracking.waiting) {
+            // Preserve ordinary legacy Hook behavior only before this context enters native attribution.
+            // This path deliberately never anchors a native wait.
+            RuntimeFact legacy = liveFacts.get("Cursor:" + id);
+            if (!isTerminal(state) || (legacy != null && legacy.fresh(bleManager.connectionGeneration())
+                    && !isTerminal(legacy.state()))) return Delivery.SENT;
+            return Delivery.IGNORED;
+        }
+        if (!generation.isBlank()) tracking.nativeIdentityContext = true;
+        if (generation.isBlank() || generation.length() > 128 || cursorProcess.isBlank()
+                || tracking.retiredGenerations.contains(generation)) return Delivery.IGNORED;
+        if (!generation.equals(tracking.generation)) {
+            // UUIDs have no ordering. An unfamiliar Hook cannot replace the native current run.
+            // Retain only bounded candidates until the exact native identity independently matches.
+            if (isTerminal(state) && !tracking.pendingHooks.containsKey(generation)) return Delivery.IGNORED;
+            tracking.hookRevision++;
+            if (tracking.pendingHooks.isEmpty())
+                tracking.pendingStartedFromFalse = Boolean.FALSE.equals(tracking.lastValue) && !tracking.unknown;
+            tracking.pendingHooks.put(generation, state);
+            while (tracking.pendingHooks.size() > 8) tracking.pendingHooks.remove(tracking.pendingHooks.keySet().iterator().next());
+            return Delivery.PENDING;
+        }
+        if (tracking.terminal) return Delivery.IGNORED;
+        if (!tracking.pendingHooks.isEmpty()) return Delivery.PENDING;
+        tracking.hookRevision++;
+        acceptCursorHook(tracking, state);
+        publishCursorOverlay();
+        return Delivery.SENT;
+    }
+
+    private boolean isTerminal(IDEState state) {
+        return state == IDEState.STOP || state == IDEState.SESSION_END || state == IDEState.TASK_COMPLETED;
+    }
+
+    private void acceptCursorHook(CursorTracking tracking, IDEState state) {
+        if (isTerminal(state)) {
+            tracking.terminal = true;
+            tracking.anchored = false; tracking.confirmed = false; tracking.waiting = false;
+            tracking.unknown = false; tracking.lastValue = null;
+        } else {
+            tracking.anchored = !cursorProcess.isBlank() && cursorConnection == bleManager.connectionGeneration();
+            if (tracking.anchored && tracking.generationStartedFromFalse && Boolean.TRUE.equals(tracking.lastValue)) {
+                tracking.waiting = true; tracking.confirmed = true; tracking.unknown = false;
+            }
+            tracking.generationStartedFromFalse = false;
+            if (tracking.unknown && !tracking.confirmed) { tracking.unknown = false; tracking.lastValue = null; }
+        }
     }
 
     public ObjectProperty<AiRuntimeDisplayMode> displayModeProperty() {
@@ -100,9 +360,19 @@ public class AiRuntimeDisplayService {
     }
 
     public void setCursorDataDir(String cursorDataDir) {
+        synchronized (snapshotSendLock) {
         this.cursorDataDir = cursorDataDir == null || cursorDataDir.isBlank()
             ? AiRuntimeStore.Draft.defaultCursorDataDir()
             : cursorDataDir;
+        invalidateCursorContext();
+        liveFacts.keySet().removeIf(key -> key.startsWith("Cursor:"));
+        // The observer sends EMPTY for the invalidated source on this connection; never leave the old physical yellow.
+        if (displayMode.get() == AiRuntimeDisplayMode.MULTI) {
+            cursorClearPendingConnection = bleManager.connectionGeneration();
+            snapshotRevision.incrementAndGet(); snapshotPending = true;
+            snapshotConnection = cursorClearPendingConnection;
+        }
+        }
         invalidateSessionCache("Cursor");
         persist();
     }
@@ -202,8 +472,9 @@ public class AiRuntimeDisplayService {
 
     public void maintenanceChanged() {
         synchronized (snapshotSendLock) {
+            invalidateCursorContext();
             snapshotPending = false; snapshotRevision.incrementAndGet(); liveFacts.clear();
-            singleOwner = null; singleOwnerConnection = -1;
+            singleOwner = null; singleOwnerConnection = -1; singleRevision.incrementAndGet();
         }
     }
     public void onDeviceReady() {
@@ -256,7 +527,10 @@ public class AiRuntimeDisplayService {
 
     public void markDraftApplied(boolean codexHookLatest, boolean cursorHookLatest) {
         ApplyPlan plan = prepareApply(codexHookLatest, cursorHookLatest);
+        synchronized (snapshotSendLock) {
+        invalidateCursorContext();
         appliedSlots = Arrays.stream(plan.slots()).map(this::copy).toArray(AiRuntimeSlotBinding[]::new);
+        }
     }
 
     public void applyToKeyboard() throws Exception {
@@ -272,10 +546,12 @@ public class AiRuntimeDisplayService {
             throw new IllegalStateException("当前没有可应用到键盘的任务槽。请检查 Hook 状态或重新选择会话。");
         }
         bleManager.setRuntimeDisplayMode(displayMode.get());
+        synchronized (snapshotSendLock) {
+        invalidateCursorContext();
         appliedSlots = Arrays.stream(plan.slots()).map(this::copy).toArray(AiRuntimeSlotBinding[]::new);
-        if (displayMode.get() == AiRuntimeDisplayMode.MULTI) {
-            sendAppliedSnapshot();
+        snapshotRevision.incrementAndGet();
         }
+        if (displayMode.get() == AiRuntimeDisplayMode.MULTI) sendAppliedSnapshot();
         persist();
     }
 
@@ -298,6 +574,7 @@ public class AiRuntimeDisplayService {
     private long singleOwnerConnection = -1;
 
     public Delivery handleHookEventResult(String platform, IDEState state, JsonNode payload) {
+        long eventConnection = bleManager.connectionGeneration(), eventCursorEpoch = cursorEpoch;
         if (!bleManager.maintenance().normalAllowed()) return Delivery.IGNORED;
         String id = "Cursor".equals(platform)
                 ? firstNonBlank(text(payload, "conversation_id"), text(payload, "conversationId"),
@@ -309,8 +586,12 @@ public class AiRuntimeDisplayService {
                 ? codexDiscovery.eventSource(Path.of(codexDataDir), id)
                 : CodexSessionDiscoveryService.EventSource.UNKNOWN;
         Delivery result;
+        boolean sendMulti = false, sendSingle = false;
+        long eventSingleRevision = -1;
         String matchedId = "";
         synchronized (snapshotSendLock) {
+            if (eventConnection != bleManager.connectionGeneration()
+                    || ("Cursor".equals(platform) && eventCursorEpoch != cursorEpoch)) return Delivery.IGNORED;
             liveFacts.entrySet().removeIf(entry -> !entry.getValue().fresh(bleManager.connectionGeneration()));
             if (source == CodexSessionDiscoveryService.EventSource.BACKGROUND) {
                 result = Delivery.IGNORED;
@@ -331,10 +612,9 @@ public class AiRuntimeDisplayService {
                         singleOwnerAt = System.nanoTime();
                         singleOwnerConnection = bleManager.connectionGeneration();
                     }
-                    try {
-                        result = bleManager.sendRuntimeState((byte) state.getCode()) ? Delivery.SENT
-                                : bleManager.isConnected() ? Delivery.PENDING : Delivery.FAILED;
-                    } catch (Exception e) { result = Delivery.FAILED; }
+                    sendSingle = true;
+                    eventSingleRevision = singleRevision.incrementAndGet();
+                    result = Delivery.PENDING;
                 }
             } else if (!isDeviceSupported() || (!"Codex".equals(platform) && !"Cursor".equals(platform))) {
                 result = Delivery.IGNORED;
@@ -350,6 +630,9 @@ public class AiRuntimeDisplayService {
                 else {
                     AiRuntimeSlotBinding slot = appliedSlots[matched];
                     matchedId = slot.getStableId();
+                    Delivery accepted = "Cursor".equals(platform) ? cursorHook(matchedId, state, payload) : Delivery.SENT;
+                    if (accepted != Delivery.SENT) result = accepted;
+                    else {
                     liveFacts.put(slot.getProvider() + ":" + slot.getStableId(),
                             new RuntimeFact(state, System.nanoTime(), bleManager.connectionGeneration()));
                     slot.setLastIdeState(state.name());
@@ -357,11 +640,24 @@ public class AiRuntimeDisplayService {
                     if (Objects.equals(draft.getStableId(), slot.getStableId()) && Objects.equals(draft.getProvider(), slot.getProvider()))
                         draft.setLastIdeState(state.name());
                     snapshotRevision.incrementAndGet();
-                    try { result = sendAppliedSnapshot(bleManager.connectionGeneration()) ? Delivery.SENT : Delivery.PENDING; }
-                    catch (Exception e) { result = Delivery.FAILED; }
+                    snapshotPending = true;
+                    snapshotConnection = eventConnection;
+                    sendMulti = true;
+                    result = Delivery.PENDING;
+                    }
                 }
             }
         }
+        // Sending (including isDisplayBusy's device lock) runs after releasing the state lock.
+        try {
+            if (sendMulti) result = sendAppliedSnapshot(eventConnection) ? Delivery.SENT : Delivery.PENDING;
+            else if (sendSingle) synchronized (singleSendLock) {
+                if (eventSingleRevision != singleRevision.get() || eventConnection != bleManager.connectionGeneration()
+                        || displayMode.get() != AiRuntimeDisplayMode.SINGLE) result = Delivery.IGNORED;
+                else result = bleManager.sendRuntimeState((byte) state.getCode()) ? Delivery.SENT
+                        : bleManager.isConnected() ? Delivery.PENDING : Delivery.FAILED;
+            }
+        } catch (Exception e) { result = Delivery.FAILED; }
         // Never log the original Hook input, transcript contents, cwd or chat text.
         logger.info("Runtime event platform={} session={} matchedSession={} state={} source={} result={} connection={}",
                 platform, diagnosticId(id), diagnosticId(matchedId), state, source, result, bleManager.connectionGeneration());
@@ -375,6 +671,12 @@ public class AiRuntimeDisplayService {
     private void applyLiveFact(AiRuntimeSlotBinding slot) {
         RuntimeFact fact = liveFacts.get(slot.getProvider() + ":" + slot.getStableId());
         slot.setLastIdeState(fact != null && fact.fresh(bleManager.connectionGeneration()) ? fact.state().name() : "");
+        CursorOverlay overlay = cursorOverlay;
+        if (!cursorClosed && displayMode.get() == AiRuntimeDisplayMode.MULTI && "Cursor".equals(slot.getProvider())
+                && overlay.connection() == bleManager.connectionGeneration()) {
+            String override = overlay.states().get(slot.getStableId());
+            if (override != null) slot.setLastIdeState(override);
+        }
     }
 
     public ApplyPlan prepareApply(boolean codexHookLatest, boolean cursorHookLatest) {
@@ -528,22 +830,84 @@ public class AiRuntimeDisplayService {
 
     private boolean sendAppliedSnapshot(long connection) throws Exception {
         synchronized (snapshotSendLock) {
-        if (connection != bleManager.connectionGeneration()) return false;
-        if (!bleManager.maintenance().normalAllowed()) { snapshotPending = false; return false; }
-        snapshotPending = true;
-        snapshotConnection = connection;
-        if (bleManager.isDisplayBusy() || bleManager.isDisplayWriteUncertain()) return false;
-        long revision = snapshotRevision.get();
-        boolean anyUsable = Arrays.stream(appliedSlots).anyMatch(slot -> slot != null && slot.isBound());
-        if (!anyUsable) {
-            logger.info("Skip 0x99 snapshot because no usable runtime slot is available");
-            return false;
+            if (cursorClosed || connection != bleManager.connectionGeneration()
+                    || displayMode.get() != AiRuntimeDisplayMode.MULTI
+                    || !bleManager.maintenance().normalAllowed()) return false;
+            snapshotPending = true;
+            snapshotConnection = connection;
+            if (snapshotSending) return false;
+            snapshotSending = true;
         }
-        AiRuntimeSlotBinding[] snapshot = Arrays.stream(appliedSlots).map(this::copy).toArray(AiRuntimeSlotBinding[]::new);
-        for (AiRuntimeSlotBinding slot : snapshot) applyLiveFact(slot);
-        bleManager.sendMultiRuntimeSnapshot(snapshot, connection);
-        snapshotPending = connection == bleManager.connectionGeneration() && snapshotRevision.get() != revision;
-        return true;
+        boolean sent = false;
+        boolean ownsSender = true;
+        try {
+            while (true) {
+                // Both this check and the send below can wait for the device command lock.
+                // Concurrent Hooks only update intent and return PENDING while this sender owns I/O.
+                if (bleManager.isDisplayBusy() || bleManager.isDisplayWriteUncertain()) return sent;
+                AiRuntimeSlotBinding[] snapshot;
+                long revision, epoch, maintenance;
+                synchronized (snapshotSendLock) {
+                    if (cursorClosed || !snapshotPending || snapshotConnection != connection
+                            || connection != bleManager.connectionGeneration()
+                            || displayMode.get() != AiRuntimeDisplayMode.MULTI
+                            || !bleManager.maintenance().normalAllowed()) return sent;
+                    if (Arrays.stream(appliedSlots).noneMatch(slot -> slot != null && slot.isBound())) {
+                        snapshotPending = false;
+                        return sent;
+                    }
+                    revision = snapshotRevision.get(); epoch = cursorEpoch;
+                    maintenance = bleManager.maintenance().epoch();
+                    snapshot = Arrays.stream(appliedSlots).map(this::copy).toArray(AiRuntimeSlotBinding[]::new);
+                    for (AiRuntimeSlotBinding slot : snapshot) applyLiveFact(slot);
+                }
+                boolean delivered = bleManager.sendMultiRuntimeSnapshot(snapshot, connection,
+                        () -> !cursorClosed && connection == bleManager.connectionGeneration()
+                                && epoch == cursorEpoch && revision == snapshotRevision.get()
+                                && maintenance == bleManager.maintenance().epoch()
+                                && bleManager.maintenance().normalAllowed());
+                sent |= delivered;
+                synchronized (snapshotSendLock) {
+                    if (cursorClosed || connection != bleManager.connectionGeneration()
+                            || displayMode.get() != AiRuntimeDisplayMode.MULTI
+                            || !bleManager.maintenance().normalAllowed()
+                            || maintenance != bleManager.maintenance().epoch()) return sent;
+                    if (delivered && epoch == cursorEpoch && revision == snapshotRevision.get()) {
+                        snapshotPending = false;
+                        // Release ownership atomically with observing no new intent: no lost wake-up.
+                        snapshotSending = false; ownsSender = false;
+                        return true;
+                    }
+                    // An in-flight frame cannot be recalled. Rebuild from current bindings and facts
+                    // after ACK, never replay the captured snapshot across an invalidation boundary.
+                    if (!snapshotPending || snapshotConnection != connection) return sent;
+                }
+            }
+        } finally {
+            if (ownsSender) synchronized (snapshotSendLock) { snapshotSending = false; }
+            scheduleSnapshotRetry();
+        }
+    }
+
+    private void scheduleSnapshotRetry() {
+        // A device-idle callback may race the sender's release. A bounded retry avoids losing
+        // the final intent, including on connection changes while the previous ACK is pending.
+        synchronized (cursorLifecycleLock) {
+            if (cursorClosed || !snapshotPending || snapshotRetryQueued
+                    || displayMode.get() != AiRuntimeDisplayMode.MULTI
+                    || snapshotConnection != bleManager.connectionGeneration()
+                    || !bleManager.maintenance().normalAllowed()) return;
+            if (snapshotRetry == null) snapshotRetry = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread thread = new Thread(r, "runtime-snapshot-retry"); thread.setDaemon(true); return thread;
+            });
+            snapshotRetryQueued = true;
+            snapshotRetry.schedule(() -> {
+                synchronized (cursorLifecycleLock) { snapshotRetryQueued = false; }
+                if (!cursorClosed && snapshotPending) {
+                    try { sendAppliedSnapshot(snapshotConnection); }
+                    catch (Exception e) { logger.debug("Runtime snapshot remains pending"); }
+                }
+            }, 250, java.util.concurrent.TimeUnit.MILLISECONDS);
         }
     }
 

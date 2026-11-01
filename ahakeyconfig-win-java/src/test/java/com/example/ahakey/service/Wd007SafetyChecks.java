@@ -18,8 +18,12 @@ public final class Wd007SafetyChecks {
     static void queued(boolean timeout)throws Exception{
         Wire w=connected();var pool=Executors.newFixedThreadPool(2);try{
             w.held=0x73;
-            var first=pool.submit(()->{try{w.sendCommand(AhaKeyProtocol.buildFrame((byte)0x73,new byte[]{0}));return false;}catch(IOException expected){return true;}});
+            var firstThread=new java.util.concurrent.atomic.AtomicReference<Thread>();
+            var first=pool.submit(()->{firstThread.set(Thread.currentThread());try{w.sendCommand(AhaKeyProtocol.buildFrame((byte)0x73,new byte[]{0}));return false;}catch(IOException expected){return true;}});
             await(()->w.heldMemory!=null,"first physical request held");
+            // Physical transmission returns before firmwareExchange reacquires its lock and awaits
+            // the ACK. Starting the second tryLock caller in that gap can legitimately reject it.
+            await(()->Arrays.stream(firstThread.get().getStackTrace()).anyMatch(frame->frame.getMethodName().equals("awaitNanos")),"first request entered actual ACK condition wait");
             var thread=new java.util.concurrent.atomic.AtomicReference<Thread>();
             var second=pool.submit(()->{thread.set(Thread.currentThread());try{w.sendCommand(AhaKeyProtocol.queryDeviceStatus());return false;}catch(IOException expected){return true;}});
             await(()->thread.get()!=null&&thread.get().getState()==Thread.State.TIMED_WAITING,"second request entered ACK wait queue");
@@ -52,6 +56,7 @@ public final class Wd007SafetyChecks {
     }
     static void hooks()throws Exception{
         Wire w=connected();HookDispatchServer server=new HookDispatchServer(w,0);try{
+            w.readFirmwareCatalogKey();
             server.start();var f=HookDispatchServer.class.getDeclaredField("serverSocket");f.setAccessible(true);int port=((java.net.ServerSocket)f.get(server)).getLocalPort();
             new HookInstaller(port,s->{}).generateAllScripts();
             Path home=Path.of(System.getProperty("user.home"));

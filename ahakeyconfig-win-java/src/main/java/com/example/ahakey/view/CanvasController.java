@@ -162,6 +162,7 @@ public class CanvasController {
         studioState.selectedModeProperty().addListener((obs, old, newMode) -> refreshPreview());
         studioState.dirtyCountProperty().addListener((obs, old, newVal) -> refreshHotspots());
         studioState.revisionProperty().addListener((obs, old, newVal) -> refreshPreview());
+        studioState.inputBaselineRevisionProperty().addListener((obs, old, newVal) -> refreshPreview());
         studioState.lightBarPreviewProperty().addListener((obs, old, newVal) -> {
             refreshPreview();
             animationFrame = 0;

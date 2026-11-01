@@ -74,20 +74,27 @@ public class StudioState {
     private AhaKeyResponseParser.SideSwitchConfig sideSwitchConfig = defaultSideSwitchConfig();
 
     private record DeviceDraft(Map<ModeSlot,EnumMap<StudioPart,KeyConfig>> keys,
-            AhaKeyResponseParser.SideSwitchConfig side,EnumSet<StudioPart> parts,EnumSet<ModeSlot> modes,K1RouteState.Draft k1) {}
+            AhaKeyResponseParser.SideSwitchConfig side,EnumSet<StudioPart> parts,EnumSet<ModeSlot> modes,K1RouteState.Draft k1,
+            java.util.Set<Integer> actions,java.util.Set<Integer> descriptions) {}
+    private final java.util.Set<Integer> editedActions=new java.util.HashSet<>(),editedDescriptions=new java.util.HashSet<>();
+    public boolean actionEdited(int mode,int key) { return editedActions.contains(mode*4+key); }
+    public boolean descriptionEdited(int mode,int key) { return editedDescriptions.contains(mode*4+key); }
     private final Map<String,DeviceDraft> deviceDrafts=new java.util.HashMap<>();
     private String draftTarget="";
     /** Input drafts belong to an exact transport identity; the image library remains global. */
     public void selectDevice(String identity) {
         if(identity==null || identity.isBlank() || identity.equals(draftTarget))return;
+        displayConfig.selectDevice(identity);
         Map<ModeSlot,EnumMap<StudioPart,KeyConfig>> saved=new EnumMap<>(ModeSlot.class);
         for(var item:keyConfigs.entrySet()) {
             var keys=new EnumMap<StudioPart,KeyConfig>(StudioPart.class);
             item.getValue().forEach((part,key)->keys.put(part,key.copy()));saved.put(item.getKey(),keys);
         }
-        deviceDrafts.put(draftTarget,new DeviceDraft(saved,sideSwitchConfig,dirtyParts.clone(),dirtyModes.clone(),k1Routes.draft()));
+        deviceDrafts.put(draftTarget,new DeviceDraft(saved,sideSwitchConfig,dirtyParts.clone(),dirtyModes.clone(),k1Routes.draft(),java.util.Set.copyOf(editedActions),java.util.Set.copyOf(editedDescriptions)));
         DeviceDraft draft=deviceDrafts.get(identity);draftTarget=identity;
         dirtyParts.clear();dirtyModes.clear();
+        editedActions.clear();editedDescriptions.clear();
+        if(draft!=null){editedActions.addAll(draft.actions());editedDescriptions.addAll(draft.descriptions());}
         for(ModeSlot mode:ModeSlot.values()) {
             var keys=keyConfigs.get(mode);keys.clear();
             for(StudioPart part:new StudioPart[]{StudioPart.KEY1,StudioPart.KEY2,StudioPart.KEY3,StudioPart.KEY4})
@@ -503,8 +510,12 @@ public class StudioState {
             return;
         }
         getKeyConfig(part).setDescription(description);
+        int coordinate=getSelectedMode().getIndex()*4+keyIndexFor(part);
+        boolean actionWasEdited=editedActions.contains(coordinate);
         if(part==StudioPart.KEY1)k1Routes.markDescriptionEdited(getSelectedMode().getIndex());
         markDirty(part);
+        if(!actionWasEdited)editedActions.remove(coordinate);
+        editedDescriptions.add(coordinate);
     }
 
     public void setLightBarSummary(String summary) {
@@ -536,6 +547,7 @@ public class StudioState {
     }
 
     public void markDirty(StudioPart part) {
+        if(part.isKey())editedActions.add(getSelectedMode().getIndex()*4+keyIndexFor(part));
         if (part == StudioPart.KEY1) k1Routes.markEdited(getSelectedMode().getIndex());
         dirtyParts.add(part);
         dirtyModes.add(getSelectedMode());
@@ -546,6 +558,7 @@ public class StudioState {
 
     public void restoreCurrentModeDefaults() {
         resetModeDefaults(getSelectedMode());
+        for(int key=0;key<4;key++){editedActions.add(getSelectedMode().getIndex()*4+key);editedDescriptions.add(getSelectedMode().getIndex()*4+key);}
         k1Routes.markEdited(getSelectedMode().getIndex());
         dirtyParts.add(StudioPart.KEY1);
         dirtyParts.add(StudioPart.KEY2);
@@ -571,6 +584,8 @@ public class StudioState {
     }
 
     public void clearDirtyAfterSync() {
+        editedActions.removeIf(key->key%4!=0||!k1Routes.dirty(key/4));
+        editedDescriptions.removeIf(key->key%4!=0||!k1Routes.dirty(key/4));
         dirtyParts.clear();
         dirtyModes.clear();
         dirtyCount.set(0);

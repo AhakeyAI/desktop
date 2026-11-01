@@ -30,11 +30,46 @@ public final class DisplayConfigState {
     public final LongProperty previewUntilNanos = new SimpleLongProperty();
     public final BooleanProperty devicePreview = new SimpleBooleanProperty();
     private boolean brightnessDirty;
+    private boolean brightnessObserved;
+    private final boolean[][] effectsObserved=new boolean[4][9];
+    public boolean brightnessKnownOrEdited(){return brightnessObserved||brightnessDirty;}
+    public boolean effectKnownOrEdited(int mode,int ai){return effectsObserved[mode][ai]||effectDirty[mode][ai];}
+    public void invalidateLightingObservations() {
+        brightnessObserved=false;if(!brightnessDirty)brightness.set(35);
+        for(int mode=0;mode<4;mode++)for(int ai=0;ai<9;ai++){effectsObserved[mode][ai]=false;if(!effectDirty[mode][ai])effects[mode][ai]=-1;}
+        endPreview();changed();
+    }
     private long brightnessRevision;
     private final long[][] effectRevisions = new long[4][9];
     private boolean previewSimulation;
     private final int[][] effects = new int[4][9];
     private final boolean[][] effectDirty = new boolean[4][9];
+    private record LightingDraft(int brightness, boolean brightnessDirty, long brightnessRevision,
+                                 int[][] effects, boolean[][] dirty, long[][] revisions) {}
+    private final java.util.Map<String,LightingDraft> lightingDrafts=new java.util.HashMap<>();
+    private String lightingTarget="";
+    /** Only user edits are restored. Clean device observations expire at every target transition. */
+    public void selectDevice(String identity) {
+        if(identity==null || identity.isBlank() || identity.equals(lightingTarget))return;
+        int[][] values=new int[4][];boolean[][] dirty=new boolean[4][];long[][] edits=new long[4][];
+        for(int m=0;m<4;m++){values[m]=effects[m].clone();dirty[m]=effectDirty[m].clone();edits[m]=effectRevisions[m].clone();}
+        lightingDrafts.put(lightingTarget,new LightingDraft(brightness.get(),brightnessDirty,brightnessRevision,values,dirty,edits));
+        LightingDraft draft=lightingDrafts.get(identity);lightingTarget=identity;
+        brightnessDirty=draft!=null&&draft.brightnessDirty();brightness.set(brightnessDirty?draft.brightness():35);
+        brightnessRevision=draft==null?0:draft.brightnessRevision();
+        for(int m=0;m<4;m++)for(int ai=0;ai<9;ai++) {
+            effectDirty[m][ai]=draft!=null&&draft.dirty()[m][ai];
+            effects[m][ai]=effectDirty[m][ai]?draft.effects()[m][ai]:-1;
+            effectRevisions[m][ai]=draft==null?0:draft.revisions()[m][ai];
+        }
+        invalidateLightingObservations();message.set("已切换配置目标；正在读取当前设备，本地灯光草稿按目标保留。");changed();
+    }
+    /** Historical local defaults are not user edits or device observations. */
+    public void initializeLegacy(int level, int[][] defaults) {
+        if(!brightnessDirty)brightness.set(level);
+        for(int m=0;m<4;m++)for(int ai=0;ai<9;ai++)if(!effectDirty[m][ai])effects[m][ai]=defaults[m][ai];
+        changed();
+    }
 
     public DisplayConfigState() {
         for (int i = 0; i < 19; i++) resources.put(i, OledResourceState.empty(i));
@@ -56,7 +91,7 @@ public final class DisplayConfigState {
         if (value < 1 || value > 100) throw new IllegalArgumentException("brightness");
         brightness.set(value); brightnessDirty = true; brightnessRevision++; simulate(1); changed();
     }
-    public void readBrightness(int value) { if (!brightnessDirty) brightness.set(value); changed(); }
+    public void readBrightness(int value) { brightnessObserved=true;if (!brightnessDirty) brightness.set(value); changed(); }
     public void savedBrightness(int value) { if (brightness.get() == value) brightnessDirty = false; endPreview(); changed(); }
     public boolean brightnessDirty() { return brightnessDirty; }
     public long brightnessRevision() { return brightnessRevision; }
@@ -68,7 +103,7 @@ public final class DisplayConfigState {
         if (effect < 0 || effect > 16) throw new IllegalArgumentException("effect");
         effects[mode][ai] = effect; effectDirty[mode][ai] = true; effectRevisions[mode][ai]++; simulate(effect); changed();
     }
-    public void readEffect(int mode, int ai, int effect) { if (!effectDirty[mode][ai]) effects[mode][ai] = effect; changed(); }
+    public void readEffect(int mode, int ai, int effect) { effectsObserved[mode][ai]=true;if (!effectDirty[mode][ai]) effects[mode][ai] = effect; changed(); }
     public void savedEffect(int mode, int ai, int effect) { if (effects[mode][ai] == effect) effectDirty[mode][ai] = false; endPreview(); changed(); }
     public boolean effectDirty(int mode, int ai) { return effectDirty[mode][ai]; }
     public long effectRevision(int mode, int ai) { return effectRevisions[mode][ai]; }

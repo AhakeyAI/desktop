@@ -31,7 +31,17 @@ public class BleManager {
         FirmwareIdentity identity = firmwareIdentity;
         return isConnected && cachedStatus.isConnected() && isCurrentIdentity(identity)
                 && (isDisplayAdmitted() || identity == exactCatalogIdentity)
-                && firmwareCatalog.capabilities(identity.catalogKey()).contains(capability);
+                && (capabilities().admits(capability) || firmwareCatalog.capabilities(identity.catalogKey()).contains(capability));
+    }
+    public com.example.ahakey.protocol.FirmwareCapabilities capabilities() {
+        FirmwareIdentity identity = firmwareIdentity;
+        if (!isConnected || !cachedStatus.isConnected() || !isCurrentIdentity(identity))
+            return com.example.ahakey.protocol.FirmwareCapabilities.UNKNOWN;
+        if (identity.state() == DeviceStatus.IdentityState.UNSUPPORTED && identity.catalogKey().isEmpty())
+            return com.example.ahakey.protocol.FirmwareCapabilities.LEGACY;
+        return identity.state() == DeviceStatus.IdentityState.SUPPORTED
+                ? com.example.ahakey.protocol.FirmwareCapabilities.catalog(identity.catalogKey())
+                : com.example.ahakey.protocol.FirmwareCapabilities.UNKNOWN;
     }
     private final com.example.ahakey.firmware.DeviceMaintenanceCoordinator maintenance = new com.example.ahakey.firmware.DeviceMaintenanceCoordinator();
     public com.example.ahakey.firmware.DeviceMaintenanceCoordinator maintenance() { return maintenance; }
@@ -144,6 +154,7 @@ public class BleManager {
     private byte displayExpected;
     private int legacyWaiters;
     private Thread k1RouteOwner;
+    private boolean k1RouteWriteAttempted;
     private volatile byte[] k1ReplyRequest;
 
     public <T> T k1RouteTransaction(long generation, com.example.ahakey.firmware.DeviceMaintenanceCoordinator.Task<T> task) throws Exception {
@@ -156,10 +167,11 @@ public class BleManager {
                             || displayLease != null || displayWriteUncertain || legacyWaiters != 0 || k1RouteOwner != null)
                         throw new IOException("K1事务不可用或连接已改变。");
                     k1RouteOwner = Thread.currentThread();
+                    k1RouteWriteAttempted = false;
                     T result = task.run();
                     if (generation != connectionGeneration) throw new IOException("K1连接已改变。");
                     return result;
-                } finally { if(k1RouteOwner==Thread.currentThread()){k1RouteOwner=null;released=true;}commandLock.unlock(); }
+                } finally { if(k1RouteOwner==Thread.currentThread()){k1RouteOwner=null;k1RouteWriteAttempted=false;released=true;}commandLock.unlock(); }
             }
         } finally { if(released)notifyDisplayIdle(); }
     }
@@ -218,6 +230,8 @@ public class BleManager {
 
     public long connectionGeneration() { return connectionGeneration; }
     public boolean isDisplayWriteUncertain() { return displayWriteUncertain; }
+    private volatile boolean legacyRecoveryUnknown;
+    public boolean isLegacySaveResultUnknown() { return legacyRecoveryUnknown; }
     public void requireDisplayRecovery(long generation) {
         commandLock.lock();
         try { if (generation == connectionGeneration) requireDeviceRecovery(); }
@@ -248,6 +262,7 @@ public class BleManager {
             publishIdentity(DeviceStatus.IdentityState.DISCONNECTED, "");
             displayWriteUncertain = false;
             displayReadUncertain = false;
+            legacyRecoveryUnknown = false;
             displayReply = null;
             k1ReplyRequest = null;
             displayLease = null;
@@ -465,7 +480,7 @@ public class BleManager {
         if(discovery!=null)return;
         managedBridge.onEvent(this::managedEvent);
         discovery=java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r->{var t=new Thread(r,"device-observer");t.setDaemon(true);return t;});
-        transportIo.execute(()->{try{managedBridge.start();}catch(Exception e){logger.info("后台桥尚未就绪：{}",e.getMessage());}});
+        transportIo.execute(()->{try{managedBridge.showWindow();refreshBridgeChoices(true);}catch(Exception e){logger.info("后台桥尚未就绪：{}",e.getMessage());if(callback!=null)callback.onError("蓝牙桥启动失败："+e.getMessage());}});
         try{previousUsb=new java.util.HashSet<>(usbCandidates());}catch(RuntimeException failure){logger.debug("初始USB枚举未完成",failure);}
         discovery.scheduleWithFixedDelay(()->{
             try {
@@ -482,6 +497,26 @@ public class BleManager {
         },500,500,TimeUnit.MILLISECONDS);
     }
     private void managedEvent(com.fasterxml.jackson.databind.JsonNode event) {
+        String kind=event.path("event").asText();
+        if (kind.equals("refreshRequested")) {
+            transportIo.execute(()->{try{refreshBridgeChoices(false);}catch(Exception e){bridgeUi("设备列表刷新失败："+e.getMessage());}}); return;
+        }
+        if (kind.equals("selectionRequested")) {
+            selectFromBridge(event.path("selectedTargetId").asText(),event.path("address").asText(),event.path("selectionAuthority").asText()); return;
+        }
+        if (kind.equals("disconnectRequested")) {
+            commandLock.lock();
+            try {
+                var current=activeTarget;
+                String requestedSession=event.path("sessionId").asText();
+                if(current!=null && current.transport().equals("BLE") && current.id().equals(event.path("targetId").asText())
+                        && Long.toString(connectionGeneration).equals(event.path("clientGeneration").asText())
+                        && ((!bridgeSession.isEmpty() && bridgeSession.equals(requestedSession)) || (bridgeSession.isEmpty() && requestedSession.equals("connecting")))) {
+                    automaticBleSuppressed=true;connectionIntent.incrementAndGet();isScanning=false;disconnectInternal();
+                }
+            } finally {commandLock.unlock();}
+            return;
+        }
         if("bridgeDisconnected".equals(event.path("event").asText())) {
             if(activeTarget!=null && activeTarget.transport().equals("BLE"))disconnect();return;
         }
@@ -494,6 +529,61 @@ public class BleManager {
             try { onSessionNotify(eventGeneration,java.util.Base64.getDecoder().decode(event.path("bytes").asText())); }
             catch(IllegalArgumentException e){logger.warn("桥通知编码无效");}
         }
+    }
+    private volatile boolean automaticBleSuppressed;
+    private volatile String activeBleAddress="";
+    private final java.util.concurrent.atomic.AtomicLong bridgeUiSequence=new java.util.concurrent.atomic.AtomicLong();
+    private String bridgeSelectionAuthority() { return connectionIntent.get()+":"+connectionGeneration+":"+targetIdentity(); }
+    private void bridgeUi(String message) {
+        commandLock.lock();
+        try {
+        long sequence=bridgeUiSequence.incrementAndGet();
+        if(!managedBridge.running())return;
+        var target=activeTarget;
+        String shown=(target==null?"当前无配置目标":target.transport().equals("USB")?"当前配置目标：USB（优先）":
+                "当前配置目标："+target.name()+" ["+activeBleAddress+"]")+"\n"+message;
+        String authority=bridgeSelectionAuthority();
+        transportIo.execute(()->{try{managedBridge.request("studioStatus",com.example.ahakey.service.connection.ManagedBridgeClient.fields()
+                .put("message",shown).put("selectionAuthority",authority).put("sequence",sequence),2000);}catch(Exception e){logger.debug("桥窗口状态更新失败",e);}});
+        } finally {commandLock.unlock();}
+    }
+    private void refreshBridgeChoices(boolean startup) throws Exception {
+        long intent=connectionIntent.get();String authority=bridgeSelectionAuthority();
+        var reply=managedBridge.request("enumerateConnected",5000);
+        bridgeUi("设备列表已刷新。列表选择是候选，当前配置目标如上。");
+        if(!startup)return;
+        var remembered=com.example.ahakey.service.connection.RememberedBleTarget.load();
+        if (automaticBleSuppressed || !maintenance.normalAllowed() || !usbCandidates().isEmpty() || isConnected || isScanning || intent!=connectionIntent.get()) {
+            bridgeUi("USB优先或已有连接任务；请在需要时手动选择蓝牙设备。"); return;
+        }
+        for(var item:reply.path("candidates")) if(remembered.matches(item.path("address").asText())) {
+            selectFromBridge(item.path("targetId").asText(),item.path("address").asText(),authority);return;
+        }
+        bridgeUi(remembered.address().isBlank()?"请选择蓝牙键盘；列表显示 Windows 已连接的 AhaKey。":"上次键盘尚未连接到 Windows，请在系统中连接后刷新并手选。");
+    }
+    private void selectFromBridge(String id,String address,String authority) {
+        long intent;
+        commandLock.lock();
+        try {
+            if(!maintenance.normalAllowed()){bridgeUi("设备维护中，暂不能连接。");return;}
+            if(!bridgeSelectionAuthority().equals(authority)){bridgeUi("连接状态已改变，请按当前目标重新选择。");return;}
+            intent=connectionIntent.incrementAndGet();isScanning=true;
+            bridgeUi("正在核对所选目标…");
+        }finally{commandLock.unlock();}
+        transitions.execute(()->{
+            try {
+                if(intent!=connectionIntent.get())return;
+                if(!usbCandidates().isEmpty())throw new IOException("USB优先，请拔下USB后手动选择蓝牙键盘。");
+                var reply=managedBridge.request("enumerateConnected",5000);
+                for(var item:reply.path("candidates")) if(id.equals(item.path("targetId").asText()) && !address.isBlank() && address.equalsIgnoreCase(item.path("address").asText())) {
+                    bridgeUi("正在连接 "+item.path("name").asText()+"（"+address+"）…");
+                    openSelected(new com.example.ahakey.model.connection.DeviceTarget("BLE",id,item.path("name").asText()),intent);
+                    return;
+                }
+                throw new IOException("设备列表已改变，请刷新后重新选择。");
+            }catch(Exception e){if(intent==connectionIntent.get()){bridgeUi("连接失败："+e.getMessage());callback.onError("蓝牙连接失败："+e.getMessage());}}
+            finally{if(intent==connectionIntent.get())isScanning=false;}
+        });
     }
     public void connect() {
         if(!maintenance.normalAllowed() || isScanning)return;
@@ -526,6 +616,7 @@ public class BleManager {
         Object releaseOwner;
         UsbHidTransport openedUsb = createUsbTransport();
         String openedSession = "";
+        String openedAddress = "";
         commandLock.lock();
         try {
             // The intent check and revocation are one transition: an obsolete queued attempt has no rights.
@@ -555,6 +646,11 @@ public class BleManager {
                 try { opening.get(2500,TimeUnit.MILLISECONDS); }
                 catch(Exception failure) { opening.cancel(true); throw failure; }
             } else {
+                if(!usbCandidates().isEmpty())throw new IOException("USB优先，蓝牙连接已取消。");
+                var latest=managedBridge.request("enumerateConnected",5000);
+                bridgeSnapshot=latest.path("snapshotId").asText();
+                for(var candidate:latest.path("candidates"))if(target.id().equals(candidate.path("targetId").asText()))openedAddress=candidate.path("address").asText();
+                if(openedAddress.isBlank())throw new IOException("当前蓝牙目标地址未确认，请刷新设备列表。");
                 var fields=com.example.ahakey.service.connection.ManagedBridgeClient.fields().put("targetId",target.id()).put("snapshotId",bridgeSnapshot).put("clientGeneration",Long.toString(generation));
                 var reply=managedBridge.request("connect",fields,15000);
                 openedSession=reply.path("sessionId").asText();
@@ -564,15 +660,30 @@ public class BleManager {
             try {
                 if(intent!=connectionIntent.get() || generation!=connectionGeneration || !maintenance.normalAllowed())return;
                 if(target.transport().equals("USB")&&!openedUsb.isOpen())throw new IOException("USB读取会话已结束。");
+                if(target.transport().equals("BLE")&&!usbCandidates().isEmpty())throw new IOException("检测到USB，蓝牙连接已取消。");
                 usbTransport=openedUsb;bridgeSession=openedSession;
-                isConnected=true;isScanning=false;cachedStatus.setConnected(true);cachedStatus.setDeviceName(target.name());cachedStatus.clearFirmwareIdentity();
+                activeBleAddress=openedAddress;
+                isConnected=true;cachedStatus.setConnected(true);cachedStatus.setDeviceName(target.name());cachedStatus.clearFirmwareIdentity();
                 published=true;
             }finally{commandLock.unlock();}
             try(var binding=bindGeneration(generation)){
-                try{if(displayWriteUncertain && recoveryTargets.absenceObserved(target.key()))recoverAfterPhysicalReconnect(target.key(),generation);}
-                finally{commandLock.lock();try{if(generation==connectionGeneration&&intent==connectionIntent.get())callback.onConnected();}finally{commandLock.unlock();}}
+                if(displayWriteUncertain) {
+                    if (!recoveryTargets.absenceObserved(target.key())) throw new IOException("设备保存结果未确认，请断开键盘电源后重连以核对恢复状态。");
+                    recoverAfterPhysicalReconnect(target.key(),generation);
+                }
+                commandLock.lock();try{if(generation==connectionGeneration&&intent==connectionIntent.get())callback.onConnected();}finally{commandLock.unlock();}
+                if(target.transport().equals("BLE") && generation==connectionGeneration && intent==connectionIntent.get()) {
+                    try{new com.example.ahakey.service.connection.RememberedBleTarget(target.name(),openedAddress).save();}
+                    catch(IOException failure){logger.warn("已连接，但上次蓝牙目标未保存",failure);bridgeUi("已连接，但无法保存下次启动目标："+failure.getMessage());}
+                }
                 queryStatus();
+                bridgeUi(target.transport().equals("USB")?"当前由USB配置；蓝牙不会自动接管。":"蓝牙传输已连接，正在核对当前键盘配置。");
             }
+        } catch (Exception failure) {
+            commandLock.lock();
+            try { if (intent == connectionIntent.get() && generation == connectionGeneration) disconnectInternal(); }
+            finally { commandLock.unlock(); }
+            throw failure;
         } finally {
             if(!published) {
                 transportIo.execute(openedUsb::close);
@@ -588,6 +699,15 @@ public class BleManager {
         try {
             // Pinned Firmware rejects 0x9F/0x88 while its resource transaction is active.
             readFirmwareCatalogKey(generation);
+            if (capabilities().legacyWrites()) {
+                // c1898c9^ handles 73/84/85/04 synchronously and 00 reports current running state.
+                // This proves a live command loop, not old persistence. Keep the durable uncertainty record.
+                DeviceStatus current=queryDeviceStatusSnapshot(RESPONSE_TIMEOUT_MS,true);
+                if(current.getBatteryLevel()<0 || current.getBatteryLevel()>100 || current.getWorkMode()<0 || current.getWorkMode()>3)
+                    throw new IOException("旧固件状态响应无效，恢复未确认。");
+                commandLock.lock();try{requireGeneration(generation);legacyRecoveryUnknown=true;displayWriteUncertain=false;displayReadUncertain=false;}finally{commandLock.unlock();}
+                return;
+            }
             if(!isDisplayAdmitted())throw new IOException("恢复需当前固件的资源元数据支持。");
             try(var lease=openDisplayLease(false,generation)) {
                 for(int entry=0;entry<19;entry++) {
@@ -610,12 +730,13 @@ public class BleManager {
     public void startManagedBridge() throws Exception { managedBridge.start(); }
     public void restartManagedBridge(boolean stopOnly) throws Exception {
         if(!maintenance.normalAllowed())throw new IOException("设备维护中");
-        if(activeTarget!=null && activeTarget.transport().equals("BLE"))disconnect();
-        if(stopOnly)managedBridge.stop();else managedBridge.restart();
+        if(stopOnly){if(activeTarget!=null && activeTarget.transport().equals("BLE"))disconnect();managedBridge.stop();}
+        else {boolean running=managedBridge.running();managedBridge.onEvent(this::managedEvent);managedBridge.showWindow();if(!running && !isConnected)refreshBridgeChoices(false);}
     }
 
     private int connectAttemptCount = 0;
     public void disconnect() {
+        automaticBleSuppressed=true;
         connectionIntent.incrementAndGet(); isScanning=false;
         try (var transaction = maintenance.normalTransaction()) { disconnectInternal(); }
         catch (Exception busy) { logger.debug("Disconnect deferred: {}", busy.getMessage()); }
@@ -631,8 +752,8 @@ public class BleManager {
         if(activeTarget!=null && activeTarget.transport().equals("USB") && oldUsb.terminatedUnexpectedly())usbAttachments.remove(oldTarget);
         // Invalidate operations before asynchronous native cleanup; old handles are never reused by B.
         isConnected=false;cachedStatus.setConnected(false);cachedStatus.setSwitchState(-1);cachedStatus.clearSavedBindings();
-        if(displayLease!=null || wireExpected>=0) quarantine(targetIdentity());
-        resetDisplaySession(); bridgeSession=""; activeTarget=null;
+        if(hasUnconfirmedWrite()) quarantine(targetIdentity());
+        resetDisplaySession(); bridgeSession=""; activeTarget=null;activeBleAddress="";
         usbTransport=new UsbHidTransport();
         transportIo.execute(()->{try{oldUsb.close();}catch(Exception ignored){}});
         if(!oldSession.isEmpty()){bridgeReleaseOwner=oldBridge;bridgeRelease=java.util.concurrent.CompletableFuture.runAsync(()->{
@@ -640,6 +761,7 @@ public class BleManager {
         },transportIo);}
         closeTcpOnly();
         if(callback!=null)callback.onDisconnected();
+        bridgeUi("配置连接已断开；请手动选择设备连接。");
         }finally{commandLock.unlock();}
     }
 
@@ -690,9 +812,28 @@ public class BleManager {
     }
 
     private int wireExpected=-1;
+    private boolean wireMayMutate;
     private long wireSerial;
     private volatile long cancellationEpoch;
     private byte[] wireReply;
+    private boolean hasUnconfirmedWrite() {
+        return (displayLease!=null && displayLease.writing) || k1RouteWriteAttempted
+                || (wireExpected>=0 && wireMayMutate);
+    }
+    // Unknown commands and raw data remain writes. Reads inside unfinished write
+    // transactions must still preserve those transactions' recovery barriers.
+    private static boolean readOnlyRequest(byte[] frame, boolean data) {
+        if(data || frame==null || frame.length<5)return false;
+        return switch(frame[2]&255) {
+            case 0x00,0x95,0x97,0x9F -> frame.length==5;
+            case 0x83 -> frame.length==6;
+            case 0x87 -> frame.length==7;
+            case 0x88 -> frame.length>=6 && frame.length<=8;
+            case 0x9E -> frame[3]==1 && ((frame[4]==0 && frame.length==11)
+                    || (frame[4]==0x10 && frame.length==14));
+            default -> false;
+        };
+    }
     private final ThreadLocal<Long> boundGeneration=new ThreadLocal<>();
     public AutoCloseable bindGeneration(long generation) throws IOException {
         Long previous=boundGeneration.get();boundGeneration.set(generation);
@@ -716,7 +857,7 @@ public class BleManager {
         String capturedTargetId=activeTarget==null?"":activeTarget.id();long requestTicket=-1;
         if(boundGeneration.get()!=null)requireGeneration(boundGeneration.get());
         requireGeneration(generation);
-        if(displayWriteUncertain && !(recoveryProbe.get() && (expected==0x9F || expected==0x88)))throw new IOException("原设备结果未确认；请保持软件与蓝牙桥运行，让键盘断电至少3秒后重连。仅重启软件无法清除隔离。");
+        if(displayWriteUncertain && !recoveryReadAllowed(expected))throw new IOException("原设备结果未确认；请保持软件与蓝牙桥运行，让键盘断电至少3秒后重连。仅重启软件无法清除隔离。");
         try {
             long deadline=System.nanoTime()+TimeUnit.MILLISECONDS.toNanos(RESPONSE_TIMEOUT_MS);
             while(wireExpected>=0) {
@@ -724,8 +865,10 @@ public class BleManager {
                 long left=deadline-System.nanoTime();if(left<=0)throw new IOException("设备请求队列超时");responseReady.awaitNanos(left);
             }
             requireGeneration(generation);
-            if(admittedEpoch!=cancellationEpoch || (displayWriteUncertain && !(recoveryProbe.get() && (expected==0x9F || expected==0x88))))throw new IOException("排队请求已取消或设备已隔离");
+            if(admittedEpoch!=cancellationEpoch || (displayWriteUncertain && !recoveryReadAllowed(expected)))throw new IOException("排队请求已取消或设备已隔离");
             wireExpected=expected;wireReply=null;requestTicket=++wireSerial;
+            wireMayMutate=!readOnlyRequest(frame,data);
+            if(wireMayMutate && k1RouteOwner==Thread.currentThread())k1RouteWriteAttempted=true;
             pendingNotifyFramesByCommand.remove((byte)expected);
             UsbHidTransport usb=usbTransport;String session=bridgeSession;
             var io=transportIo.submit(()->{
@@ -748,7 +891,19 @@ public class BleManager {
                 long left=deadline-System.nanoTime();if(left<=0)throw new IOException("设备回应超时：0x"+Integer.toHexString(expected));
                 responseReady.awaitNanos(left);
             }
-        }catch(Exception e){if(generation==connectionGeneration)requireDeviceRecovery();throw e instanceof IOException?(IOException)e:new IOException("设备发送或等待失败",e);}
+        }catch(Exception e){
+            if(generation==connectionGeneration && requestTicket==wireSerial) {
+                if(hasUnconfirmedWrite())requireDeviceRecovery();
+                else {
+                    // No same-session retry: ordinary replies have no request identity. Retire
+                    // the generation, partial frame and subscription before manual reconnect.
+                    connectionIntent.incrementAndGet();isScanning=false;
+                    disconnectInternal();
+                    if(callback!=null)callback.onError("设备读取未完成，配置连接已断开；请重新点击连接后读取。");
+                }
+            }
+            throw e instanceof IOException?(IOException)e:new IOException("设备发送或等待失败",e);
+        }
         finally{if(generation==connectionGeneration && requestTicket==wireSerial){wireExpected=-1;wireReply=null;wireSerial++;responseReady.signalAll();}}
     }
 
@@ -758,6 +913,9 @@ public class BleManager {
             var fields=com.example.ahakey.service.connection.ManagedBridgeClient.fields().put("sessionId",session).put("targetId",target).put("clientGeneration",Long.toString(generation)).put("channel",data?"data":"command").put("bytes",java.util.Base64.getEncoder().encodeToString(frame));
             managedBridge.request("write",fields,5000);
         }
+    }
+    private boolean recoveryReadAllowed(int opcode) {
+        return recoveryProbe.get() && (opcode==0x9F || opcode==0x88 || (opcode==0 && capabilities().legacyWrites()));
     }
     /** A fresh serialized physical status plus confirmed bindings; busy/unknown/timeout always defers. */
     public boolean refreshAutoApproval() {
@@ -782,6 +940,9 @@ public class BleManager {
         try {
         maintenance.admitFrame(command, connectionGeneration);
         int opcode = command[2] & 255;
+        if(legacyRecoveryUnknown && (opcode==0x80 || opcode==0x82))throw new IOException("旧固件资源保存状态未知，仅恢复普通配置通信。");
+        if ((opcode==0x87 && !isFirmwareCapabilityAdmitted("keys")) || (opcode==0x97 && !isFirmwareCapabilityAdmitted("side")))
+            throw new IOException("当前会话未确认该扩展配置能力。");
         if ((k1RouteOwner != null && k1RouteOwner != Thread.currentThread())
                 || (opcode == 0x9E && k1RouteOwner != Thread.currentThread()))
             throw new IOException("K1命令必须通过独占路由事务发送。");
@@ -885,6 +1046,12 @@ public class BleManager {
                 sendCommand(AhaKeyProtocol.queryFirmwareCatalogKey());
                 if (!isCurrentIdentity(reading)) throw new IOException("键盘连接已改变。");
                 byte[] frame = waitForIdentityResponse(reading);
+                if (com.example.ahakey.protocol.FirmwareCapabilities.legacyIdentityAck(frame)) {
+                    publishIdentity(DeviceStatus.IdentityState.UNSUPPORTED, "");
+                    if(!recoveryProbe.get())callback.onStatusReceived(cachedStatus);
+                    bridgeUi("旧版兼容：可保存普通键和灯光；扩展配置无设备读回。");
+                    return "";
+                }
                 String catalogKey = AhaKeyResponseParser.parseFirmwareCatalogKey(frame);
                 if (catalogKey == null || catalogKey.isBlank()) {
                     throw new IOException("无法解析键盘固件版本");
@@ -894,10 +1061,12 @@ public class BleManager {
                 publishIdentity(AhaKeyProtocol.isDisplayCapabilityResponse(frame)
                         ? DeviceStatus.IdentityState.SUPPORTED : DeviceStatus.IdentityState.UNKNOWN, catalogKey);
                 if (exactCatalogResponse(frame, catalogKey)) exactCatalogIdentity = firmwareIdentity;
+                bridgeUi(capabilities().extended()?"已连接，固件身份已确认："+catalogKey+"。各配置读取结果见主窗口。":"固件身份未在支持档中："+catalogKey);
                 if(!recoveryProbe.get())callback.onStatusReceived(cachedStatus);
                 return catalogKey;
             } catch (Exception e) {
                 if (reading != null && isCurrentIdentity(reading)) {
+                    bridgeUi("固件读取或恢复核对失败："+e.getMessage()+"；请手动重试。");
                     publishIdentity(DeviceStatus.IdentityState.FAILED, "");
                     if(!recoveryProbe.get())callback.onStatusReceived(cachedStatus);
                 }
@@ -933,6 +1102,7 @@ public class BleManager {
     }
 
     public AhaKeyResponseParser.SideSwitchConfig readSideSwitchConfig() throws Exception {
+        if(!isFirmwareCapabilityAdmitted("side"))throw new IOException("当前固件没有已确认的侧拨读回能力。");
         synchronized (commandTransactionLock) {
             commandLock.lock();
             try {
@@ -955,6 +1125,7 @@ public class BleManager {
     }
 
     public void writeSideSwitchConfig(AhaKeyResponseParser.SideSwitchConfig config) throws Exception {
+        if(!isFirmwareCapabilityAdmitted("side"))throw new IOException("当前固件没有已确认的侧拨保存能力。");
         synchronized (commandTransactionLock) {
             commandLock.lock();
             try {
@@ -984,6 +1155,7 @@ public class BleManager {
     }
 
     public AhaKeyResponseParser.OrdinaryKeyReadback readOrdinaryKeyConfig(int mode, int keyIndex) throws Exception {
+        if(!isFirmwareCapabilityAdmitted("keys"))throw new IOException("当前固件没有已确认的普通键读回能力。");
         synchronized (commandTransactionLock) {
             commandLock.lock();
             try {
@@ -1055,7 +1227,7 @@ public class BleManager {
         maintenance.admit(-1, connectionGeneration);
         commandLock.lock();
         try {
-        if (displayLease != null || displayWriteUncertain) throw new IOException("显示配置事务占用或保存结果未确认。");
+        if (displayLease != null || displayWriteUncertain || legacyRecoveryUnknown) throw new IOException("显示配置事务占用或保存结果未确认。");
         logger.debug("发送数据块: {} 字节", chunk.length);
         if (ensureUsbConnected()) {
             maintenance.admit(-1, connectionGeneration);
@@ -1228,14 +1400,22 @@ public class BleManager {
     }
 
     public void sendMultiRuntimeSnapshot(com.example.ahakey.model.AiRuntimeSlotBinding[] slots, long generation) throws Exception {
+        sendMultiRuntimeSnapshot(slots, generation, () -> true);
+    }
+
+    /** The guard is lock-free: callers must not acquire their state lock from the device lock. */
+    public boolean sendMultiRuntimeSnapshot(com.example.ahakey.model.AiRuntimeSlotBinding[] slots, long generation,
+                                            java.util.function.BooleanSupplier current) throws Exception {
         synchronized (commandTransactionLock) {
             commandLock.lock();
             try {
                 if (generation != connectionGeneration) throw new IOException("键盘连接已改变。");
+                if (!current.getAsBoolean()) return false;
                 pendingNotifyFramesByCommand.clear();
                 sendCommand(AhaKeyProtocol.multiRuntimeSnapshot(slots));
                 waitForResponseFrame(AhaKeyProtocol.CMD_MULTI_RUNTIME_SNAPSHOT, true, false);
                 if (generation != connectionGeneration) throw new IOException("键盘连接已改变。");
+                return true;
             } finally {
                 commandLock.unlock();
             }
@@ -1348,13 +1528,7 @@ public class BleManager {
     }
 
     private void requestModeReadbackStatus() throws IOException {
-        if (ensureUsbConnected()) {
-            sendUsbCommand(AhaKeyProtocol.queryDeviceStatus());
-            return;
-        }
-        writePacket(BleTcpPacket.QUERY_BLE_STATUS, null);
-        writePacket(BleTcpPacket.QUERY_DEVICE_INFO, null);
-        writePacket(BleTcpPacket.WRITE_COMMAND, AhaKeyProtocol.queryDeviceStatus());
+        sendCommand(AhaKeyProtocol.queryDeviceStatus());
     }
 
     public boolean isConnected() {
@@ -1401,11 +1575,7 @@ public class BleManager {
 
     private void queryBridgeDeviceInfo() {
         try {
-            if (usbTransport.isOpen()) {
-                sendCommand(AhaKeyProtocol.queryDeviceStatus());
-                return;
-            }
-            writePacket(BleTcpPacket.QUERY_BLE_STATUS, null);
+            sendCommand(AhaKeyProtocol.queryDeviceStatus());
         } catch (IOException ignored) {
         }
     }
@@ -1527,7 +1697,7 @@ public class BleManager {
                 status.setIdentityState(firmwareIdentity.state());
                 cachedStatus = status;statusSequence++;lastStatusUpdateTime=System.currentTimeMillis();
                 lastStatusUpdateTime = System.currentTimeMillis();
-                callback.onStatusReceived(status);
+                if(!displayWriteUncertain)callback.onStatusReceived(status);
                 return status;
             } finally {
                 commandLock.unlock();
@@ -1829,7 +1999,7 @@ public class BleManager {
             status.setConnected(true);
             cachedStatus = status;statusSequence++;lastStatusUpdateTime=System.currentTimeMillis();
             enqueueNotifyFrame(data);
-            callback.onStatusReceived(status);
+            if(!displayWriteUncertain)callback.onStatusReceived(status);
             return;
         }
         logger.debug("parseDeviceStatus 返回 null");

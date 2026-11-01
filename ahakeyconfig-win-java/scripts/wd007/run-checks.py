@@ -8,6 +8,10 @@ parser.add_argument('--filter',default='')
 args=parser.parse_args()
 output=Path(args.output).resolve();output.mkdir(parents=True,exist_ok=False)
 classes=[
+ 'service.Wd007FirmwareMatrixChecks',
+ 'service.Wd007CursorRuntimeChecks',
+ 'service.Wd007CanvasReadbackChecks','service.Wd007ReadFailureChecks','service.Wd007TransferChecks',
+ 'service.Wd007HookManagementChecks','service.Wd007HookUiChecks',
  'service.connection.ManagedBridgeClientChecks','service.Wd007BehaviorChecks','service.Wd007SafetyChecks','service.Wd007RecoveryControllerChecks','service.Wd007UsbTerminationChecks','service.Wd007BridgeRetirementChecks','service.Wd007WindowExitChecks','service.KimiBridgeLifecycleCheck',
  'displayconfig.DisplayConfigChecks','displayconfig.DisplayConfigCapabilityChecks','displayconfig.DisplayConfigIsolationChecks',
  'displayconfig.DisplayConfigRaceChecks','displayconfig.DisplayConfigFxChecks','displayconfig.DisplayConfigRevision3Checks',
@@ -18,7 +22,7 @@ classes=[
 if args.filter:classes=[c for c in classes if c.rsplit('.',1)[1] in args.filter.split(',')]
 def run(name):
     log=output/(name.rsplit('.',1)[1]+'.log');home=output/(name.rsplit('.',1)[1]+'-home');home.mkdir()
-    command=[args.java,'-Duser.home='+str(home),'-cp','target/test-classes;target/classes;target/lib/*','com.example.ahakey.'+name]
+    command=[args.java,'-Dfile.encoding=UTF-8','-Duser.home='+str(home),'-Dwd007.artifacts='+str(home/'artifacts'),'-cp','target/test-classes;target/classes;target/lib/*','com.example.ahakey.'+name]
     if name.endswith('DisplayConfigRevision3UiChecks'):command.append(str(output/'display-ui.png'))
     if name.endswith(('SimpleFlashChecks','ReleaseSignatureChecks')):command.append(str(output/(name.rsplit('.',1)[1]+'-artifacts')))
     started=time.monotonic()

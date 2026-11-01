@@ -30,6 +30,8 @@ public final class DisplayConfigService implements AutoCloseable {
     private volatile Thread uploadThread;
     private volatile long uploadConnection=-1;
     private Consumer<String> errorHandler = message -> {};
+    private final int legacyBrightness;
+    private final int[][] legacyEffects=new int[4][9];
 
     public DisplayConfigService(StudioState studio, BleManager ble) {
         this(studio, ble, new OledResourceStore());
@@ -39,6 +41,8 @@ public final class DisplayConfigService implements AutoCloseable {
         this.state = studio.displayConfig();
         this.ble = ble;
         this.store = Objects.requireNonNull(store);
+        legacyBrightness=studio.getLightBrightness();
+        for(ModeSlot mode:ModeSlot.values())for(IDEState ai:IDEState.values())legacyEffects[mode.getIndex()][ai.getCode()]=studio.getAiLightEffect(mode,ai).getCode()&255;
         state.select(studio.getSelectedMode().getIndex(), 0, 0);
         Map<Integer, String> legacy = new HashMap<>();
         for (ModeSlot mode : ModeSlot.values()) legacy.put(mode.getIndex() * 4, studio.getOledDraft(mode).getLocalAssetPath());
@@ -76,6 +80,7 @@ public final class DisplayConfigService implements AutoCloseable {
         long generation = ble.connectionGeneration();
         boolean connected = ble.isConnected() && ble.getCachedStatus().isConnected();
         if (generation != observedConnection || connected != wasConnected) {
+            state.invalidateLightingObservations();
             if (observedConnection >= 0) state.message.set("键盘连接已改变，本地草稿已保留。");
             if(uploadThread!=null)uploadThread.interrupt();
             operationGeneration++;state.busy.set(false);studio.uploadingOledProperty().set(false);
@@ -88,6 +93,9 @@ public final class DisplayConfigService implements AutoCloseable {
         updateWriteReady();
     }
     public void capabilityChanged() {
+        if (ble.capabilities().legacyWrites()) {
+            state.initializeLegacy(legacyBrightness,legacyEffects);
+        }
         updateWriteReady(); refresh();
     }
     private void updateWriteReady() {
@@ -115,7 +123,7 @@ public final class DisplayConfigService implements AutoCloseable {
         state.runtimeDisabledReasonKey.set(!connected || fullDisplay ? state.disabledReasonKey.get() : "display.runtime-unsupported");
     }
     private boolean selectedCapabilityAdmitted() {
-        return ble.isDisplayAdmitted() || (studio.getSelectedPart() == StudioPart.LIGHT_BAR && ble.isFirmwareCapabilityAdmitted("lights"));
+        return ble.isDisplayAdmitted() || (studio.getSelectedPart() == StudioPart.LIGHT_BAR && (ble.isFirmwareCapabilityAdmitted("lights") || ble.capabilities().legacyWrites()));
     }
 
     public void select(int group, int substate) { state.select(studio.getSelectedMode().getIndex(), group, substate); }
@@ -200,6 +208,7 @@ public final class DisplayConfigService implements AutoCloseable {
         state.loading.set(false);
         StudioPart part = studio.getSelectedPart();
         if (state.busy.get() || studio.modeSwitchingProperty().get() || !wasConnected || !selectedCapabilityAdmitted() || (part != StudioPart.OLED && part != StudioPart.LIGHT_BAR)) return;
+        if (ble.capabilities().legacyWrites()) {state.message.set("旧固件：灯光为本地草稿，可发送保存请求；没有设备读回核对。");return;}
         if (part == StudioPart.OLED && !state.ready.get()) return;
         int mode = studio.getSelectedMode().getIndex();
         long connection = ble.connectionGeneration();
@@ -275,10 +284,18 @@ public final class DisplayConfigService implements AutoCloseable {
     }
     public void saveBrightness() {
         if (!state.writeReady.get() || state.busy.get()) return;
+        if(!ble.capabilities().legacyWrites()&&!state.brightnessKnownOrEdited()){error("当前连接的亮度尚未读回，请等待同步或明确编辑后保存。");return;}
         int brightness = state.brightness.get();
         long edit = state.brightnessRevision();
         long connection = ble.connectionGeneration();
         work(true, operation -> {
+            if (ble.capabilities().legacyWrites()) {
+                try(var binding=ble.bindGeneration(connection)) {
+                    ble.sendCommandExpecting(AhaKeyProtocol.setLightBrightness(brightness),AhaKeyProtocol.CMD_SET_LIGHT_BRIGHTNESS);
+                    ble.sendCommandExpecting(AhaKeyProtocol.saveConfig(),(byte)0x04);
+                }
+                deviceFx(operation,()->{studio.setLightBrightness(brightness);state.message.set("旧固件已确认亮度和保存请求；本地草稿保留，未进行设备读回核对。");});return;
+            }
             try (BleManager.DisplayLease lease = ble.openDisplayLease(true, connection)) {
                 OledUploadService.requireAck(ble.exchangeDisplay(lease, AhaKeyProtocol.saveDisplayBrightness(brightness)), AhaKeyProtocol.CMD_DISPLAY_SAVE);
                 logger.info("Brightness ACK: connection={}, operation={}, value={}", connection, operation.id(), brightness);
@@ -292,12 +309,21 @@ public final class DisplayConfigService implements AutoCloseable {
         int[] effects = new int[9];
         long[] edits = new long[9];
         for (int ai = 0; ai < 9; ai++) {
+            if(!ble.capabilities().legacyWrites()&&!state.effectKnownOrEdited(mode,ai)){error("当前模式灯效尚未完整读回，请等待同步或明确编辑全部值后保存。");return;}
             effects[ai] = state.effect(mode, ai);
             edits[ai] = state.effectRevision(mode, ai);
             if (effects[ai] < 0 || effects[ai] > 16) { error("存在未知灯效，请为该状态选择有效灯效后保存。"); return; }
         }
         long connection = ble.connectionGeneration();
         work(true, operation -> {
+            if (ble.capabilities().legacyWrites()) {
+                byte[] values=new byte[effects.length];for(int i=0;i<effects.length;i++)values[i]=(byte)effects[i];
+                try(var binding=ble.bindGeneration(connection)) {
+                    ble.sendCommandExpecting(AhaKeyProtocol.setAiLightConfig(mode,values),AhaKeyProtocol.CMD_SET_AI_LIGHT_CONFIG);
+                    ble.sendCommandExpecting(AhaKeyProtocol.saveConfig(),(byte)0x04);
+                }
+                deviceFx(operation,()->{for(IDEState ai:IDEState.values())studio.setAiLightEffect(ModeSlot.values()[mode],ai,LightEffectStyle.fromCodeOrNull(effects[ai.getCode()]));state.message.set("旧固件已确认灯效和保存请求；本地草稿保留，未进行设备读回核对。");});return;
+            }
             int saved = 0;
             try (BleManager.DisplayLease lease = ble.openDisplayLease(true, connection)) {
                 for (int ai = 0; ai < 9; ai++) {

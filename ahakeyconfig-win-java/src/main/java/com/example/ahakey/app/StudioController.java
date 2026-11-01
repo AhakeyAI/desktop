@@ -108,8 +108,10 @@ public class StudioController {
         try { lease.close(); } catch (Exception e) { logger.warn("Transaction close failed", e); }
     }
     private void deviceFx(Runnable action) {
+        deviceFx(bleManager.operationGeneration(), action);
+    }
+    private void deviceFx(long generation, Runnable action) {
         long epoch = bleManager.maintenance().epoch();
-        long generation = bleManager.operationGeneration();
         Platform.runLater(() -> {
             if (epoch == bleManager.maintenance().epoch() && generation == bleManager.connectionGeneration()
                     && bleManager.maintenance().normalAllowed()) action.run();
@@ -143,6 +145,7 @@ public class StudioController {
                 deviceFx(() -> {
                     if (generation != bleManager.connectionGeneration() || !bleManager.isConnected()) return;
                     reconcileCurrentConnection();
+                    if(bleManager.isLegacySaveResultUnknown())studioState.syncStatusProperty().set("旧固件通信已恢复；上次保存结果仍未知，原记录和本地草稿保留，请核对后重新明确保存。");
                     if (enterEditingAfterConnect) {
                         enterEditingAfterConnect = false;
                         activateConfigurationEditing();
@@ -156,7 +159,7 @@ public class StudioController {
                 long generation = bleManager.connectionGeneration();
                 firmwareCatalogKeyRequested = false;
                 enterEditingAfterConnect = false;
-                deviceFx(() -> {
+                deviceFx(generation, () -> {
                     if (generation != bleManager.connectionGeneration()) return;
                     reconcileCurrentConnection();
                     if (modeSwitchInProgress.getAndSet(false)) {
@@ -207,7 +210,7 @@ public class StudioController {
         hookDispatchServer = new HookDispatchServer(bleManager, aiRuntimeDisplayService);
         aiRuntimeHookInstaller = new HookInstaller(hookDispatchServer::getActualPort, msg -> logger.info("{}", msg));
 
-        if (platformServicesEnabled) {hookDispatchServer.start();deviceThread(aiRuntimeHookInstaller::migrateOwnedApprovalScripts,"hook-policy-migration").start();}
+        if (platformServicesEnabled) {hookDispatchServer.start();aiRuntimeDisplayService.startCursorMonitoring();deviceThread(aiRuntimeHookInstaller::migrateOwnedApprovalScripts,"hook-policy-migration").start();}
 
         // KimiAhaKeyBridge 在设备连接后按连接类型决定是否启动（见 onConnected）
         kimiAhaKeyBridge = bridgeFactory.apply(bleManager);
@@ -405,6 +408,7 @@ public class StudioController {
     }
 
     public void shutdown() {
+        aiRuntimeDisplayService.close();
         updateCenter.close();
         displayConfigService.close();
         k1RouteService.close();
@@ -648,6 +652,9 @@ public class StudioController {
         }
 
         final AutoCloseable saveTransaction;
+        if(!bleManager.capabilities().legacyWrites() && !bleManager.isFirmwareCapabilityAdmitted("keys")) {
+            studioState.syncStatusProperty().set("固件能力尚未确认，本地草稿保留；请重新连接并读取身份。");return;
+        }
         try { saveTransaction = bleManager.maintenance().normalTransaction(); }
         catch (Exception busy) { studioState.syncStatusProperty().set(busy.getMessage()); return; }
         String transport;
@@ -665,11 +672,14 @@ public class StudioController {
         boolean savedCp4c=studioState.isCp4cInputConfigEnabled();
         var legacyK1 = k1RouteService.legacySnapshot();
         long saveGeneration = bleManager.connectionGeneration();
-        var commands = DeviceSyncService.commandsForModes(studioState,
-                studioState.k1Routes().capability.get() != com.example.ahakey.model.K1RouteState.Capability.LEGACY, ModeSlot.values());
-        commands.removeIf(command -> command.data()[2] == AhaKeyProtocol.CMD_SET_AI_LIGHT_CONFIG
+        java.util.List<DeviceSyncService.LabeledCommand> commands;
+        try {commands = bleManager.capabilities().legacyWrites()?DeviceSyncService.legacyEditedCommands(studioState):DeviceSyncService.commandsForModes(studioState,
+                !bleManager.capabilities().legacyWrites() && studioState.k1Routes().capability.get() != com.example.ahakey.model.K1RouteState.Capability.LEGACY, ModeSlot.values());
+        }catch(Exception invalid){closeTransaction(saveTransaction);studioState.syncStatusProperty().set(invalid.getMessage());return;}
+        if(commands.isEmpty()){closeTransaction(saveTransaction);studioState.syncStatusProperty().set("没有明确编辑的配置；未读回的按键不会发送到设备。");return;}
+        if (!bleManager.capabilities().legacyWrites()) commands.removeIf(command -> command.data()[2] == AhaKeyProtocol.CMD_SET_AI_LIGHT_CONFIG
                 || command.data()[2] == AhaKeyProtocol.CMD_SET_LIGHT_BRIGHTNESS);
-        if(studioState.k1Routes().capability.get()==com.example.ahakey.model.K1RouteState.Capability.LEGACY)
+        if(!bleManager.capabilities().legacyWrites() && studioState.k1Routes().capability.get()==com.example.ahakey.model.K1RouteState.Capability.LEGACY)
             commands.removeIf(command -> command.data()[2]==0x73 && command.data()[5]==0
                     && legacyK1.stream().noneMatch(edit -> edit.mode()==(command.data()[4]&255)));
         studioState.syncingProperty().set(true);
@@ -691,7 +701,9 @@ public class StudioController {
                             k1RouteService.confirmLegacy(legacyK1,saveGeneration);
                             if(studioState.getRevision()==syncRevision)studioState.clearDirtyAfterSync();
                             lastSyncedRevision=syncRevision;studioState.syncingProperty().set(false);
-                            studioState.syncStatusProperty().set("已保存本次配置快照，后续编辑继续保留。");
+                            studioState.syncStatusProperty().set(bleManager.capabilities().legacyWrites()
+                                    ? "旧固件已确认配置与保存请求；不支持读回核对，显示内容仍为本地草稿。"
+                                    : "已保存本次配置快照，后续编辑继续保留。");
                             if(returnToAgentWhenDone)returnToKeyboardControl();
                         });
                     }

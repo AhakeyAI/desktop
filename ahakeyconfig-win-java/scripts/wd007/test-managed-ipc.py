@@ -37,7 +37,7 @@ for scenario in ['normal','wrong-token','owner-closes','invalid-frame']:
         while peer is None and time.monotonic()<end:
             try:peer=socket.create_connection(('127.0.0.1',port),timeout=.15)
             except OSError:time.sleep(.025)
-        check(peer is not None,'managed listener starts without Form or device')
+        check(peer is not None,'managed listener and window start without device enumeration')
         with peer:
             peer.settimeout(3)
             packet(peer,dict(version=1,requestId='1',op='hello',ownerToken=token if scenario!='wrong-token' else 'wrong',versions=[1]))
@@ -47,6 +47,11 @@ for scenario in ['normal','wrong-token','owner-closes','invalid-frame']:
                 reply=receive(peer);check(reply['ok'] and 'session-writes' in reply['capabilities'],'versioned hello')
                 instance=reply['bridgeInstanceId']
                 if scenario=='normal':
+                    check('visible-window' in reply['capabilities'],'compiled bridge advertises visible control surface')
+                    packet(peer,dict(version=1,requestId='show',op='showWindow',bridgeInstanceId=instance))
+                    check(receive(peer)['ok'],'show existing authenticated bridge window')
+                    packet(peer,dict(version=1,requestId='status',op='studioStatus',bridgeInstanceId=instance,sequence=1,selectionAuthority='1:1:',message='离线 IPC 测试，无设备访问'))
+                    check(receive(peer)['ok'],'coordinator status delivered to window')
                     packet(peer,dict(version=1,requestId='2',op='write',bridgeInstanceId=instance,sessionId='absent',targetId='fake',clientGeneration='1',channel='command',bytes='qrsAzN0='))
                     check(receive(peer)['code']=='SESSION_CHANGED','write without selected target rejected before GATT')
                     packet(peer,dict(version=1,requestId='2',op='write',bridgeInstanceId=instance))

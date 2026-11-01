@@ -66,7 +66,7 @@ public class TopBar extends VBox {
     private final LanguageManager languageManager;
     private MenuItem languageMenuItem;
     private UpdateCenterDialog updateCenterDialog;
-    private boolean hookUpdateSummaryShown;
+    private final Map<String,String> hookWriteMessages = new java.util.HashMap<>();
     
     // 语音相关UI组件
     private Button voiceRecordButton;
@@ -794,14 +794,6 @@ public class TopBar extends VBox {
                         );
                     }
                     hookDialogBusy.set(false);
-                    List<String> outdated = scanned.entrySet().stream()
-                        .filter(entry -> entry.getValue() == HookInstaller.HookStatus.OUTDATED)
-                        .map(Map.Entry::getKey)
-                        .toList();
-                    if (!outdated.isEmpty() && !hookUpdateSummaryShown) {
-                        hookUpdateSummaryShown = true;
-                        showHookUpdateSummary(outdated, rescan[0]);
-                    }
                 });
             }, "hook-manager-scan");
             thread.setDaemon(true);
@@ -874,7 +866,7 @@ public class TopBar extends VBox {
         statusLabel.getStyleClass().add(status == HookInstaller.HookStatus.LATEST ? "dialog-status-installed" : "dialog-status-uninstalled");
         titleRow.getChildren().addAll(title, spacer, statusLabel);
 
-        Label description = hookNote(hookDescription(status));
+        Label description = hookNote(hookInstaller.statusDetail(hookName).isBlank()?hookDescription(status):hookInstaller.statusDetail(hookName));
         Button action = new Button(hookActionText(status));
         boolean canWrite = status == HookInstaller.HookStatus.NOT_INSTALLED || status == HookInstaller.HookStatus.OUTDATED;
         if (hookDialogBusy == null) {
@@ -894,6 +886,7 @@ public class TopBar extends VBox {
         }
 
         card.getChildren().addAll(titleRow, description, action);
+        if(hookWriteMessages.containsKey(hookName))card.getChildren().add(hookNote(hookWriteMessages.get(hookName)));
     }
 
     private void runSingleHookWrite(
@@ -920,86 +913,21 @@ public class TopBar extends VBox {
                 if (actionButtons != null) {
                     actionButtons.values().forEach(button -> button.setMouseTransparent(false));
                 }
-                if (result.success()) {
-                    if (rescan != null) {
-                        rescan.run();
-                    } else if (hookDialogBusy != null) {
-                        hookDialogBusy.set(false);
-                    }
-                } else {
-                    Alert alert = new Alert(Alert.AlertType.ERROR);
-                    alert.initOwner(getScene() == null ? null : getScene().getWindow());
-                    alert.setTitle("AhaKey Hook 管理");
-                    alert.setHeaderText(null);
-                    alert.setContentText(result.reason() + "，请联系管理员");
-                    alert.showAndWait();
-                    if (rescan != null) {
-                        rescan.run();
-                    } else if (hookDialogBusy != null) {
-                        hookDialogBusy.set(false);
-                    }
-                }
+                hookWriteMessages.put(hookName,(result.success()?"成功：":"未完成：")+result.reason());
+                if(rescan!=null)rescan.run();
+                else if(hookDialogBusy!=null)hookDialogBusy.set(false);
             });
         }, "hook-manager-write-" + hookName);
         thread.setDaemon(true);
         thread.start();
     }
 
-    private void showHookUpdateSummary(List<String> outdated, Runnable rescan) {
-        javafx.scene.control.Dialog<Void> dialog = new javafx.scene.control.Dialog<>();
-        dialog.initOwner(getScene() == null ? null : getScene().getWindow());
-        dialog.setTitle("AhaKey Hook 管理");
-        ButtonType update = new ButtonType("一键更新");
-        ButtonType cancel = new ButtonType("取消", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
-        dialog.getDialogPane().getButtonTypes().setAll(update, cancel);
-        Label message = hookNote("以下工具需要更新 Hook：" + String.join("、", outdated)
-            + "\n更新会先备份原 Hook 文件，并且只替换 AhaKey Hook。");
-        dialog.getDialogPane().setContent(message);
-        Button updateButton = (Button) dialog.getDialogPane().lookupButton(update);
-        Button cancelButton = (Button) dialog.getDialogPane().lookupButton(cancel);
-        updateButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
-            event.consume();
-            updateButton.setDisable(true);
-            cancelButton.setDisable(true);
-            Thread thread = new Thread(() -> {
-                List<String> failed = new ArrayList<>();
-                for (String name : outdated) {
-                    String currentName = name;
-                    Platform.runLater(() -> message.setText("正在更新：" + currentName));
-                    HookInstaller.HookWriteResult result = hookInstaller.installOrUpdate(currentName);
-                    if (!result.success()) {
-                        failed.add(currentName + "：" + result.reason());
-                    }
-                }
-                Platform.runLater(() -> {
-                    if (failed.isEmpty()) {
-                        dialog.close();
-                        if (rescan != null) {
-                            rescan.run();
-                        }
-                    } else {
-                        message.setText("以下工具更新失败：\n" + String.join("\n", failed));
-                        ButtonType know = new ButtonType("知道了", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
-                        dialog.getDialogPane().getButtonTypes().setAll(know);
-                        Button knowButton = (Button) dialog.getDialogPane().lookupButton(know);
-                        knowButton.addEventFilter(javafx.event.ActionEvent.ACTION, e -> {
-                            if (rescan != null) {
-                                rescan.run();
-                            }
-                        });
-                    }
-                });
-            }, "hook-manager-update-all");
-            thread.setDaemon(true);
-            thread.start();
-        });
-        dialog.show();
-    }
-
     private String hookStatusText(HookInstaller.HookStatus status) {
         return switch (status) {
             case DETECTING -> "检测中";
             case APP_NOT_FOUND -> "未检测到应用";
+            case CONFIG_ONLY -> "仅配置痕迹";
+            case UNSUPPORTED -> "兼容性未确认";
             case NOT_INSTALLED -> "未安装";
             case OUTDATED -> "待更新";
             case LATEST -> "最新";
@@ -1009,7 +937,7 @@ public class TopBar extends VBox {
 
     private String hookActionText(HookInstaller.HookStatus status) {
         return switch (status) {
-            case APP_NOT_FOUND -> "不可安装";
+            case APP_NOT_FOUND, CONFIG_ONLY, UNSUPPORTED -> "不可安装";
             case NOT_INSTALLED -> "安装 Hook";
             case OUTDATED -> "更新 Hook";
             case LATEST -> "已是最新";
@@ -1021,10 +949,12 @@ public class TopBar extends VBox {
     private String hookDescription(HookInstaller.HookStatus status) {
         return switch (status) {
             case APP_NOT_FOUND -> "未检测到对应应用，暂不可安装 Hook";
+            case CONFIG_ONLY -> "仅发现配置目录，未检测到应用启动入口";
+            case UNSUPPORTED -> "当前应用版本的 Hook 能力尚未确认，不会写入配置";
             case NOT_INSTALLED -> "未安装 Hook，安装后可支持 AhaKey 功能";
-            case OUTDATED -> "当前 Hook 需要更新，更新后可支持多任务灯光状态，并优化 Cursor 权限流程";
-            case LATEST -> "已是最新版，支持多任务灯光状态";
-            case ERROR -> "检测异常，请联系管理员";
+            case OUTDATED -> "脚本或注册信息需更新；只替换 AhaKey 自有条目";
+            case LATEST -> "脚本和注册已就绪；客户端需重新加载配置";
+            case ERROR -> "配置检测失败，请检查卡片说明后重新检测";
             case DETECTING -> "正在检测 Hook 状态";
         };
     }

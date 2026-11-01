@@ -193,13 +193,15 @@ public class AhaKeyProtocol {
     }
 
     public static boolean isWs3Cp1RuntimeDisplaySupported(String catalogKey) {
-        return CP4C_CATALOG_KEY.equals(catalogKey);
+        return FirmwareCapabilities.catalog(catalogKey).extended();
     }
 
     public static boolean isDisplayCapabilityResponse(byte[] frame) {
         if (!isValidFrame(frame) || frame.length < 6 || frame[2] != CMD_FIRMWARE_CATALOG_KEY) return false;
         int offset = frame[3] == 0 ? 4 : 3;
-        byte[] key = CP4C_CATALOG_KEY.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        String parsed = AhaKeyResponseParser.parseFirmwareCatalogKey(frame);
+        if (!FirmwareCapabilities.catalog(parsed).extended()) return false;
+        byte[] key = parsed.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
         if (frame.length - 2 - offset < key.length) return false;
         for (byte value : key) if (frame[offset++] != value) return false;
         while (offset < frame.length - 2) if (frame[offset++] != 0) return false;

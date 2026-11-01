@@ -99,8 +99,8 @@ public final class Wd007UsbTerminationChecks {
             DeviceRecoveryRegistry registry=(DeviceRecoveryRegistry)field(w,"recoveryTargets");
             check(registry.contains("USB:A")&&!registry.absenceObserved("USB:A"),"I/O failure quarantines uncertain write without claiming physical absence");
             w.pollUsbCandidates();check(!registry.absenceObserved("USB:A")&&!w.isConnected(),"unchanged complete enumeration does not clear quarantine or reconnect");
-            w.held=-1;w.connectSelected(new DeviceTarget("USB","A","same path"));await(w::isConnected,"manual reconnect permits recovery presentation");
-            check(w.isDisplayWriteUncertain()&&!w.refreshAutoApproval(),"reader failure alone cannot re-admit writes or AUTO");
+            w.held=-1;w.connectSelected(new DeviceTarget("USB","A","same path"));await(()->!w.isScanning()&&!w.isConnected(),"manual reconnect without recovery evidence remains disconnected");
+            check(registry.contains("USB:A")&&!w.refreshAutoApproval()&&!fx(()->controller.getDeviceStatus().isConnected()),"reader failure retains recovery registration and cannot re-admit writes, UI connection or AUTO");
             System.out.println("PASS "+checks+" IR05 reader/coordinator/controller checks; stable enumeration, no real HID");
         }finally{pool.shutdownNow();fx(()->{controller.shutdown();return null;});Platform.exit();}
     }

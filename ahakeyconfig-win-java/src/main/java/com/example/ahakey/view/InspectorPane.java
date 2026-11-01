@@ -157,7 +157,7 @@ public class InspectorPane extends ScrollPane {
             body.getChildren().addAll(routeStatus, readRoute);
             VBox keyEditor = createKeyBindingGroup(part);
             keyEditor.disableProperty().bind(Bindings.createBooleanBinding(() -> routeState.busy.get()
-                    || studioState.syncingProperty().get() || !routeState.confirmed(routeMode), routeState.busy, routeState.capability, routeState.revision, studioState.syncingProperty()));
+                    || studioState.syncingProperty().get() || (!routeState.confirmed(routeMode) && !controller.getBleManager().capabilities().legacyWrites()), routeState.busy, routeState.capability, routeState.revision, studioState.syncingProperty()));
             body.getChildren().add(keyEditor);
             body.getChildren().add(createSimulateKeyGroup(part));
             VBox description = createDescriptionGroup(part);

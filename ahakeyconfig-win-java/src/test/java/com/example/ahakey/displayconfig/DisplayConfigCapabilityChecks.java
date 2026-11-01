@@ -184,7 +184,9 @@ public final class DisplayConfigCapabilityChecks {
             check("C01-no-admission-" + usb + "-" + value.replace('\0','?'), !w.ble.isDisplayAdmitted());
         }
         w.respond = request -> w.reply(identity(""));
-        denied("C01-empty-response-fails-" + usb, () -> w.ble.readFirmwareCatalogKey());
+        w.ble.readFirmwareCatalogKey();
+        check("C01-generic-ACK-only-historical-writes-" + usb,w.ble.capabilities().legacyWrites()&&!w.ble.isDisplayAdmitted());
+        denied("C01-generic-ACK-never-display-lease-"+usb,()->w.ble.openDisplayLease(true));
         check("C04-basic-version-fallback-" + usb, w.ble.getCachedStatus().getDisplayFirmwareVersion().equals("V1.2"));
         w.identify();
         check("C01-valid-response-auto-admits-" + usb, w.ble.isDisplayAdmitted()
@@ -233,11 +235,16 @@ public final class DisplayConfigCapabilityChecks {
     }
     private static void timeoutAndRecovery() throws Exception {
         var w = new DisplayConfigChecks.FakeSession(false);
+        long generation=w.ble.connectionGeneration();
         w.respond = request -> {};
         denied("C01-real-timeout", () -> w.ble.readFirmwareCatalogKey());
-        check("C01-timeout-is-FAILED-not-legacy",w.ble.firmwareIdentity().state()==DeviceStatus.IdentityState.FAILED && !w.ble.isDisplayAdmitted());
-        denied("C01-timeout-retry-remains-quarantined",w::identify);
-        reset(w.ble);w.identify();check("C01-new-fixture-session-recovers",w.ble.isDisplayAdmitted());
+        // R4 explicitly retires a failed read session instead of persisting an unknown-write barrier.
+        check("C01-timeout-retires-read-session-not-legacy",!w.ble.isConnected()
+                &&w.ble.connectionGeneration()!=generation&&w.ble.firmwareIdentity().state()==DeviceStatus.IdentityState.DISCONNECTED
+                &&!w.ble.isDisplayAdmitted()&&!w.ble.isDisplayWriteUncertain());
+        denied("C01-no-retry-in-retired-session",w::identify);
+        var fresh=new DisplayConfigChecks.FakeSession(false);fresh.identify();
+        check("C01-new-fixture-session-needs-fresh-identity",fresh.ble.isDisplayAdmitted()&&!w.ble.isDisplayAdmitted());
     }
     private static void transportSwitch() throws Exception {
         var w = new DisplayConfigChecks.FakeSession();

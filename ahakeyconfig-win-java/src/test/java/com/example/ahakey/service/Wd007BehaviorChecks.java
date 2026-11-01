@@ -99,9 +99,9 @@ public final class Wd007BehaviorChecks {
             open.invoke(wire,new DeviceTarget("USB","A","old queued attempt"),0L);
             check(wire.isConnected()&&wire.targetIdentity().equals("USB:B")&&wire.connectionGeneration()==b,"obsolete queued open cannot even disconnect B");
             try(var ignored=wire.bindGeneration(a)){try{wire.sendCommand(AhaKeyProtocol.queryDeviceStatus());throw new AssertionError("old generation sent");}catch(IOException expected){checks++;}}
-            wire.held=-1;wire.connectSelected(new DeviceTarget("USB","A","A"));await(()->wire.isConnected()&&wire.targetIdentity().equals("USB:A"),"A may reconnect for recovery presentation");
+            wire.held=-1;wire.connectSelected(new DeviceTarget("USB","A","A"));await(()->!wire.isScanning()&&!wire.isConnected(),"unproven recovery cannot publish a usable connection");
             int count=wire.frames.size();try{wire.sendCommand(AhaKeyProtocol.queryFirmwareCatalogKey());throw new AssertionError("quarantine bypass");}catch(IOException expected){}
-            check(wire.isDisplayWriteUncertain()&&wire.frames.size()==count,"reopening same target cannot erase uncertain transaction");
+            check(((com.example.ahakey.service.connection.DeviceRecoveryRegistry)field(wire,"recoveryTargets")).contains("USB:A")&&wire.frames.size()==count,"failed reopen retains persistent uncertain transaction and sends no ordinary request");
             var registry=(com.example.ahakey.service.connection.DeviceRecoveryRegistry)field(wire,"recoveryTargets");
             var onDisk=new com.example.ahakey.service.connection.DeviceRecoveryRegistry(Path.of(System.getProperty("user.home"),".ahakey","device-recovery.json"));
             check(onDisk.contains("USB:A")&&!onDisk.absenceObserved("USB:A"),"application restart preserves quarantine");

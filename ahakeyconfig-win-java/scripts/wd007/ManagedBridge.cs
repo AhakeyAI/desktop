@@ -8,11 +8,57 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
+using System.Windows.Forms;
+using System.Drawing;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.GenericAttributeProfile;
 using Windows.Devices.Enumeration;
 
 namespace BLE_tcp_driver {
+    // UI owns only user intent. No BleCore, TCP listener, or firmware writer exists here.
+    internal sealed class ManagedBridgeWindow : Form {
+        private readonly ListBox devices = new ListBox { Dock=DockStyle.Fill };
+        private readonly Label status = new Label { Dock=DockStyle.Bottom,Height=65,Text="正在连接 AhaKey Studio…",AutoEllipsis=true };
+        private readonly NotifyIcon tray;
+        private readonly Action<string,Dictionary<string,object>> intent;
+        private bool exiting;
+        private string selectionAuthority="";
+        private Button connect;
+        private sealed class Choice {
+            public string Id,Name,Address;
+            public override string ToString() { return Name+"  ["+Address+"]"; }
+        }
+        public ManagedBridgeWindow(Action<string,Dictionary<string,object>> intent) {
+            this.intent=intent;Text="AhaKey 蓝牙桥";Size=new Size(550,350);MinimumSize=new Size(420,260);
+            var actions=new FlowLayoutPanel { Dock=DockStyle.Top,Height=40 };
+            var refresh=new Button { Text="刷新设备",AutoSize=true };
+            connect=new Button { Text="连接所选键盘",AutoSize=true,Enabled=false };
+            var disconnect=new Button { Text="断开配置连接",AutoSize=true };
+            refresh.Click+=(s,e)=>intent("refreshRequested",new Dictionary<string,object>());
+            connect.Click+=(s,e)=>{
+                var item=devices.SelectedItem as Choice;if(item==null){status.Text="请先选择键盘。";return;}
+                status.Text="已请求连接 "+item.Name+"…";
+                intent("selectionRequested",new Dictionary<string,object>{{"selectedTargetId",item.Id},{"address",item.Address},{"selectionAuthority",selectionAuthority}});
+            };
+            disconnect.Click+=(s,e)=>intent("disconnectRequested",new Dictionary<string,object>());
+            actions.Controls.AddRange(new Control[]{refresh,connect,disconnect});Controls.Add(devices);Controls.Add(status);Controls.Add(actions);
+            tray=new NotifyIcon { Icon=SystemIcons.Application,Text="AhaKey 蓝牙桥",Visible=true };
+            var menu=new ContextMenuStrip();menu.Items.Add("显示蓝牙桥",null,(s,e)=>Reveal());
+            menu.Items.Add("隐藏窗口",null,(s,e)=>Hide());tray.ContextMenuStrip=menu;tray.DoubleClick+=(s,e)=>Reveal();
+            FormClosing+=(s,e)=>{if(!exiting && e.CloseReason==CloseReason.UserClosing){e.Cancel=true;Hide();}};
+            FormClosed+=(s,e)=>{tray.Visible=false;tray.Dispose();};
+        }
+        public void Reveal() { Show();WindowState=FormWindowState.Normal;Activate(); }
+        public void SetStatus(string text) { status.Text=text; }
+        public void SetAuthority(string value) { selectionAuthority=value;connect.Enabled=value.Length>0; }
+        public void SetChoices(List<Dictionary<string,object>> choices) {
+            string selected=(devices.SelectedItem as Choice)?.Id;
+            devices.BeginUpdate();devices.Items.Clear();
+            foreach(var row in choices){var item=new Choice {Id=(string)row["targetId"],Name=(string)row["name"],Address=(string)row["address"]};devices.Items.Add(item);if(item.Id==selected)devices.SelectedItem=item;}
+            devices.EndUpdate();
+        }
+        public void ExitOwner() { exiting=true;Close(); }
+    }
     internal sealed class SelectionSnapshot<T> {
         private Dictionary<string,T> candidates=new Dictionary<string,T>();
         public string Id { get; private set; } = "";
@@ -37,6 +83,12 @@ namespace BLE_tcp_driver {
         private CancellationTokenSource cancellation = new CancellationTokenSource();
         private bool authenticated;
         private int outstanding;
+        private ManagedBridgeWindow window;
+        private long uiSequence;
+        private void Ui(Action action) {
+            var current=window;if(current==null||current.IsDisposed)return;
+            try { current.BeginInvoke(action); } catch(InvalidOperationException) { }
+        }
         private sealed class Write {
             public string Session;
             public long Generation;
@@ -61,7 +113,12 @@ namespace BLE_tcp_driver {
         public static void Run(string[] args) {
             int index = Array.IndexOf(args, "--port"); int port;
             if (index < 0 || index + 1 >= args.Length || !int.TryParse(args[index + 1], out port) || port < 1 || port > 65535) return;
-            new ManagedBridge().RunAsync(port).GetAwaiter().GetResult();
+            Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
+            var bridge=new ManagedBridge();
+            bridge.window=new ManagedBridgeWindow((name,fields)=>{lock(bridge.gate){if(bridge.authenticated)bridge.Event(name,fields);}});
+            bool started=false;
+            bridge.window.Shown+=(s,e)=>{if(started)return;started=true;Task.Run(async()=>{try{await bridge.RunAsync(port);}finally{bridge.Ui(()=>bridge.window.ExitOwner());}});};
+            Application.Run(bridge.window);
         }
         private async Task RunAsync(int port) {
             if (string.IsNullOrEmpty(token)) return;
@@ -83,7 +140,7 @@ namespace BLE_tcp_driver {
                     if (!authenticated) {
                         if (op != "hello" || Text(data, "ownerToken") != token) throw new IOException("OWNER_MISMATCH");
                         authenticated = true;
-                        Reply(id, true, "OK", Map("capabilities", new[]{"enumerate-connected","select-target","release-session","session-writes"}));
+                        Reply(id, true, "OK", Map("capabilities", new[]{"enumerate-connected","select-target","release-session","session-writes","visible-window"}));
                         continue;
                     }
                     if (Text(data,"bridgeInstanceId") != instance) { Reply(id, false, "INSTANCE_CHANGED"); continue; }
@@ -108,6 +165,12 @@ namespace BLE_tcp_driver {
             finally { listener.Stop(); lock(gate) Revoke(); owner?.Close(); }
         }
         private async Task Handle(string id, string op, Dictionary<string,object> data) {
+            if(op=="showWindow") {Ui(()=>window.Reveal());Reply(id,true,"OK");return;}
+            if(op=="studioStatus") {
+                string message=Text(data,"message"),authority=Text(data,"selectionAuthority");long sequence=Convert.ToInt64(data["sequence"]);
+                lock(gate){if(sequence>uiSequence){uiSequence=sequence;Ui(()=>{if(sequence==Interlocked.Read(ref uiSequence)){window.SetStatus(message);window.SetAuthority(authority);}});}}
+                Reply(id,true,"OK");return;
+            }
             if (op == "enumerateConnected") {
                 bool observationOnly=data.ContainsKey("observationOnly") && data["observationOnly"] is bool && (bool)data["observationOnly"];
                 long captured; lock(gate) { captured=epoch; }
@@ -122,9 +185,11 @@ namespace BLE_tcp_driver {
                         if (!d.Name.StartsWith("AhaKey",StringComparison.OrdinalIgnoreCase)
                             || !d.Properties.TryGetValue("System.Devices.Aep.IsConnected",out connected) || !(connected is bool) || !(bool)connected) continue;
                         discovered[d.Id]=d;
-                        list.Add(Map("targetId",d.Id,"name",d.Name,"observedConnected",true,"serviceEvidence","connect-verifies-services"));
+                        object address;d.Properties.TryGetValue("System.Devices.Aep.DeviceAddress",out address);
+                        list.Add(Map("targetId",d.Id,"name",d.Name,"address",address as string??"","observedConnected",true,"serviceEvidence","connect-verifies-services"));
                     }
                     Reply(id,true,"OK",Map("snapshotId",selection.Publish(discovered,observationOnly,session.Length!=0),"candidates",list));
+                    if(!observationOnly)Ui(()=>window.SetChoices(list));
                 }
                 return;
             }
