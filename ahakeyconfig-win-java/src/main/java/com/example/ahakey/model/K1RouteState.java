@@ -28,12 +28,6 @@ public final class K1RouteState {
     public void observedDescription(int mode,String description){descriptions[mode]=description;revision.set(revision.get()+1);}
     public void markEdited(int mode) { dirty[mode]=true;edits[mode]++;revision.set(revision.get()+1); }
     public void reset(long next) { generation=next;capability.set(Capability.UNKNOWN);java.util.Arrays.fill(confirmed,false);java.util.Arrays.fill(routes,null);java.util.Arrays.fill(descriptions,null);message.set("K1能力尚未确认");revision.set(revision.get()+1); }
-    record Draft(boolean[] dirty,long[] edits,boolean[] descriptionEdited) {}
-    Draft draft(){return new Draft(dirty.clone(),edits.clone(),descriptionEdited.clone());}
-    void restore(Draft draft){
-        for(int i=0;i<4;i++){dirty[i]=draft!=null && draft.dirty()[i];edits[i]=draft==null?0:draft.edits()[i];descriptionEdited[i]=draft!=null&&draft.descriptionEdited()[i];}
-        busy.set(false);reset(-1);
-    }
     public void observed(int mode,K1Route route) { routes[mode]=route;confirmed[mode]=true;revision.set(revision.get()+1); }
     public void failed(int mode,String reason) { confirmed[mode]=false;message.set(reason);revision.set(revision.get()+1); }
     public void saved(int mode,long edit,K1Route route) { observed(mode,route);if(edits[mode]==edit){dirty[mode]=false;descriptionEdited[mode]=false;}revision.set(revision.get()+1); }

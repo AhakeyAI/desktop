@@ -184,9 +184,7 @@ public final class DisplayConfigCapabilityChecks {
             check("C01-no-admission-" + usb + "-" + value.replace('\0','?'), !w.ble.isDisplayAdmitted());
         }
         w.respond = request -> w.reply(identity(""));
-        w.ble.readFirmwareCatalogKey();
-        check("C01-generic-ACK-only-historical-writes-" + usb,w.ble.capabilities().legacyWrites()&&!w.ble.isDisplayAdmitted());
-        denied("C01-generic-ACK-never-display-lease-"+usb,()->w.ble.openDisplayLease(true));
+        denied("C01-empty-response-fails-" + usb, () -> w.ble.readFirmwareCatalogKey());
         check("C04-basic-version-fallback-" + usb, w.ble.getCachedStatus().getDisplayFirmwareVersion().equals("V1.2"));
         w.identify();
         check("C01-valid-response-auto-admits-" + usb, w.ble.isDisplayAdmitted()
@@ -197,8 +195,8 @@ public final class DisplayConfigCapabilityChecks {
         try (var lease = w.ble.openDisplayLease(true)) { w.ble.exchangeDisplay(lease,AhaKeyProtocol.previewBrightness(50)); }
         check("C01-current-wire-98-89-" + usb, sent.size()==2 && sent.get(0)[2]==(byte)0x98 && sent.get(1)[2]==(byte)0x89);
         w.ble.requireDisplayRecovery(w.ble.connectionGeneration());
-        denied("C03-identity-cannot-bypass-quarantine-" + usb, w::identify);
-        check("C03-identity-keeps-unknown-ACK-" + usb, w.ble.isDisplayWriteUncertain());
+        w.identify();
+        check("C03-identity-keeps-unknown-ACK-" + usb, w.ble.isDisplayAdmitted() && w.ble.isDisplayWriteUncertain());
         denied("C03-recovery-write-still-denied-" + usb, () -> w.ble.openDisplayLease(true));
         check("C07-memory-routing-" + usb, usb ? !w.ble.usb.sent.isEmpty() : w.ble.usb.sent.isEmpty());
         check("C07-no-connect-" + usb, w.ble.blockedConnections.get()==0);
@@ -235,26 +233,18 @@ public final class DisplayConfigCapabilityChecks {
     }
     private static void timeoutAndRecovery() throws Exception {
         var w = new DisplayConfigChecks.FakeSession(false);
-        long generation=w.ble.connectionGeneration();
         w.respond = request -> {};
         denied("C01-real-timeout", () -> w.ble.readFirmwareCatalogKey());
-        // R4 explicitly retires a failed read session instead of persisting an unknown-write barrier.
-        check("C01-timeout-retires-read-session-not-legacy",!w.ble.isConnected()
-                &&w.ble.connectionGeneration()!=generation&&w.ble.firmwareIdentity().state()==DeviceStatus.IdentityState.DISCONNECTED
-                &&!w.ble.isDisplayAdmitted()&&!w.ble.isDisplayWriteUncertain());
-        denied("C01-no-retry-in-retired-session",w::identify);
-        var fresh=new DisplayConfigChecks.FakeSession(false);fresh.identify();
-        check("C01-new-fixture-session-needs-fresh-identity",fresh.ble.isDisplayAdmitted()&&!w.ble.isDisplayAdmitted());
+        check("C01-timeout-is-FAILED-not-legacy",w.ble.firmwareIdentity().state()==DeviceStatus.IdentityState.FAILED && !w.ble.isDisplayAdmitted());
+        w.identify(); check("C01-explicit-retry-recovers",w.ble.isDisplayAdmitted());
     }
     private static void transportSwitch() throws Exception {
         var w = new DisplayConfigChecks.FakeSession();
         var before = w.ble.firmwareIdentity();
         w.ble.usbPresent = true;
-        w.respond=request->w.reply(AhaKeyProtocol.buildFrame(request[2],new byte[]{0}));
-        w.ble.setRuntimeDisplayMode(AiRuntimeDisplayMode.MULTI);
-        check("C02-command-cannot-implicitly-change-transport",w.ble.usb.sent.isEmpty()&&w.ble.isCurrentIdentity(before));
-        reset(w.ble);w.useUsb();
-        denied("C02-explicit-new-session-needs-authority",()->w.ble.setRuntimeDisplayMode(AiRuntimeDisplayMode.MULTI));
+        denied("C02-auto-USB-switch-blocks-old-admission", () -> w.ble.setRuntimeDisplayMode(AiRuntimeDisplayMode.MULTI));
+        check("C02-switch-no-write-on-new-USB", w.ble.usb.sent.isEmpty() && !w.ble.isDisplayAdmitted()
+                && !w.ble.isCurrentIdentity(before) && w.ble.getCachedStatus().getFirmwareCatalogKey().isEmpty());
         w.identify(); check("C02-new-USB-response-required",w.ble.isDisplayAdmitted() && w.ble.usb.sent.size()==1);
     }
     private static void awaitBlocked(Thread thread) throws Exception {

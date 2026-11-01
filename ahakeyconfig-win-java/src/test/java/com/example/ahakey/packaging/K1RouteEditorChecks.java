@@ -42,7 +42,7 @@ public final class K1RouteEditorChecks {
         long end=System.nanoTime()+TimeUnit.SECONDS.toNanos(10);
         while(System.nanoTime()<end&&(f.wire.frames.stream().filter(b->b[2]==(byte)0x87).count()<16||fx(()->f.state().inputReadbackInProgressProperty().get())))Thread.sleep(20);
         fx(()->null);check("actual connect input reader completed before capability order="+legacyFirst,f.wire.frames.stream().filter(b->b[2]==(byte)0x87).count()>=16);
-        if(!legacyFirst)check("early input read either retains unknown K1 or waits for actual capability authority",fx(()->f.state().k1Routes().capability.get()==K1RouteState.Capability.UNKNOWN ? f.state().getKeyConfig(StudioPart.KEY1).getHidCode()==99 : f.state().k1Routes().confirmed(0)&&f.state().getKeyConfig(StudioPart.KEY1).getHidCode()==4));
+        if(!legacyFirst)check("old early K1 read cannot authorize unknown capability",fx(()->f.state().getKeyConfig(StudioPart.KEY1).getHidCode()==99));
         fx(()->{catalog.invoke(f.controller,f.wire.firmwareIdentity(),f.wire.connectionGeneration());return null;});fx(()->null);idle(f.controller);
         end=System.nanoTime()+TimeUnit.SECONDS.toNanos(10);while(System.nanoTime()<end&&fx(()->f.state().inputReadbackInProgressProperty().get()))Thread.sleep(20);
         for(ModeSlot mode:ModeSlot.values())check("connection handler retains correct K1 in mode "+mode+" order="+legacyFirst,fx(()->f.state().k1Routes().confirmed(mode.getIndex())&&f.state().getKeyConfig(mode,StudioPart.KEY1).getHidCode()==4+mode.getIndex()));

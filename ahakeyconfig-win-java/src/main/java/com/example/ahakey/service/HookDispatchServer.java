@@ -154,8 +154,10 @@ public class HookDispatchServer {
     }
 
     private boolean checkAutoApproval(boolean forceRefresh) {
-
-        return bleManager.refreshAutoApproval();
+        if (forceRefresh) {
+            bleManager.queryStatusAndWait(200);
+        }
+        return bleManager.getCachedStatus().isAutoApproval();
     }
 
     private void handleClient(Socket client) {
@@ -191,7 +193,7 @@ public class HookDispatchServer {
         if (state == IDEState.PERMISSION_REQUEST) {
             boolean auto = checkAutoApproval(false);
             sendRuntimeState("Claude", state, payload);
-            boolean approved = auto;
+            boolean approved = auto || (approvalCallback != null && approvalCallback.requestApproval("Claude", eventName));
             writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + approved + "}");
             return;
         }
@@ -203,7 +205,7 @@ public class HookDispatchServer {
         if (needApproval) {
             boolean auto = checkAutoApproval(true);
             sendRuntimeState("Codex", state, payload);
-            boolean approved = auto;
+            boolean approved = auto || (approvalCallback != null && approvalCallback.requestApproval("Codex", eventName));
             writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + approved + "}");
             return;
         }
@@ -214,7 +216,11 @@ public class HookDispatchServer {
         if ("KimiPreToolUse".equals(eventName)) {
             boolean auto = checkAutoApproval(true);
             sendRuntimeState("Kimi", state, payload);
-            writer.println("{}"); // Kimi keeps its native approval; built-in AhaKey adapter supplies AUTO only.
+            if (auto || (approvalCallback != null && approvalCallback.requestApproval("Kimi", eventName))) {
+                writer.println("{}");
+            } else {
+                writer.println("{\"hookSpecificOutput\":{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"当前是手动模式，需要把拨杆切到自动后我才能执行操作\"}}");
+            }
             return;
         }
         handleGeneric(writer, eventName, state, "Kimi", payload);

@@ -99,7 +99,7 @@ public final class K1RouteProtocolChecks {
         System.setProperty("user.home",java.nio.file.Files.createTempDirectory("r9-k1-hook-").toString());
         for(String outcome:List.of("success","failure","expired","generation")) {
             var ble=new DeviceMaintenanceChecks.FixtureBle();var sent=new java.util.concurrent.CopyOnWriteArrayList<byte[]>();
-            var waiting=new java.util.concurrent.CountDownLatch(1);ble.usb.consumer=frame->{sent.add(frame.clone());if(frame[2]==(byte)0x9E)waiting.countDown();else try{ble.reply(AhaKeyProtocol.buildFrame(frame[2],new byte[]{0}));}catch(Exception e){throw new RuntimeException(e);}};
+            var waiting=new java.util.concurrent.CountDownLatch(1);ble.usb.consumer=frame->{sent.add(frame.clone());if(frame[2]==(byte)0x9E)waiting.countDown();};
             var runtime=new com.example.ahakey.service.AiRuntimeDisplayService(ble);runtime.displayModeProperty().set(com.example.ahakey.model.AiRuntimeDisplayMode.SINGLE);
             var lockField=BleManager.class.getDeclaredField("commandLock");lockField.setAccessible(true);var monitorField=BleManager.class.getDeclaredField("commandTransactionLock");monitorField.setAccessible(true);
             var lock=(java.util.concurrent.locks.ReentrantLock)lockField.get(ble);Object monitor=monitorField.get(ble);var idle=new java.util.concurrent.atomic.AtomicBoolean();

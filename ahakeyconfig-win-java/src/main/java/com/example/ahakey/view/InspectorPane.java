@@ -126,10 +126,6 @@ public class InspectorPane extends ScrollPane {
         subtitle.getStyleClass().add("inspector-subtitle");
 
         header.getChildren().addAll(titleRow, subtitle);
-        Button cancelUpload=new Button("取消上传");
-        cancelUpload.visibleProperty().bind(studioState.uploadingOledProperty());
-        cancelUpload.managedProperty().bind(cancelUpload.visibleProperty());
-        cancelUpload.setOnAction(e->controller.cancelOledUpload());header.getChildren().add(cancelUpload);
         body.disableProperty().bind(Bindings.createBooleanBinding(
             () -> !agentManager.isEditingConfiguration(),
             agentManager.bluetoothOwnerProperty()
@@ -157,7 +153,7 @@ public class InspectorPane extends ScrollPane {
             body.getChildren().addAll(routeStatus, readRoute);
             VBox keyEditor = createKeyBindingGroup(part);
             keyEditor.disableProperty().bind(Bindings.createBooleanBinding(() -> routeState.busy.get()
-                    || studioState.syncingProperty().get() || (!routeState.confirmed(routeMode) && !controller.getBleManager().capabilities().legacyWrites()), routeState.busy, routeState.capability, routeState.revision, studioState.syncingProperty()));
+                    || studioState.syncingProperty().get() || !routeState.confirmed(routeMode), routeState.busy, routeState.capability, routeState.revision, studioState.syncingProperty()));
             body.getChildren().add(keyEditor);
             body.getChildren().add(createSimulateKeyGroup(part));
             VBox description = createDescriptionGroup(part);
@@ -186,7 +182,7 @@ public class InspectorPane extends ScrollPane {
 
             Button simulate = new Button(languageManager.getString("inspector.simulate-key1"));
             simulate.getStyleClass().add("button-prominent");
-            simulate.setOnAction(e -> voice.simulateAction(key));
+            simulate.setOnAction(e -> voice.simulateKeyByHid(key.getHidCode()));
 
             Label hint = new Label();
             hint.textProperty().bind(voice.lastSimulateHintProperty());
@@ -357,7 +353,7 @@ public class InspectorPane extends ScrollPane {
         keyItems.add("F15 (0x6A)");
         keyItems.add("F16 (0x6B)");
         keyItems.add("F17 (0x6C)");
-        keyItems.add(0, "F18 (0x6D)");
+        keyItems.add("F18 (0x6D)");
         keyItems.add("F19 (0x6E)");
         keyItems.add("F20 (0x6F)");
         keyItems.add("F21 (0x70)");
@@ -682,7 +678,7 @@ public class InspectorPane extends ScrollPane {
             keyItems.add("F15");
             keyItems.add("F16");
             keyItems.add("F17");
-            keyItems.add(0, "F18");
+            keyItems.add("F18");
             keyItems.add("--- 字母键 ---");
             String[] letters = {"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
                                "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"};
@@ -1423,13 +1419,32 @@ public class InspectorPane extends ScrollPane {
         return createGroupBox(languageManager.getString("inspector.switch-semantics"), () -> {
             VBox box = new VBox(10);
 
-            Label actual = new Label();
-            actual.textProperty().bind(Bindings.createStringBinding(deviceStatus::getSwitchTitle,
-                    deviceStatus.switchStateProperty(), deviceStatus.isConnectedProperty(), deviceStatus.savedBindingsProperty()));
-            Label note = new Label("等待当前设备的侧拨绑定读回确认；未确认时由各工具使用原生审批。");
+            ToggleGroup group = new ToggleGroup();
+            ToggleButton autoButton = new ToggleButton(languageManager.getString("inspector.auto-approval"));
+            autoButton.getStyleClass().add("binding-toggle");
+            autoButton.setToggleGroup(group);
+
+            ToggleButton manualButton = new ToggleButton(languageManager.getString("inspector.manual-approval"));
+            manualButton.getStyleClass().add("binding-toggle");
+            manualButton.setToggleGroup(group);
+
+            autoButton.setOnAction(event -> controller.updateSwitchState(0));
+            manualButton.setOnAction(event -> controller.updateSwitchState(1));
+
+            // 绑定选中状态到 deviceStatus
+            autoButton.selectedProperty().bind(Bindings.createBooleanBinding(
+                () -> deviceStatus.isAutoApproval(),
+                deviceStatus.switchStateProperty()
+            ));
+            manualButton.selectedProperty().bind(Bindings.createBooleanBinding(
+                () -> !deviceStatus.isAutoApproval(),
+                deviceStatus.switchStateProperty()
+            ));
+
+            Label note = new Label(languageManager.getString("inspector.switch-note"));
             note.getStyleClass().add("group-note");
-            note.setWrapText(true);
-            box.getChildren().addAll(actual, note);
+
+            box.getChildren().addAll(new HBox(4, autoButton, manualButton), note);
             return box;
         });
     }
@@ -1749,7 +1764,7 @@ public class InspectorPane extends ScrollPane {
     private List<String> sideSwitchKeyChoices() {
         return List.of(
             "--- 修饰键 ---", "Left Ctrl", "Left Shift", "Left Alt", "Left Win", "Right Ctrl", "Right Shift", "Right Alt", "Right Win",
-            "F18", "--- 功能键 ---", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13", "F14", "F15", "F16", "F17",
+            "--- 功能键 ---", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13", "F14", "F15", "F16", "F17", "F18",
             "--- 字母 ---", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
             "--- 常用键 ---", "Enter", "Escape", "Backspace", "Tab", "Space", "Delete", "Up", "Down", "Left", "Right"
         );

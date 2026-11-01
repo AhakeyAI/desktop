@@ -19,24 +19,6 @@ public final class DeviceSyncService {
 
     private DeviceSyncService() {
     }
-    /** Unknown legacy keys are placeholders, never a full-device replacement snapshot. */
-    public static List<LabeledCommand> legacyEditedCommands(StudioState state) {
-        List<LabeledCommand> out=new ArrayList<>();
-        for(ModeSlot mode:ModeSlot.values()) {
-            int m=mode.getIndex();
-            for(int k=0;k<4;k++) {
-                KeyConfig key=state.getKeyConfig(mode,StudioState.partForKeyIndex(k));
-                if(state.actionEdited(m,k))out.add(new LabeledCommand(key.usesMacro()?AhaKeyProtocol.setKeyMacro(m,k,encodeKeyActionPayload(key)):AhaKeyProtocol.setKeyMapping(m,k,encodeKeyActionPayload(key)),mode.getTitle()+" 按键"+(k+1)+" 已编辑动作"));
-                if(state.descriptionEdited(m,k))out.add(new LabeledCommand(AhaKeyProtocol.setKeyDescription(m,k,key.getDescription()),mode.getTitle()+" 按键"+(k+1)+" 已编辑描述"));
-            }
-            boolean changed=false;byte[] effects=new byte[9];
-            for(int ai=0;ai<9;ai++){changed|=state.displayConfig().effectDirty(m,ai);effects[ai]=(byte)state.displayConfig().effect(m,ai);}
-            if(changed){for(byte value:effects)if(value<0||value>16)throw new IllegalStateException("旧版灯效含未知值，请明确本模式全部灯效后保存。");out.add(new LabeledCommand(AhaKeyProtocol.setAiLightConfig(m,effects),mode.getTitle()+" 本地灯光配置"));}
-        }
-        if(state.displayConfig().brightnessDirty())out.add(new LabeledCommand(AhaKeyProtocol.setLightBrightness(state.displayConfig().brightness.get()),"本地亮度"));
-        if(!out.isEmpty())out.add(new LabeledCommand(AhaKeyProtocol.saveConfig(),"保存已编辑的旧版配置"));
-        return out;
-    }
 
     public static List<LabeledCommand> commandsForModes(StudioState state, ModeSlot... modes) {
         return commandsForModes(state, false, modes);
@@ -274,30 +256,28 @@ public final class DeviceSyncService {
         Runnable onError,
         Consumer<String> onProgress
     ) {
-        long generation=ble.operationGeneration();
         new Thread(() -> {
-            try (var binding=ble.bindGeneration(generation);var transaction = ble.maintenance().normalTransaction()) {
+            try (var transaction = ble.maintenance().normalTransaction()) {
                 int i = 0;
                 for (LabeledCommand cmd : commands) {
                     i++;
                     if (onProgress != null) {
                         onProgress.accept("保存中 (" + i + "/" + commands.size() + ") " + cmd.label());
                     }
-                    ble.sendCommandExpecting(cmd.data(), cmd.data()[2]);
+                    ble.sendCommand(cmd.data());
+                    Thread.sleep(50);
                 }
                 Thread.sleep(250);
                 if (onComplete != null) {
                     onComplete.run();
                 }
             } catch (Exception e) {
-                try(var failedBinding=ble.bindGeneration(generation)){
                 if (onProgress != null) {
                     onProgress.accept("保存失败：" + e.getMessage());
                 }
                 if (onError != null) {
                     onError.run();
                 }
-                }catch(Exception callbackFailure){throw new IllegalStateException(callbackFailure);}
             }
         }, "aha-device-sync").start();
     }

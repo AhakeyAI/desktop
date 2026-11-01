@@ -141,7 +141,23 @@ public class SocketServer {
     }
 
     private void handleStatusRequest(PrintWriter writer) {
-        sendResponse(writer,buildStatusResponse(bleManager.getCachedStatus()));
+        if (cachedSwitchState != null) {
+            sendResponse(writer, Map.of(
+                "switchState", cachedSwitchState,
+                "lightMode", cachedLightMode != null ? cachedLightMode : 0
+            ));
+        } else {
+            CompletableFuture.supplyAsync(() -> {
+                bleManager.queryStatus();
+                try { Thread.sleep(1500); } catch (InterruptedException e) {}
+                return bleManager.getCachedStatus();
+            }).thenAccept(status -> {
+                sendResponse(writer, buildStatusResponse(status));
+            }).exceptionally(e -> {
+                sendResponse(writer, buildStatusResponse(null));
+                return null;
+            });
+        }
     }
 
     private Map<String, Object> buildStatusResponse(DeviceStatus status) {
@@ -149,10 +165,6 @@ public class SocketServer {
         if (status != null) {
             response.put("switchState", status.getSwitchState());
             response.put("lightMode", status.getLightMode());
-            response.put("connected",status.isConnected());
-            response.put("bindingsKnown",status.getSavedBindings()!=null);
-            response.put("autoApproved",status.isAutoApproval());
-            response.put("generation",bleManager.connectionGeneration());
         } else {
             response.put("switchState", cachedSwitchState != null ? cachedSwitchState : "null");
             response.put("lightMode", cachedLightMode != null ? cachedLightMode : "null");
@@ -170,9 +182,7 @@ public class SocketServer {
     }
 
     private void scheduleStateReset(byte resetValue, int delayMs) {
-        long generation=bleManager.connectionGeneration();
         scheduler.schedule(() -> {
-            if(generation!=bleManager.connectionGeneration())return;
             bleManager.updateState(resetValue);
         }, delayMs, TimeUnit.MILLISECONDS);
     }

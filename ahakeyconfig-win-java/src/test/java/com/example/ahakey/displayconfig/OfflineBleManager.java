@@ -24,13 +24,6 @@ final class OfflineBleManager extends BleManager {
         transport.set(this, usb);
     }
 
-    @Override protected void transmitFirmware(UsbHidTransport transport,String session,String target,long generation,byte[] frame,boolean data) throws Exception {
-        if(transport.isOpen()){if(data)transport.sendData(frame);else transport.sendCommand(frame);return;}
-        Field field=BleManager.class.getDeclaredField("outputStream");field.setAccessible(true);
-        var output=(java.io.OutputStream)field.get(this);
-        if(output==null)throw new IOException("Offline transport disconnected");
-        output.write(com.example.ahakey.protocol.BleTcpPacket.encode(data?com.example.ahakey.protocol.BleTcpPacket.WRITE_DATA:com.example.ahakey.protocol.BleTcpPacket.WRITE_COMMAND,frame));
-    }
     @Override protected boolean isUsbDevicePresent() {
         discoveries.incrementAndGet();
         return usbPresent;

@@ -43,7 +43,7 @@ public final class DeviceMaintenanceChecks {
         try(var stillActive=gate.normalTransaction()){rejects("double close cannot consume another ordinary lease",()->ble.beginMaintenance(identity(),HASH,"test",false));}
         try(var ordinary=gate.normalTransaction()){rejects("whole normal transaction excludes maintenance",()->ble.beginMaintenance(identity(),HASH,"test",false));}
         CountDownLatch atWrite=new CountDownLatch(1),completeWrite=new CountDownLatch(1);
-        ble.usb.consumer=b->{atWrite.countDown();try{completeWrite.await();ble.reply(AhaKeyProtocol.buildFrame(b[2],new byte[]{0}));}catch(Exception e){throw new RuntimeException(e);}};
+        ble.usb.consumer=b->{atWrite.countDown();try{completeWrite.await();}catch(InterruptedException e){throw new RuntimeException(e);}};
         Method bypass=BleManager.class.getDeclaredMethod("requestModeReadbackStatus");bypass.setAccessible(true);
         var send=CompletableFuture.runAsync(()->{try{bypass.invoke(ble);}catch(Exception e){throw new RuntimeException(e);}});
         check("USB bypass entered physical write",atWrite.await(2,TimeUnit.SECONDS));
@@ -51,8 +51,8 @@ public final class DeviceMaintenanceChecks {
         var begin=CompletableFuture.supplyAsync(()->{acquisitionAttempt.countDown();try{return ble.beginMaintenance(identity(),HASH,"test",false);}catch(Exception e){throw new RuntimeException(e);}});
         acquisitionAttempt.await();
         try { begin.get(300,TimeUnit.MILLISECONDS); throw new AssertionError("maintenance interleaved write"); }
-        catch(ExecutionException expected){check("maintenance rejects outstanding physical USB write",expected.getCause().getCause() instanceof IOException);}
-        completeWrite.countDown();send.get(2,TimeUnit.SECONDS);var op=ble.beginMaintenance(identity(),HASH,"test",false);
+        catch(TimeoutException expected){check("maintenance waits across physical USB write",true);}
+        completeWrite.countDown();send.get(2,TimeUnit.SECONDS);var op=begin.get(2,TimeUnit.SECONDS);
         ble.usb.consumer=b->{};int writes=ble.usb.writes.get();
         rejects("ordinary command",()->ble.sendCommand(AhaKeyProtocol.queryDeviceStatus()));
         rejects("data bypass",()->ble.writeData(new byte[]{1}));

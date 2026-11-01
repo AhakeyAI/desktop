@@ -135,7 +135,7 @@ public class CanvasController {
         if (toggleLabel != null && deviceStatus != null) {
             toggleLabel.textProperty().bind(Bindings.createStringBinding(
                 deviceStatus::getSwitchTitle,
-                deviceStatus.switchStateProperty(), deviceStatus.savedBindingsProperty(), deviceStatus.isConnectedProperty()
+                deviceStatus.switchStateProperty()
             ));
             deviceStatus.switchStateProperty().addListener((obs, old, value) -> refreshToggleThumb());
             refreshToggleThumb();
@@ -162,7 +162,6 @@ public class CanvasController {
         studioState.selectedModeProperty().addListener((obs, old, newMode) -> refreshPreview());
         studioState.dirtyCountProperty().addListener((obs, old, newVal) -> refreshHotspots());
         studioState.revisionProperty().addListener((obs, old, newVal) -> refreshPreview());
-        studioState.inputBaselineRevisionProperty().addListener((obs, old, newVal) -> refreshPreview());
         studioState.lightBarPreviewProperty().addListener((obs, old, newVal) -> {
             refreshPreview();
             animationFrame = 0;
@@ -227,7 +226,7 @@ public class CanvasController {
         if (toggleThumb == null || deviceStatus == null) {
             return;
         }
-        toggleThumb.setTranslateY(deviceStatus.getSwitchState() == 0 ? -13 : deviceStatus.getSwitchState() == 1 ? 13 : 0);
+        toggleThumb.setTranslateY(deviceStatus.isAutoApproval() ? -13 : 13);
     }
 
     private void setStableLightPreview() {

@@ -23,10 +23,6 @@ public class KeyConfig {
         this.macro = new ArrayList<>();
     }
     
-    public KeyConfig copy() {
-        KeyConfig result=new KeyConfig(hidCode,description);result.voicePreset=voicePreset;
-        for(MacroStep step:macro)result.macro.add(step.clone());return result;
-    }
     public int getHidCode() {
         return hidCode;
     }
@@ -56,8 +52,7 @@ public class KeyConfig {
     }
     
     public void setMacro(List<MacroStep> macro) {
-        this.macro = new ArrayList<>();
-        if (macro != null) for (MacroStep step : macro) this.macro.add(step.clone());
+        this.macro = macro;
     }
     
     public String getDisplayName() {
@@ -90,7 +85,7 @@ public class KeyConfig {
                 case DOWN_KEY -> "DOWN_KEY";
                 case UP_KEY -> "UP_KEY";
                 case DELAY -> "DELAY";
-                default -> "NO_OP";
+                default -> "DOWN_KEY";
             };
         }
         return "DOWN_KEY";

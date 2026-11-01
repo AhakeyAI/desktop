@@ -114,13 +114,7 @@ public final class DisplayConfigRound5Checks {
         invoke(w.ble,"flushDeferredRuntimeState");
         check("F3-six-minute-event-not-sent",sent.isEmpty());
         check("F3-expired-pending-cleared",field(w.ble,"deferredRuntimeState")==null);
-        check("F3-failed-wire-quarantine-blocks-new-event",!w.ble.sendRuntimeState((byte)2));
-        invoke(w.ble,"resetDisplaySession");
-        w.field("outputStream",new ByteArrayOutputStream(){
-            @Override public void write(byte[] b,int off,int len){w.respond.accept(Arrays.copyOfRange(b,off+3,off+len));}
-        });
-        w.identify();w.respond=r->{sent.add(r.clone());w.reply(AhaKeyProtocol.buildFrame(r[2],new byte[]{0}));};
-        check("F3-fresh-fixture-session-new-event-sends",w.ble.sendRuntimeState((byte)2));
+        check("F3-new-event-sends",w.ble.sendRuntimeState((byte)2));
         check("F3-new-event-new-time",(long)field(w.ble,"deferredRuntimeAt")>observed);
         check("F3-new-event-byte",sent.get(sent.size()-1)[3]==2);
         sent.clear();lease=w.ble.openDisplayLease(true);

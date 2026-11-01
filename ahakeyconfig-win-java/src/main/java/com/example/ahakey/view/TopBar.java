@@ -66,7 +66,7 @@ public class TopBar extends VBox {
     private final LanguageManager languageManager;
     private MenuItem languageMenuItem;
     private UpdateCenterDialog updateCenterDialog;
-    private final Map<String,String> hookWriteMessages = new java.util.HashMap<>();
+    private boolean hookUpdateSummaryShown;
     
     // 语音相关UI组件
     private Button voiceRecordButton;
@@ -144,10 +144,10 @@ public class TopBar extends VBox {
             ),
             new InfoPill(
                 Bindings.createStringBinding(() -> languageManager.getString("status.switch")),
-                Bindings.createStringBinding(deviceStatus::getSwitchTitle, deviceStatus.switchStateProperty(),deviceStatus.savedBindingsProperty(),deviceStatus.isConnectedProperty()),
+                Bindings.createStringBinding(deviceStatus::getSwitchTitle, deviceStatus.switchStateProperty()),
                 Bindings.createObjectBinding(
                     () -> deviceStatus.isAutoApproval() ? AccentColor.MINT : AccentColor.INDIGO,
-                    deviceStatus.switchStateProperty(),deviceStatus.savedBindingsProperty(),deviceStatus.isConnectedProperty()
+                    deviceStatus.switchStateProperty()
                 )
             )
         );
@@ -283,8 +283,35 @@ public class TopBar extends VBox {
         MenuItem refresh = new MenuItem(languageManager.getString("menu.refresh-ahatype"));
         refresh.setOnAction(event -> studioState.toggleAhaType(studioState.ahaTypeEnabledProperty().get()));
 
-        if (modelEnabled) moreMenu.getItems().addAll(cloudAccount, refresh, divider2);
-        moreMenu.getItems().addAll(restoreDefaults, divider1, deviceInfo, hookManager, versionInfo, languageMenuItem, exitApp);
+        // 条件添加 AhaType 相关菜单项
+        if (modelEnabled) {
+            moreMenu.getItems().addAll(
+                restoreDefaults,
+                reconnect,
+                clearOled,
+                divider1,
+                deviceInfo,
+                hookManager,
+                versionInfo,
+                languageMenuItem,
+                exitApp,
+                cloudAccount,
+                divider2,
+                refresh
+            );
+        } else {
+            moreMenu.getItems().addAll(
+                restoreDefaults,
+                reconnect,
+                clearOled,
+                divider1,
+                deviceInfo,
+                hookManager,
+                versionInfo,
+                languageMenuItem,
+                exitApp
+            );
+        }
 
         MenuItem updateCenter = new MenuItem(languageManager.getString("update.center"));
         updateCenter.setId("update-center-entry");
@@ -360,20 +387,61 @@ public class TopBar extends VBox {
     private volatile long lastBleButtonClickTime = 0;
     private static final long BLE_BUTTON_CLICK_DELAY_MS = 2000;
     
-    private void handleBleButtonClick() { manageOwnedBridge(false); }
-    private void manageOwnedBridge(boolean stopOnly) {
-        if(bleButtonProcessing || !controller.normalDeviceActionAllowed())return;
-        bleButtonProcessing=true;
-        Thread worker=new Thread(()->{
-            try {controller.getBleManager().restartManagedBridge(stopOnly);Platform.runLater(()->showAlert("蓝牙桥",stopOnly?"已停止本软件持有的蓝牙桥。":"蓝牙桥已就绪，请点击连接选择键盘。"));}
-            catch(Exception failure){Platform.runLater(()->showAlert("蓝牙桥",failure.getMessage()));}
-            finally{bleButtonProcessing=false;}
-        },"bridge-owner");worker.setDaemon(true);worker.start();
+    private void handleBleButtonClick() {
+        if (!controller.normalDeviceActionAllowed()) return;
+        long now = System.currentTimeMillis();
+        
+        if (now - lastBleButtonClickTime < BLE_BUTTON_CLICK_DELAY_MS) {
+            return;
+        }
+        
+        if (bleButtonProcessing) {
+            return;
+        }
+        
+        lastBleButtonClickTime = now;
+        bleButtonProcessing = true;
+        
+        new Thread(() -> {
+            try (var transaction = controller.getBleManager().maintenance().normalTransaction()) {
+                boolean running = isBleDriverRunning();
+                
+                if (!running) {
+                    launchBleDriver();
+                    return;
+                }
+                
+                boolean reachable = isBleBridgeReachable();
+                
+                if (reachable) {
+                    Platform.runLater(() -> {
+                        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                        alert.setTitle(languageManager.getString("dialog.ble-driver-title"));
+                        alert.setHeaderText(null);
+                        alert.setContentText(languageManager.getString("dialog.ble-running"));
+                        alert.showAndWait();
+                    });
+                } else {
+                    Thread.sleep(1500);
+                    reachable = isBleBridgeReachable();
+                    
+                    if (!reachable) {
+                        stopBleDriverProcess();
+                        Thread.sleep(500);
+                        launchBleDriver();
+                    }
+                }
+            } catch (Exception e) {
+                if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            } finally {
+                bleButtonProcessing = false;
+            }
+        }, "ble-button-handler").start();
     }
 
     /**
      * 设置 BLE 按钮长按功能
-     * 长按5秒：停止本软件持有的蓝牙桥
+     * 长按5秒：强制关闭所有 BLE_tcp_driver 进程（包括挂起的）
      * 短按：正常的 BLE 驱动启动/重启逻辑
      */
     private void setupBleButtonLongPress(Button bleButton) {
@@ -421,10 +489,321 @@ public class TopBar extends VBox {
     }
     
     /**
-     * 停止本软件持有的蓝牙桥
+     * 强制杀死所有 BLE_tcp_driver 进程（包括挂起的）
      */
-    private void forceKillAllBleProcesses() { manageOwnedBridge(true); }
+    private void forceKillAllBleProcesses() {
+        if (!controller.normalDeviceActionAllowed()) return;
+        new Thread(() -> {
+            try (var transaction = controller.getBleManager().maintenance().normalTransaction()) {
+            int initialCount = countBleProcesses();
+            if (initialCount == 0) {
+                Platform.runLater(() -> showAlert(languageManager.getString("dialog.ble-driver-title"), languageManager.getString("dialog.ble-no-process")));
+                return;
+            }
+            
+            boolean success = killProcessesWithMultipleMethods();
+            
+            try { Thread.sleep(1000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            
+            int remainingCount = countBleProcesses();
+            
+            Platform.runLater(() -> {
+                if (remainingCount == 0) {
+                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                    alert.setTitle(languageManager.getString("dialog.ble-driver-title"));
+                    alert.setHeaderText(null);
+                    alert.setContentText(languageManager.getString("dialog.ble-kill-success"));
+                    alert.showAndWait();
+                } else {
+                    Alert alert = new Alert(Alert.AlertType.WARNING);
+                    alert.setTitle(languageManager.getString("dialog.ble-driver-title"));
+                    alert.setHeaderText(null);
+                    alert.setContentText(String.format(languageManager.getString("dialog.ble-kill-fail"), remainingCount));
+                    alert.showAndWait();
+                }
+            });
+            } catch (Exception e) { addLog("BLE action deferred: " + e.getMessage()); }
+        }, "ble-kill").start();
+    }
+    
+    private boolean killProcessesWithMultipleMethods() {
+        boolean success = false;
+        
+        success = sendShutdownCommand();
+        
+        if (!success) {
+            success |= executeKillCommand("taskkill", "/F", "/IM", "BLE_tcp_driver.exe");
+        }
+        
+        if (!success) {
+            success |= executeKillCommand("taskkill", "/F", "/T", "/IM", "BLE_tcp_driver.exe");
+        }
+        
+        if (!success) {
+            success |= executeKillCommand("powershell", "-Command", "Stop-Process -Name BLE_tcp_driver -Force -ErrorAction SilentlyContinue");
+        }
+        
+        if (!success) {
+            success |= executeKillCommand("powershell", "-Command", "Get-Process -Name BLE_tcp_driver -ErrorAction SilentlyContinue | Stop-Process -Force");
+        }
+        
+        if (!success) {
+            success |= executeKillCommand("wmic", "process", "where", "name='BLE_tcp_driver.exe'", "call", "terminate");
+        }
+        
+        if (!success) {
+            success |= executeKillCommand("powershell", "-Command", "Get-WmiObject Win32_Process -Filter \"Name='BLE_tcp_driver.exe'\" | ForEach-Object { $_.Terminate() }");
+        }
+        
+        if (!success) {
+            success |= executeKillCommand("powershell", "-Command", "$pids = (Get-CimInstance Win32_Process -Filter 'Name=''BLE_tcp_driver.exe''').ProcessId; if($pids) { taskkill /F /PID $pids -ErrorAction SilentlyContinue }");
+        }
+        
+        if (!success) {
+            success |= executeKillCommand("powershell", "-Command", "Get-CimInstance Win32_Process -Filter 'Name=''BLE_tcp_driver.exe''' | Invoke-CimMethod -MethodName Terminate");
+        }
+        
+        if (!success) {
+            success |= killProcessByPidList();
+        }
+        
+        return success;
+    }
+    
+    private boolean killProcessByPidList() {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("tasklist", "/FI", "IMAGENAME eq BLE_tcp_driver.exe", "/NH", "/FO", "CSV");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.toLowerCase().contains("ble_tcp_driver.exe")) {
+                        String[] parts = line.split(",");
+                        if (parts.length >= 2) {
+                            String pidStr = parts[1].replace("\"", "").trim();
+                            try {
+                                int pid = Integer.parseInt(pidStr);
+                                new ProcessBuilder("taskkill", "/F", "/PID", String.valueOf(pid)).redirectErrorStream(true).start().waitFor();
+                            } catch (NumberFormatException e) {
+                                // ignore
+                            }
+                        }
+                    }
+                }
+            }
+            p.waitFor();
+            
+            Thread.sleep(500);
+            return countBleProcesses() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    private boolean sendShutdownCommand() {
+        try (Socket socket = new Socket()) {
+            socket.connect(new InetSocketAddress("127.0.0.1", 9000), 1000);
+            
+            byte[] shutdownPacket = new byte[3];
+            shutdownPacket[0] = 0x05;
+            shutdownPacket[1] = 0x00;
+            shutdownPacket[2] = 0x00;
+            
+            socket.getOutputStream().write(shutdownPacket);
+            socket.getOutputStream().flush();
+            
+            Thread.sleep(500);
+            
+            return countBleProcesses() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    private boolean executeKillCommand(String... command) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(command);
+            pb.redirectErrorStream(true);
+            pb.directory(new File(System.getProperty("user.dir")));
+            Process p = pb.start();
+            int exitCode = p.waitFor();
+            
+            try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(p.getInputStream()))) {
+                StringBuilder output = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    output.append(line).append("\n");
+                }
+            }
+            
+            Thread.sleep(300);
+            
+            return countBleProcesses() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    /**
+     * 统计 BLE_tcp_driver 进程数量
+     */
+    private int countBleProcesses() {
+        int count = 0;
+        try {
+            ProcessBuilder pb = new ProcessBuilder("tasklist", "/FI", "IMAGENAME eq BLE_tcp_driver.exe", "/NH");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.toLowerCase().contains("ble_tcp_driver.exe")) {
+                        count++;
+                    }
+                }
+            }
+            p.waitFor();
+        } catch (Exception e) {
+            // 统计失败，返回0
+        }
+        return count;
+    }
 
+    private boolean isBleBridgeReachable() {
+        int maxRetries = 3;
+        int delayMs = 300;
+        
+        for (int i = 0; i < maxRetries; i++) {
+            try (Socket socket = new Socket()) {
+                socket.connect(new InetSocketAddress("127.0.0.1", 9000), 500);
+                return true;
+            } catch (Exception e) {
+                if (i < maxRetries - 1) {
+                    try {
+                        Thread.sleep(delayMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    private void stopBleDriverProcess() {
+        try {
+            new ProcessBuilder("taskkill", "/F", "/IM", "BLE_tcp_driver.exe").redirectErrorStream(true).start().waitFor();
+            Thread.sleep(300);
+        } catch (Exception ignored) {
+        }
+    }
+    
+    /**
+     * 检查 BLE_tcp_driver.exe 是否正在运行
+     */
+    private boolean isBleDriverRunning() {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("tasklist", "/FI", "IMAGENAME eq BLE_tcp_driver.exe", "/NH");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.toLowerCase().contains("ble_tcp_driver.exe")) {
+                        return true;
+                    }
+                }
+            }
+            p.waitFor();
+        } catch (Exception e) {
+            // 检查失败，假定未运行
+        }
+        return false;
+    }
+    
+    /**
+     * 启动同级目录下的 BLE_tcp_driver.exe
+     */
+    private void launchBleDriver() {
+        try {
+            // 获取应用所在目录
+            String appDir = System.getProperty("user.dir");
+            
+            // 尝试从 JAR 所在目录获取（打包后的情况）
+            try {
+                Path jarPath = Paths.get(getClass().getProtectionDomain().getCodeSource().getLocation().toURI());
+                if (jarPath.toString().endsWith(".jar")) {
+                    appDir = jarPath.getParent().toString();
+                }
+            } catch (Exception ignored) {}
+            
+            File bleExe = null;
+            File appDirFile = new File(appDir);
+            
+            // 依次查找多个可能的位置
+            File[] candidates = {
+                new File(appDir, "BLE_tcp_driver.exe"),                                  // JAR 同级目录 (app/)
+                appDirFile.getParentFile() != null 
+                    ? new File(appDirFile.getParentFile(), "BLE_tcp_driver.exe") : null, // 父目录（jpackage 结构）
+                new File(System.getProperty("user.dir"), "BLE_tcp_driver.exe"),          // user.dir
+                new File(appDir, "app/BLE_tcp_driver.exe")                               // app 子目录
+            };
+            
+            for (File candidate : candidates) {
+                if (candidate != null && candidate.exists()) {
+                    bleExe = candidate;
+                    break;
+                }
+            }
+            
+            if (bleExe != null) {
+                final File finalBleExe = bleExe;
+                ProcessBuilder pb = new ProcessBuilder(finalBleExe.getAbsolutePath());
+                pb.directory(finalBleExe.getParentFile());
+                
+                pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+                pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+                
+                Process process = pb.start();
+                
+                new Thread(() -> {
+                    try {
+                        int exitCode = process.waitFor();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }, "ble-driver-monitor").start();
+                
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(1000);
+                        Platform.runLater(() -> {
+                            if (isBleDriverRunning()) {
+                            } else {
+                                showAlert(languageManager.getString("dialog.ble-driver-title"), String.format(languageManager.getString("dialog.ble-start-fail"), finalBleExe.getAbsolutePath()));
+                            }
+                        });
+                    } catch (Exception ignored) {}
+                }).start();
+            } else {
+                showAlert(languageManager.getString("dialog.ble-driver-title"), languageManager.getString("dialog.ble-not-found") + "\n" 
+                    + new File(appDir, "BLE_tcp_driver.exe").getAbsolutePath() + "\n"
+                    + (appDirFile.getParentFile() != null ? new File(appDirFile.getParentFile(), "BLE_tcp_driver.exe").getAbsolutePath() : "") + "\n"
+                    + new File(System.getProperty("user.dir"), "BLE_tcp_driver.exe").getAbsolutePath());
+            }
+        } catch (Exception e) {
+            showAlert(languageManager.getString("dialog.ble-driver-title"), languageManager.getString("dialog.ble-start-fail").replace("%s", "") + e.getMessage());
+        }
+    }
+    
+    /**
+     * 显示警告弹窗
+     */
     private void showAlert(String title, String content) {
         Alert alert = new Alert(Alert.AlertType.WARNING);
         alert.setTitle(title);
@@ -794,6 +1173,14 @@ public class TopBar extends VBox {
                         );
                     }
                     hookDialogBusy.set(false);
+                    List<String> outdated = scanned.entrySet().stream()
+                        .filter(entry -> entry.getValue() == HookInstaller.HookStatus.OUTDATED)
+                        .map(Map.Entry::getKey)
+                        .toList();
+                    if (!outdated.isEmpty() && !hookUpdateSummaryShown) {
+                        hookUpdateSummaryShown = true;
+                        showHookUpdateSummary(outdated, rescan[0]);
+                    }
                 });
             }, "hook-manager-scan");
             thread.setDaemon(true);
@@ -866,7 +1253,7 @@ public class TopBar extends VBox {
         statusLabel.getStyleClass().add(status == HookInstaller.HookStatus.LATEST ? "dialog-status-installed" : "dialog-status-uninstalled");
         titleRow.getChildren().addAll(title, spacer, statusLabel);
 
-        Label description = hookNote(hookInstaller.statusDetail(hookName).isBlank()?hookDescription(status):hookInstaller.statusDetail(hookName));
+        Label description = hookNote(hookDescription(status));
         Button action = new Button(hookActionText(status));
         boolean canWrite = status == HookInstaller.HookStatus.NOT_INSTALLED || status == HookInstaller.HookStatus.OUTDATED;
         if (hookDialogBusy == null) {
@@ -886,7 +1273,6 @@ public class TopBar extends VBox {
         }
 
         card.getChildren().addAll(titleRow, description, action);
-        if(hookWriteMessages.containsKey(hookName))card.getChildren().add(hookNote(hookWriteMessages.get(hookName)));
     }
 
     private void runSingleHookWrite(
@@ -913,21 +1299,86 @@ public class TopBar extends VBox {
                 if (actionButtons != null) {
                     actionButtons.values().forEach(button -> button.setMouseTransparent(false));
                 }
-                hookWriteMessages.put(hookName,(result.success()?"成功：":"未完成：")+result.reason());
-                if(rescan!=null)rescan.run();
-                else if(hookDialogBusy!=null)hookDialogBusy.set(false);
+                if (result.success()) {
+                    if (rescan != null) {
+                        rescan.run();
+                    } else if (hookDialogBusy != null) {
+                        hookDialogBusy.set(false);
+                    }
+                } else {
+                    Alert alert = new Alert(Alert.AlertType.ERROR);
+                    alert.initOwner(getScene() == null ? null : getScene().getWindow());
+                    alert.setTitle("AhaKey Hook 管理");
+                    alert.setHeaderText(null);
+                    alert.setContentText(result.reason() + "，请联系管理员");
+                    alert.showAndWait();
+                    if (rescan != null) {
+                        rescan.run();
+                    } else if (hookDialogBusy != null) {
+                        hookDialogBusy.set(false);
+                    }
+                }
             });
         }, "hook-manager-write-" + hookName);
         thread.setDaemon(true);
         thread.start();
     }
 
+    private void showHookUpdateSummary(List<String> outdated, Runnable rescan) {
+        javafx.scene.control.Dialog<Void> dialog = new javafx.scene.control.Dialog<>();
+        dialog.initOwner(getScene() == null ? null : getScene().getWindow());
+        dialog.setTitle("AhaKey Hook 管理");
+        ButtonType update = new ButtonType("一键更新");
+        ButtonType cancel = new ButtonType("取消", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().setAll(update, cancel);
+        Label message = hookNote("以下工具需要更新 Hook：" + String.join("、", outdated)
+            + "\n更新会先备份原 Hook 文件，并且只替换 AhaKey Hook。");
+        dialog.getDialogPane().setContent(message);
+        Button updateButton = (Button) dialog.getDialogPane().lookupButton(update);
+        Button cancelButton = (Button) dialog.getDialogPane().lookupButton(cancel);
+        updateButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            event.consume();
+            updateButton.setDisable(true);
+            cancelButton.setDisable(true);
+            Thread thread = new Thread(() -> {
+                List<String> failed = new ArrayList<>();
+                for (String name : outdated) {
+                    String currentName = name;
+                    Platform.runLater(() -> message.setText("正在更新：" + currentName));
+                    HookInstaller.HookWriteResult result = hookInstaller.installOrUpdate(currentName);
+                    if (!result.success()) {
+                        failed.add(currentName + "：" + result.reason());
+                    }
+                }
+                Platform.runLater(() -> {
+                    if (failed.isEmpty()) {
+                        dialog.close();
+                        if (rescan != null) {
+                            rescan.run();
+                        }
+                    } else {
+                        message.setText("以下工具更新失败：\n" + String.join("\n", failed));
+                        ButtonType know = new ButtonType("知道了", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+                        dialog.getDialogPane().getButtonTypes().setAll(know);
+                        Button knowButton = (Button) dialog.getDialogPane().lookupButton(know);
+                        knowButton.addEventFilter(javafx.event.ActionEvent.ACTION, e -> {
+                            if (rescan != null) {
+                                rescan.run();
+                            }
+                        });
+                    }
+                });
+            }, "hook-manager-update-all");
+            thread.setDaemon(true);
+            thread.start();
+        });
+        dialog.show();
+    }
+
     private String hookStatusText(HookInstaller.HookStatus status) {
         return switch (status) {
             case DETECTING -> "检测中";
             case APP_NOT_FOUND -> "未检测到应用";
-            case CONFIG_ONLY -> "仅配置痕迹";
-            case UNSUPPORTED -> "兼容性未确认";
             case NOT_INSTALLED -> "未安装";
             case OUTDATED -> "待更新";
             case LATEST -> "最新";
@@ -937,7 +1388,7 @@ public class TopBar extends VBox {
 
     private String hookActionText(HookInstaller.HookStatus status) {
         return switch (status) {
-            case APP_NOT_FOUND, CONFIG_ONLY, UNSUPPORTED -> "不可安装";
+            case APP_NOT_FOUND -> "不可安装";
             case NOT_INSTALLED -> "安装 Hook";
             case OUTDATED -> "更新 Hook";
             case LATEST -> "已是最新";
@@ -949,12 +1400,10 @@ public class TopBar extends VBox {
     private String hookDescription(HookInstaller.HookStatus status) {
         return switch (status) {
             case APP_NOT_FOUND -> "未检测到对应应用，暂不可安装 Hook";
-            case CONFIG_ONLY -> "仅发现配置目录，未检测到应用启动入口";
-            case UNSUPPORTED -> "当前应用版本的 Hook 能力尚未确认，不会写入配置";
             case NOT_INSTALLED -> "未安装 Hook，安装后可支持 AhaKey 功能";
-            case OUTDATED -> "脚本或注册信息需更新；只替换 AhaKey 自有条目";
-            case LATEST -> "脚本和注册已就绪；客户端需重新加载配置";
-            case ERROR -> "配置检测失败，请检查卡片说明后重新检测";
+            case OUTDATED -> "当前 Hook 需要更新，更新后可支持多任务灯光状态，并优化 Cursor 权限流程";
+            case LATEST -> "已是最新版，支持多任务灯光状态";
+            case ERROR -> "检测异常，请联系管理员";
             case DETECTING -> "正在检测 Hook 状态";
         };
     }
@@ -1246,7 +1695,15 @@ public class TopBar extends VBox {
     }
     
     private String getVersion() {
-        return com.example.ahakey.update.InstalledAppIdentity.load().version();
+        String version = System.getProperty("app.version");
+        if (version == null || version.isEmpty()) {
+            Package pkg = TopBar.class.getPackage();
+            version = pkg != null ? pkg.getImplementationVersion() : null;
+        }
+        if (version == null || version.isEmpty()) {
+            version = "1.0.0";
+        }
+        return version;
     }
     
     private void toggleLanguage() {

@@ -87,15 +87,7 @@
              }
          }
  
-@@ -229,6 +253,7 @@
-                 }
-             };
-         }
-+        public void ConnectManagedDevice(BluetoothLEDevice device) { ConnectDevice(device); }
-         private void ConnectDevice(BluetoothLEDevice Device)
-         {
-             long generation;
-@@ -372,22 +397,32 @@
+@@ -372,22 +396,32 @@
              CancellationToken cancellationToken)
          {
              var completion = new TaskCompletionSource<GattWriteResult>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -141,7 +133,7 @@
                  }
  
                  CancellationTokenRegistration cancellationRegistration = default(CancellationTokenRegistration);
-@@ -407,7 +442,10 @@
+@@ -407,7 +441,10 @@
                  {
                      try
                      {
@@ -153,7 +145,7 @@
                          {
                              completion.TrySetResult(new GattWriteResult(AsyncStatus.Canceled, null,
                                  new OperationCanceledException("GATT完成时事务或连接代次已失效")));
-@@ -423,8 +461,20 @@
+@@ -423,8 +460,20 @@
                          }
  
                          GattCommunicationStatus communicationStatus = asyncInfo.GetResults();
@@ -176,7 +168,7 @@
                          completion.TrySetResult(new GattWriteResult(asyncStatus, communicationStatus, null));
                      }
                      catch (Exception ex)
-@@ -534,6 +584,7 @@
+@@ -534,6 +583,7 @@
  
          private void InvalidateDiscoveryLocked()
          {
@@ -184,7 +176,7 @@
              _activeDiscovery = null;
              RemoveNotifySubscriptionLocked();
          }
-@@ -573,12 +624,12 @@
+@@ -573,12 +623,12 @@
              public BluetoothLEDevice Device { get; }
              public int PendingServices { get; set; }
              public bool Failed { get; set; }
@@ -201,7 +193,7 @@
              }
          }
  
-@@ -626,88 +677,63 @@
+@@ -626,88 +676,63 @@
          /// </summary>
          public void FindService(BluetoothLEDevice dev, long generation)
          {
@@ -337,7 +329,7 @@
          }
  
          /// <summary>
-@@ -800,73 +826,65 @@
+@@ -800,73 +825,65 @@
          /// <summary>
          /// 获取特性
          /// </summary>
@@ -466,7 +458,7 @@
              }
          }
  
-@@ -940,64 +958,40 @@
+@@ -940,64 +957,40 @@
          /// <returns></returns>
          public void EnableNotifications(GattCharacteristic characteristic, long generation, long discoveryId)
          {
@@ -565,15 +557,6 @@
              }
          }
  
-@@ -1065,6 +1059,8 @@
-         [STAThread]
-         static void Main()
-         {
-+            string[] args = Environment.GetCommandLineArgs();
-+            if (Array.IndexOf(args, "--studio") >= 0) { ManagedBridge.Run(args); return; }
-             Application.EnableVisualStyles();
-             Application.SetCompatibleTextRenderingDefault(false);
-             Application.Run(new Form1());
 --- a/TcpServer.cs
 +++ b/TcpServer.cs
 @@ -22,6 +22,8 @@

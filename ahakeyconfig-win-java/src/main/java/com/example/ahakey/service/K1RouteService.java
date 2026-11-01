@@ -37,19 +37,12 @@ public final class K1RouteService implements AutoCloseable {
         if(closed||!ble.isConnected()||!ble.getCachedStatus().isConnected()||!ble.maintenance().normalAllowed())return;
         long generation=ble.connectionGeneration();if(state.generation()!=generation)state.reset(generation);
         int mode=studio.getSelectedMode().getIndex();long ticket=++refreshTicket;
-        if (ble.capabilities().legacyWrites()) {
-            state.capability.set(K1RouteState.Capability.LEGACY); state.busy.set(false);
-            state.message.set("旧固件：编辑本地普通K1草稿，可发送保存请求；无设备读回核对。");
-            return;
-        }
-        if (!ble.isDisplayAdmitted()) {state.busy.set(false);state.message.set("当前固件能力尚未确认，K1草稿保留。");return;}
         state.busy.set(true);state.message.set("正在读取键盘K1设置…");
         worker.execute(()->{
             try {
                 Object result=ble.k1RouteTransaction(generation,()->{
                     int nonce=random.nextInt();byte[] reply=ble.exchangeK1Route(K1RouteProtocol.request(0,K1RouteProtocol.fields(4).putInt(nonce).array()),generation);
-                    if(K1RouteProtocol.legacyAck(reply)&&ble.isDisplayAdmitted()
-                            && com.example.ahakey.protocol.AhaKeyProtocol.isCp4cCatalogKey(ble.firmwareIdentity().catalogKey())) {
+                    if(K1RouteProtocol.legacyAck(reply)&&ble.isDisplayAdmitted()) {
                         List<com.example.ahakey.protocol.AhaKeyResponseParser.OrdinaryKeyReadback> keys=new ArrayList<>();
                         List<Integer> unavailable=new ArrayList<>();
                         for(int m=0;m<4;m++)try{keys.add(ble.readOrdinaryKeyConfig(m,0));}catch(Exception failure){if(generation!=ble.connectionGeneration())throw failure;unavailable.add(m);}
@@ -74,12 +67,8 @@ public final class K1RouteService implements AutoCloseable {
     public K1Route read(int mode,long generation)throws Exception {
         if(mode<0||mode>3)throw new IOException("K1模式无效");
         byte[] bytes=new byte[K1Route.SIZE];long expected=-1;
-        // Firmware accepts 1..42 bytes. At ATT MTU 23 a 42-byte slice needs four
-        // notifications (20+20+20+2); its one-shot long sender cannot resume a failed tail.
-        // BLE uses at most two notifications. This reduces pressure, not a retry guarantee.
-        int sliceBytes=ble.isUsbTransportOpen()?42:20;
         for(int offset=0;offset<bytes.length;){
-            int count=Math.min(sliceBytes,bytes.length-offset),nonce=random.nextInt();
+            int count=Math.min(42,bytes.length-offset),nonce=random.nextInt();
             byte[] req=K1RouteProtocol.request(0x10,K1RouteProtocol.fields(7).putInt(nonce).put((byte)mode).put((byte)offset).put((byte)count).array());
             var b=K1RouteProtocol.response(ble.exchangeK1Route(req,generation),0x10,nonce,12+count);
             if((b.get()&255)!=mode||(b.get()&255)!=offset||(b.getShort()&65535)!=bytes.length)throw new IOException("K1读片目标不匹配");
@@ -94,8 +83,7 @@ public final class K1RouteService implements AutoCloseable {
         if(state.capability.get()!=K1RouteState.Capability.LEGACY)return List.of();
         List<LegacyEdit> edits=new ArrayList<>();
         for(ModeSlot mode:ModeSlot.values()) {
-            if(ble.capabilities().legacyWrites() && !studio.actionEdited(mode.getIndex(),0) && !studio.descriptionEdited(mode.getIndex(),0))continue;
-            if(!state.confirmed(mode.getIndex()) && !ble.capabilities().legacyWrites())continue;
+            if(!state.confirmed(mode.getIndex()))continue;
             KeyConfig key=studio.getKeyConfig(mode,StudioPart.KEY1);
             edits.add(new LegacyEdit(mode.getIndex(),state.edit(mode.getIndex()),key.usesMacro()?0x74:0x73,DeviceSyncService.encodeKeyActionPayload(key),DeviceSyncService.sanitizeDescription(key.getDescription())));
         }
@@ -103,7 +91,6 @@ public final class K1RouteService implements AutoCloseable {
     }
     public void verifyLegacy(List<LegacyEdit> edits,long generation)throws Exception {
         if(generation!=ble.connectionGeneration())throw new IOException("连接已改变，K1保存未确认");
-        if(ble.capabilities().legacyWrites())return; // ACK-only compatibility; confirmed(mode) stays false.
         for(LegacyEdit edit:edits) {
             var actual=ble.readOrdinaryKeyConfig(edit.mode(),0);
             boolean empty=edit.type()==0x73&&edit.action().length==0&&actual.actionPayload().length==0&&actual.actionType()==0;

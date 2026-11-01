@@ -198,14 +198,9 @@ public final class DisplayConfigRevision3Checks {
         check(path+"-progress-monotonic",java.util.stream.IntStream.range(1,progress.size()).allMatch(i -> progress.get(i).elapsedMillis()>=progress.get(i-1).elapsedMillis()));
     }
     private static void optionalQueries() throws Exception {
-        List<byte[]> sent = new java.util.concurrent.CopyOnWriteArrayList<>(); var wire = wire(true,sent);
+        List<byte[]> sent = new ArrayList<>(); var wire = wire(true,sent);
         try (var lease = wire.ble.openDisplayLease(true)) {
             wire.ble.queryStatus(); wire.ble.queryStatus(); wire.ble.queryStatus();
-            long deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(2);
-            while(sent.isEmpty()&&System.nanoTime()<deadline)Thread.sleep(5);
-            var lockField=BleManager.class.getDeclaredField("commandLock");lockField.setAccessible(true);
-            var lock=(java.util.concurrent.locks.ReentrantLock)lockField.get(wire.ble);
-            lock.lock();lock.unlock();
             check("BLEPERF-coalesced-optional-status",sent.size()==1);
             wire.ble.queryStatusAndWait(0);
             check("BLEPERF-explicit-refresh-not-coalesced",sent.size()==2);

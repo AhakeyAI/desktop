@@ -34,11 +34,6 @@ public final class OledUploadService {
     public static void uploadResource(BleManager ble, long generation, int entry,
             com.example.ahakey.model.OledResourceState.Asset asset,
             Consumer<Integer> acknowledgedPercent, BeforeCommit beforeCommit, Consumer<Progress> progress) throws Exception {
-        uploadResource(ble,generation,entry,asset,acknowledgedPercent,beforeCommit,progress,()->false);
-    }
-    public static void uploadResource(BleManager ble,long generation,int entry,
-            com.example.ahakey.model.OledResourceState.Asset asset,Consumer<Integer> acknowledgedPercent,
-            BeforeCommit beforeCommit,Consumer<Progress> progress,java.util.function.BooleanSupplier cancelled) throws Exception {
         if (asset.frames() > AhaKeyProtocol.resourceCapacity(entry)) throw new IllegalArgumentException("frames");
         byte[] bytes = asset.bytes();
         boolean commitSent = false;
@@ -50,10 +45,8 @@ public final class OledUploadService {
                 ble.isUsbTransportOpen() ? "USB" : "BLE");
         try (BleManager.DisplayLease lease = ble.openDisplayLease(true, generation)) {
             try {
-                checkCancelled(cancelled);
                 requireAck(ble.exchangeDisplay(lease, AhaKeyProtocol.resourceBegin(entry, asset.frames(), asset.crc())), AhaKeyProtocol.CMD_RESOURCE_BEGIN);
                 for (int offset = 0; offset < bytes.length; ) {
-                    checkCancelled(cancelled);
                     phase = "CHUNK";
                     int length = Math.min(AhaKeyProtocol.RESOURCE_CHUNK_BYTES, bytes.length - offset);
                     requireAck(ble.exchangeDisplay(lease, AhaKeyProtocol.resourceChunk(entry, offset,
@@ -64,9 +57,7 @@ public final class OledUploadService {
                     progress.accept(new Progress(offset, bytes.length, (System.nanoTime() - start) / 1_000_000));
                 }
                 phase = "LOCAL_COMMIT_RECORD";
-                checkCancelled(cancelled);
                 beforeCommit.persist();
-                checkCancelled(cancelled);
                 phase = "COMMIT";
                 commitSent = true;
                 requireAck(ble.exchangeDisplay(lease, AhaKeyProtocol.resourceCommit(entry)), AhaKeyProtocol.CMD_RESOURCE_COMMIT);
@@ -81,16 +72,13 @@ public final class OledUploadService {
                     e.getClass().getSimpleName(), ble.isDisplayWriteUncertain());
             throw new UploadFailure("上传并应用未完成（" + phase + "，已确认 " + acknowledged + "/" + bytes.length + " 字节）："
                     + e.getMessage() + " 键盘资源有效性需重新同步确认。"
-                    + (ble.isDisplayWriteUncertain() ? " AI 状态发送已暂停；请物理断开键盘后重连并同步，本地资源已保留。" : ""), e,
+                    + (ble.isDisplayWriteUncertain() ? " AI 状态发送已暂停；请断开并重新连接键盘后同步，本地资源已保留。" : ""), e,
                     commitSent && !(e instanceof DeviceRejected));
         }
         logger.info("OLED upload committed txn={} connection={} entry={} bytes={} elapsedMs={}",
                 transaction, generation, entry, bytes.length, (System.nanoTime() - start) / 1_000_000);
     }
 
-    private static void checkCancelled(java.util.function.BooleanSupplier cancelled) throws java.io.IOException {
-        if(cancelled.getAsBoolean() || Thread.currentThread().isInterrupted())throw new java.io.IOException("上传已中止；已发出的写入未撤回。");
-    }
     public static final class DeviceRejected extends java.io.IOException {
         public DeviceRejected() { super("键盘返回 FAIL。"); }
     }
