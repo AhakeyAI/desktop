@@ -69,6 +69,22 @@ final class OpenCodePluginInstallerTests: XCTestCase {
         XCTAssertTrue(script.contains("STALE_RUNNING_MS"), "清理阈值应可辨识")
     }
 
+    /// 短暫提示（工具完成/權限）之後必須回到聚合狀態，否則燈條會停在提示態（模擬測試抓到）。
+    func testScriptRecoversFromTransientStates() {
+        let script = OpenCodePluginInstaller.script(agentBinaryPath: "/tmp/agent")
+        XCTAssertTrue(script.contains("emitDirect"), "短暂提示应走 emitDirect")
+        XCTAssertTrue(script.contains("TRANSIENT_RECOVER_MS"), "应有回收计时器")
+        XCTAssertTrue(script.contains("scheduleTransientRecovery"))
+    }
+
+    /// 事件流结束（plugin 重载 / location 关闭）时必须停掉计时器，否则旧实例会继续写状态。
+    func testScriptStopsTimersWhenEventStreamEnds() {
+        let script = OpenCodePluginInstaller.script(agentBinaryPath: "/tmp/agent")
+        XCTAssertTrue(script.contains("} finally {"), "应在事件流结束时清理")
+        XCTAssertTrue(script.contains("clearInterval(heartbeatTimer)"), "应停掉心跳")
+        XCTAssertTrue(script.contains("transientTimers.clear()"))
+    }
+
     /// XDG_CONFIG_HOME 优先，其次是 ~/.config。
     func testPluginsDirectoryFollowsXDG() {
         let home = URL(fileURLWithPath: "/Users/example")

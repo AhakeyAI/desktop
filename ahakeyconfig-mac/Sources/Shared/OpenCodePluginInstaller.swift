@@ -226,7 +226,7 @@ let lastEmitted = null
 
 function phaseFor(sessionID, phase) {
   if (!sessionID) return
-  sessions.set(sessionID, { phase, at: Date.now() })
+  sessions.set(sessionID, { phase, at: Date.now(), sid: sessionID.slice(-6) })
   emitAggregate()
 }
 
@@ -239,7 +239,12 @@ function pruneStaleSessions(now) {
   let pruned = 0
   for (const [sid, v] of sessions) {
     if (v.phase !== "running") continue
-    if (now - v.at > STALE_RUNNING_MS) { sessions.delete(sid); pruned += 1 }
+    if (now - v.at > STALE_RUNNING_MS) {
+      // 不要 delete：刪掉之後聚合會變空 → 不發任何狀態 → 燈條停在最後一個顏色（藍）。
+      // 改成 done，聚合就會收斂成「完成」並亮綠。
+      sessions.set(sid, { phase: "done", at: now, sid: v.sid })
+      pruned += 1
+    }
   }
   return pruned
 }
@@ -258,9 +263,33 @@ function emitAggregate(force) {
   void callAgentDeduped(event, { session_id: "aggregate" }, STATE_TIMEOUT_MS)
 }
 
-function emitTransient(event, sessionID) {
-  void callAgentDeduped(event, { session_id: sessionID || "transient" }, STATE_TIMEOUT_MS)
+// 短暫提示（工具完成 = 2、權限 = 1）只該亮一下子，之後要回到聚合狀態（通常是 7 執行中）。
+// 沒有這個回收，燈條會一直停在提示態 —— 模擬測試抓到的（工具完成後回不到藍）。
+const TRANSIENT_RECOVER_MS = 2000
+const transientTimers = new Map()
+
+function scheduleTransientRecovery() {
+  const key = "global"
+  const existing = transientTimers.get(key)
+  if (existing) clearTimeout(existing)
+  const t = setTimeout(() => {
+    transientTimers.delete(key)
+    // 非強制：若期間聚合狀態已經送過（例如任務剛好結束送 6），就不要再補一次
+    emitAggregate(false)
+  }, TRANSIENT_RECOVER_MS)
+  if (t.unref) t.unref()
+  transientTimers.set(key, t)
 }
+
+/// 送一個「短暫」燈態（工具開始/完成、權限請求）。它不進聚合，
+/// 所以要把 lastEmitted 清掉，否則回收時會被「狀態沒變」擋住、燈條卡在提示態。
+function emitDirect(event, sessionID) {
+  lastEmitted = null
+  void callAgentDeduped(event, { session_id: sessionID || "direct" }, STATE_TIMEOUT_MS)
+  scheduleTransientRecovery()
+}
+
+const HEARTBEAT_MS = 20000
 
 function startHeartbeat() {
   if (heartbeatTimer) return
@@ -269,10 +298,11 @@ function startHeartbeat() {
     // 注意：心跳本身不刷新 session 的 at，否則殘留的 running 永遠不會被 prune（見 pruneStaleSessions）
     const running = [...sessions.values()].filter((v) => v.phase === "running")
     if (running.length > 0) {
-      log("heartbeat: running sessions=" + running.length + "/" + sessions.size)
+      const detail = running.map((v) => v.sid + "@" + Math.round((Date.now() - v.at) / 1000) + "s").join(",")
+      log("heartbeat: running sessions=" + running.length + "/" + sessions.size + " [" + detail + "]")
       emitAggregate(true)
     }
-  }, 20000)
+  }, HEARTBEAT_MS)
   if (heartbeatTimer.unref) heartbeatTimer.unref()
 }
 
@@ -316,10 +346,7 @@ export default {
         let lastToolDoneAt = 0
         await ctx.tool.hook("execute.before", (event) => {
           // 工具開始 → 執行中（藍）
-          void callAgentDeduped("OpenCodePreToolUse", {
-            session_id: (event && event.sessionID) || "tool",
-            tool_name: event && event.tool,
-          }, STATE_TIMEOUT_MS)
+          emitDirect("OpenCodePreToolUse", (event && event.sessionID) || "tool")
         })
         await ctx.tool.hook("execute.after", (event) => {
           const ok = !event || event.status !== "error"
@@ -328,10 +355,7 @@ export default {
           if (now - lastToolDoneAt < 1500) return   // 連續工具時不要把燈閃來閃去
           lastToolDoneAt = now
           // 工具完成 → 柔和的單點藍色來回流水（singleMove）
-          void callAgentDeduped("OpenCodePostToolUse", {
-            session_id: (event && event.sessionID) || "tool",
-            tool_name: event && event.tool,
-          }, STATE_TIMEOUT_MS)
+          emitDirect("OpenCodePostToolUse", (event && event.sessionID) || "tool")
         })
       } catch (error) {
         log("tool.execute hooks unavailable: " + error)
@@ -366,7 +390,8 @@ function watchEvents(ctx) {
   const stream = ctx.event.subscribe()
   ;(async () => {
     startHeartbeat()
-    for await (const event of stream) {
+    try {
+      for await (const event of stream) {
       const type = event && event.type
       const sessionID = (event.data && event.data.sessionID) || ""
       switch (type) {
@@ -390,12 +415,12 @@ function watchEvents(ctx) {
           // 這個 location 被關掉了（opencode run 結束 / TUI 退出）→ 裡面不可能還有東西在跑。
           // 直接把殘留的 running 收成 done，比等 2 分鐘的 prune 更即時。
           for (const [sid, v] of sessions) {
-            if (v.phase === "running") sessions.set(sid, { phase: "done", at: Date.now() })
+            if (v.phase === "running") sessions.set(sid, { phase: "done", at: Date.now(), sid: v.sid })
           }
           emitAggregate(true)
           continue
         case "permission.asked":
-          emitTransient("OpenCodePermissionRequested", sessionID)
+          emitDirect("OpenCodePermissionRequested", sessionID)
           continue
         case "permission.replied":
         case "permission.rejected":
@@ -407,6 +432,13 @@ function watchEvents(ctx) {
           await callAgentDeduped(hookEvent, { session_id: sessionID, event: type }, STATE_TIMEOUT_MS)
         }
       }
+      }
+    } finally {
+      // 事件流結束（location 關閉 / plugin 重載）→ 停掉心跳與殘留計時器，
+      // 否則舊實例會繼續每 20 秒把「執行中」寫回裝置，造成燈號在綠/藍之間亂跳。
+      if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null }
+      for (const t of transientTimers.values()) clearTimeout(t)
+      transientTimers.clear()
     }
   })().catch((error) => log("event loop: " + error))
 }
