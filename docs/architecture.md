@@ -11,7 +11,7 @@
 ### macOS — `ahakeyconfig-mac/`(主力)
 
 - Swift / SwiftUI 原生客户端,由仓库根 `Package.swift` 构建(target `AhaKeyConfig`)。
-- `Sources/Agent/` — 后台守护进程 `ahakeyconfig-agent`:维持 BLE 连接,并按键盘物理拨杆状态回应各 IDE 的审批 hook(`ClaudeHookHandler` / `CursorHookHandler` / `CodexHookHandler` / `KimiHookHandler`,共享 `HookSupport`)。
+- `Sources/Agent/` — 后台守护进程 `ahakeyconfig-agent`:维持 BLE 连接,并按键盘物理拨杆状态回应各 IDE 的审批 hook(`ClaudeHookHandler` / `CursorHookHandler` / `CodexHookHandler` / `KimiHookHandler` / `OpenCodeHookHandler`,共享 `HookSupport`)。
 - `Sources/` — 设备配置、BLE 通信、OLED 资源、voice agent、工作台 UI。
 - `Resources/` — 运行所需资源。
 - `scripts/` — 构建、签名、DMG 打包脚本。
@@ -31,7 +31,7 @@
 
 ## 拨杆审批闸门
 
-各平台客户端都把键盘的物理**拨杆**当作 AI coding agent 的硬件审批闸门:拨到「自动」时 Claude / Cursor / Codex / Kimi 的工具调用自动放行,拨回时交回人工确认。守护进程通过 BLE 读拨杆状态并回应每个 IDE hook —— **fail-safe:读不到拨杆时一律默认「交人确认」,绝不误放行。**
+各平台客户端都把键盘的物理**拨杆**当作 AI coding agent 的硬件审批闸门:拨到「自动」时 Claude / Cursor / Codex / Kimi / opencode 的工具调用自动放行,拨回时交回人工确认。守护进程通过 BLE 读拨杆状态并回应每个 IDE hook —— **fail-safe:读不到拨杆时一律默认「交人确认」,绝不误放行。**
 
 拨杆只在请求发起、hook 被调用的那一刻判定一次:已经弹出、正在等待人工确认的审批**保持原审批方式**,不会因中途拨到「自动」而被追认放行;拨杆变更从下一次工具调用起生效。审批弹窗由各 IDE / CLI 自己持有(例如 Kimi 的 PreToolUse hook 只认 `deny`,无法事后批准),等待中的请求请在弹窗内手动处理。
 

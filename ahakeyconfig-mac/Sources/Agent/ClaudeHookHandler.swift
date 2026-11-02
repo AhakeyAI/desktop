@@ -39,14 +39,8 @@ enum ClaudeHookHandler {
     }
 
     private static func effectiveSwitchState(_ reply: [String: Any]?) -> Int? {
-        guard let reply else { return nil }
-        // Older Agents may return a cached GPIO value after a failed BLE query.
-        // Only the current Agent's explicitly verified physical auto state may allow.
-        guard HookSupport.intValue(reply["approvalPolicyVersion"]) == 1,
-              let physicalSwitch = HookSupport.switchStateValue(reply["physicalSwitchState"]),
-              HookSupport.switchStateValue(reply["switchState"]) == physicalSwitch else { return nil }
-        if physicalSwitch == 0, HookSupport.boolValue(reply["approvalAutoVerified"]) != true { return nil }
-        return physicalSwitch
+        // 与 opencode 共用同一套严格校验，避免两处各写一份而漂移。
+        HookSupport.verifiedSwitchState(reply)
     }
 
     static func handlePermissionRequest() {

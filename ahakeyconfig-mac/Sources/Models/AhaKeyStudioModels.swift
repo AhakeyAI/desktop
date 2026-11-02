@@ -70,8 +70,14 @@ enum AhaKeyModeNameStore {
 
     static func load() -> [Int: String] {
         guard let data = UserDefaults.standard.data(forKey: key),
-              let dict = try? JSONDecoder().decode([Int: String].self, from: data) else {
+              var dict = try? JSONDecoder().decode([Int: String].self, from: data) else {
             return [:]
+        }
+        // 迁移：早期版本把套用 opencode 预设当成「改名」，会在 Mode 4 留下 "opencode"。
+        // 现在 opencode 改成「预设」而不是分页名称，这里把它清掉，让分页回到出厂名称 custom。
+        if let idx = dict.firstIndex(where: { $0.value == "opencode" }) {
+            dict.remove(at: idx)
+            save(dict)
         }
         return dict
     }

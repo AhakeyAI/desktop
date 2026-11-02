@@ -93,20 +93,37 @@ enum HookSupport {
         return s
     }
 
+    /// 只认「本次」Agent 明确验证过的物理自动档。
+    ///
+    /// 旧版 Agent 可能在 BLE 查询失败后回传缓存值，因此必须用
+    /// `approvalPolicyVersion` / `physicalSwitchState` / `approvalAutoVerified`
+    /// 三个字段交叉校验。返回 nil 表示「无法确认」，调用方必须按 fail-safe 处理
+    /// （交回 IDE / 终端自己问人，绝不自动批准）。
+    static func verifiedSwitchState(_ reply: [String: Any]?) -> Int? {
+        guard let reply else { return nil }
+        guard intValue(reply["approvalPolicyVersion"]) == 1,
+              let physicalSwitch = switchStateValue(reply["physicalSwitchState"]),
+              switchStateValue(reply["switchState"]) == physicalSwitch else { return nil }
+        if physicalSwitch == 0, boolValue(reply["approvalAutoVerified"]) != true { return nil }
+        return physicalSwitch
+    }
+
     /// 只接受 JSON 布尔；数字 1 不能冒充 `true`。
     static func boolValue(_ v: Any?) -> Bool? {
         guard let n = v as? NSNumber, CFGetTypeID(n) == CFBooleanGetTypeID() else { return nil }
         return n.boolValue
     }
 
+    /// `timeout` 让不同 IDE 的预算能在诊断信息里如实呈现（opencode 走 2s，Claude/Kimi 走 5s）。
     static func emitPermissionStderr(
         ide: String,
         hookName: String,
         reply: [String: Any]?,
-        switchState: Int?
+        switchState: Int?,
+        timeout: Double = HookSupport.permissionRequestTimeout
     ) {
         if switchState == nil, reply == nil {
-            let msg = "[ahakey-hook] \(ide) \(hookName): agent 无回包或 Unix socket 失败（/tmp/ahakey.sock 连不上/超时，超时 \(Int(permissionRequestTimeout))s）。"
+            let msg = "[ahakey-hook] \(ide) \(hookName): agent 无回包或 Unix socket 失败（/tmp/ahakey.sock 连不上/超时，超时 \(Int(timeout))s）。"
                 + "请确认 LaunchAgent 里 ahakeyconfig-agent 在跑、且蓝牙已选「由 Agent 占用」并连上键盘。\n"
             FileHandle.standardError.write(Data(msg.utf8))
         } else if switchState == nil, reply != nil {

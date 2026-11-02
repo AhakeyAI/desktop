@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### macOS — opencode 支援
+
+- 新增 opencode 支援（`OpenCodeHookHandler` + `OpenCodePluginInstaller`）：opencode 沒有 hook 設定檔，改以 plugin（`~/.config/opencode/plugins/ahakey-bridge.js`）接入，透過既有 daemon socket 回應 `ctx.permission.hook("evaluate")`，並把 session 生命週期事件映射成燈條狀態。撥桿語意與其他 IDE 相同：自動檔放行、手動檔交回 TUI。
+- 新增「套用 opencode 预设」：在 LCD inspector 一鍵把當前模式換成 opencode 的動圖（160×80 / 24 幀 / 12 FPS）、狀態行與燈效映射；「恢复 custom 预设」可還原。模式名稱與鍵位不變。
+- fail-safe：只有在 `approvalPolicyVersion`、撥桿回報與自動驗證三者一致時才自動放行，其餘一律交人確認。
+
 ### macOS — LCD 动图上传
 
 - 修复 GIF 上传中途断开蓝牙后客户端无失败提示、重连后一直停在“写入中…”的问题：数据写入超时或断开时立即结束上传并提示已写入帧数与恢复步骤（AHK-061/064/082）。

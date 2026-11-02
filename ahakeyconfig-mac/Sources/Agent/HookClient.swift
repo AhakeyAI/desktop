@@ -10,6 +10,7 @@ enum HookClient {
         case codexState(UInt8)
         case codexPermissionRequest
         case kimiPreToolPermission
+        case opencodePermissionEvaluate
     }
 
     private static let eventMap: [String: EventRoute] = [
@@ -48,6 +49,20 @@ enum HookClient {
         "KimiPostToolUse": .sharedState(2),
         "KimiUserPromptSubmit": .sharedState(7),
         "KimiStop": .sharedState(5),
+
+        // opencode v2：没有 hook 配置文件，由 AhaKey 安装的 plugin
+        // （~/.config/opencode/plugins/ahakey-bridge.js）调用这些事件名。
+        // 生命周期事件走共享灯条状态；审批走 evaluate，必须回决策 JSON。
+        "OpenCodeSessionStart": .sharedState(4),
+        "OpenCodeSessionEnd": .sharedState(8),
+        "OpenCodeUserPromptSubmit": .sharedState(7),
+        "OpenCodePreToolUse": .sharedState(3),
+        "OpenCodePostToolUse": .sharedState(2),
+        "OpenCodePermissionRequested": .sharedState(1),
+        "OpenCodeTaskCompleted": .sharedState(6),
+        "OpenCodeStop": .sharedState(5),
+        "OpenCodePreCompact": .sharedState(0),
+        "OpenCodePermissionEvaluate": .opencodePermissionEvaluate,
     ]
 
     static func run(event: String) -> Int32 {
@@ -76,6 +91,8 @@ enum HookClient {
             CodexHookHandler.handlePermissionRequest()
         case .kimiPreToolPermission:
             KimiHookHandler.handlePreToolPermission()
+        case .opencodePermissionEvaluate:
+            OpenCodeHookHandler.handlePermissionEvaluate()
         }
         return 0
     }

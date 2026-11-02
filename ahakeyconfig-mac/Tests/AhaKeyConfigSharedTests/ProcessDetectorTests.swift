@@ -11,6 +11,10 @@ final class ProcessDetectorTests: XCTestCase {
         XCTAssertTrue(names.contains("Claude Code"))
         XCTAssertTrue(names.contains("Kimi Code"))
         XCTAssertTrue(names.contains("Codex"))
+        // opencode（plugin 形式接入）同样要被看门狗识别，否则任务完成后灯效会被归位成 Stop(5)。
+        XCTAssertTrue(names.contains("opencode"))
+        let opencode = targets.first { $0.name == "opencode" }
+        XCTAssertEqual(opencode?.processNames.contains("opencode"), true)
     }
 
     func testTargetEqualityByID() {

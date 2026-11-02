@@ -1480,6 +1480,34 @@ struct AhaKeyStudioView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    // 单独一行：窗口窄的时候不会被前面三个按钮挤掉。
+                    HStack(spacing: 10) {
+                        Button("套用 opencode 预设") {
+                            applyOpenCodePresetToCurrentMode()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!OpenCodeModePreset.isAssetAvailable)
+                        .fixedSize()   // 窄视窗不要把按钮文字截断
+                        .help(OpenCodeModePreset.isAssetAvailable
+                              ? "把当前模式改成 opencode 的显示预设：名称、内置动图、灯效映射、状态行、12 FPS（键位不动）。"
+                              : "安装包内没有 DefaultOLED/opencode.gif，无法套用。")
+
+                        Button("恢复 custom 预设") {
+                            restoreCustomPresetForCurrentMode()
+                        }
+                        .buttonStyle(.bordered)
+                        .fixedSize()
+                        .help("把当前模式还原成出厂默认：名称、LCD 图、灯效映射（键位不动）。")
+
+                        Text("套用/还原只影响当前模式的外观，键位不动")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .layoutPriority(-1)   // 空间不足时优先压缩说明文字，而不是按钮
+                        Spacer()
+                    }
+
                     Stepper(value: oledFramesPerSecondBinding, in: 1 ... 30) {
                         Text("播放速度 \(currentModeDraft.oled.framesPerSecond) FPS")
                     }
@@ -2126,6 +2154,33 @@ struct AhaKeyStudioView: View {
             }
             syncStatusMessage = "已更新 \(selectedMode.title) 的 LCD 预览；写入设备请使用底部通用按钮。"
         }
+    }
+
+    /// 把「当前模式」套成 opencode 的显示预设（名称 / LCD / 状态行 / FPS）。
+    ///
+    /// 只改显示与名称，不动键位与灯效：opencode 的审批由拨杆 + Hooks 决定，
+    /// 键位属于个人终端习惯，留给使用者在编辑器里调。
+    private func applyOpenCodePresetToCurrentMode() {
+        guard let oled = OpenCodeModePreset.oledDraft() else {
+            syncStatusMessage = NSLocalizedString("未找到内置 opencode.gif：请确认安装包含 DefaultOLED/opencode.gif。", comment: "")
+            return
+        }
+        // 不改分页名称：第 4 个 Mode 始终叫 custom，opencode 只是套用在它上面的「预设」。
+        _ = oled  // 图与灯效映射都由 preset 统一套用，避免两处各写一份
+        updateCurrentMode { mode in
+            _ = OpenCodeModePreset.apply(to: &mode)
+        }
+        syncStatusMessage = "已把 \(selectedMode.title) 套用 opencode 预设（LCD + 灯效映射 + 状态行 + \(OpenCodeModePreset.framesPerSecond) FPS）；写入键盘后生效。"
+    }
+
+    /// 把当前模式还原成出厂 custom 预设（名称 / LCD / 灯效）。
+    private func restoreCustomPresetForCurrentMode() {
+        modeCustomNames.removeValue(forKey: selectedMode.rawValue)
+        AhaKeyModeNameStore.save(modeCustomNames)
+        updateCurrentMode { mode in
+            OpenCodeModePreset.restoreCustomDraft(&mode)
+        }
+        syncStatusMessage = "已把 \(selectedMode.title) 恢复为 custom 预设（名称 / LCD / 灯效）；写入键盘后生效。"
     }
 
     private func installStartAgentFromTopBar() {
