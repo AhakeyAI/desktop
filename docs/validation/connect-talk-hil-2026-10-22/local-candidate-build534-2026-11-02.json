@@ -1,0 +1,37 @@
+{
+  "sourceCommit": "cd451d356ed0b2a623fc973dd1955ca7383469f7",
+  "version": "0.2.3",
+  "build": "534",
+  "dmgBytes": 20325427,
+  "dmgSHA256": "6121429268e8bc0e3ec8ca891bd8de2852cd48d792e0e194264c6e66e9419b10",
+  "binarySHA256": {
+    "AhaKeyConfig": "bdcc41ae251981b2317ab79167bb746f92164d037bc7cd1624ab5800383597c0",
+    "ahakeyconfig-agent": "220fade37189c53d6cfe6b869f67734def57aed5747ebaa98754c34e975d0a6d"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "installed": true,
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "expectedTeamSignatureVerified": true,
+  "localFullSwiftTestsRepeated": false,
+  "priorFullSwiftTests": {
+    "build": 533,
+    "count": 971,
+    "failures": 0
+  },
+  "ci": {
+    "run": 41413307058,
+    "allThreeJobs": "success"
+  },
+  "standbyReadbackBelowPickerVerified": true,
+  "refreshIconPreserved": true,
+  "standbyReadbackMinutes": 60,
+  "hardwareConfigurationWrites": 0,
+  "current15PreferencesSemanticallyUnchanged": true,
+  "agentConnected": true
+}
