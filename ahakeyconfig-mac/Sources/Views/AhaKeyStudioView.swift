@@ -771,6 +771,8 @@ struct AhaKeyStudioView: View {
                                 )
                         )
 
+                        if selectedPart == .toggleSwitch { leverPermissions.disabled(componentBusy) }
+
                         HStack {
                             Spacer()
                             Button {
@@ -1286,12 +1288,12 @@ struct AhaKeyStudioView: View {
 
     @ViewBuilder
     private var switchSummary: some View {
-        let agentReady = agentManager.isInstalled && agentManager.isRunning && agentManager.hooksInstalled
+        let agentReady = agentManager.isInstalled && agentManager.isRunning && bleManager.agentBLEConnectedProvider()
         summaryRow(NSLocalizedString("当前档位", comment: ""), value: currentSwitchTitle,
                    dot: currentSwitchTitle == NSLocalizedString("自动批准", comment: "") ? .green : .indigo)
-        summaryRow("Agent", value: agentReady ? "就绪" : "未就绪",
+        summaryRow("后台", value: agentReady ? "已连接" : "未连接",
                    dot: agentReady ? .green : .orange)
-        summaryRow(NSLocalizedString("作用范围", comment: ""), value: "Claude · Cursor · Codex · Kimi")
+        summaryRow(NSLocalizedString("作用范围", comment: ""), value: NSLocalizedString("已接管的会话", comment: ""))
     }
 
     // MARK: - Inspector Level 2 Detail
@@ -1972,58 +1974,73 @@ struct AhaKeyStudioView: View {
 
     private var switchInspector: some View {
         VStack(alignment: .leading, spacing: 16) {
-            StudioInspectorSection(NSLocalizedString("实时档位", comment: "")) {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text(currentSwitchTitle)
-                            .font(.system(.title3, design: .rounded).weight(.semibold))
-                        Spacer()
-                        Circle()
-                            .fill(currentSwitchTitle == NSLocalizedString("自动批准", comment: "") ? Color.green : Color.indigo)
-                            .frame(width: 10, height: 10)
-                    }
-                    Text(NSLocalizedString("拨杆是物理档位，不是按下瞬态。0 档显示「自动批准」，1 档显示「手动批准」。这里只读取键盘上报的位置，不模拟物理拨动。", comment: ""))
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.top, 4)
+            StudioInspectorSection(NSLocalizedString("当前档位", comment: "")) {
+                Text(currentSwitchTitle).font(.title3.weight(.semibold))
+                Text(NSLocalizedString("请使用实体拨杆切换，不能在软件中切档。", comment: ""))
+                    .font(.caption).foregroundStyle(.secondary)
             }
-
-            switchEffectivenessBox
+            leverPermissions.disabled(componentBusy)
             if !usesLegacyEditor {
                 StudioDeviceInspectorView(model: deviceInspectorModel, ble: bleManager, session: inspectorSession, lever: true)
             }
+        }
+    }
 
-            StudioInspectorSection(NSLocalizedString("Codex 会话权限", comment: "")) {
-                VStack(alignment: .leading, spacing: 8) {
-                    codexDesktopStatusText.font(.callout.weight(.semibold))
-                    Button("拨杆权限管理…") {
-                        CodexApprovalSetupController.shared.requestOffer(force: true)
+    private var leverModeHooksInstalled: Bool {
+        switch selectedMode {
+        case .mode0: return agentManager.claudeHooksInstalled
+        case .mode1: return agentManager.cursorHooksInstalled
+        case .mode2: return agentManager.codexHooksInstalled
+        case .mode3: return agentManager.kimiHooksInstalled
+        }
+    }
+
+    @ViewBuilder private var leverPermissions: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if !agentManager.isRunning || !bleManager.agentBLEConnectedProvider() {
+                HStack(alignment: .top) {
+                    Label(NSLocalizedString("后台未连接，权限尚未同步。", comment: ""), systemImage: "exclamationmark.circle")
+                        .font(.caption).foregroundStyle(.orange)
+                    Spacer(minLength: 4)
+                    Button(NSLocalizedString("后台连接…", comment: "")) { showsDeviceInfo = true }
+                        .buttonStyle(.link).font(.caption)
+                }
+            }
+            switch selectedMode {
+            case .mode0, .mode1:
+                StudioInspectorSection(selectedMode.defaultName + " · " + NSLocalizedString("审批", comment: "")) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(NSLocalizedString("自动档由后台处理审批；手动档沿用应用原有审批。", comment: ""))
+                        if !leverModeHooksInstalled {
+                            Button(NSLocalizedString("配置自动批准…", comment: "")) { showsDeviceInfo = true }
+                                .buttonStyle(.link)
+                        }
+                    }.font(.caption).foregroundStyle(.secondary)
+                }
+            case .mode2:
+                StudioInspectorSection(NSLocalizedString("Codex 权限", comment: "")) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        codexDesktopStatusText.font(.callout.weight(.semibold))
+                        Text(NSLocalizedString("授权后：自动档完全访问，手动档请求批准；下一轮生效。", comment: ""))
+                            .font(.caption).foregroundStyle(.secondary)
+                        Button(NSLocalizedString("管理会话权限…", comment: "")) {
+                            CodexApprovalSetupController.shared.requestOffer(force: true)
+                        }.buttonStyle(.link)
                     }
-                    Text("授权后，已识别的本机桌面会话随拨杆切换权限，从同一会话下一轮生效。当前正在执行的一轮保持原权限。")
-                        .font(.callout).foregroundStyle(.secondary)
                 }
-            }
-            .task {
-                while !Task.isCancelled {
-                    let status = await agentManager.readCodexDesktopLeverStatus()
-                    guard !Task.isCancelled else { break }
-                    codexDesktopLeverStatus = status
-                    do { try await Task.sleep(nanoseconds: 2_000_000_000) } catch { break }
+                .task {
+                    while !Task.isCancelled {
+                        let status = await agentManager.readCodexDesktopLeverStatus()
+                        guard !Task.isCancelled else { break }
+                        codexDesktopLeverStatus = status
+                        do { try await Task.sleep(nanoseconds: 2_000_000_000) } catch { break }
+                    }
                 }
+            case .mode3:
+                StudioKimiPermissionsView()
             }
-
-            StudioInspectorSection(NSLocalizedString("如何理解这个部件", comment: "")) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("实体拨杆控制批准方式，与键盘当前工作模式无关。")
-                    Divider()
-                    Text("Claude／Cursor 自动批准需要后台与 Hook。Codex 未接管的会话继续原有审批流程，不会因键盘未授权而被拒绝。Kimi 默认权限可随拨杆同步；已有会话的接管状态需单独核验。")
-                    Text(NSLocalizedString("手动批准：会交回用户/终端确认。若 Cursor、Codex 或 Kimi 仍弹窗，请看 diagnostics 里的 ide 与 diagnostic 字段。", comment: ""))
-                    Text(NSLocalizedString("若仍出现手动：在「设备信息」里打开「工具批准诊断」查看 permission-request.log（含 ide、hookEvent、diagnostic 等）。", comment: ""))
-                }
-                .font(.callout)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            Text(NSLocalizedString("拨杆对所有已接管会话生效，这里仅显示当前模式。", comment: ""))
+                .font(.caption2).foregroundStyle(.secondary)
         }
     }
 
@@ -2031,86 +2048,17 @@ struct AhaKeyStudioView: View {
     private var codexDesktopStatusText: some View {
         if let status = codexDesktopLeverStatus {
             switch status.phase {
-            case .waiting: Text("等待识别 Codex 桌面会话")
-            case .working: Text("正在同步会话权限")
-            case .synchronized: Text("已同步，下一轮生效")
-            case .notManaged: Text("未接管，沿用 Codex 原有权限")
-            case .notSynchronized: Text("尚未同步，请以 Codex 当前权限为准")
-            case .externalChange: Text("已保留你在 Codex 中修改的权限")
+            case .waiting: Text(NSLocalizedString("等待识别会话", comment: ""))
+            case .working: Text(NSLocalizedString("正在同步权限", comment: ""))
+            case .synchronized: Text(NSLocalizedString("已同步，下一轮生效", comment: ""))
+            case .notManaged: Text(NSLocalizedString("未接管，沿用 Codex 当前权限。", comment: ""))
+            case .notSynchronized: Text(NSLocalizedString("尚未同步，以 Codex 当前权限为准", comment: ""))
+            case .externalChange: Text(NSLocalizedString("已保留你修改的权限", comment: ""))
             }
         } else {
-            Text(LocalizedStringKey(agentManager.isRunning ? "等待后台同步状态" : "后台未运行"))
+            Text(NSLocalizedString(agentManager.isRunning ? "正在读取权限状态…" : "后台未运行", comment: ""))
         }
     }
-
-    @ViewBuilder
-    private var switchEffectivenessBox: some View {
-        let agentReady = agentManager.isInstalled && agentManager.isRunning && agentManager.hooksInstalled
-        let hasAnyMissing = !agentManager.isInstalled || !agentManager.isRunning || !agentManager.hooksInstalled
-        StudioInspectorSection(agentReady ? "后台已就绪" : "后台未就绪") {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
-                    Image(systemName: agentReady ? "checkmark.seal.fill" : "exclamationmark.circle.fill")
-                        .foregroundStyle(agentReady ? .green : .orange)
-                    Text(LocalizedStringKey(agentReady
-                         ? "Claude／Cursor 可由后台接管批准；Codex 会话权限同步请查看下方状态。Kimi 已有会话权限需单独核验。"
-                         : "拨杆在 IDE 中生效需先安装 Agent 与 Hook，并把蓝牙交给 Agent；否则仅为状态显示。"))
-                        .font(.callout)
-                }
-
-                if hasAnyMissing {
-                    VStack(alignment: .leading, spacing: 4) {
-                        agentChecklistRow(label: "LaunchAgent 已安装", ok: agentManager.isInstalled)
-                        agentChecklistRow(label: "Agent 已连接蓝牙", ok: agentManager.isRunning)
-                        agentChecklistRow(label: "Claude / Cursor / Codex / Kimi Hook 已配置", ok: agentManager.hooksInstalled)
-                    }
-                    .padding(.leading, 4)
-
-                    HStack(spacing: 8) {
-                        if !agentManager.isInstalled {
-                            Button("安装 Agent + Hook") {
-                                agentManager.install()
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                        } else if !agentManager.isRunning {
-                            // 与「设备信息 · Agent」相同：在 launchd 中 load + start 守护进程。
-                            // 若当前由本 App 占用蓝牙，此处也应引导先去设备信息把「蓝牙连接」切给 Agent，否则与主流程二选一相冲突（故与 DeviceInfo 同样禁用直接启动）。
-                            Button("启动 Agent") {
-                                agentManager.start()
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                            .disabled(agentManager.bluetoothConnectionOwner == .ahaKeyStudio)
-                            .help(
-                                agentManager.bluetoothConnectionOwner == .ahaKeyStudio
-                                ? "当前由本 App 占用蓝牙。请打开下方「设备信息…」，在「蓝牙连接」里选「由 Agent 占用」后再启 Agent；与设备信息里「启动」按钮规则一致。"
-                                : "与「设备信息 · Agent」中的启动相同，由 launchd 加载并执行 ahakeyconfig-agent。"
-                            )
-                        }
-                        Button("设备信息（蓝牙 / 启停 Agent）…") {
-                            showsDeviceInfo = true
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    }
-                }
-            }
-            .padding(.top, 4)
-        }
-    }
-
-    private func agentChecklistRow(label: String, ok: Bool) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: ok ? "checkmark.circle.fill" : "xmark.circle")
-                .foregroundStyle(ok ? .green : .secondary)
-                .font(.caption)
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(ok ? .primary : .secondary)
-        }
-    }
-
 
     private var statusBar: some View {
         HStack(spacing: 16) {

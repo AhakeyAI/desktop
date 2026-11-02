@@ -5,22 +5,31 @@ struct StudioKimiPermissionsView: View {
     @StateObject private var model = StudioKimiPermissionsModel()
     @State private var pending: StudioKimiPermissionsModel.Candidate?
     @State private var inspection: Task<Void, Never>?
+    @State private var syncPhase: String?
     var body: some View {
-        DisclosureGroup(NSLocalizedString("Kimi Code Desktop 会话权限", comment: "")) {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(NSLocalizedString("Kimi 权限", comment: "")).font(.headline)
             VStack(alignment: .leading, spacing: 10) {
-                Text(NSLocalizedString("仅管理你授权的会话：自动档为完全自动，手动档请求批准；断连或退出后台时恢复原设置。", comment: ""))
+                Text(syncStatus).font(.callout.weight(.semibold))
+                Text(NSLocalizedString("Code Desktop 已授权会话跟随拨杆；CLI 仅设置新会话默认权限。", comment: ""))
+                    .font(.caption).foregroundStyle(.secondary)
+                Text(NSLocalizedString("自动档完全自动，手动档请求批准。", comment: ""))
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
-                    Button(NSLocalizedString(model.isBusy ? "核对中…" : "检测可管理会话", comment: "")) {
+                    Button(NSLocalizedString(model.isBusy ? "核对中…" : "添加会话…", comment: "")) {
                         inspection = Task { await model.inspect() }
                     }.disabled(model.isBusy)
-                    Button(NSLocalizedString("刷新接管记录", comment: "")) { model.refresh() }.disabled(model.isBusy)
+                    Spacer()
+                    Button { model.refresh() } label: { Image(systemName: "arrow.clockwise") }
+                        .buttonStyle(.borderless).disabled(model.isBusy)
+                        .help(NSLocalizedString("刷新授权记录", comment: ""))
+                        .accessibilityLabel(NSLocalizedString("刷新授权记录", comment: ""))
                 }
                 ForEach(model.grants, id: \.target) { grant in
                     HStack {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(grant.title.isEmpty ? NSLocalizedString("未命名会话", comment: "") : grant.title)
-                            Text(NSLocalizedString("已授权，后台按实体拨杆同步", comment: ""))
+                            Text(NSLocalizedString("已授权", comment: ""))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -40,11 +49,21 @@ struct StudioKimiPermissionsView: View {
                         .font(.caption).foregroundStyle(.orange)
                 }
                 if let message = model.message { Text(message).font(.caption).foregroundStyle(.secondary) }
-                Text(NSLocalizedString("未授权会话、普通 Kimi 和 CLI TUI 保持原审批流程。已授权的原会话未加载时，允许官方应用重新加载它；正在执行的操作不保证追溯改变。", comment: ""))
+                Text(NSLocalizedString("普通 Kimi 暂不支持权限接管。", comment: ""))
                     .font(.caption).foregroundStyle(.secondary)
             }.padding(.top, 6)
         }
         .onAppear { model.refresh() }
+        .task {
+            while !Task.isCancelled {
+                let data = await Task.detached(priority: .utility) {
+                    AgentManager.querySocketData(socketPath: "/tmp/ahakey.sock", command: "kimi_desktop_status")
+                }.value
+                guard !Task.isCancelled else { break }
+                syncPhase = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["phase"] as? String
+                do { try await Task.sleep(nanoseconds: 2_000_000_000) } catch { break }
+            }
+        }
         .onDisappear { inspection?.cancel(); model.cancelInspection() }
         .alert(NSLocalizedString("允许此会话随拨杆切换权限？", comment: ""), isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }), presenting: pending) { candidate in
             Button(NSLocalizedString("取消", comment: ""), role: .cancel) { pending = nil }
@@ -53,7 +72,18 @@ struct StudioKimiPermissionsView: View {
                 pending = nil
             }
         } message: { _ in
-            Text(NSLocalizedString("自动档将启用完全自动；手动档改为请求批准。退出接管时恢复原权限，并保留之后识别到的用户修改。仅作用于此会话。", comment: ""))
+            Text(NSLocalizedString("仅管理此会话：自动档完全自动，手动档请求批准；停止接管时恢复原权限并保留已识别的用户修改。允许官方应用加载此会话，正在执行的操作不追溯改变。", comment: ""))
+        }
+    }
+
+    private var syncStatus: String {
+        switch syncPhase {
+        case "synchronized": return NSLocalizedString("已同步", comment: "")
+        case "recovering": return NSLocalizedString("正在恢复原权限", comment: "")
+        case "notSynchronized": return NSLocalizedString("尚未同步，以 Kimi 当前权限为准", comment: "")
+        case "externalChange": return NSLocalizedString("已保留你修改的权限", comment: "")
+        case "noSessions": return NSLocalizedString("尚未添加会话", comment: "")
+        default: return NSLocalizedString("等待后台同步状态", comment: "")
         }
     }
 }

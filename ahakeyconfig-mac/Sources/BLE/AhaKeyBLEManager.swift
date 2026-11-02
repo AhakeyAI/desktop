@@ -2755,6 +2755,8 @@ final class SwitchStateNotifier: ObservableObject {
     }
 
     private func handleStateChange(_ newState: Int) {
+        guard let manager = bleManager, manager.switchStateForDisplay == newState,
+              newState == 0 || newState == 1 else { return }
         defer { lastObservedState = newState }
 
         guard hasInitialState else {
@@ -2772,24 +2774,27 @@ final class SwitchStateNotifier: ObservableObject {
         let switchedToAuto = (previous != 0 && newState == 0)
         let switchedToManual = (previous == 0 && newState != 0)
 
-        if switchedToAuto {
-            if AgentManager.shared.codexHooksInstalled {
-                CodexApprovalSetupController.shared.requestOffer()
-            }
-            postNotification(
-                title: "拨杆 → 自动批准",
-                body: "Claude／Cursor 原生审批请求可由 Hook 自动批准。已授权的 Codex 本机桌面会话从下一轮随拨杆切换权限；未接管时继续原流程。Kimi 原生终端审批由自身管理。",
-                identifier: "lab.jawa.ahakey.switch.auto",
-                isCritical: true
-            )
-        } else if switchedToManual {
-            postNotification(
-                title: "拨杆 → 手动批准",
-                body: "AhaKey 停止 Hook 自动批准；已接管的 Codex 本机桌面会话从下一轮切为请求批准，其他会话继续原流程，不拒绝正常操作。",
-                identifier: "lab.jawa.ahakey.switch.manual",
-                isCritical: false
-            )
+        guard switchedToAuto || switchedToManual else { return }
+        let mode = manager.workModeForDisplay
+        let agent = AgentManager.shared
+        let hooksInstalled: Bool
+        switch mode {
+        case 0?: hooksInstalled = agent.claudeHooksInstalled
+        case 1?: hooksInstalled = agent.cursorHooksInstalled
+        case 2?: hooksInstalled = agent.codexHooksInstalled
+        case 3?: hooksInstalled = agent.kimiHooksInstalled
+        default: hooksInstalled = false
         }
+        let managed = (try? CodexDesktopLeverState().snapshot().managementEnabled) == true
+        let notice = StudioLeverPresentation.notice(mode: mode, automatic: switchedToAuto,
+            codexManaged: managed, backgroundConnected: agent.isRunning && manager.agentBLEConnectedProvider(),
+            hooksInstalled: hooksInstalled)
+        // One relevant prompt at a time; consent never changes another mode's
+        // notification and never implicitly grants session management.
+        if notice.offersCodexManagement, CodexApprovalSetupController.shared.requestOffer() { return }
+        postNotification(title: notice.title, body: notice.message,
+            identifier: switchedToAuto ? "lab.jawa.ahakey.switch.auto" : "lab.jawa.ahakey.switch.manual",
+            isCritical: switchedToAuto)
     }
 
     private func postNotification(title: String, body: String, identifier: String, isCritical: Bool) {

@@ -63,12 +63,13 @@ final class CodexApprovalSetupController {
         self.model = model; self.hud = hud
     }
 
-    func requestOffer(force: Bool = false) {
+    @discardableResult
+    func requestOffer(force: Bool = false) -> Bool {
         if model.isPresenting {
             if force { hud.refreshPendingOffer() }
-            return
+            return true
         }
-        guard model.offer(force: force) else { return }
+        guard model.offer(force: force) else { return false }
         hud.offerCodexApproval { [weak self] accept in
             guard let self else { return }
             switch self.model.resolve(manageSessions: accept) {
@@ -85,5 +86,6 @@ final class CodexApprovalSetupController {
                     subtitle: NSLocalizedString("请稍后重试，未确认已同步", comment: "")), autoHideAfter: 6)
             }
         }
+        return true
     }
 }

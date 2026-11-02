@@ -234,7 +234,6 @@ struct DeviceInfoView: View {
                         }
                     }
                 }
-                StudioKimiPermissionsView()
             } header: {
                 Text(NSLocalizedString("LED 状态同步 · Hook 联动", comment: ""))
             } footer: {

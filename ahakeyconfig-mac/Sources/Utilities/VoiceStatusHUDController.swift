@@ -215,9 +215,9 @@ private struct CodexApprovalOfferView: View {
     let resolve: (Bool) -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("允许拨杆管理 Codex 权限？", systemImage: "checkmark.shield")
+            Label(NSLocalizedString("允许拨杆管理 Codex？", comment: ""), systemImage: "checkmark.shield")
                 .font(.system(size: 14, weight: .semibold))
-            Text("管理已识别的本机桌面会话：自动档为完全访问，手动档为请求批准，同一会话下一轮生效。暂停或断连时恢复接管前权限。")
+            Text(NSLocalizedString("管理本机已识别的 Codex 桌面会话。自动档完全访问，手动档请求批准；下一轮生效。断连或停止后台时恢复原权限。", comment: ""))
                 .font(.system(size: 12)).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             HStack {
