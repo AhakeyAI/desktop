@@ -63,7 +63,7 @@
   "kimi121PermissionRoundTripStatus": "physical-manual-auto-and-native-agent-stop-recovery-passed",
   "targetFirmwareSource": "fe2278616f69087b7f9097ae4777f7231ff39a30",
   "flashStatus": "code-verify-reset-and-wireless-readback-passed-manual-image-no-catalog-version-attestation",
-  "voiceHILStatus": "owner-confirms-normal-short-start-stop-long-hold-still-invokes-Siri",
+  "voiceHILStatus": "short-press-and-normal-restart-passed-long-hold-Siri-accepted-full-four-mode-fault-matrix-pending",
   "secondISPAttempt": {
     "startedThroughNativeRetry": true,
     "sameOwnerAuthorizedImage": true,
@@ -159,5 +159,10 @@
     "localDrafts": 4,
     "detailedLogEnabled": false,
     "deviceConfigurationWritesAfterFlash": 0
-  }
+  },
+  "consumerLongHoldSiriIsExpected": true,
+  "ownerConfirmedConsumerInteraction": "short-press-dictation-long-hold-Siri",
+  "consumerLongHoldSiriReleaseBlocker": false,
+  "internalQAReady": true,
+  "productionReleaseReady": false
 }

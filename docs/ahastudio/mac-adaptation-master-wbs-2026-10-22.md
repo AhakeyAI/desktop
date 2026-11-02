@@ -1,5 +1,7 @@
 # Mac客户端适配总WBS v2 — Inspector、WS3与WS4/5
 
+> **2026-11-02 提测口径更新（Owner确认）**：Consumer短按切换听写、长按唤起Siri属于正常交互，撤销“长按Siri必须修复／固定短脉冲”为本次发布前置要求；历史稍慢短按误触发／释放风险记录保留，不等同当前长按行为缺陷。297B短按及正常重启观察已通过，完整四模式／异常矩阵仍交测试。当前组合可进入内部功能与回归测试，不能标正式发布就绪。见[提测交接](internal-qa-handoff-build529-2026-11-02.md)。
+
 > **2026-11-02 新固件集中补验增量通过**：297B重启后屏幕、短按Consumer听写及Dock获Owner确认正常；定向HID抓到3组完整按下／松开（约135–225ms），无Command事件，不代替长时或四模式混用矩阵。Kimi Code Desktop1.2.1同一已授权会话auto→manual→auto真实拨杆往返通过；Codex同会话on-request/workspace→never/full-access通过。原生停止Agent后两端租约清零、原完全自动权限保留；重新启动与键盘重启后连接及权限读回通过。长按仍触发Siri，未关闭该产品行为问题；用户并发修改、异常退出等故障矩阵仍待。保留4项草稿、日志关闭、无新增授权／模型请求。见[完整回执](../validation/connect-talk-hil-2026-10-22/kimi121-and-k1-followup-hil-2026-11-02.json)。
 
 > **2026-11-02 297B已实际刷入并无线读回**：原生“重试烧录”在重新接入USB后检测到CH582，写入272384字节、Verify OK并复位。Owner已移除短接、无线开机并选择Mac；客户端读回Codex Mode3、待机60分钟和16键，Agent重新连接，本地4项既有草稿保留，未写入配置。手动工程HEX无可信目录版本标识，故不宣称正式发布版本认证。Consumer/Command定向事件抓取已启动，实体短按结果及Kimi1.2.1／Codex拨杆往返仍待；此前首轮超时和未刷机段落保留为历史检查点。见[联调回执](../validation/connect-talk-hil-2026-10-22/kimi121-and-k1-followup-hil-2026-11-02.json)。
