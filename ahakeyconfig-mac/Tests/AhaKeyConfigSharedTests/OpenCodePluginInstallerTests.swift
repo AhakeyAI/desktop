@@ -61,6 +61,14 @@ final class OpenCodePluginInstallerTests: XCTestCase {
                       "事件映射应存在于脚本里")
     }
 
+    /// 殘留的 running session 會讓燈條永遠停在「執行中」（實測：任務結束 13 秒後被心跳拉回藍色）。
+    func testScriptRecoversFromStaleRunningSession() {
+        let script = OpenCodePluginInstaller.script(agentBinaryPath: "/tmp/agent")
+        XCTAssertTrue(script.contains("pruneStaleSessions"), "应有超时清理残留 running 的逻辑")
+        XCTAssertTrue(script.contains("location.shutdown"), "location 关闭时应立即收尾")
+        XCTAssertTrue(script.contains("STALE_RUNNING_MS"), "清理阈值应可辨识")
+    }
+
     /// XDG_CONFIG_HOME 优先，其次是 ~/.config。
     func testPluginsDirectoryFollowsXDG() {
         let home = URL(fileURLWithPath: "/Users/example")

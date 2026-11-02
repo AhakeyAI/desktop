@@ -226,13 +226,28 @@ let lastEmitted = null
 
 function phaseFor(sessionID, phase) {
   if (!sessionID) return
-  sessions.set(sessionID, phase)
+  sessions.set(sessionID, { phase, at: Date.now() })
   emitAggregate()
+}
+
+// 殘留 running 是實測踩過的坑：某個 session 收到 execution.started 卻再也沒有結束事件時，
+// 它會讓聚合永遠停在「執行中」，心跳每 20 秒把燈拉回藍色（任務其實早就結束了）。
+// 對策：超過 STALE_RUNNING_MS 沒有任何事件、且已經有別的 session 完成過的 running，視為殘留。
+const STALE_RUNNING_MS = 120000
+
+function pruneStaleSessions(now) {
+  let pruned = 0
+  for (const [sid, v] of sessions) {
+    if (v.phase !== "running") continue
+    if (now - v.at > STALE_RUNNING_MS) { sessions.delete(sid); pruned += 1 }
+  }
+  return pruned
 }
 
 function emitAggregate(force) {
   const now = Date.now()
-  const phases = [...sessions.values()]
+  pruneStaleSessions(now)
+  const phases = [...sessions.values()].map((v) => v.phase)
   let phase = null
   if (phases.includes("running")) phase = "running"
   else if (phases.includes("done")) phase = "done"
@@ -251,7 +266,12 @@ function startHeartbeat() {
   if (heartbeatTimer) return
   heartbeatTimer = setInterval(() => {
     // 長任務若完全沒有事件，daemon 看門狗會誤判「已死」而發 Stop(5)（紅燈）→ 心跳補送「執行中」
-    if ([...sessions.values()].includes("running")) emitAggregate(true)
+    // 注意：心跳本身不刷新 session 的 at，否則殘留的 running 永遠不會被 prune（見 pruneStaleSessions）
+    const running = [...sessions.values()].filter((v) => v.phase === "running")
+    if (running.length > 0) {
+      log("heartbeat: running sessions=" + running.length + "/" + sessions.size)
+      emitAggregate(true)
+    }
   }, 20000)
   if (heartbeatTimer.unref) heartbeatTimer.unref()
 }
@@ -366,6 +386,14 @@ function watchEvents(ctx) {
           phaseFor(sessionID, status.type === "idle" ? "done" : "running")
           continue
         }
+        case "location.shutdown":
+          // 這個 location 被關掉了（opencode run 結束 / TUI 退出）→ 裡面不可能還有東西在跑。
+          // 直接把殘留的 running 收成 done，比等 2 分鐘的 prune 更即時。
+          for (const [sid, v] of sessions) {
+            if (v.phase === "running") sessions.set(sid, { phase: "done", at: Date.now() })
+          }
+          emitAggregate(true)
+          continue
         case "permission.asked":
           emitTransient("OpenCodePermissionRequested", sessionID)
           continue
