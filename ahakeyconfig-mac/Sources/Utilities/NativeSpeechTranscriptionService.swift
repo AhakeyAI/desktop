@@ -392,6 +392,23 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         let inputNode = engine.inputNode
         let format = inputNode.outputFormat(forBus: 0)
 
+        // 防御：麦克风权限未真正生效（见系统日志 AUHAL "0 input streams"）或没有可用输入设备时，
+        // `outputFormat(forBus:)` 会返回 0 ch / 0 Hz，随后 `installTap` 抛 NSException，
+        // Swift 无法捕获 → 直接 abort() 崩溃（AHK 实测：按语音键时 Flashback 报告“未预期结束”）。
+        // 这里提前拦住并给出可操作提示，绝不进入 installTap。
+        guard format.sampleRate > 0, format.channelCount > 0 else {
+            statusMessage = NSLocalizedString(
+                "麦克风当前不可用（系统没有可用的输入设备，或权限尚未生效）。请到「系统设置 › 隐私与安全性 › 麦克风」确认 AhaKey Studio 已勾选。",
+                comment: ""
+            )
+            appendDiagnostic("input format unavailable sr=\(format.sampleRate) ch=\(format.channelCount); skip installTap to avoid AVAudioEngine NSException")
+            if !VoiceRelayService.shared.isPermissionOnboardingSuppressed {
+                VoiceRelayService.shared.showsPermissionOnboarding = true
+            }
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
         inputNode.removeTap(onBus: 0)
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
             self?.recognitionRequest?.append(buffer)
