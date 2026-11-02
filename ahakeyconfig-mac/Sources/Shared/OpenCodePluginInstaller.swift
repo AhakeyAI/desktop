@@ -265,6 +265,10 @@ const EVENT_MAP = {
 export default {
   id: "ahakey-bridge",
   async setup(ctx) {
+    // opencode 的扩展机制只有 plugin（没有 hooks 设置文件）。plugin 内可用官方文档化的
+    // event / tool.execute.before 挂钩；而下面这个 permission hooks 属于 2.2.5 的**内部 API**
+    // （官方 /docs/permissions 只描述 config 的静态规则）。找不到它就退回「不介入」，
+    // opencode 使用自己的默认审批流程，AhaKey 不会挡住它。
     if (ctx && ctx.permission && typeof ctx.permission.hook === "function") {
       try {
         await ctx.permission.hook("evaluate", evaluate)

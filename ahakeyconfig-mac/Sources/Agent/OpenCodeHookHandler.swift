@@ -11,6 +11,19 @@ import Foundation
 /// 这个调用发生在 opencode「规则判定完成之后、动作执行或权限提示发布之前」，
 /// 是唯一能在弹窗前就用实体拨杆决定的位置。
 ///
+/// **重要：`ctx.permission.hook("evaluate")` 不属于 opencode 的公开 API。**
+/// 官方文件（<https://opencode.ai/docs/plugins/>）只列出 `event`、`"tool.execute.before"`、
+/// `"shell.env"` 这类 plugin 挂钩；`/docs/permissions` 描述的是 config 的**静态**规则，
+/// 没有「由外部程序动态决定放行」的接口。这个 evaluate 挂钩是 opencode 2.2.5 实测可用的内部 API。
+///
+/// 之所以仍然采用它：opencode 的 config 规则只能把动作固定成 allow/ask/deny，`ask` 只会回到
+/// TUI 等人工点击，AhaKey 的实体拨杆就失去了意义。要在「弹窗之前」用拨杆决定，只有这个位置。
+///
+/// 退路（fail-safe）：plugin 安装/加载时若找不到 `permission.hook`，会打印
+/// `permission.hook unavailable: approval is NOT bridged in this opencode build` 并**不介入**，
+/// opencode 回到自己的默认审批流程 —— AhaKey 不会挡住它，只是拨杆不再代答。
+/// 若未来 opencode 移除该挂钩，同样走这条退路，不会造成「无法审批」。
+///
 /// 时间预算跟 Claude 的 PermissionRequest 不一样：opencode 的 TUI 会同步等我们，
 /// 所以这里用更短的上限，而且**任何异常都回 `ask`**（把决定权交回 opencode 自己问人），
 /// 绝不因为超时/断连而误放行 —— 与 upstream `docs/architecture.md` 的 fail-safe 原则一致。

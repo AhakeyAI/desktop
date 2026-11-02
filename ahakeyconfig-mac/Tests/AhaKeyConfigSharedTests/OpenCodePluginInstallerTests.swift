@@ -50,6 +50,17 @@ final class OpenCodePluginInstallerTests: XCTestCase {
         XCTAssertEqual(decoded ?? nil, path)
     }
 
+    /// permission 挂钩没有官方文件化：plugin 必须能「找不到就退回不介入」，而不是抛错或静默挂住。
+    func testScriptDegradesGracefullyWithoutPermissionHook() {
+        let script = OpenCodePluginInstaller.script(agentBinaryPath: "/tmp/agent")
+        XCTAssertTrue(script.contains("permission.hook unavailable"),
+                      "缺挂钩时应明确落日志，而不是静默失败")
+        XCTAssertTrue(script.contains("typeof ctx.permission.hook"),
+                      "应先检查挂钩是否存在（缺失时不拦截审批）")
+        XCTAssertTrue(script.contains("session.execution.started"),
+                      "事件映射应存在于脚本里")
+    }
+
     /// XDG_CONFIG_HOME 优先，其次是 ~/.config。
     func testPluginsDirectoryFollowsXDG() {
         let home = URL(fileURLWithPath: "/Users/example")
