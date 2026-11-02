@@ -567,7 +567,7 @@ struct AhaKeyStudioView: View {
             [.lightBar, .oledDisplay, .toggleSwitch, .modeButton].contains(selectedPart)
     }
     private var componentBusy: Bool {
-        isSyncing || inspectorSession.isBusy || resourceInspectorModel.isBusy || resourceInspectorModel.isPreparing || deviceInspectorModel.isBusy || lcdInspectorModel.isReading || lcdInspectorModel.isWriting
+        isSyncing || inlineKeyTask != nil || inspectorSession.isBusy || resourceInspectorModel.isBusy || resourceInspectorModel.isPreparing || deviceInspectorModel.isBusy || lcdInspectorModel.isReading || lcdInspectorModel.isWriting
     }
 
     private var canvasModeDraft: AhaKeyModeDraft {
@@ -745,7 +745,7 @@ struct AhaKeyStudioView: View {
                         Group {
                             switch selectedPart {
                             case .key1, .key2, .key3, .key4:
-                                keyInspector
+                                keyInspector.disabled(componentBusy)
                             case .oledDisplay: oledInspector
                             case .lightBar: lightBarInspector
                             case .toggleSwitch: switchInspector
@@ -855,7 +855,7 @@ struct AhaKeyStudioView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.regular)
-                        .disabled(isSyncing || inspectorSession.isBusy || (inlineKeyTarget != nil ? !(inlineKeyCanSave || canInitializeInlineK1) : (!usesLegacyEditor && !bleManager.isConnected)))
+                        .disabled(componentBusy || (inlineKeyTarget != nil ? !(inlineKeyCanSave || canInitializeInlineK1) : (!usesLegacyEditor && !bleManager.isConnected)))
                     }
                 }
                 .padding(.horizontal, 24)
@@ -2459,7 +2459,7 @@ struct AhaKeyStudioView: View {
     }
 
     private func updateSelectedKey(_ transform: (inout AhaKeyKeyDraft) -> Void) {
-        guard let role = selectedPart.keyRole else { return }
+        guard !componentBusy, let role = selectedPart.keyRole else { return }
         updateCurrentMode { mode in
             var key = mode.key(for: role)
             transform(&key)
@@ -3225,6 +3225,7 @@ private struct VoicePresetPicker: View {
 struct ShortcutBindingEditor: View {
     @Binding var shortcut: ShortcutBinding
     @State private var isRecordingPrimaryKey = false
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -3270,6 +3271,9 @@ struct ShortcutBindingEditor: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+        .onChange(of: isEnabled) { enabled in
+            if !enabled { isRecordingPrimaryKey = false }
         }
     }
 
@@ -3353,106 +3357,6 @@ private struct PrimaryKeyInputField: View {
         .contentShape(Rectangle())
         .help(NSLocalizedString("直接按键设置主键，点击箭头展开下拉列表。", comment: ""))
     }
-}
-
-private struct KeyCaptureOverlay: NSViewRepresentable {
-    @Binding var shortcut: ShortcutBinding
-    @Binding var isRecording: Bool
-    let onActivate: () -> Void
-
-    func makeNSView(context: Context) -> KeyCaptureNSView {
-        let view = KeyCaptureNSView()
-        configure(view)
-        return view
-    }
-
-    func updateNSView(_ nsView: KeyCaptureNSView, context: Context) {
-        configure(nsView)
-        if isRecording {
-            DispatchQueue.main.async {
-                nsView.window?.makeFirstResponder(nsView)
-            }
-        }
-    }
-
-    private func configure(_ view: KeyCaptureNSView) {
-        view.onBeginRecording = {
-            onActivate()
-            isRecording = true
-        }
-        view.onCapture = { event in
-            guard let hidCode = HIDUsage.hidCode(forMacKeyCode: event.keyCode) else {
-                NSSound.beep()
-                isRecording = false
-                return
-            }
-            shortcut = ShortcutBinding(
-                modifiers: shortcutModifiers(from: event.modifierFlags),
-                keyCode: hidCode
-            )
-            isRecording = false
-        }
-        view.onCaptureModifier = { keyCode in
-            guard let hidCode = HIDUsage.hidCode(forMacKeyCode: keyCode) else {
-                NSSound.beep()
-                isRecording = false
-                return
-            }
-            shortcut = ShortcutBinding(modifiers: [], keyCode: hidCode)
-            isRecording = false
-        }
-    }
-
-    final class KeyCaptureNSView: NSView {
-        var onBeginRecording: (() -> Void)?
-        var onCapture: ((NSEvent) -> Void)?
-        var onCaptureModifier: ((UInt16) -> Void)?
-        private var pendingModifierCapture: DispatchWorkItem?
-
-        override var acceptsFirstResponder: Bool { true }
-
-        override func mouseDown(with event: NSEvent) {
-            window?.makeFirstResponder(self)
-            onBeginRecording?()
-        }
-
-        override func keyDown(with event: NSEvent) {
-            pendingModifierCapture?.cancel()
-            pendingModifierCapture = nil
-            onCapture?(event)
-        }
-
-        override func flagsChanged(with event: NSEvent) {
-            onBeginRecording?()
-            pendingModifierCapture?.cancel()
-            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            guard flags.contains(.control)
-                || flags.contains(.option)
-                || flags.contains(.shift)
-                || flags.contains(.command)
-                || flags.contains(.capsLock)
-                || flags.contains(.function)
-            else {
-                return
-            }
-
-            let workItem = DispatchWorkItem { [weak self] in
-                self?.onCaptureModifier?(event.keyCode)
-                self?.pendingModifierCapture = nil
-            }
-            pendingModifierCapture = workItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18, execute: workItem)
-        }
-    }
-}
-
-private func shortcutModifiers(from flags: NSEvent.ModifierFlags) -> [ShortcutModifier] {
-    var modifiers: [ShortcutModifier] = []
-    if flags.contains(.control) { modifiers.append(.control) }
-    if flags.contains(.option) { modifiers.append(.option) }
-    if flags.contains(.shift) { modifiers.append(.shift) }
-    if flags.contains(.command) { modifiers.append(.command) }
-    return modifiers
 }
 
 private struct CanvasKeyButtonStyle: ButtonStyle {
@@ -5473,7 +5377,7 @@ private extension AhaKeyStudioView {
     }
 
     var inlineKeyControlsDisabled: Bool {
-        inlineKeyTarget != nil && (inspectorSession.isBusy || !inlineKeyIsEditable)
+        inlineKeyTarget != nil && (componentBusy || !inlineKeyIsEditable)
     }
 
     @ViewBuilder

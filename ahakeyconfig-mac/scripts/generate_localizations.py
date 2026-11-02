@@ -7,6 +7,12 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "\u4e0a\u4f20\u4e2d\u9014\u53d6\u6d88\u540e\uff0c\u952e\u76d8\u53ef\u80fd\u6682\u65f6\u65e0\u6cd5\u8bfb\u53d6\u6216\u7ee7\u7eed\u4e0a\u4f20\uff0c\u9700\u8981\u6b63\u5e38\u5173\u673a\u518d\u5f00\u673a\u3002": "Cancelling an upload may leave the keyboard unable to read settings or upload again until you turn it off and on.",
+    "\u5df2\u505c\u6b62\u540e\u7eed\u4e0a\u4f20\uff0c\u4f46\u5df2\u53d1\u9001\u7684\u7d20\u6750\u65e0\u6cd5\u64a4\u56de\u3002\u82e5\u65e0\u6cd5\u8bfb\u53d6\u8bbe\u7f6e\u6216\u518d\u6b21\u4e0a\u4f20\uff0c\u8bf7\u6b63\u5e38\u5173\u95ed\u518d\u5f00\u542f\u952e\u76d8\uff0c\u91cd\u65b0\u8fde\u63a5\u540e\u5237\u65b0\u753b\u9762\u4fe1\u606f\u3002\u539f\u7d20\u6750\u4e0d\u4fdd\u8bc1\u6062\u590d\u3002": "Further uploading has stopped, but data already sent cannot be undone. If reading settings or uploading again fails, turn the keyboard off and on, reconnect, and refresh the display information. The previous artwork may not be recoverable.",
+    "\u7d20\u6750\u5199\u5165\u672a\u786e\u8ba4\u3002\u82e5\u65e0\u6cd5\u8bfb\u53d6\u8bbe\u7f6e\u6216\u7ee7\u7eed\u4e0a\u4f20\uff0c\u8bf7\u6b63\u5e38\u5173\u95ed\u518d\u5f00\u542f\u952e\u76d8\uff0c\u91cd\u65b0\u8fde\u63a5\u540e\u5237\u65b0\u753b\u9762\u4fe1\u606f\u3002\u539f\u7d20\u6750\u4e0d\u4fdd\u8bc1\u6062\u590d\u3002": "The artwork write is unconfirmed. If reading settings or uploading fails, turn the keyboard off and on, reconnect, and refresh the display information. The previous artwork may not be recoverable.",
+    "\u5df2\u53d6\u6d88\u672c\u6b21\u4e0a\u4f20": "Upload cancelled",
+    "\u77e5\u9053\u4e86": "OK",
+
     '屏幕亮度': 'Screen brightness',
     '拨杆绑定': 'Lever bindings',
     '当前模式为 Mode %d（默认 Mode 1）': 'Current mode: Mode %d (default: Mode 1)',
