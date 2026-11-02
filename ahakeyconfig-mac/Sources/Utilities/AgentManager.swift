@@ -1057,7 +1057,7 @@ final class AgentManager: ObservableObject {
         defer { isAgentOperationInProgress = false }
         let message = installOpenCodeHooks()
         agentUserAlert = message.isEmpty ? """
-        opencode Hooks 已安装到 \(openCodePluginDisplayPath)。
+        opencode 插件已安装到 \(openCodePluginDisplayPath)。
 
         **拨杆接管**：opencode 没有 hook 配置文件，这里装的是一个 plugin。拨杆在「自动」档时，opencode 的权限请求会在弹出前直接放行；切回手动档则交回 opencode 自己询问。读不到拨杆（断连、超时、回包不完整）一律交回人工确认，不会误放行。
 
@@ -1312,7 +1312,7 @@ final class AgentManager: ObservableObject {
             return ""
         } catch {
             log.error("installOpenCodeHooks: \(error.localizedDescription)")
-            return "opencode Hooks：\(error.localizedDescription)"
+            return "opencode 插件：\(error.localizedDescription)"
         }
     }
 
@@ -1320,13 +1320,13 @@ final class AgentManager: ObservableObject {
         do {
             let removed = try OpenCodePluginInstaller.remove(at: openCodePluginURL)
             guard removed else {
-                return "opencode Hooks：\(openCodePluginDisplayPath) 里没有由 AhaKey 安装的 plugin，未做任何修改。"
+                return "opencode 插件：\(openCodePluginDisplayPath) 里没有由 AhaKey 安装的 plugin，未做任何修改。"
             }
             log.info("opencode plugin 已移除")
             return ""
         } catch {
             log.error("removeOpenCodeHooks: \(error.localizedDescription)")
-            return "opencode Hooks：无法删除 \(openCodePluginDisplayPath)：\(error.localizedDescription)"
+            return "opencode 插件：无法删除 \(openCodePluginDisplayPath)：\(error.localizedDescription)"
         }
     }
 

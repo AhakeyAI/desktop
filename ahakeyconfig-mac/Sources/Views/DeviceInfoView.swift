@@ -224,11 +224,11 @@ struct DeviceInfoView: View {
                                 .font(.caption)
                         }
                         if agentManager.openCodeHooksInstalled {
-                            Button("移除 opencode Hooks") { agentManager.removeOpenCodeHooksOnly() }
+                            Button("移除 opencode 插件") { agentManager.removeOpenCodeHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         } else {
-                            Button("安装 opencode Hooks") { agentManager.installOpenCodeHooksOnly() }
+                            Button("安装 opencode 插件") { agentManager.installOpenCodeHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         }
