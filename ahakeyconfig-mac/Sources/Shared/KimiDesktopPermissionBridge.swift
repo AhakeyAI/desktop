@@ -175,19 +175,22 @@ enum KimiDesktopPermissionHTTP {
             catch let failure as Failure { throw failure }
             catch { throw Failure.unavailable }
         }
-        return try await verifiedExchange(expected: instance.registration, method: method, path: path,
+        return try await verifiedExchange(expected: instance.registration, installedVersion: instance.installedVersion,
+            method: method, path: path,
             query: query, body: body, request: request)
     }
     /// Same HTTP application must bracket the operation. Its ULID is independent
     /// of the registry ULID; both are independently bound to the verified owner.
-    static func verifiedExchange(expected: KimiDesktopInstanceDiscovery.Registration,
+    static func verifiedExchange(expected: KimiDesktopInstanceDiscovery.Registration, installedVersion: String,
         method: String, path: String, query: [URLQueryItem] = [], body: Data? = nil,
         request: (String, String, [URLQueryItem], Data?) async throws -> Data) async throws -> Data {
         let before = try await request("GET", "/api/v1/meta", [], nil)
-        guard let identity = KimiDesktopServerMetadata.parse(before, expected: expected) else { throw Failure.instanceChanged }
+        guard let identity = KimiDesktopServerMetadata.parse(before, expected: expected,
+            installedVersion: installedVersion) else { throw Failure.instanceChanged }
         let result = try await request(method, path, query, body)
         let after = try await request("GET", "/api/v1/meta", [], nil)
-        guard KimiDesktopServerMetadata.parse(after, expected: expected) == identity else { throw Failure.instanceChanged }
+        guard KimiDesktopServerMetadata.parse(after, expected: expected, installedVersion: installedVersion) == identity
+        else { throw Failure.instanceChanged }
         return result
     }
 

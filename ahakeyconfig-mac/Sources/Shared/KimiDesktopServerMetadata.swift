@@ -1,20 +1,22 @@
 import Foundation
 import CoreFoundation
 
-/// Metadata proof for the statically inspected Code Desktop 1.1.3 / server 2.3.2.
+/// Metadata proof for the inspected Desktop/server pairs, not a generic 2.x API.
 /// This is neither a session owner proof nor authorization to change permissions.
 struct KimiDesktopServerMetadata: Equatable {
     let serverID: String
     let serverVersion: String
     let startedAt: Int64
 
-    static func parse(_ data: Data, expected: KimiDesktopInstanceDiscovery.Registration) -> Self? {
+    static func parse(_ data: Data, expected: KimiDesktopInstanceDiscovery.Registration,
+                      installedVersion: String) -> Self? {
         guard data.count <= 64 * 1024,
               let envelope = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               integer(envelope["code"]) == 0,
               let body = envelope["data"] as? [String: Any],
               let id = body["server_id"] as? String, validAPIIdentity(id),
-              let version = body["server_version"] as? String, version == "2.3.2",
+              let version = body["server_version"] as? String,
+              let required = capabilityKeys(installedVersion: installedVersion, serverVersion: version),
               expected.serverVersion == nil || expected.serverVersion == version,
               let started = timestamp(body["started_at"]),
               // Registration precedes the HTTP app's Date().toISOString().
@@ -25,11 +27,23 @@ struct KimiDesktopServerMetadata: Equatable {
               CFGetTypeID(bypass) == CFBooleanGetTypeID(), !bypass.boolValue,
               body["backend"] as? String == "v2",
               let capabilities = body["capabilities"] as? [String: Any],
-              ["websocket", "file_upload", "fs_query", "mcp", "tasks", "terminal"].allSatisfy({ key in
+              Set(capabilities.keys) == required,
+              required.allSatisfy({ key in
                   guard let flag = capabilities[key] as? NSNumber else { return false }
                   return CFGetTypeID(flag) == CFBooleanGetTypeID() && flag.boolValue
               }) else { return nil }
         return Self(serverID: id, serverVersion: version, startedAt: started)
+    }
+
+    // 1.2.1 removed terminal from /meta. The permission bridge only uses the
+    // independently inspected HTTP session endpoints in both contracts.
+    private static func capabilityKeys(installedVersion: String, serverVersion: String) -> Set<String>? {
+        let common: Set<String> = ["websocket", "file_upload", "fs_query", "mcp", "tasks"]
+        switch (installedVersion, serverVersion) {
+        case ("1.1.3", "2.3.2"): return common.union(["terminal"])
+        case ("1.2.1", "2.4.0"): return common
+        default: return nil
+        }
     }
 
     // The HTTP app creates a different ULID from instanceRegistry.register().

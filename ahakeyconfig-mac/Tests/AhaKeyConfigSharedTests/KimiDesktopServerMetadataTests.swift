@@ -19,13 +19,61 @@ final class KimiDesktopServerMetadataTests: XCTestCase {
     }
     private func parse(_ body: [String: Any], code: Any = 0) throws -> KimiDesktopServerMetadata? {
         KimiDesktopServerMetadata.parse(try JSONSerialization.data(withJSONObject: ["code": code, "data": body]),
-                                        expected: try registration())
+                                        expected: try registration(), installedVersion: "1.1.3")
     }
     func testOfficialShapeBindsServerIdentityAndStartTime() throws {
         let value = try XCTUnwrap(parse(body()))
         XCTAssertEqual(value.serverID, id)
         XCTAssertEqual(value.serverVersion, "2.3.2")
         XCTAssertEqual(value.startedAt, started + 250)
+    }
+    func testInspected240MetadataWithFiveCapabilitiesIsAccepted() throws {
+        var changed = body()
+        changed["server_version"] = "2.4.0"
+        var flags = try XCTUnwrap(changed["capabilities"] as? [String: Bool])
+        flags.removeValue(forKey: "terminal")
+        changed["capabilities"] = flags
+        let data = try JSONSerialization.data(withJSONObject: ["code": 0, "data": changed])
+        let value = try XCTUnwrap(KimiDesktopServerMetadata.parse(data, expected: registration(version: "2.4.0"), installedVersion: "1.2.1"))
+        XCTAssertEqual(value.serverVersion, "2.4.0")
+    }
+    func testInspectedContractsCannotMixAppVersionsOrCapabilitySets() throws {
+        for (app, server, flags) in [
+            ("1.1.3", "2.4.0", ["websocket", "file_upload", "fs_query", "mcp", "tasks"]),
+            ("1.2.1", "2.3.2", ["websocket", "file_upload", "fs_query", "mcp", "tasks", "terminal"]),
+            ("1.2.1", "2.4.0", ["websocket", "file_upload", "fs_query", "mcp", "tasks", "terminal"]),
+            ("1.1.3", "2.3.2", ["websocket", "file_upload", "fs_query", "mcp", "tasks"]),
+            ("1.2.2", "2.4.0", ["websocket", "file_upload", "fs_query", "mcp", "tasks"]),
+            ("1.2.1", "2.4.1", ["websocket", "file_upload", "fs_query", "mcp", "tasks"])
+        ] {
+            var changed = body()
+            changed["server_version"] = server
+            changed["capabilities"] = Dictionary(uniqueKeysWithValues: flags.map { ($0, true) })
+            let data = try JSONSerialization.data(withJSONObject: ["code": 0, "data": changed])
+            XCTAssertNil(KimiDesktopServerMetadata.parse(data, expected: try registration(version: server),
+                installedVersion: app), "\(app)/\(server)/\(flags)")
+        }
+    }
+    func test240StillRequiresStrictBooleanCapabilitiesAndRegistryVersion() throws {
+        let flags = ["websocket", "file_upload", "fs_query", "mcp", "tasks"]
+        for flag in flags {
+            for invalid: Any in [false, 1, "true", NSNull()] {
+                var changed = body()
+                changed["server_version"] = "2.4.0"
+                var capabilities: [String: Any] = Dictionary(uniqueKeysWithValues: flags.map { ($0, true) })
+                capabilities[flag] = invalid
+                changed["capabilities"] = capabilities
+                let data = try JSONSerialization.data(withJSONObject: ["code": 0, "data": changed])
+                XCTAssertNil(KimiDesktopServerMetadata.parse(data, expected: try registration(version: "2.4.0"),
+                    installedVersion: "1.2.1"), flag)
+            }
+        }
+        var changed = body()
+        changed["server_version"] = "2.4.0"
+        changed["capabilities"] = Dictionary(uniqueKeysWithValues: flags.map { ($0, true) })
+        let data = try JSONSerialization.data(withJSONObject: ["code": 0, "data": changed])
+        XCTAssertNil(KimiDesktopServerMetadata.parse(data, expected: try registration(), installedVersion: "1.2.1"))
+        XCTAssertNotNil(KimiDesktopServerMetadata.parse(data, expected: try registration(version: nil), installedVersion: "1.2.1"))
     }
     func testOfficialAPIIdentityIsIndependentOfRegistryIdentity() throws {
         var changed = body()
@@ -63,8 +111,8 @@ final class KimiDesktopServerMetadataTests: XCTestCase {
             XCTAssertNil(try parse(changed))
         }
         let data = try JSONSerialization.data(withJSONObject: ["code": 0, "data": body()])
-        XCTAssertNil(KimiDesktopServerMetadata.parse(data, expected: try registration(version: "2.3.3")))
-        XCTAssertNotNil(KimiDesktopServerMetadata.parse(data, expected: try registration(version: nil)))
+        XCTAssertNil(KimiDesktopServerMetadata.parse(data, expected: try registration(version: "2.3.3"), installedVersion: "1.1.3"))
+        XCTAssertNotNil(KimiDesktopServerMetadata.parse(data, expected: try registration(version: nil), installedVersion: "1.1.3"))
     }
     func testBypassMissingFlagsAndNumericBooleansAreRejected() throws {
         for value: Any in [true, 0, "false"] {
@@ -78,8 +126,8 @@ final class KimiDesktopServerMetadataTests: XCTestCase {
     }
     func testMalformedAndOversizedResponseFailsClosedWithoutSessionAction() throws {
         let expected = try registration()
-        XCTAssertNil(KimiDesktopServerMetadata.parse(Data("not json".utf8), expected: expected))
-        XCTAssertNil(KimiDesktopServerMetadata.parse(Data(repeating: 32, count: 65_537), expected: expected))
+        XCTAssertNil(KimiDesktopServerMetadata.parse(Data("not json".utf8), expected: expected, installedVersion: "1.1.3"))
+        XCTAssertNil(KimiDesktopServerMetadata.parse(Data(repeating: 32, count: 65_537), expected: expected, installedVersion: "1.1.3"))
         var changed = body(); changed["started_at"] = true
         XCTAssertNil(try parse(changed))
     }
