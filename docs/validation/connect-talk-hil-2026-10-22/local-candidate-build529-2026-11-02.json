@@ -65,5 +65,10 @@
     "run": 41381020961,
     "sourceCommit": "30693ec6fb3ac35b9a7a9f364345257720472d18",
     "conclusion": "success"
-  }
+  },
+  "new121ReadOnlyLiveIntegrationPassed": true,
+  "new121AuthorizedPermissionReadPassed": true,
+  "new121ActualPermissionRead": "auto",
+  "new121LivePermissionRoundTripPassed": false,
+  "new121HILReceipt": "kimi121-and-k1-followup-hil-2026-11-02.json"
 }

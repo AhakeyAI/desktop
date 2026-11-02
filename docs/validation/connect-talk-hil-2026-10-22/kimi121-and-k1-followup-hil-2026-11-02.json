@@ -1,0 +1,67 @@
+{
+  "date": "2026-11-02",
+  "studioBuild": 529,
+  "studioSource": "30693ec6fb3ac35b9a7a9f364345257720472d18",
+  "ownerAuthorizedKimiUpdateAndTest": true,
+  "kimiActualVersionBeforeReplacement": "1.1.4",
+  "kimiVersionBeforeQuitWas113": true,
+  "kimiNewVersion": "1.2.1",
+  "kimiOfficialDMG_SHA256": "92a4c243e6c266fd705bc46878308a2ea6e2ea0a5e9bd6dcb337884926c84f73",
+  "kimiExpectedTeamSignatureVerified": true,
+  "oldKimiBundleRetained": true,
+  "oldVersionDriftDetectedBeforeMutation": true,
+  "kimi121RealDirectoryRead": {
+    "credentialsOrSessionDetailsRecorded": false,
+    "modelRequests": 0,
+    "results": [
+      {
+        "directoryReadPassed": true,
+        "hasMore": true,
+        "installedVersion": "1.2.1",
+        "loadedSessionCount": 1
+      }
+    ],
+    "sessionPermissionWrites": 0,
+    "verifiedInstances": 1
+  },
+  "kimi121PermissionRoundTripPassed": false,
+  "ownerAuthorized297BClearAndFlash": true,
+  "firmwareSHA256": "297b7390362a38b04a509ebc26e8bdb7ef6ec48065e6aa66e6086129213e672a",
+  "preflashReadOnlyBackup": "k1-candidate-readonly-preflight-2026-11-02.json",
+  "ispWaitSeconds": 180,
+  "ispWaitStartedThroughNativeUI": true,
+  "flashVerifyPassed": false,
+  "voiceHILPassed": false,
+  "fullAcceptanceComplete": false,
+  "firstISPWait": {
+    "terminal": true,
+    "result": "timeout-no-CH582-detected",
+    "waitSeconds": 180,
+    "eraseOrWriteStarted": false,
+    "retryButtonVisible": true
+  },
+  "kimi121ExistingAuthorizedPermissionRead": {
+    "existingGrantCount": 1,
+    "modelRequests": 0,
+    "newSessionGrants": 0,
+    "permissionWrites": 0,
+    "results": [
+      {
+        "installedVersion": "1.2.1",
+        "mode": "auto",
+        "permissionReadPassed": true
+      }
+    ],
+    "sessionIDsOrCredentialsRecorded": false
+  },
+  "kimiAgentAfterUpdate": {
+    "phase": "synchronized",
+    "authorizedSessions": 1,
+    "managedSessions": 0,
+    "pendingRecovery": 0
+  },
+  "kimi121PermissionRoundTripStatus": "pending-physical-lever",
+  "targetFirmwareSource": "fe2278616f69087b7f9097ae4777f7231ff39a30",
+  "flashStatus": "first-wait-timeout-before-detection-retry-not-started",
+  "voiceHILStatus": "not-started-new-image-not-flashed"
+}
