@@ -1,0 +1,50 @@
+{
+  "sourceCommit": "58caafc8ab0da15c9bff8476182baf747d2d44ec",
+  "version": "0.2.3",
+  "build": "531",
+  "dmgBytes": 20320875,
+  "dmgSHA256": "463ba41e661365efb393e2d5b648bab88a08e9752716b3a3e6feff703b6001e2",
+  "binarySHA256": {
+    "AhaKeyConfig": "27fd92298ad08a13ce4fc01e863f848e278b5f2d39c6c2daed6f15c11558ebcf",
+    "ahakeyconfig-agent": "585961f96360f2b90eb86bb956051026d0ed6caf128730f11cf159479ba74e6d"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "installed": true,
+  "expectedTeamSignatureVerified": true,
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "fullSwiftTests": {
+    "count": 967,
+    "failures": 0
+  },
+  "focusedTests": {
+    "count": 41,
+    "failures": 0
+  },
+  "originalRed": {
+    "count": 1,
+    "failures": 2
+  },
+  "keyCaptureRegressionTests": 3,
+  "current15PreferencesSemanticallyUnchanged": true,
+  "existingDraftsPreserved": 4,
+  "actualUIStartupVerified": true,
+  "readonlyCodexVoice": "Right Alt",
+  "hardwareConfigurationWritesDuringValidation": 0,
+  "agentConnected": true,
+  "kimiExistingGrants": 1,
+  "kimiEndpointCurrentlyRunning": false,
+  "kimiPendingRecovery": 0,
+  "nativeWriteLockHIL": false,
+  "cancellationFaultInjectionRepeated": false,
+  "firmwareRouteWriteRejectionFixed": false,
+  "ci": {
+    "run": 41405908008,
+    "conclusion": "success"
+  }
+}
