@@ -1,0 +1,39 @@
+{
+  "sourceCommit": "62f2c764e8238a3df0c284e7f1f1d86545aa8849",
+  "version": "0.2.3",
+  "build": "532",
+  "dmgBytes": 20308537,
+  "dmgSHA256": "8c01d31a6b8c29bc559e02fa09e44488a0a0e08a69ae98d451374d7ac24411b7",
+  "binarySHA256": {
+    "AhaKeyConfig": "647570a91ce148a15c7aeeebef69f34dfeffe55cb89289793041d5ce5b000138",
+    "ahakeyconfig-agent": "3d9980873c30fde27a374ff494e7640276df2000ad9b4ffb3c99214bb18b08c4"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "installed": true,
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "expectedTeamSignatureVerified": true,
+  "fullSwiftTests": {
+    "count": 967,
+    "failures": 0
+  },
+  "ci": {
+    "run": 41408291565,
+    "conclusion": "success"
+  },
+  "current15PreferencesSemanticallyUnchanged": true,
+  "existingDraftsPreserved": 4,
+  "viewHeaderUsesEnteredDescription": true,
+  "readonlyHeadersVerified": [
+    "Key 1 / Record",
+    "Key 4 / Backspace"
+  ],
+  "viewHintUnderTitleVerified": true,
+  "keyboardHardwareWrites": 0,
+  "agentConnected": true
+}
