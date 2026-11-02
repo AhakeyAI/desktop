@@ -32,6 +32,12 @@ struct StudioDeviceInspectorView: View {
             } else {
                 Text(NSLocalizedString("待机时间", comment: "")).font(.headline)
                 Text(NSLocalizedString("全局设置，应用到所有模式。", comment: "")).font(.caption).foregroundStyle(.secondary)
+                Picker(NSLocalizedString("待机时间", comment: ""), selection: $model.standbyDraft) {
+                    Text(NSLocalizedString("请选择", comment: "")).tag(Optional<UInt16>.none)
+                    ForEach([UInt16(0), 30, 60, 120], id: \.self) { value in
+                        Text(standbyTitle(value)).tag(Optional(value))
+                    }
+                }.disabled(model.standbyFact == nil)
                 HStack(spacing: 8) {
                     if let actual = model.standbyFact?.value {
                         Text(NSLocalizedString("已读取当前设置：", comment: "") + standbyTitle(actual))
@@ -51,12 +57,6 @@ struct StudioDeviceInspectorView: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                Picker(NSLocalizedString("待机时间", comment: ""), selection: $model.standbyDraft) {
-                    Text(NSLocalizedString("请选择", comment: "")).tag(Optional<UInt16>.none)
-                    ForEach([UInt16(0), 30, 60, 120], id: \.self) { value in
-                        Text(standbyTitle(value)).tag(Optional(value))
-                    }
-                }.disabled(model.standbyFact == nil)
             }
             if let message = model.message { Text(message).font(.caption).textSelection(.enabled) }
             if model.unconfirmed.contains(lever ? .lever : .standby) {
