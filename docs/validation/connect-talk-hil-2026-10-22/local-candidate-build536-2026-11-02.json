@@ -1,0 +1,45 @@
+{
+  "sourceCommit": "0012dbd184ed3fbe173df016693b0692ea0ca73e",
+  "version": "0.2.3",
+  "build": "536",
+  "dmgBytes": 20225259,
+  "dmgSHA256": "107271b198250f196a982f2623ae912f546f344ec62ede24a5631af23a89c302",
+  "binarySHA256": {
+    "AhaKeyConfig": "17bd3dc7fdce25fed5bcc61ec6158afcf048a6ef9bab0b16eee1bf122dbfcc0d",
+    "ahakeyconfig-agent": "580c47e74d8abec827ec5e8392532e000d04c5f73bfcb12c9de1542f69ed17d9"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "installed": true,
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "expectedTeamSignatureVerified": true,
+  "fullSwiftTests": {
+    "count": 975,
+    "failures": 0
+  },
+  "focusedTests": {
+    "count": 26,
+    "failures": 0
+  },
+  "preFixReproduction": {
+    "count": 1,
+    "failures": 1
+  },
+  "ci": {
+    "run": 41420151022,
+    "conclusion": "success"
+  },
+  "actualDeviceInfoFirmware": "v1.0",
+  "actualBLEOwner": "Agent",
+  "appDirectBLEConnected": false,
+  "current15PreferencesSemanticallyUnchanged": true,
+  "hardwareConfigurationWrites": 0,
+  "additionalFirmwarePolling": false,
+  "missingInvalidOrExpiredVersionCleared": true,
+  "stableVersionPublicationCoalesced": true
+}

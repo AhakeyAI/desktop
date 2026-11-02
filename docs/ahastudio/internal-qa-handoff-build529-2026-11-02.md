@@ -10,18 +10,18 @@ Owner已确认Consumer交互：**短按开始／停止系统听写，长按唤�
 
 | 项目 | 本次候选 |
 | --- | --- |
-| Mac客户端 | 0.2.3 / build535，源码 `fc9cca6dc0999e2f6d84c5dd7f258901cb606494` |
-| DMG文件 | `AhaKey-Studio-0.2.3-build535-fc9cca6-test.dmg` |
-| DMG SHA256 | `c426e16db236b0a9de76168c0696d4975459b59a4e55e3b24ad4c052dc63b581` |
+| Mac客户端 | 0.2.3 / build536，源码 `0012dbd184ed3fbe173df016693b0692ea0ca73e` |
+| DMG文件 | `AhaKey-Studio-0.2.3-build536-0012dbd-test.dmg` |
+| DMG SHA256 | `107271b198250f196a982f2623ae912f546f344ec62ede24a5631af23a89c302` |
 | 固件源 | `fe2278616f69087b7f9097ae4777f7231ff39a30` |
 | 工程HEX | `docs/validation/connect-talk-hil-2026-10-22/firmware/k1-offline-poll-fe22786-297b7390.hex` |
 | HEX SHA256 | `297b7390362a38b04a509ebc26e8bdb7ef6ec48065e6aa66e6086129213e672a` |
 | 已联调Kimi Code Desktop | 官方1.2.1 / Server2.4.0；旧1.1.3 / 2.3.2精确合同保留 |
 | 签名 | App/Agent双架构Developer ID、预期Team核验通过；测试DMG未公证 |
 
-DMG本机交付路径：`/Users/heartline/Documents/Codex/local-builds/connect-talk-build535-20261102/AhaKey-Studio-0.2.3-build535-fc9cca6-test.dmg`。安装包未上传公开发布，不把本机路径视为其他设备已取得文件。
+DMG本机交付路径：`/Users/heartline/Documents/Codex/local-builds/connect-talk-build536-20261102/AhaKey-Studio-0.2.3-build536-0012dbd-test.dmg`。安装包未上传公开发布，不把本机路径视为其他设备已取得文件。
 
-971项Swift自动测试及[源码CI](https://github.com/AhakeyAI/desktop/actions/runs/41415244145)通过；本次交接再次核对DMG/HEX完整SHA及CI成功状态，前版build533已完成971项本地回归，本次精简灯效页并完成26项灯效专项测试，完成构建／签名／原UI核对与CI，未重复本地业务回归。工程HEX已真实写入、Verify OK、复位、Mac无线重连和16键读回通过；无可信正式目录版本认证，不能当作正式稳定或recovery-safe镜像。
+975项Swift自动测试、26项固件版本专项及[源码CI](https://github.com/AhakeyAI/desktop/actions/runs/41420151022)通过。本次build536补齐Agent共享固件版本及设备信息展示，实机在“本App未连接／Agent已连接蓝牙”时显示v1.0；15项偏好语义不变，没有写入键盘配置。固件版本来自设备状态字节，不代表HEX哈希认证。工程HEX已真实写入、Verify OK、复位、Mac无线重连和16键读回通过；无可信正式目录版本认证，不能当作正式稳定或recovery-safe镜像。
 
 ## 仍未完成的开发／输入：3类功能依赖＋1类发布输入
 
