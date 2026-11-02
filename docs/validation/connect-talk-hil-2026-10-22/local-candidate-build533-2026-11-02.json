@@ -1,0 +1,52 @@
+{
+  "sourceCommit": "4a24c1d5ef62815c1d0f22c4418a5f138347a24a",
+  "version": "0.2.3",
+  "build": "533",
+  "dmgBytes": 20326978,
+  "dmgSHA256": "f052c768b7a2a585ceb9ed094e05e8f426c63fd3b48eba8b57ff25c44825514f",
+  "binarySHA256": {
+    "AhaKeyConfig": "031dc138d2569901fdd4fd170a2a835068b8b1d00a0c738d4b6718be4394b124",
+    "ahakeyconfig-agent": "9dd2eeeefe21c468d4a0cf2dd8edbbc844100b1914e3ec53c799fe6aad77fa5b"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "installed": true,
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "expectedTeamSignatureVerified": true,
+  "fullSwiftTests": {
+    "count": 971,
+    "failures": 0
+  },
+  "focusedTests": {
+    "count": 62,
+    "failures": 0
+  },
+  "modeNoticePolicyTests": 4,
+  "ci": {
+    "run": 41411434089,
+    "conclusion": "success"
+  },
+  "current15PreferencesSemanticallyUnchanged": true,
+  "existingDraftsPreserved": 4,
+  "actualUISidebarModesVerified": [
+    "claude",
+    "cursor",
+    "codex",
+    "kimi"
+  ],
+  "duplicateDeviceInfoPermissionEntryRemoved": true,
+  "physicalModeDrivesNotices": true,
+  "permissionWriteImplementationChanged": false,
+  "permissionGrantsAdded": 0,
+  "hardwareConfigurationWrites": 0,
+  "physicalLeverNotificationHILRepeated": false,
+  "agentConnected": true,
+  "kimiExistingGrants": 1,
+  "kimiManagedSessions": 0,
+  "kimiPendingRecovery": 0
+}
