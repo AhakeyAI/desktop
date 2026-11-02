@@ -3,6 +3,19 @@ import AhaKeyConfigShared
 @testable import AhaKeyConfigAgent
 
 final class AgentStatusReplyTests: XCTestCase {
+    @MainActor
+    func testAgentPublishesFirmwareAndHookUpdatesPreserveIt() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("current-ide-state.json")
+        AhaKeyAgent.writeLiveState(firmwareMain: 1, firmwareSub: 7, directoryURL: directory)
+        AhaKeyAgent.writeLiveState(stateValue: 3, directoryURL: directory)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
+        XCTAssertEqual(object["firmwareMain"] as? Int, 1)
+        XCTAssertEqual(object["firmwareSub"] as? Int, 7)
+        XCTAssertEqual(object["stateValue"] as? Int, 3)
+    }
+
     func testVerifiedAutoReplySurvivesJSONAndRawStatusIsNotApprovalProof() throws {
         let profile = FirmwareCapabilityProfile.catalogResponse(Data([0xAA, 0xBB, 0x9F, 0]) + Data(FirmwareCapabilityProfile.ws2CatalogKey.utf8) + Data([0xCC, 0xDD]))
         let factory = SideSwitchReadback(physicalState: 0, positions: [.init(bindType: 0, action: Data()), .init(bindType: 1, action: Data())])

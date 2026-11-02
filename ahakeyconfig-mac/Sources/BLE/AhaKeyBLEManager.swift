@@ -180,6 +180,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var agentLightMode: Int? = nil
     @Published private(set) var agentSwitchState: Int? = nil
     @Published private(set) var agentWorkMode: Int? = nil
+    @Published private(set) var agentFirmwareVersion: String?
     var batteryLevelForDisplay: Int? {
         isConnected ? (hasValidStatusReadback ? batteryLevel : nil) : (agentBLEConnectedProvider() ? agentBatteryLevel : nil)
     }
@@ -191,6 +192,12 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
     var lightModeForDisplay: Int? {
         isConnected ? (hasValidStatusReadback ? lightMode : nil) : (agentBLEConnectedProvider() ? agentLightMode : nil)
+    }
+    var firmwareVersionForDisplay: String? {
+        if isConnected {
+            return hasValidStatusReadback ? "v\(firmwareMainVersion).\(firmwareSubVersion)" : nil
+        }
+        return agentBLEConnectedProvider() ? agentFirmwareVersion : nil
     }
     /// 各 mode flash 里的真实图片元信息。
     /// 主 App 自占 BLE 后通过 0x83 查询填充；frameCount == 0 表示用户没自定义上传，
@@ -2250,6 +2257,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             if agentLightMode != nil { agentLightMode = nil }
             if agentSwitchState != nil { agentSwitchState = nil }
             if agentWorkMode != nil { agentWorkMode = nil }
+            if agentFirmwareVersion != nil { agentFirmwareVersion = nil }
             return
         }
         let now = Date().timeIntervalSince1970
@@ -2291,11 +2299,14 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             if agentLightMode != lm { agentLightMode = lm }
             if agentSwitchState != sw { agentSwitchState = sw }
             updateAgentWorkMode(wm)
+            let version = Self.agentFirmwareVersion(from: obj)
+            if agentFirmwareVersion != version { agentFirmwareVersion = version }
         } else {
             if agentBatteryLevel != nil { agentBatteryLevel = nil }
             if agentLightMode != nil { agentLightMode = nil }
             if agentSwitchState != nil { agentSwitchState = nil }
             if agentWorkMode != nil { agentWorkMode = nil }
+            if agentFirmwareVersion != nil { agentFirmwareVersion = nil }
         }
         scheduleIDEStateExpiry(at: expiryDeadlines.min())
     }
@@ -2306,6 +2317,16 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         agentWorkMode = valid
         guard !isConnected, agentBLEConnectedProvider(), let valid else { return }
         NotificationCenter.default.post(name: .ahaKeyKeyboardWorkModeChanged, object: self, userInfo: ["workMode": valid])
+    }
+
+    private static func agentFirmwareVersion(from object: [String: Any]) -> String? {
+        func byte(_ key: String) -> Int? {
+            guard let value = object[key] as? Int, let number = object[key] as? NSNumber,
+                  CFGetTypeID(number) != CFBooleanGetTypeID(), (0...255).contains(value) else { return nil }
+            return value
+        }
+        guard let main = byte("firmwareMain"), let sub = byte("firmwareSub") else { return nil }
+        return "v\(main).\(sub)"
     }
 
     /// 所有 AhaKey 主服务特征就绪后触发（仅一次）

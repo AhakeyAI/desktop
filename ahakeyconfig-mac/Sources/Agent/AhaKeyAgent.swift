@@ -208,8 +208,11 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                                battery: UInt8? = nil,
                                lightMode: UInt8? = nil,
                                switchState: UInt8? = nil,
-                               workMode: UInt8? = nil) {
-        let dir = FileManager.default.homeDirectoryForCurrentUser
+                               workMode: UInt8? = nil,
+                               firmwareMain: UInt8? = nil,
+                               firmwareSub: UInt8? = nil,
+                               directoryURL: URL? = nil) {
+        let dir = directoryURL ?? FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/AhaKeyConfig", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent("current-ide-state.json")
@@ -224,6 +227,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             obj["stateTs"] = now
         }
         if let battery { obj["battery"] = Int(battery) }
+        if let firmwareMain, let firmwareSub {
+            obj["firmwareMain"] = Int(firmwareMain)
+            obj["firmwareSub"] = Int(firmwareSub)
+        }
         if let lm = lightMode {
             obj["lightMode"] = Int(lm)
             obj["lightModeTs"] = now
@@ -241,7 +248,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 liveStateCoalescer.noteEventWrite(.init(
                     battery: battery.map(Int.init), lightMode: lightMode.map(Int.init),
                     switchState: switchState.map(Int.init),
-                    workMode: workMode.map(Int.init)
+                    workMode: workMode.map(Int.init),
+                    firmwareMain: firmwareMain.map(Int.init), firmwareSub: firmwareSub.map(Int.init)
                 ), at: now)
             } catch {
                 liveStateCoalescer = LiveStateWriteCoalescer()
@@ -1125,14 +1133,15 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         // 只发布实体拨杆状态，并避免相同状态重复写文件。
         let snapshot = LiveStateWriteCoalescer.Snapshot(
             battery: status.battery, lightMode: status.lightMode, switchState: status.switchState,
-            workMode: max(0, status.workMode)
+            workMode: max(0, status.workMode), firmwareMain: status.firmwareMain, firmwareSub: status.firmwareSub
         )
         switch Self.liveStateCoalescer.decision(for: snapshot, at: Date().timeIntervalSince1970) {
         case .write:
             Self.writeLiveState(
                 battery: UInt8(clamping: status.battery),
                 lightMode: UInt8(clamping: status.lightMode), switchState: cachedSwitchState,
-                workMode: UInt8(clamping: max(0, status.workMode))
+                workMode: UInt8(clamping: max(0, status.workMode)),
+                firmwareMain: UInt8(clamping: status.firmwareMain), firmwareSub: UInt8(clamping: status.firmwareSub)
             )
         case .touchOnly:
             let url = FileManager.default.homeDirectoryForCurrentUser

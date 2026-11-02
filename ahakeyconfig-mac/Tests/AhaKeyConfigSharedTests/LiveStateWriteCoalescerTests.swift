@@ -5,6 +5,20 @@ final class LiveStateWriteCoalescerTests: XCTestCase {
     typealias Snapshot = LiveStateWriteCoalescer.Snapshot
     typealias Decision = LiveStateWriteCoalescer.Decision
 
+    func testFirmwareChangePublishesOnceAndStableVersionsDoNotChurn() {
+        var coalescer = LiveStateWriteCoalescer()
+        let before = Snapshot(battery: 80, lightMode: 1, switchState: 0, workMode: 2, firmwareMain: 1, firmwareSub: 0)
+        let after = Snapshot(battery: 80, lightMode: 1, switchState: 0, workMode: 2, firmwareMain: 1, firmwareSub: 1)
+        XCTAssertEqual(coalescer.decision(for: before, at: 1000), .write)
+        XCTAssertEqual(coalescer.decision(for: before, at: 1001), .skip)
+        XCTAssertEqual(coalescer.decision(for: after, at: 1002), .write)
+        for i in 1...100 { XCTAssertEqual(coalescer.decision(for: after, at: 1002 + Double(i) / 10), .skip) }
+        coalescer.noteEventWrite(Snapshot(lightMode: 1), at: 1013)
+        XCTAssertEqual(coalescer.lastPublished?.firmwareMain, 1)
+        XCTAssertEqual(coalescer.lastPublished?.firmwareSub, 1)
+        XCTAssertEqual(coalescer.decision(for: after, at: 1014), .skip)
+    }
+
     /// 相同状态连续输入 100 次：第一次 .write，之后全部 .skip（未触及 30s touch 边界）。
     func testIdenticalSnapshotsWriteOnceThenSkip() {
         var coalescer = LiveStateWriteCoalescer()

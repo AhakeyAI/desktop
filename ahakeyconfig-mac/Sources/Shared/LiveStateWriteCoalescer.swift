@@ -29,13 +29,18 @@ public struct LiveStateWriteCoalescer: Equatable, Sendable {
         public var lightMode: Int?
         public var switchState: Int?
         public var workMode: Int?
+        public var firmwareMain: Int?
+        public var firmwareSub: Int?
 
         public init(battery: Int? = nil, lightMode: Int? = nil,
-                    switchState: Int? = nil, workMode: Int? = nil) {
+                    switchState: Int? = nil, workMode: Int? = nil,
+                    firmwareMain: Int? = nil, firmwareSub: Int? = nil) {
             self.battery = battery
             self.lightMode = lightMode
             self.switchState = switchState
             self.workMode = workMode
+            self.firmwareMain = firmwareMain
+            self.firmwareSub = firmwareSub
         }
     }
 
@@ -71,6 +76,8 @@ public struct LiveStateWriteCoalescer: Equatable, Sendable {
         if let v = partial.lightMode { merged.lightMode = v }
         if let v = partial.switchState { merged.switchState = v }
         if let v = partial.workMode { merged.workMode = v }
+        if let v = partial.firmwareMain { merged.firmwareMain = v }
+        if let v = partial.firmwareSub { merged.firmwareSub = v }
         lastPublished = merged
         lastWriteAt = now
     }

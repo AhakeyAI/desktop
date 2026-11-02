@@ -36,7 +36,7 @@ struct DeviceInfoView: View {
                 HStack(spacing: 0) {
                     infoCell("电量", value: bleManager.batteryLevelForDisplay.map { "\($0)%" } ?? "未知")
                     Divider()
-                    infoCell("固件", value: bleManager.isConnected ? "v\(bleManager.firmwareMainVersion).\(bleManager.firmwareSubVersion)" : "未读取")
+                    infoCell("固件", value: bleManager.firmwareVersionForDisplay ?? "未读取")
                     Divider()
                     infoCell("设备名", value: bleManager.deviceName ?? "—")
                 }

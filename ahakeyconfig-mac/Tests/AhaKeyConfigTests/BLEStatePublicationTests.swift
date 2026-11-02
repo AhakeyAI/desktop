@@ -4,6 +4,50 @@ import XCTest
 @testable import AhaKeyConfig
 
 final class BLEStatePublicationTests: XCTestCase {
+    @MainActor
+    func testLiveAgentFirmwareIsShownWithoutTakingOverBluetooth() throws {
+        let fixture = try makeManager()
+        defer { fixture.manager.stopIDEStateMonitoring(); try? FileManager.default.removeItem(at: fixture.directory) }
+        let directory = fixture.directory.appendingPathComponent("state")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: ["firmwareMain": 1, "firmwareSub": 7])
+            .write(to: directory.appendingPathComponent("current-ide-state.json"), options: .atomic)
+        fixture.manager.agentBLEConnectedProvider = { true }
+        fixture.manager.startIDEStateMonitoring()
+        XCTAssertFalse(fixture.manager.isConnected)
+        XCTAssertEqual(fixture.manager.firmwareVersionForDisplay, "v1.7")
+        fixture.manager.agentBLEConnectedProvider = { false }
+        XCTAssertNil(fixture.manager.firmwareVersionForDisplay, "Offline cached firmware is not a live readback")
+    }
+
+    @MainActor
+    func testMissingMalformedAndExpiredFirmwareCannotLeaveAnOldVersionVisible() throws {
+        let fixture = try makeManager()
+        defer { fixture.manager.stopIDEStateMonitoring(); try? FileManager.default.removeItem(at: fixture.directory) }
+        let directory = fixture.directory.appendingPathComponent("state")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let file = directory.appendingPathComponent("current-ide-state.json")
+        fixture.manager.agentBLEConnectedProvider = { true }
+        func load(_ value: [String: Any]) throws {
+            try JSONSerialization.data(withJSONObject: value).write(to: file, options: .atomic)
+            fixture.manager.startIDEStateMonitoring()
+        }
+        for invalid: [String: Any] in [[:], ["firmwareMain": 1], ["firmwareMain": -1, "firmwareSub": 0],
+            ["firmwareMain": 1, "firmwareSub": 256], ["firmwareMain": true, "firmwareSub": 0],
+            ["firmwareMain": 1.5, "firmwareSub": 0]] {
+            try load(["firmwareMain": 1, "firmwareSub": 9])
+            XCTAssertEqual(fixture.manager.firmwareVersionForDisplay, "v1.9")
+            try load(invalid)
+            XCTAssertNil(fixture.manager.firmwareVersionForDisplay)
+        }
+        try load(["firmwareMain": 2, "firmwareSub": 0])
+        fixture.manager.agentBLEConnectedProvider = { false }
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -200)], ofItemAtPath: file.path)
+        fixture.manager.startIDEStateMonitoring()
+        XCTAssertNil(fixture.manager.agentFirmwareVersion)
+        XCTAssertNil(fixture.manager.firmwareVersionForDisplay)
+    }
+
     func testIdenticalProductionStatusFramesDoNotPublishOrGrowLogs() async throws {
         try await MainActor.run {
             let fixture = try makeManager()
