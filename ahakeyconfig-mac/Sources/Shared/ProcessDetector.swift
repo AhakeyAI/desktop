@@ -337,6 +337,14 @@ public final class ProcessDetector: ObservableObject {
                 processNames: ["kimi", "kimi-cli", "python3", "Python"],
                 commandLineHints: ["kimi", "kimi-cli"]
             ),
+            // opencode 是 plugin 形式接入（没有 hook 配置文件），但看门狗同样需要知道它还在跑：
+            // 缺这一条时，opencode 任务完成后 60 秒会被判定「目标已退出」→ 灯效被归位成 Stop(5)
+            // （实机表现：绿灯过一阵子变成「一颗蓝灯」）。
+            Target(
+                name: "opencode",
+                processNames: ["opencode", "opencode.exe"],
+                commandLineHints: ["opencode"]
+            ),
         ]
     }
 }
