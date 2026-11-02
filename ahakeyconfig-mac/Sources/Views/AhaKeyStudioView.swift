@@ -907,8 +907,12 @@ struct AhaKeyStudioView: View {
     private var inspectorHeader: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top) {
-                Label(selectedPart.title, systemImage: selectedPart.systemImage)
+                Label(selectedPart.isKey
+                      ? selectedPart.title + " · " + (currentSelectedKey.description.isEmpty ? "—" : currentSelectedKey.description)
+                      : selectedPart.title, systemImage: selectedPart.systemImage)
                     .font(.system(size: 20, weight: .semibold))
+                    .lineLimit(1)
+                    .help(selectedPart.isKey ? currentSelectedKey.description : selectedPart.title)
                 Spacer()
                 if partIsDirty(selectedPart) {
                     Label("未同步", systemImage: "circle.fill")
@@ -941,9 +945,16 @@ struct AhaKeyStudioView: View {
                     }
                 }
             }
-            Text(selectedPart.subtitle)
-                .font(.callout)
-                .foregroundStyle(.secondary)
+            if selectedPart.isKey {
+                Text(NSLocalizedString("键盘切换模式时，LCD会先短暂显示这里的描述，然后回到模式动图。", comment: ""))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(selectedPart.subtitle)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -1301,9 +1312,6 @@ struct AhaKeyStudioView: View {
                         Text(usesLegacyEditor ? "旧固件无法回读当前值，写入前需明确确认覆盖所选组件。" : "保存前会重新读取并核对，只修改当前选中的按键。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text("同步到键盘后，短按实体键切换模式时，LCD 会先短暂显示这里的描述，然后回到该模式的动图。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
                     if selectedMode == .mode0 {
                         Text(NSLocalizedString("Mode 1 默认文案：Record / Accept / Reject / Backspace", comment: ""))
@@ -1546,7 +1554,6 @@ struct AhaKeyStudioView: View {
                         inlineKeyStatus
                         VStack(alignment: .leading, spacing: 6) {
                             Text(NSLocalizedString("保存前会重新读取并核对，只修改当前选中的按键。", comment: ""))
-                            Text(NSLocalizedString("同步到键盘后，短按实体键切换模式时，LCD 会先短暂显示这里的描述，然后回到该模式的动图。", comment: ""))
                         }
                         .font(.caption).foregroundStyle(.secondary)
                     }
