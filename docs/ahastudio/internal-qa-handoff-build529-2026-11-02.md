@@ -10,18 +10,18 @@ Owner已确认Consumer交互：**短按开始／停止系统听写，长按唤�
 
 | 项目 | 本次候选 |
 | --- | --- |
-| Mac客户端 | 0.2.3 / build534，源码 `cd451d356ed0b2a623fc973dd1955ca7383469f7` |
-| DMG文件 | `AhaKey-Studio-0.2.3-build534-cd451d3-test.dmg` |
-| DMG SHA256 | `6121429268e8bc0e3ec8ca891bd8de2852cd48d792e0e194264c6e66e9419b10` |
+| Mac客户端 | 0.2.3 / build535，源码 `fc9cca6dc0999e2f6d84c5dd7f258901cb606494` |
+| DMG文件 | `AhaKey-Studio-0.2.3-build535-fc9cca6-test.dmg` |
+| DMG SHA256 | `c426e16db236b0a9de76168c0696d4975459b59a4e55e3b24ad4c052dc63b581` |
 | 固件源 | `fe2278616f69087b7f9097ae4777f7231ff39a30` |
 | 工程HEX | `docs/validation/connect-talk-hil-2026-10-22/firmware/k1-offline-poll-fe22786-297b7390.hex` |
 | HEX SHA256 | `297b7390362a38b04a509ebc26e8bdb7ef6ec48065e6aa66e6086129213e672a` |
 | 已联调Kimi Code Desktop | 官方1.2.1 / Server2.4.0；旧1.1.3 / 2.3.2精确合同保留 |
 | 签名 | App/Agent双架构Developer ID、预期Team核验通过；测试DMG未公证 |
 
-DMG本机交付路径：`/Users/heartline/Documents/Codex/local-builds/connect-talk-build534-20261102/AhaKey-Studio-0.2.3-build534-cd451d3-test.dmg`。安装包未上传公开发布，不把本机路径视为其他设备已取得文件。
+DMG本机交付路径：`/Users/heartline/Documents/Codex/local-builds/connect-talk-build535-20261102/AhaKey-Studio-0.2.3-build535-fc9cca6-test.dmg`。安装包未上传公开发布，不把本机路径视为其他设备已取得文件。
 
-971项Swift自动测试及[源码CI](https://github.com/AhakeyAI/desktop/actions/runs/41413307058)通过；本次交接再次核对DMG/HEX完整SHA及CI成功状态，前版build533已完成971项本地回归，本次仅移动待机读回行布局，完成构建／签名／原UI核对与CI，未重复本地业务回归。工程HEX已真实写入、Verify OK、复位、Mac无线重连和16键读回通过；无可信正式目录版本认证，不能当作正式稳定或recovery-safe镜像。
+971项Swift自动测试及[源码CI](https://github.com/AhakeyAI/desktop/actions/runs/41415244145)通过；本次交接再次核对DMG/HEX完整SHA及CI成功状态，前版build533已完成971项本地回归，本次精简灯效页并完成26项灯效专项测试，完成构建／签名／原UI核对与CI，未重复本地业务回归。工程HEX已真实写入、Verify OK、复位、Mac无线重连和16键读回通过；无可信正式目录版本认证，不能当作正式稳定或recovery-safe镜像。
 
 ## 仍未完成的开发／输入：3类功能依赖＋1类发布输入
 
@@ -34,7 +34,7 @@ DMG本机交付路径：`/Users/heartline/Documents/Codex/local-builds/connect-t
 
 ## 已知问题随包披露
 
-- **语音路由保存偶发被拒绝**：297B离线USB轮询可清除BLE路由事务，实机出现分片／提交拒绝。客户端保留未确认提示，不误报成功。写入期间编辑锁定已在build534修复，固件拒绝未修复，见[FW-14](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6571464234)及[诊断](voice-key-write-lock-diagnosis-2026-11-02.md)。
+- **语音路由保存偶发被拒绝**：297B离线USB轮询可清除BLE路由事务，实机出现分片／提交拒绝。客户端保留未确认提示，不误报成功。写入期间编辑锁定已在build535修复，固件拒绝未修复，见[FW-14](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6571464234)及[诊断](voice-key-write-lock-diagnosis-2026-11-02.md)。
 
 - **上传取消后可能需要重启键盘**：07A8实测取消后拒绝配置读取，重启可恢复并清理。297B只修K1离线轮询，不含此事务修复；不能因换固件标已解决。见[固件Issue7](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6519589952)。故障注入仅用可丢弃素材位置，提前说明可能重启。
 - Kimi上游未提供CAS／修改来源，保留用户并发改权限的完整边界尚待验证；正常停止恢复通过不代表崩溃或竞争场景全部通过。
@@ -63,3 +63,6 @@ Windows/Mac交替配置为可选联合验收；未测不宣称跨端通过。F5�
 测试记录绑定客户端源码、build、DMG SHA、固件SHA和硬件；每项记录实际结果、失败复现及恢复后的设备状态。已知缺陷和外部依赖由发布决策明确处理后，才可进入正式组合验收、公证及发布。当前不支持的功能不得写成已通过或向用户承诺可用。
 
 原始HID、配置及会话权限证据私密保存；共享报告仅保留无会话正文／ID／凭据的摘要。当前日常状态：Agent已连接、实体自动档、四项本地草稿保留、详细日志关闭，无遗留测试素材。
+
+
+灯效用户验收从顶部模式Tab逐模式查看，不再使用跨模式总览或一键放弃灯效草稿。亮度仍为全局，不能将页面按模式展示解释为逐模式亮度。

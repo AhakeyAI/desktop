@@ -1,0 +1,41 @@
+{
+  "sourceCommit": "fc9cca6dc0999e2f6d84c5dd7f258901cb606494",
+  "version": "0.2.3",
+  "build": "535",
+  "dmgBytes": 20249028,
+  "dmgSHA256": "c426e16db236b0a9de76168c0696d4975459b59a4e55e3b24ad4c052dc63b581",
+  "binarySHA256": {
+    "AhaKeyConfig": "86387546ba91451e6cdb8f8fe364d19113e415467549eb63eb328818430a8934",
+    "ahakeyconfig-agent": "75070e4c6c80b99e972988bdd8c2f3d676f07d1cffa86f7d0600f0ea83a34893"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "installed": true,
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "expectedTeamSignatureVerified": true,
+  "focusedLightTests": {
+    "count": 26,
+    "failures": 0
+  },
+  "localFullSwiftTestsRepeated": false,
+  "ci": {
+    "run": 41415244145,
+    "conclusion": "success"
+  },
+  "lightEditorMoreDisclosureRemoved": true,
+  "crossModeLightOverviewRemoved": true,
+  "discardLightDraftActionRemoved": true,
+  "unusedLightOverviewModelEntryRemoved": true,
+  "currentModeReadPreviewAndWritePreserved": true,
+  "brightnessScope": "global",
+  "existingLightDraftsPreserved": true,
+  "current15PreferencesSemanticallyUnchanged": true,
+  "keyboardPreviewsSent": 0,
+  "hardwareConfigurationWrites": 0,
+  "agentConnected": true
+}
