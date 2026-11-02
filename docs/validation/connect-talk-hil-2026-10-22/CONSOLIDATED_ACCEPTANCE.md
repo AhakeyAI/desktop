@@ -266,3 +266,11 @@ Owner重新在固定done窗口确认03→07→11→15正常，记录捕获0/1/2/
 ## 2026-10-30 新固件上传取消复测失败
 
 解锁后在共享entry18实际上传至原生UI29%时点击取消；客户端停止并交还Agent、保持未确认警告。详细日志此前已在锁屏等待中自动关闭，不能声称完整上传分包取证。取消后的两次新连接均无法配置读取；重新开日志捕获0x00成功、0x83/0x9F各返回status1，实际失败并非只由UI提示推测。已在固件Issue7补充[新候选实机复现](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6519589952)。已请求正常重启，entry18及本地临时草稿清理仍待；此前19默认清理是本次故障注入前检查点，不宣称当前entry18仍全零。其他18位置未写。见resource-cancel-new-firmware-2026-10-30.json。
+
+
+## 2026-11-02 重启后取消恢复清理通过
+
+Owner报告正常重启后，build528只读新连接取得全部19元数据：18为invalid/writeState3/frames0/bytes0/CRC0，其余18均默认。只对共享18执行侧栏恢复默认，成功弹窗确认；退出交还Agent后再次进入新只读连接，全19默认、亮度35%，本次独立读取无上传/恢复命令。当前15偏好语义不变，临时素材库已自动移除，日志关闭，实体Codex自动档及后台连接正常。取消后无需重启恢复仍失败；本轮没有刷写，不能由相同协议key认定设备已装新297B候选。见resource-cancel-recovery-2026-11-02.json。
+
+
+同日只读核对固件远端efecc47及K1跟进候选fe22786。新代码限制离线USB重复poll清理capture的时机，未改Consumer长按／上传取消协议。77源独立重建得到与原正式Gate记录SHA完全相同的297B HEX，生产FirmwareImageValidator校验通过并归档；既有17项Gate仅读取核对，没有冒称本轮重跑或本机新候选UAT。未刷机、未改内置镜像；见firmware-k1-artifact-recovery-2026-11-02.json及../../ahastudio/firmware-k1-offline-poll-sync-2026-11-02.md。

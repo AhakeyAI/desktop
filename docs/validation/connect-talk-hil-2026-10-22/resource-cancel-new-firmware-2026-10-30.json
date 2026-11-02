@@ -23,9 +23,12 @@
   "uploadChunkTraceAvailable": false,
   "uploadChunkTraceLimitation": "Verbose log auto-disabled during lock wait; upload progress and cancellation proven by real native UI, not a complete packet trace.",
   "keyboardRestartRequested": true,
-  "postRestartReadPassed": false,
-  "temporaryEntryCleanupComplete": false,
+  "postRestartReadPassed": true,
+  "temporaryEntryCleanupComplete": true,
   "fullFaultMatrixComplete": false,
   "firmwareIssueComment": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6519589952",
-  "verboseLoggingDisabledWhileAwaitingRestart": true
+  "verboseLoggingDisabledWhileAwaitingRestart": true,
+  "postRestartRecoveryDate": "2026-11-02",
+  "postRestartRecoveryReceipt": "resource-cancel-recovery-2026-11-02.json",
+  "withoutRestartRecoveryPassed": false
 }

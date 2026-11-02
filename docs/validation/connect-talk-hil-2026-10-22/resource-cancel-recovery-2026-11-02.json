@@ -1,0 +1,30 @@
+{
+  "date": "2026-11-02",
+  "ownerConfirmedNormalPowerCycle": true,
+  "clientBuild": 528,
+  "postRestartReadPassed": true,
+  "interruptedEntryBeforeCleanup": {
+    "entry": 18,
+    "valid": false,
+    "writeState": 3,
+    "frames": 0,
+    "bytes": 0,
+    "crc32": 0
+  },
+  "other18WereDefault": true,
+  "restoredEntry": 18,
+  "nativeSuccessPopupVerified": true,
+  "finalIndependentRead": {
+    "all19Default": true,
+    "brightness": 35,
+    "rawSHA256": "d9daf02d3143a847da95de334a117f00fa40a0c0f4f6a91225acdc584a2dd166",
+    "readOnlyNoUploadOrRestore": true
+  },
+  "localResourceDraftStoreAbsent": true,
+  "current15PreferencesSemanticallyUnchanged": true,
+  "verboseLoggingOff": true,
+  "agentConnected": true,
+  "withoutRestartRecoveryPassed": false,
+  "completeFaultMatrixPassed": false,
+  "firmwareIdentityLimit": "No firmware flashed in this recovery turn. Protocol metadata does not attest exact HEX bytes after the gap; do not claim297B follow-up tested."
+}

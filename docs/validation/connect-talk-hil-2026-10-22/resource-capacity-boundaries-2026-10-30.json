@@ -194,7 +194,7 @@
   "hostIdleSleepPreventedForTransfer": false,
   "sleepFaultAcceptanceClaimed": false,
   "fullMatrixComplete": false,
-  "next": "Owner normal power cycle required after cancelled entry18 upload; independently read all19, clear temporary entry18 and its local draft, disable verbose logs. Other18 defaults must remain unchanged. New-firmware cancellation recovery remains FAIL.",
+  "next": "No temporary resource cleanup remains. Cancellation recovery without reboot is still FAIL for the previously tested07A8 candidate; newerK1 follow-up source exists but upload abort logic unchanged. Full fault/old-firmware matrix remains open.",
   "checkpointAtUTC": "2026-10-30T05:36:44.013380+00:00",
   "committedEntries": [
     0,
@@ -367,17 +367,22 @@
   "interruptionRetest": {
     "firmware": "07a8df32",
     "target": 18,
-    "phase": "cancelled-after-observed-29-percent-awaiting-normal-keyboard-restart",
-    "localTemporaryDraftPending": true,
+    "phase": "owner-normal-restart-read-and-entry18-cleanup-complete",
+    "localTemporaryDraftPending": false,
     "uploadActuallyStarted": true,
     "completePacketTraceAvailable": false,
     "readRecoveryWithoutKeyboardRestartPassed": false,
     "readAttemptsFailed": 2,
     "recoveryRead0x00Succeeded": true,
     "recoveryRead0x83And0x9FRejectedStatus1": true,
-    "requiresKeyboardRestart": true,
-    "cleanupPendingEntry": 18,
+    "requiresKeyboardRestart": false,
+    "cleanupPendingEntry": null,
     "receipt": "resource-cancel-new-firmware-2026-10-30.json",
-    "issueComment": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6519589952"
+    "issueComment": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6519589952",
+    "normalRestartWasRequired": true,
+    "postRestartReadPassed": true,
+    "cleanupComplete": true,
+    "recoveryDate": "2026-11-02",
+    "recoveryReceipt": "resource-cancel-recovery-2026-11-02.json"
   }
 }
