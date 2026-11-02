@@ -30,7 +30,7 @@
   "preflashReadOnlyBackup": "k1-candidate-readonly-preflight-2026-11-02.json",
   "ispWaitSeconds": 180,
   "ispWaitStartedThroughNativeUI": true,
-  "flashVerifyPassed": false,
+  "flashVerifyPassed": true,
   "voiceHILPassed": false,
   "fullAcceptanceComplete": false,
   "firstISPWait": {
@@ -62,6 +62,27 @@
   },
   "kimi121PermissionRoundTripStatus": "pending-physical-lever",
   "targetFirmwareSource": "fe2278616f69087b7f9097ae4777f7231ff39a30",
-  "flashStatus": "first-wait-timeout-before-detection-retry-not-started",
-  "voiceHILStatus": "not-started-new-image-not-flashed"
+  "flashStatus": "code-verify-reset-and-wireless-readback-passed-manual-image-no-catalog-version-attestation",
+  "voiceHILStatus": "capture-ready-owner-short-press-test-pending",
+  "secondISPAttempt": {
+    "startedThroughNativeRetry": true,
+    "sameOwnerAuthorizedImage": true,
+    "deviceDetectedAfterUSBReinsert": true,
+    "codeBytesWritten": 272384,
+    "verifyOK": true,
+    "deviceReset": true,
+    "runtimeReconnectVerified": true,
+    "toolLogTimeUTC": "2026-11-02 03:46:08"
+  },
+  "postflashReadOnly": {
+    "wirelessConnected": true,
+    "actualMode": 3,
+    "platform": "Mac",
+    "standbyMinutes": 60,
+    "keysRead": 16,
+    "localDraftsPreserved": 4,
+    "deviceConfigurationWrites": 0,
+    "agentReconnected": true,
+    "catalogVersionAttestationAvailable": false
+  }
 }
