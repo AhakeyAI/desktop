@@ -1,0 +1,35 @@
+{
+  "checkedAtUTC": "2026-11-02T10:46:48.633193+00:00",
+  "clientSource": "0012dbd184ed3fbe173df016693b0692ea0ca73e",
+  "installedBuild": 536,
+  "remoteMain": "0ddab17fc8128d4090a5f1963354be666771f6f3",
+  "firmwareRemoteBranch": "harness/x1-refactor-main",
+  "firmwareRemoteHead": "efecc471376f99ce6753e257933bfba287937bb4",
+  "firmwareIssue7": {
+    "state": "OPEN",
+    "updatedAt": "2026-11-02T07:21:20Z",
+    "newResponseToFW14": false
+  },
+  "maintainerTests": {
+    "command": "python3 -m unittest discover -s ahakeyconfig-mac/scripts -p 'test_*.py' -v",
+    "count": 19,
+    "failures": 0,
+    "scope": [
+      "Hook fixture isolation and process cleanup",
+      "release provenance and draft-only workflow",
+      "App/Agent bundle composition",
+      "installer hash, signature and source verification fixtures"
+    ],
+    "realReleaseExecuted": false
+  },
+  "outstandingDevelopment": [
+    "full long-macro action and description readback firmware contract",
+    "arbitrary-key independent short/long-press firmware contract",
+    "ordinary Kimi/Work and official running TUI original-session permission interface"
+  ],
+  "releaseInputsOutstanding": true,
+  "fullAcceptanceGroupsOpen": 8,
+  "keyboardWrites": 0,
+  "modelRequests": 0,
+  "goalComplete": false
+}
