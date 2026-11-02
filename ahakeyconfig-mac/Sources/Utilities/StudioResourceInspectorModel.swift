@@ -245,7 +245,7 @@ final class StudioResourceInspectorModel: ObservableObject {
             catch {
                 message = KeyboardSettingsFeedback.message(for: error)
                 if !unconfirmed.isEmpty {
-                    message = (message ?? "") + "\n" + NSLocalizedString("上次素材上传未确认完成。请重新连接并读取；若读取被拒绝，请正常重启键盘。原素材不保证恢复。", comment: "")
+                    message = (message ?? "") + "\n" + WS3ResourceUploadGuidance.unconfirmed
                 }
             }
         }

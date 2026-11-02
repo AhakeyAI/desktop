@@ -81,7 +81,7 @@ struct WS3ResourceUploadView: View {
                 Text(String(format: NSLocalizedString("已确认 %d / %d 个分块；完成后还会核对元数据。", comment: ""), progress.completedChunks, progress.totalChunks)).font(.caption)
             }
             ForEach(uploadFeedback.unconfirmedEntries.sorted(), id: \.self) { affected in
-                Text(title(affected) + " · " + NSLocalizedString("上次素材上传未确认完成。请重新连接并读取；若读取被拒绝，请正常重启键盘。原素材不保证恢复。", comment: ""))
+                Text(title(affected) + " · " + WS3ResourceUploadGuidance.unconfirmed)
                     .font(.caption).textSelection(.enabled)
             }
             if let message { Text(message).font(.caption).textSelection(.enabled) }
@@ -96,7 +96,7 @@ struct WS3ResourceUploadView: View {
             Button(NSLocalizedString("写入键盘", comment: ""), role: .destructive) { upload() }
             Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
         } message: {
-            Text("\(title(entry)) · \(filename)\n" + NSLocalizedString("开始上传后可能覆盖原素材；失败或取消不保证回滚。其他素材和键位不变。", comment: ""))
+            Text("\(title(entry)) · \(filename)\n" + NSLocalizedString("开始上传后可能覆盖原素材；失败或取消不保证回滚。其他素材和键位不变。", comment: "") + "\n" + WS3ResourceUploadGuidance.cancellationRisk)
         }
         .confirmationDialog(NSLocalizedString("恢复这个位置的默认显示？", comment: ""), isPresented: $confirmsRestore, titleVisibility: .visible) {
             Button(NSLocalizedString("确认恢复此位置", comment: ""), role: .destructive) { restore() }

@@ -1,5 +1,17 @@
 import Foundation
 
+public enum WS3ResourceUploadGuidance {
+    public static var cancellationRisk: String {
+        NSLocalizedString("上传中途取消后，键盘可能暂时无法读取或继续上传，需要正常关机再开机。", comment: "")
+    }
+    public static var cancelled: String {
+        NSLocalizedString("已停止后续上传，但已发送的素材无法撤回。若无法读取设置或再次上传，请正常关闭再开启键盘，重新连接后刷新画面信息。原素材不保证恢复。", comment: "")
+    }
+    public static var unconfirmed: String {
+        NSLocalizedString("素材写入未确认。若无法读取设置或继续上传，请正常关闭再开启键盘，重新连接后刷新画面信息。原素材不保证恢复。", comment: "")
+    }
+}
+
 public enum WS3ResourceUploadError: Error, LocalizedError, Equatable {
     case uploadInProgress
     case invalidPayload, tooManyFrames(Int), invalidMTU, unverifiedConnection, conflict, rejected(UInt8, UInt8), invalidReply, verificationMismatch

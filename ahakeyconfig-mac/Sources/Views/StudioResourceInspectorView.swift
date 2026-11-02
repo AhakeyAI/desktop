@@ -164,6 +164,8 @@ struct StudioResourceInspectorView: View {
                     Text("\(Int(Double(progress.completedChunks) / Double(max(1, progress.totalChunks)) * 100))%")
                         .monospacedDigit()
                 }.font(.caption).foregroundStyle(.secondary)
+                Label(WS3ResourceUploadGuidance.cancellationRisk, systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             }
         } else if busy {
             HStack(spacing: 8) {
@@ -172,7 +174,7 @@ struct StudioResourceInspectorView: View {
             }
         }
         if model.unconfirmed.contains(model.entry) && !model.isBusy {
-            Label(NSLocalizedString("此位置上次写入未确认，请重新读取后核对。", comment: ""), systemImage: "exclamationmark.circle")
+            Label(WS3ResourceUploadGuidance.unconfirmed, systemImage: "exclamationmark.circle")
                 .font(.caption).foregroundStyle(.orange)
         }
         if let feedback { Text(feedback).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }

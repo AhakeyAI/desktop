@@ -47,6 +47,7 @@ struct AhaKeyStudioView: View {
     @StateObject private var resourceInspectorModel = StudioResourceInspectorModel(storeURL: StudioResourceDraftStore.productionURL)
     @StateObject private var lcdInspectorModel = StudioLCDInspectorModel(defaults: .standard)
     @State private var confirmsLCDWrite = false
+    @State private var showsResourceCancellationNotice = false
     @State private var lcdSubmittedEntry: UInt8?
     @StateObject private var deviceInspectorModel = StudioDeviceInspectorModel()
     @State private var showsFactoryReset = false
@@ -821,7 +822,12 @@ struct AhaKeyStudioView: View {
                         }
                     }
                     if resourceInspectorModel.isBusy || resourceInspectorModel.isPreparing {
-                        Button(NSLocalizedString("取消当前操作", comment: "")) { resourceInspectorModel.cancel(ble: bleManager); lcdInspectorModel.cancelWrite() }
+                        Button(NSLocalizedString("取消当前操作", comment: "")) {
+                            let wasUploading = resourceInspectorModel.isBusy && bleManager.oledUploadProgress != nil
+                            resourceInspectorModel.cancel(ble: bleManager)
+                            lcdInspectorModel.cancelWrite()
+                            showsResourceCancellationNotice = wasUploading
+                        }
                     } else if lcdInspectorModel.isReading || lcdInspectorModel.isWriting {
                         Button(NSLocalizedString("取消当前操作", comment: "")) { lcdInspectorModel.cancelRead(); lcdInspectorModel.cancelWrite() }
                     } else if deviceInspectorModel.isBusy {
@@ -1771,6 +1777,11 @@ struct AhaKeyStudioView: View {
                 Button(NSLocalizedString("确认写入", comment: ""), role: .destructive) { writeLCDSettings() }
                 Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
             } message: { Text(lcdWriteSummary) }
+            .alert(NSLocalizedString("已取消本次上传", comment: ""), isPresented: $showsResourceCancellationNotice) {
+                Button(NSLocalizedString("知道了", comment: ""), role: .cancel) {}
+            } message: {
+                Text(WS3ResourceUploadGuidance.cancelled)
+            }
         } else { legacyOLEDInspector }
     }
 
@@ -1789,6 +1800,9 @@ struct AhaKeyStudioView: View {
         if lcdInspectorModel.followDraft != nil { lines.append(NSLocalizedString("跟随当前终端", comment: "")) }
         if !lcdArtworkEntries.isEmpty {
             lines.append(NSLocalizedString("开始后可能覆盖原素材；失败或取消不保证恢复。其他模式草稿保留。", comment: ""))
+            if lcdArtworkEntries.contains(where: { !resourceInspectorModel.defaultDrafts.contains($0) }) {
+                lines.append(WS3ResourceUploadGuidance.cancellationRisk)
+            }
         }
         return lines.joined(separator: "\n")
     }
