@@ -29,7 +29,7 @@ DMG本机交付路径：`/Users/heartline/Documents/Codex/local-builds/connect-t
 | --- | --- |
 | 长宏完整编辑 | 固件0x87的动作＋描述64字节限制仍未补完整分片读回合同。不能宣称任意长宏完整编辑已交付。 |
 | 任意键独立短／长按 | 缺固件阈值、两套动作、松开、持久化及读回合同。现有App语音按住录音可用，不等于任意键双动作已交付。 |
-| Kimi三端完整接管 | Code Desktop1.2.1原授权会话双向拨杆已通过；普通Kimi/Work和官方原CLI TUI仍无已核实的外部原会话权限接口，不以默认配置同步替代实时控制。 |
+| Kimi三端完整接管 | Code Desktop1.2.1原授权会话双向拨杆已通过；官方CLI TUI已有Hooks任务状态及新会话默认auto/manual同步，须照常提测，但不能实时改变已打开／恢复会话的权限。普通Kimi/Work专用原任务权限接口仍未核实，不能套用Code Desktop通路。见kimi-work-tui-support-boundary-2026-11-02.md。 |
 | 正式WS4/WS5发布输入 | schema/兼容与预算批准、可信公钥和签名目录、正常及recovery-safe精确镜像、保护环境／正式公证与发布晋级仍待。客户端相关接线已有实现，不能自行生成官方信任材料冒充交付。 |
 
 ## 已知问题随包披露
