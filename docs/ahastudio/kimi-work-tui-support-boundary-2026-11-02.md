@@ -1,5 +1,7 @@
 # 普通 Kimi／Work 与官方 TUI 支持边界 — 2026-11-02
 
+> 2026-11-02补查：已通过认证GitHub API取得当前main `fc3b521b8b68468268bb4cfe7f45008ce08b2b99`（09:11:48Z）。下文五处关键实现：TUI config/web、ACP入口、SDK session、externalHooks service，与既有审计提交逐文件SHA256完全相同。原匿名限流记录是历史状态；本次只证明这五处未变，不声称整个仓库无新入口或私有接口不存在。[刷新回执](../validation/connect-talk-hil-2026-10-22/wbs-external-dependency-refresh-2026-11-02.json)。
+
 结论：**目前没有核实到让 Studio 从外部切换普通 Kimi／Work 原任务、或保持官方 TUI 运行并切换其原会话权限的公开接口合同。** 原会话控制未完成的缺口是目标进程的发现、鉴权、权限读写和恢复语义；不是把 Hook 返回值改成 allow 就能补齐。
 
 本轮只读官方网页、公开源码和项目证据；没有读取凭据、发送模型请求、修改应用／配置、安装软件或发送外部消息。官方 Work 发布页当前首条为 **3.2.22（2026-10-29）**；CLI main 变更记录首条为 **2.4.1**。实现核查固定于既有审计提交 `a2afdbc7d1fa0737d45d5780cc6c2bd38e477b55`，不声称完整审计今日全部 main；GitHub API 查询当前 main SHA 遇到匿名限流。[Work 发布日志](https://www.kimi.com/help/kimi-work/release-notes)、[CLI 变更记录](https://raw.githubusercontent.com/MoonshotAI/kimi-code/main/apps/kimi-code/CHANGELOG.md)

@@ -1,0 +1,52 @@
+{
+  "checkedAtUTC": "2026-11-02T10:48:58.150661+00:00",
+  "kimiMain": "fc3b521b8b68468268bb4cfe7f45008ce08b2b99",
+  "comparedTo": "a2afdbc7d1fa0737d45d5780cc6c2bd38e477b55",
+  "selectedInterfaceFiles": [
+    {
+      "path": "apps/kimi-code/src/tui/commands/config.ts",
+      "sha256AtAudited": "a91fdf3bc8c520694212175de3fa5921db1dfb72e4576ab08cd8d524b42b871c",
+      "sha256AtCurrent": "a91fdf3bc8c520694212175de3fa5921db1dfb72e4576ab08cd8d524b42b871c",
+      "unchanged": true
+    },
+    {
+      "path": "apps/kimi-code/src/tui/commands/web.ts",
+      "sha256AtAudited": "3a3b0813b06d4ced5f9158620fe7b8dfbfa2e6a9af7f68127320a736a78a2998",
+      "sha256AtCurrent": "3a3b0813b06d4ced5f9158620fe7b8dfbfa2e6a9af7f68127320a736a78a2998",
+      "unchanged": true
+    },
+    {
+      "path": "apps/kimi-code/src/cli/sub/acp.ts",
+      "sha256AtAudited": "c388621480948919df7aea522c09de8bde784d0348a277353d782e13f7f79bd8",
+      "sha256AtCurrent": "c388621480948919df7aea522c09de8bde784d0348a277353d782e13f7f79bd8",
+      "unchanged": true
+    },
+    {
+      "path": "packages/node-sdk/src/session.ts",
+      "sha256AtAudited": "9faad42df1e7204ee945ffb91b616447e4b144b605e9d4e46174b15f9fcf421a",
+      "sha256AtCurrent": "9faad42df1e7204ee945ffb91b616447e4b144b605e9d4e46174b15f9fcf421a",
+      "unchanged": true
+    },
+    {
+      "path": "packages/agent-core-v2/src/features/externalHooks/agent/agentExternalHooksService.ts",
+      "sha256AtAudited": "701a53165f60d62a544e2e3154dadc97b41693014c456a9fec061327a3fdf9bc",
+      "sha256AtCurrent": "701a53165f60d62a544e2e3154dadc97b41693014c456a9fec061327a3fdf9bc",
+      "unchanged": true
+    }
+  ],
+  "scopeLimit": "Five previously audited files unchanged; not a complete repository or private API absence proof.",
+  "githubReleaseEnvironment": {
+    "queriedRepository": "AhakeyAI/desktop",
+    "listSucceeded": true,
+    "environmentNames": [
+      "copilot"
+    ],
+    "requiredWs5ReleasePresent": false,
+    "directRequiredEnvironmentQueryHTTP": 404,
+    "mutated": false
+  },
+  "firmwarePublishedReleaseLatest": "v1.0",
+  "firmwarePublishedReleaseDate": "2026-02-17T14:41:33Z",
+  "realReleaseOrModelRequests": 0,
+  "goalComplete": false
+}
