@@ -274,3 +274,8 @@ Owner报告正常重启后，build528只读新连接取得全部19元数据：18
 
 
 同日只读核对固件远端efecc47及K1跟进候选fe22786。新代码限制离线USB重复poll清理capture的时机，未改Consumer长按／上传取消协议。77源独立重建得到与原正式Gate记录SHA完全相同的297B HEX，生产FirmwareImageValidator校验通过并归档；既有17项Gate仅读取核对，没有冒称本轮重跑或本机新候选UAT。未刷机、未改内置镜像；见firmware-k1-artifact-recovery-2026-11-02.json及../../ahastudio/firmware-k1-offline-poll-sync-2026-11-02.md。
+
+
+## 2026-11-02 build529 Kimi新合同
+
+30693ec6为已核验1.2.1/2.4.0新增精确metadata合同，安装版本实际进入操作前后围栏，旧1.1.3/2.3.2保留；未知或混搭拒绝。红例1失败、18专项/964完整回归/两轴复核/CI41381020961通过。双架构Developer ID build529及DMG挂载字节核验、覆盖安装、当前15偏好语义保持和后台恢复通过。当前生产Shared Bridge对原1.1.3签名实例首目录页真实只读请求通过（loaded1/hasMore=true），不计整个分页或权限往返。1.2.1实际实例／权限HIL、普通Work／原TUI依赖仍待。只读当前键盘完整备份16键/4路由CRC/36灯效/19默认资源已保存私密路径；0硬件配置写入。两份新调查与接入报告见docs/ahastudio相应2026-11-02文件。

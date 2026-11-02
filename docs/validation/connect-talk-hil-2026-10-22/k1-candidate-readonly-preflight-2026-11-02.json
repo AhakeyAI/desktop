@@ -1,0 +1,20 @@
+{
+  "keys": 16,
+  "routes": 4,
+  "lights": 36,
+  "resources": 19,
+  "brightness": 35,
+  "standbyMinutes": 60,
+  "allResourcesDefault": true,
+  "routeSlicesCRCVerified": true,
+  "readOnlyNoMutatingCommands": true,
+  "rawSHA256": "eb557434ba82e7a9ec163a0ea87d7fe49e9a0a94b0c93d94732f2aed6d6a8669",
+  "date": "2026-11-02",
+  "current15PreferencesSemanticallyUnchanged": true,
+  "agentConnected": true,
+  "verboseLoggingOff": true,
+  "deviceBackupStoredPrivately": true,
+  "hardwareWrites": 0,
+  "flashAuthorized": false,
+  "lightPreferenceDictionaryPairOrderNormalized": true
+}
