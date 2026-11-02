@@ -24,7 +24,7 @@
     "sessionPermissionWrites": 0,
     "verifiedInstances": 1
   },
-  "kimi121PermissionRoundTripPassed": false,
+  "kimi121PermissionRoundTripPassed": true,
   "ownerAuthorized297BClearAndFlash": true,
   "firmwareSHA256": "297b7390362a38b04a509ebc26e8bdb7ef6ec48065e6aa66e6086129213e672a",
   "preflashReadOnlyBackup": "k1-candidate-readonly-preflight-2026-11-02.json",
@@ -60,10 +60,10 @@
     "managedSessions": 0,
     "pendingRecovery": 0
   },
-  "kimi121PermissionRoundTripStatus": "pending-physical-lever",
+  "kimi121PermissionRoundTripStatus": "physical-manual-auto-and-native-agent-stop-recovery-passed",
   "targetFirmwareSource": "fe2278616f69087b7f9097ae4777f7231ff39a30",
   "flashStatus": "code-verify-reset-and-wireless-readback-passed-manual-image-no-catalog-version-attestation",
-  "voiceHILStatus": "capture-ready-owner-short-press-test-pending",
+  "voiceHILStatus": "owner-confirms-normal-short-start-stop-long-hold-still-invokes-Siri",
   "secondISPAttempt": {
     "startedThroughNativeRetry": true,
     "sameOwnerAuthorizedImage": true,
@@ -84,5 +84,80 @@
     "deviceConfigurationWrites": 0,
     "agentReconnected": true,
     "catalogVersionAttestationAvailable": false
+  },
+  "voiceShortPressOwnerConfirmed": true,
+  "consumerLongHoldSiriStillPresent": true,
+  "voiceRawHIDCapture": {
+    "terminal": true,
+    "durationSeconds": 900,
+    "inputEventsRecorded": 0,
+    "pairedReleaseProven": false,
+    "ownerResultIsFunctionalObservationOnly": true
+  },
+  "physicalLeverHIL": {
+    "baselineKimi": "auto",
+    "manualKimi": "manual",
+    "manualCodex": {
+      "approvalPolicy": "on-request",
+      "permissions": ":workspace"
+    },
+    "independentReadback": true,
+    "kimiAuthorizedSessions": 1,
+    "kimiManagedSessionsInManual": 1,
+    "pendingRecovery": 0,
+    "autoReturnPending": false,
+    "modelRequests": 0,
+    "newSessionGrants": 0,
+    "autoKimi": "auto",
+    "autoCodex": {
+      "approvalPolicy": "never",
+      "permissions": ":danger-full-access"
+    }
+  },
+  "agentStopLifecycle": {
+    "nativeUIStop": true,
+    "agentProcessAbsentConfirmed": true,
+    "kimiPermission": "auto",
+    "codexPermission": {
+      "approvalPolicy": "never",
+      "permissions": ":danger-full-access"
+    },
+    "kimiLeases": 0,
+    "codexLeases": 0,
+    "kimiGrantsPreserved": 1,
+    "nativeUIRestart": true,
+    "agentConnectedAfterRestart": true,
+    "pendingRecoveryAfterRestart": 0,
+    "userConcurrentModificationCaseTested": false
+  },
+  "powerCycleHILStatus": "owner-confirmed-normal-screen-short-dictation-and-Dock-independent-agent-reconnection-passed",
+  "postRestartHID": {
+    "consumerPressReleasePairs": 3,
+    "unmatchedPresses": 0,
+    "holdMilliseconds": [
+      179.782,
+      224.823,
+      134.807
+    ],
+    "commandEvents": 0,
+    "captureStoppedAfterTest": true,
+    "longHoldCaptured": false
+  },
+  "postRestartPermissions": {
+    "kimi": "auto",
+    "codex": {
+      "approvalPolicy": "never",
+      "permissions": ":danger-full-access"
+    },
+    "kimiLeases": 0,
+    "codexLeases": 0,
+    "pendingRecovery": 0
+  },
+  "finalLocalState": {
+    "agentConnected": true,
+    "physicalLever": "automatic",
+    "localDrafts": 4,
+    "detailedLogEnabled": false,
+    "deviceConfigurationWritesAfterFlash": 0
   }
 }
