@@ -1,0 +1,382 @@
+import Foundation
+
+/// opencode v2 的「Hooks 安装器」。
+///
+/// 与其它四个 Agent 不同，opencode 没有可写的 hook 配置文件，它是 **TS/JS plugin**：
+/// 把 `ahakey-bridge.js` 放进 `~/.config/opencode/plugins/` 就会在每次 opencode 载入时执行。
+/// 因此这里的「安装」= 落地一个带标记的 plugin 文件，「移除」= 只删掉带标记的那个文件。
+///
+/// 设计约束（对应 upstream 的几条既有规矩）：
+/// - **不碰** `opencode.json(c)`：只写 plugins 目录，使用者自己的插件配置不受影响。
+/// - 带版本标记 `ahakey-opencode-bridge v1`，重装会整体覆盖、卸载只删自己的文件。
+/// - 尊重 `XDG_CONFIG_HOME`（opencode 本身也遵循）。
+public enum OpenCodePluginInstaller {
+    public static let marker = "ahakey-opencode-bridge v1"
+    public static let fileName = "ahakey-bridge.js"
+    public static let agentPlaceholder = "__AHAKEY_AGENT_BIN__"
+
+    public enum InstallError: LocalizedError {
+        case cannotCreateDirectory(String, Error)
+        case cannotWrite(String, Error)
+
+        public var errorDescription: String? {
+            switch self {
+            case let .cannotCreateDirectory(path, error):
+                return "无法创建目录 \(path)：\(error.localizedDescription)"
+            case let .cannotWrite(path, error):
+                return "无法写入 \(path)：\(error.localizedDescription)"
+            }
+        }
+    }
+
+    /// `$XDG_CONFIG_HOME/opencode/plugins`，否则 `~/.config/opencode/plugins`。
+    public static func pluginsDirectory(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        home: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL {
+        if let xdg = environment["XDG_CONFIG_HOME"], !xdg.isEmpty {
+            return URL(fileURLWithPath: xdg, isDirectory: true)
+                .appendingPathComponent("opencode/plugins", isDirectory: true)
+        }
+        return home.appendingPathComponent(".config/opencode/plugins", isDirectory: true)
+    }
+
+    public static func pluginURL(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        home: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> URL {
+        pluginsDirectory(environment: environment, home: home)
+            .appendingPathComponent(fileName, isDirectory: false)
+    }
+
+    /// 只认「带 AhaKey 标记」的文件，避免把使用者自己写的 `ahakey-bridge.js` 当成我们的。
+    public static func isInstalled(at url: URL = pluginURL()) -> Bool {
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else { return false }
+        return text.contains(marker)
+    }
+
+    @discardableResult
+    public static func install(agentBinaryPath: String, to url: URL = pluginURL()) throws -> URL {
+        let dir = url.deletingLastPathComponent()
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
+        } catch {
+            throw InstallError.cannotCreateDirectory(dir.path, error)
+        }
+        let text = script(agentBinaryPath: agentBinaryPath)
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            throw InstallError.cannotWrite(url.path, error)
+        }
+        return url
+    }
+
+    /// 回传是否真的删掉了东西；没有标记的文件一律不动。
+    @discardableResult
+    public static func remove(at url: URL = pluginURL()) throws -> Bool {
+        guard FileManager.default.fileExists(atPath: url.path) else { return false }
+        guard isInstalled(at: url) else { return false }
+        try FileManager.default.removeItem(at: url)
+        return true
+    }
+
+    public static func script(agentBinaryPath: String) -> String {
+        let escaped = jsonStringLiteral(agentBinaryPath)
+        return rawScript.replacingOccurrences(of: "\"\(agentPlaceholder)\"", with: escaped)
+    }
+
+    /// 路径可能含引号/反斜线，先转成合法 JSON 字符串字面量再嵌进 JS。
+    private static func jsonStringLiteral(_ value: String) -> String {
+        let data = (try? JSONSerialization.data(withJSONObject: [value], options: [])) ?? Data("[]".utf8)
+        guard let array = (try? JSONSerialization.jsonObject(with: data)) as? [String],
+              let first = array.first,
+              let encoded = try? JSONEncoder().encode(first),
+              let literal = String(data: encoded, encoding: .utf8) else {
+            return "\"\(value)\""
+        }
+        return literal
+    }
+
+    // MARK: - plugin 源码
+
+    private static let rawScript = #"""
+// ahakey-opencode-bridge v1
+// 由 AhaKey Studio 安装与管理；重新安装会整体覆盖本文件，移除时只删除本文件。
+//
+// 作用：把 opencode v2 的「拨杆审批」与「任务状态」接到 AhaKey 键盘。
+//   - 审批：ctx.permission.hook("evaluate") → ahakeyconfig-agent hook OpenCodePermissionEvaluate
+//   - 状态：ctx.event.subscribe() → OpenCodeSessionStart / OpenCodeUserPromptSubmit / OpenCodeStop
+//
+// 设计约定（勿改）：
+//   - deny 是终局，plugin 永远不把 deny 改成 allow。
+//   - 任何超时、解析失败、连接失败都保持 opencode 原有判定（fail-safe：交回 TUI 问人）。
+import { spawn } from "node:child_process"
+import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
+
+const AGENT_BIN = "__AHAKEY_AGENT_BIN__"
+// opencode 的 TUI 会同步等 evaluate，所以这里留 3s 硬上限；agent 侧 2s 先回。
+const EVALUATE_TIMEOUT_MS = 3000
+const STATE_TIMEOUT_MS = 1500
+const LOG_PATH = path.join(os.homedir(), ".cache", "opencode", "ahakey-bridge.log")
+
+function log(line) {
+  try {
+    fs.mkdirSync(path.dirname(LOG_PATH), { recursive: true })
+    fs.appendFileSync(LOG_PATH, new Date().toISOString() + " " + line + "\n")
+    if (fs.statSync(LOG_PATH).size > 512 * 1024) {
+      const keep = fs.readFileSync(LOG_PATH, "utf8").split("\n").slice(-400).join("\n")
+      fs.writeFileSync(LOG_PATH, keep)
+    }
+  } catch {}
+}
+
+function callAgent(event, payload, timeoutMs) {
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (value) => { if (!settled) { settled = true; resolve(value) } }
+    let child
+    try {
+      child = spawn(AGENT_BIN, ["hook", event], { stdio: ["pipe", "pipe", "pipe"] })
+    } catch (error) {
+      log("spawn failed " + event + ": " + error)
+      return finish(null)
+    }
+    let out = ""
+    const timer = setTimeout(() => {
+      try { child.kill("SIGKILL") } catch {}
+      log("timeout " + event)
+      finish(null)
+    }, timeoutMs)
+    child.stdout.on("data", (chunk) => { out += chunk })
+    child.stderr.on("data", () => {})
+    child.on("error", (error) => { clearTimeout(timer); log("error " + event + ": " + error); finish(null) })
+    child.on("close", () => {
+      clearTimeout(timer)
+      const text = String(out).trim()
+      if (!text) return finish(null)
+      try { finish(JSON.parse(text)) } catch { log("bad json " + event + ": " + text.slice(0, 200)); finish(null) }
+    })
+    child.stdin.on("error", () => {})
+    child.stdin.write(JSON.stringify(payload) + "\n")
+    child.stdin.end()
+  })
+}
+
+// 备注（实测结论，别再重复踩）：opencode 会按 location 多次激活同一个 plugin
+// （一次 run 内 2～8 次，每次都会重新注册 hook），但**不会**因此让一次审批触发多次回调：
+// 实测 N 个实例 → N 个 assert → N 次 evaluate → N 次 spawn，是 1:1，不是 1:N。
+// 所以这里刻意不加进程外去重（加了反而会误杀 800ms 内两次同动作的合法审批）。
+// 若将来发现 1:N，再在 agent 侧按 (event, session, action) 做选主。
+
+// 燈條語意（AhaKey 的 IDE 狀態 → 燈效，出厂默认映射）：
+//   4 SessionStart  → rainbowWave（開場）
+//   7 UserPromptSubmit → breathing（藍，執行中）
+//   2 PostToolUse   → successSweep（綠閃，工具完成）
+//   6 TaskCompleted → successSweep（綠，任務完成）   ← 成功要走這個，不是 Stop
+//   5 Stop          → middleLight（單燈，結束/失敗）
+//   1 Permission    → approvalWait（紅，等待批准；由 evaluate 路徑觸發）
+// opencode 會按 location 多次激活 plugin，且**每個實例都會收到同一份事件流**（實測同事件重複 2~3 次）。
+// 對策：純事件驅動的聚合（不猜、不用計時器），重複事件收斂到同一狀態；跨實例的
+// 重複送出由 dedupe 窗口吸收。完成判斷只用 session 生命週期事件，不看 step 級事件。
+const dedupeDir = path.join(os.tmpdir(), "ahakey-bridge")
+const DEDUPE_WINDOW_MS = 800
+
+function claimStateOnce(key) {
+  try {
+    fs.mkdirSync(dedupeDir, { recursive: true })
+    const file = path.join(dedupeDir, Buffer.from(key).toString("hex").slice(0, 40))
+    const now = Date.now()
+    try { if (now - fs.statSync(file).mtimeMs < DEDUPE_WINDOW_MS) return false } catch {}
+    fs.writeFileSync(file, String(now))
+    return true
+  } catch {
+    return true
+  }
+}
+
+// 開場彩虹：60 秒內只送一次（多視窗、多 location 都會觸發 setup，不能每次都閃彩虹）
+function claimRainbow() {
+  try {
+    const file = path.join(os.tmpdir(), "ahakey-bridge-rainbow")
+    const now = Date.now()
+    try { if (now - fs.statSync(file).mtimeMs < 60000) return false } catch {}
+    fs.writeFileSync(file, String(now))
+    return true
+  } catch {
+    return true
+  }
+}
+
+function callAgentDeduped(event, payload, timeoutMs) {
+  const key = [event, payload && payload.session_id, payload && payload.tool_name].join("|")
+  if (!claimStateOnce(key)) return Promise.resolve(null)
+  return callAgent(event, payload, timeoutMs)
+}
+
+// ── session 聚合 ────────────────────────────────────────────────────────────
+// 只看「這一輪是否還在跑」：execution.started → running，execution.succeeded/failed → done。
+// 多視窗時取合併結果：任一個還在跑就是「執行中」；全部結束才變「完成」。
+const sessions = new Map()   // sessionID -> "running" | "done"
+const SESSION_TTL_MS = 10 * 60 * 1000
+let heartbeatTimer = null
+let lastEmitted = null
+
+function phaseFor(sessionID, phase) {
+  if (!sessionID) return
+  sessions.set(sessionID, phase)
+  emitAggregate()
+}
+
+function emitAggregate(force) {
+  const now = Date.now()
+  const phases = [...sessions.values()]
+  let phase = null
+  if (phases.includes("running")) phase = "running"
+  else if (phases.includes("done")) phase = "done"
+  if (!phase) return
+  if (!force && phase === lastEmitted) return
+  lastEmitted = phase
+  const event = phase === "running" ? "OpenCodeUserPromptSubmit" : "OpenCodeTaskCompleted"
+  void callAgentDeduped(event, { session_id: "aggregate" }, STATE_TIMEOUT_MS)
+}
+
+function emitTransient(event, sessionID) {
+  void callAgentDeduped(event, { session_id: sessionID || "transient" }, STATE_TIMEOUT_MS)
+}
+
+function startHeartbeat() {
+  if (heartbeatTimer) return
+  heartbeatTimer = setInterval(() => {
+    // 長任務若完全沒有事件，daemon 看門狗會誤判「已死」而發 Stop(5)（紅燈）→ 心跳補送「執行中」
+    if ([...sessions.values()].includes("running")) emitAggregate(true)
+  }, 20000)
+  if (heartbeatTimer.unref) heartbeatTimer.unref()
+}
+
+const EVENT_MAP = {
+  "session.created": "OpenCodeSessionStart",
+  "session.active": "OpenCodeSessionStart",
+  "session.compaction.started": "OpenCodePreCompact",
+}
+
+export default {
+  id: "ahakey-bridge",
+  async setup(ctx) {
+    if (ctx && ctx.permission && typeof ctx.permission.hook === "function") {
+      try {
+        await ctx.permission.hook("evaluate", evaluate)
+        if (!globalThis.__ahakeyBridgeReady) {
+          globalThis.__ahakeyBridgeReady = true
+          log("bridge ready: evaluate hook registered, agent=" + AGENT_BIN)
+        } else {
+          log("bridge re-attached for another location")
+        }
+      } catch (error) {
+        log("permission.evaluate unavailable: " + error)
+      }
+    } else {
+      log("permission.hook unavailable: approval is NOT bridged in this opencode build")
+    }
+    // 補一手：plugin 載入即代表「這個位置啟動了 opencode」。實測 session.created 常常在
+    // plugin 訂閱事件流之前就發出（race），導致開場的彩虹波永遠看不到。
+    // 但 opencode 會反覆啟用 location，若每次都送就會變成一直在閃彩虹 → 節流 + 只在閒置時送。
+    if (sessions.size === 0 && claimRainbow()) {
+      void callAgent("OpenCodeSessionStart", { session_id: "startup" }, STATE_TIMEOUT_MS)
+    }
+
+    if (ctx && ctx.tool && typeof ctx.tool.hook === "function") {
+      try {
+        let lastToolDoneAt = 0
+        await ctx.tool.hook("execute.before", (event) => {
+          // 工具開始 → 執行中（藍）
+          void callAgentDeduped("OpenCodePreToolUse", {
+            session_id: (event && event.sessionID) || "tool",
+            tool_name: event && event.tool,
+          }, STATE_TIMEOUT_MS)
+        })
+        await ctx.tool.hook("execute.after", (event) => {
+          const ok = !event || event.status !== "error"
+          if (!ok) return
+          const now = Date.now()
+          if (now - lastToolDoneAt < 1500) return   // 連續工具時不要把燈閃來閃去
+          lastToolDoneAt = now
+          // 工具完成 → 柔和的單點藍色來回流水（singleMove）
+          void callAgentDeduped("OpenCodePostToolUse", {
+            session_id: (event && event.sessionID) || "tool",
+            tool_name: event && event.tool,
+          }, STATE_TIMEOUT_MS)
+        })
+      } catch (error) {
+        log("tool.execute hooks unavailable: " + error)
+      }
+    }
+    watchEvents(ctx)
+  },
+}
+
+// opencode 在「规则判定后、动作执行或提示发布前」调用；只改 ask，不动 allow / deny。
+async function evaluate(event) {
+  if (!event || event.effect !== "ask") return
+  const reply = await callAgent("OpenCodePermissionEvaluate", {
+    session_id: event.sessionID,
+    tool_name: event.action,
+    resources: event.resources,
+  }, EVALUATE_TIMEOUT_MS)
+  if (!reply || reply.decision !== "allow") {
+    // fail-safe：保留 opencode 原本的 ask，交给 TUI 问人。写一行日志便于现场排查。
+    log("defer " + String(event.action || "") + " → " + ((reply && reply.decision) || "no-reply"))
+    return
+  }
+  event.effect = "allow"
+  log("lever auto → allow " + String(event.action || ""))
+}
+
+function watchEvents(ctx) {
+  if (!ctx || !ctx.event || typeof ctx.event.subscribe !== "function") {
+    log("event.subscribe unavailable; only approval is bridged")
+    return
+  }
+  const stream = ctx.event.subscribe()
+  ;(async () => {
+    startHeartbeat()
+    for await (const event of stream) {
+      const type = event && event.type
+      const sessionID = (event.data && event.data.sessionID) || ""
+      switch (type) {
+        case "session.execution.started":
+          phaseFor(sessionID, "running")
+          continue
+        case "session.execution.succeeded":
+        case "session.execution.failed":
+        case "session.execution.interrupted":
+          phaseFor(sessionID, "done")
+          continue
+        case "session.idle":
+          phaseFor(sessionID, "done")
+          continue
+        case "session.status": {
+          const status = (event.data && event.data.status) || {}
+          phaseFor(sessionID, status.type === "idle" ? "done" : "running")
+          continue
+        }
+        case "permission.asked":
+          emitTransient("OpenCodePermissionRequested", sessionID)
+          continue
+        case "permission.replied":
+        case "permission.rejected":
+          emitAggregate(true)
+          continue
+        default: {
+          const hookEvent = EVENT_MAP[type]
+          if (!hookEvent) continue
+          await callAgentDeduped(hookEvent, { session_id: sessionID, event: type }, STATE_TIMEOUT_MS)
+        }
+      }
+    }
+  })().catch((error) => log("event loop: " + error))
+}
+"""#
+}

@@ -136,6 +136,7 @@ struct DeviceInfoView: View {
                             hookBadge("Cursor", installed: agentManager.cursorHooksInstalled)
                             hookBadge("Codex", installed: agentManager.codexHooksInstalled)
                             hookBadge("Kimi", installed: agentManager.kimiHooksInstalled)
+                            hookBadge("opencode", installed: agentManager.openCodeHooksInstalled)
                         }
                         .font(.caption)
                     }
@@ -219,6 +220,15 @@ struct DeviceInfoView: View {
                                 .font(.caption)
                         } else {
                             Button("安装 Kimi Hooks") { agentManager.installKimiHooksOnly() }
+                                .buttonStyle(.borderless)
+                                .font(.caption)
+                        }
+                        if agentManager.openCodeHooksInstalled {
+                            Button("移除 opencode Hooks") { agentManager.removeOpenCodeHooksOnly() }
+                                .buttonStyle(.borderless)
+                                .font(.caption)
+                        } else {
+                            Button("安装 opencode Hooks") { agentManager.installOpenCodeHooksOnly() }
                                 .buttonStyle(.borderless)
                                 .font(.caption)
                         }
@@ -468,7 +478,12 @@ struct DeviceInfoView: View {
                 Text(NSLocalizedString("通信日志", comment: ""))
             }
         }
-        .onAppear { bleManager.setDiagnosticsWindowVisible(true) }
+        .onAppear {
+            bleManager.setDiagnosticsWindowVisible(true)
+            // 每次打开面板都重新探测一次：使用者在外面手改 hooks（或我们用别的途径装了 plugin）时，
+            // 徽章不该停留在启动那一刻的旧状态。
+            agentManager.refresh()
+        }
         .onDisappear { bleManager.setDiagnosticsWindowVisible(false) }
         // 「设备信息」在 sheet 中展示时，父视图的 `.alert` 往往不会置顶显示，导致 Hooks 安装/报错像「无反应」。在此重复绑定以确保可见。
         .alert("Agent", isPresented: Binding(

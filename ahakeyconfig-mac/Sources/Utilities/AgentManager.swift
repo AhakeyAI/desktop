@@ -46,6 +46,7 @@ final class AgentManager: ObservableObject {
     @Published private(set) var cursorHooksInstalled = false
     @Published private(set) var codexHooksInstalled = false
     @Published private(set) var kimiHooksInstalled = false
+    @Published private(set) var openCodeHooksInstalled = false
 
     /// 用户选择的蓝牙占用方（存 UserDefaults，启动时应用一次）
     @Published var bluetoothConnectionOwner: BluetoothConnectionOwner = .agentDaemon
@@ -129,6 +130,14 @@ final class AgentManager: ObservableObject {
         (kimiConfigPath as NSString).abbreviatingWithTildeInPath
     }
 
+    private var openCodePluginURL: URL {
+        OpenCodePluginInstaller.pluginURL()
+    }
+
+    private var openCodePluginDisplayPath: String {
+        (openCodePluginURL.path as NSString).abbreviatingWithTildeInPath
+    }
+
     private var kimiCliFallbackRoot: String {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".local/share/uv/tools/kimi-cli").path
@@ -182,7 +191,9 @@ final class AgentManager: ObservableObject {
         cursorHooksInstalled = detectCursorHooksInstalled()
         codexHooksInstalled = detectCodexHooksInstalled()
         kimiHooksInstalled = detectKimiHooksInstalled()
-        hooksInstalled = claudeHooksInstalled || cursorHooksInstalled || codexHooksInstalled || kimiHooksInstalled
+        openCodeHooksInstalled = detectOpenCodeHooksInstalled()
+        hooksInstalled = claudeHooksInstalled || cursorHooksInstalled || codexHooksInstalled
+            || kimiHooksInstalled || openCodeHooksInstalled
         if isRunning {
             let socketPath = socketPath
             DispatchQueue.global(qos: .utility).async { [weak self, socketPath] in
@@ -390,6 +401,11 @@ final class AgentManager: ObservableObject {
         }
         // Kimi Code 首次启动会把旧 `~/.kimi` 的 hooks 原样迁移过来，迁移后不带 AhaKey 标记块。
         return isAhakeyHookCommand(text) && text.contains("hook Kimi")
+    }
+
+    /// opencode 没有 hook 配置文件：安装物就是 plugins 目录里的一个带标记的 JS 文件。
+    private func detectOpenCodeHooksInstalled() -> Bool {
+        OpenCodePluginInstaller.isInstalled(at: openCodePluginURL)
     }
 
     private func isAhakeyHookCommand(_ command: String) -> Bool {
@@ -1036,6 +1052,20 @@ final class AgentManager: ObservableObject {
         refresh()
     }
 
+    func installOpenCodeHooksOnly() {
+        isAgentOperationInProgress = true
+        defer { isAgentOperationInProgress = false }
+        let message = installOpenCodeHooks()
+        agentUserAlert = message.isEmpty ? """
+        opencode Hooks 已安装到 \(openCodePluginDisplayPath)。
+
+        **拨杆接管**：opencode 没有 hook 配置文件，这里装的是一个 plugin。拨杆在「自动」档时，opencode 的权限请求会在弹出前直接放行；切回手动档则交回 opencode 自己询问。读不到拨杆（断连、超时、回包不完整）一律交回人工确认，不会误放行。
+
+        **请重启 opencode 才会载入 plugin**（关掉当前会话再开）。opencode 升级不影响本文件；要停用请点「移除 opencode Hooks」。
+        """ : message
+        refresh()
+    }
+
     /// 单独移除 Kimi Hooks 标记块。
     func removeKimiHooksOnly() {
         isAgentOperationInProgress = true
@@ -1265,6 +1295,39 @@ final class AgentManager: ObservableObject {
     private func escapeTomlBasicString(_ s: String) -> String {
         s.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
+    }
+
+    func removeOpenCodeHooksOnly() {
+        isAgentOperationInProgress = true
+        defer { isAgentOperationInProgress = false }
+        let message = removeOpenCodeHooks()
+        agentUserAlert = message
+        refresh()
+    }
+
+    private func installOpenCodeHooks() -> String {
+        do {
+            let url = try OpenCodePluginInstaller.install(agentBinaryPath: agentBinaryPath)
+            log.info("opencode plugin 已写入 \(url.path)")
+            return ""
+        } catch {
+            log.error("installOpenCodeHooks: \(error.localizedDescription)")
+            return "opencode Hooks：\(error.localizedDescription)"
+        }
+    }
+
+    private func removeOpenCodeHooks() -> String {
+        do {
+            let removed = try OpenCodePluginInstaller.remove(at: openCodePluginURL)
+            guard removed else {
+                return "opencode Hooks：\(openCodePluginDisplayPath) 里没有由 AhaKey 安装的 plugin，未做任何修改。"
+            }
+            log.info("opencode plugin 已移除")
+            return ""
+        } catch {
+            log.error("removeOpenCodeHooks: \(error.localizedDescription)")
+            return "opencode Hooks：无法删除 \(openCodePluginDisplayPath)：\(error.localizedDescription)"
+        }
     }
 
     private func installKimiHooks() -> String {
