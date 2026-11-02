@@ -1487,6 +1487,7 @@ struct AhaKeyStudioView: View {
                         }
                         .buttonStyle(.bordered)
                         .disabled(!OpenCodeModePreset.isAssetAvailable)
+                        .fixedSize()   // 窄视窗不要把按钮文字截断
                         .help(OpenCodeModePreset.isAssetAvailable
                               ? "把当前模式改成 opencode 的显示预设：名称、内置动图、灯效映射、状态行、12 FPS（键位不动）。"
                               : "安装包内没有 DefaultOLED/opencode.gif，无法套用。")
@@ -1495,11 +1496,15 @@ struct AhaKeyStudioView: View {
                             restoreCustomPresetForCurrentMode()
                         }
                         .buttonStyle(.bordered)
+                        .fixedSize()
                         .help("把当前模式还原成出厂默认：名称、LCD 图、灯效映射（键位不动）。")
 
                         Text("套用/还原只影响当前模式的外观，键位不动")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .layoutPriority(-1)   // 空间不足时优先压缩说明文字，而不是按钮
                         Spacer()
                     }
 
