@@ -1,5 +1,7 @@
 # Consumer Siri：旧版偶发、新版更频繁的对照
 
+> **2026-11-02 产品口径更新**：Owner确认Consumer短按切换听写、长按唤起Siri为正常交互。因此下文历史“固定短脉冲／长按不得唤起Siri”诉求已撤销；不要求按该旧方案改固件。297B短按与重启通过，3组HID按下／松开配对；正常短按异常及释放可靠性仍按证据范围独立验收。原固件Issue7两条FW-13评论已加顶部更正并独立读回确认：[原诊断](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6492446474)、[新旧对照](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6494259506)。下文保留历史，不代表当前开发要求。
+
 ## 不能缩减成“两个版本一样”
 
 Owner明确补充：旧版也出现过Siri，但频次/概率比较低，新版更频繁。旧版ffb9208f已实际擦写/Verify OK、正常无线启动，0x96读回2、Codex模式，Studio完全退出后抓到原始Consumer CF并由Owner确认Siri。因此可排除“只在新版本存在”和“必须有Studio桥接才发生”，**不能排除新版本放大问题，不能称为同频率或无回归**。

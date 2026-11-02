@@ -1,5 +1,7 @@
 # Consumer Voice误触发Siri：本轮真机失败
 
+> **2026-11-02 产品口径更新**：Owner确认Consumer短按切换听写、长按唤起Siri为正常交互。因此下文历史“固定短脉冲／长按不得唤起Siri”诉求已撤销；不要求按该旧方案改固件。297B短按与重启通过，3组HID按下／松开配对；正常短按异常及释放可靠性仍按证据范围独立验收。原固件Issue7两条FW-13评论已加顶部更正并独立读回确认：[原诊断](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6492446474)、[新旧对照](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6494259506)。下文保留历史，不代表当前开发要求。
+
 ## 当前结论
 
 build521配07A8DF32工程固件，Owner正常重启后屏幕正常，实际听写能输入；再次短按停止时以及稍慢按键时多次出现Siri，需反复关闭才能继续。Consumer功能验收为FAIL，先前的路由字节读写通过仍有效，不能等同听写稳定通过。没有修改输入方式、系统Siri设置、固件或客户端配置。
