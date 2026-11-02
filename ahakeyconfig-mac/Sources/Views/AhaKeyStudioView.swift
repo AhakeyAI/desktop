@@ -1958,8 +1958,7 @@ struct AhaKeyStudioView: View {
             Divider().padding(.top, 2)
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    Text("亮度").font(.subheadline.weight(.semibold))
-                    Text("全部模式").font(.caption).foregroundStyle(.secondary)
+                    Text(NSLocalizedString("全局亮度", comment: "")).font(.subheadline.weight(.semibold))
                     if current.brightness != baseline.brightness {
                         Circle().fill(Color.orange).frame(width: 5, height: 5).accessibilityLabel("未保存")
                     }

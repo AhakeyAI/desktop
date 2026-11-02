@@ -18,7 +18,6 @@ final class StudioLightInspectorModel: ObservableObject {
             if let data = try? JSONEncoder().encode(values) { defaults.set(data, forKey: Self.storageKey) }
         }
     }
-    @Published private(set) var catalog: WS3LightCatalogSnapshot?
     let writeCompleted = PassthroughSubject<(message: String, wrote: Bool), Never>()
     @Published var batchConflict: StudioInlineLightBatch.Conflict?
     @Published var selectedState: UInt8 = 0
@@ -88,7 +87,7 @@ final class StudioLightInspectorModel: ObservableObject {
                     try await ble.saveWS3DisplaySetting(setting, baseline: actual, expectedGeneration: generation)
                 }, preview: { request in
                     try await ble.previewWS3Display(request)
-                }, writeStarted: { catalog = nil; values.markUnconfirmed(target) })
+                }, writeStarted: { values.markUnconfirmed(target) })
             // Publish only after the lease's final device/generation check.
             switch result {
             case .read(let reading):
@@ -146,7 +145,7 @@ final class StudioLightInspectorModel: ObservableObject {
             }, verify: { item, context in
                 let value = try await ble.readWS3SettingForEditing(item.target.setting(item.desired))
                 return .init(deviceID: context.deviceID, value: value)
-            }, writeStarted: { target in attemptedWrite = true; catalog = nil; values.markUnconfirmed(target) })
+            }, writeStarted: { target in attemptedWrite = true; values.markUnconfirmed(target) })
             switch result {
             case .readOnly(let reading):
                 observeBatch(reading)
@@ -188,36 +187,6 @@ final class StudioLightInspectorModel: ObservableObject {
         updated.observe(.brightness, fact: reading.brightness, preservingDraft: reading.values[.brightness] != nil)
         for (target, fact) in reading.values { updated.observe(target, fact: fact, preservingDraft: true) }
         values = updated
-    }
-
-    func readCatalog(ble: AhaKeyBLEManager, session: StudioInspectorSession) {
-        perform(scope: NSLocalizedString("四模式灯效总览", comment: ""), session: session) { [self] in
-            let result = try await session.withConnection { context in
-                guard values.permitsReadback(deviceID: context.deviceID) else {
-                    throw StudioInspectorSession.Failure.deviceChanged
-                }
-                let display = try await ble.readWS3DisplayForEditing()
-                let catalog = try await ble.readWS3LightCatalogForEditing()
-                return (deviceID: context.deviceID, brightness: display.brightness, catalog: catalog)
-            }
-            var updated = values
-            updated.observe(.brightness, fact: .init(deviceID: result.deviceID, value: result.brightness))
-            for light in result.catalog.lights {
-                updated.observe(.effect(mode: light.mode, state: light.state), fact: .init(deviceID: result.deviceID, value: light.effect))
-            }
-            values = updated
-            catalog = result.catalog
-            message = NSLocalizedString("已读取全部灯效。", comment: "")
-        }
-    }
-
-    func discardDrafts() {
-        guard !isBusy else { return }
-        values = .init()
-        showsError = false
-        catalog = nil
-        conflict = nil
-        message = NSLocalizedString("本地灯光草稿已清除，请重新读取；未重置键盘，也不会撤销已发送的修改。", comment: "")
     }
 
     private func perform(scope: String, session: StudioInspectorSession, failureContext: (() -> String?)? = nil, body: @escaping @MainActor () async throws -> Void) {
