@@ -1,0 +1,43 @@
+{
+  "firmwareBranch": "Fireware-harness",
+  "archiveCommit": "adf7b3da1669a9a04b2f4fdc46f892d696dc8a53",
+  "buildSourceCommit": "5fc01cf43990743051bbc68c9381c9a44441b1d8",
+  "identity": "x1-c582-hw1-p1-1.0.1-r001",
+  "hexFile": "HW1_K1_SAVE_FIX.hex",
+  "hexBytes": 766200,
+  "hexSHA256": "f99d3b9d505214be2082d7b696f9a4bcacbc9684ecd7e5ed7f04e631cba81142",
+  "providedFileEqualsUpstreamArtifact": true,
+  "productionClientHEXValidator": "PASS",
+  "codeDataBytes": 272384,
+  "codeMin": 0,
+  "codeMax": 272383,
+  "ramBytes": 29164,
+  "diagnosticsEnabled": false,
+  "selectedSourceManifestCheck": {
+    "APP/sub_main/command_solve.c": "matches manifest after restoring Windows CRLF",
+    "APP/sub_main/command_solve.h": "matches manifest after restoring Windows CRLF"
+  },
+  "upstreamGate": {
+    "checks": 14,
+    "result": "PASS",
+    "rerunOnMac": false
+  },
+  "localExtractedProductionFunctionProbe": {
+    "result": "PASS",
+    "cases": 5,
+    "source": "adf7b3da1669a9a04b2f4fdc46f892d696dc8a53",
+    "scope": "actual extracted command-link-loss/identity/cancel functions; IRQ and scheduler stubbed; not full firmware or hardware verification",
+    "stdout": "PASS offline USB poll preserves BLE transaction\nPASS foreign live USB loss preserves BLE transaction\nPASS owning BLE loss cancels its transaction\nPASS foreign BLE loss preserves USB transaction\nPASS owning USB loss cancels its transaction\n"
+  },
+  "upstreamOwnerFeedback": "K1 save reported working; not complete Mac acceptance",
+  "clientSource": "b8a9faec9d5ed6d9b5a96dafaad49e2f1a768e81",
+  "clientTests": {
+    "focused": 25,
+    "full": 977,
+    "failures": 0
+  },
+  "macFlashPerformed": false,
+  "macHILComplete": false,
+  "recoverySafe": false,
+  "formalRelease": false
+}

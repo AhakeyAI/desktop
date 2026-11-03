@@ -1,0 +1,23 @@
+{
+  "sourceCommit": "b8a9faec9d5ed6d9b5a96dafaad49e2f1a768e81",
+  "version": "0.2.3",
+  "build": "537",
+  "dmgBytes": 20205608,
+  "dmgSHA256": "58496a1fd5896893a62208270c45da3e236ad20051457829c034438e6d33496f",
+  "binarySHA256": {
+    "AhaKeyConfig": "29e3fde5af914f7a5edb480679cecb4a0355108c0ab7854ad0d0967b4cf549c4",
+    "ahakeyconfig-agent": "2d0086cf57999f1c0c0f7277e4bcc3dd9751d92b3f2e060fbd8d01245d0c8545"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "installed": true,
+  "fullTests": 977,
+  "focusedTests": 25,
+  "semanticPreferenceKeysPreserved": 15,
+  "agentConnected": true,
+  "actualFirmwareDisplayed": "v1.0",
+  "keyboardConfigurationWrites": 0,
+  "firmwareFlashed": false
+}
