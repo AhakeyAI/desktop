@@ -1,5 +1,7 @@
 # 普通 Kimi／Work 与官方 TUI 支持边界 — 2026-11-02
 
+> **2026-11-03复查**：当前官方main为cc6b98ec；TUI config文件因忙时切换模型／思考强度而变化，但applyPermissionChoice函数与原审计逐字节相同；web交接、ACP、SDK Session和externalHooks四文件也相同。未因此取得从外部附着原TUI会话的合同。另发现011b1d41移除GET /sessions/{session_id}/status，改由WebSocket推送agent/usage等状态；当前Desktop权限桥仍调用旧status端点。已核验1.2.1/2.4.0及1.1.3/2.3.2精确版本合同保留，未知新组合拒绝接管；不得只放宽版本号冒充新接口兼容。本次未安装新版Kimi、发送模型请求或修改权限，需将来取得真实发行包后另做精确合同适配。[复查回执](../validation/connect-talk-hil-2026-10-22/kimi-upstream-interface-refresh-2026-11-03.json)。
+
 > 2026-11-02补查：已通过认证GitHub API取得当前main `fc3b521b8b68468268bb4cfe7f45008ce08b2b99`（09:11:48Z）。下文五处关键实现：TUI config/web、ACP入口、SDK session、externalHooks service，与既有审计提交逐文件SHA256完全相同。原匿名限流记录是历史状态；本次只证明这五处未变，不声称整个仓库无新入口或私有接口不存在。[刷新回执](../validation/connect-talk-hil-2026-10-22/wbs-external-dependency-refresh-2026-11-02.json)。
 
 结论：**目前没有核实到让 Studio 从外部切换普通 Kimi／Work 原任务、或保持官方 TUI 运行并切换其原会话权限的公开接口合同。** 原会话控制未完成的缺口是目标进程的发现、鉴权、权限读写和恢复语义；不是把 Hook 返回值改成 allow 就能补齐。

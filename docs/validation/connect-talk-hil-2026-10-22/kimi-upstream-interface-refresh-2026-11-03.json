@@ -1,0 +1,57 @@
+{
+  "checkedAtUTC": "2026-11-03T05:04:27.407511+00:00",
+  "upstreamMain": "cc6b98ec0eb19236c9498b55ccb68dc07d7c5b4e",
+  "comparedToAudited": "a2afdbc7d1fa0737d45d5780cc6c2bd38e477b55",
+  "selectedFiles": [
+    {
+      "path": "apps/kimi-code/src/tui/commands/config.ts",
+      "oldSHA256": "a91fdf3bc8c520694212175de3fa5921db1dfb72e4576ab08cd8d524b42b871c",
+      "currentSHA256": "570530bf1b304317b6992177dce5d2729cda6b82036e5d6a9ac6864770693b6d",
+      "unchanged": false
+    },
+    {
+      "path": "apps/kimi-code/src/tui/commands/web.ts",
+      "oldSHA256": "3a3b0813b06d4ced5f9158620fe7b8dfbfa2e6a9af7f68127320a736a78a2998",
+      "currentSHA256": "3a3b0813b06d4ced5f9158620fe7b8dfbfa2e6a9af7f68127320a736a78a2998",
+      "unchanged": true
+    },
+    {
+      "path": "apps/kimi-code/src/cli/sub/acp.ts",
+      "oldSHA256": "c388621480948919df7aea522c09de8bde784d0348a277353d782e13f7f79bd8",
+      "currentSHA256": "c388621480948919df7aea522c09de8bde784d0348a277353d782e13f7f79bd8",
+      "unchanged": true
+    },
+    {
+      "path": "packages/node-sdk/src/session.ts",
+      "oldSHA256": "9faad42df1e7204ee945ffb91b616447e4b144b605e9d4e46174b15f9fcf421a",
+      "currentSHA256": "9faad42df1e7204ee945ffb91b616447e4b144b605e9d4e46174b15f9fcf421a",
+      "unchanged": true
+    },
+    {
+      "path": "packages/agent-core-v2/src/features/externalHooks/agent/agentExternalHooksService.ts",
+      "oldSHA256": "701a53165f60d62a544e2e3154dadc97b41693014c456a9fec061327a3fdf9bc",
+      "currentSHA256": "701a53165f60d62a544e2e3154dadc97b41693014c456a9fec061327a3fdf9bc",
+      "unchanged": true
+    }
+  ],
+  "permissionChoiceFunction": {
+    "unchanged": true,
+    "sha256": "dca6de1da3f878879dc4db246c86c2b8248f670a3f80e013a1374575c32061e0"
+  },
+  "newDesktopCompatibilityRisk": {
+    "commit": "011b1d41",
+    "removed": "GET /sessions/{session_id}/status",
+    "replacement": "agent/usage/goal/todo WebSocket state frames",
+    "currentBridgeUsesOldStatusEndpoint": true,
+    "currentlyAcceptedContracts": [
+      "Desktop 1.1.3 / Server 2.3.2",
+      "Desktop 1.2.1 / Server 2.4.0"
+    ],
+    "newContractEnabled": false,
+    "installedDesktopUpdated": false
+  },
+  "scopeLimit": "Selected entrypoints and current upstream change examined; no assertion that private APIs or every repository path were exhaustively ruled out.",
+  "tuiOriginalSessionControlCompleted": false,
+  "modelRequests": 0,
+  "permissionWrites": 0
+}
