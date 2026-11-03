@@ -217,6 +217,108 @@ final class CodexDesktopSessionBridgeTests: XCTestCase {
         wait(for: [finished], timeout: 6)
     }
 
+    func testRealSocketReadsPermissionsFromSnapshotLargerThan64MiB() throws {
+        let root = URL(fileURLWithPath: "/tmp").appendingPathComponent("ahakey-large-\(UUID().uuidString.prefix(8))")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: root) }
+        let endpoint = root.appendingPathComponent("ipc.sock")
+        let server = socket(AF_UNIX, SOCK_STREAM, 0)
+        XCTAssertGreaterThanOrEqual(server, 0)
+        defer { close(server) }
+        var address = sockaddr_un(); address.sun_family = sa_family_t(AF_UNIX)
+        _ = endpoint.path.withCString { source in
+            withUnsafeMutablePointer(to: &address.sun_path) {
+                strcpy(UnsafeMutableRawPointer($0).assumingMemoryBound(to: CChar.self), source)
+            }
+        }
+        let bound = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.bind(server, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+        }
+        XCTAssertEqual(bound, 0); XCTAssertEqual(chmod(endpoint.path, 0o600), 0); XCTAssertEqual(listen(server, 3), 0)
+        let finished = expectation(description: "Large snapshot server finishes")
+        DispatchQueue.global().async {
+            defer { finished.fulfill() }
+            do {
+                for stage in 0..<3 {
+                    var listener = pollfd(fd: server, events: Int16(POLLIN), revents: 0)
+                    guard poll(&listener, 1, 5000) > 0 else { throw NSError(domain: "fixture-accept", code: 1) }
+                    let peer = accept(server, nil, nil)
+                    guard peer >= 0 else { throw NSError(domain: "fixture-accept", code: 2) }
+                    defer { close(peer) }
+                    var timeout = timeval(tv_sec: 6, tv_usec: 0), noSignal: Int32 = 1
+                    setsockopt(peer, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+                    setsockopt(peer, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+                    setsockopt(peer, SOL_SOCKET, SO_NOSIGPIPE, &noSignal, socklen_t(MemoryLayout<Int32>.size))
+                    func request() throws -> [String: Any] {
+                        let header = try self.fixtureRead(peer, size: 4)
+                        let count = header.enumerated().reduce(0) { $0 | Int($1.element) << ($1.offset * 8) }
+                        guard (1...4096).contains(count) else { throw NSError(domain: "fixture-request", code: 1) }
+                        return try XCTUnwrap(JSONSerialization.jsonObject(with: self.fixtureRead(peer, size: count)) as? [String: Any])
+                    }
+                    func respond(_ request: [String: Any]) throws {
+                        let method = try XCTUnwrap(request["method"] as? String)
+                        var reply = self.reply(method)
+                        reply["type"] = "response"; reply["requestId"] = request["requestId"]
+                        if method == "initialize" { reply["result"] = ["clientId": self.client] }
+                        let data = try JSONSerialization.data(withJSONObject: reply)
+                        try self.fixtureWrite(peer, data: Data((0..<4).map { UInt8(truncatingIfNeeded: UInt32(data.count) >> ($0 * 8)) }) + data)
+                    }
+                    let hello = try request()
+                    XCTAssertEqual(hello["method"] as? String, "initialize"); try respond(hello)
+                    let next = try request()
+                    if stage < 2 {
+                        XCTAssertEqual(next["method"] as? String, stage == 0 ? "thread-owner-discovery" : "thread-follower-read-model-settings")
+                        try respond(next)
+                    } else {
+                        XCTAssertEqual(next["method"] as? String, "thread-stream-following-changed")
+                        let wrongOwner: [String: Any] = ["type": "broadcast", "method": "thread-stream-state-changed",
+                            "version": 11, "sourceClientId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                            "params": ["hostId": "local", "conversationId": self.thread, "change": [
+                                "type": "snapshot", "conversationState": ["id": self.thread,
+                                    "latestThreadSettings": ["approvalPolicy": "on-request", "permissions": ":workspace"]]]]]
+                        for value in [wrongOwner, ["type": "client-discovery-request", "requestId": "discovery-fixture"]] {
+                            let data = try JSONSerialization.data(withJSONObject: value)
+                            try self.fixtureWrite(peer, data: Data((0..<4).map { UInt8(truncatingIfNeeded: UInt32(data.count) >> ($0 * 8)) }) + data)
+                        }
+                        let discoveryReply = try request()
+                        XCTAssertEqual(discoveryReply["type"] as? String, "client-discovery-response")
+                        XCTAssertEqual((discoveryReply["response"] as? [String: Bool])?["canHandle"], false)
+                        let prefix = Data("{\"type\":\"broadcast\",\"method\":\"thread-stream-state-changed\",\"version\":11,\"sourceClientId\":\"\(self.client)\",\"params\":{\"hostId\":\"local\",\"conversationId\":\"\(self.thread)\",\"change\":{\"type\":\"snapshot\",\"conversationState\":{\"id\":\"\(self.thread)\",\"historyPadding\":\"".utf8)
+                        let suffix = Data("\",\"latestThreadSettings\":{\"approvalPolicy\":\"never\",\"activePermissionProfile\":{\"id\":\":danger-full-access\"},\"model\":\"not-permission-data\"}}}}}".utf8)
+                        let paddingBytes = 64 * 1024 * 1024 + 17
+                        let count = prefix.count + paddingBytes + suffix.count
+                        try self.fixtureWrite(peer, data: Data((0..<4).map { UInt8(truncatingIfNeeded: UInt32(count) >> ($0 * 8)) }))
+                        try self.fixtureWrite(peer, data: prefix)
+                        let chunk = Data(repeating: 120, count: 64 * 1024)
+                        var remaining = paddingBytes
+                        while remaining > 0 {
+                            let size = min(remaining, chunk.count)
+                            try self.fixtureWrite(peer, data: chunk.prefix(size)); remaining -= size
+                        }
+                        try self.fixtureWrite(peer, data: suffix)
+                    }
+                }
+            } catch {
+                // On the old 64MiB guard the client closes before consuming the
+                // large payload. The client result below is the failure oracle.
+            }
+        }
+        let result = Result { try CodexDesktopSessionBridge(socketURL: endpoint).readSettings(owner: .init(threadID: thread, clientID: client)) }
+        wait(for: [finished], timeout: 10)
+        let settings = try result.get()
+        XCTAssertEqual(settings, .fullAccess)
+        XCTAssertLessThan(settings.encoded.count, 256)
+    }
+
+    private func fixtureWrite(_ fd: Int32, data: Data) throws {
+        var offset = 0
+        while offset < data.count {
+            let count = data.withUnsafeBytes { Darwin.write(fd, $0.baseAddress!.advanced(by: offset), data.count - offset) }
+            guard count > 0 else { throw NSError(domain: "fixture-write", code: Int(errno)) }
+            offset += count
+        }
+    }
+
     private func fixtureRead(_ fd: Int32, size: Int) throws -> Data {
         var result = Data(count: size), offset = 0
         while offset < size {

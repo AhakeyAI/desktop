@@ -227,7 +227,7 @@ private final class CodexDesktopIPCChannel {
         while ProcessInfo.processInfo.systemUptime < deadline {
             // The original desktop currently offers a full snapshot rather than
             // a permission-only read. Never poll this path or retain its body.
-            let reply = try receive(maximum: 64 * 1024 * 1024)
+            let reply = try receive(projectSnapshot: true)
             guard reply["type"] as? String == "broadcast",
                   reply["method"] as? String == "thread-stream-state-changed",
                   reply["version"] as? Int == 11,
@@ -250,11 +250,18 @@ private final class CodexDesktopIPCChannel {
         throw Failure.timedOut
     }
 
-    private func receive(maximum: Int = frameLimit) throws -> [String: Any] {
+    private func receive(projectSnapshot: Bool = false) throws -> [String: Any] {
         let header = try readExactly(4)
         let size = header.enumerated().reduce(UInt32(0)) { $0 | UInt32($1.element) << ($1.offset * 8) }
-        guard size > 0, size <= maximum else { throw Failure.invalidFrame }
-        guard let reply = try JSONSerialization.jsonObject(with: readExactly(Int(size))) as? [String: Any] else { throw Failure.invalidFrame }
+        guard size > 0 else { throw Failure.invalidFrame }
+        let reply: [String: Any]
+        if projectSnapshot {
+            reply = try CodexDesktopSettingsFrame.read(length: size, readChunk: readExactly)
+        } else {
+            guard size <= Self.frameLimit,
+                  let value = try JSONSerialization.jsonObject(with: readExactly(Int(size))) as? [String: Any] else { throw Failure.invalidFrame }
+            reply = value
+        }
         // This bridge never advertises itself as a session owner or accepts
         // inbound commands. Answer discovery even while waiting for a snapshot.
         if reply["type"] as? String == "client-discovery-request", let requestID = reply["requestId"] as? String {

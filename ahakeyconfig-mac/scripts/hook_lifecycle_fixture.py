@@ -12,7 +12,7 @@ def policy_swift_sources(shared):
     """
     return [shared / name for name in (
         "CodexConfigLeverSync.swift", "ApprovalAutomationControl.swift",
-        "CodexDesktopSessionBridge.swift", "CodexDesktopLeverState.swift",
+        "CodexDesktopSessionBridge.swift", "CodexDesktopSettingsFrame.swift", "CodexDesktopLeverState.swift",
         "KimiDesktopLeverState.swift", "KimiDesktopPermissionBridge.swift",
         "KimiDesktopInstanceDiscovery.swift", "KimiDesktopServerMetadata.swift",
         "KimiPrivateCredentialFile.swift",
