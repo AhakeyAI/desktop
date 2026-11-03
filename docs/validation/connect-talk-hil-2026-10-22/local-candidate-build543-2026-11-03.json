@@ -1,0 +1,43 @@
+{
+  "sourceCommit": "101bf2953c9487379ce7e8e99df689f83e8a0852",
+  "version": "0.2.3",
+  "build": "543",
+  "dmgPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-empty-key/AhaKey-Studio-0.2.3-build543-101bf29-test.dmg",
+  "dmgBytes": 20361026,
+  "dmgSHA256": "d740b64e2f89853a9340197ccb96edcdc7b102b097799241d10e75b609d41def",
+  "binarySHA256": {
+    "AhaKeyConfig": "7326b3d937bdeb144590e7c95113bbfe8a84f95728b1638608a6dfe2c8d3a40c",
+    "ahakeyconfig-agent": "34c6a4ad67f9c1677eeb132b548fdb4e7f8ff7c1149a5e02781af43ee4895dd7"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "installed": true,
+  "previousBuild": 542,
+  "preferencesBackedUp": 16,
+  "preferencesSemanticallyUnchangedBeforeHardwareWrite": true,
+  "localTestsPassed": 993,
+  "focusedKeyTestsPassed": 22,
+  "newRegressionTests": 2,
+  "redReproduction": "Two tests failed on baseline: importing an unassigned key returned nil; saving Kimi Key4 returned readOnly without writing. Both pass after fix.",
+  "rootCause": "The firmware unassigned action sentinel (type 0, empty payload) is known but the sidebar importer rejected it, disabling both editing and saving. It now imports as an empty shortcut; explicit writes use supported type 0x73 and preflight still compares the exact original fact. Unknown/noncanonical actions remain read-only.",
+  "uiAndHardwareChecks": {
+    "before": "Mode 4 Key4 reported no key action; controls and write button disabled.",
+    "after": "Controls enabled with retained Backspace draft. Explicit write succeeded with success modal, then independent read refreshed Backspace.",
+    "target": {
+      "modeZeroBased": 3,
+      "keyZeroBased": 3,
+      "action": "Backspace"
+    },
+    "confirmedKeyTransactions": 1,
+    "independentReadAfterWrite": true,
+    "otherDraftsPreserved": true,
+    "powerCycleTested": false
+  },
+  "factoryResetRequests": 0,
+  "newSessionGrants": 0,
+  "firmwareFlashed": false,
+  "ciRun": "https://github.com/AhakeyAI/desktop/actions/runs/41668814422",
+  "ciStatusAtReceipt": "pending-or-running; not claimed passed"
+}
