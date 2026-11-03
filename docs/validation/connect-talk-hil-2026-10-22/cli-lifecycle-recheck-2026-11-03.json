@@ -162,5 +162,10 @@
   "userConfigFilesModified": false,
   "productionPermissionChanges": false,
   "keyboardSettingsModified": false,
-  "outstanding": "Explicit physical power-cycle confirmation, physical Voice and lever matrix remain pending; original Work/TUI and firmware contract dependencies unchanged."
+  "outstanding": "Explicit physical power-cycle confirmation, physical Voice and lever matrix remain pending; original Work/TUI and firmware contract dependencies unchanged.",
+  "fixtureFixCI": {
+    "run": 41584051512,
+    "head": "6cd4d6fbf2904ec60bbbe3f7d585b4e07a9a5d6b",
+    "conclusion": "success"
+  }
 }

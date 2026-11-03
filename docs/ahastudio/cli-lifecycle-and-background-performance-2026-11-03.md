@@ -27,3 +27,5 @@ Claude --live-reload实际失败：替换为启动时未登记的新命令路径
 没有修改真实CLI配置、复制账号凭据、发起真实模型请求或自动同意额外命令。测试使用临时配置、保留的用户阻断Hook和本地端点。诊断代码及原始输出保留在本机private diagnostics目录，未加入产品；源码改动仅维护者工具依赖与编译回归测试。[CLI回执](../validation/connect-talk-hil-2026-10-22/cli-lifecycle-recheck-2026-11-03.json)。
 
 当前结论：后台样本与CLI生命周期增量完成；Claude当前无界面会话新增命令热重载仍未通过，交互TUI确认路径待核验；实体重启／Voice／拨杆待用户。全WBS不标完成。
+
+验收工具修复源码6cd4d6fb已通过[CI41584051512](https://github.com/AhakeyAI/desktop/actions/runs/41584051512)全部三项作业。该检查包含当前工具与生产源，不会把未通过的Claude新增命令热重载场景变成通过。

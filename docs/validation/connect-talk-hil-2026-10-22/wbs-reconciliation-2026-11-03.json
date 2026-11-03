@@ -1,0 +1,22 @@
+{
+  "reconciledAtUTC": "2026-11-03T05:32:32.064820+00:00",
+  "historicalSourceCommit": "6cd4d6fbf2904ec60bbbe3f7d585b4e07a9a5d6b",
+  "beforeCSV_SHA256": "7519c6299e907a99f945842023cd845f3253af9c4a29eb7762548f6ee7f88066",
+  "afterCSV_SHA256": "de5e2a5cfa5c503aecd06aa3645b877f865e7fb6f4db9ccecb6b0ca286c1807e",
+  "workPackages": 29,
+  "allIDsPreserved": true,
+  "allTitlesPrioritiesDependenciesSynchronizedFromExistingMarkdown": true,
+  "markdownAndCSVRowsMatchExactly": true,
+  "remainingFunctionalDevelopmentClasses": 3,
+  "formalReleaseInputClasses": 1,
+  "completeAcceptanceGroupsStillOpen": 8,
+  "longPressSiriClassifiedAsNormal": true,
+  "originalFullScopePreserved": true,
+  "physicalPowerCycleConfirmed": false,
+  "overallGoalComplete": false,
+  "fixtureFixCI": {
+    "run": 41584051512,
+    "head": "6cd4d6fbf2904ec60bbbe3f7d585b4e07a9a5d6b",
+    "conclusion": "success"
+  }
+}
