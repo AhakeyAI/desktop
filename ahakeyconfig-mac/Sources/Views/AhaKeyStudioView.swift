@@ -383,7 +383,7 @@ struct AhaKeyStudioView: View {
                     bleManager.disconnect()
                     bleManager.userInitiatedConnect()
                 }
-                Button(NSLocalizedString("恢复出厂设置…", comment: "")) {
+                Button(NSLocalizedString("恢复出厂设置", comment: "")) {
                     showsFactoryReset = true
                 }
                 .disabled(componentBusy)
