@@ -3,7 +3,7 @@
 > 唯一权威事实源：`desktop/docs/windows-stabilization-plan.md`。适用范围是
 > `desktop/ahakeyconfig-win-java` 及其 Windows 发布脚本；固件仓库只读，不在本轮修改。
 >
-> 最后更新：2026-10-24。状态必须区分代码完成、自动测试完成、软件手工验证和真机验证。
+> 最后更新：2026-11-03。状态必须区分代码完成、自动测试完成、软件手工验证和真机验证。
 >
 > 解释顺序：第 0～6 节记录当前工程事实和仍需修复的边界；第 7 节之后是按时间追加的
 > 交付与决策历史。历史章节保留用于追溯，但如果与第 0～6 节或更晚的明确 supersedes
@@ -1611,3 +1611,39 @@ command excluded these platform tests explicitly and skipped the PowerShell pack
 No Windows-only test was removed; the read-only-DLL deletion test now declares its Windows OS
 requirement. Windows CI/full packaging, installer execution and real device verification remain
 separate from the successful local portable checks. No firmware or device configuration was written.
+
+
+## 47. Synthetic firmware process ownership in CI (2026-11-03)
+
+CI run 41641836395 failed two `FirmwareUpdateServiceTest` futures at their existing
+five-second test deadline. Windows production sources were identical to the preceding
+passing run; no Windows device or approval behavior is changed here.
+
+The synthetic completed backends used the compatibility `WchIspProcessResult`
+constructor, which treats a positive diagnostic PID as an owned live process.
+`FirmwareUpdateService.awaitOwnedProcessExit` correctly waits for owned processes
+before releasing single-flight. A fake PID can therefore accidentally reference a
+real host process. The fixture was not isolated from the machine running the test.
+
+A new test drives the real service with the current JVM's PID as the fake diagnostic
+PID. Before the fixture correction its future timed out deterministically; after the
+correction the same service completed. Synthetic completed backends now explicitly
+supply an empty `ownedProcessIds` list, including the prepared-session backend.
+The diagnostic-only cases that assert preservation of explicit ownership metadata
+remain unchanged. The production process ownership gate, success rules, UAC,
+cancellation, command arguments and all production sources are unchanged.
+
+Local Java 17/macOS targeted validation: `FirmwareUpdateServiceTest` passes 20 tests,
+including the two CI failures and the new collision regression. This proves the
+conditional fixture defect and its correction; without a Windows thread dump it does
+not establish that both original CI timeouts had this unique cause. Full Windows CI
+and packaging must still pass, and this is not Windows hardware or installer UAT.
+The installed Mac candidate remains build539; this test-only change requires no new
+Mac package or keyboard writes.
+
+Final local focused run used cached/offline Maven on macOS/Java 17 and temporary
+idle-sleep prevention: 20 tests, zero failures/errors/skips, 0.368 seconds. An
+intervening local run had a different five-second future timeout while the host
+load was high; that result is retained as unresolved timing evidence, not erased
+by the green run. No existing test deadlines were expanded. The new collision
+regression uses the same five-second async budget as neighboring success tests.

@@ -1,0 +1,19 @@
+{
+  "issue": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7",
+  "comment": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6604739434",
+  "postedUnderExistingOwnerAuthorization": true,
+  "issueStateUnchanged": true,
+  "scope": [
+    "FW-14 three successful Codex route commits",
+    "Other modes unchanged",
+    "Fresh 16-key/4-route and global configuration power persistence",
+    "Consumer 12 complete down/up pairs and explicit owner confirmation of normal dictation/no short-press Siri/Dock normal"
+  ],
+  "stillOpenInMacEvidence": [
+    "F99D upload-cancel recovery not retested",
+    "Full fault matrix",
+    "Long macro full readback",
+    "Formal release inputs"
+  ],
+  "noConversationTextOrCredentialsIncluded": true
+}

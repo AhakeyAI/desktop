@@ -1,0 +1,46 @@
+{
+  "recordedAtUTC": "2026-11-03T13:47:41.081501+00:00",
+  "failedCI": "https://github.com/AhakeyAI/desktop/actions/runs/41641836395",
+  "failedTests": [
+    "FirmwareUpdateServiceTest.uidQueryFailureStillAllowsFlashWithoutChangingFlashCommand",
+    "FirmwareUpdateServiceTest.unknownChipDevelopmentOverrideAllowsClosedLoopTestWithoutPretendingMatched"
+  ],
+  "symptom": "CompletableFuture TimeoutException; two test errors, no assertion failures.",
+  "windowsProductionTreeBeforeAndAfterFailure": "c0314455a7972b9b733e63e31120f5b7fe76b25f",
+  "redRegression": "Real service with a synthetic completed result carrying current JVM PID timed out.",
+  "redTests": 1,
+  "redErrors": 1,
+  "greenFocusedClass": "FirmwareUpdateServiceTest",
+  "greenFocusedTests": 20,
+  "productionChanges": false,
+  "fix": "Synthetic exited test backends explicitly own no OS process; retain diagnostic PID. Production ownership wait remains unchanged.",
+  "actualOriginalCITimeoutUniqueCauseProven": false,
+  "fullWindowsCIAfterFix": "pending",
+  "macCandidateUnchanged": 539,
+  "hardwareWrites": 0,
+  "finalLocalFocusedResult": {
+    "tests": 20,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 0.368,
+    "os": "macOS",
+    "java": "17.0.21",
+    "offlineMaven": true,
+    "temporaryIdleSleepPreventionDuringRun": true
+  },
+  "interveningLocalRun": {
+    "tests": 20,
+    "errors": 1,
+    "failedTest": "unavailableReconnectAndVersionReadbackCannotOverrideWchIspSuccess",
+    "kind": "TimeoutException",
+    "suiteSeconds": 58.6,
+    "retainedAsUnresolvedTimingEvidence": true
+  },
+  "hostLoadSnapshot": [
+    34.44,
+    113.56,
+    115.12
+  ],
+  "productionOwnershipProtectionWeakened": false
+}

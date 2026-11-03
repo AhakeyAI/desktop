@@ -61,14 +61,14 @@ class FirmwareUpdateServiceTest {
         FirmwareUpdateService service = service(() -> true, (command, cancellation) -> {
             if (!command.arguments().contains("download")) {
                 return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 41, 0,
-                    false, false, "", "", "", Duration.ZERO, false, Map.of(), "PROCESS_EXIT");
+                    false, false, "", "", "", Duration.ZERO, false, Map.of(), "PROCESS_EXIT", List.of());
             }
             flashing.countDown();
             release.await(5, TimeUnit.SECONDS);
             runnerSawCancellation.set(cancellation.cancelled());
             return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 42, 0,
                 false, false, "", "", "{\"Status\":\"Finished\",\"Code\":0,"
-                    + "\"Message\":\"Succeed\"}", Duration.ZERO, false, Map.of(), "PROCESS_EXIT");
+                    + "\"Message\":\"Succeed\"}", Duration.ZERO, false, Map.of(), "PROCESS_EXIT", List.of());
         });
         try {
             FirmwareUpdateService.OperationStart start = service.start(request());
@@ -99,7 +99,7 @@ class FirmwareUpdateServiceTest {
                 ? "Device UID:23-DF-93-5A-04-DC-BA-15"
                 : "{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}";
             return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 1, 0,
-                false, false, output, "", output, Duration.ZERO, false, Map.of(), "PROCESS_EXIT");
+                false, false, output, "", output, Duration.ZERO, false, Map.of(), "PROCESS_EXIT", List.of());
         });
         IspDeviceProbe probe = new IspDeviceProbe() {
             @Override public boolean isPresent() { return true; }
@@ -199,7 +199,7 @@ class FirmwareUpdateServiceTest {
                 ? ""
                 : "{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}";
             return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 7, 0,
-                false, false, output, "", output, Duration.ZERO, false, Map.of(), "PROCESS_EXIT");
+                false, false, output, "", output, Duration.ZERO, false, Map.of(), "PROCESS_EXIT", List.of());
         });
         FirmwareUpdateService service = service(() -> true, runner::run, ChipMatched.matched(), false);
         service.addListener(status -> states.get().add(status.state()));
@@ -241,10 +241,10 @@ class FirmwareUpdateServiceTest {
                 flashArgs.set(command.arguments());
                 return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 8, 0,
                     false, false, "{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}",
-                    "", "", Duration.ZERO, false, Map.of(), "PROCESS_EXIT");
+                    "", "", Duration.ZERO, false, Map.of(), "PROCESS_EXIT", List.of());
             }
             return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 8, 1,
-                false, false, "", "no uid", "", Duration.ZERO, false, Map.of(), "PROCESS_EXIT");
+                false, false, "", "no uid", "", Duration.ZERO, false, Map.of(), "PROCESS_EXIT", List.of());
         });
         FirmwareUpdateService service = service(() -> true, runner::run, ChipMatched.matched(), false);
         try {
@@ -272,7 +272,7 @@ class FirmwareUpdateServiceTest {
             int exitCode = command.arguments().contains("download") ? 100 : 1;
             return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 12,
                 exitCode, false, false, output, "", output, Duration.ofMillis(9), false,
-                Map.of(), "PROCESS_EXIT");
+                Map.of(), "PROCESS_EXIT", List.of());
         });
         RuntimeBundle runtime = runtimeBundle("explicit-terminal-runtime");
         DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
@@ -307,7 +307,7 @@ class FirmwareUpdateServiceTest {
                 false, false,
                 "{\"Device\":\"CH582\",\"Status\":\"Finished\","
                     + "\"Code\":0,\"Message\":\"Succeed\"}",
-                "", "", Duration.ofMillis(8), false, Map.of(), "PROCESS_EXIT"));
+                "", "", Duration.ofMillis(8), false, Map.of(), "PROCESS_EXIT", List.of()));
         DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
             () -> runtime, () -> true, runner);
         AtomicInteger postVerifierCalls = new AtomicInteger();
@@ -335,7 +335,7 @@ class FirmwareUpdateServiceTest {
             new WchIspRunner.WchIspProcessResult(command.operationId(), true, 32, 0,
                 false, false, "", "",
                 "{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}",
-                Duration.ofMillis(3), false, Map.of(), "PROCESS_EXIT"));
+                Duration.ofMillis(3), false, Map.of(), "PROCESS_EXIT", List.of()));
         DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
             () -> runtime, () -> true, runner);
         FirmwareUpdateService service = new FirmwareUpdateService(adapter, () -> runtime,
@@ -358,7 +358,7 @@ class FirmwareUpdateServiceTest {
             new WchIspRunner.WchIspProcessResult(command.operationId(), true, 33, 2,
                 false, false, "", "",
                 "{\"Status\":\"Fail\",\"Code\":2,\"Message\":\"Failed\"}",
-                Duration.ofMillis(3), false, Map.of(), "PROCESS_EXIT"));
+                Duration.ofMillis(3), false, Map.of(), "PROCESS_EXIT", List.of()));
         DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
             () -> runtime, () -> true, runner);
         FirmwareUpdateService service = new FirmwareUpdateService(adapter, () -> runtime,
@@ -437,7 +437,7 @@ class FirmwareUpdateServiceTest {
             String output = command.arguments().contains("download")
                 ? "{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}" : "";
             return new WchIspRunner.WchIspProcessResult(command.operationId(), true, 11, 0,
-                false, false, output, "", output, Duration.ZERO, false, Map.of(), "PROCESS_EXIT");
+                false, false, output, "", output, Duration.ZERO, false, Map.of(), "PROCESS_EXIT", List.of());
         });
         FirmwareUpdateService service = service(() -> true, runner::run, ChipMatched.unknown(), true);
         try {
@@ -466,7 +466,7 @@ class FirmwareUpdateServiceTest {
                 false, false, "", "",
                 "{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}",
                 Duration.ofMillis(4), false,
-                Map.of(), "PROCESS_EXIT", List.of(23L));
+                Map.of(), "PROCESS_EXIT", List.of());
         });
         DefaultOfficialWchIspAdapter adapter = new DefaultOfficialWchIspAdapter(
             () -> runtime, () -> true, runner);
@@ -568,6 +568,30 @@ class FirmwareUpdateServiceTest {
             runtimeRoot.resolve("CONFIG_CH57X59X.WCH"), null,
             new RuntimeIdentity(Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 "e", "c", "i", "g", RuntimeIdentity.ValidationStatus.UNKNOWN));
+    }
+
+    @Test
+    void syntheticFinishedBackendDoesNotWaitForUnrelatedLiveDiagnosticPid() throws Exception {
+        long diagnosticPid = ProcessHandle.current().pid();
+        FirmwareUpdateService service = service(() -> true, (command, cancellation) ->
+            syntheticFinishedResult(command.operationId(), diagnosticPid,
+                command.arguments().contains("download")
+                    ? "{\"Status\":\"Finished\",\"Code\":0,\"Message\":\"Succeed\"}" : ""));
+        try {
+            FirmwareUpdateResult result = service.start(request()).handle().completion()
+                .get(5, TimeUnit.SECONDS);
+            assertTrue(result.success(), result.detail());
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    // A synthetic exited backend owns no OS processes. Diagnostic PIDs may
+    // collide with live host processes and must never enter the ownership gate.
+    private static WchIspRunner.WchIspProcessResult syntheticFinishedResult(
+        UUID operationId, long diagnosticPid, String output) {
+        return new WchIspRunner.WchIspProcessResult(operationId, true, diagnosticPid, 0,
+            false, false, output, "", output, Duration.ZERO, false, Map.of(), "PROCESS_EXIT", List.of());
     }
 
     private FirmwareUpdateService service(IspDeviceProbe probe, WchIspRunner.Backend backend)

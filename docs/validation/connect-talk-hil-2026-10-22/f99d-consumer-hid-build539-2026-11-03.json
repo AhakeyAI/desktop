@@ -22,6 +22,11 @@
   "inputOpenResult": 0,
   "textCaptured": false,
   "rawTraceSHA256": "7a7eec599f94b70fd47f59fd74fda761dfa62c1162e39a1a3c946ef529c1b428",
-  "humanDictationSiriDockOutcome": "awaiting explicit result; done confirms operations only",
+  "humanDictationSiriDockOutcome": {
+    "ownerExplicitlyConfirmed": true,
+    "dictationStartStopNormal": true,
+    "unexpectedShortPressSiri": false,
+    "dockNormal": true
+  },
   "fullFourModeMatrixComplete": false
 }
