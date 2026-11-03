@@ -23,7 +23,10 @@ struct StudioInlineKeyConflict: Identifiable {
     var desiredK1Route: K1OutputRoute? = nil
 }
 
-/// Only import values the existing editor can round-trip without losing bytes.
+/// Import losslessly representable actions, plus the firmware's unassigned
+/// sentinel (type 0, no payload) as an empty shortcut. An explicit save uses
+/// the writable empty-shortcut representation; the original fact remains the
+/// exact preflight baseline.
 /// Unknown and noncanonical actions stay visible as read-only facts.
 extension StudioKeyWriteProposal {
     static func draft(from actual: OrdinaryKeyReadback, preserving original: AhaKeyKeyDraft) -> AhaKeyKeyDraft? {
@@ -33,6 +36,9 @@ extension StudioKeyWriteProposal {
         result.description = description
         result.macro = []
         switch actual.actionType {
+        case 0:
+            guard actual.action.isEmpty else { return nil }
+            result.shortcut = ShortcutBinding(keyCode: 0)
         case 0x73:
             let codes = Array(actual.action)
             let modifiers = ShortcutModifier.displayOrder.filter { codes.contains($0.hidCode) }
@@ -48,8 +54,12 @@ extension StudioKeyWriteProposal {
             }
         default: return nil
         }
+        let representable = actual.actionType == 0
+            ? OrdinaryKeyReadback(mode: actual.mode, keyIndex: actual.keyIndex, actionType: 0x73,
+                                  action: Data(), description: actual.description)
+            : actual
         guard let mode = AhaKeyModeSlot(rawValue: Int(actual.mode)),
-              (try? make(key: result, mode: mode)) == actual else { return nil }
+              (try? make(key: result, mode: mode)) == representable else { return nil }
         return result
     }
 

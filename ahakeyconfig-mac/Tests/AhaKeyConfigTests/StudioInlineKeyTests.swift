@@ -12,9 +12,41 @@ final class StudioInlineKeyTests: XCTestCase {
         let actual = key([HIDUsage.leftControl, HIDUsage.leftGUI, HIDUsage.enter])
         let imported = try XCTUnwrap(StudioKeyWriteProposal.draft(from: actual, preserving: original))
         XCTAssertEqual(try StudioKeyWriteProposal.make(key: imported, mode: .mode2), actual)
-        for unknown in [key([HIDUsage.enter, HIDUsage.downArrow]), key([HIDUsage.enter, HIDUsage.leftGUI]), key([], type: 0), key([0x28], type: 0x99)] {
+        for unknown in [key([HIDUsage.enter, HIDUsage.downArrow]), key([HIDUsage.enter, HIDUsage.leftGUI]), key([0x28], type: 0x99)] {
             XCTAssertNil(StudioKeyWriteProposal.draft(from: unknown, preserving: original))
         }
+    }
+
+    func testUnassignedFirmwareKeyCanBeEditedWithoutInventingAnAction() throws {
+        for mode in AhaKeyModeSlot.allCases {
+            let original = AhaKeyModeDraft.default(for: mode).key(for: .submit)
+            let actual = OrdinaryKeyReadback(mode: UInt8(mode.rawValue), keyIndex: 3,
+                actionType: 0, action: Data(), description: Data("Backspace".utf8))
+            let imported = try XCTUnwrap(StudioKeyWriteProposal.draft(from: actual, preserving: original))
+            XCTAssertTrue(imported.shortcut.hidCodes.isEmpty)
+            XCTAssertTrue(imported.macro.isEmpty)
+            XCTAssertEqual(imported.description, "Backspace")
+            let proposed = try StudioKeyWriteProposal.make(key: imported, mode: mode)
+            XCTAssertEqual(proposed.actionType, 0x73)
+            XCTAssertTrue(proposed.action.isEmpty)
+            XCTAssertNil(StudioKeyWriteProposal.draft(from: .init(mode: UInt8(mode.rawValue), keyIndex: 3,
+                actionType: 0, action: Data([HIDUsage.backspace]), description: actual.description), preserving: original))
+        }
+    }
+
+    @MainActor
+    func testKimiUnassignedKey4CanBeExplicitlyWrittenAsBackspace() async throws {
+        let actual = OrdinaryKeyReadback(mode: 3, keyIndex: 3, actionType: 0, action: Data(), description: Data("Backspace".utf8))
+        let desired = OrdinaryKeyReadback(mode: 3, keyIndex: 3, actionType: 0x73, action: Data([HIDUsage.backspace]), description: actual.description)
+        var writes = 0
+        let result = try await StudioInlineKeySave.run(session: session {}, baseline: .init(deviceID: "A", value: actual), desired: desired,
+            read: { _, _ in actual }, save: { baseline, target, generation in
+                XCTAssertEqual(baseline, actual); XCTAssertEqual(target, desired); XCTAssertEqual(generation, 7)
+                writes += 1; return desired
+            }, writeStarted: {})
+        guard case .saved(let fact) = result else { return XCTFail("An unassigned key must not be locked read-only") }
+        XCTAssertEqual(writes, 1)
+        XCTAssertEqual(fact.value, desired)
     }
 
     func testMacroReadbackPreservesEveryStepWithoutChangingOtherKeys() throws {
