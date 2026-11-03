@@ -1,0 +1,42 @@
+{
+  "sourceCommit": "8052c595368ebf2355fad3baa0d6c6b58758d8dc",
+  "version": "0.2.3",
+  "build": "542",
+  "dmgPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-multitask-light/AhaKey-Studio-0.2.3-build542-8052c59-test.dmg",
+  "dmgBytes": 20360290,
+  "dmgSHA256": "83d588cd2fda3a923087ea176c66911191c61ca60af00cca893d2378478ba374",
+  "binarySHA256": {
+    "AhaKeyConfig": "289884b08b53872a1d755bdf7abd1aa0dae3e751d6e7754b880b36cac0ac3110",
+    "ahakeyconfig-agent": "1e3c9f4f05d609d59d377bee60716d421fdb8a761dff1027e77bd84f35acc485"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "installed": true,
+  "previousBuild": 541,
+  "preferencesBackedUp": 16,
+  "preferencesSemanticallyUnchangedAfterLaunchSettled": true,
+  "localTestsPassed": 991,
+  "newRegressionTests": 3,
+  "focusedLightTestsPassed": 29,
+  "hardwareConfigurationWrites": 0,
+  "factoryResetRequests": 0,
+  "newSessionGrants": 0,
+  "uiChecks": {
+    "segmentedSingleAndMultitaskLighting": true,
+    "fourSlotIllustrationAndStateLegendVisible": true,
+    "firmwareCustomizationLimitShown": true,
+    "oneBottomWriteButton": true,
+    "multitaskWithoutBrightnessDraftHasWriteDisabled": true,
+    "switchBackRetainsSingleTaskDraftAndWritePlan": true,
+    "agentConnectedAndPhysicalAutoDisplayed": true
+  },
+  "firmwareSourceInspected": "72346b001710d573980a7d398b9e0dced8ff627c",
+  "firmwareImplementation": "APP/sub_main/main.c:task_render_multi_leds; APP/services/display_config_store.c:display_config_store_save_single_light",
+  "scope": "Multi-task UI shows firmware-fixed colors and permits only global brightness edits. Illustration is not a live task snapshot; no new hardware lighting HIL claimed. Single/multi selection here does not switch the runtime display mode.",
+  "ciRun": "https://github.com/AhakeyAI/desktop/actions/runs/41667191338",
+  "ciStatusAtReceipt": "completed",
+  "ciAllThreeJobsPassed": true,
+  "ciMacTestsAndPackageIntegrityPassed": true
+}
