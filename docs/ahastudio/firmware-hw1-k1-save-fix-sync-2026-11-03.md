@@ -2,10 +2,10 @@
 
 ## 当前状态（取代下方历史等待描述）
 
-- 当前已安装 **Studio 0.2.3/build539**，源码 `7e991fdb`；键盘已实际运行 **HW1 F99D**，目录身份 `x1-c582-hw1-p1-1.0.1-r001`。
+- 当前已安装 **Studio 0.2.3/build541**，源码 `949330f3`，本次仅UI文案及入口显示调整；下述固件HIL仍对应build537/538/539。键盘已实际运行 **HW1 F99D**，目录身份 `x1-c582-hw1-p1-1.0.1-r001`。
 - 三轮 Codex Consumer／Right Alt 保存、其他模式隔离、正常断电后16键／4路由／待机／拨杆绑定保持均已通过。实体手动／自动与已授权 Codex、Kimi Code Desktop 原会话权限往返、正常停止恢复通过；后续唤醒并重开候选后连接与原权限读回通过。
 - Claude Consumer 定向抓到12组完整按下／松开，无Command事件；Owner明确确认听写启停正常、无短按Siri、Dock正常。长按Siri按已确认的正常交互保留。完整四模式与故障矩阵仍开放。
-- 15项偏好语义保持，4项原草稿保留；当前不需要重复相同刷写、保存或重启操作。镜像是工程候选，不表示正式签名目录／恢复安全镜像已交付。
+- 固件HIL当时15项偏好语义保持、4项原草稿保留；本次build541启动时16项偏好语义保持；当前不需要重复相同刷写、保存或重启操作。镜像是工程候选，不表示正式签名目录／恢复安全镜像已交付。
 - `Fireware-harness` 最新归档已到 **72346b0**。与 `adf7b3d` 比较只有17个归档／证据／HW2相关文件；已用Git独立确认根目录APP、Profile树完全相同，HW1 HEX仍为同一F99D。新HW2包不用于本机HW1，客户端未因此新增HW2能力。
 
 [当前保存与保持回执](../validation/connect-talk-hil-2026-10-22/hw1-save-fix-hil-2026-11-03.json) · [Consumer回执](../validation/connect-talk-hil-2026-10-22/f99d-consumer-hid-build539-2026-11-03.json) · [最新归档核验](../validation/connect-talk-hil-2026-10-22/firmware-72346b-archive-sync-2026-11-03.json) · [固件反馈](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6604739434)
