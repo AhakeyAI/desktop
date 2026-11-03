@@ -1,0 +1,37 @@
+{
+  "sourceCommit": "47ea1667d78246cd5e99f36fe999483b28a32581",
+  "version": "0.2.3",
+  "build": "544",
+  "dmgPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-voice-card-layout/AhaKey-Studio-0.2.3-build544-47ea166-test.dmg",
+  "dmgBytes": 20361071,
+  "dmgSHA256": "9e0e26d1521d13b348638eab8cab6b0e0b749522d1930941e4e892462dd81b56",
+  "binarySHA256": {
+    "AhaKeyConfig": "2a10ea1c2464652b8bf2ca5ae521def47abb2ba8dc9a71e606a768692f915ec3",
+    "ahakeyconfig-agent": "5f9682a8de0702e65d877e99d34050d5c6c1d20b190bd003d94fa72f76643116"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "installed": true,
+  "previousBuild": 543,
+  "preferencesBackedUp": 16,
+  "preferencesSemanticallyUnchangedAfterFnRoundTrip": true,
+  "focusedVoiceSchemeTestsPassed": 7,
+  "newBehaviorTestsAdded": false,
+  "baselineObservation": "Owner screenshot shows blank first row after scrolling back. Local baseline did not reliably reproduce the visual blank; its first two lazy cards were removed from the accessibility tree when scrolled offscreen.",
+  "change": "Replace the three-option LazyVGrid with an eager two-column Grid; keep all options mounted. Selection, route, write and cloud handling unchanged.",
+  "nativeUIChecks": {
+    "threeCardsInitiallyVisible": true,
+    "firstScrollOffscreenRetainsAllCardsInTree": true,
+    "firstReturnToTopVisible": true,
+    "fnToOrdinaryShortcutDraftRoundTripPassed": true,
+    "finalTwoScrollCycles": "blocked by Mac auto-lock; unlock requested"
+  },
+  "hardwareConfigurationWrites": 0,
+  "factoryResetRequests": 0,
+  "newSessionGrants": 0,
+  "firmwareFlashed": false,
+  "ciRun": "https://github.com/AhakeyAI/desktop/actions/runs/41669906948",
+  "ciStatusAtReceipt": "in_progress; not claimed passed"
+}
