@@ -22,8 +22,11 @@
   "debugProbeLimitation": "Unoptimized local probe timed out; production optimized probe passed twice.",
   "installedBuildAtDiagnosis": 537,
   "newCandidateBuild": 538,
-  "candidateInstalled": false,
-  "blocker": "Mac locked; manual unlock requested.",
+  "candidateInstalled": true,
+  "blocker": null,
   "physicalLeverOnF99DPending": true,
-  "releaseComplete": false
+  "releaseComplete": false,
+  "installedAgentPhase": "synchronized",
+  "originalThreadReobservedForHIL": "Current existing authorized thread, state command without an activity value; no fabricated task state or new authorization.",
+  "ciAllThreeJobsPassed": true
 }

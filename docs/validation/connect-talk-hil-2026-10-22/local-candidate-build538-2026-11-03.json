@@ -12,5 +12,17 @@
   "developerIDSignatureVerified": true,
   "mountedAppAndAgentBytesMatch": true,
   "notarized": false,
-  "releaseComplete": false
+  "releaseComplete": false,
+  "installed": true,
+  "installedVersionAndSourceVerified": true,
+  "preferenceValuesCompared": 15,
+  "preferenceValuesSemanticallyUnchanged": true,
+  "existingDraftCount": 4,
+  "nativeUIConnectedAutomatic": true,
+  "ciRun": "https://github.com/AhakeyAI/desktop/actions/runs/41597408261",
+  "ciAllThreeJobsPassed": true,
+  "codexAgentPhase": "synchronized",
+  "kimiAgentPhase": "synchronized",
+  "pendingRecovery": 0,
+  "hardwareConfigurationWritesDuringInstallation": 0
 }
