@@ -3115,50 +3115,59 @@ private struct VoicePresetPicker: View {
     let onSelect: (VoicePreset) -> Void
 
     private let visiblePresets = VoicePreset.visibleCases
-    private let columns = [
-        GridItem(.flexible(), spacing: 10),
-        GridItem(.flexible(), spacing: 10),
-    ]
-
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 10) {
-            ForEach(visiblePresets) { preset in
-                Button {
-                    if preset.availableInV1 {
-                        onSelect(preset)
+        // All three choices must stay mounted while the surrounding editor
+        // scrolls or changes height (e.g. Fn/Globe -> ordinary shortcut).
+        // LazyVGrid can leave recycled first-row cards blank on macOS.
+        Grid(alignment: .topLeading, horizontalSpacing: 10, verticalSpacing: 10) {
+            ForEach(0..<((visiblePresets.count + 1) / 2), id: \.self) { row in
+                GridRow(alignment: .top) {
+                    card(visiblePresets[row * 2])
+                    if row * 2 + 1 < visiblePresets.count {
+                        card(visiblePresets[row * 2 + 1])
+                    } else {
+                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
                     }
-                } label: {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text(preset.title)
-                                .font(.callout.weight(.semibold))
-                            Spacer()
-                            if !preset.availableInV1 {
-                                Text(NSLocalizedString("开发中", comment: ""))
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        Text(preset.detail)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(3)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(cardFill(for: preset))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(cardStroke(for: preset), lineWidth: preset == selectedPreset ? 1.5 : 1)
-                    )
                 }
-                .buttonStyle(.plain)
-                .disabled(!preset.availableInV1)
             }
         }
+    }
+
+    private func card(_ preset: VoicePreset) -> some View {
+        Button {
+            if preset.availableInV1 {
+                onSelect(preset)
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(preset.title)
+                        .font(.callout.weight(.semibold))
+                    Spacer()
+                    if !preset.availableInV1 {
+                        Text(NSLocalizedString("开发中", comment: ""))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text(preset.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(cardFill(for: preset))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(cardStroke(for: preset), lineWidth: preset == selectedPreset ? 1.5 : 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!preset.availableInV1)
     }
 
     private func cardFill(for preset: VoicePreset) -> Color {
