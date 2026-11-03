@@ -8,6 +8,8 @@
 - **当前真实组合**：客户端build539/7e991fdb＋HW1 F99D，身份1.0.1-r001。三轮Codex路由保存及全量配置还原通过；正常重启及16键/4路由/待机/拨杆绑定保持已通过；实体拨杆及原会话权限往返、正常停止恢复已通过；后台唤醒及新候选重启后连接/原权限读回通过；Claude Consumer 12组HID按下/松开配对通过，Owner确认听写启停正常、无短按Siri、Dock正常。最近600秒后台样本不关闭前台GIF长期矩阵。
 - **仍需保留的失败/限制**：上传取消后需要重启的旧故障尚未被F99D验证关闭；Claude2.1.299无界面进程新增命令热重载未通过，已登记命令对照通过。Consumer长按Siri是正常交互，不再列作缺陷；F5继续暂缓。
 
+最新固件归档已核对至72346b0：HW1生产树及F99D镜像未变，仅增加HW1验收归档与独立HW2修复包，当前HW1不需重刷；三类接口依赖仍未解除。[范围回执](../validation/connect-talk-hil-2026-10-22/firmware-72346b-archive-sync-2026-11-03.json)。
+
 本轮Consumer正常听写与Dock已获Owner明确确认，并已回填[固件Issue7](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6604739434)。Windows模拟PID隔离修正后，[CI41648558493](https://github.com/AhakeyAI/desktop/actions/runs/41648558493)的Mac／Windows／TypeScript三项全部通过；仅修正测试替身，已安装客户端仍为build539。
 
 验收工具修复6cd4d6fb的[CI41584051512](https://github.com/AhakeyAI/desktop/actions/runs/41584051512)三项通过；20项本地维护者测试通过。

@@ -1,0 +1,41 @@
+{
+  "oldArchive": "adf7b3da1669a9a04b2f4fdc46f892d696dc8a53",
+  "latestArchive": "72346b001710d573980a7d398b9e0dced8ff627c",
+  "changedFileCount": 17,
+  "changedFiles": [
+    ".ahakey-harness/evidence/checkpoints/X1-HW1-BLE-READBACK-DIAG/HW1_BLE_TAIL_DIAG/checkpoint-review-20261103.json",
+    ".ahakey-harness/evidence/checkpoints/X1-HW1-BLE-READBACK-DIAG/HW1_BLE_TAIL_DIAG/checkpoint-review-20261103.md",
+    ".ahakey-harness/evidence/owner-uat/X1-HW1-BLE-READBACK-DIAG/HW1_BLE_TAIL_DIAG/20261103-k1-save-owner-pass.md",
+    ".ahakey-harness/workstreams/X1-HW1-BLE-READBACK-DIAG/STATE.yaml",
+    ".gitattributes",
+    "FIRMWARE_INDEX.md",
+    "firmware-packages/HW2/HW2_K1_SAVE_FIX.hex",
+    "firmware-packages/HW2/HW2_K1_SAVE_FIX_161671e.bundle",
+    "firmware-packages/HW2/HW2_K1_SAVE_FIX_README.md",
+    "firmware-packages/HW2/HW2_K1_SAVE_FIX_manifest.json",
+    "firmware-packages/HW2/K1_SAVE_FIX_EVIDENCE/build-manifest.json",
+    "firmware-packages/HW2/K1_SAVE_FIX_EVIDENCE/gate-receipt.json",
+    "firmware-packages/HW2/K1_SAVE_FIX_EVIDENCE/implementation-review.md",
+    "firmware-packages/HW2/K1_SAVE_FIX_EVIDENCE/implementation-review.validation.json",
+    "firmware-packages/HW2/K1_SAVE_FIX_EVIDENCE/owner-handoff.md",
+    "firmware-packages/HW2/K1_SAVE_FIX_EVIDENCE/target-memory.json",
+    "firmware-packages/HW2/README.md"
+  ],
+  "hw1ProductionTreesIdentical": {
+    "APP": "ac72fec4ac5768e7fac1f9eead29b7056213f3a1",
+    "Profile": "1d056d1a04b24cb9761fd2540b2cbaf82ff1024f"
+  },
+  "hw1HEXBytes": 766200,
+  "hw1HEXUnchangedSHA256": "f99d3b9d505214be2082d7b696f9a4bcacbc9684ecd7e5ed7f04e631cba81142",
+  "scope": "HW1 owner K1-save closure evidence and separate HW2 repair delivery; no HW1 runtime or protocol change.",
+  "currentMacHW1ReflashRequired": false,
+  "hardwareWritesOrFlashesThisSync": 0,
+  "hw2CandidateAcceptedByMacClient": false,
+  "developmentDependenciesUnchanged": [
+    "Long macro complete readback",
+    "Arbitrary key independent short/long press protocol",
+    "Ordinary Kimi/official TUI original-session permissions"
+  ],
+  "lastDocumentationCI": "https://github.com/AhakeyAI/desktop/actions/runs/41649990812",
+  "lastDocumentationCIAllJobsPassed": true
+}
