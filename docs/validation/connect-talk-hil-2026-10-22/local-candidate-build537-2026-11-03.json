@@ -19,5 +19,19 @@
   "agentConnected": true,
   "actualFirmwareDisplayed": "v1.0",
   "keyboardConfigurationWrites": 0,
-  "firmwareFlashed": false
+  "firmwareFlashed": false,
+  "oldFirmwareReadOnlyRegression": {
+    "keys": 16,
+    "standbyMinutes": 60,
+    "platform": "Mac",
+    "codexVoice": "Right Alt",
+    "writes": 0,
+    "agentOwnershipRestored": true
+  },
+  "ci": {
+    "run": 41576981398,
+    "head": "ca32ff85f2ec0e3ca7fa8a39823b9c451242b6bb",
+    "conclusion": "success",
+    "productAndWorkflowDiffFromBuildSource": false
+  }
 }

@@ -36,4 +36,6 @@
 
 0.2.3/build537，源码 `b8a9faec9d5ed6d9b5a96dafaad49e2f1a768e81`，arm64/x86_64双架构Developer ID签名核验通过，已覆盖安装并恢复Agent实时连接，原固件仍显示v1.0。15项现有草稿／语音偏好按语义核对一致；账号已失效提示保持正常登录入口，本轮没有登录或发送云端请求。
 
-DMG为测试候选，未公证：`AhaKey-Studio-0.2.3-build537-b8a9fae-test.dmg`，SHA256 `58496a1fd5896893a62208270c45da3e236ad20051457829c034438e6d33496f`。本机归档在 `/Users/heartline/Documents/Codex/local-builds/connect-talk-build537-20261103/`，不是已上传的公开发行包。源码CI run41576474388正在执行，结果另行核对。设备仍为先前297B，不能把客户端安装视为F99D新固件已刷入。
+DMG为测试候选，未公证：`AhaKey-Studio-0.2.3-build537-b8a9fae-test.dmg`，SHA256 `58496a1fd5896893a62208270c45da3e236ad20051457829c034438e6d33496f`。本机归档在 `/Users/heartline/Documents/Codex/local-builds/connect-talk-build537-20261103/`，不是已上传的公开发行包。源码提交的CI run41576474388被后继文档推送取消；后继提交ca32ff85的[CI run41576981398](https://github.com/AhakeyAI/desktop/actions/runs/41576981398)三项作业已全部通过。已确认后继提交相对构建源码的ahakeyconfig-mac及工作流无差异。设备仍为先前297B，不能把客户端安装视为F99D新固件已刷入。
+
+安装后旧297B只读回归：16键、待机60分钟、Mac平台、Codex Right Alt均保持，未写配置，已将蓝牙交还Agent。此项不等于已备份全部资源或已验收F99D。
