@@ -61,13 +61,23 @@
     "running": true,
     "keyboardLiveStatus": false,
     "autoVerified": false,
-    "awaitingPhysicalWake": true,
-    "reconnectionPassed": false
+    "awaitingPhysicalWake": false,
+    "reconnectionPassed": false,
+    "note": "Initial build538 restart had no BLE live status; after owner wake and build539 App/Agent relaunch, live automatic proof and original-session permission reads passed. Does not prove all automatic reconnect failure modes."
   },
   "newGrants": 0,
   "modelRequests": 0,
   "keyboardConfigurationWrites": 0,
   "verboseLogging": false,
   "existingDrafts": 4,
-  "fullLifecycleFaultMatrixComplete": false
+  "fullLifecycleFaultMatrixComplete": false,
+  "subsequentBuild539Relaunch": {
+    "connected": true,
+    "physicalAutomaticVerified": true,
+    "codexPhase": "synchronized",
+    "kimiPhase": "synchronized",
+    "sameOriginalPermissionsReadPassed": true,
+    "pendingRecoveryBoth": 0,
+    "newGrants": 0
+  }
 }

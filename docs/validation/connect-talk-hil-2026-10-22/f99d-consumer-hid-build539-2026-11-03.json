@@ -1,0 +1,27 @@
+{
+  "clientBuild": 539,
+  "firmwareSHA256": "f99d3b9d505214be2082d7b696f9a4bcacbc9684ecd7e5ed7f04e631cba81142",
+  "ownerConfirmedModeAndOperationsCompleted": true,
+  "consumerPressReleasePairs": 12,
+  "holdDurationsMs": [
+    265.222,
+    24.116,
+    147.835,
+    148.728,
+    528.907,
+    359.718,
+    342.867,
+    148.771,
+    329.074,
+    164.787,
+    345.243,
+    160.798
+  ],
+  "consumerStillPressed": false,
+  "commandEvents": 0,
+  "inputOpenResult": 0,
+  "textCaptured": false,
+  "rawTraceSHA256": "7a7eec599f94b70fd47f59fd74fda761dfa62c1162e39a1a3c946ef529c1b428",
+  "humanDictationSiriDockOutcome": "awaiting explicit result; done confirms operations only",
+  "fullFourModeMatrixComplete": false
+}

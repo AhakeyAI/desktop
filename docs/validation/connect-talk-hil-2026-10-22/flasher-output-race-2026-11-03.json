@@ -19,8 +19,10 @@
     "failures": 0
   },
   "installedBuildAtVerification": 538,
-  "fixInstalled": false,
+  "fixInstalled": true,
   "newCandidateBuild": 539,
   "realHardwareErasesOrWrites": 0,
-  "remaining": "New source CI, signed candidate packaging/install; hardware retry failure matrix remains open."
+  "remaining": "Actual wrong-target and destructive-failure recovery HIL remains open; no real hardware erase/write performed for this fix.",
+  "installedBuildAfterFix": 539,
+  "ciAllThreeJobsPassed": true
 }

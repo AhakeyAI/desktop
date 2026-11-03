@@ -42,8 +42,15 @@
     "lightAndResourcePowerCycleReadbackClaimed": false,
     "hardwareWritesDuringReadback": 0
   },
-  "voicePhysicalHID": "pending",
-  "leverPhysicalAndNativeSessions": "build538 manual/automatic round trip and normal stop restoration passed; restart awaits keyboard wake. See build538-f99d-lever-hil-2026-11-03.json",
+  "voicePhysicalHID": {
+    "build": 539,
+    "consumerPressReleasePairs": 12,
+    "commandEvents": 0,
+    "lastConsumerReleased": true,
+    "humanSiriDictationDockOutcome": "awaiting clarification",
+    "scope": "Claude Consumer only; not the full four-mode voice matrix"
+  },
+  "leverPhysicalAndNativeSessions": "build538 manual/automatic round trip and normal stop restoration passed; build539 relaunch after owner wake connected and original permissions read back. Full fault matrix remains open.",
   "FW14MacFullMatrixClosed": false,
   "rawTraceSHA256": "8e9d160d930cd77688e8acc80e4cfe08acc7bbcebb635db418977b9d44ae97a7"
 }
