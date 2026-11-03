@@ -1,0 +1,29 @@
+{
+  "sourceCommit": "f22e2898ec2aff92f27bdec1a983062dd381e3bb",
+  "failure": "Authorized original conversation snapshot exceeded previous 64 MiB read limit (observed 67,647,726 bytes).",
+  "fix": "Stream framed JSON in fixed 64 KiB chunks; retain only protocol ownership and permission metadata, capped at 1 MiB. Preserve original 6s socket deadline, exact source/thread/version checks and control frame cap.",
+  "tests": {
+    "redRealSocketLargeSnapshot": true,
+    "focusedTests": 20,
+    "fullSwiftTests": 986,
+    "maintainerTests": 20,
+    "failuresAfterFix": 0
+  },
+  "actualOriginalConversationReadOnly": {
+    "optimizedProductionSources": true,
+    "permissionReadSucceeded": true,
+    "repeatElapsedSeconds": 3.62,
+    "repeatUserCPUSeconds": 0.18,
+    "transcriptRetained": false,
+    "permissionWrites": 0,
+    "modelRequests": 0,
+    "newGrants": 0
+  },
+  "debugProbeLimitation": "Unoptimized local probe timed out; production optimized probe passed twice.",
+  "installedBuildAtDiagnosis": 537,
+  "newCandidateBuild": 538,
+  "candidateInstalled": false,
+  "blocker": "Mac locked; manual unlock requested.",
+  "physicalLeverOnF99DPending": true,
+  "releaseComplete": false
+}

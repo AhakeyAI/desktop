@@ -1,0 +1,16 @@
+{
+  "sourceCommit": "f22e2898ec2aff92f27bdec1a983062dd381e3bb",
+  "version": "0.2.3",
+  "build": "538",
+  "dmgPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-codex-streaming/AhaKey-Studio-0.2.3-build538-f22e289-test.dmg",
+  "dmgBytes": 20297453,
+  "dmgSHA256": "86f001d0fb32e1775e6019530fa931625b8c2da55cc0bb30f45917ac16336bd9",
+  "binarySHA256": {
+    "AhaKeyConfig": "8618411859668a46794e95e2eacceb8047024da998db15deb50c10290ee1d577",
+    "ahakeyconfig-agent": "e8099e380f0e10ab97120c56bf86b3fa6f649d925e033a15f3b99c334c5bd708"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false
+}
