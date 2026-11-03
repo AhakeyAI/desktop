@@ -1,0 +1,69 @@
+{
+  "atUTC": "2026-11-03T14:34:38.820875+00:00",
+  "originalIssue": 7,
+  "originalIssueArchivedNotAllResolved": true,
+  "sourceArchive": "72346b001710d573980a7d398b9e0dced8ff627c",
+  "independentIssues": [
+    {
+      "key": "FW-01",
+      "number": 10,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/10",
+      "title": "[FW-01/P1] 素材上传取消后的有界恢复：避免必须重启键盘"
+    },
+    {
+      "key": "FW-03",
+      "number": 11,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/11",
+      "title": "[FW-03/P1] HID 释放可靠性：发送失败与路由不可用边界待闭环"
+    },
+    {
+      "key": "FW-04",
+      "number": 12,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/12",
+      "title": "[FW-04/P2] 补齐长宏完整动作与描述读回，覆盖四模式全部按键"
+    },
+    {
+      "key": "FW-05",
+      "number": 13,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/13",
+      "title": "[FW-05/P2·待复验] 升级后持续 Reconnect 的绑定迁移与恢复策略"
+    },
+    {
+      "key": "FW-06",
+      "number": 14,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/14",
+      "title": "[FW-06/P2·待复现] 启动或唤醒后实体拨杆采样与首次状态一致性"
+    },
+    {
+      "key": "FW-07",
+      "number": 15,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/15",
+      "title": "[FW-07/P2·联合验收] 存储失败、掉电和未完成素材恢复证据闭环"
+    },
+    {
+      "key": "FW-08",
+      "number": 16,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/16",
+      "title": "[FW-08/P1·交付依赖] WS4/WS5 正式固件目录与恢复安全镜像交付"
+    },
+    {
+      "key": "FW-11",
+      "number": 17,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/17",
+      "title": "[FW-11/P1·能力补齐] 任意按键按模式独立短按／长按动作及完整读写合同"
+    }
+  ],
+  "all14LegacyIDsMapped": true,
+  "existingIssuesNotDuplicated": [
+    6,
+    8,
+    9
+  ],
+  "normalLongPressSiriNotFiledAsDefect": true,
+  "hardwareWrites": 0,
+  "firmwareSourceChanges": false,
+  "verifiedAllEightOpenAndBodiesMatch": true,
+  "verifiedOriginalIssueStillClosedAndAllLinksPresent": true,
+  "verifiedExisting6Open8And9Closed": true,
+  "wbsMarkdownCSVRowsMatch": 29
+}

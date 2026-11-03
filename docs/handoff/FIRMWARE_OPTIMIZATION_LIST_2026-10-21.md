@@ -1,66 +1,51 @@
 # Mac 适配固件优化与协作清单
 
-更新：2026-10-27。用途：供固件同学统一评估、排期和回填结果。历史依据保留在 [原提醒清单](./FIRMWARE_FOLLOW_UP_2026-10-09.md)，本文件为当前汇总。
+更新：2026-11-03。当前核对 `Fireware-harness@72346b001710d573980a7d398b9e0dced8ff627c`；本机为HW1 F99D，目录身份 `x1-c582-hw1-p1-1.0.1-r001`，客户端0.2.3/build539，不依赖Runtime。HW1构建源为5fc01cf；最新归档仅新增HW2修复包与HW1验收归档，HW1 APP/Profile及HEX未变。
 
-当前基线：旧Mac客户端0.2.3，不依赖Runtime；用户指定固件现已更新至`harness/x1-refactor-main@ed426c97d4aad9a20c1585d6b15125252b6caa49`。旧6EC组合产物不含本次Restore v2；新源的正式REGATE与新HEX仍待交付。分模式Consumer可逆路由已具备，Mac已接线；整机重复恢复源码已新增v2，Mac build518已完成941回归、双轴复核及CI，Issue #9待正式固件与联合验收。WS4/WS5均按用户决定纳入本轮。
+## 追踪规则
 
-历史基线（下列旧现象不自动当成新固件已复现）：固件Fireware-harness HEAD `076382b2214289ac7bc1735d669d7de78730c4da`，已接受CP2生产源 `70ca334f65d73b6a2f20a0598e55c6da59f26526`，设备HEX SHA256 `ffb9208f79084aa24a832ad2562a14dbbea5df4d114a135cb5b2eb98d4e05539`。本次重新核对分支与相关生产源，未刷固件。
+原[Issue #7](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7)已改为归档索引。**总单Closed不代表全部条目修复或全部验收通过。** 未闭环项已拆为8个独立Issue，各自按证据关闭。历史风险、协议缺口、联合验收和正式交付依赖分别注明，不能统一当成“当前固件已复现缺陷”。
 
-P1表示优先处理影响操作恢复、输入可靠性或已承诺功能的事项；P2表示特定边界、优化或联合验收。标为待复现/验证的项目，不当作已确认固件缺陷。
+已有Harness合同和结果直接回填链接，缺项才补；不重复索取已有协议或全部Windows工程。既有架构提案#6继续独立跟踪；新FW-07追验收证据，不重复要求改用某种存储架构。
 
-反馈入口：[https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7)（按用户要求提交至固件仓库）。
+## 全量条目与去向
 
-## 汇总列表
-
-| 编号 | 优先级与状态 | 事项 / 已知事实 | 请固件方评估或验证 | 当前Mac处理与影响 |
+| 编号 | 状态/性质 | 当前事实 | 后续工作 | 追踪入口 |
 | --- | --- | --- | --- | --- |
-| FW-01 | P1 · 真机确认的恢复边界 | 取消素材上传后，Mac可能保留HID物理连接；仅断配置连接不足以释放上传owner，重连后配置查询被拒绝，需正常关开键盘 | 无需重启的有界恢复路径；可评估owner限定取消或事务空闲释放，先冻结合同再接入 | 已停止后续发送、撤回旧快照/写入口、跨重连保留指导；重启→重传/恢复默认通过。当前可用，取消体验仍受限 |
-| FW-02 | 新源已实现 · 待组合真机 | 旧0x96限制仍适用于旧设备；新分支0x9E CP2.6已支持逐模式Consumer/普通路由和反复恢复 | 无需重写已有接口文档；提供已验收组合HEX，覆盖路由保存、读回及断电 | Mac协议、侧栏和事务已接线；旧限制仅对实际识别的旧设备显示，不再要求新固件重做Consumer恢复 |
-| FW-03 | P1 · 历史静态/实物风险，需新组合复验 | 旧源普通键在实际发送结果未知前更新去重缓存，HID返回值未上交；历史曾出现Command按住，未证明由此造成，也未将旧根因自动套用新固件 | 验证发送失败下release不会丢失；缓存更新时机、按下/释放顺序、有界补发及重连中性报告 | 保留历史抓取证据；不宣称已定位Command卡住根因，也不把长按Siri等同于漏释放 |
-| FW-04 | P2 · 容量边界确认 | 旧客户端宏可到98字节；新K1路由可分片读动作，但描述仍依赖0x87，动作+描述最多53字节；Key2/3/4也缺已确认的完整长读回 | 长宏完整读回与向后兼容方案，或明确可编辑上限；不静默截断 | 超长/未知动作不覆盖；保留草稿。用户确认多数人不设长宏，常用功能可并行，但完整旧功能回归仍保留此缺口 |
-| FW-05 | P2 · 历史真机现象，迁移策略待验 | 更新固件后曾持续Reconnect，配置App与系统连接失败；Forget PC清绑定后恢复 | 同设备升级保留绑定的兼容性、失败退避/提示和安全恢复引导；不要无提示自动清用户绑定 | 已有明确手动恢复步骤；正常连接与重连已验证，仍需升级/旧绑定完整矩阵 |
-| FW-06 | P2 · 历史现象待复现 | 唤醒后曾读回手动档，与用户认为的自动位置不符；亮屏重新拨动后恢复 | 核对启动/唤醒时物理GPIO采样、去抖及首次状态发布；用实物位置与线日志共同复现 | 客户端只按实体读回与出厂绑定验证审批，未知/自定义不自动放行，不猜测或软件覆盖实体档位 |
-| FW-07 | P2 · 联合故障验收 | Mac已处理拒绝、超时、读回不一致并保留草稿；真实EEPROM/Flash故障矩阵尚未完成 | 在现有Harness补或引用可复用故障证据：写失败、校验失败、未完成素材启动恢复与持久化终态；若需新状态码，先约定兼容合同 | 不把ACK当保存或像素证明；已应用未确认不说回滚成功。此项为验收请求，不预判现有实现有缺陷 |
-| FW-08 | P1 · 当前WS4/WS5交付依赖 | 新源用WS45 Restore替代原WS3 CP3；WS4/WS5已纳入本轮，完整目录/镜像不因已有协议接线而自动完成 | 提供正式schema、兼容key/预算、公钥和签名目录、普通及recovery-safe HEX及来源哈希；无需重复整理Harness已有协议或索要全部Windows代码 | Mac目录/恢复/刷后核验路径已有；正式输入缺失时不伪造官方信任材料，不把旧工程HEX冒充稳定恢复镜像 |
-| FW-09 | 基本重复恢复真机通过 · 断电／故障待验 | 2026-10-30 build522在07A8工程候选连续恢复0→1→2，第二次实际使用v2 expectedAttempt2；两次完整默认读回一致 | 将本次Mac实测并入工程UAT；继续正常断电保持与故障矩阵，不据此声称正式REGATE全部通过 | 14项本地草稿／语音偏好保留，待核对记录0；已在[Issue #9回报实测](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/9#issuecomment-6513634998)，完成记录及保存配置断电保持已过；开机Mode2观察、重启后新恢复和故障待验，不提前关闭全部验收 |
-| FW-10 | 已解决 · 待组合真机 | 已从292a49f源码恢复组合HEX，完整SHA256为6EC0413CFC983788CDC99F628F0F8E2A64C6AF147D2A5E1727A03F036BF1123C，与原13项门禁产物一致 | 无需Owner另找文件；后续正式目录应归档二进制与来源，避免只留下哈希 | Mac官方旧GCC8.2与已校验SDK构建一致，另两组host测试通过；未刷机、不替代原Owner UAT和正式recovery-safe镜像 |
-| FW-11 | P1 · 独立短/长按能力合同 | 当前K1路由扩展不等于任意键两套独立短长按动作；App语音短长按也不是该固件能力 | 给出动作/阈值/松开、容量、保存与完整读回、能力探测及旧设备降级合同 | 保持当前短长语音功能；独立动作编辑仍是未完成开发，不能仅放开UI就算适配 |
-| FW-12 | P1 · 新工程包真实缺尾 | 07A8固件0x9E读取42字节slice应回62字节，实收60字节缺CC DD，capability合法 | 核对默认ATT MTU下通知失败的有界续发/错误返回及晚到片归属；现场无UART返回码，不先断言内存/队列根因 | Mac改20字节slice保持102字节记录及CRC；build521共19组快照/456分片、两轮Consumer可逆通过；[现场反馈](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6491156613) |
-| FW-13 | P1 · 新旧Consumer均发生，新版更频繁待定位 | 正常速度/停止按键多次唤起Siri，CF原始17组中4组>1秒；明确松开后CF/Cmd均0，未证实持续卡键 | Mac K1 Consumer CF仅听写短脉冲、按住不重复、松手不二次切换；可靠释放/故障恢复，不影响普通键和App按住录音；需新HEX实物验证 | build521路由恢复通过，语音功能FAIL；[诊断](../ahastudio/consumer-siri-diagnosis-2026-10-29.md)，未自动改Siri设置或F5方案 |
+| FW-01 | P1 · 旧组合已复现／F99D待复验 | 上传取消后可能继续拒绝配置读取，旧07A8需正常重启；K1保存修复不能替代上传取消恢复。 | 独立取消/有界事务收敛、重连读取与同位置重传。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/10) |
+| FW-02 | 已有实现与正常路径实测 | 逐模式Consumer/普通路由、反复恢复已接入；F99D三轮Codex往返、四模式隔离与断电读回通过。 | 原能力缺口不重提；异常释放/故障覆盖仍分别验收。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/8) |
+| FW-03 | P1 · 条件性风险／待验证 | 发送结果未向上返回、普通键去重缓存提前更新；K1 UP路由读失败清捕获不发release，实际可达性/现场根因未证实。 | 发送失败、路由不可用及模式/休眠/重连的释放责任与有界恢复。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/11) |
+| FW-04 | P2 · 协议容量缺口 | 当前0x87中11+动作+描述不能超过64字节；K1路由分片动作不含独立描述，不能覆盖全部按键的完整长宏事实。 | 完整动作/描述读回、快照一致性、能力探测与兼容合同。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/12) |
+| FW-05 | P2 · 历史现象／待复验 | 旧升级曾持续Reconnect，Forget PC后恢复；未在本轮F99D复现该故障。 | 区分保留绑定与清DataFlash刷写，补绑定迁移/重新配对/退避及安全恢复策略。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/13) |
+| FW-06 | P2 · 历史现象／待复现 | 旧唤醒曾出现读回档位与Owner理解位置不符，重新拨动后恢复；本轮F99D正常往返通过，根因仍未确认。 | GPIO/去抖/首次0x00发布与主机缓存分项核对，覆盖启动和唤醒边界。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/14) |
+| FW-07 | P2 · 联合故障验收 | 正常保存/读回/断电保持不替代存储失败、校验失败、掉电、未完成素材和Restore故障矩阵。 | 优先复用现有Harness证据；逐项标明确已覆盖、缺失、失败和恢复范围，关联既有#6提案。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/15) |
+| FW-08 | P1 · 正式固件交付依赖 | 工程HEX已经存在；正式schema/预算、受控验签公钥与签名目录、normal/recovery-safe资格仍需发布方闭环。 | 给出现有权威合同、批准状态和精确来源/镜像；客户端公证另由客户端发布流程负责。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/16) |
+| FW-09 | 原重复恢复缺陷已有修复与实测 | 旧组合连续0→1→2恢复及完成状态保持已通过，原#9缺陷不重复提。 | F99D及断电/改路由后恢复、默认模式和故障边界归FW-07。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/9) |
+| FW-10 | 镜像缺失问题已解决 | 历史6EC组合HEX已恢复，当前HW1 F99D工程HEX已取得并实刷，不再要求Owner另找同一文件。 | 正式恢复安全镜像资格不是工程文件存在的同义词，另归FW-08。 | — |
+| FW-11 | P1 · 新能力开发依赖 | 任意键独立短/长按的两套动作、阈值、松开、保存和完整读回合同未确认；App按住录音不等价。 | 按模式/按键范围、互斥/持续语义、释放、迁移及能力合同，随后Mac实际接线。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/17) |
+| FW-12 | 修复代码与机器证据已交付 | F99D包含BLE长回复背压后的有界续发；普通分片配置读取通过，完整压力/故障覆盖仍保留。 | 不将旧07A8缺尾自动认定为F99D仍必现；完整原包与故障边界依Harness/客户端矩阵核验。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6491156613) |
+| FW-13 | 正常交互已明确／本轮短按实测通过 | Owner明确接受短按听写、长按Siri；F99D下Claude Consumer12组down/up配对、无Command，Owner确认听写/Dock正常。 | 撤销历史固定短脉冲/禁止长按Siri诉求；异常释放风险归FW-03，不重提正常长按。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6604739434) |
+| FW-14 | K1保存窄缺陷修复已确认 | F99D三轮Consumer/RightAlt保存3次commit成功，14组四模式CRC快照其他模式不变，重启后16键/4路由、待机/语音平台/拨杆绑定保持通过。 | 本项通过不代表其他条目或完整故障矩阵通过；不重复要求同一保存复测。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6604739434) |
 
-2026-10-27已在原[固件Issue #7补充当前交接合同](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6438787695)：确认精确HEX已恢复、Consumer新源能力与旧限制区分、长宏完整事实读回、独立短/长按及WS4/5正式交付；保留原历史反馈，不重复创建相同问题。
+## 当前仍需交接的输入
 
-## 当前最小交接请求
+- 长宏完整事实读回与独立短/长按的受支持合同或现有等价路径：分别见FW-04、FW-11。
+- 素材上传取消的无需重启恢复，以及输入释放/存储/启动恢复边界：分别见FW-01、FW-03、FW-07。
+- 正式固件目录、验签材料及恢复安全镜像：见FW-08；当前不缺F99D工程文件。
 
-Mac已经同步指定源码分支并接入Consumer可逆路由及现有Restore合同。此前缺失的组合HEX现已由Mac恢复并完整匹配，不再请求对方提供文件：`.ahakey-harness/evidence/builds/ws45-cp2_6-restore-combined-regate-20261025/HID_Keyboard_582m_vibe_coding.hex`，源`292a49f32939e2b778b15eceb194746133d3b2c7`，SHA256 `6EC0413CFC983788CDC99F628F0F8E2A64C6AF147D2A5E1727A03F036BF1123C`。后续请同步长宏完整读回、独立短长按、Issue #9及正式发布目录/镜像的现有合同或排期；不用再整理已经在Harness里的协议说明。
+## 已明确的产品与证据边界
 
-## FW-01：本次取消后需重启的复现与建议验收
+- F5备选按Owner决定暂缓；Consumer长按Siri为正常交互，不发出“必须固定短脉冲”的新要求。
+- 19素材位置、默认8帧/其他12帧、10fps与0x8D停用自定义素材已有合同，不重复索要；0x8D不等于abort、找回旧图或安全擦除。
+- 上传取消在旧07A8上失败、重启后恢复通过；F99D尚未做同一取消故障复验。
+- 正常Consumer、K1保存、原会话拨杆与断电保持的已过子项保留；不能据此关闭整套故障/长期/多硬件覆盖。
+- HW1结果不套用独立HW2候选。Mac高CPU、Hook参数、编辑锁定和取消提示等客户端修复不列作固件新缺陷。
+- 本清单及Issue拆分未修改或刷写固件，没有新增硬件UAT结论。
 
-1. 在原EMPTY位置18临时上传内置单帧素材；界面15/598块时点击取消。线日志累计30个8B后停止，末offset1392/length48，无8C、8D、04、8E。
-2. 配置连接断开后自动重连，83/9F返回status1；正常关开后完整19项可读，目标素材不可用并按固件规则回退。
-3. 新客户端用三帧素材在界面26/1792处取消，重连后提示保留；正常关开后同位置完整重传成功，提示清除。再重启，三帧元数据保持；最后恢复18默认，原Coffee图片保留。
+## 证据入口
 
-证据：[Mac真机验收](../validation/connect-talk-hil-2026-10-21/UPLOAD_INTERRUPTION.md)。第二轮26只是界面确认值，未将其冒充线日志总分块数；原始日志与用户图片只本机保存。
-
-建议后续验收：HID保持连接时也能在有界时间内退出未完成事务；新上传可重新进入；晚到块/旧owner不能污染新事务；失败素材不能被当VALID；其他18项及键位/Voice不变。释放失败应保守保留不可用/恢复状态。具体机制与超时由固件侧结合合法慢传输评估，不在Mac端猜固定延时。**0x8D是清空资源，不能用作abort；当前已接受合同允许“正常重启后恢复”的边界，此项是体验优化请求。**
-
-## 已知合同、暂缓及已解决事项
-
-- Consumer Voice已被用户接受；F5备选验证按用户决定暂缓，不要求固件现在改为F5。轻点听写/长按Siri的产品策略另行决定，不能当作已确认输入可靠性缺陷。
-- 19位置、默认8帧/其他12帧、10fps、8D解除自定义引用及无原始Flash备份，已有CP2文档说明，本次不要求重新提供。资源恢复不是找回旧图或安全擦除。
-- Mac端的高CPU、Hook参数、取消提示丢失和后台晚启动显示问题由客户端处理，不列作固件待修缺陷。
-- Windows交替配置为后续可选联合验收；当前不要求固件同学提前交未稳定的Windows代码。
-
-## 请回填
-
-每项注明：接受优化 / 现有合同限制 / 待复现 / 已解决，并附对应Harness条目、源提交/HEX及验证结果。不要只按“代码已改”标完，Mac侧仍需用对应构建验收；无需重复整理Harness已有材料。
-
-## 生产源依据
-
-- [CP2接受记录](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/blob/076382b2214289ac7bc1735d669d7de78730c4da/.ahakey-harness/evidence/checkpoints/X1-AI-WORKFLOW-PRESENTATION/CP2/checkpoint-review-20261020/acceptance.md)
-- [上传owner、0x96及0x87实现](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/blob/70ca334f65d73b6a2f20a0598e55c6da59f26526/APP/sub_main/command_solve.c)
-- [普通键去重与Consumer报告](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/blob/70ca334f65d73b6a2f20a0598e55c6da59f26526/APP/hid_dev/keyboard.c)
-- [HID发送封装](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/blob/70ca334f65d73b6a2f20a0598e55c6da59f26526/APP/hid_dev/psk_hid.c)
-
-
-2026-10-29旧版ffb9208f降级/Verify OK/预设2/App退出对照也复现Siri；Owner明确旧版频率更低。保留新版本放大回归，不计算无计数的概率。新增分模式UP路由读失败时清捕获而不发release的离线风险探针，前置条件的实物可达性与本次根因均未证明。[完整边界](../ahastudio/consumer-siri-old-new-comparison-2026-10-29.md)。
+- [最新归档及HW1同源核验](../validation/connect-talk-hil-2026-10-22/firmware-72346b-archive-sync-2026-11-03.json)
+- [F99D三轮保存与断电保持](../validation/connect-talk-hil-2026-10-22/hw1-save-fix-hil-2026-11-03.json)
+- [Consumer定向HID及Owner结果](../validation/connect-talk-hil-2026-10-22/f99d-consumer-hid-build539-2026-11-03.json)
+- [旧上传取消/恢复记录](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6519589952)
+- [原提醒清单](./FIRMWARE_FOLLOW_UP_2026-10-09.md)及Git历史保存最初描述；当前状态以本表和独立Issue为准。
