@@ -15,7 +15,13 @@
   "productionChanges": false,
   "fix": "Synthetic exited test backends explicitly own no OS process; retain diagnostic PID. Production ownership wait remains unchanged.",
   "actualOriginalCITimeoutUniqueCauseProven": false,
-  "fullWindowsCIAfterFix": "pending",
+  "fullWindowsCIAfterFix": {
+    "url": "https://github.com/AhakeyAI/desktop/actions/runs/41648558493",
+    "head": "9a053a1c411c6189d9842a629723cb42f1fb6de2",
+    "windowsTestPackageAndReleaseConfiguration": "success",
+    "macOSBuildTestAndPackage": "success",
+    "typescriptTestAndBuild": "success"
+  },
   "macCandidateUnchanged": 539,
   "hardwareWrites": 0,
   "finalLocalFocusedResult": {

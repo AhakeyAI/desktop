@@ -1647,3 +1647,8 @@ intervening local run had a different five-second future timeout while the host
 load was high; that result is retained as unresolved timing evidence, not erased
 by the green run. No existing test deadlines were expanded. The new collision
 regression uses the same five-second async budget as neighboring success tests.
+
+Full post-fix Windows test/package and release-configuration checks passed in
+[CI 41648558493](https://github.com/AhakeyAI/desktop/actions/runs/41648558493); macOS and TypeScript jobs also passed.
+This closes the automated CI recheck for this fixture correction, not Windows
+hardware/installer UAT or the retained high-load timing observation.
