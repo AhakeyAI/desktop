@@ -8,38 +8,50 @@ struct StudioLightInspectorView: View {
     let mode: AhaKeyModeSlot
     let selectPreviewState: (UInt8) -> Void
 
-    private var target: StudioLightDrafts.Target { model.target(for: mode) }
+    private var target: StudioLightDrafts.Target { model.showsMultitask ? .brightness : model.target(for: mode) }
     private var busy: Bool { model.isBusy || session.isBusy }
     private var editable: Bool { model.values.facts[target].map { target.accepts($0.value) } ?? false }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            StudioLightStateSelector(selectedState: model.selectedState,
-                dirtyStates: Set(IDEState.workflowOrder.compactMap { item in
-                    let key = StudioLightDrafts.Target.effect(mode: UInt8(mode.rawValue), state: item.rawValue)
-                    return model.values.dirtyTargets.contains(key) || model.values.unconfirmed.contains(key) ? item.rawValue : nil
-                }), enabled: !busy, select: { model.selectedState = $0 })
+            Picker(NSLocalizedString("灯效范围", comment: ""), selection: $model.showsMultitask) {
+                Text(NSLocalizedString("单任务灯效", comment: "")).tag(false)
+                Text(NSLocalizedString("多任务灯效", comment: "")).tag(true)
+            }
+            .pickerStyle(.segmented)
+            .disabled(busy)
 
-            HStack(spacing: 8) {
-                Text(readbackTitle).font(.caption).foregroundStyle(.secondary)
-                Spacer(minLength: 0)
+            if model.showsMultitask {
+                StudioMultitaskLightView()
+            } else {
+                StudioLightStateSelector(selectedState: model.selectedState,
+                    dirtyStates: Set(IDEState.workflowOrder.compactMap { item in
+                        let key = StudioLightDrafts.Target.effect(mode: UInt8(mode.rawValue), state: item.rawValue)
+                        return model.values.dirtyTargets.contains(key) || model.values.unconfirmed.contains(key) ? item.rawValue : nil
+                    }), enabled: !busy, select: { model.selectedState = $0 })
+
+                HStack(spacing: 8) {
+                    Text(readbackTitle).font(.caption).foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+                if model.values.unconfirmed.contains(target) {
+                    Label("保存结果待确认，请重新读取后保存。", systemImage: "exclamationmark.circle")
+                        .font(.caption).foregroundStyle(.orange)
+                }
+
+                Text("选择灯效").font(.subheadline.weight(.semibold))
+                StudioLightEffectPicker(selection: model.values.drafts[target].flatMap(LightEffectStyle.init(firmwareIndex:)),
+                    enabled: !busy && editable,
+                    previewEnabled: !busy && editable && model.values.drafts[.brightness] != nil,
+                    select: { model.values.edit(target, value: $0.firmwareIndex) },
+                    preview: { model.previewEffect($0, mode: mode, ble: bleManager, session: session) })
             }
-            if model.values.unconfirmed.contains(target) {
-                Label("保存结果待确认，请重新读取后保存。", systemImage: "exclamationmark.circle")
-                    .font(.caption).foregroundStyle(.orange)
-            }
+
             if model.isBusy { ProgressView("处理中…").controlSize(.small) }
             if model.showsError {
                 Label(model.message ?? NSLocalizedString("操作未完成，请重试。", comment: ""), systemImage: "exclamationmark.circle")
                     .font(.caption).foregroundStyle(.orange).textSelection(.enabled)
             }
-
-            Text("选择灯效").font(.subheadline.weight(.semibold))
-            StudioLightEffectPicker(selection: model.values.drafts[target].flatMap(LightEffectStyle.init(firmwareIndex:)),
-                enabled: !busy && editable,
-                previewEnabled: !busy && editable && model.values.drafts[.brightness] != nil,
-                select: { model.values.edit(target, value: $0.firmwareIndex) },
-                preview: { model.previewEffect($0, mode: mode, ble: bleManager, session: session) })
 
             brightnessControls
         }
@@ -56,6 +68,7 @@ struct StudioLightInspectorView: View {
             selectPreviewState(model.selectedState)
             if model.values.facts[target] == nil { readSelectedState() }
         }
+        .onChange(of: model.showsMultitask) { _ in resetSelectionFeedback() }
         .onChange(of: mode) { _ in resetSelectionFeedback() }
         .onChange(of: model.selectedState) { value in
             selectPreviewState(value)
@@ -111,7 +124,7 @@ struct StudioLightInspectorActions: View {
     let bleManager: AhaKeyBLEManager
     let mode: AhaKeyModeSlot
 
-    private var target: StudioLightDrafts.Target { model.target(for: mode) }
+    private var target: StudioLightDrafts.Target { model.showsMultitask ? .brightness : model.target(for: mode) }
     private var busy: Bool { model.isBusy || session.isBusy }
 
     var body: some View {

@@ -20,6 +20,7 @@ final class StudioLightInspectorModel: ObservableObject {
     }
     let writeCompleted = PassthroughSubject<(message: String, wrote: Bool), Never>()
     @Published var batchConflict: StudioInlineLightBatch.Conflict?
+    @Published var showsMultitask = false
     @Published var selectedState: UInt8 = 0
     @Published private(set) var showsError = false
     @Published var message: String?
@@ -116,14 +117,14 @@ final class StudioLightInspectorModel: ObservableObject {
     }
 
     func writePlan(for mode: AhaKeyModeSlot) -> StudioLightWritePlan? {
-        try? StudioLightWritePlan.make(mode: UInt8(mode.rawValue), values: values)
+        try? StudioLightWritePlan.make(mode: UInt8(mode.rawValue), values: values, brightnessOnly: showsMultitask)
     }
 
     func writeChanges(mode: AhaKeyModeSlot, ble: AhaKeyBLEManager, session: StudioInspectorSession,
                       confirmedPlan: StudioLightWritePlan? = nil) {
         guard !isBusy, !session.isBusy,
               let plan = confirmedPlan ?? writePlan(for: mode), !plan.items.isEmpty else { return }
-        let scope = (AhaKeyModeSlot(rawValue: Int(plan.mode))?.title ?? "") + " · " + NSLocalizedString("灯条", comment: "")
+        let scope = plan.brightnessOnly ? NSLocalizedString("全局亮度", comment: "") : (AhaKeyModeSlot(rawValue: Int(plan.mode))?.title ?? "") + " · " + NSLocalizedString("灯条", comment: "")
         batchConflict = nil
         var attemptedWrite = false
         perform(scope: scope, session: session, failureContext: {
@@ -159,10 +160,10 @@ final class StudioLightInspectorModel: ObservableObject {
                 updated.observe(.brightness, fact: reading.brightness)
                 for item in plan.items { updated.confirm(item.target, fact: reading.values[item.target]!) }
                 values = updated
-                message = NSLocalizedString(writes > 0 ? "已写入当前模式的灯条修改。" : "当前配置已核对一致，无需写入。", comment: "")
+                message = NSLocalizedString(writes > 0 ? (plan.brightnessOnly ? "全局亮度已写入，单任务灯效草稿保留。" : "已写入当前模式的灯条修改。") : "当前配置已核对一致，无需写入。", comment: "")
                 let text = writes > 0
-                    ? NSLocalizedString("本模式的灯效修改已写入；其他模式的灯效草稿保留。", comment: "") +
-                        (plan.items.contains(where: { $0.target == .brightness }) ? "\n" + NSLocalizedString("全局亮度修改已对全部模式生效。", comment: "") : "")
+                    ? (plan.brightnessOnly ? NSLocalizedString("全局亮度已写入，单任务灯效草稿保留。", comment: "") : NSLocalizedString("本模式的灯效修改已写入；其他模式的灯效草稿保留。", comment: "")) +
+                        (!plan.brightnessOnly && plan.items.contains(where: { $0.target == .brightness }) ? "\n" + NSLocalizedString("全局亮度修改已对全部模式生效。", comment: "") : "")
                     : NSLocalizedString("当前配置已核对一致，无需写入。", comment: "")
                 writeCompleted.send((Self.receipt(scope: scope, text: text), writes > 0))
             }

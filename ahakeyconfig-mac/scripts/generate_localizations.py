@@ -7,6 +7,16 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "灯效范围": "Lighting scope",
+    "单任务灯效": "Single task",
+    "多任务灯效": "Multiple tasks",
+    "多任务灯效为所有模式共用": "Multitask lighting is shared across modes",
+    "分段示意 · 每段对应一个会话，最多四个": "Illustration \u00b7 One segment per session, up to four",
+    "空位": "Empty",
+    "颜色随任务自动变化，当前固件不支持自定义多任务灯效。": "Colors follow task status automatically. This firmware does not support custom multitask effects.",
+    "在屏幕画面的展示方式中启用多任务，屏幕与灯条会同步切换。": "Enable multiple tasks in Screen display settings to switch both the screen and light strip.",
+    "全局亮度已写入，单任务灯效草稿保留。": "Global brightness saved. Single-task effect drafts are retained.",
+
     "键盘切换模式时，LCD会先短暂显示按键描述，然后回到模式动图。": "When the keyboard switches modes, the LCD briefly shows the key descriptions, then returns to the mode animation.",
     "\u6b63\u5728\u6062\u590d\u539f\u6743\u9650": "Restoring previous permissions",
     "\u5c1a\u672a\u540c\u6b65\uff0c\u4ee5 Kimi \u5f53\u524d\u6743\u9650\u4e3a\u51c6": "Not synchronized; current Kimi permissions apply",

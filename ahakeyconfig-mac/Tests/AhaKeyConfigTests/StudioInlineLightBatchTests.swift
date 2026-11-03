@@ -32,6 +32,40 @@ final class StudioInlineLightBatchTests: XCTestCase {
         for item in result.items { values.confirm(item.target, fact: fact(item.desired)) }
         XCTAssertEqual(values.dirtyTargets, [.effect(mode: 1, state: 0)])
     }
+    func testMultitaskPlanWritesOnlyBrightnessAndPreservesSingleTaskDrafts() throws {
+        var values = StudioLightDrafts()
+        for target in [first, .effect(mode: 1, state: 0), .brightness] {
+            values.observe(target, fact: fact(target == .brightness ? 35 : 10))
+            values.edit(target, value: target == .brightness ? 50 : 5)
+        }
+        let plan = try StudioLightWritePlan.make(mode: 2, values: values, brightnessOnly: true)
+        XCTAssertEqual(plan.items.map(\.target), [.brightness])
+        for item in plan.items { values.confirm(item.target, fact: fact(item.desired)) }
+        XCTAssertEqual(values.dirtyTargets, [first, .effect(mode: 1, state: 0)])
+        XCTAssertTrue(try StudioLightWritePlan.make(mode: 2, values: values, brightnessOnly: true).items.isEmpty)
+        XCTAssertEqual(try StudioLightWritePlan.make(mode: 2, values: values).items.map(\.target), [first])
+    }
+
+    func testMultitaskBrightnessConflictRetainsScopeOnConfirmation() async throws {
+        let plan = StudioLightWritePlan(mode: 2, items: [
+            .init(target: .brightness, baseline: fact(35), desired: 50, requiresPersistence: false)
+        ], brightnessOnly: true)
+        let result = try await StudioInlineLightBatch.run(plan: plan, session: host(), read: { _, _ in
+            .init(values: [.brightness: self.fact(40)], brightness: self.fact(40))
+        }, save: { _, _, _ in XCTFail("Conflict must precede writing") },
+            verify: { _, _ in XCTFail(); return self.fact(0) }, writeStarted: { _ in XCTFail() })
+        guard case .conflict(let conflict) = result else { return XCTFail("Expected brightness conflict") }
+        XCTAssertTrue(conflict.plan.brightnessOnly)
+        XCTAssertEqual(conflict.plan.items.map(\.target), [.brightness])
+        XCTAssertEqual(conflict.plan.items.first?.baseline.value, 40)
+    }
+
+    func testMultitaskPlanRejectsAnInjectedSingleTaskEffect() {
+        var plan = plan()
+        plan.brightnessOnly = true
+        XCTAssertFalse(plan.isValid)
+    }
+
     func testPreflightThenSerialWritesThenVerifyAllWithOneLease() async throws {
         var events: [String] = [], releases = 0
         let plan = plan()

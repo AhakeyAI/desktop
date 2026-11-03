@@ -11,14 +11,15 @@ struct StudioLightWritePlan: Equatable {
 
     let mode: UInt8
     let items: [Item]
+    var brightnessOnly = false
     var deviceID: String? { items.first?.baseline.deviceID }
 
-    static func make(mode: UInt8, values: StudioLightDrafts) throws -> Self {
+    static func make(mode: UInt8, values: StudioLightDrafts, brightnessOnly: Bool = false) throws -> Self {
         guard mode < 4 else { throw ConfirmedWS3DisplaySetting.Failure.invalidValue }
         let pending = values.dirtyTargets.union(values.unconfirmed).filter { target in
             switch target {
             case .brightness: return true
-            case .effect(let itemMode, _): return itemMode == mode
+            case .effect(let itemMode, _): return !brightnessOnly && itemMode == mode
             }
         }.sorted { order($0) < order($1) }
         let items = try pending.map { target -> Item in
@@ -29,7 +30,7 @@ struct StudioLightWritePlan: Equatable {
             return Item(target: target, baseline: baseline, desired: desired,
                         requiresPersistence: values.unconfirmed.contains(target))
         }
-        let plan = Self(mode: mode, items: items)
+        let plan = Self(mode: mode, items: items, brightnessOnly: brightnessOnly)
         guard plan.isValid else { throw ConfirmedWS3DisplaySetting.Failure.invalidValue }
         return plan
     }
@@ -40,7 +41,7 @@ struct StudioLightWritePlan: Equatable {
             let inScope: Bool
             switch item.target {
             case .brightness: inScope = true
-            case .effect(let itemMode, _): inScope = itemMode == mode
+            case .effect(let itemMode, _): inScope = !brightnessOnly && itemMode == mode
             }
             return inScope && !item.baseline.deviceID.isEmpty && item.baseline.deviceID == deviceID &&
                 item.target.accepts(item.baseline.value) && item.target.accepts(item.desired)

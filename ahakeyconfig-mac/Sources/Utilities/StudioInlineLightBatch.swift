@@ -51,7 +51,7 @@ enum StudioInlineLightBatch {
                 let revised = StudioLightWritePlan(mode: plan.mode, items: plan.items.map { item in
                     .init(target: item.target, baseline: actual.values[item.target]!, desired: item.desired,
                           requiresPersistence: item.requiresPersistence)
-                })
+                }, brightnessOnly: plan.brightnessOnly)
                 return .conflict(.init(plan: revised, changed: changed, reading: actual))
             }
             var writes = 0
