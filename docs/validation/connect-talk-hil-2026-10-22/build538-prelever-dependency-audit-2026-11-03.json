@@ -1,0 +1,24 @@
+{
+  "checkedAtUTC": "2026-11-03T08:40:57.354597+00:00",
+  "previousGoalTurn": "progress: signed build538 installed and original-session readback restored; 15 preferences preserved, source CI passed.",
+  "currentPhysicalSwitch": 0,
+  "currentPhysicalMode": "automatic",
+  "codexPhase": "synchronized",
+  "kimiCodeDesktopPhase": "synchronized",
+  "pendingRecoveryBoth": 0,
+  "manualTest": "waiting for previously requested physical operation; automatic continuation is not a human confirmation.",
+  "firmwareRemoteBranches": {
+    "Fireware-harness": "adf7b3da1669a9a04b2f4fdc46f892d696dc8a53",
+    "harness/x1-refactor-main": "efecc471376f99ce6753e257933bfba287937bb4"
+  },
+  "firmwareChangedSinceAudit": false,
+  "correctedStalePowerCycleRows": [
+    "I02b-2b",
+    "I02c"
+  ],
+  "wbsRowsExactlyMatchCSV": 29,
+  "remainingDevelopmentDependencyClasses": 3,
+  "formalReleaseInputClasses": 1,
+  "openFullVerificationGroups": 8,
+  "complete": false
+}
