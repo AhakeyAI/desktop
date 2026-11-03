@@ -6,7 +6,6 @@ struct StudioScreenSummaryView: View {
     let mode: AhaKeyModeSlot
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(NSLocalizedString("屏幕素材", comment: "")).font(.headline)
             if let actual = model.display?.resources.first(where: { $0.id == UInt8(mode.rawValue * 4) }) {
                 Text(StudioResourceInspectorModel.title(actual.id))
                 Text(actual.reportsValidUserResource ? String(format: NSLocalizedString("自定义素材 · %d 帧", comment: ""), Int(actual.frames)) :
