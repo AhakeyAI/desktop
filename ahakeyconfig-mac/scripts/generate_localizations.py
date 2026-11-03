@@ -7,6 +7,7 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "键盘切换模式时，LCD会先短暂显示按键描述，然后回到模式动图。": "When the keyboard switches modes, the LCD briefly shows the key descriptions, then returns to the mode animation.",
     "\u6b63\u5728\u6062\u590d\u539f\u6743\u9650": "Restoring previous permissions",
     "\u5c1a\u672a\u540c\u6b65\uff0c\u4ee5 Kimi \u5f53\u524d\u6743\u9650\u4e3a\u51c6": "Not synchronized; current Kimi permissions apply",
     "\u5c1a\u672a\u6dfb\u52a0\u4f1a\u8bdd": "No sessions added",

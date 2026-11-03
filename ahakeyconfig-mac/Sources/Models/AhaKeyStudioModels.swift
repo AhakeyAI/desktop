@@ -120,7 +120,7 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
         case .lightBar:
             "AI 状态反馈"
         case .oledDisplay:
-            "动图显示"
+            NSLocalizedString("键盘切换模式时，LCD会先短暂显示按键描述，然后回到模式动图。", comment: "")
         case .key1:
             NSLocalizedString("语音键", comment: "")
         case .key2:

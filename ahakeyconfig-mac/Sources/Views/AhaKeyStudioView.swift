@@ -956,6 +956,7 @@ struct AhaKeyStudioView: View {
                 Text(selectedPart.subtitle)
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
