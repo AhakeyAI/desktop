@@ -1,0 +1,27 @@
+{
+  "recordedAtUTC": "2026-11-03T04:44:08.666986+00:00",
+  "clientBuild": 537,
+  "clientSource": "b8a9faec9d5ed6d9b5a96dafaad49e2f1a768e81",
+  "hexFile": "HW1_K1_SAVE_FIX.hex",
+  "hexSHA256": "f99d3b9d505214be2082d7b696f9a4bcacbc9684ecd7e5ed7f04e631cba81142",
+  "selectedTarget": "CH582M/HW1",
+  "authorization": "User explicitly allowed this F99D configuration erase, flash and concentrated validation; user confirmed ISP connected.",
+  "ispWaitSeconds": 180,
+  "writeResult": {
+    "codeBytesWritten": 272384,
+    "verify": "Verify OK",
+    "reset": "Device reset",
+    "toolWriteCompletedUTC": "2026-11-03T04:41:09Z"
+  },
+  "runtimeVerification": {
+    "attempted": true,
+    "connected": false,
+    "nativeFeedback": "未能取得键盘配置连接；未开始本次操作，已尝试交还后台。",
+    "exactCatalogIdentityRead": false,
+    "voiceOrLeverHILComplete": false
+  },
+  "pendingUserAction": "Remove USB and BOOT-GND, normal wireless startup and choose Mac; screen status confirmation pending.",
+  "repeatFlashRequired": false,
+  "configurationRestoreAfterFlashComplete": false,
+  "fullWBSComplete": false
+}
