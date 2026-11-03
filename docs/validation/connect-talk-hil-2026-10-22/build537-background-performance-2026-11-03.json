@@ -1,0 +1,44 @@
+{
+  "clientBuild": 537,
+  "clientSource": "b8a9faec9d5ed6d9b5a96dafaad49e2f1a768e81",
+  "firmware": "F99D HW1 save fix",
+  "durationSeconds": 600.081814666,
+  "samples": 121,
+  "intervalSeconds": 5,
+  "backgroundSamples": 121,
+  "foregroundSamples": 0,
+  "unknownFrontmostSamples": 0,
+  "connectedSamples": 121,
+  "disconnectedSamples": 0,
+  "unknownConnectionSamples": 0,
+  "configurationWrites": 0,
+  "scope": "Studio hidden with device-info sheet retained; readonly Agent model IPC sampled, no BLE queries added. CPU is one logical core; memory is RSS. Not a foreground visible GIF test or proof of physical power cycle.",
+  "processes": {
+    "studio": {
+      "continuousPID": true,
+      "observedPIDCount": 1,
+      "samples": 121,
+      "rssStartKB": 63984,
+      "rssEndKB": 38304,
+      "rssMinKB": 36048,
+      "rssMaxKB": 91184,
+      "averageCPUPercentOneCore": 1.156508967675139
+    },
+    "agent": {
+      "continuousPID": true,
+      "observedPIDCount": 1,
+      "samples": 121,
+      "rssStartKB": 15392,
+      "rssEndKB": 13376,
+      "rssMinKB": 12896,
+      "rssMaxKB": 15664,
+      "averageCPUPercentOneCore": 0.6849066076577554
+    }
+  },
+  "strictBackgroundSceneSampled": true,
+  "continuousConnectedSceneSampled": true,
+  "formalPerformanceBudgetApproved": false,
+  "concurrentWorkload": "Isolated CLI lifecycle tests, fixture compilation and diagnostics ran in other processes during the sample; not an unloaded idle test.",
+  "windowRestoredAfterSample": true,
+  "sampleFileSHA256": "021fd87efe6c43be64219749c5ff0209b9c809f83d1399dc644ff4e6952ebd5d"
+}

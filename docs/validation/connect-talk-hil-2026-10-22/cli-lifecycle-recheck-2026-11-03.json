@@ -1,0 +1,166 @@
+{
+  "checkedAtUTC": "2026-11-03T05:26:53.771723+00:00",
+  "installedClientBuild": 537,
+  "installedClientSource": "b8a9faec9d5ed6d9b5a96dafaad49e2f1a768e81",
+  "productionAppCodeChanged": false,
+  "newAppInstallRequiredForFixtureFix": false,
+  "standalonePolicyClosureRegression": {
+    "before": "FAIL: KimiDesktopLeverState missing",
+    "after": "PASS: actual beginRevocation executes in explicit temporary directories",
+    "maintainerTests": 20,
+    "failures": 0
+  },
+  "codexTrustFixtureCompileOnly": {
+    "compiled": true,
+    "initialReinstallRemove": true,
+    "realCLIExecuted": false
+  },
+  "claudeLifecycle": {
+    "cli": "2.1.299 (Claude Code)",
+    "lifecycle": {
+      "initial": {
+        "hooks": 12,
+        "executed": [
+          "SessionEnd",
+          "SessionStart",
+          "UserPromptSubmit",
+          "user"
+        ],
+        "exit": 0
+      },
+      "reinstall": {
+        "hooks": 12,
+        "executed": [
+          "SessionEnd",
+          "SessionStart",
+          "UserPromptSubmit",
+          "user"
+        ],
+        "exit": 0
+      },
+      "remove": {
+        "hooks": 1,
+        "executed": [
+          "user"
+        ],
+        "exit": 0
+      }
+    },
+    "modelRequests": 0
+  },
+  "cursorLifecycle": {
+    "cli": "2026.10.19-6bbf2c4",
+    "lifecycle": {
+      "initial": {
+        "configuredHooks": 10,
+        "executed": [
+          "sessionEnd",
+          "sessionStart",
+          "user"
+        ],
+        "expectedStreamFailure": true
+      },
+      "reinstall": {
+        "configuredHooks": 10,
+        "executed": [
+          "sessionEnd",
+          "sessionStart",
+          "user"
+        ],
+        "expectedStreamFailure": true
+      },
+      "remove": {
+        "configuredHooks": 1,
+        "executed": [
+          "user"
+        ],
+        "expectedStreamFailure": true
+      }
+    },
+    "scope": "startup/exit only; loopback metadata and unsupported Agent stream; no real model/provider",
+    "promptAndToolCallbacks": "not verified"
+  },
+  "kimiLifecycle": {
+    "cli": "2.4.0",
+    "lifecycle": {
+      "initial": {
+        "configuredHooks": 10,
+        "executed": [
+          "KimiSessionStart",
+          "KimiUserPromptSubmit",
+          "user"
+        ],
+        "cliExit": 1
+      },
+      "reinstall": {
+        "configuredHooks": 10,
+        "executed": [
+          "KimiSessionStart",
+          "KimiUserPromptSubmit",
+          "user"
+        ],
+        "cliExit": 1
+      },
+      "remove": {
+        "configuredHooks": 1,
+        "executed": [
+          "user"
+        ],
+        "cliExit": 1
+      }
+    },
+    "modelRequests": 0,
+    "scope": "temporary home; lifecycle only; no live dial control claimed"
+  },
+  "claudeLiveReload": {
+    "cli": "2.1.299 (Claude Code)",
+    "replacementWithNewCommand": "FAIL: only retained user blocking hook executed",
+    "wait8Seconds": "FAIL",
+    "isolatedHomeLayoutProbe": "FAIL",
+    "sameReplacementConfigInFreshProcess": {
+      "executed": [
+        "next:SessionEnd",
+        "next:SessionStart",
+        "next:UserPromptSubmit",
+        "user"
+      ],
+      "modelRequests": 0
+    },
+    "startupRegisteredReplacementPathControl": {
+      "cli": "2.1.299 (Claude Code)",
+      "liveReload": {
+        "initial": {
+          "executed": [
+            "SessionStart",
+            "UserPromptSubmit",
+            "next:SessionStart",
+            "next:UserPromptSubmit",
+            "user"
+          ],
+          "sameProcess": true
+        },
+        "replace": {
+          "executed": [
+            "next:UserPromptSubmit",
+            "user"
+          ],
+          "sameProcess": true
+        },
+        "remove": {
+          "executed": [
+            "user"
+          ],
+          "sameProcess": true
+        }
+      },
+      "modelRequests": 0,
+      "scope": "same-process hook replacement/removal; no live lever control claimed"
+    },
+    "boundary": "New commands introduced after startup remain unverified in the current headless session; registered-command replacement/removal control passes. This is not proof of every interactive TUI behavior or a complete hot-reload pass.",
+    "officialReference": "https://code.claude.com/docs/en/hooks#disable-or-remove-hooks"
+  },
+  "userConfigFilesModified": false,
+  "productionPermissionChanges": false,
+  "keyboardSettingsModified": false,
+  "outstanding": "Explicit physical power-cycle confirmation, physical Voice and lever matrix remain pending; original Work/TUI and firmware contract dependencies unchanged."
+}

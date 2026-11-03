@@ -7,7 +7,31 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from hook_lifecycle_fixture import ensure_claude_fixture_isolated, terminate_process_group
+from hook_lifecycle_fixture import ensure_claude_fixture_isolated, terminate_process_group, policy_swift_sources
+
+
+@unittest.skipUnless(sys.platform == "darwin", "Production policy sources use macOS APIs")
+class ProductionFixtureCompilationTests(unittest.TestCase):
+    def testKimiFixtureCompilesAndRevokesOnlyInsideItsTemporaryDirectory(self):
+        sources = Path(__file__).resolve().parents[1] / "Sources/Shared"
+        with tempfile.TemporaryDirectory(prefix="ahakey-policy-closure-") as directory:
+            root = Path(directory)
+            main = root / "main.swift"
+            main.write_text('''import Foundation
+let root = URL(fileURLWithPath: CommandLine.arguments[1])
+let result = ApprovalAutomationControl.beginRevocation(.kimi, directory: root,
+    codexURL: root.appendingPathComponent("codex/config.toml"),
+    kimiURL: root.appendingPathComponent("kimi/config.toml"),
+    cursorDirectory: root.appendingPathComponent("cursor"))
+guard result == .complete else { exit(1) }
+''')
+            fixture_sources = policy_swift_sources(sources) + [
+                sources / "KimiHooksConfiguration.swift", sources / "JSONHooksConfiguration.swift"]
+            binary = root / "policy"
+            result = subprocess.run(["swiftc", *map(str, fixture_sources), str(main), "-o", str(binary)],
+                capture_output=True, text=True, timeout=60)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            subprocess.run([str(binary), str(root / "state")], check=True, timeout=5)
 
 
 class ManagedPolicyIsolationTests(unittest.TestCase):

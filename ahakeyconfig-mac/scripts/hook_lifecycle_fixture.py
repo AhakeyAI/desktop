@@ -5,10 +5,19 @@ from pathlib import Path
 
 
 def policy_swift_sources(shared):
-    """The real dependency closure used by standalone policy fixture compilers."""
+    """Compile real revocation journals and their dependencies, never test stubs.
+
+    ApprovalAutomationControl checks both native-session recovery journals even
+    when the caller is exercising a legacy configuration path.
+    """
     return [shared / name for name in (
         "CodexConfigLeverSync.swift", "ApprovalAutomationControl.swift",
         "CodexDesktopSessionBridge.swift", "CodexDesktopLeverState.swift",
+        "KimiDesktopLeverState.swift", "KimiDesktopPermissionBridge.swift",
+        "KimiDesktopInstanceDiscovery.swift", "KimiDesktopServerMetadata.swift",
+        "KimiPrivateCredentialFile.swift",
+        "KimiManagedPermissionDefaults.swift", "KimiPermissionModeSync.swift",
+        "WS3ForegroundSource.swift", "WS3TerminalTaskIdentity.swift",
         "CursorApprovalPolicySync.swift", "KimiConfigPolicySync.swift", "CodexHookTrust.swift",
     )]
 
