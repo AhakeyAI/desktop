@@ -3,6 +3,38 @@ import XCTest
 @testable import AhaKeyConfigShared
 
 final class FirmwareCapabilityProfileTests: XCTestCase {
+    func testHW1SaveRepairIdentityPreservesReadbackGatedProtocol() throws {
+        let key = "x1-c582-hw1-p1-1.0.1-r001"
+        let frame = Data([0xAA, 0xBB, 0x9F, 0]) + Data(key.utf8) + Data([0xCC, 0xDD])
+        let profile = FirmwareCapabilityProfile.probeResponse(frame, hasValidStatusReadback: true)
+        XCTAssertTrue(profile.isVerifiedProtocol)
+        XCTAssertTrue(profile.mayQueryOrdinaryKeys)
+        XCTAssertTrue(profile.mayQueryVoiceOnboarding)
+        XCTAssertTrue(profile.mayQuerySideSwitchBindings)
+        XCTAssertTrue(profile.mayQueryStandby)
+        XCTAssertTrue(profile.mayQueryWS3Resources)
+        XCTAssertTrue(profile.mayUseWS3Presentation)
+        XCTAssertFalse(profile.canWriteWithoutReadback)
+        XCTAssertFalse(profile.canUseWS3Presentation)
+        XCTAssertFalse(profile.canWriteWS3Resources)
+        XCTAssertEqual(FirmwareCapabilityProfile.probeResponse(frame, hasValidStatusReadback: false).identity, .unknown(nil))
+        let entry = try XCTUnwrap(VerifiedFirmwareCatalog.builtin?.value.entries.first { $0.key == key })
+        XCTAssertEqual(entry.hardware, "x1-c582-hw1")
+        XCTAssertEqual(entry.visibility, .engineering)
+        XCTAssertEqual(entry.channel, .engineering)
+        XCTAssertFalse(entry.recommended)
+        XCTAssertFalse(entry.recoverySafe)
+        XCTAssertNil(entry.artifact)
+    }
+
+    func testHW2IdentityIsNotAcceptedAsHW1Repair() {
+        let key = "x1-c582-hw2-p1-1.0.1-r001"
+        let frame = Data([0xAA, 0xBB, 0x9F, 0]) + Data(key.utf8) + Data([0xCC, 0xDD])
+        let profile = FirmwareCapabilityProfile.probeResponse(frame, hasValidStatusReadback: true)
+        XCTAssertEqual(profile.identity, .unknown(key))
+        XCTAssertFalse(profile.isVerifiedProtocol)
+    }
+
     func testAcceptedCatalogEnablesOnlyVerifiedWS2Capabilities() {
         let frame = Data([0xAA, 0xBB, 0x9F, 0x00]
             + Array(FirmwareCapabilityProfile.ws2CatalogKey.utf8) + [0xCC, 0xDD])

@@ -14,6 +14,7 @@ public struct FirmwareCapabilityProfile: Equatable {
     public let identity: Identity
 
     public static let ws2CatalogKey = "x1-c582-hw1-p1-1.0.0-r001"
+    public static let hw1SaveRepairCatalogKey = "x1-c582-hw1-p1-1.0.1-r001"
 
     public static func catalogResponse(_ frame: Data, catalog: VerifiedFirmwareCatalog? = .builtin,
         context: FirmwareDesktopContext = .init(version: FirmwareDesktopVersion("0.0.0")!)) -> FirmwareCapabilityProfile {

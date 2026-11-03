@@ -156,7 +156,15 @@ public struct VerifiedFirmwareCatalog: Sendable {
             capabilities: [.ordinaryKeys, .voiceOnboarding, .sideSwitchBindings, .standby,
                 .ws3Display, .ws3Presentation, .ws3Resources], minimumDesktop: "0.0.0",
             desktopVariants: ["legacy-macos", "legacy-windows"], visibility: .engineering,
-            channel: .engineering, releaseOrder: 0)])
+            channel: .engineering, releaseOrder: 0), .init(
+            key: FirmwareCapabilityProfile.hw1SaveRepairCatalogKey,
+            displayName: "X1 HW1 K1 save repair protocol",
+            hardware: "x1-c582-hw1", protocolProfile: "p1",
+            capabilities: [.ordinaryKeys, .voiceOnboarding, .sideSwitchBindings, .standby,
+                .ws3Display, .ws3Presentation, .ws3Resources], minimumDesktop: "0.0.0",
+            desktopVariants: ["legacy-macos", "legacy-windows"], visibility: .engineering,
+            channel: .engineering, releaseOrder: 1,
+            limitations: ["Engineering protocol compatibility only; Mac hardware acceptance is pending."])])
         guard (try? value.validate()) != nil else { return nil }
         return Self(value)
     }()
