@@ -1,0 +1,26 @@
+{
+  "recordedAtUTC": "2026-11-03T12:36:37.176783+00:00",
+  "failedCI": "https://github.com/AhakeyAI/desktop/actions/runs/41609734202",
+  "failedTest": "FirmwareValidationOwnershipTests.testFailureAfterEraseAllowsNewAttempt",
+  "symptom": "Successful info process returned before already-read output callback appended Chip: CH582; empty output rejected before erase.",
+  "ordinaryLocalRepetitions": 80,
+  "loadedLocalRepetitions": 160,
+  "uncontrolledLocalFailures": 0,
+  "deterministicRegression": "Delayed read consumption after actual pipe read, child exits meanwhile. Same real Process/pipe code returns early with empty output before fix.",
+  "red": {
+    "testCount": 1,
+    "assertionFailures": 2,
+    "emptyChipOutput": true
+  },
+  "fix": "One output reader drains concurrently; wait for process exit and reader completion before returning output. No competing readability callback and final read.",
+  "green": {
+    "focusedTests": 12,
+    "fullTests": 988,
+    "failures": 0
+  },
+  "installedBuildAtVerification": 538,
+  "fixInstalled": false,
+  "newCandidateBuild": 539,
+  "realHardwareErasesOrWrites": 0,
+  "remaining": "New source CI, signed candidate packaging/install; hardware retry failure matrix remains open."
+}

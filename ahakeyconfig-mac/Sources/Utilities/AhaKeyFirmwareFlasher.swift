@@ -133,7 +133,7 @@ final class FirmwareFlashActivity {
     private init() {}
 }
 
-private struct WCHISPCommandResult: Sendable {
+struct WCHISPCommandResult: Sendable {
     let status: Int32
     let output: String
 }
@@ -157,8 +157,13 @@ private final class ProcessOutputBuffer: @unchecked Sendable {
     }
 }
 
-private actor WCHISPProcessRunner {
+actor WCHISPProcessRunner {
     private var activeProcess: Process?
+    private let readOutput: @Sendable (FileHandle) -> Data
+
+    init(readOutput: @escaping @Sendable (FileHandle) -> Data = { $0.availableData }) {
+        self.readOutput = readOutput
+    }
 
     func run(executable: URL, arguments: [String]) async throws -> WCHISPCommandResult {
         try Task.checkCancellation()
@@ -170,23 +175,31 @@ private actor WCHISPProcessRunner {
         process.standardOutput = outputPipe
         process.standardError = outputPipe
         let outputBuffer = ProcessOutputBuffer()
-        outputPipe.fileHandleForReading.readabilityHandler = { handle in
-            outputBuffer.append(handle.availableData)
-        }
+        let readOutput = self.readOutput
         activeProcess = process
-        defer {
-            outputPipe.fileHandleForReading.readabilityHandler = nil
-            activeProcess = nil
-        }
+        defer { activeProcess = nil }
 
         let result = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global(qos: .userInitiated).async {
                     do {
                         try process.run()
+                        // One reader owns the pipe. Process exit alone cannot
+                        // prove that an in-flight output read has been consumed.
+                        // Drain concurrently so output larger than the pipe
+                        // capacity cannot block the child before it exits.
+                        let drained = DispatchGroup()
+                        drained.enter()
+                        DispatchQueue.global(qos: .userInitiated).async {
+                            defer { drained.leave() }
+                            while true {
+                                let chunk = readOutput(outputPipe.fileHandleForReading)
+                                if chunk.isEmpty { break }
+                                outputBuffer.append(chunk)
+                            }
+                        }
                         process.waitUntilExit()
-                        outputPipe.fileHandleForReading.readabilityHandler = nil
-                        outputBuffer.append(outputPipe.fileHandleForReading.readDataToEndOfFile())
+                        drained.wait()
                         continuation.resume(returning: WCHISPCommandResult(
                             status: process.terminationStatus,
                             output: outputBuffer.string()

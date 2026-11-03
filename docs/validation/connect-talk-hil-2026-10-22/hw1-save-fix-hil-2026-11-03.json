@@ -43,7 +43,7 @@
     "hardwareWritesDuringReadback": 0
   },
   "voicePhysicalHID": "pending",
-  "leverPhysicalAndNativeSessions": "pending",
+  "leverPhysicalAndNativeSessions": "build538 manual/automatic round trip and normal stop restoration passed; restart awaits keyboard wake. See build538-f99d-lever-hil-2026-11-03.json",
   "FW14MacFullMatrixClosed": false,
   "rawTraceSHA256": "8e9d160d930cd77688e8acc80e4cfe08acc7bbcebb635db418977b9d44ae97a7"
 }

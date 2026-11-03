@@ -1,0 +1,73 @@
+{
+  "recordedAtUTC": "2026-11-03T12:04:56.481694+00:00",
+  "clientBuild": 538,
+  "sourceCommit": "f22e2898ec2aff92f27bdec1a983062dd381e3bb",
+  "firmwareSHA256": "f99d3b9d505214be2082d7b696f9a4bcacbc9684ecd7e5ed7f04e631cba81142",
+  "existingAuthorizedOriginalSessionsOnly": true,
+  "manual": {
+    "ownerConfirmedPhysicalOperation": true,
+    "physicalSwitchState": 1,
+    "autoVerified": false,
+    "nativeUI": "manual approval",
+    "codex": {
+      "approvalPolicy": "on-request",
+      "permissions": ":workspace",
+      "phase": "synchronized",
+      "managedSessions": 1,
+      "pendingRecovery": 0
+    },
+    "kimiCodeDesktop": {
+      "version": "1.2.1",
+      "mode": "manual",
+      "phase": "synchronized",
+      "managedSessions": 1,
+      "pendingRecovery": 0
+    }
+  },
+  "automatic": {
+    "ownerConfirmedPhysicalOperation": true,
+    "physicalSwitchState": 0,
+    "autoVerified": true,
+    "nativeUI": "automatic approval",
+    "codex": {
+      "approvalPolicy": "never",
+      "permissions": ":danger-full-access",
+      "phase": "synchronized",
+      "managedSessions": 1,
+      "pendingRecovery": 0
+    },
+    "kimiCodeDesktop": {
+      "version": "1.2.1",
+      "mode": "auto",
+      "phase": "synchronized",
+      "managedSessions": 1,
+      "pendingRecovery": 0
+    }
+  },
+  "nativeAgentStop": {
+    "socketRemoved": true,
+    "nativeUIAgentNotRunning": true,
+    "codexLeases": 0,
+    "kimiLeases": 0,
+    "codexOriginalPermissionsRestored": {
+      "approvalPolicy": "never",
+      "permissions": ":danger-full-access"
+    },
+    "kimiOriginalPermissionRestored": "auto",
+    "codexFirstRead": "timedOut",
+    "codexSingleRetry": "passed"
+  },
+  "nativeAgentRestart": {
+    "running": true,
+    "keyboardLiveStatus": false,
+    "autoVerified": false,
+    "awaitingPhysicalWake": true,
+    "reconnectionPassed": false
+  },
+  "newGrants": 0,
+  "modelRequests": 0,
+  "keyboardConfigurationWrites": 0,
+  "verboseLogging": false,
+  "existingDrafts": 4,
+  "fullLifecycleFaultMatrixComplete": false
+}
