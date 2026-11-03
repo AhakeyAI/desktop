@@ -2023,9 +2023,11 @@ struct AhaKeyStudioView: View {
                         codexDesktopStatusText.font(.callout.weight(.semibold))
                         Text(NSLocalizedString("授权后：自动档完全访问，手动档请求批准；下一轮生效。", comment: ""))
                             .font(.caption).foregroundStyle(.secondary)
-                        Button(NSLocalizedString("管理会话权限…", comment: "")) {
-                            CodexApprovalSetupController.shared.requestOffer(force: true)
-                        }.buttonStyle(.link)
+                        if isEditingInspector {
+                            Button(NSLocalizedString("管理会话权限…", comment: "")) {
+                                CodexApprovalSetupController.shared.requestOffer(force: true)
+                            }.buttonStyle(.link)
+                        }
                     }
                 }
                 .task {
