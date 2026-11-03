@@ -1,0 +1,23 @@
+{
+  "clientBuild": 537,
+  "clientSource": "b8a9faec9d5ed6d9b5a96dafaad49e2f1a768e81",
+  "firmwareBeingBackedUp": "previous 297B (F99D candidate not flashed)",
+  "keysRead": 16,
+  "routesRead": 4,
+  "lightsRead": 36,
+  "resourceMetadataRead": 19,
+  "customResourceCount": 0,
+  "resourceOriginalBytesExported": false,
+  "brightness": 35,
+  "standbyMinutes": 60,
+  "configurationWrites": 0,
+  "restoreRequests": 0,
+  "existingLightDraftValuesPreserved": true,
+  "newObservedLightTargetsInitialized": 0,
+  "other14PreferencesSemanticallyUnchanged": true,
+  "verboseLoggingDisabledAfterRead": true,
+  "agentConnectionRestored": true,
+  "privateBackupSHA256": "a95dd56e86377f3507189d54201635e56a3c1d31a2e109e3526f2aab8657e50d",
+  "requiresUserApprovalForThisFlash": true,
+  "newFirmwareFlashPerformed": false
+}
