@@ -20,7 +20,11 @@ final class StudioLightInspectorModel: ObservableObject {
     }
     let writeCompleted = PassthroughSubject<(message: String, wrote: Bool), Never>()
     @Published var batchConflict: StudioInlineLightBatch.Conflict?
-    @Published var showsMultitask = false
+    @Published var showsMultitask = false {
+        didSet { if showsMultitask { multitaskDemoStartedAt = Date().timeIntervalSince1970 } }
+    }
+    @Published private(set) var multitaskDemoStartedAt = Date().timeIntervalSince1970
+    @Published private(set) var multitaskPreviewStartedAt: TimeInterval?
     @Published var selectedState: UInt8 = 0
     @Published private(set) var showsError = false
     @Published var message: String?
@@ -44,6 +48,36 @@ final class StudioLightInspectorModel: ObservableObject {
               let fact = values.facts[selected], selected.accepts(fact.value) else { return }
         values.edit(selected, value: effect.firmwareIndex)
         run(target: selected, ble: ble, session: session, preview: .light(effect: effect.firmwareIndex, brightness: brightness))
+    }
+
+    func previewMultitask(ble: AhaKeyBLEManager, session: StudioInspectorSession) {
+        guard let deviceID = session.editingDeviceID else { return }
+        perform(scope: NSLocalizedString("多任务灯效", comment: ""), session: session) {
+            defer { self.multitaskPreviewStartedAt = nil }
+            try await session.withConnection(expectedDeviceID: deviceID) { context in
+                _ = try await ble.readWS3DisplayForEditing()
+                try session.validate(context)
+                let epoch = try ble.beginPresentationOperation()
+                defer { ble.finishPresentationOperation(generation: epoch) }
+                try await WS3MultitaskLightPreview.run(activate: { willChangeMode in
+                    try await ConfirmedWS3Presentation.activate(.multi, generation: epoch,
+                        checkSession: { try session.validate(context) },
+                        willChangeMode: { try session.validate(context); willChangeMode() }, exchange: {
+                            try await ble.exchangePresentation($0, generation: epoch)
+                        })
+                    self.multitaskPreviewStartedAt = Date().timeIntervalSince1970
+                    self.message = NSLocalizedString("正在预览三个会话，约 10 秒后恢复。", comment: "")
+                }, send: { command in
+                    try session.validate(context)
+                    let reply = try await ble.exchangePresentation(command.request!, generation: epoch)
+                    try session.validate(context)
+                    guard WS3PresentationAcknowledgement.parse(reply, for: command) == .received else {
+                        throw WS3PresentationError.invalidReply
+                    }
+                }, cleanupFailed: { ble.poisonPresentationConnection(generation: epoch) })
+            }
+            self.message = NSLocalizedString("预览已结束，已交还后台；未保存设置。", comment: "")
+        }
     }
 
     func cancel() { operation?.cancel() }

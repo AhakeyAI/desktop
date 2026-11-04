@@ -65,4 +65,15 @@ final class LightBarLayerViewTests: XCTestCase {
             XCTAssertEqual(resized[index].backgroundColor?.components, red.components)
         }
     }
+    func testEightLEDMultitaskStripFillsAvailableWidthWithoutTwoPhantomLEDs() throws {
+        let view = LightBarLayerView(barCount: 8)
+        view.setFrameSize(CGSize(width: 400, height: 30))
+        view.configure(framesPerSecond: nil) { [red] _ in Array(repeating: red, count: 8) }
+        view.layout()
+        let bars = try XCTUnwrap(view.layer?.sublayers)
+        XCTAssertEqual(bars.count, 8)
+        XCTAssertEqual(try XCTUnwrap(bars.last).frame.maxX, 384, accuracy: 0.01)
+        XCTAssertTrue(bars.allSatisfy { !$0.isHidden })
+    }
+
 }

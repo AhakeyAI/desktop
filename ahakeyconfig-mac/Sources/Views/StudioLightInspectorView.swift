@@ -22,7 +22,8 @@ struct StudioLightInspectorView: View {
             .disabled(busy)
 
             if model.showsMultitask {
-                StudioMultitaskLightView()
+                StudioMultitaskLightView(busy: busy, previewMultitask: { model.previewMultitask(ble: bleManager, session: session) },
+                    mockStartedAt: model.multitaskPreviewStartedAt ?? model.multitaskDemoStartedAt)
             } else {
                 StudioLightStateSelector(selectedState: model.selectedState,
                     dirtyStates: Set(IDEState.workflowOrder.compactMap { item in

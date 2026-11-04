@@ -1,8 +1,11 @@
 import SwiftUI
 
-/// The firmware renders four task slots with fixed colors, independently of
-/// the per-mode single-task effect table. This view never sends preview data.
+/// Three disposable sessions, kept separate from real task observations.
 struct StudioMultitaskLightView: View {
+    let busy: Bool
+    let previewMultitask: () -> Void
+    let mockStartedAt: TimeInterval
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let states: [(String, Color, String)] = [
         ("进行中", .green, "arrow.triangle.2.circlepath"),
         ("等待处理", .yellow, "hourglass"),
@@ -15,15 +18,9 @@ struct StudioMultitaskLightView: View {
             Text(NSLocalizedString("多任务灯效为所有模式共用", comment: ""))
                 .font(.caption).foregroundStyle(.secondary)
             VStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    ForEach(states.indices, id: \.self) { index in
-                        HStack(spacing: 3) {
-                            Capsule().fill(states[index].1)
-                            Capsule().fill(states[index].1)
-                        }
-                    }
-                }.frame(height: 12)
-                Text(NSLocalizedString("分段示意 · 每段对应一个会话，最多四个", comment: ""))
+                MultitaskLightCanvas(mockStartedAt: mockStartedAt, animates: !reduceMotion)
+                    .frame(height: 20)
+                Text(NSLocalizedString("三个会话预览 · 第四段为空位", comment: ""))
                     .font(.caption2).foregroundStyle(.secondary)
             }.padding(12)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.04)))
@@ -38,10 +35,18 @@ struct StudioMultitaskLightView: View {
                         .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.025)))
                 }
             }
-            Text(NSLocalizedString("颜色随任务自动变化，当前固件不支持自定义多任务灯效。", comment: ""))
+            Text(NSLocalizedString("绿：进行中 · 黄：等待处理 · 红：已完成。状态变化时，示意灯珠短暂闪烁。", comment: ""))
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Text(NSLocalizedString("在屏幕画面的展示方式中启用多任务，屏幕与灯条会同步切换。", comment: ""))
-                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .bottom, spacing: 12) {
+                Text("预览约 10 秒，屏幕会同步展示模拟任务；不会保存或添加真实会话。实体灯珠闪烁需固件支持。")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Button(action: previewMultitask) {
+                    Image(systemName: "play.fill").foregroundStyle(.white).padding(8)
+                }
+                .buttonStyle(.bordered).disabled(busy)
+                .help("预览到键盘").accessibilityLabel("预览多任务灯效到键盘")
+            }
         }
     }
 }

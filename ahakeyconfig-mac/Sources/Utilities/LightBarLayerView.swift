@@ -4,7 +4,7 @@ import AppKit
 /// layout for the surrounding keyboard or inspector.
 @MainActor
 final class LightBarLayerView: NSView {
-    private let bars = (0..<10).map { _ in CALayer() }
+    private var bars = (0..<10).map { _ in CALayer() }
     private var colors: ((TimeInterval) -> [CGColor])?
     private var requestedFPS: Double?
     private var playbackFPS: Double?
@@ -18,6 +18,12 @@ final class LightBarLayerView: NSView {
         layer?.backgroundColor = NSColor.black.withAlphaComponent(0.12).cgColor
         bars.forEach { layer?.addSublayer($0) }
         setAccessibilityElement(false)
+    }
+
+    convenience init(barCount: Int) {
+        self.init(frame: .zero)
+        let count = min(10, max(1, barCount))
+        while bars.count > count { bars.removeLast().removeFromSuperlayer() }
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -37,7 +43,7 @@ final class LightBarLayerView: NSView {
         layer?.cornerRadius = min(12, bounds.height / 2)
         let padding = bounds.width * 0.04
         let spacing = bounds.width * 0.026
-        let width = max(0, bounds.width - padding * 2 - spacing * 9) / 10
+        let width = max(0, bounds.width - padding * 2 - spacing * CGFloat(bars.count - 1)) / CGFloat(bars.count)
         let height = bounds.height * (0.26 / 0.48)
         for (index, bar) in bars.enumerated() {
             bar.frame = CGRect(x: padding + CGFloat(index) * (width + spacing),

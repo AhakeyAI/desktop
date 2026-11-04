@@ -44,6 +44,9 @@ struct AhaKeyStudioView: View {
     @AppStorage(VibeBarVisibilityPreference.enabledKey) private var vibeBarEnabled = true
     @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
     @StateObject private var lightInspectorModel = StudioLightInspectorModel()
+    @StateObject private var taskLightMonitor = StudioTaskLightMonitor()
+    @State private var lightWindowActive = NSApp.isActive
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var resourceInspectorModel = StudioResourceInspectorModel(storeURL: StudioResourceDraftStore.productionURL)
     @StateObject private var lcdInspectorModel = StudioLCDInspectorModel(defaults: .standard)
     @State private var confirmsLCDWrite = false
@@ -136,6 +139,24 @@ struct AhaKeyStudioView: View {
         .frame(minWidth: 1180, minHeight: 680)
         .background(Color(nsColor: .windowBackgroundColor))
         .overlay(alignment: .bottomLeading) { AppUpdateCard(manager: updateManager) }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in lightWindowActive = true }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in lightWindowActive = false }
+        .task(id: scenePhase == .active && lightWindowActive) {
+            guard scenePhase == .active && lightWindowActive else { taskLightMonitor.clear(); return }
+            defer { taskLightMonitor.clear() }
+            while !Task.isCancelled {
+                if NSApp.isActive, lightInspectorModel.multitaskPreviewStartedAt == nil {
+                    let revision = agentManager.bluetoothOwnershipRevision
+                    let overview = agentManager.bluetoothConnectionOwner == .ahaKeyStudio
+                        ? bleManager.studioPresentation.readOverview() : await agentManager.readTaskOverview()
+                    guard !Task.isCancelled else { return }
+                    if revision == agentManager.bluetoothOwnershipRevision {
+                        taskLightMonitor.observe(overview, revision: revision, at: Date().timeIntervalSince1970)
+                    }
+                } else { taskLightMonitor.clear() }
+                do { try await Task.sleep(for: .seconds(1)) } catch { return }
+            }
+        }
         .onAppear {
             agentManager.applyStoredBluetoothPreferenceOnLaunch(bleManager: bleManager)
             voiceRelay.start()
@@ -567,7 +588,7 @@ struct AhaKeyStudioView: View {
             [.lightBar, .oledDisplay, .toggleSwitch, .modeButton].contains(selectedPart)
     }
     private var componentBusy: Bool {
-        isSyncing || inlineKeyTask != nil || inspectorSession.isBusy || resourceInspectorModel.isBusy || resourceInspectorModel.isPreparing || deviceInspectorModel.isBusy || lcdInspectorModel.isReading || lcdInspectorModel.isWriting
+        isSyncing || inlineKeyTask != nil || inspectorSession.isBusy || lightInspectorModel.isBusy || resourceInspectorModel.isBusy || resourceInspectorModel.isPreparing || deviceInspectorModel.isBusy || lcdInspectorModel.isReading || lcdInspectorModel.isWriting
     }
 
     private var canvasModeDraft: AhaKeyModeDraft {
@@ -597,6 +618,9 @@ struct AhaKeyStudioView: View {
                     dirtyParts: dirtyPartsForCurrentMode(),
                     onSelect: { if !componentBusy { selectedPart = $0 } },
                     onModeSwitch: { if !componentBusy { selectedPart = .modeButton } },
+                    multitaskSnapshot: taskLightMonitor.animation,
+                    multitaskMockStartedAt: lightInspectorModel.multitaskPreviewStartedAt ??
+                        (selectedPart == .lightBar && isEditingInspector && lightInspectorModel.showsMultitask ? lightInspectorModel.multitaskDemoStartedAt : nil),
                     liveLightMode: liveCanvasLightMode,
                     liveIDEStateValue: liveCanvasIDEStateValue,
                     switchState: liveCanvasSwitchState,
@@ -3341,6 +3365,8 @@ private struct AhaKeyKeyboardCanvasView: View {
     let dirtyParts: Set<AhaKeyStudioPart>
     let onSelect: (AhaKeyStudioPart) -> Void
     let onModeSwitch: () -> Void
+    var multitaskSnapshot: WS3TaskLightAnimation? = nil
+    var multitaskMockStartedAt: TimeInterval? = nil
     var liveLightMode: Int? = nil
     var liveIDEStateValue: Int? = nil
     var switchState: Int = 1   // 0=auto, 1=manual; firmware uses for color/effect overrides
@@ -3482,16 +3508,23 @@ private struct AhaKeyKeyboardCanvasView: View {
                     .foregroundStyle(Color.black.opacity(0.72))
                     .frame(maxWidth: .infinity, alignment: .center)
 
-                LightBarCanvas(
-                    effect: effect,
-                    baseColor: baseColor,
-                    framesPerSecond: effect.isAnimated
-                        && scenePhase == .active
-                        && controlActiveState != .inactive
-                        && !reduceMotion
-                        ? (selectedPart == .lightBar ? 10 : 5)
-                        : nil
-                )
+                Group {
+                    if multitaskSnapshot != nil || multitaskMockStartedAt != nil {
+                        MultitaskLightCanvas(animation: multitaskSnapshot, mockStartedAt: multitaskMockStartedAt,
+                            animates: scenePhase == .active && controlActiveState != .inactive && !reduceMotion)
+                    } else {
+                        LightBarCanvas(
+                            effect: effect,
+                            baseColor: baseColor,
+                            framesPerSecond: effect.isAnimated
+                                && scenePhase == .active
+                                && controlActiveState != .inactive
+                                && !reduceMotion
+                                ? (selectedPart == .lightBar ? 10 : 5)
+                                : nil
+                        )
+                    }
+                }
                 .frame(height: rect.height * 0.48)
             }
             .frame(width: rect.width, height: rect.height)

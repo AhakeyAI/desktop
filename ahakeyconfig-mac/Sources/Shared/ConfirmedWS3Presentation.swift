@@ -22,6 +22,7 @@ public enum ConfirmedWS3Presentation {
                                 checkSession: () throws -> Void,
                                 authority suppliedAuthority: FirmwareRuntimeCatalog.Snapshot? = nil,
                                 catalogVerified: (String) -> Void = { _ in },
+                                willChangeMode: () throws -> Void = {},
                                 exchange: (Data) async throws -> Data) async throws {
         func checked(_ request: Data) async throws -> Data {
             try Task.checkCancellation(); try checkSession()
@@ -67,6 +68,7 @@ public enum ConfirmedWS3Presentation {
             case nil: throw WS3PresentationError.invalidReply
             }
         }
+        try willChangeMode()
         try await send(.setMode(mode))
         // A previously selected MULTI mode survives disconnects. Establish an
         // empty boundary even when firmware considers this set idempotent.
