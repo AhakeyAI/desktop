@@ -1,0 +1,36 @@
+{
+  "sourceCommit": "8ad53a039828a4fbee9e88c8c01c14575ab0eb62",
+  "build": 552,
+  "version": "0.2.3",
+  "dmgSHA256": "d0ca9f3805f61b4dbaaa59e42c1ef177e2bcdad2d374c7c5bc85a61b89f8db77",
+  "bytes": 20492919,
+  "binarySHA256": {
+    "AhaKeyConfig": "0c51b3d8d6edda67770ef5704366e143d298d28808b761953bc8198bd74446cb",
+    "ahakeyconfig-agent": "d948a098c8c8a607a2b350f11b5d2d0c3d1a95908686d045bc1e2f8a5e5ef64d"
+  },
+  "signatureVerified": true,
+  "mountedBytesMatch": true,
+  "notarized": false,
+  "installed": true,
+  "automatedTests": 1015,
+  "nativeUIVerified": true,
+  "hardwarePreviewVerified": false,
+  "physicalStateBlinkRequiresFirmware": false,
+  "physicalBlinkDeferred": true,
+  "firmwareSourceReviewed": "72346b001710d573980a7d398b9e0dced8ff627c",
+  "physicalObservationBuild": 551,
+  "previewCommandAndNormalEndOn552": true,
+  "virtualLightsMatchSteadyF99D": true,
+  "steadyRegression": {
+    "redTests": 5,
+    "redAssertionFailures": 27,
+    "fullTests": 1015,
+    "failures": 0
+  },
+  "pending": [
+    "Resource18 13-to12-frame complete upload/readback/cleanup in progress",
+    "600s focused foreground GIF performance",
+    "Original combined physical acceptance and temporary F18 restoration"
+  ],
+  "previousTemporaryCodexVoiceRestorationRequired": true
+}

@@ -1,0 +1,41 @@
+{
+  "recordedAtUTC": "2026-11-04T08:59:57.196074+00:00",
+  "baselineNativeButtons": [
+    {
+      "enabled": false,
+      "title": "确认修改"
+    },
+    {
+      "enabled": true,
+      "title": "OK"
+    },
+    {
+      "enabled": false,
+      "title": "采用键盘当前值"
+    }
+  ],
+  "fixedNativeButtons": [
+    {
+      "enabled": true,
+      "title": "采用键盘当前值"
+    },
+    {
+      "enabled": true,
+      "title": "确认修改"
+    },
+    {
+      "enabled": true,
+      "title": "取消"
+    }
+  ],
+  "nativeFixtureLinksProductionReadiness": true,
+  "fixtureBluetoothAndDeviceWrites": 0,
+  "fullTests": 1019,
+  "failures": 0,
+  "throughputImprovementClaimed": false,
+  "realCandidateUIRecoveryPending": true,
+  "resource18InterruptedByOwner": true,
+  "resource18CleanupPending": true,
+  "firmwareBranchNow": "24f72d3e0301aa6bb2fa9e1b99337033bb801a4d",
+  "firmwareFlashedThisTurn": false
+}

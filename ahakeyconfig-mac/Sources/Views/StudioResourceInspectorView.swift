@@ -9,6 +9,7 @@ struct StudioResourceInspectorView: View {
     let mode: AhaKeyModeSlot
     var onWrite: (() -> Void)? = nil
     @State private var choosingFile = false
+    @Environment(\.isEnabled) private var editorEnabled
 
     private var busy: Bool { model.isBusy || model.isPreparing || session.isBusy }
     private var multitask: Bool { model.entry >= 16 }
@@ -63,6 +64,9 @@ struct StudioResourceInspectorView: View {
                         .help(NSLocalizedString("仅清除本地选择，不改变键盘。", comment: ""))
                     Button(NSLocalizedString("更换", comment: "")) { choosingFile = true }.buttonStyle(.link).disabled(busy)
                 }.font(.caption)
+                Text(String(format: NSLocalizedString("%d 帧 · 传输 %@", comment: ""), Int(draft.payload.frameCount),
+                    ByteCountFormatter.string(fromByteCount: Int64(draft.payload.bytes.count), countStyle: .file)))
+                    .font(.caption).foregroundStyle(.secondary)
                 if let summary = draft.adaptationSummary {
                     Label(summary, systemImage: "wand.and.stars").font(.caption).foregroundStyle(.secondary)
                 }
@@ -85,13 +89,17 @@ struct StudioResourceInspectorView: View {
             case .failure(let error): model.message = error.localizedDescription
             }
         }
-        .alert(NSLocalizedString("键盘当前素材已变化", comment: ""), isPresented: Binding(get: { model.conflict != nil }, set: { if !$0 { model.conflict = nil } }), presenting: model.conflict) { conflict in
-            Button(NSLocalizedString("采用键盘当前值", comment: ""), role: .cancel) { model.adopt(conflict, discardDraft: true) }
+        .alert(NSLocalizedString("键盘当前素材已变化", comment: ""), isPresented: Binding(get: {
+            StudioResourceConflictReadiness.mayPresent(hasConflict: model.conflict != nil,
+                editorEnabled: editorEnabled, operationBusy: busy)
+        }, set: { if !$0 && editorEnabled && !busy { model.conflict = nil } }), presenting: model.conflict) { conflict in
+            Button(NSLocalizedString("采用键盘当前值", comment: "")) { model.adopt(conflict, discardDraft: true) }
             Button(NSLocalizedString("确认修改", comment: "")) {
                 model.adopt(conflict, discardDraft: false)
                 if let onWrite { onWrite() }
                 else { model.write(ble: ble, session: session, restoring: conflict.restoring) }
             }
+            Button(NSLocalizedString("取消", comment: ""), role: .cancel) { model.conflict = nil }
         } message: { conflict in Text(conflictDescription(conflict)) }
     }
 
@@ -164,6 +172,9 @@ struct StudioResourceInspectorView: View {
                     Text("\(Int(Double(progress.completedChunks) / Double(max(1, progress.totalChunks)) * 100))%")
                         .monospacedDigit()
                 }.font(.caption).foregroundStyle(.secondary)
+                if let transfer = progress.transfer {
+                    Text(transferDescription(transfer)).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                }
                 Label(WS3ResourceUploadGuidance.cancellationRisk, systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             }
@@ -178,6 +189,26 @@ struct StudioResourceInspectorView: View {
                 .font(.caption).foregroundStyle(.orange)
         }
         if let feedback { Text(feedback).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
+    }
+
+    private func transferDescription(_ value: WS3ResourceTransferProgress) -> String {
+        func size(_ bytes: Int) -> String {
+            ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+        }
+        var parts = [size(value.completedBytes) + " / " + size(value.totalBytes)]
+        if let rate = value.bytesPerSecond {
+            parts.append(size(Int(rate.rounded())) + NSLocalizedString("/秒", comment: ""))
+        }
+        if let remaining = value.estimatedRemainingSeconds, remaining >= 1 {
+            let formatter = DateComponentsFormatter()
+            formatter.allowedUnits = remaining >= 3600 ? [.hour, .minute] : [.minute, .second]
+            formatter.unitsStyle = .abbreviated
+            formatter.maximumUnitCount = 2
+            if let text = formatter.string(from: remaining) {
+                parts.append(String(format: NSLocalizedString("预计剩余 %@", comment: ""), text))
+            }
+        }
+        return parts.joined(separator: " · ")
     }
 
     private var currentStatus: String {

@@ -31,6 +31,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let totalChunks: Int
         let completedFrames: Int
         let totalFrames: Int
+        var transfer: WS3ResourceTransferProgress? = nil
 
         var fractionCompleted: Double {
             guard totalChunks > 0 else { return 0 }
@@ -1167,6 +1168,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             if generation == commandSessionGeneration { isUploadingOLED = false; oledUploadProgress = nil }
         }
         var lastProgressAt = ProcessInfo.processInfo.systemUptime
+        var transferStartedAt: TimeInterval?
         do {
             let actual = try await ConfirmedWS3ResourceUpload.run(payload: payload, baseline: baseline,
                 generation: generation, maximumWriteLength: maximum, checkSession: {
@@ -1176,10 +1178,12 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                         confirmedWrite: request[2] == 0x88 ? .none : .ws3Resource).frame
                 }, progress: { bytes, total in
                     let now = ProcessInfo.processInfo.systemUptime
+                    if transferStartedAt == nil { transferStartedAt = now }
                     guard bytes == total || now - lastProgressAt >= 0.2 else { return }
                     lastProgressAt = now
                     self.oledUploadProgress = .init(completedChunks: (bytes + chunkSize - 1) / chunkSize,
-                        totalChunks: totalChunks, completedFrames: bytes / Int(WS3ResourceReadback.frameBytes), totalFrames: Int(payload.frameCount))
+                        totalChunks: totalChunks, completedFrames: bytes / Int(WS3ResourceReadback.frameBytes), totalFrames: Int(payload.frameCount),
+                        transfer: .init(completedBytes: bytes, totalBytes: total, elapsedSeconds: now - (transferStartedAt ?? now)))
                 })
             try ensureConfigurationReadSession(generation)
             ws3DisplaySnapshot = WS3DisplaySnapshot(generation: generation, brightness: baseline.brightness,
