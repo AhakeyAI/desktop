@@ -1,0 +1,342 @@
+{
+  "automated": {
+    "swiftTests": 999,
+    "swiftFailures": 0,
+    "maintainerTests": 20,
+    "maintainerFailures": 0,
+    "codexGeneratorCompileAndRevokeFixture": true
+  },
+  "cliLifecycle": {
+    "claude": {
+      "cli": "2.1.299 (Claude Code)",
+      "lifecycle": {
+        "initial": {
+          "hooks": 12,
+          "executed": [
+            "SessionEnd",
+            "SessionStart",
+            "UserPromptSubmit",
+            "user"
+          ],
+          "exit": 0
+        },
+        "reinstall": {
+          "hooks": 12,
+          "executed": [
+            "SessionEnd",
+            "SessionStart",
+            "UserPromptSubmit",
+            "user"
+          ],
+          "exit": 0
+        },
+        "remove": {
+          "hooks": 1,
+          "executed": [
+            "user"
+          ],
+          "exit": 0
+        }
+      },
+      "modelRequests": 0
+    },
+    "kimi": {
+      "cli": "2.4.0",
+      "lifecycle": {
+        "initial": {
+          "configuredHooks": 10,
+          "executed": [
+            "KimiSessionStart",
+            "KimiUserPromptSubmit",
+            "user"
+          ],
+          "cliExit": 1
+        },
+        "reinstall": {
+          "configuredHooks": 10,
+          "executed": [
+            "KimiSessionStart",
+            "KimiUserPromptSubmit",
+            "user"
+          ],
+          "cliExit": 1
+        },
+        "remove": {
+          "configuredHooks": 1,
+          "executed": [
+            "user"
+          ],
+          "cliExit": 1
+        }
+      },
+      "modelRequests": 0,
+      "scope": "temporary home; lifecycle only; no live dial control claimed"
+    },
+    "cursor": {
+      "cli": "2026.10.19-6bbf2c4",
+      "lifecycle": {
+        "initial": {
+          "configuredHooks": 10,
+          "executed": [
+            "sessionEnd",
+            "sessionStart",
+            "user"
+          ],
+          "expectedStreamFailure": true
+        },
+        "reinstall": {
+          "configuredHooks": 10,
+          "executed": [
+            "sessionEnd",
+            "sessionStart",
+            "user"
+          ],
+          "expectedStreamFailure": true
+        },
+        "remove": {
+          "configuredHooks": 1,
+          "executed": [
+            "user"
+          ],
+          "expectedStreamFailure": true
+        }
+      },
+      "scope": "startup/exit only; loopback metadata and unsupported Agent stream; no real model/provider",
+      "promptAndToolCallbacks": "not verified"
+    }
+  },
+  "realCursor": {
+    "exitCode": 143,
+    "timedOut": true,
+    "maximumAuthorizedRequests": 1,
+    "projectCodeIncluded": false,
+    "stdoutBytes": 0,
+    "stderrBytes": 0,
+    "conclusion": "one authorized attempt timed out; real prompt/tool lifecycle not verified; no retry"
+  },
+  "readOnlyConfiguration": {
+    "timeWindow": "latest contiguous segment 12:21:32–12:24:34",
+    "lines": 632,
+    "txByCommand": {
+      "00": 115,
+      "9F": 2,
+      "95": 2,
+      "96": 2,
+      "97": 2,
+      "87": 32
+    },
+    "persistentKeyAndResourceWriteCommands": 0,
+    "disconnectOrTimeoutLines": 0
+  },
+  "lights": {
+    "atUTC": "2026-11-04T04:39:45.482480+00:00",
+    "clientBuild": 548,
+    "clientCommit": "bb95525be801680d282a9900fd63058f60a967fd",
+    "firmwareIdentity": "x1-c582-hw1-p1-1.0.1-r001",
+    "modes": [
+      "Claude",
+      "Cursor",
+      "Codex",
+      "Kimi"
+    ],
+    "states": [
+      "会话开始",
+      "用户提交",
+      "工具执行",
+      "等待授权",
+      "工具完毕",
+      "通知",
+      "任务完成",
+      "停止",
+      "会话结束"
+    ],
+    "freshUIReadsPassed": 36,
+    "readScope": "explicit refresh of each selected mode/state through existing inspector",
+    "brightness": 35,
+    "lightDraftTargetsPreserved": 37,
+    "lightDraftsSemanticallyPreserved": true,
+    "comparisonNote": "Swift enum-key dictionaries encode as alternating key/value arrays; normalized as maps before comparison",
+    "unconfirmedPreserved": true,
+    "hardwarePersistentWrites": 0,
+    "visualEffectsTestedThisRound": false,
+    "powerCycleTestedThisRound": false
+  },
+  "brightnessWrite": {
+    "sequence": [
+      35,
+      36,
+      35
+    ],
+    "successDialogsObserved": 2,
+    "continueEditingObserved": true,
+    "finishEditingObserved": true,
+    "restored": true,
+    "powerCyclePending": true
+  },
+  "standby": {
+    "value": 60,
+    "sameValueConfirmation": "已确认：当前配置已核对一致，无需写入。",
+    "viewModeShowsCurrentValue": true,
+    "readbackBelowPickerWithRefreshIcon": true,
+    "sameValueConfirmationCompleted": true
+  },
+  "resources": {
+    "metadataReadThroughProductionProfile": 19,
+    "allPositionCardsInspected": 19,
+    "allReportDefault": true,
+    "pixelUploadThisRound": false
+  },
+  "voiceCards": {
+    "threePresentBeforeAndAfterScroll": true,
+    "currentDraftCustomRegularKeyboard": true,
+    "noKeyWriteThisRound": true,
+    "screenshotVerifiedAfterScroll": true
+  },
+  "restoreWizard": {
+    "step1RangeVisible": true,
+    "step2NeverRestoredReadback": true,
+    "unconfirmedExternalPowerBlocksExecution": true,
+    "cancelledBeforeExecution": true,
+    "restoreRequestsThisRound": 0
+  },
+  "firmwareHostTests": {
+    "atUTC": "2026-11-04T05:06:45.038376+00:00",
+    "sourceCommit": "72346b001710d573980a7d398b9e0dced8ff627c",
+    "compiler": "Apple clang host C99 -Wall -Wextra -Werror",
+    "physicalDeviceTouched": false,
+    "windowsPowerShellStaticGuardsExecuted": false,
+    "sdkDependentProductionTUReexecuted": false,
+    "cases": [
+      {
+        "name": "restore-store-coordinator",
+        "scope": "real shared store and coordinator with host fake EEPROM; not production command/GAP TU",
+        "compileExit": 0,
+        "exit": 0,
+        "output": "PASS: RESTORE_INITIALIZATION_HOST_TESTS"
+      },
+      {
+        "name": "k1-route-store",
+        "scope": "real shared store with host fake EEPROM",
+        "compileExit": 0,
+        "exit": 0,
+        "output": "PASS: CP2_6_ROUTE_STORE_HOST_TESTS"
+      },
+      {
+        "name": "resource-display-config",
+        "scope": "real resource map/upload transaction with host fake operations",
+        "compileExit": 0,
+        "exit": 0,
+        "output": "PASS: resource display config host tests"
+      },
+      {
+        "name": "ordinary-key-contract",
+        "scope": "standalone contract model; not production command handler",
+        "compileExit": 0,
+        "exit": 0,
+        "output": "PASS: CP4D ordinary-key readback model checks"
+      },
+      {
+        "name": "side-switch-contract",
+        "scope": "standalone contract model; not physical GPIO",
+        "compileExit": 0,
+        "exit": 0,
+        "output": "PASS: CP4C side-switch customization model checks"
+      }
+    ]
+  },
+  "performanceMixedWindow": {
+    "atUTC": "2026-11-04T05:08:05.390900+00:00",
+    "durationSeconds": 599.511973084,
+    "samples": 116,
+    "pidsContinuous": true,
+    "frontmostSamples": 31,
+    "foregroundChecksAvailable": false,
+    "cpuPercentOfOneCore": {
+      "studio": 1.1893006845754825,
+      "agent": 0.5587878391764192
+    },
+    "rssKiB": {
+      "studio": {
+        "first": 100736,
+        "last": 72624,
+        "peak": 111520
+      },
+      "agent": {
+        "first": 14416,
+        "last": 15504,
+        "peak": 15840
+      }
+    },
+    "validForegroundWindow": false,
+    "configuredGIFfps": 12,
+    "effectiveGIFfps": 2,
+    "selectedComponent": "light strip",
+    "scopeCorrection": "Unfocused GIF is capped to2FPS by AnimatedGIFView; this run is not a12FPS stress result.",
+    "verifiedNotMinimizedSamples": 31,
+    "unavailableWindowChecks": 85,
+    "scopeNote": "Do not interpret unavailable foreground checks as verified non-minimized observations; first157s had a2FPS unfocused GIF, not12FPS."
+  },
+  "performanceForegroundSubset": {
+    "scopedForegroundSeconds": 157.498037167,
+    "scopedForegroundIntervals": 30,
+    "scopedCPUPercentOfOneCore": {
+      "studio": 2.292092057104318,
+      "agent": 0.4761964107557429
+    }
+  },
+  "performanceValidityNote": "Only first31 samples had verified frontmost state; later window inspections unavailable. Mac confirmed locked after sampling. Full600s foreground result NOT_VERIFIED.",
+  "cursorAuthStatus": {
+    "exitCode": 0,
+    "timedOut": false,
+    "loggedInIndicator": true,
+    "requiresLoginIndicator": false,
+    "modelRequestSent": false
+  },
+  "claudeNewCommandLiveReload": {
+    "passed": false,
+    "observedExecutedHooks": [
+      "user"
+    ],
+    "scope": "same-process new managed command not executed; no claim of all hot reload failure"
+  },
+  "candidateBuild": 549,
+  "candidateCommit": "bd2694d56a1bbf59d316ea5a6d816e4853f62479",
+  "uiMatrixBuild": 548,
+  "onlyUpdateManagerChangedBetweenCandidates": true,
+  "pending": [
+    "manual Mac unlock",
+    "physical manual/automatic lever and same original session readback",
+    "Codex F18 short/long voice and restore Right Alt/Record",
+    "normal power cycle",
+    "F99D resource upload/cancel smoke",
+    "600s verified foreground with selected OLED at12FPS"
+  ],
+  "recordedAtUTC": "2026-11-04T06:11:16.098647+00:00",
+  "testResult": "IN_PROGRESS",
+  "scope": "does not close all8 full firmware/legacy/fault matrices",
+  "guiHelperPreparation": {
+    "updateCardProductionComponentSignedAndReady": true,
+    "localOnlyKeyCodePadSignedAndReady": true,
+    "helpersLaunched": false,
+    "globalKeyboardMonitoringAdded": false,
+    "updateCardHelperLaunchedAndClosed": true,
+    "physicalInputPadLaunched": false
+  },
+  "updateComponentVisual": {
+    "productionSourceComponentUsed": true,
+    "simulatedInstalledVersion": "0.0.0",
+    "installedStudioVersionNotModified": true,
+    "publicReleaseTag": "v0.2.3",
+    "observedNonzeroProgressValue": 0.001282402264761848,
+    "observedDownloadText": "15 KB / 11.8 MB · 6 KB/s",
+    "completionButtons": [
+      "安装更新",
+      "打开文件位置"
+    ],
+    "installOrRevealInvoked": false,
+    "helperOwnDownloadMovedToRecoverableTrash": true,
+    "trashEmptied": false,
+    "installedStudioStillRunning": true
+  },
+  "stopPoint": "Operator physical manual lever step has not been observed; GUI has recovered from intermittent lock. Codex temporaryF18 restoration remains required."
+}
