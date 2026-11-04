@@ -1,0 +1,1065 @@
+{
+  "date": "2026-11-04",
+  "target": "origin/win-zxy-harness",
+  "target_base": "bc633a75",
+  "retained_source_history": "369da0d7662db32142d00893f668a9f69053e695",
+  "tested_candidate": "b9466fb1e0d8fa517d9869de07b92fe2c598d363",
+  "main_anpx_before_accidental_upload": "22e49fbbc012ffc642b0d5a0da389dadf0c28e58",
+  "strategy": "preserve destination tree and history; exact tested Windows product subtree transfer; retain and append Harness records",
+  "other_platforms_unchanged": true,
+  "product_subtrees_match_saved_candidate": [
+    "src",
+    "scripts",
+    "pom.xml",
+    "third-party"
+  ],
+  "files": [
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/PUBLIC_SNAPSHOT.md",
+      "git_blob_sha256": "78776fef52832547deacf22440f3dc2286ea9a926010ce69643c9ad648bc3b4b",
+      "bytes": 5755
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/STATE.json",
+      "git_blob_sha256": "68cddee47e3419fbfe64be9cd11c5a6ca26999391c70797c2d14bf0194c04472",
+      "bytes": 6588
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/BRIDGE_FIX_REVISION_REASON_20261023.md",
+      "git_blob_sha256": "1086011c74335d19fc6cb2c20b4717c94d61ed95d05f96a48c59ce41d6cbccff",
+      "bytes": 2011
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/FRESH_R12_BINDING_20261026.json",
+      "git_blob_sha256": "17796c6a37c675e9dabdb9568e4c73e4f81aca54b835f88f4c3908e7cf66eadc",
+      "bytes": 1036
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/R10_INSTALLED_BASELINE_OBSERVATION_20261025.md",
+      "git_blob_sha256": "b522ad588306c0282db8bc92137a003b3cd9eac1e08c80f441ba0c6672146698",
+      "bytes": 918
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/R10_INSTALL_UPGRADE_SCOPE_20261025.md",
+      "git_blob_sha256": "c4d9f505777ad4d282c0cf7d231032e360d7d509c99e7418e11108ca56d14951",
+      "bytes": 3876
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/R10_RECONCILE_REASON_20261025.md",
+      "git_blob_sha256": "2b918f9302b7c12165fd9edaf6d9f8a493f19ec2ad5fbd50c83c22bf4d004878",
+      "bytes": 2009
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/R9_COMPLETE_DELIVERY_SCOPE_20261024.md",
+      "git_blob_sha256": "c09cd6ac39b45baaf54be79029050aa7a649ef9f3898a0535af95ffcaf957ae9",
+      "bytes": 6663
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/R9_FIRMWARE_REFERENCE_PIN_REASON_20261024.md",
+      "git_blob_sha256": "d31afdfbe9b149863383eba78107a79aff19dddef56d063affa0fd4f9f5c67be",
+      "bytes": 1299
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/R9_RECONCILE_REASON_20261024.md",
+      "git_blob_sha256": "a9f03e78f21849eabea65726a9819d0ae4f41e92a5f6c71adc69d7054628c2c3",
+      "bytes": 3251
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/TRANSPORT_REVISION_REASON_20261023.md",
+      "git_blob_sha256": "8d02ec04335bf00416e945b7bf594a717c1e88903e35efef8ba13a6fd54611a5",
+      "bytes": 1395
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/UI_CAPABILITY_SCOPE_REASON_20261024.md",
+      "git_blob_sha256": "f5f6390f72f1631c301f7164c09674cf2f13593f68ceb6ad9f8894cb095ece7b",
+      "bytes": 1744
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/UPDATE_CENTER_REVISION_REASON_20261023.md",
+      "git_blob_sha256": "bcef9bd9c6b4b8dd594d184de60c2415c9a3b094928d0d29048b3755fb37e3dd",
+      "bytes": 2077
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/change.json",
+      "git_blob_sha256": "1f923d41f86b6313ac97ff0f2e497e469ebee434ea7229999d635e013c541b9e",
+      "bytes": 59258
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/r9-engineering-20261024/BUNDLE_INPUTS.json",
+      "git_blob_sha256": "bd8e6fe7dd749352c94c76d45261e774d1fda46ed45bd66558e82a2f43c1527e",
+      "bytes": 3939
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/r9-engineering-20261024/DIB_HANDOFF.md",
+      "git_blob_sha256": "2142bed77e82e4dc9e9d26b38d3b3f8dde7765a9fcc075112d9f8e1d1f50b22f",
+      "bytes": 17149
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/r9-firmware-snapshot-20261024/MANIFEST.json",
+      "git_blob_sha256": "eb10a7d6001fdac97c97ec767aba597ab74aee3bb7cc1fe1c4fbd2adc1e4a715",
+      "bytes": 8017
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/r9-firmware-snapshot-20261024/fw-cp26-route-protocol.yaml",
+      "git_blob_sha256": "1a645349cec709c60c0b19575e832ac4e8823a4457e3b6a0c44dfb1a406508eb",
+      "bytes": 5296
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/r9-firmware-snapshot-20261024/fw-cp26-route-store-header.h",
+      "git_blob_sha256": "6880c33d3fa24b541350fd83ee41adf5c50bbbdbb61702b088bec9d3e28c2331",
+      "bytes": 992
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/r9-firmware-snapshot-20261024/fw-cp26-route-store-impl.c",
+      "git_blob_sha256": "3e56aea309eae02a3dec0f47a5bfccd90e891edab67bf8c4eb06e73c5360581f",
+      "bytes": 11145
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/r9-firmware-snapshot-20261024/fw-transport-boundary-0.h",
+      "git_blob_sha256": "8e1983f31575165202606cb98135e8a0bdcb6a6445448956030ddb14d09f2f00",
+      "bytes": 863
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/r9-firmware-snapshot-20261024/fw-transport-boundary-1.c",
+      "git_blob_sha256": "0c33c05b983bc290324a0501b2c1eabd31f610348b095f768515dd7e902f168f",
+      "bytes": 6404
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/r9-firmware-snapshot-20261024/fw-transport-boundary-2.c",
+      "git_blob_sha256": "07091a0780e88e02e76d637b399f7c68163f4cfcfb57179d348619d61f9aa301",
+      "bytes": 68076
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/r9-firmware-snapshot-20261024/fw-transport-boundary-3.c",
+      "git_blob_sha256": "b1c5647057691905c5c40d85fb2a2d90520cf20b68aad2934b28b868ae18a4ad",
+      "bytes": 22365
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/r9-review-20261024/R9_DESIGN_REVIEW.json",
+      "git_blob_sha256": "f3b551699a921201800dfbe5e90841efb2ac451312cee53341716079a22fc33e",
+      "bytes": 11164
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/r9-review-20261024/R9_DESIGN_REVIEW.md",
+      "git_blob_sha256": "121919d44959459c607ca2ca9d3981d2483e1e93c81d69d54ac5cbdd57677f5a",
+      "bytes": 15503
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/reviews/20261026T041952180898Z-bd4e14/ACTUAL_DIFF.txt",
+      "git_blob_sha256": "a990473ba1339a54de860406a440fef1a81877ff19d1511e20668bd58f3a413a",
+      "bytes": 2120180
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/update-center-inputs-20261023/CONTRACT_READY_20261023.json",
+      "git_blob_sha256": "f469733d62d0a675494b225a080823bf7e68ac70793df5281671d5be40e12b18",
+      "bytes": 8885
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/update-center-inputs-20261023/CONTRACT_READY_20261023.md",
+      "git_blob_sha256": "6ef0428392dd16e2eaea25631a52bbcd452ff3aa6035066fbb9367793b4e2ffd",
+      "bytes": 16066
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/update-center-inputs-20261023/ENGINEERING_RESOLUTION_20261023.json",
+      "git_blob_sha256": "6285f61d6816c14d8a6f35e60ffbfcdfaece925048f5b52d0b196948ec0dbe74",
+      "bytes": 10081
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/update-center-inputs-20261023/ENGINEERING_RESOLUTION_20261023.md",
+      "git_blob_sha256": "8b780818242e8acd089bbbd2bf6840c296a156a163a08f38445b2d8dd37f5a71",
+      "bytes": 20529
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/update-center-inputs-20261023/GITHUB_RELEASE_OBSERVATION_20261023.json",
+      "git_blob_sha256": "f2369c2d527b415ef36da6b6581a09c386299a325e375d11ca958a277336711d",
+      "bytes": 5116
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/update-center-inputs-20261023/HTTP_OBSERVATION_20261023.json",
+      "git_blob_sha256": "e060aa7d210cc39c69959c5b038b654a42fc361e0b4a843c5084a1a9f0d8cba0",
+      "bytes": 1304
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-006/update-center-inputs-20261023/SOURCE_HASHES_20261023.json",
+      "git_blob_sha256": "0c86550eac45b2481188eb71b0d10587c2a0fef544d162693ae5829338279415",
+      "bytes": 18343
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/CONTRACT.md",
+      "git_blob_sha256": "c3df118b51b0adddbab81b3eab40d3d31c459100d6596b7ed06d8d6cea0ad1a8",
+      "bytes": 9004
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/CONTRACT_R4_ADDENDUM.md",
+      "git_blob_sha256": "9a709a16772e2a4edc8e5541912cec229f1a07e94379b3d65a6f2411219da71e",
+      "bytes": 3822
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/CONTRACT_R5_CURSOR_ADDENDUM.md",
+      "git_blob_sha256": "4e2609e190fdf5a137e78f44b6a87dc4c19cb1089584c42909e5b82b502f020f",
+      "bytes": 2694
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/CONTRACT_R6_FIRMWARE_BRIDGE_ADDENDUM.md",
+      "git_blob_sha256": "3901fb4b3c149f726c2d8bf072bcb2e299500240bf076b77e227dd50b7f9b650",
+      "bytes": 4556
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/EXECUTION_REPORT.md",
+      "git_blob_sha256": "231465f1d1e5b0c4f8ee7d961c745f70d242ab36373db321e8090d3cf15007b0",
+      "bytes": 5466
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/IMPLEMENTATION_RECEIPT.json",
+      "git_blob_sha256": "77b965e3fffca6250b2d972eb16bc516226615df26e1089b13e4f7b11f31f60d",
+      "bytes": 604
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/OWNER_DECISIONS.md",
+      "git_blob_sha256": "aa37b6ea062333e5a32c34d251144974ecd5797f226acf22f29bdd4579f75eb4",
+      "bytes": 15116
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/OWNER_REJECTION_20261101.md",
+      "git_blob_sha256": "3e4f503d46788d88cd8718d9f88c4da9f2827d9e433a2f11c74d8578685b3fd5",
+      "bytes": 2367
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/REFERENCES.json",
+      "git_blob_sha256": "e2e451a5a5697d2e8fb3d557585c5fefbb2be15b5a3285fec81dbdfa46e95206",
+      "bytes": 667
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/REVIEW.json",
+      "git_blob_sha256": "d506534dc81555274e1bf40a76d40000db7af32c3c8bfe63f71c40f484c0a253",
+      "bytes": 66098
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/SOURCE_MANIFEST.json",
+      "git_blob_sha256": "48b39edf4e4dad9463239f824149caeb6ad66e297d0a2fbbd5f848c7fbddbb7e",
+      "bytes": 821
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/TECHNICAL_BOUNDARIES.md",
+      "git_blob_sha256": "b134d69c3b7facfad2e1751b621453bc38e286e30a300621d132d718c46fe44b",
+      "bytes": 5167
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/builder_submission.json",
+      "git_blob_sha256": "843886f06ee88729b1f59c20520b1e5ba35f10c6f71901bcbe96faa31e94de81",
+      "bytes": 367
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/change.json",
+      "git_blob_sha256": "2099463481d7c144d14d72bd3a9db2a91a235b810dea9f368a319390f1170bab",
+      "bytes": 61981
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/guard-origin.json",
+      "git_blob_sha256": "7600c52d49b708983c6345068f6b81f4ab93c20ea70662d8b5bc7b9c8085347a",
+      "bytes": 152520
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/independent-review/FINAL-03.json",
+      "git_blob_sha256": "ee819a6706b359cae2a3deaa46d29a038809494d1908f4f69505f377c6d44941",
+      "bytes": 12513
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/independent-review/FINAL-04.json",
+      "git_blob_sha256": "90c1c5b207212bc466c33b9139b9272664767fb56b707072f812376211440414",
+      "bytes": 12755
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/independent-review/FINAL-R6-01.json",
+      "git_blob_sha256": "155560d887e7e13eb6b14b1b17f709e35f742a1100843507a07bc00273709a7f",
+      "bytes": 65669
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/preserved_foreign_inputs.json",
+      "git_blob_sha256": "a99c72b1b24e7ad32c72d878b67072f4a217c3794d3c359d3bf46b2eeef9f83f",
+      "bytes": 1718
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/reference-snapshots/command_solve.c",
+      "git_blob_sha256": "7beb73af471745f57a1e7dda5274ad5ee67ce1bf90b8a9aa4f32b6f33c8e0853",
+      "bytes": 71719
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/reference-snapshots/psk_multi_button.c",
+      "git_blob_sha256": "7c4c70da13b56508212acade0acf7083ac3c88ea9ada08f3214815bf9cf05021",
+      "bytes": 24275
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/review_pack.json",
+      "git_blob_sha256": "be5898e02e50e424704ad759fdd40cd3a9a19b856304040f8d2e7565226d22de",
+      "bytes": 16340
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/reviews/20261031T033130978942Z-6f3166/ACTUAL_DIFF.txt",
+      "git_blob_sha256": "1e286f007da421e6204647bebd84ea1e030bca9ced0f5465064913a8714c532b",
+      "bytes": 452150
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/reviews/20261031T035646842103Z-df80ba/ACTUAL_DIFF.txt",
+      "git_blob_sha256": "cac75fb8689cb4a8854111aecc11c1d4c745100ae3b14205fe466062b79768e7",
+      "bytes": 453796
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/reviews/20261101T070603660204Z-227ed4/ACTUAL_DIFF.txt",
+      "git_blob_sha256": "9225160b487bd21fa0e6a7347c6e3ed783cdc6965251391c84daa33d0fecf655",
+      "bytes": 874330
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/rollback-20261101/APPLIED.json",
+      "git_blob_sha256": "a7ddf4ffd76b90cc92fcf1259f555ea0b63ef6e3ea7e781d72374a82f5e3c4ed",
+      "bytes": 188
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/rollback-20261101/PLAN.json",
+      "git_blob_sha256": "f6d215bf1e041328a496088bd6c7af03e68e30ab6bf2f816c8fc13d2194d56ca",
+      "bytes": 85992
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/start-fingerprint.json",
+      "git_blob_sha256": "8ec75c3a8dbc1cfd5949bb595732203544ce6db15a82cf6c6d8142dbe9153be4",
+      "bytes": 22224
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-007/verification.json",
+      "git_blob_sha256": "8008aeddfd8a3b77fcbdcdb860a39c96dde07461728c76e559692bb10f89e328",
+      "bytes": 8603
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/CONTRACT.md",
+      "git_blob_sha256": "36723955e2bf0b73d802789c59e677e2ae691e94a6af9ad7ab9e0a947479bcdf",
+      "bytes": 3853
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/EXECUTION_REPORT.md",
+      "git_blob_sha256": "2227b9dc02c6b2d25afc6356b64ec6e6f7ba599fd0c96dd7c858995720087600",
+      "bytes": 4762
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/FIRMWARE_FACTS.json",
+      "git_blob_sha256": "f7886ab8d8daaf3e0349c7b089ff178b7cd8b1ab6119f2cae1f444aaf99dad89",
+      "bytes": 83787
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/GIT_SAVEPOINT_SCOPE.json",
+      "git_blob_sha256": "fa23e0d1f5e5c779a5ddf17a5a8aab0ad1c131aad79fac61a2616708261a8d0c",
+      "bytes": 3444
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/IMPLEMENTATION_RECEIPT.json",
+      "git_blob_sha256": "d3826d6639c402b9c7121901e5909dbb60c6c1d55ad98a10554fc724e0e5acff",
+      "bytes": 604
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/OWNER_DELIVERY.json",
+      "git_blob_sha256": "ea4c69d77aeb7be5e470e8dd8be25f9e9166cb05b462de28aa942ffb9bcee069",
+      "bytes": 791
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/OWNER_PREVIEW_TEST.md",
+      "git_blob_sha256": "4ddac8a40ae7624a798dc41971252ecad9b5acfdd69aef1c1a418d6f2c2a32e2",
+      "bytes": 4172
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/OWNER_REPORT_INPUT.json",
+      "git_blob_sha256": "4014fa65a906bcc60f5b436101c801d31160b38724e2c27e9d0ceda9fe0d685c",
+      "bytes": 4345
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/OWNER_TEST.md",
+      "git_blob_sha256": "65d48c30bc557e521b733787b918517c335101053dc2fe84941180aa9890b5b3",
+      "bytes": 987
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/PACKAGING_RECIPE_CHECK.json",
+      "git_blob_sha256": "55bf1d44fc656330e5f5a78767fdb037c9cc569864e1f8763e715569ca8f2ea4",
+      "bytes": 2448
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/PACKAGING_RESOURCE_AUDIT.json",
+      "git_blob_sha256": "cf49181cfd4cd2d253426b30fbf78cb347acd4924be703a5d86ad0c49945a645",
+      "bytes": 1501
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/PREVIEW_BUILD_REPORT.md",
+      "git_blob_sha256": "046edfa62c402446b08483c27c66aba228f7a9ec87bb87068183a6c26dabfece",
+      "bytes": 4424
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/PREVIEW_FIRMWARE_MATRIX.json",
+      "git_blob_sha256": "5a81befcb53d7629632bf2f657a158e5c243225ae4882594fe7639bd3e2b28bf",
+      "bytes": 2169
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/PREVIEW_LATEST.json",
+      "git_blob_sha256": "fe2b618e5f9492689e5d44a2d8c42180c345f26f7ea2e17d5823a0b0cb185e80",
+      "bytes": 62197
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/R13_PACKAGING_INPUT_COMPARISON.json",
+      "git_blob_sha256": "f8e9155155e3bf952032c12fe93a361a0db0e87de3cfe09161da3c4b2832cb82",
+      "bytes": 15036
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/REFERENCES.json",
+      "git_blob_sha256": "4fb8d569b37e164489adead365aab4789734e2c64b8a80a69d8d11d3164cecba",
+      "bytes": 573
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/REVIEW.json",
+      "git_blob_sha256": "8e46da0c99f3ac90624e314e5b50bd073b1e458ed0afd75acde41d610c38751a",
+      "bytes": 4209
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/REVIEW.md",
+      "git_blob_sha256": "c533270268e7b13bb4f91b48377a7cad255fddabfa1e61a9007c87316be5ca4e",
+      "bytes": 583
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/START_GIT.json",
+      "git_blob_sha256": "b54c3334705cfa67d61b06e20a0a19a175df54261d1604c8e54ff31f51fe2d94",
+      "bytes": 831
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/builder_submission.json",
+      "git_blob_sha256": "152b06310fbace4a7f7bd46f50cba1e431065fef5220f8af906904267f83c64a",
+      "bytes": 367
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/change.json",
+      "git_blob_sha256": "119985a6dcbed491dc362b5f6f5ce3d355d3527fe9f846421163b09289aac1d4",
+      "bytes": 57281
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/guard-origin.json",
+      "git_blob_sha256": "1eeda82b21d05ae46afb00fd84354e9406d26df4c9a8ab69003de41f01e55e7b",
+      "bytes": 163919
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/independent-review/REVIEW.json",
+      "git_blob_sha256": "73cdedc486c5ee20404ba9ef008b089b9671aebdf7724a036934862a801e4cc1",
+      "bytes": 4750
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/independent-review/REVIEW.md",
+      "git_blob_sha256": "623f729d12da67a57b1bc8daf5d244cf06bd395d06a78ceb07de6470721a738b",
+      "bytes": 2674
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/review_pack.json",
+      "git_blob_sha256": "5b890429856b983ef09bbd9ce7460b21e52bb1deb5a7abc51bfce94eac892c50",
+      "bytes": 11954
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/start-fingerprint.json",
+      "git_blob_sha256": "a241cb9b906bd320ee7d85ad198126ef6f2c5cb6c8357e536c5e3756b69ad20a",
+      "bytes": 22224
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-008/verification.json",
+      "git_blob_sha256": "e311153907c692e0db191a0b22bf7b66aa43f3862563c22aa4ae007fc0305f77",
+      "bytes": 2732
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/CANDIDATE_GIT_PLAN.ps1",
+      "git_blob_sha256": "6d00c7a19972c7fcf2d6cb140c031b0c875fa26e19373c22cdcfd79e41eda958",
+      "bytes": 4901
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/CONTRACT.md",
+      "git_blob_sha256": "be675fa5dcfd17bd3fb95f31bd34e1d4bc84d161c895ba9490b9fcf3b74d5799",
+      "bytes": 9093
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/CONTRACT_REVISION_R2_REASON.md",
+      "git_blob_sha256": "cf0621df9fc557fa4fd0ef59c917135946633388cc861f7aa4702f522f4b261b",
+      "bytes": 1028
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/CONTRACT_REVISION_R3_REASON.md",
+      "git_blob_sha256": "ce73da9fdcce758fcc87c1a89b595a0eb346a2ccf1ec37683937bb1437d2b426",
+      "bytes": 937
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/CONTRACT_REVISION_R4_REASON.md",
+      "git_blob_sha256": "0a0075338b263e98bf0ed269e59679b4505c07045e2e0dde2d9ddeea909ee5a4",
+      "bytes": 976
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/DLA_PACKAGE_CHECK_R4.json",
+      "git_blob_sha256": "493405a9bf8e817283aaf66bdd6bae90a6f2115f29725809e5421f19e847086f",
+      "bytes": 837
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/EXECUTION_REPORT.md",
+      "git_blob_sha256": "0a09afa37dd144bb285648d6af054ce95e38b88140651a7c9c1e44dbb747f329",
+      "bytes": 6408
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/FIRMWARE_MATRIX.json",
+      "git_blob_sha256": "8d345ca3c34051cd71a56fd2042287e6d86e2b9da07aeb874c928f677899812e",
+      "bytes": 2266
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/GIT_SAVE_RESULT_20261104.md",
+      "git_blob_sha256": "971150d646206336c2cadea0416439b5d09ba19027b0a54d8b163c188fc2c667",
+      "bytes": 1578
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/GIT_SAVE_REVIEW_20261104.md",
+      "git_blob_sha256": "cbf9438176fb0db5b4ed531cafc45b9139e5ecb42704b21cfbb9bc5405275a82",
+      "bytes": 2015
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/GIT_UPLOAD_RESULT_20261104.md",
+      "git_blob_sha256": "8c1e15527bc927ea7da2091c06dfe0434edec2d150850f9c893b709df3c95dd5",
+      "bytes": 1543
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/IMPLEMENTATION_CHECKS_R4.json",
+      "git_blob_sha256": "84b1eb0ef2081a18d801bfcafad8d00931ebf9ec33dfa3d60655d765d1a77269",
+      "bytes": 11319
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/IMPLEMENTATION_RECEIPT.json",
+      "git_blob_sha256": "72e6fa1866ce2fff758ba2ce3220f4f4164c2393057e81cb5c88b9be35c910bf",
+      "bytes": 604
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/OWNER_DELIVERY_REPORT_R4.json",
+      "git_blob_sha256": "578878f66e28fde7f0e49e5e922f932c4718c1fe31880dbb9cdcee898c1cc031",
+      "bytes": 3735
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/OWNER_HOOK_TEST_R3.md",
+      "git_blob_sha256": "35c26267bf175d007661569cfe81d1501e555dd9e0ec04bbcc42e5a78cdcd610",
+      "bytes": 3103
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/OWNER_TEST.md",
+      "git_blob_sha256": "50a8defcb36ebce86c46139dc2589b0ec68c1f6360e81b1332b1bb6d155d2999",
+      "bytes": 987
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/PREVIEW_BUILD_REPORT_R4.md",
+      "git_blob_sha256": "692fccb8a89086cd6a47900f2a37e1812bcf1c7db10ece26d869c7370fcc520c",
+      "bytes": 4173
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/PREVIEW_LATEST.json",
+      "git_blob_sha256": "ea16791a8dc51276673870c1c39f454dd95db67ce7698cb8cce6fdeb87fcc513",
+      "bytes": 1847
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/PREVIEW_RESULT_LATEST.json",
+      "git_blob_sha256": "0a532f192ccc8a6002db4909cca401a48cd6154ec95f800a14e1336bdfcc195b",
+      "bytes": 578
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/REFERENCES.json",
+      "git_blob_sha256": "4fb8d569b37e164489adead365aab4789734e2c64b8a80a69d8d11d3164cecba",
+      "bytes": 573
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/REVIEW.json",
+      "git_blob_sha256": "1514885855a05377fc72b46b877715c2baaf670696e91e7602e72eb9fa5cde66",
+      "bytes": 18727
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/builder_submission.json",
+      "git_blob_sha256": "089b4ff4dd13eca36dda75575e33f1ff0900a0f884d7fa5fbc646916adcbb925",
+      "bytes": 367
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/candidate.json",
+      "git_blob_sha256": "db6359cbb4a0ffce694d2e0ce54170fd3ccffac71e64119073d9ec9d43b90089",
+      "bytes": 4229
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/change.json",
+      "git_blob_sha256": "a05861a3b836adaa468ce86c83eb4a93561b5ca7646aacc2b6f7d47e3ed3cbac",
+      "bytes": 4252
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/guard-origin.json",
+      "git_blob_sha256": "6ec31dc4c8e21217b9bcb58d55d6beecb76bc7462aaaa1ea75501d206f11f15c",
+      "bytes": 164420
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/independent-review-r4/REVIEW.json",
+      "git_blob_sha256": "a4a07c22341ee6694eb3277a5b27f29cf3af42126af1f9e84f5654de235348c8",
+      "bytes": 9503
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/preserved_foreign_inputs.json",
+      "git_blob_sha256": "21c68419fa61075d45f25655745990404270550178330799109cd0fc2b6b135c",
+      "bytes": 1698
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/review_pack.json",
+      "git_blob_sha256": "f5ee6a6cbbd9a9cf83c39037e74816a1c33a6e73c06e2f20e48125446e06e8f7",
+      "bytes": 13252
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/reviews/20261103T072512844665Z-017c7c/ACTUAL_DIFF.txt",
+      "git_blob_sha256": "fd663f14cad7bda9e8ee2517f42d394c5409414f71ea24b817acd54a1563f730",
+      "bytes": 1131824
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/start-fingerprint.json",
+      "git_blob_sha256": "dcc961197b67928db72081c230d60b90ecc76860a1a8d5e55f3bb5be954982b0",
+      "bytes": 22530
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-009/verification.json",
+      "git_blob_sha256": "9e40e48b84e4c0924a2859af8ffc1e25fc128324f49b9ffd6683d1efefa4b307",
+      "bytes": 3062
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/20261101-wd009-exe-owner.md",
+      "git_blob_sha256": "6f0a23a63b6accda27172e37af6af155878f4f8ba9055b5ea07012dff3e2cd7c",
+      "bytes": 676
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/20261101-wd009-five-items-owner.md",
+      "git_blob_sha256": "caa77d446dbe82ea8ad949062bad4443beb520c39bf985e6d9f94ff971b840fc",
+      "bytes": 1831
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/20261102-wd009-kimi-ble-owner.md",
+      "git_blob_sha256": "fca8f69c68145e8de712c1080f71b7dbe16d9f5463b9f0f5bd94439e450625ad",
+      "bytes": 706
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/20261103-wd009-hook-fix-owner.md",
+      "git_blob_sha256": "03fc2d315ae015e6e29f3b5a5462e7c2bd995076f6aba1c34b69196558c4ed88",
+      "bytes": 1148
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/20261104-owner-fixed-zxy-branch.md",
+      "git_blob_sha256": "9808b49ceb9a7443f52f49d1f98f1dd481dd1de3950e37101b0afa309a129b4b",
+      "bytes": 1567
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/20261104-wd009-r4-owner-pass-git-push.md",
+      "git_blob_sha256": "9452d255fbba6b0eeec9795d2319c21d893ca3f60ddade534f3486236632a832",
+      "bytes": 1487
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/git-hooks/pre-push",
+      "git_blob_sha256": "435e5163f225d861213b22d2e9afd67851b52a9cfc7d4f3abd551b3fed64ad6a",
+      "bytes": 436
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/previews/WD-009/preview-20261103T072949372746Z-2afea7/OWNER_PREVIEW_RESULT.json",
+      "git_blob_sha256": "0a532f192ccc8a6002db4909cca401a48cd6154ec95f800a14e1336bdfcc195b",
+      "bytes": 578
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/previews/WD-009/preview-20261103T072949372746Z-2afea7/PREVIEW_RECEIPT.json",
+      "git_blob_sha256": "ea16791a8dc51276673870c1c39f454dd95db67ce7698cb8cce6fdeb87fcc513",
+      "bytes": 1847
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/previews/WD-009/preview-20261103T072949372746Z-2afea7/START.json",
+      "git_blob_sha256": "96b0f3656958f5bcbecf52b2a6e4e2da2a321600293e64bb9216f75cc8384ba9",
+      "bytes": 978
+    },
+    {
+      "path": "ahakeyconfig-win-java/AGENTS.md",
+      "git_blob_sha256": "b39a64870f800b6d4d4e958e9ce50cd860aabce185319ad857bbbe29c22c31f9",
+      "bytes": 10345
+    },
+    {
+      "path": "ahakeyconfig-win-java/pom.xml",
+      "git_blob_sha256": "888d421cee19e1b69520deb5ad5734838f0c9c78ccbcc38bc4405e5c24cca5f4",
+      "bytes": 7164
+    },
+    {
+      "path": "ahakeyconfig-win-java/scripts/ble-driver-fixes.patch",
+      "git_blob_sha256": "71bf0097c9db9afc8c40c5e3dff71ef2ec0bd01e3ab63bf345e958bb4c4f5e53",
+      "bytes": 48010
+    },
+    {
+      "path": "ahakeyconfig-win-java/scripts/build-ble-driver.ps1",
+      "git_blob_sha256": "7a8b90f2f498b05e17272c78c91c58df7360ccbf337f509326a962b54ad7ee10",
+      "bytes": 11362
+    },
+    {
+      "path": "ahakeyconfig-win-java/scripts/installer/dtf-toolchain.json",
+      "git_blob_sha256": "0344e7815eb77efce5184d14392bac8f8eff6407ae46d82f5b1f99f5a59c41c3",
+      "bytes": 5648
+    },
+    {
+      "path": "ahakeyconfig-win-java/scripts/installer/prepare-upgrade-resources.ps1",
+      "git_blob_sha256": "687181dd3f5d6bb9ea72f06238b9aa12b20ab0381ebf7be6c97e3b10a8365cda",
+      "bytes": 5437
+    },
+    {
+      "path": "ahakeyconfig-win-java/scripts/installer/test-installer-upgrade.ps1",
+      "git_blob_sha256": "6bccfd76770804084ad25ac3acdc7d86899805274fe4d47ad590ca95451c50af",
+      "bytes": 5246
+    },
+    {
+      "path": "ahakeyconfig-win-java/scripts/installer/test-jpackage-template.ps1",
+      "git_blob_sha256": "fe0a857b78fecc7350ac96fe80cc2da027b5168ddb3f1e18807b52d0d7a5a5a8",
+      "bytes": 3396
+    },
+    {
+      "path": "ahakeyconfig-win-java/scripts/installer/verify-installer-structure.ps1",
+      "git_blob_sha256": "8623a0acc0df911428639361fa7ce8ca50b2f9896ca8d81e7b05d7888a2edccb",
+      "bytes": 8205
+    },
+    {
+      "path": "ahakeyconfig-win-java/scripts/package-local-model.ps1",
+      "git_blob_sha256": "932d29a7ed654e06792ec7e87a99a58e0d34384dc73b74ff6c5eb623bbf979e2",
+      "bytes": 15462
+    },
+    {
+      "path": "ahakeyconfig-win-java/scripts/test-ble-driver.ps1",
+      "git_blob_sha256": "683d24ed22d0e9bbb577c4d0415779439297e36c1e50436c934134c8e3289daa",
+      "bytes": 34603
+    },
+    {
+      "path": "ahakeyconfig-win-java/scripts/verify-update-package.ps1",
+      "git_blob_sha256": "1fbaa651384f744e6634611afa02daa835b30a4705e408c5c97e1609e370e0d4",
+      "bytes": 7728
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/App.java",
+      "git_blob_sha256": "d1bab2ed5f75fd2da187907e72d96df88339ded8617bc4c5cc72d4c9bbbd2f73",
+      "bytes": 22794
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/app/StudioController.java",
+      "git_blob_sha256": "1e2dc0b9065fe4565b26a4bd5801681c684d574be2c1b24580d9e935e0d4f90a",
+      "bytes": 56723
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/config/ModelConfig.java",
+      "git_blob_sha256": "e5cedf1f856b132a6bd05fc97a206b89b1b768cee586b0e2c090f963eafe35f5",
+      "bytes": 7621
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/firmware/BootDeviceDetector.java",
+      "git_blob_sha256": "6e1127e6c4457a0a2c905752c19544f5e6b5673a74796821590e6fe21113435f",
+      "bytes": 8958
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/firmware/DeviceBackup.java",
+      "git_blob_sha256": "8339b5dc96af4ca90eabd3ea09d8508204f1d13403dbbfd61ae78fd39cb636c3",
+      "bytes": 4432
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/firmware/DeviceMaintenanceCoordinator.java",
+      "git_blob_sha256": "41d7861b66b0ac469ca5368923f3b62a798f18332962e8026fe15b3761af6228",
+      "bytes": 7082
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/firmware/DeviceRestoreService.java",
+      "git_blob_sha256": "5cfddf5b5cbd5dcda95b2d0b38bfdb20ce5f9a38af230bb385e06b07db21d026",
+      "bytes": 5088
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/firmware/FirmwareCatalog.java",
+      "git_blob_sha256": "b2830cd907c32673f7ba3334b4e9a259bb0306d87eaecee9cbb2725962e25794",
+      "bytes": 5155
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/firmware/FirmwareUpdateService.java",
+      "git_blob_sha256": "4f4338df81c6e549b2e33469bc20eb4c7c477bd4e9751a98ba0e3a1f308117d1",
+      "bytes": 32639
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/firmware/WchFlashAdapter.java",
+      "git_blob_sha256": "f508c9f87595e738df786654a24b2059b4bd22bb5df6258173be45dccae356ad",
+      "bytes": 15987
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/model/DeviceStatus.java",
+      "git_blob_sha256": "3535c0b689e195ce7ff8f95a57350f380eed02341cc5a7eef92117b49bf00d27",
+      "bytes": 8317
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/model/KeyConfig.java",
+      "git_blob_sha256": "ce57f2431940dba6d2831ac90caea76d45c1b9c779ee1496b2e159d40161e540",
+      "bytes": 5336
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/model/StudioState.java",
+      "git_blob_sha256": "4835ab95b15b82fba7796db755872397bafb4af7d6ed437fc676ee3bad60c62f",
+      "bytes": 29809
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+      "git_blob_sha256": "37282165fd0e7c25a170afd0eddc1fc81e5c5c9dee9d0704817c72a115ea55c6",
+      "bytes": 20561
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/protocol/FirmwareCapabilities.java",
+      "git_blob_sha256": "d4b3f22055bbae0fedabf0e5ebf42d403fe2a1004d0fbb1d24e61028d05dbc7b",
+      "bytes": 841
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "git_blob_sha256": "65d3ecc636b5cd0274de6218cb6a31c82845316f4835dea25720946a30de25ed",
+      "bytes": 50983
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/BleManager.java",
+      "git_blob_sha256": "79ad58c372d275cfd0b4214a5cca67e3e9c687cbb3f7c9c2b26401c164c0ff73",
+      "bytes": 87279
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/CursorSessionDiscoveryService.java",
+      "git_blob_sha256": "6dddb893dc19604410cbd9fa6b9290612d5f87f77cb7813131684f6322f6796f",
+      "bytes": 30511
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+      "git_blob_sha256": "189d82c2ed53371f337addb1c3283da987453613b183534333ca74e3797002bf",
+      "bytes": 13208
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "git_blob_sha256": "6cd3f799f0df7967525516994ae3a8fb00166446f54f2e44d6a11aff671f9700",
+      "bytes": 19569
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/HookDispatchServer.java",
+      "git_blob_sha256": "561b0fdf25e8edd3109dc46cb45f36bba4c46208d438e77c6f5df284589d3448",
+      "bytes": 13991
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/HookInstaller.java",
+      "git_blob_sha256": "2227c209df5d71686107b4efa1350ef6f19491ae36cd7e6855c5b6a68281ce53",
+      "bytes": 44277
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/KeySimulationService.java",
+      "git_blob_sha256": "392f7b9e515510a5e29280fe86a8bd0b9f7d19ca8ec0d15ff5d02da2c4dd285d",
+      "bytes": 6859
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/KimiAhaKeyBridge.java",
+      "git_blob_sha256": "97143897ca719eee71d0d9340d6cab96e3c0b3c82cd4b3c6bc64e307b1a6d287",
+      "bytes": 8987
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/SocketServer.java",
+      "git_blob_sha256": "9f37703a2c04673fd9618fdf1b31d2e4befb7b6b1c65f391763b37e1c4b9df53",
+      "bytes": 6796
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/SpeechService.java",
+      "git_blob_sha256": "77da7ddb23605ada9db36e0c6e164c41f004611cd6fab4135612cf035fa516c5",
+      "bytes": 13245
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "git_blob_sha256": "5467ca2d96a95c06e042093cda4bc3f5673db56c35a929ff3bcc96f1afbab73b",
+      "bytes": 18095
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/VoiceInputManager.java",
+      "git_blob_sha256": "da7b9708eea1476f08928700c32e85b15a3d48e9bf2e9368149cf8e414c91716",
+      "bytes": 9549
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/sherpa/LibraryLoader.java",
+      "git_blob_sha256": "d45130efcb98d71494ac3fbdc39a3943ba6b8f01671cfd1d7f87a4139acd487d",
+      "bytes": 1136
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/update/UpdateCenterService.java",
+      "git_blob_sha256": "3da1a3c10d4c7b06c568eb1406cdf2a00e9f6a0e33bed556c288ac0a85b844c6",
+      "bytes": 12523
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/update/VerifiedDownload.java",
+      "git_blob_sha256": "a5ae5fc735e1cade6ebda51945fe0555eb51ea6e7629737867a9980388b26bab",
+      "bytes": 3840
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/update/WindowsUpdateInstaller.java",
+      "git_blob_sha256": "075ca71ec8492fad46097fc46b55f1f771bc866af49d7e81a102ae7ed55b2f5a",
+      "bytes": 15161
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/util/AiRuntimeStore.java",
+      "git_blob_sha256": "7e50bb077ccd8fee9568dfbaef6b5f5246cdc63fc6c31440e8c7f0d29087f195",
+      "bytes": 3916
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/util/StudioStore.java",
+      "git_blob_sha256": "d9fdfc2bafd93cc05c98aeb8cfeeefa12f26e21f4205cfdd63f3f62d72fe70f3",
+      "bytes": 4545
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/view/CanvasController.java",
+      "git_blob_sha256": "dc4dfdd339b4717f819fb62be2a518eca674c9e336a41f185695e681d2f7cb08",
+      "bytes": 11310
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "git_blob_sha256": "193d535e389e3b3f236d6728943e96b783a0e22ce9edab5bac831265874abc3a",
+      "bytes": 94847
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/view/TopBar.java",
+      "git_blob_sha256": "c0d0fe26b159410651105b4b87ce81a66d85388a3beb33ed85f7277634e671c0",
+      "bytes": 75297
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/view/UpdateCenterDialog.java",
+      "git_blob_sha256": "21e7c7b7d9f22e4ce200c70d14bf2e7072137064087bb178c080333484426592",
+      "bytes": 12129
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/resources/firmware/wch-capture-worker.ps1",
+      "git_blob_sha256": "a40ef90b0bc7f64e7192ce5f688d6db16ba03be3e649e3c3d203ee7e3288dfda",
+      "bytes": 22861
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/resources/firmware/wch-runtime-profiles.json",
+      "git_blob_sha256": "4638d32f0905e475aa19c7b678ee079adb72a94b69c2f706ec71531531673da1",
+      "bytes": 1389
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/resources/firmware/wch/ChipType/chiplist_CH57x_CH59x.wcfg",
+      "git_blob_sha256": "2e25c59c08ec6518a16c40a3b1f01dc9957ad9bb6ae59533bdb4901120cfc8fc",
+      "bytes": 2334
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/resources/firmware/x1-c582-hw1-p1-r001-cp2-memory-safety-20261018.hex",
+      "git_blob_sha256": "70df169e1cb516954a7c5ac1df050f9163b0c9cc81493194cf781c05eb6dac09",
+      "bytes": 1261000
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/resources/messages_en.properties",
+      "git_blob_sha256": "d276d55ab502f7757c6b61a0589536d378643f58b18fcf9ba2ba60b0fd12d784",
+      "bytes": 12985
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/resources/messages_zh.properties",
+      "git_blob_sha256": "c058a0ea3f59501d180bd7533ea5ecffdb46510215705dd4977148ccb1aab33e",
+      "bytes": 12364
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/resources/model_config.properties",
+      "git_blob_sha256": "aa31731af390141f2d987938fa337bb2b13c89aa96d92d4c16ec476c37732d0e",
+      "bytes": 219
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/resources/style.css",
+      "git_blob_sha256": "3b2894aa3b907bcea77e66197bbb27d47b2958eca3e5959a77fa91ca4a723ad6",
+      "bytes": 17623
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/resources/update/release-public-key.json",
+      "git_blob_sha256": "ba95228ac0a3331b6004e7b2b68270daea35b345decc351ab67bc15a7e055c25",
+      "bytes": 616
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/resources/update/windows-update-worker.ps1",
+      "git_blob_sha256": "da562d504761cb3949fd9f5fa2faba9a324be84d320dfe37012333ff3ab3b574",
+      "bytes": 16306
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/compatibility/FirmwareIdentityCompatibilityChecks.java",
+      "git_blob_sha256": "62a25779c72a832fa8da97481fb967fc9f7fc45dbe1c77b9bb0b6ef37a03fee6",
+      "bytes": 9601
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/firmware/DeviceMaintenanceChecks.java",
+      "git_blob_sha256": "8ce8bb4009fb625a1ff4a656323be40537e60d867f30bc2ad2ab31f97efcaa98",
+      "bytes": 14318
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/firmware/FirmwareUpdateChecks.java",
+      "git_blob_sha256": "091e9bed869b7e1187c8c51a2e703688c3455d4f327e514231010ca129894ac2",
+      "bytes": 17885
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/firmware/SimpleFlashChecks.java",
+      "git_blob_sha256": "c425ce3e8ccc3c06a2419849db278be4ebecfe89b530fe5f51b7c6c693e7d0f0",
+      "bytes": 35670
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/speech/SpeechLifecycleCheck.java",
+      "git_blob_sha256": "701b339f5c5735c35ade567fdad3c1050ba2b6163b46e1d14acc4759f0e587b3",
+      "bytes": 13853
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/speech/SpeechNativeCheck.java",
+      "git_blob_sha256": "a55f84c900c0acc9bc9280d58e20aba5ea8231d1557c1c5255c6ec36134af3b8",
+      "bytes": 980
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/transport/KimiBridgeLifecycleCheck.java",
+      "git_blob_sha256": "7db07199ae2fd89a379b4f98506d7a636a78c465402162dbbbcb853e2a05259b",
+      "bytes": 5526
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/update/InstallerTrustChecks.java",
+      "git_blob_sha256": "843aed56c12ba3cc801548d53d36d6a2f97183ca9621fc006669c0802a1056f6",
+      "bytes": 13933
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/update/ReleaseSignatureChecks.java",
+      "git_blob_sha256": "c16274987e10edda1183d35a48a4ea32571cf6900906bb3ebc80ee04aa4f6c9b",
+      "bytes": 10399
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/update/UpdateCenterChecks.java",
+      "git_blob_sha256": "d698b47ac6b2c1561f253778db48f86891bce173c6b43c47947661c7d848007d",
+      "bytes": 18981
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/wd009/ApprovalFactsChecks.java",
+      "git_blob_sha256": "46792415e6d9ecd7c5f3622ca3ab7345678f4f80ea31c68522ef016394d551fc",
+      "bytes": 11235
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/wd009/CursorWaitingChecks.java",
+      "git_blob_sha256": "9fc2ebcbf16e74563492a3424acb39fb3c6a31495274055169630ad8b0eadda3",
+      "bytes": 37432
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/wd009/HookManagementChecks.java",
+      "git_blob_sha256": "78910f6ad366ffba33278c68a999d7fa396f7081c6b431820eb7c6d2caa11530",
+      "bytes": 13269
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/wd009/KimiConsumerFixture.java",
+      "git_blob_sha256": "b5b9a35e0fc92f8071a4298f5c0b0c41680c21c8bfb831e02d5fd1f368c237d9",
+      "bytes": 4614
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/wd009/KimiRoutingChecks.java",
+      "git_blob_sha256": "da4b1df7d50d2fe6c3b5704ffee7b332734c3ad8e50debc54f8f12a375233906",
+      "bytes": 6558
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/wd009/Wd009HookUiChecks.java",
+      "git_blob_sha256": "ed957212bedb3373a8372b05e59afa92cf51f5397f170fb970808e6b10142df7",
+      "bytes": 6105
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/wd009/Wd009UiChecks.java",
+      "git_blob_sha256": "bdcd19c9a1f16fe941b476c515fbe07d2e9007e070377ea2edd77ddc269c0322",
+      "bytes": 10426
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/wd009/replay_kimi_consumer.py",
+      "git_blob_sha256": "df673e9b326df7e8dfe1e9ea7faca03160bbc460db613bedc09b4f7dec773e99",
+      "bytes": 3967
+    }
+  ],
+  "scope": "branch migration only, not a new implementation, build or release",
+  "manifest_self_excluded": true
+}
