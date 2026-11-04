@@ -12,6 +12,17 @@ final class StudioInlineLightTests: XCTestCase {
                             deviceID: { "keyboard-A" }, release: { _ in release() }, pause: {}))
     }
 
+    func testMultitaskPreviewUsesReadbackTargetBeforeFirstAppConnection() {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let model = StudioLightInspectorModel(defaults: defaults)
+        let host = session()
+        XCTAssertTrue(host.beginEditing(deviceID: nil, isConnected: false))
+        XCTAssertNil(model.multitaskPreviewDeviceID(session: host))
+        model.values.observe(.brightness, fact: .init(deviceID: "keyboard-A", value: 35))
+        XCTAssertNil(host.editingDeviceID)
+        XCTAssertEqual(model.multitaskPreviewDeviceID(session: host), "keyboard-A")
+    }
+
     func testExplicitReadDiscoversCurrentKeyboardWithoutSendingPreviewOrSave() async throws {
         let host = StudioInspectorSession(access: .init(begin: { 1 }, isCurrent: { $0 == 1 },
             isReady: { true }, generation: { 4 }, deviceID: { "keyboard-B" }, release: { _ in }, pause: {}))

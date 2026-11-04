@@ -50,8 +50,16 @@ final class StudioLightInspectorModel: ObservableObject {
         run(target: selected, ble: ble, session: session, preview: .light(effect: effect.firmwareIndex, brightness: brightness))
     }
 
+    func multitaskPreviewDeviceID(session: StudioInspectorSession) -> String? {
+        session.editingDeviceID ?? values.facts[.brightness]?.deviceID
+    }
+
     func previewMultitask(ble: AhaKeyBLEManager, session: StudioInspectorSession) {
-        guard let deviceID = session.editingDeviceID else { return }
+        guard let deviceID = multitaskPreviewDeviceID(session: session) else {
+            showsError = true
+            message = NSLocalizedString("请先读取键盘设置，再预览。", comment: "")
+            return
+        }
         perform(scope: NSLocalizedString("多任务灯效", comment: ""), session: session) {
             defer { self.multitaskPreviewStartedAt = nil }
             try await session.withConnection(expectedDeviceID: deviceID) { context in
