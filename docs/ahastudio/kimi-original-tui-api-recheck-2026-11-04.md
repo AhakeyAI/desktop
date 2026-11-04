@@ -25,6 +25,7 @@
 | TUI `/web` | [TUI web／remote handoff](https://github.com/MoonshotAI/kimi-code/blob/f26e4d91ef8d5d233f6c20b42a150f96924d4f5e/apps/kimi-code/src/tui/commands/web.ts) 明确 `startNewServerAfterExit`、`await host.stop()`，退出后 `startServerForeground` | 原 TUI 停止，进程转为前台服务；违反保持原 TUI 的限制 |
 | TUI `/remote-control` | 同一 [TUI web／remote handoff](https://github.com/MoonshotAI/kimi-code/blob/f26e4d91ef8d5d233f6c20b42a150f96924d4f5e/apps/kimi-code/src/tui/commands/web.ts) 注册退出任务并停止 TUI，再启动 server／远控 | 同时违反不停止 TUI、不启用远控的限制 |
 | ACP | [ACP reference](https://github.com/MoonshotAI/kimi-code/blob/f26e4d91ef8d5d233f6c20b42a150f96924d4f5e/docs/en/reference/kimi-acp.md) 与本机 `acp --help` 定义 stdio server | `kimi acp` 是新的宿主进程通路，未定义附着到已运行 TUI |
+| 官方插件 | [Plugin manifest（固定版本）](https://github.com/MoonshotAI/kimi-code/blob/f26e4d91ef8d5d233f6c20b42a150f96924d4f5e/docs/en/customization/plugins.md)声明Skills、agents、MCP、Hooks及Markdown命令 | 已核对的manifest字段没有为已运行TUI的core注册IPC host的入口；不能把外部MCP/Hook进程当成持有该core scope。此处是插件公开合同边界，不声称未公开扩展绝不存在 |
 | Hooks | [Hooks reference](https://github.com/MoonshotAI/kimi-code/blob/f26e4d91ef8d5d233f6c20b42a150f96924d4f5e/docs/en/customization/hooks.md) 将 PermissionRequest／PermissionResult 定义为 observation-only；PreToolUse 的允许仅继续进入原权限检查 | 不提供 session mode setter；不能以返回 allow 绕过原生审批，也不能用 deny 冒充手动模式 |
 | CLI 子命令 | 本机 `session --help` 只有 `list`；根帮助的 `--auto`、`--yolo` 是启动模式 | 没有暴露对既有 TUI 的 permission/attach 子命令 |
 

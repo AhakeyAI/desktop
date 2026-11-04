@@ -1,0 +1,60 @@
+{
+  "sourceCommit": "1bdaeb5e8b7969df37680827561292adf63599e6",
+  "version": "0.2.3",
+  "build": "546",
+  "dmgPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-kimi-boundary/AhaKey-Studio-0.2.3-build546-1bdaeb5-test.dmg",
+  "dmgBytes": 20387469,
+  "dmgSHA256": "f25b6b32c1c447bd65a7019f10d4c4888d290aa0adf84244d8d79e269cef3532",
+  "binarySHA256": {
+    "AhaKeyConfig": "dd0afbf33fdb2dab5a35d961499afb44b49eea6a417c79e1681c08777bade3af",
+    "ahakeyconfig-agent": "279d2cf572983c9a29dbef96f0ece2e8a95136a84af5b79f2e3d91a61748f6e6"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "installed": true,
+  "previousBuild": 545,
+  "preferencesBackedUp": 16,
+  "preferencesSemanticallyUnchanged": true,
+  "focusedKimiTestsPassed": 27,
+  "newBehaviorTestsAdded": false,
+  "productionChange": "Clarify that CLI defaults apply to newly created sessions after restarting the CLI, not a running original TUI. No permission/approval algorithm change.",
+  "nativeUIChecks": {
+    "kimiLeverNoticeFullyVisible": true,
+    "exactNotice": "Code Desktop 已授权会话跟随拨杆；CLI 默认供重启后新建会话使用，运行中的 TUI 不跟随。",
+    "ordinaryWorkUnsupportedNoticeRetained": true,
+    "agentConnectedAndPhysicalAutoDisplayed": true,
+    "permissionManagementActionsInvoked": false
+  },
+  "hardwareConfigurationWrites": 0,
+  "firmwareFlashed": false,
+  "factoryResetRequests": 0,
+  "newSessionGrants": 0,
+  "ordinaryKimiApplicationReplaced": false,
+  "ordinaryKimiPermissionsChanged": false,
+  "research": [
+    "docs/ahastudio/kimi-original-tui-api-recheck-2026-11-04.md",
+    "docs/ahastudio/kimi-work-3.2.23-control-recheck-2026-11-04.md",
+    "docs/ahastudio/kimi-work-3.2.24-control-recheck-2026-11-04.md"
+  ],
+  "remainingFunctionalDependencyClasses": 3,
+  "formalReleaseInputsPending": true,
+  "completeValidationGroupsPending": 8,
+  "goalComplete": false,
+  "ciRun": "https://github.com/AhakeyAI/desktop/actions/runs/41764283427",
+  "ciStatusAtReceipt": "completed",
+  "ciAllThreeJobsPassed": true,
+  "ciMacTestsAndPackageIntegrityPassed": true,
+  "officialWorkPackageInspected": {
+    "version": "3.2.24",
+    "build": "3.2.24.20",
+    "daimon": "1.0.4",
+    "kernelCommit": "0bf80c96b",
+    "dmgSHA256": "e40df5954aacdfe69f5e56f9d679ef86a7d25f9134769ffe1b7ea382c77ca8fd",
+    "installed": false,
+    "executed": false,
+    "researchMountDetached": true,
+    "completeOriginalOwnerPermissionRouteEstablished": false
+  }
+}
