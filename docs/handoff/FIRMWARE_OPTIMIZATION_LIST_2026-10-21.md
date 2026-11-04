@@ -1,6 +1,6 @@
 # Mac 适配固件优化与协作清单
 
-更新：2026-11-04。当前核对 `Fireware-harness@72346b001710d573980a7d398b9e0dced8ff627c`；本机为HW1 F99D，目录身份 `x1-c582-hw1-p1-1.0.1-r001`，客户端0.2.3/build546，不依赖Runtime。HW1构建源为5fc01cf；最新归档仅新增HW2修复包与HW1验收归档，HW1 APP/Profile及HEX未变。
+更新：2026-11-04。当前核对 `Fireware-harness@72346b001710d573980a7d398b9e0dced8ff627c`；本机为HW1 F99D，目录身份 `x1-c582-hw1-p1-1.0.1-r001`，客户端0.2.3/build548，不依赖Runtime。HW1构建源为5fc01cf；最新归档仅新增HW2修复包与HW1验收归档，HW1 APP/Profile及HEX未变。
 
 ## 2026-11-04口径更正
 
@@ -11,7 +11,7 @@
 - #10已实现物理owner loss恢复；Mac本地取消而HID物理链路保留是额外体验/联调问题。#11/#13/#14不能从静态分支或旧现象升级为F99D确诊Bug。
 - #12是超出CP4D单报告上限的协议扩展请求；#17是已实现短长按安全底座之外的可配置闭环，均不应说原机制整体没做。
 
-详见[逐条重审](../ahastudio/firmware-issue-classification-review-2026-11-04.md)与[运行路径复核](../ahastudio/firmware-issues-runtime-reaudit-2026-11-04.md)。此处是本地建议修订，GitHub Issue尚未被本轮修改/关闭。
+详见[逐条重审](../ahastudio/firmware-issue-classification-review-2026-11-04.md)与[运行路径复核](../ahastudio/firmware-issues-runtime-reaudit-2026-11-04.md)。Owner后续已授权并执行GitHub更新：#11/#13/#14/#16关闭归档（not_planned），#10/#12/#15/#17保留开放，#8/#9补最新限定证据、#7更新索引；11单正文/评论/状态均已回读核对。[实际处理与反馈链接](../ahastudio/firmware-issue-updates-2026-11-04.md)。
 
 ## 追踪规则
 
@@ -25,12 +25,12 @@
 | --- | --- | --- | --- | --- |
 | FW-01 | 体验优化/联调，非F99D确诊Bug | 物理owner断连、writer取消、INVALID重试和启动清理已有实现及D1-D7证据；旧07A8取消后需重启不能推定F99D当前失败。 | 仅核对Mac取消但HID链路仍live的会话结束体验；优先复用现合同，不强求新opcode。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/10) |
 | FW-02 | 已有实现与正常路径实测 | 逐模式Consumer/普通路由、反复恢复已接入；F99D三轮Codex往返、四模式隔离与断电读回通过。 | 原能力缺口不重提；异常释放/故障覆盖仍分别验收。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/8) |
-| FW-03 | 已有捕获释放；窄条件风险待定位 | UP/模式/配置切换、Sleep和真实断连收尾已有生产TU测试；发送失败和UP读路由失败尚未建立真实可达故障序列。 | 只对实际失败路径定位，不以静态分支归因历史Siri/Command，不要求重做已有释放机制。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/11) |
+| FW-03 | 已关闭归档，未确诊风险 | UP/模式/配置切换、Sleep和真实断连收尾已有生产TU测试；发送失败和UP读路由失败尚未建立真实可达故障序列。 | 有真实生产可达失败序列时重开；不以静态分支归因历史Siri/Command，不重做已有机制。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/11) |
 | FW-04 | 协议扩展请求，现CP4D行为符合合同 | CP4D明确单报告64字节、动作加描述最多53字节、超长TOO_LARGE且不分片；K1路由分片不含全部键位描述。 | 若完整旧长宏需更大事实读回，指出/补受支持接口；不称普通宏保存功能未实现。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/12) |
-| FW-05 | 非阻断历史观察/客户端升级流程 | 正常重连与Forget保身份已有实现；WS1已有旧bond非阻断记录，F99D未复现该旧问题。Mac目前擦DataFlash与新交付保留指引须先对齐。 | 核对实际刷写保留/擦除、主机记录和身份；有同组合可复现及GAP原因后再提固件缺陷。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/13) |
-| FW-06 | 已有采样发布；历史首包差异待诊断 | GPIO采样/0-1-2快照已有生产路径和R2测试，F99D正常实体往返已过；旧唤醒差异缺GPIO时序证据。 | 仅针对可重复实际位置/新鲜回包差异补诊断，不视为采样功能欠实现。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/14) |
+| FW-05 | 已关闭归档，升级流程转客户端 | 正常重连与Forget保身份已有实现；WS1已有旧bond非阻断记录，F99D未复现该旧问题。Mac build548已区分默认保留DataFlash与显式清空；真实保持仍待验。 | 核对实际刷写保留/擦除、主机记录和身份；有同组合可复现及GAP原因后再提固件缺陷。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/13) |
+| FW-06 | 已关闭归档，历史差异未复现 | GPIO采样/0-1-2快照已有生产路径和R2测试，F99D正常实体往返已过；旧唤醒差异缺GPIO时序证据。 | 仅针对可重复实际位置/新鲜回包差异补诊断，不视为采样功能欠实现。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/14) |
 | FW-07 | 复用已有证据的联合验收 | CRC/INVALID/定时重试、共享store及Restore故障已有代码和host测试；不能因Mac未补验就抹去。K1写中断恢复旧值保证已被Owner排除。 | 仅保留已批准范围内物理擦除/Restore中断等NOT_VERIFIED项；删除所有配置必须掉电回滚的泛化条件。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/15) |
-| FW-08 | 客户端/发布协作，非固件Bug | PRD/Architecture已有逻辑合同及职责；固件身份、工程HEX/来源/哈希/机器结果已有。发行目录、校验/签名策略与客户端公证属发布流程。 | 复用现有交付，联合确认最终发布schema、预算和恢复候选资格；客户端承担目录/信任与公证/发布环境。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/16) |
+| FW-08 | 已移交客户端发布并归档 | PRD/Architecture已有逻辑合同及职责；固件身份、工程HEX/来源/哈希/机器结果已有。发行目录、校验/签名策略与客户端公证属发布流程。 | 复用现有交付，联合确认最终发布schema、预算和恢复候选资格；客户端承担目录/信任与公证/发布环境。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/16) |
 | FW-09 | 原重复恢复缺陷已有修复与实测 | 旧组合连续0→1→2恢复及完成状态保持已通过，原#9缺陷不重复提。 | F99D及断电/改路由后恢复、默认模式和故障边界归FW-07。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/9) |
 | FW-10 | 镜像缺失问题已解决 | 历史6EC组合HEX已恢复，当前HW1 F99D工程HEX已取得并实刷，不再要求Owner另找同一文件。 | 正式恢复安全镜像资格不是工程文件存在的同义词，另归FW-08。 | — |
 | FW-11 | 已有安全底座；用户配置闭环需求 | CP2已实现短长按内部安全机制且明确不含Desktop写协议；当前load_policy仍镜像同一动作。 | 对方若已有两套动作配置/保存/读回入口，只需指出；否则按阶段扩展推进，不称短长按机制没做。 | [查看](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/17) |
@@ -42,8 +42,8 @@
 
 - #12/#17：长宏完整读回扩展及独立短长按用户配置闭环，先指出已有受支持入口，确实缺少再补。
 - #10：Mac逻辑取消保留物理链路的体验合同，承认既有物理owner loss实现。
-- #11/#13/#14/#15：复用既有实现/机器证据，剩余按窄风险、历史观察及批准范围联合验证，不能统称未修复Bug。
-- #16：目录/信任/公证/发行归客户端与发布协作；固件已给身份/HEX/机器证据不再重复索要。
+- #15：保留合同范围内物理联合验收；复用已有机器/生产测试，不重新引入已排除要求。#11/#13/#14已按未确诊/历史观察归档，有新的可复现证据时重开。
+- #16已移交客户端WBS G40/G50–G54/G53并关闭归档；正式发布尚未完成，固件已给身份/HEX/机器证据不再重复索要。
 
 ## 已明确的产品与证据边界
 

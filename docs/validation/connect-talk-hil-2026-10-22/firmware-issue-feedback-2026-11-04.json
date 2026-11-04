@@ -1,0 +1,130 @@
+{
+  "verifiedAtUTC": "2026-11-04T03:54:59.777660+00:00",
+  "repo": "AhakeyAI/AhaKey-X1-hardware-source",
+  "issues": [
+    {
+      "number": 10,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/10",
+      "title": "[FW-01·体验扩展] Mac逻辑取消上传但HID链路保留时的恢复",
+      "state": "open",
+      "stateReason": null,
+      "bodySHA256": "e7b0def6aa28775c518b3ebf7133c56eee72bf2c8b877a1f7858a7a96bad7453",
+      "feedbackURL": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/10#issuecomment-6622058745",
+      "updatedAt": "2026-11-04T03:51:46Z"
+    },
+    {
+      "number": 11,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/11",
+      "title": "[FW-03·核对归档] 捕获释放已有实现；异常发送尚无可复现缺陷",
+      "state": "closed",
+      "stateReason": "not_planned",
+      "bodySHA256": "aecf34617ea84db0df910a1d61ca50189d54207705d321b5252987ffd8bd4324",
+      "feedbackURL": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/11#issuecomment-6622061916",
+      "updatedAt": "2026-11-04T03:52:03Z"
+    },
+    {
+      "number": 12,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/12",
+      "title": "[FW-04·协议扩展] 超出CP4D单报告容量的长宏动作与描述完整读回",
+      "state": "open",
+      "stateReason": null,
+      "bodySHA256": "1df59e9a91f562245418fbff8a9302b5c9cbfc2e628d6e148ecf0fa9f8a2423c",
+      "feedbackURL": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/12#issuecomment-6622064154",
+      "updatedAt": "2026-11-04T03:52:11Z"
+    },
+    {
+      "number": 13,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/13",
+      "title": "[FW-05·历史观察归档] 旧绑定Reconnect；升级擦除策略转客户端跟踪",
+      "state": "closed",
+      "stateReason": "not_planned",
+      "bodySHA256": "8ffb0620902e061df630e51390481f9ae48fc3441e6f8d7e615dd12b271b6221",
+      "feedbackURL": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/13#issuecomment-6622066739",
+      "updatedAt": "2026-11-04T03:52:25Z"
+    },
+    {
+      "number": 14,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/14",
+      "title": "[FW-06·核对归档] 实体拨杆采样/快照已有实现，历史首报差异未复现",
+      "state": "closed",
+      "stateReason": "not_planned",
+      "bodySHA256": "10b43469cfb95097e36be5eccf35288fce72a4577fa20847042b55942ec0b5a6",
+      "feedbackURL": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/14#issuecomment-6622069434",
+      "updatedAt": "2026-11-04T03:52:42Z"
+    },
+    {
+      "number": 15,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/15",
+      "title": "[FW-07·联合验收] 复用存储/Restore既有证据，仅跟踪未完成物理边界",
+      "state": "open",
+      "stateReason": null,
+      "bodySHA256": "502ba96bc590796127528440f0a614140b097f668e303856453ce08af0d38b8a",
+      "feedbackURL": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/15#issuecomment-6622072572",
+      "updatedAt": "2026-11-04T03:52:49Z"
+    },
+    {
+      "number": 16,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/16",
+      "title": "[FW-08·职责移交] 固件身份/工程产物已交付，正式发行转客户端发布跟踪",
+      "state": "closed",
+      "stateReason": "not_planned",
+      "bodySHA256": "20b858d71f7746f014812330fb28ab229fd52b1590e274926d790ff4df989b01",
+      "feedbackURL": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/16#issuecomment-6622076109",
+      "updatedAt": "2026-11-04T03:53:07Z"
+    },
+    {
+      "number": 17,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/17",
+      "title": "[FW-11·配置扩展] 在既有短长按安全底座上补独立动作配置与读回",
+      "state": "open",
+      "stateReason": null,
+      "bodySHA256": "271398963907e1383994384d9521947aca99d59121af4d478a91c426eed3d1cb",
+      "feedbackURL": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/17#issuecomment-6622080755",
+      "updatedAt": "2026-11-04T03:53:25Z"
+    },
+    {
+      "number": 8,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/8",
+      "title": "需求：Key1 按模式选择 Consumer 事件或普通快捷键，支持语音方案混用",
+      "state": "closed",
+      "stateReason": "completed",
+      "bodySHA256": "76d076c4b4047b75cc3afb560d00b7663b69e119598dbf66c1b5ae064834cf2a",
+      "feedbackURL": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/8#issuecomment-6622084268",
+      "updatedAt": "2026-11-04T03:53:42Z"
+    },
+    {
+      "number": 9,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/9",
+      "title": "Bug: Restore 成功后 COMPLETE 状态拒绝再次恢复（重启后仍无法重复发起）",
+      "state": "closed",
+      "stateReason": "completed",
+      "bodySHA256": "db381002578ccf3269e26c75d1d06b6f06351e0130052d6c7af1306310373619",
+      "feedbackURL": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/9#issuecomment-6622086753",
+      "updatedAt": "2026-11-04T03:53:53Z"
+    },
+    {
+      "number": 7,
+      "url": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7",
+      "title": "归档索引：Mac固件联调最新结论与剩余4项",
+      "state": "closed",
+      "stateReason": "completed",
+      "bodySHA256": "df6d338f3472c56cce1adb1c62fa1bd2471f743a9575a4af31edc43f33885bdb",
+      "feedbackURL": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/7#issuecomment-6622090314",
+      "updatedAt": "2026-11-04T03:54:09Z"
+    }
+  ],
+  "closedThisRound": [
+    11,
+    13,
+    14,
+    16
+  ],
+  "stillOpenInSplitSet": [
+    10,
+    12,
+    15,
+    17
+  ],
+  "issue6Unchanged": true,
+  "newHardwareTests": false
+}

@@ -56,5 +56,16 @@
   "physicalConfigurationPreservationTest": "pending concentrated HIL with fresh flash confirmation",
   "ciURL": "https://github.com/AhakeyAI/desktop/actions/runs/41768824375",
   "ciStatusAtRecord": "in_progress",
-  "previousFunctionalCommitCI": "cancelled by newer localization commit; not reported as passed"
+  "previousFunctionalCommitCI": "cancelled by newer localization commit; not reported as passed",
+  "verifiedCI": {
+    "url": "https://github.com/AhakeyAI/desktop/actions/runs/41769051581",
+    "commit": "ff05febfda27846eb655edf8833b6338524f832a",
+    "conclusion": "success",
+    "jobs": [
+      "TypeScript SDK · test + build",
+      "Windows Java · test + package",
+      "macOS · build + package"
+    ],
+    "nativeProductSourcesMatchCandidateCommit": true
+  }
 }
