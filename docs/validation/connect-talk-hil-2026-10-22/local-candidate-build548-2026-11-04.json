@@ -1,0 +1,60 @@
+{
+  "sourceCommit": "bb95525be801680d282a9900fd63058f60a967fd",
+  "version": "0.2.3",
+  "build": "548",
+  "dmgPath": "/Users/heartline/Documents/Codex/local-builds/connect-talk-build548-20261104/AhaKey-Studio-0.2.3-build548-bb95525-test.dmg",
+  "dmgBytes": 20404189,
+  "dmgSHA256": "957ecb4e46fd0c8137181a31f426717c25dcf7a0cc39c5653e5165e910c6bb96",
+  "binarySHA256": {
+    "AhaKeyConfig": "69e16b5170930442abbb064aaddbe8ce7c1647db1666d09d512d048373ef6bb5",
+    "ahakeyconfig-agent": "0f240df7147ebb512600f2d82294e47c800fc7a3fd094e012605b45f26dcb83a"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "recordedAtUTC": "2026-11-04T03:45:14.605091+00:00",
+  "installedPath": "/Applications/AhaKey Studio.app",
+  "previousBuild": "547",
+  "preferenceKeysSemanticallyPreservedAfterUI": 16,
+  "fullLocalTests": {
+    "count": 999,
+    "failures": 0,
+    "testedCommit": "535de58f3c499e21639a07344c260a4498b550fc",
+    "nativeSwiftSourcesUnchangedInFinalCandidate": true
+  },
+  "flasherLifecycleTests": {
+    "count": 12,
+    "failures": 0
+  },
+  "localization": {
+    "plistLint": true,
+    "generatorRetainsNewStrings": true,
+    "generatorDeterministic": true,
+    "installedEnglishAndChineseMatchSource": true
+  },
+  "uiChecks": {
+    "build547": {
+      "defaultPreservesDataFlash": true,
+      "unacknowledgedStartDisabled": true,
+      "changingPolicyResetsAcknowledgment": true,
+      "preserveConfirmationReviewedAndCancelled": true,
+      "clearConfirmationReviewedAndCancelled": true
+    },
+    "build548": {
+      "defaultPreservesDataFlash": true,
+      "bothPolicyExplanationsVisible": true,
+      "unacknowledgedStartDisabled": true,
+      "returnedToMainWithoutStartingFlash": true,
+      "agentConnectedAfterClosingFlasher": true,
+      "firmwareIdentity": "1.0.1-r001",
+      "physicalLever": "automatic"
+    }
+  },
+  "hardwareFlashOperations": 0,
+  "hardwareConfigurationWrites": 0,
+  "physicalConfigurationPreservationTest": "pending concentrated HIL with fresh flash confirmation",
+  "ciURL": "https://github.com/AhakeyAI/desktop/actions/runs/41768824375",
+  "ciStatusAtRecord": "in_progress",
+  "previousFunctionalCommitCI": "cancelled by newer localization commit; not reported as passed"
+}
