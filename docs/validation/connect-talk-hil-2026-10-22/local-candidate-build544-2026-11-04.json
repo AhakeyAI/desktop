@@ -26,12 +26,22 @@
     "firstScrollOffscreenRetainsAllCardsInTree": true,
     "firstReturnToTopVisible": true,
     "fnToOrdinaryShortcutDraftRoundTripPassed": true,
-    "finalTwoScrollCycles": "blocked by Mac auto-lock; unlock requested"
+    "finalTwoScrollCycles": "passed after user unlocked Mac; three cards remain mounted offscreen and visible after return",
+    "additionalScrollCyclesAfterUnlock": 4,
+    "explicitBottom1Top0Checks": 2,
+    "finalScreenshotThreeCardsVisible": true
   },
   "hardwareConfigurationWrites": 0,
   "factoryResetRequests": 0,
   "newSessionGrants": 0,
   "firmwareFlashed": false,
-  "ciRun": "https://github.com/AhakeyAI/desktop/actions/runs/41669906948",
-  "ciStatusAtReceipt": "in_progress; not claimed passed"
+  "ciRun": "https://github.com/AhakeyAI/desktop/actions/runs/41670771030",
+  "ciStatusAtReceipt": "completed",
+  "preferencesSemanticallyUnchangedAfterFinalVerification": true,
+  "verificationLimitation": "Intermittent baseline visual blank was supplied by owner screenshot, not reliably reproduced locally. This bounded post-fix scroll and Fn-layout check passed; no new voice audio or firmware HIL claimed.",
+  "originalSourceCiRun": "https://github.com/AhakeyAI/desktop/actions/runs/41669906948",
+  "originalSourceCiConclusion": "cancelled by subsequent documentation commit",
+  "ciCommit": "eee0e818a9dbca14cd4426fa1fe0516019934780",
+  "ciConclusion": "success",
+  "ciProductAndWorkflowSourcesMatchInstalledBuild": true
 }
