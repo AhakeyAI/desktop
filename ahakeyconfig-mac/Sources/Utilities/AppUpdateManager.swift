@@ -99,7 +99,7 @@ final class AppUpdateManager: ObservableObject {
         do {
             var request = URLRequest(url: asset.browserDownloadURL, timeoutInterval: 120)
             request.setValue("AhaKey-Studio/\(installedVersion)", forHTTPHeaderField: "User-Agent")
-            let (temporaryURL, response) = try await session.download(for: request, delegate: progress)
+            let (temporaryURL, response) = try await progress.download(for: request, configuration: session.configuration)
             defer { try? FileManager.default.removeItem(at: temporaryURL) }
             guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw UpdateError.downloadFailed }
             isVerifying = true
@@ -156,11 +156,57 @@ final class AppUpdateManager: ObservableObject {
 
 /// URLSession reports bounded progress on its delegate queue; UI mutations stay
 /// on MainActor. The session's serial delegate queue owns these counters.
-final class UpdateDownloadProgress: NSObject, URLSessionDownloadDelegate {
+final class UpdateDownloadProgress: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    // Transfer state is lock protected. Progress counters are confined to the
+    // owned URLSession's serial delegate queue.
+    private let lock = NSLock()
+    private var transfer: URLSession?
+    private var task: URLSessionDownloadTask?
+    private var completion: CheckedContinuation<(URL, URLResponse), Error>?
+    private var stagedFile: URL?
+    private var stagingError: Error?
+    private var started = false
+    private var cancelled = false
     private let update: (Int64, Int64, Double) -> Void
     private var previousTime = ProcessInfo.processInfo.systemUptime
     private var previousBytes: Int64 = 0
     init(update: @escaping (Int64, Int64, Double) -> Void) { self.update = update }
+    func download(for request: URLRequest, configuration: URLSessionConfiguration) async throws -> (URL, URLResponse) {
+        try Task.checkCancellation()
+        // Claim before installing cancellation handling, so a rejected second
+        // caller can never cancel the first caller's transfer.
+        try claim()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { completion in
+                // Keep the task delegate-driven: the async completion path
+                // omitted progress callbacks in the real-transfer regression.
+                lock.lock()
+                guard !cancelled else {
+                    lock.unlock()
+                    completion.resume(throwing: CancellationError())
+                    return
+                }
+                let transfer = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+                let task = transfer.downloadTask(with: request)
+                self.transfer = transfer
+                self.task = task
+                self.completion = completion
+                lock.unlock()
+                task.resume()
+            }
+        } onCancel: { self.cancel() }
+    }
+
+    private func claim() throws {
+        lock.lock(); defer { lock.unlock() }
+        guard !started else { throw URLError(.unknown) }
+        started = true
+    }
+
+    private func cancel() {
+        lock.lock(); cancelled = true; let task = task; lock.unlock()
+        task?.cancel()
+    }
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask,
                     didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
         let now = ProcessInfo.processInfo.systemUptime, elapsed = now - previousTime
@@ -168,5 +214,37 @@ final class UpdateDownloadProgress: NSObject, URLSessionDownloadDelegate {
         update(totalBytesWritten, totalBytesExpectedToWrite, Double(totalBytesWritten - previousBytes) / max(0.001, elapsed))
         previousBytes = totalBytesWritten; previousTime = now
     }
-    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {}
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        lock.lock()
+        let active = task === downloadTask && completion != nil
+        lock.unlock()
+        guard active else { return }
+        let destination = FileManager.default.temporaryDirectory.appendingPathComponent("AhaKey-Update-\(UUID().uuidString).download")
+        do {
+            // URLSession removes location when this delegate call returns.
+            try FileManager.default.moveItem(at: location, to: destination)
+            lock.lock(); stagedFile = destination; lock.unlock()
+        } catch {
+            lock.lock(); stagingError = error; lock.unlock()
+        }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        lock.lock()
+        guard self.task === task, let completion else { lock.unlock(); return }
+        let file = stagedFile
+        let failure: Error? = cancelled ? CancellationError() : (error ?? stagingError)
+        self.completion = nil; self.stagedFile = nil; self.task = nil; self.transfer = nil
+        lock.unlock()
+        session.finishTasksAndInvalidate()
+        if let failure {
+            if let file { try? FileManager.default.removeItem(at: file) }
+            completion.resume(throwing: failure)
+        } else if let file, let response = task.response {
+            completion.resume(returning: (file, response))
+        } else {
+            if let file { try? FileManager.default.removeItem(at: file) }
+            completion.resume(throwing: URLError(.badServerResponse))
+        }
+    }
 }
