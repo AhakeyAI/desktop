@@ -86,7 +86,7 @@
   "renderedFPSMeasured": false,
   "continuousMultitaskConnectionVerified": false,
   "postSampleGUILocked": true,
-  "originalLocalLCDDraftRestorePending": true,
+  "originalLocalLCDDraftRestorePending": false,
   "temporaryAwakeAssertionReleased": true,
   "initialPreflightNoTimedRun": true,
   "notAFullReleasePerformanceApproval": true,
@@ -95,5 +95,9 @@
     "currentConsoleLocked": true,
     "sameNamedWindowCheckUnavailableWhileLocked": true,
     "systemLogTimingAvailable": false
-  }
+  },
+  "postPerformanceLCDDraftRestorePending": false,
+  "localLCDDraftRestoredByAuthorizedQuitReopenAndScopedPreferenceAPI": true,
+  "sevenPreferenceValuesSemanticallyPreserved": true,
+  "postRestoreGUIVisualCheckPending": true
 }

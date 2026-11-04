@@ -34,13 +34,19 @@
   "observedWireSpeedBytesPerSecond": 558,
   "estimatedRemainingSecondsAtMidpoint": 24,
   "throughputImprovementClaimed": false,
-  "foregroundPerformancePending": false,
+  "foregroundPerformancePending": true,
   "originalPhysicalAcceptancePending": true,
   "temporaryCodexF18RestorationRequired": true,
   "artifactName": "AhaKey-Studio-0.2.3-build553-595535b8-test.dmg",
   "recordedAtUTC": "2026-11-04T09:18:17.120414+00:00",
   "foregroundPerformanceScope": "117 foreground/non-minimized named-window checks across605s with selected120-frame GIF configured12FPS; full release performance and continuous MT remain unverified",
   "foregroundPerformanceReceipt": "foreground-gif-build553-2026-11-04.json",
-  "postPerformanceLCDDraftRestorePending": true,
-  "firmwareImageOtherChatConfirmationPending": true
+  "postPerformanceLCDDraftRestorePending": false,
+  "firmwareImageOtherChatConfirmationPending": true,
+  "originalLocalLCDDraftRestorePending": false,
+  "localLCDDraftRestoredByAuthorizedQuitReopenAndScopedPreferenceAPI": true,
+  "postRestoreGUIVisualCheckPending": true,
+  "scopedForegroundGIFCompleted": true,
+  "fullPerformanceMatrixPending": true,
+  "temporaryCodexRestorationAuditRequired": true
 }
