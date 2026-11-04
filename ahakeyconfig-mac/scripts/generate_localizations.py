@@ -7,6 +7,17 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "保留配置升级": "Upgrade Keeping Settings",
+    "清空配置刷写": "Flash and Clear Settings",
+    "仅重写程序，不主动擦除 DataFlash。配置是否兼容由目标固件决定；升级前仍请备份。": "Rewrites the program without explicitly erasing DataFlash. Settings compatibility depends on the target firmware; back up before upgrading.",
+    "清空程序及 DataFlash，包括键盘配置与蓝牙绑定。仅在明确需要重置或固件要求时使用。": "Erases the program and DataFlash, including keyboard settings and Bluetooth pairings. Use only for an intended reset or when required by the firmware.",
+    "确认固件文件及 SHA-256 无误，并确保烧录期间不会拔线或退出 App。": "Verify the firmware file and SHA-256. Do not unplug or quit the app during flashing.",
+    "CH582M · USB ISP": "CH582M · USB ISP",
+    "烧录准备": "Flashing Preparation",
+    "烧录方式": "Flashing Method",
+    "开始烧录": "Start Flashing",
+    "我已确认目标、固件及备份，允许清空键盘配置和蓝牙绑定。": "I have checked the target, firmware and backup, and allow keyboard settings and Bluetooth pairings to be erased.",
+    "我已确认目标、固件及备份，并核对目标固件的升级说明。": "I have checked the target, firmware, backup and target firmware upgrade instructions.",
     "Code Desktop 已授权会话跟随拨杆；CLI 默认供重启后新建会话使用，运行中的 TUI 不跟随。": "Authorized Code Desktop sessions follow the lever. CLI defaults apply to new sessions after restarting; a running TUI does not follow the lever.",
     "固件标识": "Firmware identity",
     "设备协议标识：%@": "Device protocol identity: %@",
