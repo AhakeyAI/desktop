@@ -29,4 +29,15 @@ final class StudioTaskLightMonitorTests: XCTestCase {
         model.observe(overview(mode: 0), revision: 2, at: 3)
         XCTAssertNil(model.animation)
     }
+    func testLateExitFromOldForegroundTaskCannotClearNewForegroundSnapshot() {
+        let model = StudioTaskLightMonitor()
+        let old = model.beginObservation()
+        let current = model.beginObservation()
+        model.observe(overview(), revision: 1, at: 1)
+        model.endObservation(old)
+        XCTAssertNotNil(model.animation)
+        model.endObservation(current)
+        XCTAssertNil(model.animation)
+    }
+
 }

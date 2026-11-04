@@ -7,7 +7,22 @@ import AhaKeyConfigShared
 @MainActor
 final class StudioTaskLightMonitor: ObservableObject {
     @Published private(set) var animation: WS3TaskLightAnimation?
+    private var observation: UUID?
     private var revision: UInt64?
+
+    func beginObservation() -> UUID {
+        let token = UUID()
+        observation = token
+        clear()
+        return token
+    }
+
+    func endObservation(_ token: UUID) {
+        guard observation == token else { return }
+        observation = nil
+        clear()
+    }
+
     private var references: [String?] = Array(repeating: nil, count: 4)
 
     func clear() {

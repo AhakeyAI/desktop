@@ -142,8 +142,9 @@ struct AhaKeyStudioView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in lightWindowActive = true }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in lightWindowActive = false }
         .task(id: scenePhase == .active && lightWindowActive) {
-            guard scenePhase == .active && lightWindowActive else { taskLightMonitor.clear(); return }
-            defer { taskLightMonitor.clear() }
+            let observation = taskLightMonitor.beginObservation()
+            defer { taskLightMonitor.endObservation(observation) }
+            guard scenePhase == .active && lightWindowActive else { return }
             while !Task.isCancelled {
                 if NSApp.isActive, lightInspectorModel.multitaskPreviewStartedAt == nil {
                     let revision = agentManager.bluetoothOwnershipRevision
