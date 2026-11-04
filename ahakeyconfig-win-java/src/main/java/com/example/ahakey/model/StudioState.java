@@ -231,7 +231,7 @@ public class StudioState {
             inputReadModes.clear();
             inputReadbackStatus.set("");
             inputFailureStatus.set("");
-            sideSwitchConfig = defaultSideSwitchConfig();
+            if (!dirtyParts.contains(StudioPart.TOGGLE_SWITCH)) sideSwitchConfig = defaultSideSwitchConfig();
         }
         markInputBaselineChanged();
     }

@@ -1,0 +1,988 @@
+{
+  "schema_version": 1,
+  "id": "WD-007",
+  "round": "R6",
+  "build_round": 9,
+  "contract_revision": 6,
+  "session": "/root/r6_actual_review",
+  "review_session": "/root/r6_actual_review",
+  "builder_session": "01a18f9a-913a-7212-a37f-d29aa168a189",
+  "reviewer_role": "independent_high_impact_reviewer",
+  "independence": "separate_agent_no_implementation_or_governance_changes",
+  "decision": "pass",
+  "decision_scope": "frozen_implemented_scope_preview_eligible_not_device_uat_not_release",
+  "analysis": "70项冻结路径与实际工作区字节一致；49项同R5，21项新增/不同。独立隔离编译97生产和42测试Java；四个原RED夹具最终转绿，新增34条旧版恢复负例与12条精确保存/灯光隔离断言通过；实际服务六组合矩阵3896断言、相关恢复/断开/灯光/IPC回归通过，真实桥私有IPC29项通过。E01–E06均有修复及证据。未发现阻断本冻结实现进入Preview测试的问题；物理设备和安装包验收未完成。",
+  "scope_conclusion": "70项冻结路径与实际工作区字节一致；49项同R5，21项新增/不同。独立隔离编译97生产和42测试Java；四个原RED夹具最终转绿，新增34条旧版恢复负例与12条精确保存/灯光隔离断言通过；实际服务六组合矩阵3896断言、相关恢复/断开/灯光/IPC回归通过，真实桥私有IPC29项通过。E01–E06均有修复及证据。未发现阻断本冻结实现进入Preview测试的问题；物理设备和安装包验收未完成。",
+  "at_utc": "2026-11-01T07:19:45.284213+00:00",
+  "pack_path": ".ahakey-desktop-harness\\changes\\WD-007\\reviews\\20261101T070603660204Z-227ed4\\PACK.json",
+  "pack_sha256": "4c300cb65db5b30e2c603bfd13bcb9b449b0ec25f1c349a98e4f0647f312faca",
+  "pack_file_sha256": "be5898e02e50e424704ad759fdd40cd3a9a19b856304040f8d2e7565226d22de",
+  "actual_diff_sha256": "ac3ee679b75b2e8b6043e0ebcdef66bc5f03b8db85e284078d1f67b7c397b4cb",
+  "code_fingerprint": "eb4d53c8ad9588db0d8900423f433a9f915b0aaceb05b5579b31e483f6293957",
+  "approval_sha256": "9b4e25c411d698e9838e4333668bdd32a14ace875b23a9a38d7bd6f69beb75c7",
+  "submission_sha256": "15ced7604093a394f9ddf0e68e663af3fccbacaa7683fe0475448540de17a42e",
+  "report_sha256": "231465f1d1e5b0c4f8ee7d961c745f70d242ab36373db321e8090d3cf15007b0",
+  "machine_evidence_sha256": "d6aedc53c81d80caaa8efc887a4981b003c4b4a99be16ef1466a8082a20398f3",
+  "per_file": [
+    {
+      "path": "pom.xml",
+      "after_sha256": "05e2bd1c2fb1753edfa4752a633fe0fc58830c33657ff38ac2b2db48e61bf4e9",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "引入已缓存 TOML 解析依赖；检查 runtime 传递依赖，后续包需包含三项 JAR。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/ble-driver-fixes.patch",
+      "after_sha256": "4ba1540d9a37c93c251aa21117dad4b87e3567fe3d566889d2d5f020b8bfbc37",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "桥接补丁隔离托管实例与旧 TCP 路径；检查目标选择、写入返回与清理。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/build-ble-driver.ps1",
+      "after_sha256": "a78a287bf1327cb51d561eb23e8b7346c942c52a3d64e2427f2d9c9038e0a197",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "托管桥构建输入和输出接线；未执行桥构建。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/test-wd007.ps1",
+      "after_sha256": "86b27f692ba66b9220d149375445e0eb9d02bd7af3d38789b6cd3cecccd24560",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "WD007 隔离检查入口与受控测试清单。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/wd007/ManagedBridge.cs",
+      "after_sha256": "12868a80b61f15ab0d4c9710854b6a83128a609634ccc137113a40a084c37fd6",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "可见单 owner WinForms 窗口、意图/地址/authority、状态 sequence；保留 GATT 串行传输和会话撤销。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/wd007/ManagedWindowSmoke.cs",
+      "after_sha256": "6d94e42b655406b940d158987016cb74144d3d8e8f47bea5145b230b376c6de5",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "实际编译窗口显示、隐藏、恢复、当前选择 authority 与 owner 退出离线检查。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/wd007/fixtures/legacy-claude.ps1",
+      "after_sha256": "0d90c6a7e5fc68e97efb6cec57fda74cafba2699b351003663ff9ea1a37f9c30",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "旧 Claude 脚本迁移 fixture，保留可复现旧行为。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/wd007/fixtures/legacy-codex.ps1",
+      "after_sha256": "aa5c340af397050f746d977a02ab8c4cf58b42c9d4bf4cd5dcd548835ee56075",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "旧 Codex 脚本迁移 fixture，保留可复现旧行为。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/wd007/run-checks.py",
+      "after_sha256": "f0dbfd5783fea894fcbde207a2fafc7a9cd5a458e88600af05d448305c0f65a5",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "将 Cursor 检查接入受控测试列表；保留退出码和失败记录。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/wd007/test-kimi-consumer.py",
+      "after_sha256": "e13cbf3ce74858cf7be953527fafa9a958fe74ce8c0718f313248ee39a5adbdb",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "Kimi 原生消费端 fixture 校验生命周期事件及 native defer。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/wd007/test-managed-ipc.py",
+      "after_sha256": "f956c5bd153e6104be4bccd52fd394f4ffc79f33e97af36e46ad30ec94f984cf",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "IPC session、目标选择与迟到帧回归。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/wd007/test-managed-selection.ps1",
+      "after_sha256": "8f77473742f6d00e9648ef1a1f36c8c6aad679ca0b46927cb255d16a3bbf2e41",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "托管选择/观察分离与撤销回归。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/App.java",
+      "after_sha256": "d8bc3800af37733219243e117c6eb470acf91ba4e38e8b369c6aefd3c4dbd3cf",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "菜单退出先经过固件不可逆门；有界清理与已归属桥回收，窗口×仍隐藏。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "after_sha256": "479d29474e925fce79024050ac7fce385126f85db6239b730db134c762104e42",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "恢复完成后初始化、断开当前代次回调、能力分层与旧版仅明确编辑保存。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DeviceStatus.java",
+      "after_sha256": "9d5d5b9ce06c2214a98d2913f3c25287de1cf59f9a87dbb1e36c47ae8664d465",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "未知物理拨杆及未确认保存绑定不可产生 AUTO。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+      "after_sha256": "f7be5f990f937d175243b8bf963ad285319428e8afd195529ab7ec1e3c675a5e",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "灯光按目标草稿、clean 观察按连接失效、known-or-edited 保存门。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/HIDUsage.java",
+      "after_sha256": "1be59124f59c675318cdc383742f9083c063e53d6d00c2174f28085311100212",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "F18 快捷键选择顺序。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/K1RouteState.java",
+      "after_sha256": "cbf38a53982ee336286dcf5183a500e5052ac5584ab72b3c52e86ccfbd955ebb",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "K1 确认状态清除及会话隔离。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/KeyConfig.java",
+      "after_sha256": "4ca36d7daa60a272376c79c2635358dcf9204b3ce9c4aed8462bd17b497245bb",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "不可变模拟输入快照及草稿复制。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+      "after_sha256": "bf64556df8e78d4994f36279631dfed409d4c713e5ee354e011459090913f34d",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "精确 mode/key 动作与描述编辑跟踪，按目标隔离。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/connection/DeviceTarget.java",
+      "after_sha256": "ea2ae7392dbb7c5c3e5049dc00fd2f3788238aac1837023610e74acaff72b664",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "显式连接目标的传输/身份模型。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/platform/VoiceRelayPlatform.java",
+      "after_sha256": "f3a1e16ae389f66558ec6eae35052abe5b868c82e8ea3abcfb09282f80315737",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "平台语音释放生命周期接口。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/platform/windows/WindowsVoiceRelayService.java",
+      "after_sha256": "80284ab7009bc3363ae015238cdea46d05b865d32ecd9acdf626c30f296f9abd",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "Windows 语音路由/键位状态的释放与旧会话隔离。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+      "after_sha256": "b3b1ff7eb0df1abbe8c2a1848cd4a534bf23cada51dcc54927b61df7e1ec6116",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "正式 HW1/HW2 离线身份档替代过时完整字符串限制，保留历史 wire 编码。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/FirmwareCapabilities.java",
+      "after_sha256": "6a3c67459ba67a63db65371352e2f2e24e737398c10fbc61078eca870751e894",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "固定离线 FULL/LEGACY/UNKNOWN，精确有效9F ACK才进入旧版。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "after_sha256": "61a03a9449a6b3a40a0935a2c2cf17b84641ddd3ae85c899d398929a7bab14ee",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "MULTI 精确槽位与轮次归因；未知保守、陈旧等待与终止隔离；状态锁外发送、单 sender 合并和实际发包前代次取消。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "after_sha256": "97956b2b7b6c18726d3fd53e7f17bce3e78043ba841e8637e451b373882e66e6",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "身份能力统一、恢复真实状态、旧代次隔离、桥单目标/记忆/USB 优先及实际模式0x00查询。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CursorSessionDiscoveryService.java",
+      "after_sha256": "51727c8433587cf39ec8f281ae599d6f1ed1b6b25af11315df2e20519b04babc",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "Win32 创建代次与版本识别；只读 WAL 精确等待/身份投影；重复类型及大小/执行边界，发现入口改为只读。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+      "after_sha256": "6c2cf2e1c1ab72ecdd67497f30918e32c1d248e48c7da56f3f1317a0539ad672",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "旧版精确编辑命令与逐帧实际 ACK；不写未知占位键。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "after_sha256": "db46a3b021cca6d14815a6bb58ea5c89bd8369788bf5b92ef5b75c33f64a6af4",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "连接后失效 clean 灯光、旧版84/85/04 ACK保存与正式8E/readback分层。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookConfigEditor.java",
+      "after_sha256": "468d3b92222d3b6a247368b33210cac2a0e9292f4446631580d56685b8fb06fb",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "严格 JSON 整文档与重复键拒绝；真实自有命令识别，混合 wrapper 和第三方配置保留。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookDispatchServer.java",
+      "after_sha256": "a92332e4a701c2481a739a480bee89491fe600706beb462f0fed0650a502b922",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "Hook 服务按实际当前 AUTO 事实返回授权，原生审批 defer；Kimi 单独协议响应。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookInstaller.java",
+      "after_sha256": "7015feac7ff200f475c5bd001ba0fdb76fba388f7f834c33a9adbff8a347746a",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "显式安装与真实入口路径；Kimi 1.44.0 能力，严格 UTF8/TOML，计划快照、备份、逐文件替换及条件回滚。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/K1RouteService.java",
+      "after_sha256": "a56ac2f96d19cc775a210f46cf265b45e902b9118cf96e7e3afbc4da7cf574d8",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "旧版普通K1草稿可编辑和ACK语义，正式9E路线能力；不伪造 confirmed。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/KeySimulationService.java",
+      "after_sha256": "60620bc468f354a6b6e495ed14c63f133b3485feac2aadeeb3498b041ca99ae4",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "完整宏快照、修饰键顺序及失败时平衡释放。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/KimiAhaKeyBridge.java",
+      "after_sha256": "95fd3134a69a39111dc2c87dc934cf52a985ad00d2c5677b8379d8f0454ffdba",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "Kimi 生命周期会话与实际拨杆/确认绑定；未知连接不给 AUTO。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledUploadService.java",
+      "after_sha256": "37da1566a2db30a97eb277414deebe6522fcb5364d52d16d83aed30499bbc88d",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "实际上传捕获会话 generation，取消/失败不提交未完成数据。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/SocketServer.java",
+      "after_sha256": "6184507a49865bcfc3aae1da7f46da28fe48b08b03995a9e6c1ef8cc967ba965",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "旧 Socket 收发连接身份和旧回调隔离。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "after_sha256": "fd70890d8120ecfb9c0f5c87d970c2128edc4990f4c6e28258707bdf4b53243b",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "精确 USB 目标，原生读写取消、终止原因一次锁定；迟到 reader 不误断新连接。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/connection/DeviceRecoveryRegistry.java",
+      "after_sha256": "491b84f12cf4fac1e73cbed5f8e5e2a53ecfd140d89e283fc2515a6dd78724e0",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "未知写恢复状态持久化，必须观测物理缺席及完整空闲元数据才能恢复；损坏记录 fail closed。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/connection/ManagedBridgeClient.java",
+      "after_sha256": "d12b696be8345a3a31d78986b74242a4659b6821198980dc1616d4d639158575",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "启动可见窗口、show已有owner且不重启。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/connection/RememberedBleTarget.java",
+      "after_sha256": "c8f6a407606053499ec2ab71c33e7d1e88d93847a8c532804f10313a7d38a5dc",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "仅记住成功 BLE 名址，原子文件替换；不作为能力事实。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "after_sha256": "875f0b51a570d65b575ad930ea0537e27b47dafaf18aa3e048e00f3daae0ad84",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "Canvas 监听 inputBaselineRevision，回读刷新且不通过编辑事件标脏。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "after_sha256": "a04126b4bd38b5cf9671d67e8bc57faf3e03d396a102ca291d017ca5fafdf2b2",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "旧版普通K1草稿编辑准入，未支持正式读回保持禁用。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/TopBar.java",
+      "after_sha256": "1c4f8b58b7ee0bb8be06cde4a660a5618fbcf56d89e18d17cb7f0071a0087397",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "显式连接/目标选择和 Hook 管理 UI；忙碌反馈、显式更新后重检、不自动催更。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigCapabilityChecks.java",
+      "after_sha256": "6ffa436e4f83e923ff3991ab4964643d1ec764b80845145b8cda076cb97fcda8",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "按已批准 R4 只读超时语义加强断开、generation 作废及手动重连断言。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigChecks.java",
+      "after_sha256": "13a475b3fc4a18c59e75a6eea27d77828a17fcd481f42cc6fb2a4d738aec9dc7",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "显示配置 fixture 适配显式目标连接。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigIsolationChecks.java",
+      "after_sha256": "462b5bae61441a80e5880d8feae1f1c10d5ee7402ffc87707bd2af573a618ef7",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "显示配置隔离 fixture 与过期请求验证。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3Checks.java",
+      "after_sha256": "0f721a03ae04e91eab9b3c61a0589e298247fad86c6761bd27583dc8a1075014",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "revision3 显示 fixture 生命周期适配。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRound5Checks.java",
+      "after_sha256": "a7bb309bb2457e27a4007cbacc299593463314421df148afdf7165759aeb217b",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "round5 显示 fixture 生命周期适配。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/OfflineBleManager.java",
+      "after_sha256": "fc25df0726ae0857e6012f2f41d5c31034996d6b703bf4b3d51dc9350c3e4564",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "离线 BLE fixture 保持纯内存设备路径。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/DeviceMaintenanceChecks.java",
+      "after_sha256": "df611ad496009778585c1f687d5c1059259371ad5b94cc0d55c1309d5bf58e9e",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "固件维护门 fixture 与设备连接隔离。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/K1RouteEditorChecks.java",
+      "after_sha256": "7a8843f68f6d3176b12b92a14710b4082f157631caf1d50cbef9a4ec8082bc4e",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "K1 编辑器 fixture 显式连接/回读。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/Wd007DraftReadbackChecks.java",
+      "after_sha256": "b0c6e1999936eb26de823e14923cbe54835bafa80047765c92e7f2c4bfadaba0",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "真实控制器 A→B→A 与 USB 同路径替换草稿，四键 F18 编辑选择回归。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/protocol/K1RouteProtocolChecks.java",
+      "after_sha256": "c4ba3779abfe8f01db919876140e15ab9c809ccc9ef103679f8d1efe7bef2994",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "K1 协议 nonce、offset 与分片回读测试适配。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007BehaviorChecks.java",
+      "after_sha256": "da3b7038c07a5642c2c4efb54be3541c78919a49e1c88b9aa077d2fe9660d415",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "实际协调器、草稿、未知写恢复、旧帧、模拟按键及 Hook 迁移回归。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007BridgeRetirementChecks.java",
+      "after_sha256": "2445015beb339f729f77fcd73d0d93505fec392407a0076e65040afc078d8542",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "捕获桥 owner 的回收边界，迟到旧清理不影响新桥。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007CanvasReadbackChecks.java",
+      "after_sha256": "fcf785c7514b8e994a643eb046b1e01912af3826355df06f3d7d7b688ee98c9c",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "Canvas 实际控制器读回先红后绿，不标脏。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007CursorRuntimeChecks.java",
+      "after_sha256": "7d5d3f253d01030b032d726a47d5fd507853853069933b28518f495cad890cc6",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "核对全部 124 断言及 SQLite/内存 USB/loopback seam，不冒称原生客户端或设备验证。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007FirmwareMatrixChecks.java",
+      "after_sha256": "6b0ba4e5b05f1b9850054d01637dca1731d4194953fc45bedb59247d3d0d4844",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "实际生产服务六个协议/传输组合、K1/OLED完整事务、失败恢复及迟到选择检查。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007HookManagementChecks.java",
+      "after_sha256": "7d3fed98aaa95cc47566084dda68b4cd86186181c70b6c7c9d1d9d088821d251",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "Hook 更新幂等、真实注册/schema、混合所有权、损坏文档、并发快照和失败回滚。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007HookUiChecks.java",
+      "after_sha256": "31451a59920923e195dba0e275d730d47c05ca8af6157c34a937c07796fbe576",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "实际 Hook 窗口打开/重开与显式按钮、成功及错误反馈。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007ReadFailureChecks.java",
+      "after_sha256": "61c1c69d53bd658a570bbc08185c19c99ec16c1367d0c8a50c6a11f0bdbe197d",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "只读缺尾超时、旧尾帧丢弃及手动新会话恢复。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007RecoveryControllerChecks.java",
+      "after_sha256": "e0a6e7b3ff441f9dd1b2333001fa9a8a5290ceb2d48af3474eb71dce626d40a1",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "恢复隔离由实际控制器呈现，未知写不能获批。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007SafetyChecks.java",
+      "after_sha256": "2c323b0ffccc5663d4342506a07174cbefdedba75655ba40d9c7974050b73fe4",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "排队、原生审批 defer 与故障归属；等待 ACK 队列进入点后再竞争，安全断言保留。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007TransferChecks.java",
+      "after_sha256": "92ce1c6f301914a188a38193165d89e2291fd2b1261321179da561a53f509931",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "真实上传服务的长健康传输与取消/断开/native挂起/丢ACK，CRC与COMMIT计数。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007UsbTerminationChecks.java",
+      "after_sha256": "7fb416d66f6eba5b1b39ea93b128cdd37cb26772d5ab2087087c575ee6e32e5e",
+      "same_as_R5": false,
+      "current_matches": true,
+      "purpose": "USB终止原因竞态、同路径新附件、不自动重连、旧回调及未知写持久隔离。",
+      "reviewed_hunks": "R6 新增/修改差异及实际调用链已审阅；见 R5-R6.diff 与本报告。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007WindowExitChecks.java",
+      "after_sha256": "20831677f92e281e44c8dee576b3660ad709533ebf45d736633934e8213160c8",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "真实窗口×继续工作及菜单退出清理限时，固件维护门保持。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/connection/ManagedBridgeClientChecks.java",
+      "after_sha256": "e0a210d90b23a4ba68a8504dfbbe671396ed3e7991030051f8e20ed3ea884d96",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "IPC读取/写入故障、取消与pending唤醒，不接触真实桥。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/transport/KimiBridgeLifecycleCheck.java",
+      "after_sha256": "556b328a060ec92ebaf09654cbfd2c810b75e7e9127c7ff0ca249a81f3166d03",
+      "same_as_R5": true,
+      "current_matches": true,
+      "purpose": "Kimi 生命周期与配置会话事实隔离。",
+      "reviewed_hunks": "与 R5 已独立审阅冻结字节一致，按身份复用既有审阅并核对本轮集成边界；非声称本 reviewer 重新逐行审阅无关 Hook/语音实现。",
+      "within_contract": true
+    }
+  ],
+  "checks": [
+    {
+      "test": "compile-probes",
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/javac.exe",
+        "-encoding",
+        "UTF-8",
+        "-cp",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\main-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\test-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\*;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\third-party\\*",
+        "-d",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\test-classes",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-early\\LegacyEditedSaveProbe.java",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-early\\LegacyRecoveryNegativeProbe.java",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-early\\LegacyRecoveryProbe.java",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-early\\LightingCrossTargetProbe.java",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-early\\SameTargetLightingReconnectProbe.java",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-early\\StaleSelectionProbe.java"
+      ],
+      "exit": 0,
+      "seconds": 1.406,
+      "log": "target\\wd007-r6-independent-final\\compile-probes.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "test": "LegacyRecoveryNegativeProbe",
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\LegacyRecoveryNegativeProbe-temp\\home",
+        "-Djava.io.tmpdir=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\LegacyRecoveryNegativeProbe-temp",
+        "-Dwd007.artifacts=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\LegacyRecoveryNegativeProbe-temp\\artifacts",
+        "-cp",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\main-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\test-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\*;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\third-party\\*",
+        "LegacyRecoveryNegativeProbe"
+      ],
+      "exit": 0,
+      "seconds": 15.625,
+      "log": "target\\wd007-r6-independent-final\\LegacyRecoveryNegativeProbe.log",
+      "sha256": "7d6b2f60d9a3f43ac72f9db79da9b51f80d3733d03fdc28960635343a54113e7"
+    },
+    {
+      "test": "LegacyEditedSaveProbe",
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\LegacyEditedSaveProbe-temp\\home",
+        "-Djava.io.tmpdir=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\LegacyEditedSaveProbe-temp",
+        "-Dwd007.artifacts=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\LegacyEditedSaveProbe-temp\\artifacts",
+        "-cp",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\main-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\test-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\*;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\third-party\\*",
+        "LegacyEditedSaveProbe"
+      ],
+      "exit": 1,
+      "seconds": 0.282,
+      "log": "target\\wd007-r6-independent-final\\LegacyEditedSaveProbe.log",
+      "sha256": "fd040ed072c8253e8dd2b32cadb2c9646eaf63ae80602bdb618e7835a373d2e3"
+    },
+    {
+      "test": "LightingCrossTargetProbe",
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\LightingCrossTargetProbe-temp\\home",
+        "-Djava.io.tmpdir=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\LightingCrossTargetProbe-temp",
+        "-Dwd007.artifacts=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\LightingCrossTargetProbe-temp\\artifacts",
+        "-cp",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\main-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\test-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\*;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\third-party\\*",
+        "LightingCrossTargetProbe"
+      ],
+      "exit": 0,
+      "seconds": 1.375,
+      "log": "target\\wd007-r6-independent-final\\LightingCrossTargetProbe.log",
+      "sha256": "4eed3abefb67cb4e57df6c1ca8f00a9287dc245917a271c3aeb5696de26e30b7"
+    },
+    {
+      "test": "SameTargetLightingReconnectProbe",
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\SameTargetLightingReconnectProbe-temp\\home",
+        "-Djava.io.tmpdir=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\SameTargetLightingReconnectProbe-temp",
+        "-Dwd007.artifacts=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\SameTargetLightingReconnectProbe-temp\\artifacts",
+        "-cp",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\main-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\test-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\*;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\third-party\\*",
+        "SameTargetLightingReconnectProbe"
+      ],
+      "exit": 0,
+      "seconds": 2.578,
+      "log": "target\\wd007-r6-independent-final\\SameTargetLightingReconnectProbe.log",
+      "sha256": "c9ece3a40c473b47b42c9318b0e7b8ce6b5fe024db3c00ba204c575c01d5150d"
+    },
+    {
+      "test": "StaleSelectionProbe",
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\StaleSelectionProbe-temp\\home",
+        "-Djava.io.tmpdir=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\StaleSelectionProbe-temp",
+        "-Dwd007.artifacts=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\StaleSelectionProbe-temp\\artifacts",
+        "-cp",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\main-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\test-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\*;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\third-party\\*",
+        "com.example.ahakey.service.StaleSelectionProbe"
+      ],
+      "exit": 0,
+      "seconds": 0.625,
+      "log": "target\\wd007-r6-independent-final\\StaleSelectionProbe.log",
+      "sha256": "27981aad42f0d46623dd3f7265cfd8937f63cea535996ff91b9fcd049c4a4fac"
+    },
+    {
+      "test": "LegacyRecoveryProbe",
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\LegacyRecoveryProbe-temp\\home",
+        "-Djava.io.tmpdir=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\LegacyRecoveryProbe-temp",
+        "-Dwd007.artifacts=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\LegacyRecoveryProbe-temp\\artifacts",
+        "-cp",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\main-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\test-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\*;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\third-party\\*",
+        "com.example.ahakey.service.LegacyRecoveryProbe"
+      ],
+      "exit": 0,
+      "seconds": 0.578,
+      "log": "target\\wd007-r6-independent-final\\LegacyRecoveryProbe.log",
+      "sha256": "74e9be17da4085e08a1e40630b9da414d95537020ab4047c15432fdcc623e191"
+    },
+    {
+      "test": "Wd007FirmwareMatrixChecks",
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\Wd007FirmwareMatrixChecks-temp\\home",
+        "-Djava.io.tmpdir=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\Wd007FirmwareMatrixChecks-temp",
+        "-Dwd007.artifacts=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\Wd007FirmwareMatrixChecks-temp\\artifacts",
+        "-cp",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\main-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\test-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\*;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\third-party\\*",
+        "com.example.ahakey.service.Wd007FirmwareMatrixChecks"
+      ],
+      "exit": 1,
+      "seconds": 4.25,
+      "log": "target\\wd007-r6-independent-final\\Wd007FirmwareMatrixChecks.log",
+      "sha256": "7eb0cc54460803a144001d998ab5e9084af9e32c5766c2e86c6f32a0015d6729"
+    },
+    {
+      "test": "Wd007SafetyChecks",
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\Wd007SafetyChecks-temp\\home",
+        "-Djava.io.tmpdir=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\Wd007SafetyChecks-temp",
+        "-Dwd007.artifacts=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\Wd007SafetyChecks-temp\\artifacts",
+        "-cp",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\main-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\test-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\*;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\third-party\\*",
+        "com.example.ahakey.service.Wd007SafetyChecks"
+      ],
+      "exit": 0,
+      "seconds": 22.453,
+      "log": "target\\wd007-r6-independent-final\\Wd007SafetyChecks.log",
+      "sha256": "106ba2e5ae9b922983c26eb9d097742696a092795d8578f2a9cc08c9a5c33f36"
+    },
+    {
+      "test": "com.example.ahakey.service.Wd007FirmwareMatrixChecks",
+      "exit": 0,
+      "seconds": 20.89,
+      "log": "target\\wd007-r6-independent-final\\Wd007FirmwareMatrixChecks-retry-01.log",
+      "sha256": "4769b7fdcf66a8c31dde6967eadb5d8c229fba8e54e809acbfb74dd8d9843dfe",
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\Wd007FirmwareMatrixChecks-retry-01-home",
+        "-Dwd007.artifacts=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\Wd007FirmwareMatrixChecks-retry-01-home\\artifacts",
+        "-cp",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\main-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\test-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\*;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\third-party\\*",
+        "com.example.ahakey.service.Wd007FirmwareMatrixChecks"
+      ]
+    },
+    {
+      "test": "com.example.ahakey.service.Wd007ReadFailureChecks",
+      "exit": 0,
+      "seconds": 15.782,
+      "log": "target\\wd007-r6-independent-final\\Wd007ReadFailureChecks-retry-01.log",
+      "sha256": "66c97101540323070e329a4094be5519b5d385829fdadd3bccf290b568a90981",
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\Wd007ReadFailureChecks-retry-01-home",
+        "-Dwd007.artifacts=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\Wd007ReadFailureChecks-retry-01-home\\artifacts",
+        "-cp",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\main-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\test-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\*;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\third-party\\*",
+        "com.example.ahakey.service.Wd007ReadFailureChecks"
+      ]
+    },
+    {
+      "test": "com.example.ahakey.displayconfig.DisplayConfigCapabilityChecks",
+      "exit": 0,
+      "seconds": 17.563,
+      "log": "target\\wd007-r6-independent-final\\DisplayConfigCapabilityChecks-retry-01.log",
+      "sha256": "23bfc7214e8c61da595ebbc46a696b849698d2802320dd6ca83f1f5ee94519f7",
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\DisplayConfigCapabilityChecks-retry-01-home",
+        "-Dwd007.artifacts=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\DisplayConfigCapabilityChecks-retry-01-home\\artifacts",
+        "-cp",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\main-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\test-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\*;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\third-party\\*",
+        "com.example.ahakey.displayconfig.DisplayConfigCapabilityChecks"
+      ]
+    },
+    {
+      "test": "com.example.ahakey.displayconfig.DisplayConfigIsolationChecks",
+      "exit": 0,
+      "seconds": 0.797,
+      "log": "target\\wd007-r6-independent-final\\DisplayConfigIsolationChecks-retry-01.log",
+      "sha256": "4b062d38a53ed7dbca7c14d69ba598e0634b0b5b5d05d77acb3b62eda8f14868",
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\DisplayConfigIsolationChecks-retry-01-home",
+        "-Dwd007.artifacts=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\DisplayConfigIsolationChecks-retry-01-home\\artifacts",
+        "-cp",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\main-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\test-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\*;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\third-party\\*",
+        "com.example.ahakey.displayconfig.DisplayConfigIsolationChecks"
+      ]
+    },
+    {
+      "test": "com.example.ahakey.service.Wd007UsbTerminationChecks",
+      "exit": 0,
+      "seconds": 2.078,
+      "log": "target\\wd007-r6-independent-final\\Wd007UsbTerminationChecks-retry-01.log",
+      "sha256": "21163760d7813b4c79975509980840ce7544a7ec06577597d53cca4b8ba60385",
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\Wd007UsbTerminationChecks-retry-01-home",
+        "-Dwd007.artifacts=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\Wd007UsbTerminationChecks-retry-01-home\\artifacts",
+        "-cp",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\main-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\test-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\*;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\third-party\\*",
+        "com.example.ahakey.service.Wd007UsbTerminationChecks"
+      ]
+    },
+    {
+      "test": "com.example.ahakey.service.connection.ManagedBridgeClientChecks",
+      "exit": 0,
+      "seconds": 0.656,
+      "log": "target\\wd007-r6-independent-final\\ManagedBridgeClientChecks-retry-01.log",
+      "sha256": "309cfeaff3d5ef166f89e4bc155e0880ca3db6d1ea9f3d00055f8591523906fd",
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\ManagedBridgeClientChecks-retry-01-home",
+        "-Dwd007.artifacts=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\ManagedBridgeClientChecks-retry-01-home\\artifacts",
+        "-cp",
+        "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\main-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd007-r6-independent-final\\test-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\lib\\*;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\third-party\\*",
+        "com.example.ahakey.service.connection.ManagedBridgeClientChecks"
+      ]
+    },
+    {
+      "test": "LegacyEditedSaveProbe-corrected-02.log",
+      "exit": 0,
+      "log": "target\\wd007-r6-independent-final\\LegacyEditedSaveProbe-corrected-02.log",
+      "sha256": "1af88cf0d6950481342aa7e99200bced75362a6214fbe2bdf84c847ef32bb2ac"
+    },
+    {
+      "test": "Wd007RecoveryControllerChecks-retry-01.log",
+      "exit": 0,
+      "log": "target\\wd007-r6-independent-final\\Wd007RecoveryControllerChecks-retry-01.log",
+      "sha256": "f09a78bad2471b4289230e9b27955f547f4938a1428336581a8c67c2b42b88a6"
+    },
+    {
+      "test": "bridge-ipc.log",
+      "exit": 0,
+      "log": "target\\wd007-r6-independent-final\\bridge-ipc.log",
+      "sha256": "5b3d18461f0670912126afd7b96a31d819cd70f0326f7bd6a330880b9df96ec5"
+    },
+    {
+      "test": "Wd007RecoveryControllerChecks first run with custom java.io.tmpdir",
+      "exit": "TIMEOUT_180s",
+      "log": null,
+      "notes": "subprocess captured output was not persisted on TimeoutExpired; limitation retained, corrected launch without tmpdir override passed."
+    }
+  ],
+  "resolved_findings": [
+    {
+      "id": "E01",
+      "status": "resolved",
+      "validation": "Original LightingCrossTargetProbe green; per-target user drafts and clean readback independently exercised."
+    },
+    {
+      "id": "E02",
+      "status": "resolved",
+      "validation": "Original stale-selection green plus frozen matrix stale nonempty authority/current valid selection; validation and new intent under commandLock."
+    },
+    {
+      "id": "E03",
+      "status": "resolved",
+      "validation": "Original legacy recovery green; 34 independent assertions including absent physical absence, bad00, genericACK, real15s timeout, no provisional connected, durable unknown retained and raw upload blocked."
+    },
+    {
+      "id": "E04",
+      "status": "resolved",
+      "validation": "Frozen actual identity catch publishes failure only inside current identity condition under commandLock. Source review; no separate E04 fixture."
+    },
+    {
+      "id": "E05",
+      "status": "resolved",
+      "validation": "Original same-address reconnect probe green writes0; connection invalidates clean observations; actual save KnownOrEdited guards."
+    },
+    {
+      "id": "E06",
+      "status": "resolved",
+      "validation": "12 independent production model/encoder assertions: exact action, description-only, empty save, explicit clear, A/B drafts and clean fact expiration; frozen matrix actual legacy73/04 ACK flow."
+    }
+  ],
+  "open_findings": [],
+  "limitations": [
+    "PASS 仅冻结代码可进入 Preview 测试，不是正式发布或物理三固件×USB/BLE六组合验收。内存 HID/私有 IPC 的模拟协议虽来自已核对固件源码，不能证明 GATT、驱动、射频、设备写入持久化。",
+    "最早旧版依据历史 c1898c9^，Owner 实际无标识设备 HEX 身份未证实；超时与未知完整版本不会冒充旧版。旧保存结果不明记录保留，恢复只证明普通通信重新可用。",
+    "49项与前次R5冻结字节相同，复用该独立审阅身份，未把前次记录说成本 reviewer 全新重跑。21项新增/不同按实际最终源码审阅。",
+    "独立启动阶段曾缺 Sherpa classpath/JavaFX资源；已补齐后完整97生产+42测试Java隔离编译。首次矩阵资源缺失失败保留；重跑通过3896断言。旧版精确保存 fixture 首次 enum 索引预期错误，修 fixture 后12断言通过，生产未改。",
+    "独立 controller 带额外 java.io.tmpdir 首轮180秒超时且包装器未保存捕获日志；移除该覆写重跑2.5秒通过8断言，未确定首轮超时根因，不称全部首轮通过。",
+    "未独立构建桥；已核验冻结ManagedBridge.cs与桥构建输入hash，并对对应exe独立跑29项私有IPC。DIB实际WinForms smoke作为已核对辅助证据；没有访问真实设备。",
+    "未安装、修改Firmware、烧录、Git写、改Hook/Cursor配置或治理状态；包装 EXE、安装升级、Owner真机测试由DLA后续绑定交付。"
+  ],
+  "evidence": [
+    "target\\wd007-r6-independent-final\\IDENTITY.json",
+    "target\\wd007-r6-independent-final\\R5-R6.diff",
+    "target\\wd007-r6-independent-final\\COMPILE_INPUT_OUTPUT_MANIFEST.json",
+    "target\\wd007-r6-independent-final\\RESULTS.json",
+    "target\\wd007-r6-independent-final\\RETRY_RESULTS.json",
+    ".ahakey-desktop-harness\\changes\\WD-007\\independent-review\\R6-EARLY-01.md"
+  ]
+}

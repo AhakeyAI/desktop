@@ -1,0 +1,617 @@
+{
+  "schema_version": 1,
+  "id": "WD-007",
+  "pack_sha256": "4c300cb65db5b30e2c603bfd13bcb9b449b0ec25f1c349a98e4f0647f312faca",
+  "reviewer_role": "DLA",
+  "review_session": "01a1684d-3953-79d0-9cc6-57f397a595f9",
+  "builder_session": "01a18f9a-913a-7212-a37f-d29aa168a189",
+  "independence": "separate_dla_conversation",
+  "decision": "pass",
+  "scope_conclusion": "70项累计路径绑定，49项与R5冻结字节相同，21项R6变化逐项实审。三固件兼容与可见桥恢复符合Owner批准范围，可进入Preview；尚非真机/UAT/发布通过。",
+  "per_file": [
+    {
+      "path": "pom.xml",
+      "purpose": "新增 TOML 解析依赖来自本地缓存；未引入网络下载，最终runtime尚需核对3个依赖JAR。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 R4最终冻结after与R3增量已实际逐段审阅；新增 TOML 解析依赖来自本地缓存；未引入网络下载，最终runtime尚需核对3个依赖JAR。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "05e2bd1c2fb1753edfa4752a633fe0fc58830c33657ff38ac2b2db48e61bf4e9",
+      "same_as_R5": true
+    },
+    {
+      "path": "scripts/ble-driver-fixes.patch",
+      "purpose": "Managed入口在Form/旧9000监听前分流；仅添加受控Connect入口，原WCH及MTU/FIFO修正保留。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；Managed入口在Form/旧9000监听前分流；仅添加受控Connect入口，原WCH及MTU/FIFO修正保留。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "4ba1540d9a37c93c251aa21117dad4b87e3567fe3d566889d2d5f020b8bfbc37",
+      "same_as_R5": true
+    },
+    {
+      "path": "scripts/build-ble-driver.ps1",
+      "purpose": "固定桥基线复制后应用补丁，显式编译ManagedBridge及System.Web.Extensions；产物协议manifest绑定实际EXE SHA。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；固定桥基线复制后应用补丁，显式编译ManagedBridge及System.Web.Extensions；产物协议manifest绑定实际EXE SHA。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "a78a287bf1327cb51d561eb23e8b7346c942c52a3d64e2427f2d9c9038e0a197",
+      "same_as_R5": true
+    },
+    {
+      "path": "scripts/test-wd007.ps1",
+      "purpose": "新证据目录、离线编译、25套检查和C#/IPC/Kimi实际消费者，任一非零退出阻断；不安装/探测硬件。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；新证据目录、离线编译、25套检查和C#/IPC/Kimi实际消费者，任一非零退出阻断；不安装/探测硬件。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "86b27f692ba66b9220d149375445e0eb9d02bd7af3d38789b6cd3cecccd24560",
+      "same_as_R5": true
+    },
+    {
+      "path": "scripts/wd007/ManagedBridge.cs",
+      "purpose": "实际WinForms仅发用户意图，同一ManagedBridge/BleCore拥有者保留串行GATT、订阅和session隔离；show/status/地址候选/托盘关闭与authority已逐段核对。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 实际WinForms仅发用户意图，同一ManagedBridge/BleCore拥有者保留串行GATT、订阅和session隔离；show/status/地址候选/托盘关闭与authority已逐段核对。",
+      "within_contract": true,
+      "after_sha256": "12868a80b61f15ab0d4c9710854b6a83128a609634ccc137113a40a084c37fd6",
+      "same_as_R5": false
+    },
+    {
+      "path": "scripts/wd007/ManagedWindowSmoke.cs",
+      "purpose": "实际编译窗口隔离创建、关闭隐藏、唤起、同名地址及selectionAuthority，不构建Bluetooth对象；截图已检查。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 实际编译窗口隔离创建、关闭隐藏、唤起、同名地址及selectionAuthority，不构建Bluetooth对象；截图已检查。",
+      "within_contract": true,
+      "after_sha256": "6d94e42b655406b940d158987016cb74144d3d8e8f47bea5145b230b376c6de5",
+      "same_as_R5": false
+    },
+    {
+      "path": "scripts/wd007/fixtures/legacy-claude.ps1",
+      "purpose": "精确旧生成脚本fixture用于验证迁移hash与原生defer；不是写入实际用户配置。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；精确旧生成脚本fixture用于验证迁移hash与原生defer；不是写入实际用户配置。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "0d90c6a7e5fc68e97efb6cec57fda74cafba2699b351003663ff9ea1a37f9c30",
+      "same_as_R5": true
+    },
+    {
+      "path": "scripts/wd007/fixtures/legacy-codex.ps1",
+      "purpose": "旧Codex生成脚本fixture及已知hash匹配，只在临时USERPROFILE运行。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；旧Codex生成脚本fixture及已知hash匹配，只在临时USERPROFILE运行。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "aa5c340af397050f746d977a02ab8c4cf58b42c9d4bf4cd5dcd548835ee56075",
+      "same_as_R5": true
+    },
+    {
+      "path": "scripts/wd007/run-checks.py",
+      "purpose": "增加六组合入口与UTF8日志，不删除原33套检查；最终有效结果分清全套首次失败与矩阵定向修正。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 增加六组合入口与UTF8日志，不删除原33套检查；最终有效结果分清全套首次失败与矩阵定向修正。",
+      "within_contract": true,
+      "after_sha256": "f0dbfd5783fea894fcbde207a2fafc7a9cd5a458e88600af05d448305c0f65a5",
+      "same_as_R5": false
+    },
+    {
+      "path": "scripts/wd007/test-kimi-consumer.py",
+      "purpose": "提取实际安装consumer只读函数，执行五状态并检查原生defer/AUTO；独立Java测试端口。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；提取实际安装consumer只读函数，执行五状态并检查原生defer/AUTO；独立Java测试端口。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "e13cbf3ce74858cf7be953527fafa9a958fe74ce8c0718f313248ee39a5adbdb",
+      "same_as_R5": true
+    },
+    {
+      "path": "scripts/wd007/test-managed-ipc.py",
+      "purpose": "实际桥认证后检查visible-window/show/status，原无session写拒绝、重复ID和退出检查保留。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 实际桥认证后检查visible-window/show/status，原无session写拒绝、重复ID和退出检查保留。",
+      "within_contract": true,
+      "after_sha256": "f956c5bd153e6104be4bccd52fd394f4ffc79f33e97af36e46ad30ec94f984cf",
+      "same_as_R5": false
+    },
+    {
+      "path": "scripts/wd007/test-managed-selection.ps1",
+      "purpose": "实际C#选择快照类逆序观察与前台选择测试，不只是复刻模型。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；实际C#选择快照类逆序观察与前台选择测试，不只是复刻模型。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "8f77473742f6d00e9648ef1a1f36c8c6aad679ca0b46927cb255d16a3bbf2e41",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/App.java",
+      "purpose": "×仍旧托盘，实际菜单退出先取消上传；维护门禁后才启用五秒终止限时，仅停止自有桥。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；×仍旧托盘，实际菜单退出先取消上传；维护门禁后才启用五秒终止限时，仅停止自有桥。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "d8bc3800af37733219243e117c6eb470acf91ba4e38e8b369c6aefd3c4dbd3cf",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "purpose": "断开使用转换后代次，业务继续绑定旧代次；旧保存仅明确编辑且ACK确认，未知能力不保存，恢复未知结果如实显示。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 断开使用转换后代次，业务继续绑定旧代次；旧保存仅明确编辑且ACK确认，未知能力不保存，恢复未知结果如实显示。",
+      "within_contract": true,
+      "after_sha256": "479d29474e925fce79024050ac7fce385126f85db6239b730db134c762104e42",
+      "same_as_R5": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DeviceStatus.java",
+      "purpose": "物理位置与确认绑定分离，断开清事实；图文取当前位置已保存动作；完整版本优先。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；物理位置与确认绑定分离，断开清事实；图文取当前位置已保存动作；完整版本优先。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "9d5d5b9ce06c2214a98d2913f3c25287de1cf59f9a87dbb1e36c47ae8664d465",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+      "purpose": "目标草稿深复制，只恢复dirty；每会话clean观察失效，KnownOrEdited防止同地址重连写旧值。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 目标草稿深复制，只恢复dirty；每会话clean观察失效，KnownOrEdited防止同地址重连写旧值。",
+      "within_contract": true,
+      "after_sha256": "f7be5f990f937d175243b8bf963ad285319428e8afd195529ab7ec1e3c675a5e",
+      "same_as_R5": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/HIDUsage.java",
+      "purpose": "组合修饰位与既有协议映射一致，显示Ctrl/Shift/Alt/Win及基础键，不改键值。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；组合修饰位与既有协议映射一致，显示Ctrl/Shift/Alt/Win及基础键，不改键值。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "1be59124f59c675318cdc383742f9083c063e53d6d00c2174f28085311100212",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/K1RouteState.java",
+      "purpose": "草稿dirty/edit/description可独立复制恢复，能力和设备确认在新会话清空。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；草稿dirty/edit/description可独立复制恢复，能力和设备确认在新会话清空。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "cbf38a53982ee336286dcf5183a500e5052ac5584ab72b3c52e86ccfbd955ebb",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/KeyConfig.java",
+      "purpose": "宏深拷贝可变列表修复编辑异常；未知步骤NO_OP不能误模拟按下；copy隔离旧草稿。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；宏深拷贝可变列表修复编辑异常；未知步骤NO_OP不能误模拟按下；copy隔离旧草稿。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "4ca36d7daa60a272376c79c2635358dcf9204b3ce9c4aed8462bd17b497245bb",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+      "purpose": "按模式/按键区分动作与描述编辑，并纳入目标草稿；描述单改不清未知动作，恢复默认算明确编辑。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 按模式/按键区分动作与描述编辑，并纳入目标草稿；描述单改不清未知动作，恢复默认算明确编辑。",
+      "within_contract": true,
+      "after_sha256": "bf64556df8e78d4994f36279631dfed409d4c713e5ee354e011459090913f34d",
+      "same_as_R5": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/connection/DeviceTarget.java",
+      "purpose": "显式USB/BLE与稳定寻址ID，显示名称不作为唯一键。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；显式USB/BLE与稳定寻址ID，显示名称不作为唯一键。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "ea2ae7392dbb7c5c3e5049dc00fd2f3788238aac1837023610e74acaff72b664",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/platform/VoiceRelayPlatform.java",
+      "purpose": "模拟动作API转发完整KeyConfig，无更改语音长短按或onboarding。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；模拟动作API转发完整KeyConfig，无更改语音长短按或onboarding。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "f3a1e16ae389f66558ec6eae35052abe5b868c82e8ea3abcfb09282f80315737",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/platform/windows/WindowsVoiceRelayService.java",
+      "purpose": "立即快照模拟完整宏，JNA每键检查返回数，异常释放自身按键；本地语音现有路由不变。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；立即快照模拟完整宏，JNA每键检查返回数，异常释放自身按键；本地语音现有路由不变。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "80284ab7009bc3363ae015238cdea46d05b865d32ecd9acdf626c30f296f9abd",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+      "purpose": "固定三完整标识共用精确响应校验，拒绝额外垃圾和未知完整标识；请求编码保持。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 固定三完整标识共用精确响应校验，拒绝额外垃圾和未知完整标识；请求编码保持。",
+      "within_contract": true,
+      "after_sha256": "b3b1ff7eb0df1abbe8c2a1848cd4a534bf23cada51dcc54927b61df7e1ec6116",
+      "same_as_R5": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/FirmwareCapabilities.java",
+      "purpose": "正式HW1/HW2及历史CP4C的随包离线能力；有效六字节9F ACK仅legacy写能力，通信异常不得降级。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 正式HW1/HW2及历史CP4C的随包离线能力；有效六字节9F ACK仅legacy写能力，通信异常不得降级。",
+      "within_contract": true,
+      "after_sha256": "6a3c67459ba67a63db65371352e2f2e24e737398c10fbc61078eca870751e894",
+      "same_as_R5": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "purpose": "已逐段核对 Hook、原生元数据、generation candidate/retired 集、true/false frontier、同槽身份及设备代次的交错。数据库和设备 ACK 移出状态锁；发送快照版本守卫在设备实际锁内复核。pending 合并、sender 所有权和 close 清理不阻塞状态处理。保留 SINGLE 与无 generation 的普通 legacy RUN 边界；未知不冒充绿灯。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 DLA 已读取本轮冻结 after 和 R4→R5 的实际差异；已逐段核对 Hook、原生元数据、generation candidate/retired 集、true/false frontier、同槽身份及设备代次的交错。数据库和设备 ACK 移出状态锁；发送快照版本守卫在设备实际锁内复核。pending 合并、sender 所有权和 close 清理不阻塞状态处理。保留 SINGLE 与无 generation 的普通 legacy RUN 边界；未知不冒充绿灯。",
+      "within_contract": true,
+      "after_sha256": "61a03a9449a6b3a40a0935a2c2cf17b84641ddd3ae85c899d398929a7bab14ee",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "purpose": "实际协调器恢复失败不发布ready；断开/新目标隔离；桥选择authority原子验证、同名地址记忆、USB优先；新正式19元数据恢复、旧有效00仅恢复通信而保留未知记录；BLE模式回读改真实当前状态通道。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 实际协调器恢复失败不发布ready；断开/新目标隔离；桥选择authority原子验证、同名地址记忆、USB优先；新正式19元数据恢复、旧有效00仅恢复通信而保留未知记录；BLE模式回读改真实当前状态通道。",
+      "within_contract": true,
+      "after_sha256": "97956b2b7b6c18726d3fd53e7f17bce3e78043ba841e8637e451b373882e66e6",
+      "same_as_R5": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CursorSessionDiscoveryService.java",
+      "purpose": "只读 canonical SQLite/WAL 事务；header 严格类型与重复校验；精确 composerData key SQL 投影三个身份标量，不把聊天 JSON 取回 Java。根大小上限、progress handler 250ms、逐槽损坏隔离。运行进程 Toolhelp/JNA 精确路径与创建时间，句柄关闭；完整 runtime schema 仅确认 3.27.22，其他版本 UNKNOWN。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 DLA 已读取本轮冻结 after 和 R4→R5 的实际差异；只读 canonical SQLite/WAL 事务；header 严格类型与重复校验；精确 composerData key SQL 投影三个身份标量，不把聊天 JSON 取回 Java。根大小上限、progress handler 250ms、逐槽损坏隔离。运行进程 Toolhelp/JNA 精确路径与创建时间，句柄关闭；完整 runtime schema 仅确认 3.27.22，其他版本 UNKNOWN。",
+      "within_contract": true,
+      "after_sha256": "51727c8433587cf39ec8f281ae599d6f1ed1b6b25af11315df2e20519b04babc",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+      "purpose": "旧键仅明确动作/描述及灯光编辑形成73/84/85/04；未知占位不写，各命令等待实际ACK；正式完整保存编码沿用。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 旧键仅明确动作/描述及灯光编辑形成73/84/85/04；未知占位不写，各命令等待实际ACK；正式完整保存编码沿用。",
+      "within_contract": true,
+      "after_sha256": "6c2cf2e1c1ab72ecdd67497f30918e32c1d248e48c7da56f3f1317a0539ad672",
+      "same_as_R5": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "purpose": "legacy初值不标dirty，仅旧协议灯光ACK路径；正式亮度/灯效需当前读回或明确编辑，每连接变化失效clean观察，资源上传核心保留。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 legacy初值不标dirty，仅旧协议灯光ACK路径；正式亮度/灯效需当前读回或明确编辑，每连接变化失效clean观察，资源上传核心保留。",
+      "within_contract": true,
+      "after_sha256": "db46a3b021cca6d14815a6bb58ea5c89bd8369788bf5b92ef5b75c33f64a6af4",
+      "same_as_R5": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookConfigEditor.java",
+      "purpose": "完整读取新helper。严格单JSON、重复键/尾随内容拒绝；只按实际自有脚本路径移除条目，混合组保留其他命令。TOML按解析位置只改可安全表达的自有行，复杂表达拒绝；注册核对真实结构、版本与事件，能力未知不假成功。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 R4最终冻结after与R3增量已实际逐段审阅；完整读取新helper。严格单JSON、重复键/尾随内容拒绝；只按实际自有脚本路径移除条目，混合组保留其他命令。TOML按解析位置只改可安全表达的自有行，复杂表达拒绝；注册核对真实结构、版本与事件，能力未知不假成功。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "468d3b92222d3b6a247368b33210cac2a0e9292f4446631580d56685b8fb06fb",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookDispatchServer.java",
+      "purpose": "各审批请求仅可信AUTO自动允许，其他不自建弹窗；Kimi返回原生空对象。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；各审批请求仅可信AUTO自动允许，其他不自建弹窗；Kimi返回原生空对象。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "a92332e4a701c2481a739a480bee89491fe600706beb462f0fed0650a502b922",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookInstaller.java",
+      "purpose": "读取新旧配置路径、完整迁移/检测/模板/备份/原子替换和回滚链。Claude正式settings，Kimi已验证1.44.0 config.toml；启动器和配置痕迹区分。计划绑定读取时原字节，应用前复核；脚本全文与core及实际注册一致才LATEST。现存native-defer审批语义保持。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 R4最终冻结after与R3增量已实际逐段审阅；读取新旧配置路径、完整迁移/检测/模板/备份/原子替换和回滚链。Claude正式settings，Kimi已验证1.44.0 config.toml；启动器和配置痕迹区分。计划绑定读取时原字节，应用前复核；脚本全文与core及实际注册一致才LATEST。现存native-defer审批语义保持。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "7015feac7ff200f475c5bd001ba0fdb76fba388f7f834c33a9adbff8a347746a",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/K1RouteService.java",
+      "purpose": "最早旧K1允许普通草稿73路径而不伪称87读回；正式9E保留nonce/token/CRC；只有历史CP4C允许9E通用ACK fallback。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 最早旧K1允许普通草稿73路径而不伪称87读回；正式9E保留nonce/token/CRC；只有历史CP4C允许9E通用ACK fallback。",
+      "within_contract": true,
+      "after_sha256": "a56ac2f96d19cc775a210f46cf265b45e902b9118cf96e7e3afbc4da7cf574d8",
+      "same_as_R5": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/KeySimulationService.java",
+      "purpose": "不可变完整动作/延时3ms协议、宏优先残留shortcut、异常逆序释放自身按键。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；不可变完整动作/延时3ms协议、宏优先残留shortcut、异常逆序释放自身按键。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "60620bc468f354a6b6e495ed14c63f133b3485feac2aadeeb3498b041ca99ae4",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/KimiAhaKeyBridge.java",
+      "purpose": "USB/BLE均由Java兼容9000提供真实审批事实；非AUTO不可用避免manual_lock，响应一次write。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；USB/BLE均由Java兼容9000提供真实审批事实；非AUTO不可用避免manual_lock，响应一次write。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "95fd3134a69a39111dc2c87dc934cf52a985ad00d2c5677b8379d8f0454ffdba",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledUploadService.java",
+      "purpose": "BEGIN/各片/COMMIT前检查中止；失败隔离且不新造ABORT，明确不撤回已发送内容。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；BEGIN/各片/COMMIT前检查中止；失败隔离且不新造ABORT，明确不撤回已发送内容。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "37da1566a2db30a97eb277414deebe6522fcb5364d52d16d83aed30499bbc88d",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/SocketServer.java",
+      "purpose": "状态增加确认事实/代次，延迟状态复位不能跨会话；现有请求响应结构保留。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；状态增加确认事实/代次，延迟状态复位不能跨会话；现有请求响应结构保留。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "6184507a49865bcfc3aae1da7f46da28fe48b08b03995a9e6c1ef8cc967ba965",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "purpose": "配置接口精确过滤、失败枚举不作absence、每handle-set取消nativeIO与独立关闭；不复用旧handle给B。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；配置接口精确过滤、失败枚举不作absence、每handle-set取消nativeIO与独立关闭；不复用旧handle给B。 R1全部增量已读，对照真实12套针对性日志；当前source/旧generation精确断连，捕获旧owner确认退出才退休release屏障。 R2以单一AtomicReference OPEN/INTENTIONAL/UNEXPECTED线性化主动close及reader失败，原因不可覆盖；通知和消费同一事实。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "fd70890d8120ecfb9c0f5c87d970c2128edc4990f4c6e28258707bdf4b53243b",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/connection/DeviceRecoveryRegistry.java",
+      "purpose": "原子持久隔离，确证离线与只读探测后解除；损坏记录拒绝写入，非重启自动清除。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；原子持久隔离，确证离线与只读探测后解除；损坏记录拒绝写入，非重启自动清除。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "491b84f12cf4fac1e73cbed5f8e5e2a53ecfd140d89e283fc2515a6dd78724e0",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/connection/ManagedBridgeClient.java",
+      "purpose": "取消minimized启动参数，showWindow复用已持有实例；原TCP身份/取消/超时保护保留。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 取消minimized启动参数，showWindow复用已持有实例；原TCP身份/取消/超时保护保留。",
+      "within_contract": true,
+      "after_sha256": "d12b696be8345a3a31d78986b74242a4659b6821198980dc1616d4d639158575",
+      "same_as_R5": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/connection/RememberedBleTarget.java",
+      "purpose": "仅原子保存成功连接的名称/地址提示，不保存能力、不续传任务、不删除宏图片。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 仅原子保存成功连接的名称/地址提示，不保存能力、不续传任务、不删除宏图片。",
+      "within_contract": true,
+      "after_sha256": "c8f6a407606053499ec2ab71c33e7d1e88d93847a8c532804f10313a7d38a5dc",
+      "same_as_R5": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "purpose": "新增inputBaselineRevision监听连接真实readback事件；刷新preview不增加dirty或草稿revision，实际FXML回归已核对。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 R4最终冻结after与R3增量已实际逐段审阅；新增inputBaselineRevision监听连接真实readback事件；刷新preview不增加dirty或草稿revision，实际FXML回归已核对。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "875f0b51a570d65b575ad930ea0537e27b47dafaf18aa3e048e00f3daae0ad84",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "purpose": "旧K1已确认兼容能力时开放编辑；正式仍需读回/不busy，未改变Consumer路由设置产品范围。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 旧K1已确认兼容能力时开放编辑；正式仍需读回/不busy，未改变Consumer路由设置产品范围。",
+      "within_contract": true,
+      "after_sha256": "a04126b4bd38b5cf9671d67e8bc57faf3e03d396a102ca291d017ca5fafdf2b2",
+      "same_as_R5": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/TopBar.java",
+      "purpose": "删除打开/扫描自动催更模态弹窗；显式异步更新后内联结果并重扫；新增配置痕迹/不兼容状态禁写，错误可见，保留原菜单其他动作。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 R4最终冻结after与R3增量已实际逐段审阅；删除打开/扫描自动催更模态弹窗；显式异步更新后内联结果并重扫；新增配置痕迹/不兼容状态禁写，错误可见，保留原菜单其他动作。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "1c4f8b58b7ee0bb8be06cde4a660a5618fbcf56d89e18d17cb7f0071a0087397",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigCapabilityChecks.java",
+      "purpose": "按批准旧ACK兼容规则改断言，同时明确不可取得扩展display lease；坏包/未知仍拒绝。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 按批准旧ACK兼容规则改断言，同时明确不可取得扩展display lease；坏包/未知仍拒绝。",
+      "within_contract": true,
+      "after_sha256": "6ffa436e4f83e923ff3991ab4964643d1ec764b80845145b8cda076cb97fcda8",
+      "same_as_R5": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigChecks.java",
+      "purpose": "原175检查保留，只为真实统一发送器fixture补充匹配ACK。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；原175检查保留，只为真实统一发送器fixture补充匹配ACK。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "13a475b3fc4a18c59e75a6eea27d77828a17fcd481f42cc6fb2a4d738aec9dc7",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigIsolationChecks.java",
+      "purpose": "旧隐式发现断言替换为禁止隐式切换/重连，内存USB仍验证发送分支和维护隔离。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；旧隐式发现断言替换为禁止隐式切换/重连，内存USB仍验证发送分支和维护隔离。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "462b5bae61441a80e5880d8feae1f1c10d5ee7402ffc87707bd2af573a618ef7",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3Checks.java",
+      "purpose": "异步queryStatus等实际完成再计数，仍要求coalesce及显式刷新不合并。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；异步queryStatus等实际完成再计数，仍要求coalesce及显式刷新不合并。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "0f721a03ae04e91eab9b3c61a0589e298247fad86c6761bd27583dc8a1075014",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRound5Checks.java",
+      "purpose": "发送失败必须隔离，新fixture会话才可恢复；旧TTL、最新事件和slot语义保留。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；发送失败必须隔离，新fixture会话才可恢复；旧TTL、最新事件和slot语义保留。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "a7bb309bb2457e27a4007cbacc299593463314421df148afdf7165759aeb217b",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/OfflineBleManager.java",
+      "purpose": "唯一虚拟物理发送seam接真实firmwareExchange，避免实际bridge及USB，同时保留旧fixture响应。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；唯一虚拟物理发送seam接真实firmwareExchange，避免实际bridge及USB，同时保留旧fixture响应。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "fc25df0726ae0857e6012f2f41d5c31034996d6b703bf4b3d51dc9350c3e4564",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/DeviceMaintenanceChecks.java",
+      "purpose": "held物理write提供完整ACK；maintenance从等待锁改为拒绝未完成wire，不削弱维护互斥。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；held物理write提供完整ACK；maintenance从等待锁改为拒绝未完成wire，不削弱维护互斥。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "df611ad496009778585c1f687d5c1059259371ad5b94cc0d55c1309d5bf58e9e",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/K1RouteEditorChecks.java",
+      "purpose": "真实controller可先完成能力读取，断言仍要求已确认route；未知能力不能覆盖旧编辑。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；真实controller可先完成能力读取，断言仍要求已确认route；未知能力不能覆盖旧编辑。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "7a8843f68f6d3176b12b92a14710b4082f157631caf1d50cbef9a4ec8082bc4e",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/Wd007DraftReadbackChecks.java",
+      "purpose": "实际controller BLE A/B/A、同路径USB更换、四键两种编辑入口F18第一项。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；实际controller BLE A/B/A、同路径USB更换、四键两种编辑入口F18第一项。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "b0c6e1999936eb26de823e14923cbe54835bafa80047765c92e7f2c4bfadaba0",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/protocol/K1RouteProtocolChecks.java",
+      "purpose": "非held9E命令补完整ACK，原过期/换代/成功/失败测试保留。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；非held9E命令补完整ACK，原过期/换代/成功/失败测试保留。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "c4ba3779abfe8f01db919876140e15ab9c809ccc9ef103679f8d1efe7bef2994",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007BehaviorChecks.java",
+      "purpose": "恢复未核对时要求真实断开且持久化记录保留，强化而非移除旧隔离断言。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 恢复未核对时要求真实断开且持久化记录保留，强化而非移除旧隔离断言。",
+      "within_contract": true,
+      "after_sha256": "da3b7038c07a5642c2c4efb54be3541c78919a49e1c88b9aa077d2fe9660d415",
+      "same_as_R5": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007BridgeRetirementChecks.java",
+      "purpose": "实际release future与可控Process：旧owner活着继续拒绝，迟到退出后再次明确连接成功，replacement保留，7检查。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 完整新增文件已审阅。实际release future与可控Process：旧owner活着继续拒绝，迟到退出后再次明确连接成功，replacement保留，7检查。 R1全部增量已读，对照真实12套针对性日志；当前source/旧generation精确断连，捕获旧owner确认退出才退休release屏障。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "2445015beb339f729f77fcd73d0d93505fec392407a0076e65040afc078d8542",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007CanvasReadbackChecks.java",
+      "purpose": "真实controller、FXML Canvas、Inspector和内存传输；不编辑即可四键更新，读回不标脏，后续实际description事件刷新。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 R4最终冻结after与R3增量已实际逐段审阅；真实controller、FXML Canvas、Inspector和内存传输；不编辑即可四键更新，读回不标脏，后续实际description事件刷新。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "fcf785c7514b8e994a643eb046b1e01912af3826355df06f3d7d7b688ee98c9c",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007CursorRuntimeChecks.java",
+      "purpose": "已读全部新增用例：真实 SQLite/WAL/大根/损坏隔离、实际运行服务、两表乱序、快速首个 true、旧/无 generation terminal、下一轮启动、真实 Hook TCP 与设备 ACK 交错、实际设备发送锁内撤销、退出及同连接失效。124 断言为机器夹具，不是原生 UI 或硬件灯色通过。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 DLA 已读取本轮冻结 after 和 R4→R5 的实际差异；已读全部新增用例：真实 SQLite/WAL/大根/损坏隔离、实际运行服务、两表乱序、快速首个 true、旧/无 generation terminal、下一轮启动、真实 Hook TCP 与设备 ACK 交错、实际设备发送锁内撤销、退出及同连接失效。124 断言为机器夹具，不是原生 UI 或硬件灯色通过。",
+      "within_contract": true,
+      "after_sha256": "7d5d3f253d01030b032d726a47d5fd507853853069933b28518f495cad890cc6",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007FirmwareMatrixChecks.java",
+      "purpose": "候选源码形状的内存USB及实际私有IPC六组合；实际K1/OLED/模式保存调用、回包CRC、迟到意图、legacy未知保护和恢复，最终3895断言。夹具不是物理设备。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 候选源码形状的内存USB及实际私有IPC六组合；实际K1/OLED/模式保存调用、回包CRC、迟到意图、legacy未知保护和恢复，最终3895断言。夹具不是物理设备。",
+      "within_contract": true,
+      "after_sha256": "6b0ba4e5b05f1b9850054d01637dca1731d4194953fc45bedb59247d3d0d4844",
+      "same_as_R5": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007HookManagementChecks.java",
+      "purpose": "实际install入口验证幂等、混合所有权、core损坏、注册字段、非法JSON/UTF8、快照交错、回滚、Kimi兼容性及第三方TOML保留。测试隔离home，不写Owner真实配置。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 R4最终冻结after与R3增量已实际逐段审阅；实际install入口验证幂等、混合所有权、core损坏、注册字段、非法JSON/UTF8、快照交错、回滚、Kimi兼容性及第三方TOML保留。测试隔离home，不写Owner真实配置。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "7d3fed98aaa95cc47566084dda68b4cd86186181c70b6c7c9d1d9d088821d251",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007HookUiChecks.java",
+      "purpose": "实际TopBar管理窗口打开/重开、Button.fire异步更新与错误内联反馈，配置和installer home隔离，不将fixture当真实CLI会话。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 R4最终冻结after与R3增量已实际逐段审阅；实际TopBar管理窗口打开/重开、Button.fire异步更新与错误内联反馈，配置和installer home隔离，不将fixture当真实CLI会话。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "31451a59920923e195dba0e275d730d47c05ca8af6157c34a937c07796fbe576",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007ReadFailureChecks.java",
+      "purpose": "实际调度/重组缺2字节尾包回放，15秒后退役读会话、持久隔离不写入；旧尾包/状态不污染手动新会话，新读取恢复。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 R4最终冻结after与R3增量已实际逐段审阅；实际调度/重组缺2字节尾包回放，15秒后退役读会话、持久隔离不写入；旧尾包/状态不污染手动新会话，新读取恢复。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "61c1c69d53bd658a570bbc08185c19c99ec16c1367d0c8a50c6a11f0bdbe197d",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007RecoveryControllerChecks.java",
+      "purpose": "实际controller恢复顺序，普通identity不能污染隔离probe，19槽完成后才开始普通输入读回。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；实际controller恢复顺序，普通identity不能污染隔离probe，19槽完成后才开始普通输入读回。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "e0a6e7b3ff441f9dd1b2333001fa9a8a5290ceb2d48af3474eb71dce626d40a1",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007SafetyChecks.java",
+      "purpose": "AUTO检查先读取当前身份，符合新增能力准入；原安全负例保持。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 AUTO检查先读取当前身份，符合新增能力准入；原安全负例保持。",
+      "within_contract": true,
+      "after_sha256": "2c323b0ffccc5663d4342506a07174cbefdedba75655ba40d9c7974050b73fe4",
+      "same_as_R5": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007TransferChecks.java",
+      "purpose": "实际服务/调度/重组路径，native发送替换内存外设；12帧非零payload、CRC、ACK进度、单次COMMIT和取消/断开/底层挂起/丢ACK均有断言，不冒充真机吞吐。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 R4最终冻结after与R3增量已实际逐段审阅；实际服务/调度/重组路径，native发送替换内存外设；12帧非零payload、CRC、ACK进度、单次COMMIT和取消/断开/底层挂起/丢ACK均有断言，不冒充真机吞吐。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "92ce1c6f301914a188a38193165d89e2291fd2b1261321179da561a53f509931",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007UsbTerminationChecks.java",
+      "purpose": "无物理离线证据重连不能假已连接，持久隔离和UI断开同时断言。",
+      "reviewed_hunks": "DLA已读冻结after及R5到R6实际规范化全部语义差异，相关完整入口与协议证据已核对。 无物理离线证据重连不能假已连接，持久隔离和UI断开同时断言。",
+      "within_contract": true,
+      "after_sha256": "7fb416d66f6eba5b1b39ea93b128cdd37cb26772d5ab2087087c575ee6e32e5e",
+      "same_as_R5": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/Wd007WindowExitChecks.java",
+      "purpose": "实际App关闭按钮与菜单出口，pending上传继续/取消，FX响应及限时，不替实物和System.exit测试。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；实际App关闭按钮与菜单出口，pending上传继续/取消，FX响应及限时，不替实物和System.exit测试。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "20831677f92e281e44c8dee576b3660ad709533ebf45d736633934e8213160c8",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/service/connection/ManagedBridgeClientChecks.java",
+      "purpose": "真实loopback乱序响应/旧事件、阻塞发送deadline、失败旧release不能关闭新桥。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；真实loopback乱序响应/旧事件、阻塞发送deadline、失败旧release不能关闭新桥。 R1全部增量已读，对照真实12套针对性日志；当前source/旧generation精确断连，捕获旧owner确认退出才退休release屏障。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "e0a210d90b23a4ba68a8504dfbbe671396ed3e7991030051f8e20ed3ea884d96",
+      "same_as_R5": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/transport/KimiBridgeLifecycleCheck.java",
+      "purpose": "实际Java兼容socket的BLE生命周期及consumer五状态fixture，不启动真实设备。",
+      "reviewed_hunks": "R6冻结after与R5已实际审阅after逐文件SHA相同；复核本轮调用影响，旧结论只用于未改字节。 已读冻结 ACTUAL_DIFF 及其 before/after 全部语义变化；实际Java兼容socket的BLE生命周期及consumer五状态fixture，不启动真实设备。 R4冻结字节与此前R3已审阅after完全一致；结合本轮调用链确认保留行为，未以旧审阅覆盖新字节。 R5 冻结 after 与 R4 已审阅 after 逐文件比较字节相同；本轮重新核对调用链影响，无新字节复用旧结论。",
+      "within_contract": true,
+      "after_sha256": "556b328a060ec92ebaf09654cbfd2c810b75e7e9127c7ff0ca249a81f3166d03",
+      "same_as_R5": true
+    }
+  ],
+  "production_journey": "主软件启动同一所属桥窗口，Java协调当前目标，USB优先且拔线不切BLE；每连接重新识别能力。正式档读回/保存/K1/灯光/OLED沿既有协议；legacy按明确编辑走旧保存并如实标注未读回。恢复核对失败不假连接，旧任务/旧UI意图不影响新设备。",
+  "preserved_behavior_assessment": "保留R5语音/Hook/Cursor/OTA/安装规则和原传输分片/串行/通知/超时隔离；34类最新有效结果通过，四份独立原红测转绿。完整checks02为33过+OLED夹具失败，修正夹具后matrix03通过3895断言，不称首轮全套通过。",
+  "baseline_assessment": "WD005已验收范围与WD006未验收历史保留，原始start未重写，missing_start_bytes为空。R5原交付EXE当前缺失，另有unsigned产物不能替代；本轮不以旧包存在作证明，新1.0.16单独构建。",
+  "protocol_assessment": "只读固定HW1/HW2 candidate命令及HEX SHA，正式能力离线固定；legacy c1898c9^同步73/84/85/04及有效00可证明命令循环，不证明旧保存。资源19项无WRITING仅恢复可操作，未知ACK不赋扩展协议。未修改Firmware。",
+  "risk_level": "high",
+  "fresh_review_required": true,
+  "risk_rationale": "连接目标ownership、恢复与跨设备写入高影响；需要独立fresh审阅绑定此冻结pack，当前先按官方Preview通道并行构建。",
+  "findings": [
+    {
+      "issue": "正式身份白名单与恢复失败假连接、绑定旧代次断开过滤",
+      "resolution": "fixed",
+      "evidence": "FirmwareCapabilities、openSelected异常退役、Controller断开代次；green-probe-01及matrix03"
+    },
+    {
+      "issue": "桥迟到断开/选择抢新目标与旧身份失败污染",
+      "resolution": "fixed",
+      "evidence": "session/generation及selectionAuthority原子校验、identity catch守卫；StaleSelectionProbe-green-01与matrix03"
+    },
+    {
+      "issue": "跨设备和同地址重连灯光clean/dirty串扰",
+      "resolution": "fixed",
+      "evidence": "DisplayConfigState目标草稿与每代次观察失效、保存KnownOrEdited；两lighting原probe green-01"
+    },
+    {
+      "issue": "旧版保存后无法恢复及未知占位全表误清",
+      "resolution": "fixed",
+      "evidence": "legacy有效00恢复保留登记；legacyEditedCommands和动作/描述追踪；LegacyRecoveryProbe-green-01及matrix03"
+    },
+    {
+      "issue": "BLE模式回读使用已停用桥查询",
+      "resolution": "fixed",
+      "evidence": "requestModeReadbackStatus使用当前会话00，六组合实际setWorkModeAndVerify测试"
+    }
+  ],
+  "baseline_gap_owner_record": null,
+  "fresh_review_record": ".ahakey-desktop-harness/changes/WD-007/independent-review/FINAL-R6-01.json",
+  "preview_only_until_fresh_review": false,
+  "fresh_review_conclusion": "FINAL-R6-01.json已独立绑定相同冻结pack与源码指纹，decision pass，E01至E06全部解决；六组合仍是离线模拟，未代表真机验收。",
+  "preview_build_receipt": ".ahakey-desktop-harness/previews/WD-007/preview-20261101T070948555866Z-7e3648/PREVIEW_RECEIPT.json",
+  "known_limits": [
+    "六组合仅离线内存USB/私有IPC模拟BLE，真实USB/GATT及安装升级未测试。",
+    "无身份旧版按已查历史能力提供兼容，Owner实际旧HEX身份未证实；不恢复raw OLED上传。",
+    "1.0.16本地模型EXE已构建并核验实际包内运行环境，SHA256为270a99a7199c168eeffdf27903db474dbf2514092df13e0267f5eff655b8b33c；Git candidate、真实安装升级及Owner UAT待完成。"
+  ]
+}

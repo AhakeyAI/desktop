@@ -20,6 +20,23 @@ public final class DeviceSyncService {
     private DeviceSyncService() {
     }
 
+    public static String sideSwitchActionSummary(byte[] payload) {
+        if (payload == null || payload.length == 0) return "无动作";
+        if (isSideSwitchMacroActionPayload(payload)) return "自定义宏";
+        byte[] keys = isSideSwitchActionEnvelope(payload) ? Arrays.copyOfRange(payload, 2, 2 + (payload[1] & 255)) : payload;
+        java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>();
+        for (byte item : keys) {
+            int code = item & 255;
+            if (code == 0) continue;
+            names.add(switch (code) {
+                case 0xE0 -> "Ctrl"; case 0xE1 -> "Shift"; case 0xE2 -> "Alt"; case 0xE3 -> "Win";
+                case 0xE4 -> "右Ctrl"; case 0xE5 -> "右Shift"; case 0xE6 -> "右Alt"; case 0xE7 -> "右Win";
+                default -> com.example.ahakey.model.HIDUsage.getName(code);
+            });
+        }
+        return names.isEmpty() ? "无动作" : String.join("+", names);
+    }
+
     public static List<LabeledCommand> commandsForModes(StudioState state, ModeSlot... modes) {
         return commandsForModes(state, false, modes);
     }

@@ -1,0 +1,93 @@
+{
+  "schema": 1,
+  "status": "PROPOSED_INPUT_RECIPE_NOT_BUILT",
+  "platform": "windows-x64",
+  "tool_process_arch": "x86",
+  "entries": [
+    {
+      "source": "C:\\WCH.CN\\App\\WCHISPTool\\WCHISPTool_CH57x-59x\\WCHISPTool_CH57x-59x.exe",
+      "destination": "app/tools/wchisp/WCHISPTool_CH57x-59x.exe",
+      "size": 4014096,
+      "sha256": "7b5d84bfcc8786aabf74ba264de29c1e2eda7907fb8385426fda3270cd793f95"
+    },
+    {
+      "source": "C:\\WCH.CN\\App\\WCHISPTool\\WCHISPTool_CH57x-59x\\WCH55xISPDLL.dll",
+      "destination": "app/tools/wchisp/WCH55xISPDLL.dll",
+      "size": 139280,
+      "sha256": "c56f1f2250c9e3862e3ef86887d7e81302bb008a722a3b18555f5cd0acd875ff"
+    },
+    {
+      "source": "C:\\WCH.CN\\App\\WCHISPTool\\WCHISPTool_CH57x-59x\\CH343PT.DLL",
+      "destination": "app/tools/wchisp/CH343PT.DLL",
+      "size": 39440,
+      "sha256": "4b7f30dfbc886e1359c7adc4d9fdcc3cb6543c373fc214e8641e314df41fe65a"
+    },
+    {
+      "source": "C:\\WCH.CN\\App\\WCHISPTool\\WIN 1X\\CH375DLL.dll",
+      "destination": "app/tools/wchisp/CH375DLL.DLL",
+      "size": 35712,
+      "sha256": "0f019b958d4d3f6b8ec0d282ef848a57f0f92a0596d7405b6c58f5aa383a326c"
+    },
+    {
+      "source": "C:\\WCH.CN\\App\\WCHISPTool\\WCHISPTool_CH57x-59x\\ChipType\\chiplist_CH57x_CH59x.wcfg",
+      "destination": "app/tools/wchisp/ChipType/chiplist_CH57x_CH59x.wcfg",
+      "size": 2515,
+      "sha256": "2e2369ed14f3c351c4404bdbfa45890e3b7562c7a201111e90f7004c4dc882a0"
+    },
+    {
+      "source": "C:\\Users\\20825\\Desktop\\windows-eternal\\ahakeyconfig-win-java\\src\\main\\resources\\wchisp\\CONFIG_CH57X59X-sanitized.WCH",
+      "destination": "app/tools/wchisp/CONFIG_CH57X59X.WCH",
+      "size": 66841,
+      "sha256": "f21f73360c7f650ab36cc4a0bbe2b88316c85bc1caf2e010139a47486abf5a8a"
+    },
+    {
+      "source": "C:\\WCH.CN\\App\\WCHISPTool\\WIN 1X\\CH375DLL.dll",
+      "destination": "app/drivers/wch-ch375/CH375DLL.dll",
+      "size": 35712,
+      "sha256": "0f019b958d4d3f6b8ec0d282ef848a57f0f92a0596d7405b6c58f5aa383a326c"
+    },
+    {
+      "source": "C:\\WCH.CN\\App\\WCHISPTool\\WIN 1X\\CH375DLL64.dll",
+      "destination": "app/drivers/wch-ch375/CH375DLL64.dll",
+      "size": 45448,
+      "sha256": "5ed04e4a8eb9006e92907fdc105c4d8f915408409a02c157ca492a65d9163aa7"
+    },
+    {
+      "source": "C:\\WCH.CN\\App\\WCHISPTool\\WIN 1X\\CH375M64.sys",
+      "destination": "app/drivers/wch-ch375/CH375M64.sys",
+      "size": 58752,
+      "sha256": "9f40d09251f58be92ee2cb769c86900d52439a5b4f7e2ca2605e26cb464602b4"
+    },
+    {
+      "source": "C:\\WCH.CN\\App\\WCHISPTool\\WIN 1X\\CH375W64.sys",
+      "destination": "app/drivers/wch-ch375/CH375W64.sys",
+      "size": 68992,
+      "sha256": "5803220ed9da96b310397aa81db6612280f7c1a58948c02a5fe6aedf49065f5a"
+    },
+    {
+      "source": "C:\\WCH.CN\\App\\WCHISPTool\\WIN 1X\\CH375WDM.CAT",
+      "destination": "app/drivers/wch-ch375/CH375WDM.CAT",
+      "size": 14232,
+      "sha256": "08a8d8b21f42635243f0a7b4bd73195a4eea22a85508b3c4fce93a181054b4ba"
+    },
+    {
+      "source": "C:\\WCH.CN\\App\\WCHISPTool\\WIN 1X\\CH375WDM.INF",
+      "destination": "app/drivers/wch-ch375/CH375WDM.INF",
+      "size": 7799,
+      "sha256": "76e5f3e96743b097c0d45d019b87c6dbef795934e2826fdade2b5e7b37b47fa4"
+    },
+    {
+      "source": "C:\\WCH.CN\\App\\WCHISPTool\\WIN 1X\\CH375WDM.sys",
+      "destination": "app/drivers/wch-ch375/CH375WDM.sys",
+      "size": 52488,
+      "sha256": "840de6b498b8f3613eeb83ee6987d90229200be125925899df0c1beb2da62d1b"
+    }
+  ],
+  "generated_metadata": "Record all listed hashes and actual versions in trusted packaged metadata; not copied from legacy self-description",
+  "excluded": [
+    "raw machine CONFIG",
+    "DRVSETUP64.exe: not required for PnPUtil route; CLI not verified",
+    "vendor docs and other chip-family tools"
+  ],
+  "license_evidence": "authorization_not_verified; preserve Owner bundled-tool requirement; no legal conclusion"
+}

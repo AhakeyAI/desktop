@@ -438,3 +438,16 @@ if (-not $program.Contains('null, 15000, Timeout.Infinite)')) {throw 'Missing fi
 if (-not $tcp.Contains('SendToClient(client, null, deviceInfo: true)')) {throw 'Missing socket-lock cache wiring'}
 if (-not $tcp.Contains('SendToClient(client, null, bleStatus: true)')) {throw 'Missing socket-lock BLE readiness query wiring'}
 Write-Output 'PASS deadline and query-to-write-lock wiring (static); callbacks and UI use deterministic substitutes; no real BLE hardware exercised'
+$portResolver = Extract $tcp 'internal static int ResolvePort('
+Add-Type -TypeDefinition ("using System; using System.Linq; public static class Wd009PortProbe { " + $portResolver.Replace('internal static','public static') + " }") -Language CSharp
+foreach ($case in @(@($null,9001),@('',9001),@('  ',9001),@(' 19001 ',19001),@('65535',65535),@('0009001',9001))) {
+    if ([Wd009PortProbe]::ResolvePort($case[0]) -ne $case[1]) { throw 'BLE port resolution mismatch' }
+}
+foreach ($invalid in @('9000','0','65536','-1','+9001','abc','1.0','9999999999999999')) {
+    $rejected = $false
+    try { [void][Wd009PortProbe]::ResolvePort($invalid) } catch { $rejected = $true }
+    if (-not $rejected) { throw "Unsafe BLE port accepted: $invalid" }
+}
+if (-not $form.Contains('config.ServerPort = TcpServer.ResolvePort(Environment.GetEnvironmentVariable("AHAKEY_BLE_PORT"))')) { throw 'Bridge environment/default endpoint not wired' }
+if (-not $tcp.Contains('new TcpListener(IPAddress.Any, _port)')) { throw 'Original bridge bind behavior changed' }
+Write-Output 'PASS WD009 BLE endpoint: 14 executed resolver cases; original bind and startup wiring checked, no bridge app launched'

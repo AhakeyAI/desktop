@@ -28,7 +28,194 @@ import java.util.stream.Stream;
 public class CursorSessionDiscoveryService {
     private static final Logger logger = LoggerFactory.getLogger(CursorSessionDiscoveryService.class);
     private static final int MAX_SCAN_FILES = 80;
+    // Installed source verified: 3.27.22 additionally propagates child user waits to the exact parent header.
+    private static final Set<String> WAITING_SCHEMA_VERSIONS = Set.of("3.14.7", "3.27.22");
+    private static final Set<String> RUNTIME_SCHEMA_VERSIONS = Set.of("3.27.22");
     private final ObjectMapper mapper = new ObjectMapper();
+
+    public enum Waiting { WAITING, NOT_WAITING, UNKNOWN }
+    public record WaitingState(Waiting state, String reason, String generation) {
+        public WaitingState(Waiting state, String reason) { this(state, reason, ""); }
+    }
+    public record CursorProcess(String generation, String version) {
+        // Reading a raw wait flag does not prove that current-run attribution is supported.
+        public boolean supported() { return !generation.isBlank() && RUNTIME_SCHEMA_VERSIONS.contains(version); }
+    }
+
+    /** Windows ProcessHandle.info().command() can be absent even for same-user processes.
+     * Toolhelp + QUERY_LIMITED_INFORMATION reads only executable identity and creation time.
+     */
+    public CursorProcess runningCursor() {
+        if (!System.getProperty("os.name", "").startsWith("Windows")) return new CursorProcess("", "");
+        try {
+            var kernel = com.sun.jna.platform.win32.Kernel32.INSTANCE;
+            var snapshot = kernel.CreateToolhelp32Snapshot(com.sun.jna.platform.win32.Tlhelp32.TH32CS_SNAPPROCESS,
+                new com.sun.jna.platform.win32.WinDef.DWORD(0));
+            if (snapshot == null || com.sun.jna.platform.win32.WinBase.INVALID_HANDLE_VALUE.equals(snapshot))
+                return new CursorProcess("", "");
+            Map<Integer, Integer> cursorParents = new HashMap<>();
+            try {
+                var entry = new com.sun.jna.platform.win32.Tlhelp32.PROCESSENTRY32();
+                boolean available = kernel.Process32First(snapshot, entry);
+                int count = 0;
+                while (available) {
+                    if (++count > 65536) return new CursorProcess("", "");
+                    if ("Cursor.exe".equalsIgnoreCase(com.sun.jna.Native.toString(entry.szExeFile)))
+                        cursorParents.put(entry.th32ProcessID.intValue(), entry.th32ParentProcessID.intValue());
+                    available = kernel.Process32Next(snapshot, entry);
+                }
+            } finally { kernel.CloseHandle(snapshot); }
+            List<Integer> roots = cursorParents.keySet().stream()
+                .filter(pid -> !cursorParents.containsKey(cursorParents.get(pid))).toList();
+            if (roots.size() != 1) return new CursorProcess("", "");
+            int pid = roots.get(0);
+            var process = kernel.OpenProcess(0x1000, false, pid); // PROCESS_QUERY_LIMITED_INFORMATION
+            if (process == null) return new CursorProcess("", "");
+            try {
+                char[] path = new char[32768];
+                var length = new com.sun.jna.ptr.IntByReference(path.length);
+                var created = new com.sun.jna.platform.win32.WinBase.FILETIME();
+                if (!kernel.QueryFullProcessImageName(process, 0, path, length)
+                        || !kernel.GetProcessTimes(process, created, new com.sun.jna.platform.win32.WinBase.FILETIME(),
+                            new com.sun.jna.platform.win32.WinBase.FILETIME(), new com.sun.jna.platform.win32.WinBase.FILETIME()))
+                    return new CursorProcess("", "");
+                Path executable = Path.of(new String(path, 0, length.getValue())).toRealPath();
+                if (!"Cursor.exe".equalsIgnoreCase(executable.getFileName().toString())) return new CursorProcess("", "");
+                JsonNode identity = mapper.readTree(executable.getParent().resolve("resources/app/package.json").toFile());
+                if (!"Cursor".equals(text(identity, "name"))) return new CursorProcess("", "");
+                String started = Integer.toUnsignedString(created.dwHighDateTime) + ":" + Integer.toUnsignedString(created.dwLowDateTime);
+                return new CursorProcess(pid + ":" + started + ":" + executable, text(identity, "version"));
+            } finally { kernel.CloseHandle(process); }
+        } catch (Exception | LinkageError e) { return new CursorProcess("", ""); }
+    }
+
+    /** Raw observation, not proof of a live wait. The runtime service supplies process/Hook/epoch guards.
+     * Only the canonical global header table is supported; old ItemTable discovery is not a live source.
+     */
+    public Map<String, WaitingState> readWaitingStates(Path dataDir, Set<String> composerIds, String cursorVersion) {
+        return readWaitingStates(dataDir, composerIds, cursorVersion, false);
+    }
+
+    public Map<String, WaitingState> readRuntimeStates(Path dataDir, Set<String> composerIds, String cursorVersion) {
+        return readWaitingStates(dataDir, composerIds, cursorVersion, true);
+    }
+
+    private Map<String, WaitingState> readWaitingStates(Path dataDir, Set<String> composerIds, String cursorVersion,
+                                                       boolean requireGeneration) {
+        Map<String, WaitingState> result = new HashMap<>();
+        for (String id : composerIds) result.put(id, new WaitingState(Waiting.UNKNOWN, "unavailable"));
+        if (!WAITING_SCHEMA_VERSIONS.contains(cursorVersion)
+                || (requireGeneration && !RUNTIME_SCHEMA_VERSIONS.contains(cursorVersion))) {
+            result.replaceAll((id, value) -> new WaitingState(Waiting.UNKNOWN, "unsupported-version"));
+            return Map.copyOf(result);
+        }
+        if (dataDir == null || composerIds.isEmpty() || composerIds.size() > 4) return Map.copyOf(result);
+        Path db = dataDir.resolve("globalStorage/state.vscdb");
+        try (Connection connection = openReadOnly(db)) {
+            // Bound VM work as well as lock waits. SQLite busy_timeout alone is not a query deadline.
+            long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(250);
+            org.sqlite.ProgressHandler.setHandler(connection, 1000, new org.sqlite.ProgressHandler() {
+                @Override protected int progress() {
+                    return Thread.currentThread().isInterrupted() || System.nanoTime() >= deadline ? 1 : 0;
+                }
+            });
+            // A read transaction is consistent, but independently saved header/identity rows may lag.
+            connection.setAutoCommit(false);
+            try (var statement = connection.prepareStatement(
+                    "select composerId,isArchived,isSubagent,value from composerHeaders where composerId=? limit 2")) {
+                statement.setQueryTimeout(1);
+                for (String id : composerIds) {
+                    if (id == null || id.isBlank() || id.length() > 128) continue;
+                    statement.setString(1, id);
+                    try (ResultSet rs = statement.executeQuery()) {
+                        if (!rs.next()) { result.put(id, new WaitingState(Waiting.UNKNOWN, "missing-header")); continue; }
+                        Object archived = rs.getObject("isArchived"), subagent = rs.getObject("isSubagent");
+                        String value = rs.getString("value");
+                        WaitingState state = new WaitingState(Waiting.UNKNOWN, "invalid-header");
+                        if (Integer.valueOf(0).equals(archived) && Integer.valueOf(0).equals(subagent)
+                                && value != null && value.length() <= 262144) {
+                            try {
+                            JsonNode header = mapper.reader().with(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                                .with(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION).readTree(value);
+                            JsonNode pending = header == null ? null : header.get("hasBlockingPendingActions");
+                            if (header != null && header.isObject() && header.path("composerId").isTextual()
+                                    && id.equals(header.path("composerId").textValue())
+                                    && absentOrFalse(header, "isArchived") && absentOrFalse(header, "archived")
+                                    && absentOrFalse(header, "isSubAgent") && absentOrFalse(header, "isSubagent")
+                                    && !header.hasNonNull("subagentInfo")
+                                    && pending != null && pending.isBoolean()) {
+                                state = new WaitingState(pending.booleanValue() ? Waiting.WAITING : Waiting.NOT_WAITING, "header-boolean");
+                            }
+                            } catch (com.fasterxml.jackson.core.JsonProcessingException ignored) {
+                                state = new WaitingState(Waiting.UNKNOWN, "invalid-json");
+                            }
+                        }
+                        if (rs.next()) state = new WaitingState(Waiting.UNKNOWN, "duplicate-header");
+                        result.put(id, state);
+                    }
+                }
+            }
+            if (requireGeneration) {
+                for (String id : composerIds) {
+                    WaitingState waiting = result.get(id);
+                    if (waiting.state() == Waiting.UNKNOWN) continue;
+                    try {
+                        String generation = readGeneration(connection, id);
+                        result.put(id, generation.isEmpty() ? new WaitingState(Waiting.UNKNOWN, "unconfirmed-generation")
+                                : new WaitingState(waiting.state(), waiting.reason(), generation));
+                    } catch (java.sql.SQLException invalidIdentity) {
+                        result.put(id, new WaitingState(Waiting.UNKNOWN, "identity-read-failed"));
+                    }
+                }
+            }
+            connection.rollback();
+        } catch (Exception e) {
+            // Do not expose paths, headers or SQLite errors containing user data in logs.
+            result.replaceAll((id, value) -> new WaitingState(Waiting.UNKNOWN, "read-failed"));
+        }
+        return Map.copyOf(result);
+    }
+
+    private String readGeneration(Connection connection, String id) throws Exception {
+        // Project only identity scalars from the exact bound key. Never return the composer value,
+        // conversation, prompt, tool data or credentials to Java. Duplicate selected keys are invalid.
+        String sql = "select j.key,j.type,j.atom from cursorDiskKV d, "
+                + "json_each(case when length(cast(d.value as blob))<=1048576 then d.value else '{}' end) j "
+                + "where d.key=? and j.key in ('composerId','chatGenerationUUID','latestChatGenerationUUID') limit 7";
+        Map<String, String> fields = new HashMap<>();
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setQueryTimeout(1); statement.setString(1, "composerData:" + id);
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    String key = rs.getString(1), type = rs.getString(2), value = rs.getString(3);
+                    // chatGenerationUUID is removed at completion; latest persists for valid stop attribution.
+                    if ("chatGenerationUUID".equals(key) && "null".equals(type)) value = "";
+                    else if (!"text".equals(type) || value == null || value.isBlank() || value.length() > 128) return "";
+                    if (fields.put(key, value) != null) return "";
+                }
+            }
+        }
+        String latest = fields.getOrDefault("latestChatGenerationUUID", "");
+        String active = fields.getOrDefault("chatGenerationUUID", "");
+        return id.equals(fields.get("composerId")) && !latest.isEmpty()
+                && (active.isEmpty() || active.equals(latest)) ? latest : "";
+    }
+
+    private boolean absentOrFalse(JsonNode header, String field) {
+        // The canonical table's required flags remain authoritative when an optional JSON flag is absent.
+        JsonNode value = header.get(field);
+        return value == null || (value.isBoolean() && !value.booleanValue());
+    }
+
+    private Connection openReadOnly(Path db) throws Exception {
+        if (!Files.isRegularFile(db)) throw new java.io.IOException("Missing Cursor database");
+        Class.forName("org.sqlite.JDBC");
+        var config = new org.sqlite.SQLiteConfig();
+        config.setReadOnly(true);
+        config.setBusyTimeout(250);
+        // mode=ro honors WAL; immutable=1 would silently ignore live WAL updates.
+        return DriverManager.getConnection("jdbc:sqlite:" + db.toAbsolutePath().toUri() + "?mode=ro", config.toProperties());
+    }
 
     public List<AiRuntimeSession> discover(Path dataDir) {
         if (dataDir == null || !Files.isDirectory(dataDir)) {
@@ -52,7 +239,7 @@ public class CursorSessionDiscoveryService {
         for (Path db : findFiles(dataDir, "conversation-search.db", 6)) {
             try {
                 Class.forName("org.sqlite.JDBC");
-                try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + db.toAbsolutePath());
+                try (Connection connection = openReadOnly(db);
                      Statement statement = connection.createStatement();
                      ResultSet rs = statement.executeQuery("select * from conversations limit 1000")) {
                     statement.setQueryTimeout(2);
@@ -117,7 +304,7 @@ public class CursorSessionDiscoveryService {
         for (Path db : findFiles(dataDir, "state.vscdb", 5)) {
             try {
                 Class.forName("org.sqlite.JDBC");
-                try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + db.toAbsolutePath())) {
+                try (Connection connection = openReadOnly(db)) {
                     if (!hasTable(connection, "composerHeaders")) {
                         continue;
                     }
@@ -217,7 +404,7 @@ public class CursorSessionDiscoveryService {
         for (Path db : findFiles(dataDir, "state.vscdb", 5)) {
             try {
                 Class.forName("org.sqlite.JDBC");
-                try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + db.toAbsolutePath());
+                try (Connection connection = openReadOnly(db);
                      Statement statement = connection.createStatement();
                      ResultSet rs = statement.executeQuery("select key, value from ItemTable")) {
                     statement.setQueryTimeout(2);

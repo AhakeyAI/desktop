@@ -66,7 +66,7 @@ public class TopBar extends VBox {
     private final LanguageManager languageManager;
     private MenuItem languageMenuItem;
     private UpdateCenterDialog updateCenterDialog;
-    private boolean hookUpdateSummaryShown;
+    private Stage hookManagerWindow;
     
     // 语音相关UI组件
     private Button voiceRecordButton;
@@ -96,6 +96,13 @@ public class TopBar extends VBox {
         setPadding(new Insets(0));
         getStyleClass().add("top-bar");
         initContent();
+        Label approvalProblem = new Label();
+        approvalProblem.textProperty().bind(controller.kimiApprovalProblemProperty());
+        approvalProblem.visibleProperty().bind(controller.kimiApprovalProblemProperty().isNotEmpty());
+        approvalProblem.managedProperty().bind(approvalProblem.visibleProperty());
+        approvalProblem.setWrapText(true);
+        approvalProblem.setStyle("-fx-text-fill: #b45309; -fx-padding: 4 12 4 12;");
+        getChildren().add(approvalProblem);
         setupLanguageChangeListener();
     }
     
@@ -144,10 +151,12 @@ public class TopBar extends VBox {
             ),
             new InfoPill(
                 Bindings.createStringBinding(() -> languageManager.getString("status.switch")),
-                Bindings.createStringBinding(deviceStatus::getSwitchTitle, deviceStatus.switchStateProperty()),
+                Bindings.createStringBinding(deviceStatus::getSwitchTitle, deviceStatus.switchStateProperty(),
+                    deviceStatus.savedBindingsProperty(), deviceStatus.isConnectedProperty(), deviceStatus.workModeProperty()),
                 Bindings.createObjectBinding(
                     () -> deviceStatus.isAutoApproval() ? AccentColor.MINT : AccentColor.INDIGO,
-                    deviceStatus.switchStateProperty()
+                    deviceStatus.switchStateProperty(), deviceStatus.savedBindingsProperty(),
+                    deviceStatus.isConnectedProperty(), deviceStatus.workModeProperty()
                 )
             )
         );
@@ -257,13 +266,6 @@ public class TopBar extends VBox {
 
         MenuItem restoreDefaults = new MenuItem(languageManager.getString("menu.restore-defaults"));
         restoreDefaults.setOnAction(event -> studioState.restoreCurrentModeDefaults());
-        MenuItem reconnect = new MenuItem(languageManager.getString("menu.reconnect"));
-        reconnect.setOnAction(event -> {
-            controller.userDisconnect();
-            controller.userConnect();
-        });
-        MenuItem clearOled = new MenuItem(languageManager.getString("menu.clear-oled"));
-        clearOled.setOnAction(event -> studioState.clearOledPreview());
         SeparatorMenuItem divider1 = new SeparatorMenuItem();
         MenuItem deviceInfo = new MenuItem("设备管理");
         deviceInfo.setOnAction(event -> showDeviceInfoDialog());
@@ -286,24 +288,20 @@ public class TopBar extends VBox {
         // 条件添加 AhaType 相关菜单项
         if (modelEnabled) {
             moreMenu.getItems().addAll(
+                cloudAccount,
+                refresh,
+                divider2,
                 restoreDefaults,
-                reconnect,
-                clearOled,
                 divider1,
                 deviceInfo,
                 hookManager,
                 versionInfo,
                 languageMenuItem,
-                exitApp,
-                cloudAccount,
-                divider2,
-                refresh
+                exitApp
             );
         } else {
             moreMenu.getItems().addAll(
                 restoreDefaults,
-                reconnect,
-                clearOled,
                 divider1,
                 deviceInfo,
                 hookManager,
@@ -604,7 +602,7 @@ public class TopBar extends VBox {
     
     private boolean sendShutdownCommand() {
         try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress("127.0.0.1", 9000), 1000);
+            socket.connect(controller.getBleManager().bridgeEndpoint(), 1000);
             
             byte[] shutdownPacket = new byte[3];
             shutdownPacket[0] = 0x05;
@@ -678,7 +676,7 @@ public class TopBar extends VBox {
         
         for (int i = 0; i < maxRetries; i++) {
             try (Socket socket = new Socket()) {
-                socket.connect(new InetSocketAddress("127.0.0.1", 9000), 500);
+                socket.connect(controller.getBleManager().bridgeEndpoint(), 500);
                 return true;
             } catch (Exception e) {
                 if (i < maxRetries - 1) {
@@ -1025,7 +1023,8 @@ public class TopBar extends VBox {
         switchState.getStyleClass().add("dialog-text");
         switchState.textProperty().bind(Bindings.createStringBinding(() ->
             languageManager.getString("status.switch") + ": " + this.deviceStatus.getSwitchTitle(),
-            this.deviceStatus.switchStateProperty()
+            this.deviceStatus.switchStateProperty(), this.deviceStatus.savedBindingsProperty(),
+            this.deviceStatus.isConnectedProperty(), this.deviceStatus.workModeProperty()
         ));
         deviceRow2.getChildren().addAll(deviceName, switchState);
 
@@ -1038,7 +1037,7 @@ public class TopBar extends VBox {
             "键盘固件版本: " + this.deviceStatus.getDisplayFirmwareVersion(),
             this.deviceStatus.firmwareCatalogKeyProperty(),
             this.deviceStatus.firmwareMainProperty(),
-            this.deviceStatus.firmwareSubProperty()
+            this.deviceStatus.firmwareSubProperty(), this.deviceStatus.isConnectedProperty()
         ));
         versionRow.getChildren().addAll(appVersion, keyboardFirmware);
 
@@ -1105,7 +1104,13 @@ public class TopBar extends VBox {
     }
 
     private void showHookManagerDialog() {
+        if (hookManagerWindow != null && hookManagerWindow.isShowing()) {
+            hookManagerWindow.toFront();
+            return;
+        }
         Stage dialog = new Stage();
+        hookManagerWindow = dialog;
+        dialog.setOnHidden(event -> { if (hookManagerWindow == dialog) hookManagerWindow = null; });
         dialog.initOwner(getScene().getWindow());
         dialog.setTitle("AhaKey Hook 管理");
         dialog.setWidth(560);
@@ -1120,15 +1125,19 @@ public class TopBar extends VBox {
         Map<String, HookInstaller.HookStatus> statuses = new LinkedHashMap<>();
         Map<String, Button> actionButtons = new LinkedHashMap<>();
         BooleanProperty hookDialogBusy = new SimpleBooleanProperty(false);
+        Label writeResults = hookNote("");
+        writeResults.visibleProperty().bind(writeResults.textProperty().isNotEmpty());
+        writeResults.managedProperty().bind(writeResults.visibleProperty());
         VBox list = new VBox(10);
         for (String name : List.of("Claude", "Cursor", "Codex", "Kimi")) {
             VBox card = createHookManagerCard(
                 name,
-                HookInstaller.HookStatus.DETECTING,
+                new HookInstaller.HookInspection(HookInstaller.HookStatus.DETECTING, "正在检测 Hook 状态"),
                 statuses,
                 actionButtons,
                 hookDialogBusy,
-                null
+                null,
+                writeResults
             );
             cards.put(name, card);
             list.getChildren().add(card);
@@ -1145,23 +1154,27 @@ public class TopBar extends VBox {
                 updateHookManagerCard(
                     entry.getValue(),
                     entry.getKey(),
-                    HookInstaller.HookStatus.DETECTING,
+                    new HookInstaller.HookInspection(HookInstaller.HookStatus.DETECTING, "正在检测 Hook 状态"),
                     statuses,
                     actionButtons,
                     hookDialogBusy,
-                    rescan[0]
+                    rescan[0],
+                    writeResults
                 );
             }
             Thread thread = new Thread(() -> {
-                Map<String, HookInstaller.HookStatus> scanned = new LinkedHashMap<>();
+                Map<String, HookInstaller.HookInspection> scanned = new LinkedHashMap<>();
                 for (String name : cards.keySet()) {
-                    scanned.put(name, hookInstaller.getHookStatus(name));
+                    try { scanned.put(name, hookInstaller.inspectHook(name)); }
+                    catch (Exception ex) {
+                        scanned.put(name, new HookInstaller.HookInspection(HookInstaller.HookStatus.ERROR,
+                            name + "：检测失败：" + hookFailureReason(ex)));
+                    }
                 }
                 Platform.runLater(() -> {
                     statuses.clear();
-                    statuses.putAll(scanned);
                     actionButtons.clear();
-                    for (Map.Entry<String, HookInstaller.HookStatus> entry : scanned.entrySet()) {
+                    for (Map.Entry<String, HookInstaller.HookInspection> entry : scanned.entrySet()) {
                         updateHookManagerCard(
                             cards.get(entry.getKey()),
                             entry.getKey(),
@@ -1169,24 +1182,27 @@ public class TopBar extends VBox {
                             statuses,
                             actionButtons,
                             hookDialogBusy,
-                            rescan[0]
+                            rescan[0],
+                            writeResults
                         );
                     }
                     hookDialogBusy.set(false);
-                    List<String> outdated = scanned.entrySet().stream()
-                        .filter(entry -> entry.getValue() == HookInstaller.HookStatus.OUTDATED)
-                        .map(Map.Entry::getKey)
-                        .toList();
-                    if (!outdated.isEmpty() && !hookUpdateSummaryShown) {
-                        hookUpdateSummaryShown = true;
-                        showHookUpdateSummary(outdated, rescan[0]);
-                    }
                 });
             }, "hook-manager-scan");
             thread.setDaemon(true);
             thread.start();
         };
         refresh.setOnAction(event -> rescan[0].run());
+        Button updateAll = new Button("更新所有待更新项");
+        updateAll.disableProperty().bind(hookDialogBusy);
+        updateAll.setOnAction(event -> {
+            List<String> targets = hookWriteTargets(statuses);
+            if (targets.isEmpty()) {
+                writeResults.setText("没有待更新项；未安装的 Hook 请在对应卡片单独安装，异常原因请查看对应卡片。");
+                return;
+            }
+            runHookWrites(targets, hookDialogBusy, writeResults, rescan[0]);
+        });
 
         Label note1 = hookNote("安装或更新时，AhaKey 只会添加/替换自己的 Hook，不会删除你原本配置的其他 Hook。");
         Label note2 = hookNote("当前多任务灯光支持 Codex / Cursor。");
@@ -1194,9 +1210,9 @@ public class TopBar extends VBox {
         bottom.setAlignment(Pos.CENTER_RIGHT);
         Button closeBtn = new Button("关闭");
         closeBtn.setOnAction(event -> dialog.close());
-        bottom.getChildren().addAll(refresh, closeBtn);
+        bottom.getChildren().addAll(updateAll, refresh, closeBtn);
 
-        content.getChildren().addAll(list, note1, note2, bottom);
+        content.getChildren().addAll(list, writeResults, note1, note2, bottom);
         scrollPane.setContent(content);
 
         Scene scene = new Scene(scrollPane);
@@ -1215,29 +1231,32 @@ public class TopBar extends VBox {
 
     private VBox createHookManagerCard(
         String hookName,
-        HookInstaller.HookStatus status,
+        HookInstaller.HookInspection inspection,
         Map<String, HookInstaller.HookStatus> statuses,
         Map<String, Button> actionButtons,
         BooleanProperty hookDialogBusy,
-        Runnable rescan
+        Runnable rescan,
+        Label writeResults
     ) {
         VBox card = new VBox(8);
         card.getStyleClass().add("dialog-card");
         card.setPadding(new Insets(12));
-        updateHookManagerCard(card, hookName, status, statuses, actionButtons, hookDialogBusy, rescan);
+        updateHookManagerCard(card, hookName, inspection, statuses, actionButtons, hookDialogBusy, rescan, writeResults);
         return card;
     }
 
     private void updateHookManagerCard(
         VBox card,
         String hookName,
-        HookInstaller.HookStatus status,
+        HookInstaller.HookInspection inspection,
         Map<String, HookInstaller.HookStatus> statuses,
         Map<String, Button> actionButtons,
         BooleanProperty hookDialogBusy,
-        Runnable rescan
+        Runnable rescan,
+        Label writeResults
     ) {
         card.getChildren().clear();
+        HookInstaller.HookStatus status = inspection.status();
         statuses.put(hookName, status);
         if (actionButtons != null) {
             actionButtons.remove(hookName);
@@ -1253,7 +1272,7 @@ public class TopBar extends VBox {
         statusLabel.getStyleClass().add(status == HookInstaller.HookStatus.LATEST ? "dialog-status-installed" : "dialog-status-uninstalled");
         titleRow.getChildren().addAll(title, spacer, statusLabel);
 
-        Label description = hookNote(hookDescription(status));
+        Label description = hookNote(inspection.reason());
         Button action = new Button(hookActionText(status));
         boolean canWrite = status == HookInstaller.HookStatus.NOT_INSTALLED || status == HookInstaller.HookStatus.OUTDATED;
         if (hookDialogBusy == null) {
@@ -1269,110 +1288,55 @@ public class TopBar extends VBox {
         }
         if (canWrite) {
             action.getStyleClass().add("button-install");
-            action.setOnAction(event -> runSingleHookWrite(hookName, status, action, actionButtons, hookDialogBusy, rescan));
+            action.setOnAction(event -> runHookWrites(List.of(hookName), hookDialogBusy, writeResults, rescan));
         }
 
         card.getChildren().addAll(titleRow, description, action);
     }
 
-    private void runSingleHookWrite(
-        String hookName,
-        HookInstaller.HookStatus status,
-        Button action,
-        Map<String, Button> actionButtons,
-        BooleanProperty hookDialogBusy,
-        Runnable rescan
-    ) {
-        if (hookDialogBusy != null && hookDialogBusy.get()) {
-            return;
-        }
-        if (hookDialogBusy != null) {
-            hookDialogBusy.set(true);
-        }
-        if (actionButtons != null) {
-            actionButtons.values().forEach(button -> button.setMouseTransparent(true));
-        }
-        action.setText(status == HookInstaller.HookStatus.NOT_INSTALLED ? "安装中" : "更新中");
-        Thread thread = new Thread(() -> {
-            HookInstaller.HookWriteResult result = hookInstaller.installOrUpdate(hookName);
+    private void runHookWrites(List<String> targets, BooleanProperty hookDialogBusy,
+                               Label writeResults, Runnable rescan) {
+        if (hookDialogBusy.get()) return;
+        hookDialogBusy.set(true);
+        List<String> selected = List.copyOf(targets);
+        writeResults.setText("正在安装 / 更新：" + String.join("、", selected));
+        Thread worker = new Thread(() -> {
+            Map<String, HookInstaller.HookWriteResult> results;
+            try {
+                results = hookInstaller.installOrUpdateAll(selected);
+            } catch (Exception ex) {
+                results = new LinkedHashMap<>();
+                for (String name : selected) results.put(name,
+                    new HookInstaller.HookWriteResult(false, "更新任务失败：" + hookFailureReason(ex)));
+            }
+            String summary = hookWriteSummary(results);
             Platform.runLater(() -> {
-                if (actionButtons != null) {
-                    actionButtons.values().forEach(button -> button.setMouseTransparent(false));
-                }
-                if (result.success()) {
-                    if (rescan != null) {
-                        rescan.run();
-                    } else if (hookDialogBusy != null) {
-                        hookDialogBusy.set(false);
-                    }
-                } else {
-                    Alert alert = new Alert(Alert.AlertType.ERROR);
-                    alert.initOwner(getScene() == null ? null : getScene().getWindow());
-                    alert.setTitle("AhaKey Hook 管理");
-                    alert.setHeaderText(null);
-                    alert.setContentText(result.reason() + "，请联系管理员");
-                    alert.showAndWait();
-                    if (rescan != null) {
-                        rescan.run();
-                    } else if (hookDialogBusy != null) {
-                        hookDialogBusy.set(false);
-                    }
-                }
+                writeResults.setText(summary);
+                // A write result remains visible while the cards are re-read independently.
+                if (rescan != null) rescan.run();
+                else hookDialogBusy.set(false);
             });
-        }, "hook-manager-write-" + hookName);
-        thread.setDaemon(true);
-        thread.start();
+        }, "hook-manager-write");
+        worker.setDaemon(true);
+        worker.start();
     }
 
-    private void showHookUpdateSummary(List<String> outdated, Runnable rescan) {
-        javafx.scene.control.Dialog<Void> dialog = new javafx.scene.control.Dialog<>();
-        dialog.initOwner(getScene() == null ? null : getScene().getWindow());
-        dialog.setTitle("AhaKey Hook 管理");
-        ButtonType update = new ButtonType("一键更新");
-        ButtonType cancel = new ButtonType("取消", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
-        dialog.getDialogPane().getButtonTypes().setAll(update, cancel);
-        Label message = hookNote("以下工具需要更新 Hook：" + String.join("、", outdated)
-            + "\n更新会先备份原 Hook 文件，并且只替换 AhaKey Hook。");
-        dialog.getDialogPane().setContent(message);
-        Button updateButton = (Button) dialog.getDialogPane().lookupButton(update);
-        Button cancelButton = (Button) dialog.getDialogPane().lookupButton(cancel);
-        updateButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
-            event.consume();
-            updateButton.setDisable(true);
-            cancelButton.setDisable(true);
-            Thread thread = new Thread(() -> {
-                List<String> failed = new ArrayList<>();
-                for (String name : outdated) {
-                    String currentName = name;
-                    Platform.runLater(() -> message.setText("正在更新：" + currentName));
-                    HookInstaller.HookWriteResult result = hookInstaller.installOrUpdate(currentName);
-                    if (!result.success()) {
-                        failed.add(currentName + "：" + result.reason());
-                    }
-                }
-                Platform.runLater(() -> {
-                    if (failed.isEmpty()) {
-                        dialog.close();
-                        if (rescan != null) {
-                            rescan.run();
-                        }
-                    } else {
-                        message.setText("以下工具更新失败：\n" + String.join("\n", failed));
-                        ButtonType know = new ButtonType("知道了", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
-                        dialog.getDialogPane().getButtonTypes().setAll(know);
-                        Button knowButton = (Button) dialog.getDialogPane().lookupButton(know);
-                        knowButton.addEventFilter(javafx.event.ActionEvent.ACTION, e -> {
-                            if (rescan != null) {
-                                rescan.run();
-                            }
-                        });
-                    }
-                });
-            }, "hook-manager-update-all");
-            thread.setDaemon(true);
-            thread.start();
-        });
-        dialog.show();
+    static List<String> hookWriteTargets(Map<String, HookInstaller.HookStatus> statuses) {
+        return statuses.entrySet().stream()
+            .filter(entry -> entry.getValue() == HookInstaller.HookStatus.OUTDATED)
+            .map(Map.Entry::getKey).toList();
+    }
+
+    static String hookWriteSummary(Map<String, HookInstaller.HookWriteResult> results) {
+        List<String> lines = new ArrayList<>();
+        results.forEach((name, result) -> lines.add(name + "：" + (result.success() ? "成功" : "失败")
+            + (result.reason() == null || result.reason().isBlank() ? "" : "；" + result.reason())));
+        return String.join("\n", lines);
+    }
+
+    private static String hookFailureReason(Exception error) {
+        String message = error.getMessage();
+        return message == null || message.isBlank() ? error.getClass().getSimpleName() : message;
     }
 
     private String hookStatusText(HookInstaller.HookStatus status) {
@@ -1381,7 +1345,7 @@ public class TopBar extends VBox {
             case APP_NOT_FOUND -> "未检测到应用";
             case NOT_INSTALLED -> "未安装";
             case OUTDATED -> "待更新";
-            case LATEST -> "最新";
+            case LATEST -> "已匹配";
             case ERROR -> "异常";
         };
     }
@@ -1391,20 +1355,9 @@ public class TopBar extends VBox {
             case APP_NOT_FOUND -> "不可安装";
             case NOT_INSTALLED -> "安装 Hook";
             case OUTDATED -> "更新 Hook";
-            case LATEST -> "已是最新";
+            case LATEST -> "已与当前软件匹配";
             case ERROR -> "异常";
             case DETECTING -> "检测中";
-        };
-    }
-
-    private String hookDescription(HookInstaller.HookStatus status) {
-        return switch (status) {
-            case APP_NOT_FOUND -> "未检测到对应应用，暂不可安装 Hook";
-            case NOT_INSTALLED -> "未安装 Hook，安装后可支持 AhaKey 功能";
-            case OUTDATED -> "当前 Hook 需要更新，更新后可支持多任务灯光状态，并优化 Cursor 权限流程";
-            case LATEST -> "已是最新版，支持多任务灯光状态";
-            case ERROR -> "检测异常，请联系管理员";
-            case DETECTING -> "正在检测 Hook 状态";
         };
     }
 
@@ -1695,15 +1648,12 @@ public class TopBar extends VBox {
     }
     
     private String getVersion() {
-        String version = System.getProperty("app.version");
-        if (version == null || version.isEmpty()) {
-            Package pkg = TopBar.class.getPackage();
-            version = pkg != null ? pkg.getImplementationVersion() : null;
-        }
-        if (version == null || version.isEmpty()) {
-            version = "1.0.0";
-        }
-        return version;
+        return displayApplicationVersion(com.example.ahakey.update.InstalledAppIdentity.load());
+    }
+
+    public static String displayApplicationVersion(com.example.ahakey.update.InstalledAppIdentity identity) {
+        try { identity.validate(); return identity.version(); }
+        catch (Exception e) { return "未知（安装版本信息不可用）"; }
     }
     
     private void toggleLanguage() {

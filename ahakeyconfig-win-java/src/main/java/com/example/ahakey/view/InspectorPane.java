@@ -20,6 +20,7 @@ import javafx.scene.control.Spinner;
 import javafx.stage.Window;
 import com.example.ahakey.service.AgentManager;
 import com.example.ahakey.service.HookInstaller;
+import com.example.ahakey.service.KeySimulationService;
 import javafx.beans.binding.Bindings;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
@@ -61,12 +62,20 @@ public class InspectorPane extends ScrollPane {
     private final VBox content = new VBox(18);
     private final VBox header = new VBox(8);
     private final VBox body = new VBox(16);
+    private final javafx.beans.property.BooleanProperty simulating = new javafx.beans.property.SimpleBooleanProperty(false);
+    private final javafx.beans.property.StringProperty simulationHint = new javafx.beans.property.SimpleStringProperty("");
+    private volatile Thread simulationThread;
+    private volatile boolean simulationClosed;
 
     public InspectorPane(StudioController controller) {
         this.controller = controller;
         this.deviceStatus = controller.getDeviceStatus();
         this.studioState = controller.getStudioState();
         this.agentManager = controller.getAgentManager();
+        controller.setSimulationShutdown(() -> {
+            simulationClosed = true;
+            KeySimulationService.cancelAndAwait(simulationThread, 1000);
+        });
         init();
     }
 
@@ -164,6 +173,7 @@ public class InspectorPane extends ScrollPane {
             body.getChildren().add(description);
         } else if (part.isKey()) {
             body.getChildren().add(createKeyBindingGroup(part));
+            body.getChildren().add(createSimulateKeyGroup(part));
             body.getChildren().add(createDescriptionGroup(part));
         } else if (part == StudioPart.LIGHT_BAR) {
             body.getChildren().add(createLightBarGroup());
@@ -177,20 +187,58 @@ public class InspectorPane extends ScrollPane {
     private VBox createSimulateKeyGroup(StudioPart part) {
         return createGroupBox(languageManager.getString("inspector.simulate-key"), () -> {
             VBox box = new VBox(8);
-            KeyConfig key = studioState.getKeyConfig(part);
-            var voice = controller.getVoiceRelay();
-
             Button simulate = new Button(languageManager.getString("inspector.simulate-key1"));
             simulate.getStyleClass().add("button-prominent");
-            simulate.setOnAction(e -> voice.simulateKeyByHid(key.getHidCode()));
+            simulate.disableProperty().bind(simulating);
+            simulate.setOnAction(e -> {
+                if (simulationClosed) return;
+                final KeySimulationService.Plan plan;
+                try {
+                    commitSimulationEditors(body);
+                    plan = KeySimulationService.snapshot(studioState.getKeyConfig(part));
+                }
+                catch (IllegalArgumentException ex) { simulationHint.set(ex.getMessage()); return; }
+                if (simulating.get()) return;
+                simulating.set(true);
+                simulationHint.set("正在模拟当前编辑内容…");
+                simulationThread = new Thread(() -> {
+                    String result;
+                    try {
+                        KeySimulationService.execute(plan, KeySimulationService.windowsSink(), Thread::sleep);
+                        result = "已模拟当前编辑内容。";
+                    } catch (InterruptedException ex) {
+                        result = "模拟已取消。";
+                    } catch (Exception ex) {
+                        result = "模拟失败：" + ex.getMessage();
+                    }
+                    String message = result;
+                    javafx.application.Platform.runLater(() -> {
+                        simulationThread = null;
+                        simulating.set(false);
+                        simulationHint.set(message);
+                    });
+                }, "AhaKey-key-simulation");
+                simulationThread.setDaemon(true);
+                simulationThread.start();
+            });
+            Button cancel = new Button("取消模拟");
+            cancel.disableProperty().bind(simulating.not());
+            cancel.setOnAction(e -> { if (simulationThread != null) simulationThread.interrupt(); });
 
             Label hint = new Label();
-            hint.textProperty().bind(voice.lastSimulateHintProperty());
+            hint.textProperty().bind(simulationHint);
             hint.getStyleClass().add("warning-note");
+            hint.setWrapText(true);
 
-            box.getChildren().addAll(simulate, hint);
+            box.getChildren().addAll(new HBox(8, simulate, cancel), hint);
             return box;
         });
+    }
+
+    private void commitSimulationEditors(javafx.scene.Node node) {
+        if (node instanceof Spinner<?> spinner && spinner.isEditable()) spinner.commitValue();
+        if (node instanceof javafx.scene.Parent parent)
+            for (javafx.scene.Node child : parent.getChildrenUnmodifiable()) commitSimulationEditors(child);
     }
 
     private VBox createKeyBindingGroup(StudioPart part) {
@@ -649,7 +697,7 @@ public class InspectorPane extends ScrollPane {
                 key.updateMacroStep(index, "DELAY", newValue);
                 studioState.markDirty(part);
             });
-            Label msLabel = new Label("ms");
+            Label msLabel = new Label("× 3 ms");
 
             row.getChildren().addAll(indexLabel, actionCombo, delaySpinner, msLabel);
         } else {
@@ -1419,32 +1467,15 @@ public class InspectorPane extends ScrollPane {
         return createGroupBox(languageManager.getString("inspector.switch-semantics"), () -> {
             VBox box = new VBox(10);
 
-            ToggleGroup group = new ToggleGroup();
-            ToggleButton autoButton = new ToggleButton(languageManager.getString("inspector.auto-approval"));
-            autoButton.getStyleClass().add("binding-toggle");
-            autoButton.setToggleGroup(group);
-
-            ToggleButton manualButton = new ToggleButton(languageManager.getString("inspector.manual-approval"));
-            manualButton.getStyleClass().add("binding-toggle");
-            manualButton.setToggleGroup(group);
-
-            autoButton.setOnAction(event -> controller.updateSwitchState(0));
-            manualButton.setOnAction(event -> controller.updateSwitchState(1));
-
-            // 绑定选中状态到 deviceStatus
-            autoButton.selectedProperty().bind(Bindings.createBooleanBinding(
-                () -> deviceStatus.isAutoApproval(),
-                deviceStatus.switchStateProperty()
-            ));
-            manualButton.selectedProperty().bind(Bindings.createBooleanBinding(
-                () -> !deviceStatus.isAutoApproval(),
-                deviceStatus.switchStateProperty()
-            ));
-
-            Label note = new Label(languageManager.getString("inspector.switch-note"));
+            Label actual = new Label();
+            actual.textProperty().bind(Bindings.createStringBinding(deviceStatus::getSwitchTitle,
+                    deviceStatus.switchStateProperty(), deviceStatus.savedBindingsProperty(),
+                    deviceStatus.isConnectedProperty(), deviceStatus.workModeProperty()));
+            actual.setWrapText(true);
+            Label note = new Label("当前未读到可编辑的拨杆配置；请以键盘实际位置和已确认的动作显示为准。");
             note.getStyleClass().add("group-note");
-
-            box.getChildren().addAll(new HBox(4, autoButton, manualButton), note);
+            note.setWrapText(true);
+            box.getChildren().addAll(actual, note);
             return box;
         });
     }
@@ -1454,8 +1485,19 @@ public class InspectorPane extends ScrollPane {
             VBox box = new VBox(12);
             AhaKeyResponseParser.SideSwitchConfig config = studioState.getSideSwitchConfig();
 
-            Label state = new Label("当前物理位置：" + sideSwitchPhysicalLabel(config.physicalPosition()));
+            Label state = new Label();
+            state.textProperty().bind(Bindings.createStringBinding(() -> "当前物理位置："
+                    + (deviceStatus.isConnected() ? sideSwitchPhysicalLabel(deviceStatus.getSwitchState()) : "未知（未连接）"),
+                    deviceStatus.switchStateProperty(), deviceStatus.isConnectedProperty()));
             state.getStyleClass().add("group-note");
+            Label unsaved = new Label("未保存：键盘图和审批仍使用已确认的设备配置。");
+            unsaved.visibleProperty().bind(Bindings.createBooleanBinding(
+                    () -> studioState.isDirty(StudioPart.TOGGLE_SWITCH), studioState.dirtyCountProperty(),
+                    studioState.inputBaselineRevisionProperty(), studioState.selectedModeProperty()));
+            unsaved.managedProperty().bind(unsaved.visibleProperty());
+            unsaved.getStyleClass().add("warning-note");
+            unsaved.setWrapText(true);
+            box.getChildren().add(unsaved);
 
             Label readback = new Label();
             readback.textProperty().bind(Bindings.createStringBinding(() -> {
@@ -1739,6 +1781,9 @@ public class InspectorPane extends ScrollPane {
     }
 
     private void configureLocalVoiceKeyLabel(ComboBox<String> selector) {
+        // Reorder labels only: selected value and saved HID code remain untouched.
+        String f18 = selector.getItems().contains("F18 (0x6D)") ? "F18 (0x6D)" : "F18";
+        if (selector.getItems().remove(f18)) selector.getItems().add(0, f18);
         if (!com.example.ahakey.config.ModelConfig.getInstance().isEnabled()) return;
         // Decorate display cells only; keep key names and HID parsing unchanged.
         selector.setCellFactory(list -> createLocalVoiceKeyCell());

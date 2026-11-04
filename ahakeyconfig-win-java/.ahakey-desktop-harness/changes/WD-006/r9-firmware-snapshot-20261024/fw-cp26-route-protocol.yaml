@@ -1,0 +1,110 @@
+contract: x1-protocol-command-index
+version: 0.1
+status: investigation_snapshot
+
+transport:
+  framing: "AA BB <payload> CC DD"
+  usb_command_marker: 0xA1
+  usb_data_marker: 0xA2
+
+commands:
+  "0x00": status_query
+  "0x01": set_ble_device_name
+  "0x02": set_ble_appearance
+  "0x04": save_config
+  "0x73": set_key_binding_and_name
+  "0x80": begin_picture_flash_write
+  "0x81": picture_flash_write_complete
+  "0x82": set_default_gif_partition
+  "0x83": query_default_gif
+  "0x84": set_ai_light_map
+  "0x85": set_ws2812_brightness
+  "0x90": legacy_ai_state
+  "0x91": direct_led_effect
+  "0x92": set_keyboard_mode
+  "0x93": set_ai_oled_gif
+  "0x94": query_ai_oled_gif
+  "0x95": sleep_wait_time_official_self_persisting
+  "0x96": usb_only_factory_reset
+  "0x97": voice_key_config
+  "0x98": task_lighting_mode
+  "0x99": task_slot_update
+  "0x9A": task_heartbeat_status
+  "0x9B": mode_sync
+  "0x9C": gif_layout_query
+  "0x9D": persistent_config_chunk_read
+  "0x9F": version_model_capability_query
+  "0xA0..0xEF": sdk_user_command_range
+
+reviewed_allocations:
+  governance_status: stage_c_reviewed_allocation
+  source_snapshot_status: investigation_snapshot
+  source_snapshot_note: >-
+    The legacy commands mapping above is retained as an investigation snapshot and
+    is not rewritten by this reviewed allocation record.
+  reviewed_design_evidence: .ahakey-harness/evidence/design-reviews/WS4-CP1-20261024-cp2_6-protocol-governance-revision4-independent-review-pass.md
+  reviewed_design_sha256: 21BF1A4C8F15B84C4FBB15C1C67A67B2550163DA02783A3BDBF700B0601EAA06
+  allocations:
+    - opcode: "0x9E"
+      version: 1
+      family: per_mode_k1_output_route
+      complete_frame_max_bytes: 62
+      framing:
+        request: "AA BB 9E 01 subcommand fields... CC DD"
+        response: "AA BB 9E status version subcommand fields... CC DD"
+        status_ok: 0
+        status_fail: 1
+        integer_endianness: little
+        crc: "CRC-32/ISO-HDLC, reflected polynomial 0xEDB88320, init/xorout 0xFFFFFFFF"
+        error_response: "12 bytes: AA BB 9E 01 request_version request_subcommand correlation_u32_le CC DD"
+        error_correlation: "nonce for 0x00/0x10/0x20; transaction token for 0x21/0x22; zero only when identity cannot be safely parsed"
+        malformed_frame: "drop truncated/invalid outer frame without trustworthy closing marker; framed malformed known command returns FAIL; unknown/trailing fields never succeed"
+      capability_signature:
+        subcommand: "0x00"
+        request_bytes: 11
+        success_response_bytes: 14
+        exact_echo_required: [version, subcommand, nonce]
+        feature_flags: "bit0 per-mode K1 route; bit1 atomic all-four update; remaining bits zero"
+        mode_count: 4
+        generic_six_byte_ack_is_support: false
+      subcommands:
+        - id: "0x00"
+          name: capability_challenge
+          request: "nonce:u32_le"
+          success: "echo_nonce:u32_le, feature_flags:u8, mode_count:u8"
+          caller: "Desktop K1 route editor gates read/write support before use"
+        - id: "0x10"
+          name: read_one_mode_route_slice
+          request: "nonce:u32_le, mode:u8(0..3), offset:u8, max_data:u8(1..42)"
+          success: "echo_nonce:u32_le, mode:u8, offset:u8, total_len:u16_le, full_record_crc32:u32_le, data[1..42]"
+          caller: "Desktop reads keyboard-authoritative route before editing and after saving"
+        - id: "0x20"
+          name: begin_route_replacement
+          request: "selector:u8(0..3 one mode, 0xFF explicit all-four), payload_len:u16_le, payload_crc32:u32_le, nonce:u32_le"
+          success: "echo_nonce:u32_le, transaction_token:u32_le(equal nonce), next_offset:u16_le"
+          caller: "Desktop single-mode save or explicit user-confirmed global onboarding"
+        - id: "0x21"
+          name: write_contiguous_route_chunk
+          request: "transaction_token:u32_le, selector:u8, offset:u16_le, data_len:u8(1..47), data[1..47]"
+          success: "echo_token:u32_le, selector:u8, next_offset:u16_le, accepted_len:u8"
+          caller: "Desktop streams replacement bytes and advances only on exact matching ACK"
+        - id: "0x22"
+          name: commit_route_replacement
+          request: "transaction_token:u32_le, selector:u8"
+          success: "echo_token:u32_le, selector:u8, committed_snapshot_crc32:u32_le"
+          caller: "Desktop commits after all acknowledged chunks, then verifies by reading routes back"
+      transaction_rules:
+        global_active_transaction: true
+        duplicate_latest_identical_chunk: idempotent
+        gap_overlap_changed_or_old_duplicate: fail_without_mutation
+        begin_retry_same_nonce_selector_length_crc: return_current_progress
+        disconnect_or_30_second_inactivity: abort_temporary_transaction_keep_old_snapshot
+        commit_requires_full_length_crc_validation_persistence_and_readback: true
+        uncertain_commit_ack_resolution: readback_not_blind_commit_retry
+        cp2_5_active_upload_interlock: "reject 0x9E; preserve CP2.5 whitelist 0x8B/current, 0x8C/current, 0x00"
+      transport_boundary:
+        usb_complete_logical_frame_limit_bytes: 62
+        new_usb_ble_fragmentation: false
+        ble_write_assembly_and_notify_acceptance: later_cp2_6_integration_gate
+      restore_subcommand: none
+      restore_allocated: false

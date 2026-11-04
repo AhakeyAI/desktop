@@ -1,0 +1,41 @@
+{
+  "id": "WD-009",
+  "scope": "OWNER_PREVIEW_ONLY",
+  "firmware_read_only": true,
+  "matrix": [
+    {
+      "hardware": "HW1",
+      "catalog": "x1-c582-hw1-p1-1.0.1-r001",
+      "hex_path": "C:\\Users\\20825\\Desktop\\vibe-code\\.ahakey-harness\\evidence\\builds\\ws2-hw1-1.0.1-r001\\HID_Keyboard_582m_vibe_coding.hex",
+      "hex_sha256": "e75be8def007b7a24502e615c894d68ce454b0fd3a6139aef45f7c697defc233",
+      "firmware_candidate": "09633824d5b19492e5256078187e89849e74e7ce",
+      "gate_path": "C:\\Users\\20825\\Desktop\\vibe-code\\.ahakey-harness\\evidence\\checkpoints\\X1-HW1-RELEASE-IDENTITY\\HW1_CP1_VERSION_1_0_1\\20261031T152857\\gate-receipt.json",
+      "gate_sha256": "856a44af255fe4f56a94b5a5ee4ccd1a9befe09f1a96327077adcc1bfd03ea8b",
+      "installed_device_confirmation": "待Owner核对当前键盘；Agent没有刷机或验证已安装固件",
+      "USB": "not_executed",
+      "BLE": "not_executed"
+    },
+    {
+      "hardware": "HW2",
+      "catalog": "x1-c582-hw2-p1-1.0.1-r001",
+      "hex_path": "C:\\Users\\20825\\.codex\\worktrees\\x1-id01-firmware\\vibe-code\\.ahakey-harness\\evidence\\builds\\ws35-k1-hw2-1.0.1-r001\\HID_Keyboard_582m_vibe_coding.hex",
+      "hex_sha256": "e19f386d86282e489b595d6d5804f8f43c710429949a2f1c1b9cbcefcbcf6a29",
+      "firmware_candidate": "fb59582bf1ca65afa9ba1a843452815530e79012",
+      "gate_path": "C:\\Users\\20825\\.codex\\worktrees\\x1-id01-firmware\\vibe-code\\.ahakey-harness\\evidence\\checkpoints\\X1-ID01-K1-RELEASE-FOLLOWUP\\WS35_CP2_6_K1_RELEASE_FOLLOWUP\\20261031T143542\\gate-receipt.json",
+      "gate_sha256": "42b18f4a6a7997aebda6432963df9a3f967081e453839c902644b3fddb59bb1d",
+      "installed_device_confirmation": "待Owner核对当前键盘；Agent没有刷机或验证已安装固件",
+      "USB": "not_executed",
+      "BLE": "not_executed"
+    },
+    {
+      "hardware": "最早无完整标识旧固件",
+      "catalog": null,
+      "hex_path": null,
+      "hex_sha256": null,
+      "evidence": "原WD006基础功能保持，旧ACK不等于新版能力；未绑定Owner手头旧设备HEX，不猜测身份",
+      "USB": "not_executed",
+      "BLE": "not_executed"
+    }
+  ],
+  "inherited_from": "WD-008/PREVIEW_FIRMWARE_MATRIX.json; all device results remain unexecuted"
+}

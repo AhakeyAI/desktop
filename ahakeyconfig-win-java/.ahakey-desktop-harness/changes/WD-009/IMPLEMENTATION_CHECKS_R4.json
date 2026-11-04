@@ -1,0 +1,305 @@
+{
+  "contract_revision": 4,
+  "build_round": 4,
+  "base": "WD009 R2 reviewed/1.0.18 Preview; R3/R4 Hook repair only",
+  "changed_inputs": [
+    {
+      "path": "pom.xml",
+      "bytes": 7164,
+      "sha256": "888d421cee19e1b69520deb5ad5734838f0c9c78ccbcc38bc4405e5c24cca5f4"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookInstaller.java",
+      "bytes": 45135,
+      "sha256": "a87b330e43a724143872805532ae75a6fd3f0dfcec0839bc583a16c15d013828"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/TopBar.java",
+      "bytes": 77060,
+      "sha256": "75ae98c329abb322f5052b44660753044c7eab07f6432d72a5faac61a4a5bbc8"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd009/HookManagementChecks.java",
+      "bytes": 13371,
+      "sha256": "fa403e6d9cf0a3361166e3e7933273c11ab4b6993a31e016279941482417503d"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd009/Wd009HookUiChecks.java",
+      "bytes": 6105,
+      "sha256": "ed957212bedb3373a8372b05e59afa92cf51f5397f170fb970808e6b10142df7"
+    }
+  ],
+  "before": [
+    {
+      "path": "target/wd009-hook-r3/before/EXECUTION_REPORT_R2_FROZEN.md",
+      "bytes": 12221,
+      "sha256": "ea360b2a7c88ad09233a2ce6b345df4e0e5418e5bbb115a487c9e4ee31401b09"
+    },
+    {
+      "path": "target/wd009-hook-r3/before/HookInstaller.java",
+      "bytes": 36195,
+      "sha256": "52647ac1706da749c5b676889fcf34751f077123b0c8f9140e898e5f82401467"
+    },
+    {
+      "path": "target/wd009-hook-r3/before/pom.xml",
+      "bytes": 6916,
+      "sha256": "34cda19b4a4bc8358f31a151d61b39890b0f3d7e5b207abaa5ff6b3522b0084a"
+    },
+    {
+      "path": "target/wd009-hook-r3/before/TopBar.java",
+      "bytes": 77364,
+      "sha256": "37ec728582c5ef7ce48baa49661e4217e7cbc454a71eca113cfc49a08fcc8654"
+    }
+  ],
+  "dependencies": [
+    {
+      "path": ".m2repo/org/tomlj/tomlj/1.0.0/tomlj-1.0.0.jar",
+      "bytes": 157156,
+      "sha256": "32697c7567b2921c473678a820b13fc64700aa87bb14576eeb48d0ed5847cfd4"
+    },
+    {
+      "path": ".m2repo/org/antlr/antlr4-runtime/4.7.2/antlr4-runtime-4.7.2.jar",
+      "bytes": 337904,
+      "sha256": "4c518b87d4bdff8b44cd8cbc1af816e944b62a3fe5b80b781501cf1f4759bbc4"
+    },
+    {
+      "path": ".m2repo/com/google/code/findbugs/jsr305/3.0.2/jsr305-3.0.2.jar",
+      "bytes": 19936,
+      "sha256": "766ad2a0783f2687962c8ad74ceecc38a28b9f72a2d085ee438b7813e928d0c7"
+    }
+  ],
+  "checks": [
+    {
+      "path": "target/wd009-hook-r3/run-05/compile-exit.txt",
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "target/wd009-hook-r3/run-05/compile.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "target/wd009-hook-r3/run-05/hook-exit.txt",
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "target/wd009-hook-r3/run-05/hook.log",
+      "bytes": 71,
+      "sha256": "027422afb7024c24ca75153fc1722103c0abfd0a271a9fe881363294aa010d6c"
+    },
+    {
+      "path": "target/wd009-hook-r3/run-05/sources.txt",
+      "bytes": 5937,
+      "sha256": "c9a11ea218fa12dc74b381ba18babea5224b9da9edc988ec7cdff47551aeea5e"
+    },
+    {
+      "path": "target/wd009-hook-r3/run-05/test-compile-exit.txt",
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "target/wd009-hook-r3/run-05/test-compile.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/compatibility.FirmwareIdentityCompatibilityChecks-exit.txt",
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/compatibility.FirmwareIdentityCompatibilityChecks.log",
+      "bytes": 46788,
+      "sha256": "b600c4b5278609d95b5133c45a1a41bce82f6ea0b5daacc19fd90e26a1d85e5a"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/compile-tests-exit.txt",
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/compile-tests.log",
+      "bytes": 188,
+      "sha256": "f1e0846a4fdc21b384aa1980afe7a6c0a592eb54e81194193f1de33449280b90"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/displayconfig.DisplayConfigChecks-exit.txt",
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/displayconfig.DisplayConfigChecks.log",
+      "bytes": 6548,
+      "sha256": "c94bd640b7e1c546f88fad62fac4575ea287ee6c7c0e1619682b1efadd79e738"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/firmware.BackupRestoreChecks-exit.txt",
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/firmware.BackupRestoreChecks.log",
+      "bytes": 3768,
+      "sha256": "1e1b5208ad5a9c756d5509077981f16f16f5c1194bd4c239a119f6b390140453"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/firmware.DeviceMaintenanceChecks-exit.txt",
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/firmware.DeviceMaintenanceChecks.log",
+      "bytes": 950,
+      "sha256": "fd970ecddb6c3b4ab3e359d91c5ddf16f81ed49f0442a3a49d7d31901f9275c6"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/fresh-process-exit.txt",
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/fresh-process.log",
+      "bytes": 31,
+      "sha256": "918af4fda7494137c31ec69c085b2e081416ab97b6d439aecb86d2c71d1e3dcd"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/protocol.K1RouteProtocolChecks-exit.txt",
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/protocol.K1RouteProtocolChecks.log",
+      "bytes": 33512,
+      "sha256": "63b18962257e61f5f92d0b8b174117051b0caa124155020b02d071d0778d5146"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/RESULTS.json",
+      "bytes": 2809,
+      "sha256": "5071522d8b333a35d32a9ed513bb81bd8079e3a3be62b34ee547d025c21a8088"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/service.CursorWaitingChecks-exit.txt",
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/service.CursorWaitingChecks.log",
+      "bytes": 102890,
+      "sha256": "6e0e9264afde618b2f822a51785708f389d15ac502c82120742672274c249f78"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/service.KimiRoutingChecks-exit.txt",
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/service.KimiRoutingChecks.log",
+      "bytes": 40552,
+      "sha256": "a9a9e524a20005fbb4428f72dae66b566a3d0f104606c96758d84f368a381b7e"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/test-sources.txt",
+      "bytes": 2550,
+      "sha256": "6106f804d024d7ed2a15cc7dca05c1ae47d02327f12e5a13468b31387e8c8bd6"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/wd009.ApprovalFactsChecks-exit.txt",
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/wd009.ApprovalFactsChecks.log",
+      "bytes": 32152,
+      "sha256": "4bf8800c4dce3fe7809d2230b1edbbfe762b2b69e7ffa26d3fad4992ba8cb1dc"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/wd009.Wd009HookUiChecks-exit.txt",
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/wd009.Wd009HookUiChecks.log",
+      "bytes": 1312,
+      "sha256": "70c5186e1cc226a7b0f3559524c7be63f4d1ba280f21f2e6996a6b3490d6a9f0"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/wd009.Wd009UiChecks-exit.txt",
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "target/wd009-hook-r3/regression-01/wd009.Wd009UiChecks.log",
+      "bytes": 2099,
+      "sha256": "ced5c553025127c75977fd29bc55b80b73d80fe871b94c15576ad772476f6bb2"
+    },
+    {
+      "path": "target/wd009-hook-r3/final/diff-check-exit.txt",
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "target/wd009-hook-r3/final/diff-check.log",
+      "bytes": 122,
+      "sha256": "dfbda06bddca5493f8022e7a1b2854e740e2e5bcf85f8f5599478870e9cbf8cd"
+    },
+    {
+      "path": "target/wd009-hook-r3/final/HookInstaller.diff",
+      "bytes": 45187,
+      "sha256": "af9336bda5cbb476c6a7267fd162d0a670076e18096dd0eb6fb3577f0f0adb84"
+    },
+    {
+      "path": "target/wd009-hook-r3/final/maven-validate-exit.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354"
+    },
+    {
+      "path": "target/wd009-hook-r3/final/maven-validate.log",
+      "bytes": 1264,
+      "sha256": "221851577b6d4c6b0eb06fe3b63248d16f352802022b80a1268ab131ed2513b4"
+    },
+    {
+      "path": "target/wd009-hook-r3/final/pom.diff",
+      "bytes": 517,
+      "sha256": "3bfddfcb3b0a12bedbbbaeeb5d9ef5eaed665908ec0b28416ec27cb73917afe3"
+    },
+    {
+      "path": "target/wd009-hook-r3/final/RESULTS.json",
+      "bytes": 175,
+      "sha256": "301501d4603e2c70ff07ede1d3305b90cfcf267fd69d8d94c06d088601ba1eb5"
+    },
+    {
+      "path": "target/wd009-hook-r3/final/TopBar.diff",
+      "bytes": 17416,
+      "sha256": "a06c103550c9cb49d6eb2f250d2d68c8cc8fbc45d620533ba833e78d6b089035"
+    },
+    {
+      "path": "target/wd009-hook-r3/final/Wd009HookUiChecks-exit.txt",
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "target/wd009-hook-r3/final/Wd009HookUiChecks.log",
+      "bytes": 1312,
+      "sha256": "70c5186e1cc226a7b0f3559524c7be63f4d1ba280f21f2e6996a6b3490d6a9f0"
+    },
+    {
+      "path": "target/wd009-hook-r3/final/Wd009UiChecks-exit.txt",
+      "bytes": 1,
+      "sha256": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "path": "target/wd009-hook-r3/final/Wd009UiChecks.log",
+      "bytes": 2099,
+      "sha256": "ced5c553025127c75977fd29bc55b80b73d80fe871b94c15576ad772476f6bb2"
+    }
+  ],
+  "hardware_and_real_hook_writes": false,
+  "prior_implementation_report": "target/wd009-hook-r3/before/EXECUTION_REPORT_R2_FROZEN.md",
+  "pending": [
+    "DLA actual and independent review",
+    "new 1.0.19 Preview token and complete local-model EXE build",
+    "actual installation, real Hook platform UAT and hardware tests"
+  ]
+}

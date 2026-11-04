@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "WD-006",
+  "decision": "pass",
+  "pack_sha256": "8c9455e3f4bff2c738752ead32630c5fc89ec883d53afb3c0e80adbd13795759",
+  "session": "01a171fa-d069-78d2-abb6-7c46081ee169",
+  "analysis": "本轮源码独立审阅PASS：四项改动已实际审阅并绑定正式pack/after/预审快照/DIB报告/实测清单；其余102项当前字节与R11候选及前轮已审输入一致。无新增阻断项，不判整个任务PASS。 没有协议帧、固件命令、VID/PID准入、驱动准备或确认弹窗语义变化；只替换内部只读Windows枚举/属性查询。",
+  "original_independent_review": {
+    "path": ".ahakey-desktop-harness/changes/WD-006/r11-review-20261025/r12-boot-pre-review-20261026/FINAL_REVIEW_R12.json",
+    "sha256": "008ae406f591bf9b80b7ca760a5764202be5d35e542eb2a821a2e12e5ec14125"
+  },
+  "meaning": "Metadata adapter of independent reviewer decision; review_session mapped to session and substantive scope/protocol analysis copied verbatim. No new review or altered judgment."
+}

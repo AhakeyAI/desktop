@@ -1,6 +1,7 @@
 package com.example.ahakey.firmware;
 
 import com.example.ahakey.update.*;
+import com.example.ahakey.protocol.FirmwareCapabilities;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.*;
@@ -23,7 +24,7 @@ public final class FirmwareCatalog {
     }
     public synchronized Map<String,Set<String>> knownCapabilities() { return Map.copyOf(trustedCapabilities); }
     public static final Set<String> ALL = Set.of("keys", "side", "lights");
-    public static final String CATALOG = "x1-c582-hw1-p1-1.0.0-r001";
+    public static final String CATALOG = FirmwareCapabilities.HW1_BASELINE;
     public static final String HEX_NAME = "x1-c582-hw1-p1-r001-cp2-memory-safety-20261018.hex";
     public static final String HEX_HASH = "ffb9208f79084aa24a832ad2562a14dbbea5df4d114a135cb5b2eb98d4e05539";
     public enum Source { BUILTIN, OFFICIAL, LOCAL }
@@ -59,6 +60,10 @@ public final class FirmwareCatalog {
         if (!t.hardware.equals("x1-c582-hw1") || !t.protocol.equals("p1") || !sourceCatalog.startsWith("x1-c582-hw1-p1-")) throw new IOException("所选固件与键盘型号或协议不兼容。");
     }
     public synchronized Set<String> capabilities(String observedCatalog) { return trustedCapabilities.getOrDefault(observedCatalog, Set.of()); }
+    /** Runtime configuration admission is independent of the image backup/restore target catalog. */
+    public synchronized Set<String> connectionCapabilities(String observedCatalog) {
+        return FirmwareCapabilities.supportsConfiguration(observedCatalog) ? ALL : capabilities(observedCatalog);
+    }
     // No reliable old-firmware identity has been supplied. Numeric 1.0 / timeout is never evidence.
     public boolean reliableLegacy(String observedCatalog) { return false; }
 }

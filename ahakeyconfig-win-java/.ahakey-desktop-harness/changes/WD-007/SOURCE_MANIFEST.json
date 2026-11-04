@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "files": [
+    {
+      "workspace": "firmware",
+      "source_path": "APP/sub_main/command_solve.c",
+      "commit": "efecc471376f99ce6753e257933bfba287937bb4",
+      "snapshot": "reference-snapshots/command_solve.c",
+      "sha256": "7beb73af471745f57a1e7dda5274ad5ee67ce1bf90b8a9aa4f32b6f33c8e0853",
+      "meaning": "immutable Git source observed, not actual installed HEX confirmation"
+    },
+    {
+      "workspace": "firmware",
+      "source_path": "APP/hardware/psk_multi_button.c",
+      "commit": "efecc471376f99ce6753e257933bfba287937bb4",
+      "snapshot": "reference-snapshots/psk_multi_button.c",
+      "sha256": "7c4c70da13b56508212acade0acf7083ac3c88ea9ada08f3214815bf9cf05021",
+      "meaning": "immutable Git source observed, not actual installed HEX confirmation"
+    }
+  ]
+}

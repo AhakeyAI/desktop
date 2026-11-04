@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "id": "WD-009",
+  "decision": "pass",
+  "session": "/root/hook_r3_review",
+  "review_session": "/root/hook_r3_review",
+  "build_round": 4,
+  "contract_revision": 4,
+  "reviewed_at": "2026-11-03T07:29:50.774595+00:00",
+  "pack_sha256": "889b20fe7f1e224b7e3314e8312a76d9740bb62061a4b72b21719fa12e113469",
+  "code_fingerprint": "b184b8b7478757a45d39a65e803a677914a1ab8eb2c7d17a24704e6cedc47775",
+  "diff_sha256": "11b218195385041d920dc559f93a70a85b56129b164adb435bbf29acefa4f647",
+  "analysis": "本轮独立审阅针对已批准的 R3/R4 Hook 管理修正。实际阅读 HookInstaller、TopBar 新增量及完整调用路径、pom 唯一依赖增量、HookManagementChecks 与 Wd009HookUiChecks，核对新 PACK 累计 26 路径。重新计算 5 项本轮源码、4 项前态、3 项依赖、45 项证据共 57 项 SHA256，全部匹配；ACTUAL_DIFF SHA256 匹配。旧 23 项中 21 项与 R2 冻结源码逐字节相同，只有本轮两 Hook 文件改变，新增 pom 与两个测试；未改项结合原独立审阅报告引用其既有结论，不冒充本轮重做全部人工审阅或真机测试。\n真实入口已接通：TopBar 打开/重扫只调用 inspectHook，后台检查后更新卡片具体原因，不存在自动 showHookUpdateSummary 或重启重置的提示标记。单项由用户按钮触发；批量只选择 OUTDATED，不安装 NOT_INSTALLED；共用 runHookWrites，后台逐平台执行并保留成功/失败原因，再重扫。没有新增自有审批弹窗；真实渲染未执行。\n检查依据本平台脚本、共享 core 完整生成内容与实际已注册事件，包括命令、matcher、timeout 和 Codex features.hooks。sidecar 仅补充说明，旧或缺失不会单独触发待更新。脚本换行与 JSON 命令路径分隔归一化，损坏及不可读取诚实报错。StudioController 的多任务准入仍使用 getHookStatus；新状态因此必须准确，已核对该消费者，未扩大原先仅 Codex/Cursor 的多任务支持声明。\n更新计划先完整解析和验证，再备份所有需要变化的旧文件，唯一备份不覆盖历史。写入按文件原子替换，随后每个计划文件字节回读且重新 inspectHook，任何失败不返回成功。计划仅含本平台脚本/配置及必要共享 core；不会顺带重写其他平台脚本或注册。失败可能已有部分文件完成，此时明确失败并保留备份，不承诺跨文件原子回滚。\nJSON 拒绝重复键、尾随根、错误对象/数组结构；只认当前用户受管路径的 PowerShell -File 调用，保留其他路径同名脚本和偶然提及文本。混合 wrapper 保留第三方子命令和原字段，只抽取本平台受管项。配置核对与安装使用同一 expectedHooks 模板。\nCodex TOML 使用固定 tomlj 1.0.0 做语法和语义判断，以源位置只替换 features.hooks 的值或插入缺失键；多行数组/字符串、quoted dotted key、inline table 与隐式父表均有隔离覆盖，生成结果写前再解析。其他设置字节不序列化。独立只读核对实际用户 config.toml 可解析且返回原文；没有输出配置正文。曾实测合法 quoted dotted key 被手写解析器拒绝、非法别名重复键被放过，两者在成熟解析器修正后分别 ACCEPT/REJECT。\nKimi 保持原路径与格式，不迁移真实客户端接入。固定版本 TOML lexer 仅识别字符串之外的独立 Comment token，防止替换用户字符串中包含的示例标记；merged 写前再次解析。独立内存复验合法多行示例不再被视作管理块，中文及补充平面字符前缀不导致范围错位。内部 lexer API 依赖固定版本，后续更新依赖时需重测。\n生成 core/Claude/Codex/Kimi/Cursor 的 String content 表达式与 R2 before 逐字一致；本轮隔离生成脚本 SHA256 测试也覆盖五份原行为，未改变审批或灯效输出。其他传输、固件、K1、OTA 和语音源码没有新增变动。\n核对本轮最终 Hook 135 断言、UI 23 项、旧 UI 42 项、新进程扫描通过日志，以及必要回归 RESULT 的全部 exit 0。测试包含 stale/missing sidecar、同 marker 的真实内容变化、shared core、按平台隔离、第三方保留、非法 JSON/TOML 拒写、注入写入及回读失败、批量部分失败。UI 部分为纯函数与源接线检查，不是渲染验收。当前没有未解决的源码阻塞，可以进入完整 EXE Preview 构建；这不等于 Owner UAT 或 Release 通过。",
+  "findings": [],
+  "resolved_findings": [
+    {
+      "issue": "手写 TOML 校验拒绝合法 quoted dotted key，且对重复别名键误报匹配。",
+      "resolution": "改为固定 tomlj 语法/语义校验和 source position 定点更新；独立纯内存复验合法 ACCEPT、非法 REJECT，写前再验证生成结果。"
+    },
+    {
+      "issue": "默认 JSON readTree 可吞掉重复键或第二根，影响第三方配置保存。",
+      "resolution": "启用 STRICT_DUPLICATE_DETECTION 与 FAIL_ON_TRAILING_TOKENS，并隔离验证失败前全文件字节不变。"
+    },
+    {
+      "issue": "仅 basename 判断受管命令会移除其他目录同名第三方脚本。",
+      "resolution": "匹配当前 .ahakey/hooks 本平台完整路径，mixed wrapper 只抽取该子命令；隔离测试保留 D:/Other 同名路径及 wrapper metadata。"
+    },
+    {
+      "issue": "Kimi 子串定位会把合法多行字符串中的 BEGIN/END 示例误认作管理块。",
+      "resolution": "固定 TOML lexer Comment token 与独立行定位；预写校验 merged；独立反射复验示例非管理块和 Unicode 范围正确。"
+    }
+  ],
+  "source_hashes": [
+    {
+      "path": "pom.xml",
+      "bytes": 7164,
+      "sha256": "888d421cee19e1b69520deb5ad5734838f0c9c78ccbcc38bc4405e5c24cca5f4"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookInstaller.java",
+      "bytes": 45135,
+      "sha256": "a87b330e43a724143872805532ae75a6fd3f0dfcec0839bc583a16c15d013828"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/TopBar.java",
+      "bytes": 77060,
+      "sha256": "75ae98c329abb322f5052b44660753044c7eab07f6432d72a5faac61a4a5bbc8"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd009/HookManagementChecks.java",
+      "bytes": 13371,
+      "sha256": "fa403e6d9cf0a3361166e3e7933273c11ab4b6993a31e016279941482417503d"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd009/Wd009HookUiChecks.java",
+      "bytes": 6105,
+      "sha256": "ed957212bedb3373a8372b05e59afa92cf51f5397f170fb970808e6b10142df7"
+    }
+  ],
+  "unchanged_from_r2": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/model/DeviceStatus.java",
+    "src/main/java/com/example/ahakey/model/StudioState.java",
+    "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/CursorSessionDiscoveryService.java",
+    "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+    "src/main/java/com/example/ahakey/service/HookDispatchServer.java",
+    "src/main/java/com/example/ahakey/service/KeySimulationService.java",
+    "src/main/java/com/example/ahakey/service/KimiAhaKeyBridge.java",
+    "src/main/java/com/example/ahakey/service/SocketServer.java",
+    "src/main/java/com/example/ahakey/view/CanvasController.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java",
+    "src/test/java/com/example/ahakey/wd009/ApprovalFactsChecks.java",
+    "src/test/java/com/example/ahakey/wd009/CursorWaitingChecks.java",
+    "src/test/java/com/example/ahakey/wd009/KimiConsumerFixture.java",
+    "src/test/java/com/example/ahakey/wd009/Wd009UiChecks.java",
+    "src/test/java/com/example/ahakey/wd009/replay_kimi_consumer.py",
+    "scripts/ble-driver-fixes.patch",
+    "scripts/test-ble-driver.ps1",
+    "src/test/java/com/example/ahakey/wd009/KimiRoutingChecks.java"
+  ],
+  "inherited_review": ".ahakey-desktop-harness/changes/WD-009/independent-review/REVIEW.json",
+  "verified_hashed_entries": 57,
+  "evidence": [
+    ".ahakey-desktop-harness/changes/WD-009/reviews/20261103T072512844665Z-017c7c/PACK.json",
+    ".ahakey-desktop-harness/changes/WD-009/reviews/20261103T072512844665Z-017c7c/ACTUAL_DIFF.txt",
+    ".ahakey-desktop-harness/changes/WD-009/IMPLEMENTATION_CHECKS_R4.json",
+    "target/wd009-hook-r3/final",
+    "target/wd009-hook-r3/run-05/hook.log",
+    "target/wd009-hook-r3/regression-01/RESULTS.json",
+    "target/wd009-hook-r3-dla/previous-source-comparison.json"
+  ],
+  "owner_uat": "not_executed",
+  "limitations": [
+    "未修改真实用户 Hook，未执行平台脚本、真实审批、窗口模拟按键或设备通信；本轮只读实际 Codex 配置且不输出正文。",
+    "未执行 JavaFX 渲染、完整 EXE 构建/安装或本地模型运行；最终包必须实际包含 tomlj、antlr4-runtime、jsr305 并用包内 runtime/JAR/classpath 验证。",
+    "Claude/Kimi 既有非标准接入路径保持；本地文件匹配不证明真实平台已加载或支持该集成。",
+    "R2 旧 Owner Preview FAIL 和未完成 UAT 仍保留；本次 review pass 仅支持当前新代码进入 Preview，不代替 Git candidate、安装验证和 Owner 真实测试。",
+    "固定 tomlj 内部 lexer API 的版本耦合已明确，依赖升级需重新验证 marker 与 Unicode 源位置。"
+  ]
+}

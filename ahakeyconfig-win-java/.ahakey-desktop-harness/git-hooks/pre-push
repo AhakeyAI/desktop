@@ -1,0 +1,14 @@
+#!/bin/sh
+# Owner policy 2026-11-04: this checkout may upload only to win-zxy-harness.
+while read local_ref local_oid remote_ref remote_oid
+do
+    case "$remote_ref" in
+        refs/heads/win-zxy-harness) ;;
+        *)
+            echo "Push blocked: Owner permits only refs/heads/win-zxy-harness from this repository." >&2
+            echo "Requested remote ref: $remote_ref" >&2
+            exit 1
+            ;;
+    esac
+done
+exit 0

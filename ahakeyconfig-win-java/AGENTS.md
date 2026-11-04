@@ -243,3 +243,11 @@ Release Batch 只由 Owner 显式启动；累计约5个已关闭JAR增量时可�
 ### Firmware-driven Windows intake
 Firmware 只读来源已绑定时，Windows DLA 应主动从 Firmware Harness 的正式 state、Journey/Module、Gate、artifact、协议、实现与测试证据发现下一联调阶段。不得要求 Owner 手工提供仓库内已存在的 HEX 路径、SHA256、commit、command/request/response 或测试证据。
 用 Windows 侧 `firmware-sync.json` 记录 last-consumed cursor；多个同等有效 gate 才请求 Owner 选优先级。发现/绑定不等于批准、实现或测试，不自动切换当前 Active Implementation。
+
+## Owner 固定 Git 分支规则（2026-11-04）
+
+- 本项目唯一允许上传的远端分支是 `origin/win-zxy-harness`（https://github.com/AhakeyAI/desktop/tree/win-zxy-harness）。
+- `main-anpx` 属于其他协作者；今后不得提交、合并、推送、强推、删除或以其他方式修改该远端分支。不得仅因当前本地分支/upstream指向它就沿用。
+- 2026-11-04 Owner 单次授权撤回此前误上传到 `main-anpx` 的本项目改动。该纠错完成后不再具有写该分支的授权。
+- 每次 Git 保存上传前读取本规则，核对 remote、目标 ref、现有远端提交及精确暂存范围；保留他人工作。普通推送必须显式指向 `refs/heads/win-zxy-harness`。
+- 本地历史分支或旧记录中的 `main-anpx` 仅为历史事实，不构成今后上传授权；历史候选与测试身份不得为改分支而重写。

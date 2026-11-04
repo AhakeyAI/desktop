@@ -1,3 +1,15 @@
+# 当前同步版本：1.0.19 / WD-009 R4
+
+2026-11-04：Owner已确认1.0.19实测通过。本项目唯一上传目标为`origin/win-zxy-harness`；`main-anpx`属于其他协作者，误上传纠错完成后禁止再次写入。
+
+源码与原始候选`b9466fb1`对应；Owner Preview PASS和Git candidate PASS已记录，正式交付归档仍在VERIFY / DELIVERY_PREP。完整本地模型EXE SHA256为`a4d4d880fc163d8372573c9b62023b444cdae11b057bccce261a8b831ccaf7e3`。本次不重建、不安装、不发布Release。
+
+本次分支迁移保留目标分支其他平台和既有Harness记录，并保留原始候选历史。Windows生产子树与已保存的1.0.19输入逐项核对一致；旧的暂存空白告警涉及原始代码和冻结证据，保持已测试字节，没有为迁移而格式化。参见`BRANCH_MIGRATION_20261104.json`和`evidence/20261104-owner-fixed-zxy-branch.md`。
+
+以下是保留的2026-10-27历史快照说明，其1.0.12版本和“待反馈”状态不代表当前版本：
+
+---
+
 # Windows 当前代码快照：1.0.12 / R13
 
 更新日期：2026-10-27。目标分支：`AhakeyAI/desktop:win-zxy-harness`。

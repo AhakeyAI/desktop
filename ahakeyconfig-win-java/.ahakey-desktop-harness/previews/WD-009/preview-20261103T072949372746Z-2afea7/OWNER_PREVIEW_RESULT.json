@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "WD-009",
+  "token": "preview-20261103T072949372746Z-2afea7",
+  "at": "2026-11-04T08:12:36+00:00",
+  "status": "pass",
+  "owner_record": ".ahakey-desktop-harness/evidence/20261104-wd009-r4-owner-pass-git-push.md",
+  "owner_sha256": "9452d255fbba6b0eeec9795d2319c21d893ca3f60ddade534f3486236632a832",
+  "preview_receipt_sha256": "980ac93f2352d555919cb6e732b16e8f37d2a660ad670d4d16c91246686348fb",
+  "snapshot_fingerprint": "353270a525a556791fc080228dcc33b4d646136091a4d9bbe9979e39b46d91fd",
+  "scope": "OWNER_PREVIEW_RESULT_ONLY_NOT_OWNER_UAT"
+}

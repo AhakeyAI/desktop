@@ -1,0 +1,17 @@
+{
+  "id": "WD-008",
+  "status": "READY_FOR_OWNER_PREVIEW",
+  "base_git": "42696a6bdf0ed72df8d0a416c22e8e3d82e3fb96",
+  "version": "1.0.17",
+  "variant": "local-model",
+  "artifact": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD008-Preview-R6-LocalModel-1.0.17\\installer\\AhaKeyStudio-1.0.17.exe",
+  "sha256": "42a15460426265439cfd69c11e1badf54606c5eb982a471760291a266803774c",
+  "bytes": 296237624,
+  "review": "DLA actual and independent high impact pass",
+  "offline_packaged_checks": 93,
+  "real_device": "not_executed",
+  "git_candidate": "not_committed",
+  "firmware_matrix": "PREVIEW_FIRMWARE_MATRIX.json",
+  "owner_steps": "OWNER_PREVIEW_TEST.md",
+  "receipt_sha256": "fe2b618e5f9492689e5d44a2d8c42180c345f26f7ea2e17d5823a0b0cb185e80"
+}
