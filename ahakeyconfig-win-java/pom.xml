@@ -35,23 +35,11 @@
             <version>${javafx.version}</version>
         </dependency>
 
-        <!-- Read-only TOML validation; edits preserve unrelated source bytes. -->
-        <dependency>
-            <groupId>org.tomlj</groupId>
-            <artifactId>tomlj</artifactId>
-            <version>1.0.0</version>
-        </dependency>
-
         <!-- JSON -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <version>2.16.0</version>
-        </dependency>
-        <dependency>
-            <groupId>org.xerial</groupId>
-            <artifactId>sqlite-jdbc</artifactId>
-            <version>3.46.1.0</version>
         </dependency>
 
         <!-- Windows: Win+H 语音 + 低级别键盘钩子 -->
@@ -83,13 +71,11 @@
             <version>1.4.11</version>
         </dependency>
 
-        <!-- Official Sherpa API; the matching native resource JAR is supplied by packaging. -->
+        <!-- ONNX Runtime for SenseVoice-Small -->
         <dependency>
-            <groupId>com.k2fsa.sherpa</groupId>
-            <artifactId>sherpa-onnx-java-api</artifactId>
-            <version>1.13.3</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/third-party/sherpa-onnx-java-api-1.13.3.jar</systemPath>
+            <groupId>com.microsoft.onnxruntime</groupId>
+            <artifactId>onnxruntime</artifactId>
+            <version>1.16.3</version>
         </dependency>
     </dependencies>
 
@@ -156,7 +142,6 @@
                             <mainClass>com.example.ahakey.App</mainClass>
                             <addClasspath>true</addClasspath>
                             <classpathPrefix>lib/</classpathPrefix>
-                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
                         </manifest>
                     </archive>
                 </configuration>

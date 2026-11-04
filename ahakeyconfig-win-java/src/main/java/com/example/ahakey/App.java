@@ -102,9 +102,6 @@ public class App extends Application {
         initLanguage();
 
         controller = new StudioController();
-        controller.setApplicationExit(() -> shutdownApplication());
-        controller.getUpdateCenter().setExitHandler(op -> Platform.runLater(() -> shutdownApplication(op)));
-        controller.getUpdateCenter().startup();
         
         // 2. 条件初始化语音输入管理器（根据 model.enabled 配置）
         if (com.example.ahakey.config.ModelConfig.getInstance().isEnabled()) {
@@ -254,13 +251,19 @@ public class App extends Application {
         
         // 10. 设置窗口关闭时的逻辑：最小化到系统托盘
         // 类比于 Web 中的 beforeunload 事件
-        installWindowCloseHandler();
+        primaryStage.setOnCloseRequest(event -> {
+            if (SystemTray.isSupported()) {
+                event.consume(); // 阻止默认关闭行为
+                minimizeToTray();
+            } else {
+                shutdownApplication();
+            }
+        });
         
         // 11. 设置窗口最小化时隐藏到托盘
         primaryStage.iconifiedProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal && SystemTray.isSupported()) {
-                primaryStage.setIconified(false);
-                requestWindowAction(this::minimizeToTray);
+                minimizeToTray();
             }
         });
     }
@@ -346,46 +349,8 @@ public class App extends Application {
     /**
      * 最小化到系统托盘
      */
-    private boolean allowWindowHide() {
-        if (controller == null) return true;
-        if (controller.getUpdateCenter().downloading()) { controller.getUpdateCenter().cancelDownload(); return false; }
-        return controller.getUpdateCenter().windowCloseReady();
-    }
-    private void installWindowCloseHandler() {
-        primaryStage.setOnCloseRequest(event -> {
-            event.consume();
-            requestWindowAction(()->{
-                if (SystemTray.isSupported()) minimizeToTray();
-                else shutdownApplication(null);
-            });
-        });
-    }
-    private javafx.scene.control.Alert closeBlockedAlert;
-    private boolean windowActionPending;
-    private void showCloseBlocked() {
-        if(primaryStage!=null){primaryStage.setIconified(false);primaryStage.show();primaryStage.toFront();}
-        if(closeBlockedAlert!=null && closeBlockedAlert.isShowing()) return;
-        boolean english="en".equals(LanguageManager.getInstance().getCurrentLanguage());
-        closeBlockedAlert=new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.INFORMATION);
-        if(primaryStage!=null)closeBlockedAlert.initOwner(primaryStage);
-        closeBlockedAlert.setHeaderText(english?"The window cannot close yet":"暂时无法关闭窗口");
-        closeBlockedAlert.setContentText(english?"An update or device operation is still active, or cleanup is not confirmed. Open Update Center to check its status and exit the attempt after the tool has ended.":"更新或设备操作尚未结束，或工具清理状态未确认。请打开更新中心查看状态，待工具结束后退出本次链路。");
-        closeBlockedAlert.show();
-    }
-    private void requestWindowAction(Runnable action) {
-        if(!Platform.isFxApplicationThread()){Platform.runLater(()->requestWindowAction(action));return;}
-        if(shuttingDown || windowActionPending)return;
-        if(controller==null){action.run();return;}
-        windowActionPending=true;
-        controller.getUpdateCenter().prepareWindowClose(allowed->Platform.runLater(()->{
-            windowActionPending=false;
-            if(shuttingDown)return;
-            if(allowed && allowWindowHide())action.run();else showCloseBlocked();
-        }));
-    }
     private void minimizeToTray() {
-        // requestWindowAction runs on FX; do not defer hide past its final maintenance check.
-        if (!allowWindowHide()) { showCloseBlocked(); return; }
+        Platform.runLater(() -> {
             // 保存当前窗口尺寸
             savedWidth = primaryStage.getWidth();
             savedHeight = primaryStage.getHeight();
@@ -395,6 +360,7 @@ public class App extends Application {
             if (trayIcon != null) {
                 trayIcon.displayMessage("AhaKey Studio", "应用已最小化到托盘", TrayIcon.MessageType.INFO);
             }
+        });
     }
     
     /**
@@ -413,14 +379,8 @@ public class App extends Application {
         });
     }
     
-    private void shutdownApplication() { requestWindowAction(()->shutdownApplication(null)); }
-    private void shutdownApplication(com.example.ahakey.firmware.DeviceMaintenanceCoordinator.Operation installation) {
+    private void shutdownApplication() {
         if (shuttingDown) {
-            return;
-        }
-        if (controller != null && !controller.getUpdateCenter().requestClose(installation)) {
-            logger.info("更新下载或设备维护尚未收口，保持应用运行。");
-            Platform.runLater(this::showCloseBlocked);
             return;
         }
         shuttingDown = true;
@@ -465,7 +425,7 @@ public class App extends Application {
      * 初始化语音输入管理器
      */
     private void initVoiceInputManager() {
-        logger.info("初始化语音输入管理器 (Sherpa Paraformer)...");
+        logger.info("初始化语音输入管理器 (SenseVoice-Small)...");
         try {
             voiceInputManager = new VoiceInputManager();
             voiceInputManager.initialize();
@@ -496,7 +456,7 @@ public class App extends Application {
                 });
             }
             
-            logger.info("语音输入管理器初始化完成，本地语音可用: {}", voiceInputManager.isEnabled());
+            logger.info("语音输入管理器初始化成功");
         } catch (Exception e) {
             logger.error("语音输入管理器初始化失败: {}", e.getMessage());
             // 语音输入功能不可用，但不影响主应用运行

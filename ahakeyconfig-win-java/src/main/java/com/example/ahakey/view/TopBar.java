@@ -11,12 +11,9 @@ import com.example.ahakey.util.Icons;
 import com.example.ahakey.util.LanguageManager;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
-import javafx.beans.property.BooleanProperty;
-import javafx.beans.property.SimpleBooleanProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
-import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
@@ -24,7 +21,6 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.ToggleButton;
-import javafx.scene.control.Tooltip;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
@@ -43,19 +39,11 @@ import java.net.Socket;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.io.File;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.animation.AnimationTimer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class TopBar extends VBox {
-    private static final Logger logger = LoggerFactory.getLogger(TopBar.class);
     private final StudioController controller;
     private final DeviceStatus deviceStatus;
     private final StudioState studioState;
@@ -65,8 +53,6 @@ public class TopBar extends VBox {
     private final HookInstaller hookInstaller;
     private final LanguageManager languageManager;
     private MenuItem languageMenuItem;
-    private UpdateCenterDialog updateCenterDialog;
-    private Stage hookManagerWindow;
     
     // 语音相关UI组件
     private Button voiceRecordButton;
@@ -90,19 +76,11 @@ public class TopBar extends VBox {
         this.agentManager = agentManager;
         this.hookInstaller = new HookInstaller(
             () -> controller.getHookDispatchPort(), this::addLog);
-        this.controller.setHookManagerOpener(this::showHookManagerDialog);
         this.languageManager = LanguageManager.getInstance();
         setSpacing(0);
         setPadding(new Insets(0));
         getStyleClass().add("top-bar");
         initContent();
-        Label approvalProblem = new Label();
-        approvalProblem.textProperty().bind(controller.kimiApprovalProblemProperty());
-        approvalProblem.visibleProperty().bind(controller.kimiApprovalProblemProperty().isNotEmpty());
-        approvalProblem.managedProperty().bind(approvalProblem.visibleProperty());
-        approvalProblem.setWrapText(true);
-        approvalProblem.setStyle("-fx-text-fill: #b45309; -fx-padding: 4 12 4 12;");
-        getChildren().add(approvalProblem);
         setupLanguageChangeListener();
     }
     
@@ -151,12 +129,10 @@ public class TopBar extends VBox {
             ),
             new InfoPill(
                 Bindings.createStringBinding(() -> languageManager.getString("status.switch")),
-                Bindings.createStringBinding(deviceStatus::getSwitchTitle, deviceStatus.switchStateProperty(),
-                    deviceStatus.savedBindingsProperty(), deviceStatus.isConnectedProperty(), deviceStatus.workModeProperty()),
+                Bindings.createStringBinding(deviceStatus::getSwitchTitle, deviceStatus.switchStateProperty()),
                 Bindings.createObjectBinding(
                     () -> deviceStatus.isAutoApproval() ? AccentColor.MINT : AccentColor.INDIGO,
-                    deviceStatus.switchStateProperty(), deviceStatus.savedBindingsProperty(),
-                    deviceStatus.isConnectedProperty(), deviceStatus.workModeProperty()
+                    deviceStatus.switchStateProperty()
                 )
             )
         );
@@ -249,15 +225,10 @@ public class TopBar extends VBox {
             studioState.syncingProperty(),
             agentManager.bluetoothOwnerProperty()));
         configModeButton.disableProperty().bind(Bindings.createBooleanBinding(
-            () -> studioState.syncingProperty().get()
-                || agentManager.operationInProgressProperty().get()
-                || (agentManager.isEditingConfiguration() && !controller.canWriteToDevice()),
+            () -> studioState.syncingProperty().get() || agentManager.operationInProgressProperty().get(),
             studioState.syncingProperty(),
-            agentManager.operationInProgressProperty(),
-            agentManager.bluetoothOwnerProperty(),
-            deviceStatus.isConnectedProperty()
+            agentManager.operationInProgressProperty()
         ));
-        configModeButton.setTooltip(new Tooltip("连接键盘后可保存/应用"));
         configModeButton.setOnAction(event -> controller.handleConfigurationModeButton());
 
         Menu moreMenu = new Menu(languageManager.getString("menu.more"));
@@ -266,11 +237,16 @@ public class TopBar extends VBox {
 
         MenuItem restoreDefaults = new MenuItem(languageManager.getString("menu.restore-defaults"));
         restoreDefaults.setOnAction(event -> studioState.restoreCurrentModeDefaults());
+        MenuItem reconnect = new MenuItem(languageManager.getString("menu.reconnect"));
+        reconnect.setOnAction(event -> {
+            controller.userDisconnect();
+            controller.userConnect();
+        });
+        MenuItem clearOled = new MenuItem(languageManager.getString("menu.clear-oled"));
+        clearOled.setOnAction(event -> studioState.clearOledPreview());
         SeparatorMenuItem divider1 = new SeparatorMenuItem();
-        MenuItem deviceInfo = new MenuItem("设备管理");
+        MenuItem deviceInfo = new MenuItem(languageManager.getString("menu.device-info"));
         deviceInfo.setOnAction(event -> showDeviceInfoDialog());
-        MenuItem hookManager = new MenuItem("Hook 管理");
-        hookManager.setOnAction(event -> showHookManagerDialog());
         MenuItem versionInfo = new MenuItem(languageManager.getString("menu.version-info"));
         versionInfo.setOnAction(event -> showVersionDialog());
         
@@ -288,37 +264,31 @@ public class TopBar extends VBox {
         // 条件添加 AhaType 相关菜单项
         if (modelEnabled) {
             moreMenu.getItems().addAll(
-                cloudAccount,
-                refresh,
-                divider2,
                 restoreDefaults,
+                reconnect,
+                clearOled,
                 divider1,
                 deviceInfo,
-                hookManager,
                 versionInfo,
                 languageMenuItem,
-                exitApp
+                exitApp,
+                cloudAccount,
+                divider2,
+                refresh
             );
         } else {
             moreMenu.getItems().addAll(
                 restoreDefaults,
+                reconnect,
+                clearOled,
                 divider1,
                 deviceInfo,
-                hookManager,
                 versionInfo,
                 languageMenuItem,
                 exitApp
             );
         }
 
-        MenuItem updateCenter = new MenuItem(languageManager.getString("update.center"));
-        updateCenter.setId("update-center-entry");
-        updateCenter.setOnAction(event -> {
-            if (updateCenterDialog == null || !updateCenterDialog.stage().isShowing())
-                updateCenterDialog = new UpdateCenterDialog(getScene().getWindow(), controller.getUpdateCenter());
-            updateCenterDialog.show();
-        });
-        moreMenu.getItems().add(0, updateCenter);
         MenuBar menuBar = new MenuBar(moreMenu);
         menuBar.setUseSystemMenuBar(false);
         menuBar.getStyleClass().add("toolbar-menu");
@@ -386,7 +356,6 @@ public class TopBar extends VBox {
     private static final long BLE_BUTTON_CLICK_DELAY_MS = 2000;
     
     private void handleBleButtonClick() {
-        if (!controller.normalDeviceActionAllowed()) return;
         long now = System.currentTimeMillis();
         
         if (now - lastBleButtonClickTime < BLE_BUTTON_CLICK_DELAY_MS) {
@@ -401,7 +370,7 @@ public class TopBar extends VBox {
         bleButtonProcessing = true;
         
         new Thread(() -> {
-            try (var transaction = controller.getBleManager().maintenance().normalTransaction()) {
+            try {
                 boolean running = isBleDriverRunning();
                 
                 if (!running) {
@@ -429,8 +398,8 @@ public class TopBar extends VBox {
                         launchBleDriver();
                     }
                 }
-            } catch (Exception e) {
-                if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             } finally {
                 bleButtonProcessing = false;
             }
@@ -490,9 +459,7 @@ public class TopBar extends VBox {
      * 强制杀死所有 BLE_tcp_driver 进程（包括挂起的）
      */
     private void forceKillAllBleProcesses() {
-        if (!controller.normalDeviceActionAllowed()) return;
         new Thread(() -> {
-            try (var transaction = controller.getBleManager().maintenance().normalTransaction()) {
             int initialCount = countBleProcesses();
             if (initialCount == 0) {
                 Platform.runLater(() -> showAlert(languageManager.getString("dialog.ble-driver-title"), languageManager.getString("dialog.ble-no-process")));
@@ -520,7 +487,6 @@ public class TopBar extends VBox {
                     alert.showAndWait();
                 }
             });
-            } catch (Exception e) { addLog("BLE action deferred: " + e.getMessage()); }
         }, "ble-kill").start();
     }
     
@@ -602,7 +568,7 @@ public class TopBar extends VBox {
     
     private boolean sendShutdownCommand() {
         try (Socket socket = new Socket()) {
-            socket.connect(controller.getBleManager().bridgeEndpoint(), 1000);
+            socket.connect(new InetSocketAddress("127.0.0.1", 9000), 1000);
             
             byte[] shutdownPacket = new byte[3];
             shutdownPacket[0] = 0x05;
@@ -676,7 +642,7 @@ public class TopBar extends VBox {
         
         for (int i = 0; i < maxRetries; i++) {
             try (Socket socket = new Socket()) {
-                socket.connect(controller.getBleManager().bridgeEndpoint(), 500);
+                socket.connect(new InetSocketAddress("127.0.0.1", 9000), 500);
                 return true;
             } catch (Exception e) {
                 if (i < maxRetries - 1) {
@@ -982,9 +948,9 @@ public class TopBar extends VBox {
     private void showDeviceInfoDialog() {
         Stage dialog = new Stage();
         dialog.initOwner(getScene().getWindow());
-        dialog.setTitle("设备管理");
+        dialog.setTitle(languageManager.getString("dialog.hook-title"));
         dialog.setWidth(550);
-        dialog.setHeight(430);
+        dialog.setHeight(650);
 
         ScrollPane scrollPane = new ScrollPane();
         scrollPane.setFitToWidth(true);
@@ -992,6 +958,7 @@ public class TopBar extends VBox {
         VBox content = new VBox(12);
         content.setPadding(new Insets(12));
 
+        // 设备信息摘要
         VBox deviceCard = new VBox(8);
         deviceCard.getStyleClass().add("dialog-card");
         deviceCard.setPadding(new Insets(12));
@@ -1003,9 +970,7 @@ public class TopBar extends VBox {
         Label connStatus = new Label();
         connStatus.getStyleClass().add("dialog-text");
         connStatus.textProperty().bind(Bindings.createStringBinding(() ->
-            languageManager.getString("dialog.connection") + ": " + (this.deviceStatus.isConnected()
-                ? languageManager.getString("status.connected")
-                : languageManager.getString("status.disconnected")),
+            languageManager.getString("dialog.connection") + ": " + (this.deviceStatus.isConnected() ? languageManager.getString("status.connected") : languageManager.getString("status.disconnected")),
             this.deviceStatus.isConnectedProperty()
         ));
         Label batteryStatus = new Label();
@@ -1023,63 +988,43 @@ public class TopBar extends VBox {
         switchState.getStyleClass().add("dialog-text");
         switchState.textProperty().bind(Bindings.createStringBinding(() ->
             languageManager.getString("status.switch") + ": " + this.deviceStatus.getSwitchTitle(),
-            this.deviceStatus.switchStateProperty(), this.deviceStatus.savedBindingsProperty(),
-            this.deviceStatus.isConnectedProperty(), this.deviceStatus.workModeProperty()
+            this.deviceStatus.switchStateProperty()
         ));
         deviceRow2.getChildren().addAll(deviceName, switchState);
 
-        HBox versionRow = new HBox(16);
-        Label appVersion = new Label("上位机版本: " + getVersion());
-        appVersion.getStyleClass().add("dialog-text");
-        Label keyboardFirmware = new Label();
-        keyboardFirmware.getStyleClass().add("dialog-text");
-        keyboardFirmware.textProperty().bind(Bindings.createStringBinding(() ->
-            "键盘固件版本: " + this.deviceStatus.getDisplayFirmwareVersion(),
-            this.deviceStatus.firmwareCatalogKeyProperty(),
-            this.deviceStatus.firmwareMainProperty(),
-            this.deviceStatus.firmwareSubProperty(), this.deviceStatus.isConnectedProperty()
-        ));
-        versionRow.getChildren().addAll(appVersion, keyboardFirmware);
+        deviceCard.getChildren().addAll(deviceTitle, deviceRow1, deviceRow2);
 
-        SleepWaitTimeControl sleepWaitTimeControl = createSleepWaitTimeControl();
-        Button refreshDeviceInfoButton = new Button(languageManager.getString("dialog.refresh-device-info"));
-        BooleanProperty deviceInfoRefreshBusy = new SimpleBooleanProperty(false);
-        refreshDeviceInfoButton.setGraphic(Icons.refresh("14"));
-        refreshDeviceInfoButton.setTooltip(new Tooltip(languageManager.getString("dialog.refresh-device-info")));
-        refreshDeviceInfoButton.disableProperty().bind(Bindings.createBooleanBinding(
-            () -> !controller.isEffectivelyConnected() || deviceInfoRefreshBusy.get(),
-            this.deviceStatus.isConnectedProperty(),
-            deviceInfoRefreshBusy
-        ));
-        refreshDeviceInfoButton.setOnAction(event -> {
-            if (deviceInfoRefreshBusy.get()) {
-                return;
-            }
-            deviceInfoRefreshBusy.set(true);
-            controller.clearDeviceInfoDetailsForRefresh();
-            Thread thread = new Thread(() -> {
-                try {
-                    controller.readFirmwareCatalogKeyForDeviceInfo();
-                    controller.refreshDeviceStatusSnapshot();
-                    Platform.runLater(sleepWaitTimeControl::refresh);
-                } finally {
-                    Platform.runLater(() -> deviceInfoRefreshBusy.set(false));
-                }
-            }, "device-info-manual-refresh");
-            thread.setDaemon(true);
-            thread.start();
-        });
+        // 日志区域（提前创建以记录检测过程）
+        logArea = new TextArea();
+        logArea.getStyleClass().add("dialog-log-area");
+        logArea.setEditable(false);
+        logArea.setPrefHeight(150);
+        logArea.setWrapText(true);
+        logArea.setText("[System] Hook installation tool started\n");
+        
+        String homeDir = System.getProperty("user.home");
+        addLog("[System] User Directory: " + homeDir);
+        addLog("[System] OS: " + System.getProperty("os.name"));
+        addLog("[System] Java Version: " + System.getProperty("java.version"));
+        addLog("");
 
-        HBox deviceHeader = new HBox(10);
-        deviceHeader.setAlignment(Pos.CENTER_LEFT);
-        Region deviceHeaderSpacer = new Region();
-        HBox.setHgrow(deviceHeaderSpacer, Priority.ALWAYS);
-        deviceHeader.getChildren().addAll(deviceTitle, deviceHeaderSpacer, refreshDeviceInfoButton);
+        // Hook 安装卡片（先用空状态创建，后面异步更新）
+        VBox claudeCard = createHookCard("Claude", false);
+        VBox cursorCard = createHookCard("Cursor", false);
+        VBox codexCard = createHookCard("Codex", false);
+        VBox kimiCard = createHookCard("Kimi", false);
 
-        deviceCard.getChildren().addAll(deviceHeader, deviceRow1, deviceRow2, versionRow, sleepWaitTimeControl.node());
+        // 日志卡片
+        VBox logCard = new VBox(8);
+        logCard.getStyleClass().add("dialog-card");
+        logCard.setPadding(new Insets(12));
 
+        Label logTitle = new Label(languageManager.getString("dialog.log"));
+        logTitle.getStyleClass().add("dialog-log-title");
+        logCard.getChildren().addAll(logTitle, logArea);
+
+        // 操作按钮
         HBox actionButtons = new HBox(10);
-        actionButtons.setAlignment(Pos.CENTER_RIGHT);
         Button connectBtn = new Button(languageManager.getString("button.connect"));
         connectBtn.getStyleClass().add("button-connect");
         connectBtn.disableProperty().bind(this.deviceStatus.isConnectedProperty());
@@ -1090,458 +1035,78 @@ public class TopBar extends VBox {
         disconnectBtn.disableProperty().bind(this.deviceStatus.isConnectedProperty().not());
         disconnectBtn.setOnAction(event -> controller.userDisconnect());
 
+        Button clearLogBtn = new Button(languageManager.getString("dialog.clear-log"));
+        clearLogBtn.setOnAction(event -> logArea.setText("[System] Log cleared\n"));
+
         Button closeBtn = new Button(languageManager.getString("dialog.close"));
         closeBtn.setOnAction(event -> dialog.close());
-        actionButtons.getChildren().addAll(connectBtn, disconnectBtn, closeBtn);
 
-        content.getChildren().addAll(deviceCard, actionButtons);
+        actionButtons.getChildren().addAll(connectBtn, disconnectBtn, clearLogBtn, closeBtn);
+        actionButtons.setAlignment(Pos.CENTER_RIGHT);
+
+        content.getChildren().addAll(deviceCard, claudeCard, cursorCard, codexCard, kimiCard, logCard, actionButtons);
         scrollPane.setContent(content);
 
         Scene scene = new Scene(scrollPane);
         scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
         dialog.setScene(scene);
+        
+        // 先显示对话框，然后在后台线程中进行 Hook 检测
         dialog.show();
-    }
-
-    private void showHookManagerDialog() {
-        if (hookManagerWindow != null && hookManagerWindow.isShowing()) {
-            hookManagerWindow.toFront();
-            return;
-        }
-        Stage dialog = new Stage();
-        hookManagerWindow = dialog;
-        dialog.setOnHidden(event -> { if (hookManagerWindow == dialog) hookManagerWindow = null; });
-        dialog.initOwner(getScene().getWindow());
-        dialog.setTitle("AhaKey Hook 管理");
-        dialog.setWidth(560);
-        dialog.setHeight(620);
-
-        ScrollPane scrollPane = new ScrollPane();
-        scrollPane.setFitToWidth(true);
-
-        VBox content = new VBox(12);
-        content.setPadding(new Insets(12));
-        Map<String, VBox> cards = new LinkedHashMap<>();
-        Map<String, HookInstaller.HookStatus> statuses = new LinkedHashMap<>();
-        Map<String, Button> actionButtons = new LinkedHashMap<>();
-        BooleanProperty hookDialogBusy = new SimpleBooleanProperty(false);
-        Label writeResults = hookNote("");
-        writeResults.visibleProperty().bind(writeResults.textProperty().isNotEmpty());
-        writeResults.managedProperty().bind(writeResults.visibleProperty());
-        VBox list = new VBox(10);
-        for (String name : List.of("Claude", "Cursor", "Codex", "Kimi")) {
-            VBox card = createHookManagerCard(
-                name,
-                new HookInstaller.HookInspection(HookInstaller.HookStatus.DETECTING, "正在检测 Hook 状态"),
-                statuses,
-                actionButtons,
-                hookDialogBusy,
-                null,
-                writeResults
-            );
-            cards.put(name, card);
-            list.getChildren().add(card);
-        }
-
-        Button refresh = new Button("重新检测");
-        refresh.setGraphic(Icons.refresh("14"));
-        refresh.disableProperty().bind(hookDialogBusy);
-        Runnable[] rescan = new Runnable[1];
-        rescan[0] = () -> {
-            hookDialogBusy.set(true);
-            actionButtons.clear();
-            for (Map.Entry<String, VBox> entry : cards.entrySet()) {
-                updateHookManagerCard(
-                    entry.getValue(),
-                    entry.getKey(),
-                    new HookInstaller.HookInspection(HookInstaller.HookStatus.DETECTING, "正在检测 Hook 状态"),
-                    statuses,
-                    actionButtons,
-                    hookDialogBusy,
-                    rescan[0],
-                    writeResults
-                );
-            }
-            Thread thread = new Thread(() -> {
-                Map<String, HookInstaller.HookInspection> scanned = new LinkedHashMap<>();
-                for (String name : cards.keySet()) {
-                    try { scanned.put(name, hookInstaller.inspectHook(name)); }
-                    catch (Exception ex) {
-                        scanned.put(name, new HookInstaller.HookInspection(HookInstaller.HookStatus.ERROR,
-                            name + "：检测失败：" + hookFailureReason(ex)));
-                    }
-                }
-                Platform.runLater(() -> {
-                    statuses.clear();
-                    actionButtons.clear();
-                    for (Map.Entry<String, HookInstaller.HookInspection> entry : scanned.entrySet()) {
-                        updateHookManagerCard(
-                            cards.get(entry.getKey()),
-                            entry.getKey(),
-                            entry.getValue(),
-                            statuses,
-                            actionButtons,
-                            hookDialogBusy,
-                            rescan[0],
-                            writeResults
-                        );
-                    }
-                    hookDialogBusy.set(false);
-                });
-            }, "hook-manager-scan");
-            thread.setDaemon(true);
-            thread.start();
-        };
-        refresh.setOnAction(event -> rescan[0].run());
-        Button updateAll = new Button("更新所有待更新项");
-        updateAll.disableProperty().bind(hookDialogBusy);
-        updateAll.setOnAction(event -> {
-            List<String> targets = hookWriteTargets(statuses);
-            if (targets.isEmpty()) {
-                writeResults.setText("没有待更新项；未安装的 Hook 请在对应卡片单独安装，异常原因请查看对应卡片。");
-                return;
-            }
-            runHookWrites(targets, hookDialogBusy, writeResults, rescan[0]);
-        });
-
-        Label note1 = hookNote("安装或更新时，AhaKey 只会添加/替换自己的 Hook，不会删除你原本配置的其他 Hook。");
-        Label note2 = hookNote("当前多任务灯光支持 Codex / Cursor。");
-        HBox bottom = new HBox(10);
-        bottom.setAlignment(Pos.CENTER_RIGHT);
-        Button closeBtn = new Button("关闭");
-        closeBtn.setOnAction(event -> dialog.close());
-        bottom.getChildren().addAll(updateAll, refresh, closeBtn);
-
-        content.getChildren().addAll(list, writeResults, note1, note2, bottom);
-        scrollPane.setContent(content);
-
-        Scene scene = new Scene(scrollPane);
-        scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
-        dialog.setScene(scene);
-        dialog.show();
-        rescan[0].run();
-    }
-
-    private Label hookNote(String text) {
-        Label label = new Label(text);
-        label.getStyleClass().add("group-note");
-        label.setWrapText(true);
-        return label;
-    }
-
-    private VBox createHookManagerCard(
-        String hookName,
-        HookInstaller.HookInspection inspection,
-        Map<String, HookInstaller.HookStatus> statuses,
-        Map<String, Button> actionButtons,
-        BooleanProperty hookDialogBusy,
-        Runnable rescan,
-        Label writeResults
-    ) {
-        VBox card = new VBox(8);
-        card.getStyleClass().add("dialog-card");
-        card.setPadding(new Insets(12));
-        updateHookManagerCard(card, hookName, inspection, statuses, actionButtons, hookDialogBusy, rescan, writeResults);
-        return card;
-    }
-
-    private void updateHookManagerCard(
-        VBox card,
-        String hookName,
-        HookInstaller.HookInspection inspection,
-        Map<String, HookInstaller.HookStatus> statuses,
-        Map<String, Button> actionButtons,
-        BooleanProperty hookDialogBusy,
-        Runnable rescan,
-        Label writeResults
-    ) {
-        card.getChildren().clear();
-        HookInstaller.HookStatus status = inspection.status();
-        statuses.put(hookName, status);
-        if (actionButtons != null) {
-            actionButtons.remove(hookName);
-        }
-
-        HBox titleRow = new HBox(8);
-        titleRow.setAlignment(Pos.CENTER_LEFT);
-        Label title = new Label(hookName);
-        title.getStyleClass().add("dialog-card-title");
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        Label statusLabel = new Label(hookStatusText(status));
-        statusLabel.getStyleClass().add(status == HookInstaller.HookStatus.LATEST ? "dialog-status-installed" : "dialog-status-uninstalled");
-        titleRow.getChildren().addAll(title, spacer, statusLabel);
-
-        Label description = hookNote(inspection.reason());
-        Button action = new Button(hookActionText(status));
-        boolean canWrite = status == HookInstaller.HookStatus.NOT_INSTALLED || status == HookInstaller.HookStatus.OUTDATED;
-        if (hookDialogBusy == null) {
-            action.setDisable(!canWrite);
-        } else {
-            action.disableProperty().bind(Bindings.createBooleanBinding(
-                () -> hookDialogBusy.get() || !canWrite,
-                hookDialogBusy
-            ));
-        }
-        if (actionButtons != null) {
-            actionButtons.put(hookName, action);
-        }
-        if (canWrite) {
-            action.getStyleClass().add("button-install");
-            action.setOnAction(event -> runHookWrites(List.of(hookName), hookDialogBusy, writeResults, rescan));
-        }
-
-        card.getChildren().addAll(titleRow, description, action);
-    }
-
-    private void runHookWrites(List<String> targets, BooleanProperty hookDialogBusy,
-                               Label writeResults, Runnable rescan) {
-        if (hookDialogBusy.get()) return;
-        hookDialogBusy.set(true);
-        List<String> selected = List.copyOf(targets);
-        writeResults.setText("正在安装 / 更新：" + String.join("、", selected));
-        Thread worker = new Thread(() -> {
-            Map<String, HookInstaller.HookWriteResult> results;
-            try {
-                results = hookInstaller.installOrUpdateAll(selected);
-            } catch (Exception ex) {
-                results = new LinkedHashMap<>();
-                for (String name : selected) results.put(name,
-                    new HookInstaller.HookWriteResult(false, "更新任务失败：" + hookFailureReason(ex)));
-            }
-            String summary = hookWriteSummary(results);
-            Platform.runLater(() -> {
-                writeResults.setText(summary);
-                // A write result remains visible while the cards are re-read independently.
-                if (rescan != null) rescan.run();
-                else hookDialogBusy.set(false);
-            });
-        }, "hook-manager-write");
-        worker.setDaemon(true);
-        worker.start();
-    }
-
-    static List<String> hookWriteTargets(Map<String, HookInstaller.HookStatus> statuses) {
-        return statuses.entrySet().stream()
-            .filter(entry -> entry.getValue() == HookInstaller.HookStatus.OUTDATED)
-            .map(Map.Entry::getKey).toList();
-    }
-
-    static String hookWriteSummary(Map<String, HookInstaller.HookWriteResult> results) {
-        List<String> lines = new ArrayList<>();
-        results.forEach((name, result) -> lines.add(name + "：" + (result.success() ? "成功" : "失败")
-            + (result.reason() == null || result.reason().isBlank() ? "" : "；" + result.reason())));
-        return String.join("\n", lines);
-    }
-
-    private static String hookFailureReason(Exception error) {
-        String message = error.getMessage();
-        return message == null || message.isBlank() ? error.getClass().getSimpleName() : message;
-    }
-
-    private String hookStatusText(HookInstaller.HookStatus status) {
-        return switch (status) {
-            case DETECTING -> "检测中";
-            case APP_NOT_FOUND -> "未检测到应用";
-            case NOT_INSTALLED -> "未安装";
-            case OUTDATED -> "待更新";
-            case LATEST -> "已匹配";
-            case ERROR -> "异常";
-        };
-    }
-
-    private String hookActionText(HookInstaller.HookStatus status) {
-        return switch (status) {
-            case APP_NOT_FOUND -> "不可安装";
-            case NOT_INSTALLED -> "安装 Hook";
-            case OUTDATED -> "更新 Hook";
-            case LATEST -> "已与当前软件匹配";
-            case ERROR -> "异常";
-            case DETECTING -> "检测中";
-        };
-    }
-
-    private SleepWaitTimeControl createSleepWaitTimeControl() {
-        VBox box = new VBox(6);
-
-        Label title = new Label(languageManager.getString("sleep-wait-time.title"));
-        title.getStyleClass().add("dialog-text");
-
-        ComboBox<SleepWaitTimeOption> options = new ComboBox<>();
-        options.getItems().addAll(
-            new SleepWaitTimeOption(0, languageManager.getString("sleep-wait-time.never")),
-            new SleepWaitTimeOption(30, languageManager.getString("sleep-wait-time.30")),
-            new SleepWaitTimeOption(60, languageManager.getString("sleep-wait-time.60")),
-            new SleepWaitTimeOption(120, languageManager.getString("sleep-wait-time.120"))
-        );
-        options.setPrefWidth(140);
-
-        Label status = new Label();
-        status.getStyleClass().add("dialog-text");
-        status.setWrapText(true);
-        AtomicInteger readSerial = new AtomicInteger();
-
-        Label description = new Label(languageManager.getString("sleep-wait-time.description"));
-        description.getStyleClass().add("dialog-text");
-        description.setWrapText(true);
-
-        Button saveButton = new Button(languageManager.getString("sleep-wait-time.save"));
-        BooleanProperty busy = new SimpleBooleanProperty(false);
-        options.disableProperty().bind(Bindings.createBooleanBinding(
-            () -> !controller.isEffectivelyConnected() || busy.get(),
-            this.deviceStatus.isConnectedProperty(),
-            busy
-        ));
-        saveButton.disableProperty().bind(Bindings.createBooleanBinding(
-            () -> !controller.isEffectivelyConnected() || busy.get() || options.getSelectionModel().getSelectedItem() == null,
-            this.deviceStatus.isConnectedProperty(),
-            busy,
-            options.getSelectionModel().selectedItemProperty()
-        ));
-
-        HBox row = new HBox(8);
-        row.setAlignment(Pos.CENTER_LEFT);
-        row.getChildren().addAll(title, options, saveButton);
-
-        saveButton.setOnAction(event -> saveSleepWaitTime(options, status, busy));
-        loadSleepWaitTime(options, status, busy, readSerial);
-
-        box.getChildren().addAll(row, description, status);
-        return new SleepWaitTimeControl(box, () -> loadSleepWaitTime(options, status, busy, readSerial));
-    }
-
-    private void loadSleepWaitTime(ComboBox<SleepWaitTimeOption> options, Label status, BooleanProperty busy, AtomicInteger readSerialSource) {
-        if (!controller.isEffectivelyConnected()) {
-            status.setText(languageManager.getString("sleep-wait-time.not-connected"));
-            return;
-        }
-        int readSerial = readSerialSource.incrementAndGet();
-        logger.info("Sleep wait time UI read started: serial={}", readSerial);
-        busy.set(true);
-        status.setText(languageManager.getString("sleep-wait-time.reading"));
-        Thread timeoutThread = new Thread(() -> {
-            try {
-                Thread.sleep(10_000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-            Platform.runLater(() -> {
-                if (readSerialSource.get() == readSerial && busy.get()) {
-                    readSerialSource.incrementAndGet();
-                    logger.warn("Sleep wait time UI read timed out: serial={}", readSerial);
-                    options.getSelectionModel().clearSelection();
-                    status.setText(languageManager.getString("sleep-wait-time.read-timeout"));
-                    busy.set(false);
-                }
-            });
-        }, "sleep-wait-time-read-timeout");
-        timeoutThread.setDaemon(true);
-        timeoutThread.start();
-
-        Thread thread = new Thread(() -> {
-            try {
-                int minutes = controller.getBleManager().readSleepWaitTimeMinutes();
-                Platform.runLater(() -> {
-                    if (readSerialSource.get() != readSerial) {
-                        logger.info("Sleep wait time UI update ignored for stale read: serial={}, current={}", readSerial, readSerialSource.get());
-                        return;
-                    }
+        
+        // 在后台线程中检测 Hook 状态
+        new Thread(() -> {
+            String[] hookNames = {"Claude", "Cursor", "Codex", "Kimi"};
+            boolean[] hookInstalled = new boolean[4];
+            VBox[] hookCards = {claudeCard, cursorCard, codexCard, kimiCard};
+            
+            for (int i = 0; i < hookNames.length; i++) {
+                String name = hookNames[i];
+                Path path = hookInstaller.getHookConfigPath(name);
+                File file = path.toFile();
+                
+                boolean installed = isHookInstalled(name);
+                hookInstalled[i] = installed;
+                
+                String detectionPrefix = languageManager.getString("hook.detection");
+                addLog(detectionPrefix + " === " + name + " Hook ===");
+                addLog(detectionPrefix + " " + languageManager.getString("hook.check-path") + ": " + path);
+                addLog(detectionPrefix + " " + languageManager.getString("hook.file-exists") + ": " + file.exists());
+                
+                if (file.exists()) {
                     try {
-                        SleepWaitTimeOption option = findSleepWaitTimeOption(options, minutes);
-                        if (option == null) {
-                            options.getSelectionModel().clearSelection();
-                            status.setText(languageManager.getString("sleep-wait-time.invalid-current"));
-                            logger.warn("Sleep wait time UI read returned unsupported value: serial={}, minutes={}", readSerial, minutes);
-                        } else {
-                            options.getSelectionModel().select(option);
-                            status.setText(formatSleepWaitTimeStatus("sleep-wait-time.current", option.label()));
-                            logger.info("Sleep wait time UI updated: serial={}, minutes={}, label={}", readSerial, minutes, option.label());
+                        String fileContent = new String(java.nio.file.Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
+                        addLog(detectionPrefix + " " + languageManager.getString("hook.file-size") + ": " + fileContent.length() + " chars");
+                        
+                        if ("Claude".equals(name)) {
+                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " hooks: " + fileContent.contains("\"hooks\""));
+                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " SessionStart: " + fileContent.contains("SessionStart"));
+                        } else if ("Cursor".equals(name)) {
+                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " hooks: " + fileContent.contains("\"hooks\""));
+                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " sessionStart: " + fileContent.contains("sessionStart"));
+                        } else if ("Codex".equals(name)) {
+                            String home = System.getProperty("user.home");
+                            Path sidecar = Paths.get(home, ".codex", HookInstaller.CODEX_SIDECAR_NAME);
+                            addLog(detectionPrefix + " sidecar " + languageManager.getString("hook.file-exists") + ": " + sidecar.toFile().exists());
+                            addLog(detectionPrefix + " hooks.json content length: " + fileContent.length());
+                        } else if ("Kimi".equals(name)) {
+                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " BEGIN marker: " + fileContent.contains(HookInstaller.KIMI_HOOK_BLOCK_START));
+                            addLog(detectionPrefix + " " + languageManager.getString("hook.contains") + " END marker: " + fileContent.contains(HookInstaller.KIMI_HOOK_BLOCK_END));
                         }
-                    } finally {
-                        busy.set(false);
+                    } catch (Exception e) {
+                        addLog(detectionPrefix + " " + languageManager.getString("hook.read-failed") + ": " + e.getMessage());
                     }
-                });
-            } catch (Exception e) {
-                Platform.runLater(() -> {
-                    if (readSerialSource.get() != readSerial) {
-                        logger.info("Sleep wait time UI failure ignored for stale read: serial={}, current={}", readSerial, readSerialSource.get());
-                        return;
-                    }
-                    status.setText(languageManager.getString("sleep-wait-time.read-failed") + e.getMessage());
-                    logger.warn("Sleep wait time UI read failed: serial={}", readSerial, e);
-                    busy.set(false);
-                });
+                }
+                
+                addLog(detectionPrefix + " " + languageManager.getString("hook.final-status") + ": " + (installed ? "Installed" : "Not Installed"));
+                addLog("");
+                
+                // 更新卡片状态
+                int finalI = i;
+                boolean finalInstalled = installed;
+                Platform.runLater(() -> updateHookCardStatus(hookCards[finalI], name, finalInstalled));
             }
-        }, "sleep-wait-time-read");
-        thread.setDaemon(true);
-        thread.start();
-    }
-
-    private void saveSleepWaitTime(ComboBox<SleepWaitTimeOption> options, Label status, BooleanProperty busy) {
-        SleepWaitTimeOption selected = options.getSelectionModel().getSelectedItem();
-        if (selected == null) {
-            return;
-        }
-        if (!controller.isEffectivelyConnected()) {
-            status.setText(languageManager.getString("sleep-wait-time.not-connected"));
-            return;
-        }
-        busy.set(true);
-        status.setText(languageManager.getString("sleep-wait-time.saving"));
-        Thread thread = new Thread(() -> {
-            try {
-                int readback = controller.getBleManager().setSleepWaitTimeMinutesAndVerify(selected.minutes());
-                Platform.runLater(() -> {
-                    SleepWaitTimeOption option = findSleepWaitTimeOption(options, readback);
-                    if (option != null) {
-                        options.getSelectionModel().select(option);
-                        status.setText(formatSleepWaitTimeStatus("sleep-wait-time.saved", option.label()));
-                    } else {
-                        status.setText(languageManager.getString("sleep-wait-time.invalid-current"));
-                    }
-                });
-            } catch (Exception e) {
-                Platform.runLater(() -> status.setText(languageManager.getString("sleep-wait-time.save-failed") + e.getMessage()));
-            } finally {
-                Platform.runLater(() -> busy.set(false));
-            }
-        }, "sleep-wait-time-save");
-        thread.setDaemon(true);
-        thread.start();
-    }
-
-    private SleepWaitTimeOption findSleepWaitTimeOption(ComboBox<SleepWaitTimeOption> options, int minutes) {
-        for (SleepWaitTimeOption option : options.getItems()) {
-            if (option.minutes() == minutes) {
-                return option;
-            }
-        }
-        return null;
-    }
-
-    private String formatSleepWaitTimeStatus(String key, String label) {
-        String pattern = languageManager.getString(key);
-        if (pattern == null || pattern.isBlank()) {
-            return label;
-        }
-        if (pattern.contains("%s")) {
-            return String.format(pattern, label);
-        }
-        return pattern + label;
-    }
-
-    private record SleepWaitTimeOption(int minutes, String label) {
-        @Override
-        public String toString() {
-            return label;
-        }
-    }
-
-    private record SleepWaitTimeControl(VBox node, Runnable refreshAction) {
-        void refresh() {
-            refreshAction.run();
-        }
+        }, "hook-detection").start();
     }
     
     private void updateHookCardStatus(VBox card, String hookName, boolean isInstalled) {
@@ -1648,12 +1213,11 @@ public class TopBar extends VBox {
     }
     
     private String getVersion() {
-        return displayApplicationVersion(com.example.ahakey.update.InstalledAppIdentity.load());
-    }
-
-    public static String displayApplicationVersion(com.example.ahakey.update.InstalledAppIdentity identity) {
-        try { identity.validate(); return identity.version(); }
-        catch (Exception e) { return "未知（安装版本信息不可用）"; }
+        String version = System.getProperty("app.version");
+        if (version == null || version.isEmpty()) {
+            version = "unknown";
+        }
+        return version;
     }
     
     private void toggleLanguage() {
@@ -1679,7 +1243,8 @@ public class TopBar extends VBox {
     }
     
     private void exitApplication() {
-        controller.requestApplicationExit();
+        Platform.exit();
+        System.exit(0);
     }
     
     private void setupLanguageChangeListener() {
