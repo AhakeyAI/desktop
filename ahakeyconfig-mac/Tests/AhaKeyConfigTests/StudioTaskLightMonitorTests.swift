@@ -9,16 +9,16 @@ final class StudioTaskLightMonitorTests: XCTestCase {
         {"connected":true,"tasks":[{"slot":1,"client":"codex","reference":"\(String(repeating: reference, count: 64))","state":\(state)}],"unrepresentedEvents":0,"requestedMode":\(mode)}
         """.utf8))!
     }
-    func testRealSlotMappingAndStateChangePulseWithoutRestartingOnPoll() throws {
+    func testRealSlotMappingRemainsSteadyAcrossStateAndSessionChanges() throws {
         let model = StudioTaskLightMonitor()
         model.observe(overview(), revision: 1, at: 0)
         XCTAssertNil(model.animation?.snapshot.slots[0])
         XCTAssertEqual(model.animation?.snapshot.slots[1]?.state, .running)
         model.observe(overview(state: 2), revision: 1, at: 5)
         model.observe(overview(state: 2), revision: 1, at: 5.2)
-        XCTAssertLessThan(try XCTUnwrap(model.animation).intensity(slot: 1, at: 5.3), 0.2)
+        XCTAssertEqual(try XCTUnwrap(model.animation).intensity(slot: 1, at: 5.3), 1)
         model.observe(overview(state: 2, reference: "b"), revision: 1, at: 10)
-        XCTAssertLessThan(try XCTUnwrap(model.animation).intensity(slot: 1, at: 10.3), 0.2)
+        XCTAssertEqual(try XCTUnwrap(model.animation).intensity(slot: 1, at: 10.3), 1)
     }
     func testDisconnectedOrSingleModeCannotLeaveStaleMultitaskLights() {
         let model = StudioTaskLightMonitor()

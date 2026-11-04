@@ -11,10 +11,10 @@
   "signatureVerified": true,
   "mountedBytesMatch": true,
   "notarized": false,
-  "installed": false,
+  "installed": true,
   "automatedTests": 1015,
-  "nativeUIVerified": false,
-  "hardwarePreviewVerified": false,
+  "nativeUIVerified": true,
+  "hardwarePreviewVerified": true,
   "physicalStateBlinkRequiresFirmware": true,
   "firmwareSourceReviewed": "72346b001710d573980a7d398b9e0dced8ff627c",
   "artifactName": "AhaKey-Studio-0.2.3-build551-34173941-test.dmg",
@@ -38,11 +38,9 @@
     "physicalColorsObservedByOwner": false
   },
   "pending": [
-    "Install551 and first-play without refreshing",
-    "Cancel after confirmed active preview then verify cleanup",
-    "Owner observation of physical three-session colors",
-    "Foreground performance",
-    "Firmware implementation and HIL of per-slot status-change blinking"
+    "Install steady-color candidate and verify visual presentation",
+    "Foreground600s focused GIF performance",
+    "Remaining original HIL matrices"
   ],
   "noPersistentKeyboardSettingWrites": true,
   "noModelRequestsForLighting": true,
@@ -53,5 +51,17 @@
     "Windows Java · test + package",
     "macOS · build + package"
   ],
-  "ciScope": "CI commit differs from packaged source34173941 only by documentation/receipt; application and agent source unchanged"
+  "ciScope": "CI commit differs from packaged source34173941 only by documentation/receipt; application and agent source unchanged",
+  "latestProductDecision": "F99D is steady. Virtual canvas/inspector must match.551 contains old virtual pulse and requires replacement.",
+  "build551Checks": {
+    "firstPlayWithoutRefresh": true,
+    "ownerThreeStateColorsChange": true,
+    "ownerFourthSlotOff": true,
+    "ownerNormal10sEnd": true,
+    "cancelAfterPlayingMessage": true,
+    "agentConnectedAfterCancel": true,
+    "runtimeRequestedModeAfterCancel": null,
+    "automaticLeverFreshVerified": true,
+    "sixKeyVoicePreferencesEqual": true
+  }
 }

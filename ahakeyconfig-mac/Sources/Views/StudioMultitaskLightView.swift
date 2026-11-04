@@ -35,10 +35,10 @@ struct StudioMultitaskLightView: View {
                         .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.025)))
                 }
             }
-            Text(NSLocalizedString("绿：进行中 · 黄：等待处理 · 红：已完成。状态变化时，示意灯珠短暂闪烁。", comment: ""))
+            Text(NSLocalizedString("绿：进行中 · 黄：等待处理 · 红：已完成。颜色随任务状态变化，空位熄灭。", comment: ""))
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack(alignment: .bottom, spacing: 12) {
-                Text("预览约 10 秒，屏幕会同步展示模拟任务；不会保存或添加真实会话。实体灯珠闪烁需固件支持。")
+                Text("预览约 10 秒，屏幕会同步展示模拟任务；不会保存或添加真实会话。")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
                 Button(action: previewMultitask) {

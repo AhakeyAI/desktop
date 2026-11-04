@@ -1,7 +1,7 @@
 import SwiftUI
 import AhaKeyConfigShared
 
-/// Layer-backed animation keeps blink frames out of SwiftUI layout.
+/// Layer-backed mock state changes; real firmware colors remain steady.
 struct MultitaskLightCanvas: NSViewRepresentable {
     var animation: WS3TaskLightAnimation?
     var mockStartedAt: TimeInterval?
@@ -10,7 +10,7 @@ struct MultitaskLightCanvas: NSViewRepresentable {
     func makeNSView(context: Context) -> LightBarLayerView { LightBarLayerView(barCount: 8) }
     func updateNSView(_ view: LightBarLayerView, context: Context) {
         let animation = animation, mockStartedAt = mockStartedAt, animates = animates
-        view.configure(framesPerSecond: animates ? 10 : nil) { clock in
+        view.configure(framesPerSecond: animates && mockStartedAt != nil ? 2 : nil) { clock in
             let time = animates ? clock : Date().timeIntervalSince1970
             let elapsed = max(0, time - (mockStartedAt ?? time))
             let value = mockStartedAt == nil ? (animation ?? .init()) : .mock(at: elapsed)
