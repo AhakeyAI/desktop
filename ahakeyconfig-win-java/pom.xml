@@ -35,6 +35,13 @@
             <version>${javafx.version}</version>
         </dependency>
 
+        <!-- Read-only TOML validation; edits preserve unrelated source bytes. -->
+        <dependency>
+            <groupId>org.tomlj</groupId>
+            <artifactId>tomlj</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+
         <!-- JSON -->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

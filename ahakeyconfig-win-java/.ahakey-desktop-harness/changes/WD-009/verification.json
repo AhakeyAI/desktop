@@ -1,0 +1,71 @@
+{
+  "change_id": "WD-009",
+  "checks": {
+    "machine": {
+      "status": "pass",
+      "reason": "R4全源码及测试编译、offline Maven validate、diff-check实际退出0",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-009/IMPLEMENTATION_CHECKS_R4.json": "70b624e8c30ab5e0168a411b044e746c0223be43a3c730e23ee5491458e2ae18"
+      },
+      "role": "DIB",
+      "at": "2026-11-03T07:23:14+00:00",
+      "code_fingerprint": "b184b8b7478757a45d39a65e803a677914a1ab8eb2c7d17a24704e6cedc47775",
+      "build_round": 4,
+      "approval_sha256": "5af77595abd001d90bbf8288ebf340d7e24540052a03e560de7304259b80899d"
+    },
+    "core_regression": {
+      "status": "pass",
+      "reason": "既有WD008与WD009九组离线回归均exit0，非真机验收",
+      "evidence": {
+        "target/wd009-hook-r3/regression-01/RESULTS.json": "5071522d8b333a35d32a9ed513bb81bd8079e3a3be62b34ee547d025c21a8088"
+      },
+      "role": "DIB",
+      "at": "2026-11-03T07:23:21+00:00",
+      "code_fingerprint": "b184b8b7478757a45d39a65e803a677914a1ab8eb2c7d17a24704e6cedc47775",
+      "build_round": 4,
+      "approval_sha256": "5af77595abd001d90bbf8288ebf340d7e24540052a03e560de7304259b80899d"
+    },
+    "special_regression": {
+      "status": "pass",
+      "reason": "135项Hook隔离检查+最终UI23项，真实平台Hook及安装待Owner",
+      "evidence": {
+        "target/wd009-hook-r3/run-05/hook.log": "027422afb7024c24ca75153fc1722103c0abfd0a271a9fe881363294aa010d6c"
+      },
+      "role": "DIB",
+      "at": "2026-11-03T07:23:28+00:00",
+      "code_fingerprint": "b184b8b7478757a45d39a65e803a677914a1ab8eb2c7d17a24704e6cedc47775",
+      "build_round": 4,
+      "approval_sha256": "5af77595abd001d90bbf8288ebf340d7e24540052a03e560de7304259b80899d"
+    },
+    "mock": {
+      "status": "not_applicable",
+      "reason": "现有Hook页最小调整无新原型，UI渲染未验收",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-009/EXECUTION_REPORT.md": "1b582d2a48857ad254b70f0179e570d9b75438097a7569cdf7f762b634dabea8"
+      },
+      "role": "DIB",
+      "at": "2026-11-03T07:23:34+00:00",
+      "code_fingerprint": "b184b8b7478757a45d39a65e803a677914a1ab8eb2c7d17a24704e6cedc47775",
+      "build_round": 4,
+      "approval_sha256": "5af77595abd001d90bbf8288ebf340d7e24540052a03e560de7304259b80899d"
+    },
+    "real_device": {
+      "status": "pending"
+    },
+    "owner_uat": {
+      "status": "pending"
+    },
+    "review": {
+      "status": "pass",
+      "reason": "DLA实际26路径审阅通过；REVIEW内部绑定本轮独立审阅与pack，离线验证不代表安装或真机。",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-009/REVIEW.json": "27986f1b9c5fcb0086c63e9aa1af8b939630307ee301414d567443d30f56a3d9"
+      },
+      "role": "DLA",
+      "at": "2026-11-03T07:37:03+00:00",
+      "code_fingerprint": "b184b8b7478757a45d39a65e803a677914a1ab8eb2c7d17a24704e6cedc47775",
+      "build_round": 4,
+      "approval_sha256": "5af77595abd001d90bbf8288ebf340d7e24540052a03e560de7304259b80899d"
+    }
+  }
+}

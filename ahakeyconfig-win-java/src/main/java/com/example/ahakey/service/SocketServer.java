@@ -141,35 +141,21 @@ public class SocketServer {
     }
 
     private void handleStatusRequest(PrintWriter writer) {
-        if (cachedSwitchState != null) {
-            sendResponse(writer, Map.of(
-                "switchState", cachedSwitchState,
-                "lightMode", cachedLightMode != null ? cachedLightMode : 0
-            ));
-        } else {
-            CompletableFuture.supplyAsync(() -> {
-                bleManager.queryStatus();
-                try { Thread.sleep(1500); } catch (InterruptedException e) {}
-                return bleManager.getCachedStatus();
-            }).thenAccept(status -> {
-                sendResponse(writer, buildStatusResponse(status));
-            }).exceptionally(e -> {
-                sendResponse(writer, buildStatusResponse(null));
-                return null;
-            });
-        }
+        boolean auto = bleManager.refreshAutoApproval();
+        sendResponse(writer, buildApprovalResponse(auto));
+    }
+
+    private Map<String, Object> buildApprovalResponse(boolean auto) {
+        Map<String, Object> response = new HashMap<>();
+        response.put("switchState", auto ? 0 : null);
+        response.put("autoApproved", auto);
+        response.put("approval", auto ? "auto" : "defer_to_native");
+        response.put("lightMode", bleManager.getCachedStatus().getLightMode());
+        return response;
     }
 
     private Map<String, Object> buildStatusResponse(DeviceStatus status) {
-        Map<String, Object> response = new HashMap<>();
-        if (status != null) {
-            response.put("switchState", status.getSwitchState());
-            response.put("lightMode", status.getLightMode());
-        } else {
-            response.put("switchState", cachedSwitchState != null ? cachedSwitchState : "null");
-            response.put("lightMode", cachedLightMode != null ? cachedLightMode : "null");
-        }
-        return response;
+        return buildApprovalResponse(status != null && bleManager.refreshAutoApproval());
     }
 
     private void sendResponse(PrintWriter writer, Map<String, Object> data) {

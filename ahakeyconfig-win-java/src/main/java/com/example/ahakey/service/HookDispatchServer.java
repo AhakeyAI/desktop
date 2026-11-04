@@ -154,10 +154,7 @@ public class HookDispatchServer {
     }
 
     private boolean checkAutoApproval(boolean forceRefresh) {
-        if (forceRefresh) {
-            bleManager.queryStatusAndWait(200);
-        }
-        return bleManager.getCachedStatus().isAutoApproval();
+        return bleManager.refreshAutoApproval();
     }
 
     private void handleClient(Socket client) {
@@ -193,7 +190,7 @@ public class HookDispatchServer {
         if (state == IDEState.PERMISSION_REQUEST) {
             boolean auto = checkAutoApproval(false);
             sendRuntimeState("Claude", state, payload);
-            boolean approved = auto || (approvalCallback != null && approvalCallback.requestApproval("Claude", eventName));
+            boolean approved = auto;
             writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + approved + "}");
             return;
         }
@@ -205,7 +202,7 @@ public class HookDispatchServer {
         if (needApproval) {
             boolean auto = checkAutoApproval(true);
             sendRuntimeState("Codex", state, payload);
-            boolean approved = auto || (approvalCallback != null && approvalCallback.requestApproval("Codex", eventName));
+            boolean approved = auto;
             writer.println("{\"ok\":true,\"event\":\"" + eventName + "\",\"autoApproved\":" + approved + "}");
             return;
         }
@@ -216,11 +213,8 @@ public class HookDispatchServer {
         if ("KimiPreToolUse".equals(eventName)) {
             boolean auto = checkAutoApproval(true);
             sendRuntimeState("Kimi", state, payload);
-            if (auto || (approvalCallback != null && approvalCallback.requestApproval("Kimi", eventName))) {
-                writer.println("{}");
-            } else {
-                writer.println("{\"hookSpecificOutput\":{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"当前是手动模式，需要把拨杆切到自动后我才能执行操作\"}}");
-            }
+            // The Kimi native adapter supplies AUTO; an empty hook result preserves native decisions.
+            writer.println("{}");
             return;
         }
         handleGeneric(writer, eventName, state, "Kimi", payload);

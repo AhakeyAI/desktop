@@ -55,13 +55,13 @@ public class DeviceStatus {
     public StringProperty firmwareCatalogKeyProperty() { return firmwareCatalogKey; }
     
     // Setters
-    public void setConnected(boolean value) { isConnected.set(value); }
+    public void setConnected(boolean value) { if (!value) clearSavedBindings(); isConnected.set(value); }
     public void setScanning(boolean value) { isScanning.set(value); }
     public void setBatteryLevel(int value) { batteryLevel.set(value); }
     public void setSignal(int value) { signal.set(value); }
     public void setFirmwareMain(int value) { firmwareMain.set(value); }
     public void setFirmwareSub(int value) { firmwareSub.set(value); }
-    public void setWorkMode(int value) { workMode.set(value); }
+    public void setWorkMode(int value) { if (workMode.get() != value) clearSavedBindings(); workMode.set(value); }
     public void setLightMode(int value) { lightMode.set(value); }
     public void setLightBrightness(int value) { lightBrightness.set(value); }
     public void setSwitchState(int value) { 
@@ -71,6 +71,7 @@ public class DeviceStatus {
     public void setDeviceName(String value) { deviceName.set(value); }
     public void setFirmwareCatalogKey(String value) { firmwareCatalogKey.set(value == null ? "" : value); }
     public void clearFirmwareIdentity() {
+        clearSavedBindings();
         firmwareMain.set(-1);
         firmwareSub.set(-1);
         firmwareCatalogKey.set("");
@@ -78,18 +79,41 @@ public class DeviceStatus {
     }
     
     // Convenience methods
+    private final ObjectProperty<com.example.ahakey.protocol.AhaKeyResponseParser.SideSwitchConfig> savedBindings = new SimpleObjectProperty<>();
+    public ObjectProperty<com.example.ahakey.protocol.AhaKeyResponseParser.SideSwitchConfig> savedBindingsProperty() { return savedBindings; }
+    public com.example.ahakey.protocol.AhaKeyResponseParser.SideSwitchConfig getSavedBindings() { return copyBindings(savedBindings.get()); }
+    public static com.example.ahakey.protocol.AhaKeyResponseParser.SideSwitchConfig copyBindings(com.example.ahakey.protocol.AhaKeyResponseParser.SideSwitchConfig config) {
+        if (config == null) return null;
+        return new com.example.ahakey.protocol.AhaKeyResponseParser.SideSwitchConfig(config.physicalPosition(),
+            new com.example.ahakey.protocol.AhaKeyResponseParser.SideSwitchPositionConfig(config.up().binding(), config.up().actionPayload().clone()),
+            new com.example.ahakey.protocol.AhaKeyResponseParser.SideSwitchPositionConfig(config.down().binding(), config.down().actionPayload().clone()));
+    }
+    public void setSavedBindings(com.example.ahakey.protocol.AhaKeyResponseParser.SideSwitchConfig config) { savedBindings.set(copyBindings(config)); }
+    public void clearSavedBindings() { savedBindings.set(null); }
     public boolean isAutoApproval() {
-        // 仅当 switchState == 0 时为自动批准模式
-        // 未连接时 switchState 为 -1，此时不自动批准（与 macOS 版本一致）
-        return switchState.get() == 0;
+        var config = savedBindings.get();
+        int position = getSwitchState();
+        return isConnected() && config != null && getWorkMode() >= 0 && getWorkMode() <= 3 && (position == 0 || position == 1)
+            && (position == 0 ? config.up() : config.down()).binding() == com.example.ahakey.protocol.AhaKeyProtocol.SIDE_SWITCH_BINDING_AUTO;
     }
-    
     public String getSwitchTitle() {
-        return isAutoApproval() 
-            ? LanguageManager.getInstance().getString("status.auto-approval")
-            : LanguageManager.getInstance().getString("status.manual-approval");
+        if (!isConnected()) return "未连接 · 动作未知";
+        int position = getSwitchState();
+        if (position != 0 && position != 1) return "位置未知 · 动作未知";
+        String prefix = position == 0 ? "上拨 · " : "下拨 · ";
+        var config = savedBindings.get();
+        if (config == null) return prefix + "动作未知";
+        var action = position == 0 ? config.up() : config.down();
+        return prefix + switch (action.binding()) {
+            case com.example.ahakey.protocol.AhaKeyProtocol.SIDE_SWITCH_BINDING_AUTO -> "自动批准";
+            case com.example.ahakey.protocol.AhaKeyProtocol.SIDE_SWITCH_BINDING_MANUAL -> "手动批准";
+            case com.example.ahakey.protocol.AhaKeyProtocol.SIDE_SWITCH_BINDING_DISABLED -> "无动作";
+            case com.example.ahakey.protocol.AhaKeyProtocol.SIDE_SWITCH_BINDING_CUSTOM ->
+                com.example.ahakey.service.DeviceSyncService.sideSwitchActionSummary(action.actionPayload());
+            default -> "动作未知";
+        };
     }
-    
+
     public String getDisplayDeviceName() {
         String name = deviceName.get();
         if (name == null || name.isBlank()) {
@@ -99,6 +123,7 @@ public class DeviceStatus {
     }
 
     public String getDisplayFirmwareVersion() {
+        if (!isConnected()) return "未知（未连接）";
         String catalogKey = firmwareCatalogKey.get();
         if (catalogKey != null && !catalogKey.isBlank()) {
             return catalogKey;
@@ -106,8 +131,8 @@ public class DeviceStatus {
         int main = firmwareMain.get();
         int sub = firmwareSub.get();
         if (main >= 0 && sub >= 0) {
-            return "V" + main + "." + sub;
+            return "V" + main + "." + sub + "（完整标识未读到）";
         }
-        return "-";
+        return "未知（未读到）";
     }
 }

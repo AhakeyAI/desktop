@@ -108,7 +108,7 @@ public class BleManager {
 
     private static final Logger logger = LoggerFactory.getLogger(BleManager.class);
     private static final String DEFAULT_HOST = "127.0.0.1";
-    private static final int DEFAULT_PORT = 9000;
+    private static final int DEFAULT_PORT = 9001;
     private static final long RESPONSE_TIMEOUT_MS = 15000;
     private static final long MODE_READBACK_TIMEOUT_MS = 5000;
     private static final long MODE_READBACK_REQUEST_INTERVAL_MS = 250;
@@ -230,6 +230,7 @@ public class BleManager {
                 && identity.state() == DeviceStatus.IdentityState.SUPPORTED;
     }
     private void publishIdentity(DeviceStatus.IdentityState state, String key) {
+        if (state != DeviceStatus.IdentityState.SUPPORTED) cachedStatus.clearSavedBindings();
         exactCatalogIdentity = null;
         firmwareIdentity = new FirmwareIdentity(connectionGeneration, firmwareIdentity.ticket() + 1, state, key);
         cachedStatus.setFirmwareCatalogKey(key);
@@ -243,6 +244,7 @@ public class BleManager {
         commandLock.lock();
         try {
             connectionGeneration++;
+            cachedStatus.clearSavedBindings();
             publishIdentity(DeviceStatus.IdentityState.DISCONNECTED, "");
             displayWriteUncertain = false;
             displayReadUncertain = false;
@@ -404,11 +406,34 @@ public class BleManager {
         int port = DEFAULT_PORT;
         if (p != null && !p.isBlank()) {
             try {
-                port = Integer.parseInt(p.trim());
-            } catch (NumberFormatException ignored) {
+                port = parseBridgePort(p);
+            } catch (IllegalArgumentException invalid) {
+                port = -1; // Keep USB/application available; never silently connect to an approval endpoint.
+                logger.error("{}", invalid.getMessage());
             }
         }
         return new BleManager(h != null && !h.isBlank() ? h.trim() : DEFAULT_HOST, port, callback);
+    }
+
+    static int parseBridgePort(String value) {
+        if (value == null || value.isBlank()) return DEFAULT_PORT;
+        String text = value.trim();
+        int result;
+        try {
+            if (!text.matches("[0-9]+")) throw new NumberFormatException();
+            result = Integer.parseInt(text);
+        } catch (NumberFormatException invalid) {
+            throw new IllegalArgumentException("AHAKEY_BLE_PORT 必须为 1–65535，且不能为 Kimi 专用端口 9000");
+        }
+        if (result < 1 || result > 65535 || result == 9000)
+            throw new IllegalArgumentException("AHAKEY_BLE_PORT 必须为 1–65535，且不能为 Kimi 专用端口 9000");
+        return result;
+    }
+
+    /** All bridge probes/control and normal transport use the same configured endpoint. */
+    public InetSocketAddress bridgeEndpoint() {
+        parseBridgePort(Integer.toString(port));
+        return new InetSocketAddress(host, port);
     }
 
     public void connect() {
@@ -443,7 +468,7 @@ public class BleManager {
             try {
                 phaseStart = System.currentTimeMillis();
                 socket = new Socket();
-                socket.connect(new InetSocketAddress(host, port), 5000);
+                socket.connect(bridgeEndpoint(), 5000);
                 socket.setTcpNoDelay(true);
                 outputStream = socket.getOutputStream();
                 inputStream = socket.getInputStream();
@@ -742,10 +767,17 @@ public class BleManager {
     }
 
     public AhaKeyResponseParser.SideSwitchConfig readSideSwitchConfig() throws Exception {
+        return readSideSwitchConfig(connectionGeneration);
+    }
+
+    public AhaKeyResponseParser.SideSwitchConfig readSideSwitchConfig(long expectedGeneration) throws Exception {
         synchronized (commandTransactionLock) {
             commandLock.lock();
             try {
                 pendingNotifyFramesByCommand.clear();
+                long generation = connectionGeneration;
+                if (generation != expectedGeneration) throw new IOException("侧拨读取连接已改变。");
+                int mode = cachedStatus.getWorkMode();
                 logger.info("Reading CP4C side switch config with command 0x97");
                 sendCommand(AhaKeyProtocol.readSideSwitchConfig());
                 byte[] frame = waitForResponse(AhaKeyProtocol.CMD_SIDE_SWITCH_CONFIG);
@@ -753,7 +785,15 @@ public class BleManager {
                 if (parsed == null) {
                     throw new IOException("无法解析侧拨配置回读");
                 }
+                if (generation != connectionGeneration || !isConnected || !cachedStatus.isConnected() || mode != cachedStatus.getWorkMode())
+                    throw new IOException("侧拨读取期间连接或模式已改变。");
+                cachedStatus.setSavedBindings(parsed);
+                cachedStatus.setSwitchState(parsed.physicalPosition());
+                callback.onStatusReceived(cachedStatus);
                 return parsed;
+            } catch (Exception failure) {
+                if (expectedGeneration == connectionGeneration) { cachedStatus.clearSavedBindings(); callback.onStatusReceived(cachedStatus); }
+                throw failure;
             } finally {
                 commandLock.unlock();
             }
@@ -761,10 +801,17 @@ public class BleManager {
     }
 
     public void writeSideSwitchConfig(AhaKeyResponseParser.SideSwitchConfig config) throws Exception {
+        writeSideSwitchConfig(config, connectionGeneration);
+    }
+
+    public void writeSideSwitchConfig(AhaKeyResponseParser.SideSwitchConfig config, long expectedGeneration) throws Exception {
         synchronized (commandTransactionLock) {
             commandLock.lock();
             try {
                 pendingNotifyFramesByCommand.clear();
+                if (expectedGeneration != connectionGeneration) throw new IOException("侧拨保存连接已改变。");
+                cachedStatus.clearSavedBindings();
+                callback.onStatusReceived(cachedStatus);
                 logger.info("Writing CP4C side switch config with command 0x97");
                 sendCommand(AhaKeyProtocol.setSideSwitchConfig(
                     config.up().binding(),
@@ -973,6 +1020,29 @@ public class BleManager {
         }
     }
 
+    /** A fresh status and confirmed binding are required; stale cache never grants approval. */
+    public boolean refreshAutoApproval() {
+        long generation = connectionGeneration;
+        if (!isConnected || !cachedStatus.isConnected() || !maintenance.normalAllowed() || !isFirmwareCapabilityAdmitted("side")) return false;
+        try (var transaction = maintenance.normalTransaction()) {
+            queryDeviceStatusSnapshot(500, true);
+            if (generation != connectionGeneration) return false;
+            readSideSwitchConfig(generation);
+            return generation == connectionGeneration && isConnected && cachedStatus.isAutoApproval();
+        } catch (Exception failure) {
+            invalidateSavedBindings(generation);
+            logger.debug("Auto approval deferred to platform: {}", failure.getMessage());
+            return false;
+        }
+    }
+
+    public void invalidateSavedBindings(long generation) {
+        commandLock.lock();
+        try {
+            if (generation == connectionGeneration) { cachedStatus.clearSavedBindings(); callback.onStatusReceived(cachedStatus); }
+        } finally { commandLock.unlock(); }
+    }
+
     public void updateState(byte state) {
         try {
             sendRuntimeState(state);
@@ -1034,14 +1104,20 @@ public class BleManager {
     }
 
     public void sendMultiRuntimeSnapshot(com.example.ahakey.model.AiRuntimeSlotBinding[] slots, long generation) throws Exception {
+        sendMultiRuntimeSnapshot(slots, generation, () -> true);
+    }
+
+    public boolean sendMultiRuntimeSnapshot(com.example.ahakey.model.AiRuntimeSlotBinding[] slots, long generation, java.util.function.BooleanSupplier current) throws Exception {
         synchronized (commandTransactionLock) {
             commandLock.lock();
             try {
                 if (generation != connectionGeneration) throw new IOException("键盘连接已改变。");
+                if (!current.getAsBoolean()) return false;
                 pendingNotifyFramesByCommand.clear();
                 sendCommand(AhaKeyProtocol.multiRuntimeSnapshot(slots));
                 waitForResponseFrame(AhaKeyProtocol.CMD_MULTI_RUNTIME_SNAPSHOT, true, false);
                 if (generation != connectionGeneration) throw new IOException("键盘连接已改变。");
+                return true;
             } finally {
                 commandLock.unlock();
             }
@@ -1087,6 +1163,8 @@ public class BleManager {
             commandLock.lock();
             try {
                 pendingNotifyFramesByCommand.clear();
+                cachedStatus.clearSavedBindings();
+                callback.onStatusReceived(cachedStatus);
                 sendCommand(AhaKeyProtocol.setWorkMode(targetMode));
                 byte[] setFrame = waitForResponseFrame(AhaKeyProtocol.CMD_SET_WORK_MODE, false, false);
                 AhaKeyResponseParser.CommandResponse response = AhaKeyResponseParser.parseCommandResponse(setFrame);
@@ -1382,6 +1460,7 @@ public class BleManager {
                 }
                 status.setFirmwareCatalogKey(cachedStatus.getFirmwareCatalogKey());
                 status.setIdentityState(firmwareIdentity.state());
+                if (status.getWorkMode() == cachedStatus.getWorkMode()) status.setSavedBindings(cachedStatus.getSavedBindings());
                 cachedStatus = status;
                 lastStatusUpdateTime = System.currentTimeMillis();
                 callback.onStatusReceived(status);
@@ -1679,6 +1758,7 @@ public class BleManager {
             status.setFirmwareCatalogKey(cachedStatus.getFirmwareCatalogKey());
             status.setIdentityState(firmwareIdentity.state());
             status.setConnected(true);
+            if (status.getWorkMode() == cachedStatus.getWorkMode()) status.setSavedBindings(cachedStatus.getSavedBindings());
             cachedStatus = status;
             enqueueNotifyFrame(data);
             callback.onStatusReceived(status);
