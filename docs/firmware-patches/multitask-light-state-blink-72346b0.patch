@@ -1,0 +1,217 @@
+diff --git a/APP/services/display_presentation.c b/APP/services/display_presentation.c
+index b5c5d8c..356781d 100644
+--- a/APP/services/display_presentation.c
++++ b/APP/services/display_presentation.c
+@@ -10,6 +10,10 @@ typedef struct
+     uint16_t                    single_seconds;
+     uint8_t                     multi_valid;
+     uint16_t                    multi_seconds;
++    /* Transient only; no Flash data or protocol layout changes. */
++    uint8_t                     led_blink_active;
++    uint8_t                     led_blink_pending;
++    uint32_t                    led_blink_started[DISPLAY_PRESENTATION_SLOT_COUNT];
+     display_presentation_slot_s multi_slots[DISPLAY_PRESENTATION_SLOT_COUNT];
+ } display_presentation_state_s;
+ 
+@@ -26,6 +30,9 @@ static void display_presentation_clear_multi(void)
+ {
+     s_display_presentation.multi_valid   = 0;
+     s_display_presentation.multi_seconds = 0;
++    s_display_presentation.led_blink_active = 0;
++    s_display_presentation.led_blink_pending = 0;
++    memset(s_display_presentation.led_blink_started, 0, sizeof(s_display_presentation.led_blink_started));
+     memset(s_display_presentation.multi_slots, 0, sizeof(s_display_presentation.multi_slots));
+ }
+ 
+@@ -112,13 +119,23 @@ display_presentation_result_e display_presentation_apply_multi_snapshot(const ui
+     if (s_display_presentation.mode != DISPLAY_PRESENTATION_MODE_MULTI)
+         return DISPLAY_PRESENTATION_RESULT_IGNORED_WRONG_MODE;
+ 
+-    display_presentation_clear_multi();
++    /* Preserve timing on identical snapshots, including foreground-only changes. */
+     s_display_presentation.multi_valid   = 1;
+     s_display_presentation.multi_seconds = DISPLAY_PRESENTATION_TIMEOUT_SECONDS;
+     for (uint8_t slot = 0; slot < DISPLAY_PRESENTATION_SLOT_COUNT; slot++) {
+         uint8_t offset = (uint8_t) (2 + slot * 3);
+-        if (!payload[offset])
++        uint8_t bit = (uint8_t) (1U << slot);
++        if (!payload[offset]) {
++            memset(&s_display_presentation.multi_slots[slot], 0, sizeof(s_display_presentation.multi_slots[slot]));
++            s_display_presentation.led_blink_active &= (uint8_t) ~bit;
++            s_display_presentation.led_blink_pending &= (uint8_t) ~bit;
+             continue;
++        }
++        if (!s_display_presentation.multi_slots[slot].valid ||
++            s_display_presentation.multi_slots[slot].state != payload[offset + 1]) {
++            s_display_presentation.led_blink_active |= bit;
++            s_display_presentation.led_blink_pending |= bit;
++        }
+         s_display_presentation.multi_slots[slot].valid      = 1;
+         s_display_presentation.multi_slots[slot].state      = payload[offset + 1];
+         s_display_presentation.multi_slots[slot].foreground = payload[offset + 2];
+@@ -191,6 +208,37 @@ uint8_t display_presentation_get_slot(uint8_t slot, display_presentation_slot_s
+     return 1;
+ }
+ 
++/* Caller supplies a 600ms cycle in its native tick units. Rendering never
++ * changes task presence/state, OLED selection, timeouts or host activity. */
++uint8_t display_presentation_slot_led_visible(uint8_t slot, uint32_t now_ticks, uint32_t cycle_ticks)
++{
++    uint8_t bit;
++    uint32_t elapsed;
++    if (slot >= DISPLAY_PRESENTATION_SLOT_COUNT ||
++        s_display_presentation.mode != DISPLAY_PRESENTATION_MODE_MULTI ||
++        !s_display_presentation.multi_valid || !s_display_presentation.multi_slots[slot].valid)
++        return 0;
++    bit = (uint8_t) (1U << slot);
++    if (!(s_display_presentation.led_blink_active & bit))
++        return 1;
++    if (cycle_ticks < 12 || cycle_ticks > UINT32_MAX / 5U) {
++        s_display_presentation.led_blink_active &= (uint8_t) ~bit;
++        s_display_presentation.led_blink_pending &= (uint8_t) ~bit;
++        return 1;
++    }
++    if (s_display_presentation.led_blink_pending & bit) {
++        s_display_presentation.led_blink_started[slot] = now_ticks;
++        s_display_presentation.led_blink_pending &= (uint8_t) ~bit;
++    }
++    /* Unsigned subtraction also handles the native 32-bit clock wrapping. */
++    elapsed = (uint32_t) (now_ticks - s_display_presentation.led_blink_started[slot]);
++    if (elapsed >= cycle_ticks * 3U) {
++        s_display_presentation.led_blink_active &= (uint8_t) ~bit;
++        return 1;
++    }
++    return (elapsed % cycle_ticks) < (cycle_ticks * 5U / 12U);
++}
++
+ display_presentation_selection_s display_presentation_select(void)
+ {
+     display_presentation_selection_s selection = {0};
+diff --git a/APP/services/display_presentation.h b/APP/services/display_presentation.h
+index ca9fd38..86c5fae 100644
+--- a/APP/services/display_presentation.h
++++ b/APP/services/display_presentation.h
+@@ -55,6 +55,9 @@ void display_presentation_clear_runtime(void);
+ void display_presentation_clear_for_quiet_sleep(void);
+ uint8_t display_presentation_active_mask(void);
+ uint8_t display_presentation_get_slot(uint8_t slot, display_presentation_slot_s *out);
++/* Per-slot transient pulse: 3 cycles, 250ms on/350ms off for a 600ms cycle.
++ * Pass native monotonic ticks and MS1_TO_SYSTEM_TIME(600), not wall time. */
++uint8_t display_presentation_slot_led_visible(uint8_t slot, uint32_t now_ticks, uint32_t cycle_ticks);
+ display_presentation_selection_s display_presentation_select(void);
+ 
+ #endif
+diff --git a/APP/sub_main/main.c b/APP/sub_main/main.c
+index 897d0d6..c7a841a 100644
+--- a/APP/sub_main/main.c
++++ b/APP/sub_main/main.c
+@@ -1795,12 +1795,14 @@ void task_restore_oled_selection(void)
+ 
+ void task_render_multi_leds(void)
+ {
++    const uint32_t now_ticks = TMOS_GetSystemClock();
+     for (uint8_t slot = 0; slot < TASK_SLOT_COUNT; slot++) {
+         uint32_t          left_hex  = 0;
+         uint32_t          right_hex = 0;
+         display_presentation_slot_s snapshot;
+ 
+-        if (display_presentation_get_slot(slot, &snapshot)) {
++        if (display_presentation_get_slot(slot, &snapshot) &&
++            display_presentation_slot_led_visible(slot, now_ticks, MS1_TO_SYSTEM_TIME(600))) {
+             switch (snapshot.state) {
+             case DISPLAY_PRESENTATION_MULTI_RUNNING:
+                 left_hex = right_hex = 0x8000A000;
+diff --git a/tests/host/ai_presentation/run-ai-presentation-tests.ps1 b/tests/host/ai_presentation/run-ai-presentation-tests.ps1
+index afb0795..3368b75 100644
+--- a/tests/host/ai_presentation/run-ai-presentation-tests.ps1
++++ b/tests/host/ai_presentation/run-ai-presentation-tests.ps1
+@@ -52,8 +52,10 @@ function Invoke-StaticWiringChecks {
+     Assert-Contains "main" $main "DISPLAY_PRESENTATION_MULTI_RUNNING:(?s).*left_hex\s*=\s*right_hex\s*=\s*0x8000A000"
+     Assert-Contains "main" $main "DISPLAY_PRESENTATION_MULTI_WAITING:(?s).*left_hex\s*=\s*right_hex\s*=\s*0x80A0A000"
+     Assert-Contains "main" $main "DISPLAY_PRESENTATION_MULTI_DONE:(?s).*left_hex\s*=\s*right_hex\s*=\s*0x80A00000"
+-    Assert-NotContains "main" $main "DISPLAY_PRESENTATION_MULTI_RUNNING:(?s).*blink_on"
+-    Assert-NotContains "main" $main "DISPLAY_PRESENTATION_MULTI_WAITING:(?s).*blink_on"
++    # State-change pulses are a new product requirement; the old no-blink
++    # assertions no longer describe the intended presentation behavior.
++    Assert-Contains "main" $main "display_presentation_slot_led_visible\(slot, now_ticks, MS1_TO_SYSTEM_TIME\(600\)\)"
++    Assert-Contains "main" $main "now_ticks = TMOS_GetSystemClock\(\)"
+ 
+     Assert-Contains "usb1_hid" $usb "usb_data_should_refresh_host_activity"
+     Assert-Contains "usb1_hid" $usb "task_clear_runtime_ai_task"
+diff --git a/tests/host/ai_presentation/run_task_led_blink.py b/tests/host/ai_presentation/run_task_led_blink.py
+new file mode 100644
+index 0000000..b0a5c6b
+--- /dev/null
++++ b/tests/host/ai_presentation/run_task_led_blink.py
+@@ -0,0 +1,71 @@
++"""Host-run exact production LED renderer + display service, no hardware writes."""
++from pathlib import Path
++import re, subprocess, tempfile, sys
++ROOT = Path(__file__).resolve().parents[3]
++main = (ROOT/'APP/sub_main/main.c').read_text()
++start = main.index('void task_render_multi_leds(void)')
++brace = main.index('{',start)
++depth=1; end=brace+1
++while depth:
++    depth += (main[end]=='{')-(main[end]=='}'); end+=1
++renderer=main[start:end]
++if '--baseline' not in sys.argv:
++    assert 'display_presentation_slot_led_visible(slot, now_ticks, MS1_TO_SYSTEM_TIME(600))' in renderer
++    assert 'TMOS_GetSystemClock()' in renderer
++source=r'''
++#include <stdint.h>
++#include <stdio.h>
++#include "display_presentation.h"
++#define TASK_SLOT_COUNT 4
++#define MS1_TO_SYSTEM_TIME(x) (((uint32_t)(x) * 1000u) / 625u)
++static uint32_t clock_ticks;
++#define TMOS_GetSystemClock() (clock_ticks)
++static struct { uint32_t hex; } ws2812_list[8];
++#define CHECK(x) do { if (!(x)) {fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#x); return 1;} } while(0)
++'''+renderer+r'''
++int main(void) {
++    uint8_t p[14]={0x99,1,1,1,0,1,2,0,1,3,0,0,0,0};
++    display_presentation_init();
++    CHECK(display_presentation_set_mode(1));
++    CHECK(display_presentation_apply_multi_snapshot(p,14,0)==0);
++    clock_ticks=10000; task_render_multi_leds();
++    CHECK(ws2812_list[0].hex==0x8000A000u && ws2812_list[2].hex==0x80A0A000u && ws2812_list[4].hex==0x80A00000u);
++    CHECK(ws2812_list[6].hex==0 && ws2812_list[7].hex==0);
++    clock_ticks=10000+MS1_TO_SYSTEM_TIME(300); task_render_multi_leds();
++    CHECK(ws2812_list[0].hex==0 && ws2812_list[2].hex==0 && ws2812_list[4].hex==0);
++    CHECK(display_presentation_select().selected && display_presentation_select().slot==1 && display_presentation_select().state==2); /* OLED still selects waiting task */
++    CHECK(display_presentation_active_mask()==7);
++    CHECK(display_presentation_apply_multi_snapshot(p,14,0)==0);
++    p[4]=1; CHECK(display_presentation_apply_multi_snapshot(p,14,0)==0); /* foreground only */
++    CHECK(display_presentation_set_mode(1)); /* repeated mode ACK must not restart */
++    task_render_multi_leds(); CHECK(ws2812_list[0].hex==0);
++    clock_ticks=10000+MS1_TO_SYSTEM_TIME(600);task_render_multi_leds();CHECK(ws2812_list[0].hex!=0);
++    clock_ticks=10000+MS1_TO_SYSTEM_TIME(900);task_render_multi_leds();CHECK(ws2812_list[0].hex==0);
++    clock_ticks=10000+MS1_TO_SYSTEM_TIME(1200);task_render_multi_leds();CHECK(ws2812_list[0].hex!=0);
++    clock_ticks=10000+MS1_TO_SYSTEM_TIME(1500);task_render_multi_leds();CHECK(ws2812_list[0].hex==0);
++    clock_ticks=10000+MS1_TO_SYSTEM_TIME(1800);task_render_multi_leds();CHECK(ws2812_list[0].hex!=0);
++    p[6]=1;CHECK(display_presentation_apply_multi_snapshot(p,14,0)==0); /* slot1 waiting -> running */
++    task_render_multi_leds(); clock_ticks+=MS1_TO_SYSTEM_TIME(300);task_render_multi_leds();
++    CHECK(ws2812_list[0].hex!=0 && ws2812_list[2].hex==0 && ws2812_list[4].hex!=0);
++    p[0]=0x99;p[6]=9;CHECK(display_presentation_apply_multi_snapshot(p,14,0)!=0);
++    task_render_multi_leds();CHECK(ws2812_list[2].hex==0);p[6]=1;
++    p[2]=0;CHECK(display_presentation_apply_multi_snapshot(p,14,0)==0);task_render_multi_leds();CHECK(ws2812_list[0].hex==0);
++    display_presentation_clear_for_quiet_sleep();task_render_multi_leds();
++    for(int i=0;i<8;i++)CHECK(ws2812_list[i].hex==0);
++    p[2]=1;CHECK(display_presentation_apply_multi_snapshot(p,14,0)==0);
++    clock_ticks=UINT32_MAX-200;task_render_multi_leds();
++    clock_ticks+=MS1_TO_SYSTEM_TIME(300);task_render_multi_leds();CHECK(ws2812_list[0].hex==0);
++    CHECK(display_presentation_set_mode(0));CHECK(display_presentation_set_mode(1));task_render_multi_leds();CHECK(display_presentation_active_mask()==0);
++    CHECK(display_presentation_apply_multi_snapshot(p,14,0)==0);task_render_multi_leds();
++    for(int i=0;i<300;i++)display_presentation_tick_one_second();
++    task_render_multi_leds();for(int i=0;i<8;i++)CHECK(ws2812_list[i].hex==0);
++    CHECK(display_presentation_apply_multi_snapshot(p,14,0)==0);task_render_multi_leds();
++    clock_ticks+=MS1_TO_SYSTEM_TIME(300);task_render_multi_leds();CHECK(ws2812_list[0].hex==0);
++    puts("PASS: exact production renderer and task LED state-change blink");return 0;
++}
++'''
++with tempfile.TemporaryDirectory(prefix='ahakey-task-led-host-') as tmp:
++    path=Path(tmp)/'test.c';path.write_text(source)
++    exe=Path(tmp)/'test'
++    subprocess.run(['clang','-std=c99','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-I',str(ROOT/'APP/services'),str(path),str(ROOT/'APP/services/display_presentation.c'),'-o',str(exe)],check=True)
++    subprocess.run([str(exe)],check=True)

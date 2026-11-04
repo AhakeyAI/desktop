@@ -32,4 +32,9 @@
 此前实体手动/自动、语音、重启验收尚未结束；Codex Voice临时F18/AhaType还需恢复原Right Alt/Record，不能因新增灯效开发将其标为已恢复。
 
 
-候选DMG：`AhaKey-Studio-0.2.3-build551-34173941-test.dmg`，SHA256：`07818320c3b8d36be5cb2a9be709ec722200d03c662e283fa70e3b7f39989632`。本机交付目录`/Users/heartline/Documents/Codex/local-builds/QA-build551-multitask-light-20261104`。[候选与验证回执](../validation/connect-talk-hil-2026-10-22/local-candidate-build551-multitask-light-2026-11-04.json)。当前source CI41788990370仍运行中，不标通过。
+候选DMG：`AhaKey-Studio-0.2.3-build551-34173941-test.dmg`，SHA256：`07818320c3b8d36be5cb2a9be709ec722200d03c662e283fa70e3b7f39989632`。本机交付目录`/Users/heartline/Documents/Codex/local-builds/QA-build551-multitask-light-20261104`。[候选与验证回执](../validation/connect-talk-hil-2026-10-22/local-candidate-build551-multitask-light-2026-11-04.json)。[源码CI三项通过](https://github.com/AhakeyAI/desktop/actions/runs/41789421123)，CI提交b093c3e6与已打包34173941之间仅文档/回执不同，App与Agent源码未变；不声称CI产物字节等于本机签名DMG。
+
+
+## 后续源码推进
+
+已将上述实体闪烁要求实现成[可应用固件补丁](../firmware-patches/README-multitask-light-state-blink.md)，包括生产函数host红绿回归及原显示服务回归。补丁尚未合入固件远端或构建HEX，当前键盘F99D仍只有常亮行为。目标SDK/RAM/静态门禁与真机验收仍需完成，不将补丁存在等同于最终适配完成。

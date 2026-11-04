@@ -1,0 +1,20 @@
+{
+  "firmwareBase": "72346b001710d573980a7d398b9e0dced8ff627c",
+  "patchSHA256": "a9bafce27441651f37cf576e05d8ac7853002234905d8e080c6d847d1cd81325",
+  "baselineRendererFailedBlinkAssertion": true,
+  "patchAppliesCleanly": true,
+  "appliedTreeMatchesProposedBytes": true,
+  "exactProductionRendererWithActualDisplayServiceSanitizersPassed": true,
+  "originalDisplayPresentationHostTestsPassed": true,
+  "hostLayoutBytes": {
+    "base": 22,
+    "proposed": 40,
+    "hostStateBytesAdded": 18
+  },
+  "productionSDKBuild": false,
+  "powershellStaticGateExecuted": false,
+  "physicalHardwareVerified": false,
+  "firmwareRepositoryWritten": false,
+  "firmwareFlashed": false,
+  "newHEXProduced": false
+}

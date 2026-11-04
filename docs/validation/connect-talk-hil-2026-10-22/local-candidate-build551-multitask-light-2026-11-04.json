@@ -21,8 +21,8 @@
   "recordedAtUTC": "2026-11-04T07:01:40.698248+00:00",
   "installedBuild": 550,
   "installedSource": "61eb573b2fd4afb07e8b93a3e6721b63f75a2a4d",
-  "sourceCI": "https://github.com/AhakeyAI/desktop/actions/runs/41788990370",
-  "sourceCIStatusAtRecord": "in_progress",
+  "sourceCI": "https://github.com/AhakeyAI/desktop/actions/runs/41789421123",
+  "sourceCIStatusAtRecord": "success",
   "build550Checks": {
     "nativeThreeSessionCanvasAndSidebar": true,
     "whitePlayButtonBottomRight": true,
@@ -46,5 +46,12 @@
   ],
   "noPersistentKeyboardSettingWrites": true,
   "noModelRequestsForLighting": true,
-  "previousVoiceTemporaryConfigurationStillNeedsRestoration": true
+  "previousVoiceTemporaryConfigurationStillNeedsRestoration": true,
+  "ciHead": "b093c3e611c0cb6f005c18eef97d861a043201fb",
+  "ciJobsPassed": [
+    "TypeScript SDK · test + build",
+    "Windows Java · test + package",
+    "macOS · build + package"
+  ],
+  "ciScope": "CI commit differs from packaged source34173941 only by documentation/receipt; application and agent source unchanged"
 }
