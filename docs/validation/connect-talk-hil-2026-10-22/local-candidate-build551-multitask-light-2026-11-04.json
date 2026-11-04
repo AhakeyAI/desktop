@@ -1,0 +1,50 @@
+{
+  "sourceCommit": "34173941c9c3ebb0cea2cd439eb99d641488ccd7",
+  "build": 551,
+  "version": "0.2.3",
+  "dmgSHA256": "07818320c3b8d36be5cb2a9be709ec722200d03c662e283fa70e3b7f39989632",
+  "bytes": 20459242,
+  "binarySHA256": {
+    "AhaKeyConfig": "38660e349f31401a51a7e9be5fad307815a62de2d2f4f1e2a1ce6f8a5641cb90",
+    "ahakeyconfig-agent": "208d137dff76d099f17eec225410f115d59d9d804674da3230d86dc5b1a6546d"
+  },
+  "signatureVerified": true,
+  "mountedBytesMatch": true,
+  "notarized": false,
+  "installed": false,
+  "automatedTests": 1015,
+  "nativeUIVerified": false,
+  "hardwarePreviewVerified": false,
+  "physicalStateBlinkRequiresFirmware": true,
+  "firmwareSourceReviewed": "72346b001710d573980a7d398b9e0dced8ff627c",
+  "artifactName": "AhaKey-Studio-0.2.3-build551-34173941-test.dmg",
+  "recordedAtUTC": "2026-11-04T07:01:40.698248+00:00",
+  "installedBuild": 550,
+  "installedSource": "61eb573b2fd4afb07e8b93a3e6721b63f75a2a4d",
+  "sourceCI": "https://github.com/AhakeyAI/desktop/actions/runs/41788990370",
+  "sourceCIStatusAtRecord": "in_progress",
+  "build550Checks": {
+    "nativeThreeSessionCanvasAndSidebar": true,
+    "whitePlayButtonBottomRight": true,
+    "bottomWriteOnly": true,
+    "cachedTargetFirstPlayBugReproduced": true,
+    "completePreviewReceiptAndAgentHandoff": true,
+    "cancelButtonUsed": true,
+    "cancelStageIndependentlyVerified": false,
+    "sixKeyAndVoicePreferencesSemanticallyPreserved": true,
+    "runtimeAfterPreviewConnected": true,
+    "runtimeRequestedModeAfterPreview": null,
+    "physicalLeverAutomaticFreshVerified": true,
+    "physicalColorsObservedByOwner": false
+  },
+  "pending": [
+    "Install551 and first-play without refreshing",
+    "Cancel after confirmed active preview then verify cleanup",
+    "Owner observation of physical three-session colors",
+    "Foreground performance",
+    "Firmware implementation and HIL of per-slot status-change blinking"
+  ],
+  "noPersistentKeyboardSettingWrites": true,
+  "noModelRequestsForLighting": true,
+  "previousVoiceTemporaryConfigurationStillNeedsRestoration": true
+}
