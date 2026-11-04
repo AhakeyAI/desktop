@@ -21,6 +21,31 @@ final class BLEStatePublicationTests: XCTestCase {
     }
 
     @MainActor
+    func testAgentReportedCatalogIdentityTakesPrecedenceAndClearsWhenMissing() throws {
+        let fixture = try makeManager()
+        defer { fixture.manager.stopIDEStateMonitoring(); try? FileManager.default.removeItem(at: fixture.directory) }
+        let directory = fixture.directory.appendingPathComponent("state")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let file = directory.appendingPathComponent("current-ide-state.json")
+        fixture.manager.agentBLEConnectedProvider = { true }
+        func load(_ key: Any?) throws {
+            var state: [String: Any] = ["firmwareMain": 1, "firmwareSub": 0]
+            state["firmwareCatalogKey"] = key
+            try JSONSerialization.data(withJSONObject: state).write(to: file, options: .atomic)
+            fixture.manager.startIDEStateMonitoring()
+        }
+        try load(FirmwareCapabilityProfile.hw1SaveRepairCatalogKey)
+        XCTAssertEqual(fixture.manager.firmwareVersionForDisplay, "1.0.1-r001")
+        try load(nil)
+        XCTAssertEqual(fixture.manager.firmwareVersionForDisplay, "v1.0")
+        try load("x1-c582-hw1-p1-1.0.1-r001\n")
+        XCTAssertEqual(fixture.manager.firmwareVersionForDisplay, "v1.0")
+        try load(FirmwareCapabilityProfile.hw1SaveRepairCatalogKey)
+        fixture.manager.agentBLEConnectedProvider = { false }
+        XCTAssertNil(fixture.manager.firmwareVersionForDisplay)
+    }
+
+    @MainActor
     func testMissingMalformedAndExpiredFirmwareCannotLeaveAnOldVersionVisible() throws {
         let fixture = try makeManager()
         defer { fixture.manager.stopIDEStateMonitoring(); try? FileManager.default.removeItem(at: fixture.directory) }

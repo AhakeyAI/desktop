@@ -201,6 +201,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         Self.writeLiveState(stateValue: state)
     }
 
+    private var displayedFirmwareCatalogKey: String?
+
     /// 把 agent 当前对键盘的认知（最近一次 hook 发送的 stateValue + BLE 上报的电量/灯效/拨杆/模式）
     /// merge-write 到共享文件，供主 App 在 agent 拥有 BLE 时读取实时状态。
     /// 任意调用方只传自己负责更新的字段；未传的字段保留文件中的旧值。
@@ -211,6 +213,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                                workMode: UInt8? = nil,
                                firmwareMain: UInt8? = nil,
                                firmwareSub: UInt8? = nil,
+                               firmwareCatalogKey: String? = nil,
+                               resetFirmwareCatalogKey: Bool = false,
                                directoryURL: URL? = nil) {
         let dir = directoryURL ?? FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/AhaKeyConfig", isDirectory: true)
@@ -221,6 +225,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
            let parsed = (try? JSONSerialization.jsonObject(with: existing)) as? [String: Any] {
             obj = parsed
         }
+        if resetFirmwareCatalogKey { obj.removeValue(forKey: "firmwareCatalogKey") }
+        if let key = FirmwareIdentityDisplay.validKey(firmwareCatalogKey) { obj["firmwareCatalogKey"] = key }
         let now = Date().timeIntervalSince1970
         if let s = stateValue {
             obj["stateValue"] = Int(s)
@@ -867,6 +873,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var lockRetryItem: DispatchWorkItem?
 
     private func invalidateBLEConnection() {
+        resetFirmwareIdentity()
         lastDeviceStatusAt = nil
         KimiConfigLeverSync.synchronizeManaged(switchState: nil)
         presentationDrainID = nil
@@ -1018,6 +1025,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         connectionDeadline?.cancel()
         connectionDeadline = nil
         connectionGeneration &+= 1
+        resetFirmwareIdentity()
         approvalChannelReady = true
         presentationPoisoned = false
         legacyCommandDrain.reset()
@@ -1095,17 +1103,31 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             if pendingPresentationRead != nil, frame.count >= 3 { presentationReplyCommands.insert(frame[2]) }
             if let pending = pendingPresentationRead, pending.generation == connectionGeneration,
                DeviceResponseMatcher.matches(request: pending.request, expectedCommand: pending.request[2], response: frame) {
+                if pending.request[2] == 0x9F { recordFirmwareIdentity(frame) }
                 pendingPresentationRead = nil
                 pending.completion(.success(frame))
             }
             if let pending = pendingApprovalRead, pending.generation == connectionGeneration,
                DeviceResponseMatcher.matches(request: Data(header + [pending.command] + trailer), expectedCommand: pending.command, response: frame) {
+                if pending.command == 0x9F { recordFirmwareIdentity(frame) }
                 pendingApprovalRead = nil
                 pending.completion(frame)
             }
             if let status = Self.parseDeviceStatus(frame) { handleDeviceStatus(status) }
             legacyCommandDrain.received(frame)
         }
+    }
+
+    private func recordFirmwareIdentity(_ frame: Data) {
+        let key = FirmwareIdentityDisplay.catalogKey(from: frame)
+        guard key != displayedFirmwareCatalogKey else { return }
+        displayedFirmwareCatalogKey = key
+        Self.writeLiveState(firmwareCatalogKey: key, resetFirmwareCatalogKey: key == nil)
+    }
+
+    private func resetFirmwareIdentity() {
+        displayedFirmwareCatalogKey = nil
+        Self.writeLiveState(resetFirmwareCatalogKey: true)
     }
 
     private func handleDeviceStatus(_ status: AgentDeviceStatus) {

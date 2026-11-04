@@ -7,6 +7,9 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "固件标识": "Firmware identity",
+    "设备协议标识：%@": "Device protocol identity: %@",
+    "状态版本：%@": "Status version: %@",
     "灯效范围": "Lighting scope",
     "单任务灯效": "Single task",
     "多任务灯效": "Multiple tasks",

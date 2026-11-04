@@ -36,7 +36,10 @@ struct DeviceInfoView: View {
                 HStack(spacing: 0) {
                     infoCell("电量", value: bleManager.batteryLevelForDisplay.map { "\($0)%" } ?? "未知")
                     Divider()
-                    infoCell("固件", value: bleManager.firmwareVersionForDisplay ?? "未读取")
+                    infoCell(NSLocalizedString(bleManager.firmwareCatalogKeyForDisplay == nil ? "固件" : "固件标识", comment: ""), value: bleManager.firmwareVersionForDisplay ?? "未读取")
+                        .help([bleManager.firmwareCatalogKeyForDisplay.map { String(format: NSLocalizedString("设备协议标识：%@", comment: ""), $0) },
+                               bleManager.firmwareStatusVersionForDisplay.map { String(format: NSLocalizedString("状态版本：%@", comment: ""), $0) }]
+                            .compactMap { $0 }.joined(separator: "\n"))
                     Divider()
                     infoCell("设备名", value: bleManager.deviceName ?? "—")
                 }
