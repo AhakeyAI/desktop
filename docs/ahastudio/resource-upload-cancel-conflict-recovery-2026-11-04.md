@@ -21,8 +21,13 @@ GIF文件的压缩体积不是键盘接收的数据量。CP2每帧160×80 RGB565
 - 原生夹具baseline：确认与采用按钮禁用，额外OK启用。
 - 同一夹具使用生产就绪条件：确认、采用、取消启用，无额外OK。
 - 新增就绪状态、补齐字节的速度/ETA、预热/异常时间及边界测试。
-- 最终全量1019项Swift测试通过。尚待新候选安装及真实UI/小素材恢复写入，不以夹具代替完整真机回归。
-- 现场12帧容量上传已被Owner取消；位置18尚待核对/清理，不冒称上传完成、断电保持或像素验收通过。其他18位置没有参与本次写入。
+- 最终全量1019项Swift测试通过，build553/595535b8已签名安装。取消重启后，一帧小图完整重写成功，另行只读核对匹配，随后恢复该位置默认并清理临时草稿；七项键位、语音、模式及屏幕本地选择与安装前语义一致。
+- 此次新提交未再次触发素材冲突；确认按钮的直接证明来自链接生产就绪条件的原生夹具，不冒称真机上再次触发了同一冲突。
+- 现场12帧容量上传已被Owner取消；完整上传、断电保持和像素验收仍未通过。其他18位置没有参与本次写入。
+
+实传界面显示“15KB /29KB · 558字节/秒 · 预计剩余24秒”，其后完整提交成功。按该速度线性估算12帧约10分钟，实际会波动，不是固定承诺。
+
+[build553与真实回归回执](../validation/connect-talk-hil-2026-10-22/local-candidate-build553-resource-recovery-2026-11-04.json) · [源码CI三项通过](https://github.com/AhakeyAI/desktop/actions/runs/41803839776)
 
 原生诊断夹具：`ahakeyconfig-mac/scripts/fixtures/resource-conflict-native-repro.swift`。编译时同时加入生产`Sources/Utilities/StudioResourceConflictReadiness.swift`，使用独立测试App；在App同目录写`resource-conflict-mode.txt`为`baseline`或`fixed`，结果写入对应JSON。它只检查自己的窗口按钮，不连接蓝牙、不读用户文档、不发送模型请求，并自行退出。
 

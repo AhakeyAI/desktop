@@ -33,9 +33,14 @@
   "fullTests": 1019,
   "failures": 0,
   "throughputImprovementClaimed": false,
-  "realCandidateUIRecoveryPending": true,
+  "realCandidateUIRecoveryPending": false,
   "resource18InterruptedByOwner": true,
-  "resource18CleanupPending": true,
+  "resource18CleanupPending": false,
   "firmwareBranchNow": "24f72d3e0301aa6bb2fa9e1b99337033bb801a4d",
-  "firmwareFlashedThisTurn": false
+  "firmwareFlashedThisTurn": false,
+  "installedBuild": 553,
+  "smallResourceRetrySucceeded": true,
+  "separateReadbackMatched": true,
+  "restoredDefault": true,
+  "observedWireSpeedBytesPerSecond": 558
 }
