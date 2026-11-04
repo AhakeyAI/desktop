@@ -1,0 +1,56 @@
+{
+  "sourceCommit": "08b2d870dffa9b526fdaba0cc02612dbe16d87c4",
+  "version": "0.2.3",
+  "build": "545",
+  "dmgPath": "/Users/heartline/.codex/worktrees/connect-talk-handoff/ahakeyconfig-main/ahakeyconfig-mac/dist/connect-talk-firmware-identity/AhaKey-Studio-0.2.3-build545-08b2d87-test.dmg",
+  "dmgBytes": 20387255,
+  "dmgSHA256": "b22e7c825427a73f7b58010d684f29645b86a5a218654828580196c58c8e9660",
+  "binarySHA256": {
+    "AhaKeyConfig": "1eb21af8eb0999ea25cb71789680b1bcb00dfd087b44e06f1abf7b24b06f8666",
+    "ahakeyconfig-agent": "3f5871f3cd724b18ec4bacc60191ad4dfc7f886f9251c3ad18925a6a1a8df4a7"
+  },
+  "developerIDSignatureVerified": true,
+  "mountedAppAndAgentBytesMatch": true,
+  "notarized": false,
+  "releaseComplete": false,
+  "installed": true,
+  "previousBuild": 544,
+  "preferencesBackedUp": 16,
+  "preferencesSemanticallyUnchangedAfterOwnerRoundTrip": true,
+  "localTestsPassed": 997,
+  "newRegressionTests": 4,
+  "baselineRedTest": "BLEStatePublicationTests.testAgentReportedCatalogIdentityTakesPrecedenceAndClearsWhenMissing failed before the fix because the UI returned v1.0 despite a supplied catalog identity.",
+  "identitySemantics": "Device-reported protocol/catalog identity, not a HEX hash or attestation of a particular binary. Legacy v1.0 remains available in the hover detail and as fallback before a current identity is read.",
+  "nativeUIChecks": {
+    "agentOwnedIdentity": "1.0.1-r001",
+    "appOwnedBeforeCatalogProbe": "v1.0",
+    "appOwnedAfterReadonlyCatalogProbe": "1.0.1-r001",
+    "fullReadonlyCatalogKey": "x1-c582-hw1-p1-1.0.1-r001",
+    "handoffGapClearsIdentity": true,
+    "reconnectedAgentIdentity": "1.0.1-r001",
+    "finalOwner": "Agent",
+    "finalAgentConnected": true,
+    "finalPhysicalLever": "auto"
+  },
+  "agentIdentityPublication": "Uses only matched current-connection 0x9F replies; duplicate identities do not trigger file writes. Connection invalidation and connection establishment clear the old shared key. No new BLE query loop.",
+  "hardwareConfigurationWrites": 0,
+  "firmwareFlashed": false,
+  "factoryResetRequests": 0,
+  "newSessionGrants": 0,
+  "ciRun": "https://github.com/AhakeyAI/desktop/actions/runs/41762065559",
+  "ciStatusAtReceipt": "completed",
+  "firmwareDependencyRecheck": {
+    "branch": "Fireware-harness",
+    "head": "72346b001710d573980a7d398b9e0dced8ff627c",
+    "changedSincePriorAudit": false,
+    "issues12_16_17": "still open as of 2026-11-04"
+  },
+  "goalComplete": false,
+  "releaseInputAudit": {
+    "builtinCatalog": "engineering compatibility entries only; no public or recovery-safe artifact",
+    "ws5ReleaseEnvironmentPresent": false,
+    "repositoryEnvironmentsReadOnlyVerified": true
+  },
+  "ciAllThreeJobsPassed": true,
+  "ciMacTestsAndPackageIntegrityPassed": true
+}
