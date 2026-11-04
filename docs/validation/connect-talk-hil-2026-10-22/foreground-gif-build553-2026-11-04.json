@@ -1,0 +1,99 @@
+{
+  "clientBuild": 553,
+  "functionalSource": "595535b8f8d0a92cde93777bc171ad44247196c1",
+  "sampling": {
+    "atUTC": "2026-11-04T09:33:44.825459+00:00",
+    "durationSeconds": 605.021260792,
+    "samples": 117,
+    "pidsContinuous": true,
+    "frontmostSamples": 117,
+    "notMinimizedSamples": 117,
+    "foregroundChecksAvailable": true,
+    "cpuPercentOfOneCore": {
+      "studio": 0.8528625908526473,
+      "agent": 0.5801449019172075
+    },
+    "rssKiB": {
+      "studio": {
+        "first": 74512,
+        "last": 63760,
+        "peak": 75280
+      },
+      "agent": {
+        "first": 19264,
+        "last": 18352,
+        "peak": 21216
+      }
+    },
+    "validForegroundWindow": true
+  },
+  "context": {
+    "build": 553,
+    "source": "595535b8f8d0a92cde93777bc171ad44247196c1",
+    "selectedPart": "oledDisplay",
+    "selectedMode": 0,
+    "configuredFPS": 12,
+    "assetSHA256": "3d1c2365273b80d0fd3f849f3537b4ae7414601f41c50c76ae7fd73279b6f5cf",
+    "assetFrameCountPendingRead": false,
+    "temporaryModeChange": {
+      "originalLocalDraft": {
+        "mode": 0
+      },
+      "requestedRuntime": "multi"
+    },
+    "foregroundAuthorizationAlreadyReceived": true,
+    "durationRequestedSeconds": 605,
+    "assetFrameCount": 120,
+    "reduceMotion": false,
+    "requestedRuntimeModeVerified": 1,
+    "initialRealTaskCount": 1,
+    "lastKnownFirmwareArtifact": "HW1 F99D from this chat flashing record; another chat may have flashed a later HW1 candidate, awaiting Owner confirmation"
+  },
+  "presentationSampling": {
+    "presentationConnectedSamples": 117,
+    "multiModeSamples": 0,
+    "generationValues": [
+      3,
+      5
+    ],
+    "taskCountRange": [
+      0,
+      1
+    ],
+    "RPCErrorSamples": 0
+  },
+  "presentationTransitions": [
+    {
+      "elapsed": 0.2,
+      "presentation": {
+        "connected": true,
+        "mode": null,
+        "tasks": 1,
+        "generation": 3
+      }
+    },
+    {
+      "elapsed": 42.16,
+      "presentation": {
+        "connected": true,
+        "mode": null,
+        "tasks": 0,
+        "generation": 5
+      }
+    }
+  ],
+  "verifiedScope": "605s foreground app and non-minimized main window with selected120-frame GIF configured12FPS; actual rendered FPS not instrumented",
+  "renderedFPSMeasured": false,
+  "continuousMultitaskConnectionVerified": false,
+  "postSampleGUILocked": true,
+  "originalLocalLCDDraftRestorePending": true,
+  "temporaryAwakeAssertionReleased": true,
+  "initialPreflightNoTimedRun": true,
+  "notAFullReleasePerformanceApproval": true,
+  "consoleLockStateDirectlySampled": false,
+  "postRunLockProbeValidation": {
+    "currentConsoleLocked": true,
+    "sameNamedWindowCheckUnavailableWhileLocked": true,
+    "systemLogTimingAvailable": false
+  }
+}
