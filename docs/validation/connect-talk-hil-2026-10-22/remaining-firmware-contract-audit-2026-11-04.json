@@ -1,0 +1,44 @@
+{
+  "date": "2026-11-04",
+  "firmwareBranch": "Fireware-harness",
+  "firmwareCommit": "72346b001710d573980a7d398b9e0dced8ff627c",
+  "clientCommit": "f7b40746b8583c65453eb19cb1f9188d985d5113",
+  "readOnlyAudit": true,
+  "firmwareOrKeyboardWrites": 0,
+  "requirements": {
+    "I02a-long-macro": {
+      "state": "blocked by missing complete ordinary-key readback contract",
+      "firmwareEvidence": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/blob/72346b001710d573980a7d398b9e0dced8ff627c/APP/sub_main/command_solve.c#L1037",
+      "storageEvidence": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/blob/72346b001710d573980a7d398b9e0dced8ff627c/APP/sub_main/main.h#L44",
+      "facts": [
+        "0x87 allocates ret[64] and returns TOO_LARGE when 11 + action_len + desc_len exceeds 64.",
+        "Binding storage is 100 bytes including two-byte header; description storage is 20 bytes.",
+        "0x9E subcommand 0x10 reads only Key1 mode route data (kind, length, action), not ordinary Key2/3/4 or description."
+      ],
+      "boundaryExamples": {
+        "header": 11,
+        "maxCombinedActionAndDescription": 53,
+        "with20ByteDescriptionActionBudget": 33,
+        "macroEvenByteBudgetWith20ByteDescription": 32
+      },
+      "issue": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/12"
+    },
+    "KLP01-independent-hold": {
+      "state": "blocked by missing persisted second binding and read/write contract",
+      "firmwareEvidence": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/blob/72346b001710d573980a7d398b9e0dced8ff627c/APP/hardware/psk_multi_button.c#L343",
+      "storageEvidence": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/blob/72346b001710d573980a7d398b9e0dced8ff627c/APP/sub_main/main.h#L199",
+      "facts": [
+        "input_control_load_policy assigns both short_action and long_action to user_key_bind[mode][key_index].",
+        "The runtime has distinct-event handling, but load_policy supplies no independent long binding.",
+        "Current client long-press drafts or App recording do not implement two independent keyboard bindings."
+      ],
+      "issue": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/17"
+    }
+  },
+  "completionClaim": false,
+  "nextDevelopmentInputs": [
+    "A versioned complete readback contract for ordinary keys, including long action and description.",
+    "A versioned persisted independent short/hold binding contract covering four modes and all keys."
+  ],
+  "scopeLimit": "Source audit of the pinned firmware; not fresh hardware fault injection or a proof about uninspected firmware builds."
+}

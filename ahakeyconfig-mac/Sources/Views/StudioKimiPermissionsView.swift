@@ -11,7 +11,7 @@ struct StudioKimiPermissionsView: View {
             Text(NSLocalizedString("Kimi 权限", comment: "")).font(.headline)
             VStack(alignment: .leading, spacing: 10) {
                 Text(syncStatus).font(.callout.weight(.semibold))
-                Text(NSLocalizedString("Code Desktop 已授权会话跟随拨杆；CLI 仅设置新会话默认权限。", comment: ""))
+                Text(NSLocalizedString("Code Desktop 已授权会话跟随拨杆；CLI 默认供重启后新建会话使用，运行中的 TUI 不跟随。", comment: ""))
                     .font(.caption).foregroundStyle(.secondary)
                 Text(NSLocalizedString("自动档完全自动，手动档请求批准。", comment: ""))
                     .font(.caption).foregroundStyle(.secondary)

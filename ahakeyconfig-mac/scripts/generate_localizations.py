@@ -7,6 +7,7 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "Code Desktop 已授权会话跟随拨杆；CLI 默认供重启后新建会话使用，运行中的 TUI 不跟随。": "Authorized Code Desktop sessions follow the lever. CLI defaults apply to new sessions after restarting; a running TUI does not follow the lever.",
     "固件标识": "Firmware identity",
     "设备协议标识：%@": "Device protocol identity: %@",
     "状态版本：%@": "Status version: %@",
