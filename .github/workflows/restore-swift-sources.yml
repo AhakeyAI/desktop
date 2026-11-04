@@ -1,0 +1,44 @@
+name: restore-swift-sources
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.restore-chunks/READY'
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main-anpx
+      - name: Assemble and commit
+        run: |
+          set -euo pipefail
+          test -f .restore-chunks/READY
+          python3 <<'PY2'
+          import base64, pathlib, zlib
+          root = pathlib.Path('.restore-chunks')
+          for name, dest in [
+            ('models', 'ahakeyconfig-mac/Sources/Models/AhaKeyStudioModels.swift'),
+            ('view', 'ahakeyconfig-mac/Sources/Views/AhaKeyStudioView.swift'),
+          ]:
+            d = root / name
+            if not d.exists():
+              continue
+            parts = sorted(d.glob('*.b64'))
+            b64 = ''.join(p.read_text().strip() for p in parts)
+            text = zlib.decompress(base64.b64decode(b64)).decode('utf-8')
+            assert 'preferredFPS' in text, dest
+            assert '$file:' not in text, dest
+            assert 'PLACEHOLDER' not in text, dest
+            pathlib.Path(dest).write_text(text)
+            print(dest, len(text), 'ok')
+          PY2
+          rm -rf .restore-chunks
+          git config user.name "Shawn Yin"
+          git config user.email "30432137+ShawnyinsGit@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(mac): restore light-bar adaptive FPS (isAnimated/preferredFPS)"
+          git push origin HEAD:main-anpx

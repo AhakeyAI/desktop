@@ -504,6 +504,22 @@ enum LightEffectStyle: String, CaseIterable, Codable, Identifiable {
 
     var id: String { rawValue }
 
+    /// True for effects whose colors depend on `time` and need a refresh timer.
+    var isAnimated: Bool {
+        switch self {
+        case .off: return false
+        default: return true
+        }
+    }
+
+    /// Frames-per-second suitable for the animation speed of this effect.
+    var preferredFPS: Double {
+        switch self {
+        case .rainbowWaveSlow, .middleLight, .breathing: return 12
+        default: return 30
+        }
+    }
+
     var firmwareIndex: UInt8 {
         switch self {
         case .off: 0
