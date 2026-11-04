@@ -48,6 +48,29 @@ enum FirmwareISPWait {
     static let timeoutSeconds: TimeInterval = 180
 }
 
+/// DataFlash is separate from CH582 CodeFlash. Never fall back to clearing it
+/// after a preserve-upgrade failure; a new explicit confirmation is required.
+enum FirmwareFlashPolicy: String, CaseIterable, Identifiable {
+    case preserveDataFlash
+    case eraseDataFlash
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .preserveDataFlash: return NSLocalizedString("保留配置升级", comment: "")
+        case .eraseDataFlash: return NSLocalizedString("清空配置刷写", comment: "")
+        }
+    }
+    var explanation: String {
+        switch self {
+        case .preserveDataFlash:
+            return NSLocalizedString("仅重写程序，不主动擦除 DataFlash。配置是否兼容由目标固件决定；升级前仍请备份。", comment: "")
+        case .eraseDataFlash:
+            return NSLocalizedString("清空程序及 DataFlash，包括键盘配置与蓝牙绑定。仅在明确需要重置或固件要求时使用。", comment: "")
+        }
+    }
+}
+
 enum FirmwareFlashPhase: Equatable {
     case idle
     case validating
@@ -362,7 +385,7 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
         !isAttemptRunning && flashTask == nil && selectedFirmware != nil && phase.canStartAttempt
     }
 
-    func startFlashing() {
+    func startFlashing(policy: FirmwareFlashPolicy = .preserveDataFlash) {
         guard canStartFlashing, let firmware = selectedFirmware else { return }
         chipInfo = ""
         hasStartedDestructiveOperation = false
@@ -370,12 +393,13 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
         appendLog("固件：\(firmware.fileName)")
         appendLog("SHA-256：\(firmware.sha256)")
         appendLog("目标芯片：CH582M")
+        appendLog("烧录方式：\(policy.title)")
         // Lock the selected file and catalog identity before staging yields.
         isAttemptRunning = true
         transition(to: .validating)
 
         flashTask = Task { [weak self] in
-            await self?.performFlash(firmware: firmware)
+            await self?.performFlash(firmware: firmware, policy: policy)
         }
     }
 
@@ -444,7 +468,7 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
         }
     }
 
-    private func performFlash(firmware: FirmwareImageDescriptor) async {
+    private func performFlash(firmware: FirmwareImageDescriptor, policy: FirmwareFlashPolicy) async {
         var stagedFirmwareURL: URL?
         systemActivity = ProcessInfo.processInfo.beginActivity(
             options: [.userInitiated, .idleSystemSleepDisabled],
@@ -482,13 +506,17 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
 
             try Task.checkCancellation()
             hasStartedDestructiveOperation = true
-            transition(to: .erasingDataFlash)
-            appendLog("开始清空 DataFlash；从现在起请勿拔线或退出 App。")
-            try await runRequired(
-                toolURL: toolURL,
-                arguments: ["--usb", "eeprom", "erase"],
-                step: "清空 DataFlash"
-            )
+            if policy == .eraseDataFlash {
+                transition(to: .erasingDataFlash)
+                appendLog("开始清空 DataFlash；从现在起请勿拔线或退出 App。")
+                try await runRequired(
+                    toolURL: toolURL,
+                    arguments: ["--usb", "eeprom", "erase"],
+                    step: "清空 DataFlash"
+                )
+            } else {
+                appendLog("保留 DataFlash：不执行配置擦除。目标固件的兼容与迁移结果待重连核对。")
+            }
 
             transition(to: .erasingCodeFlash)
             appendLog("开始清空全部 CodeFlash。")

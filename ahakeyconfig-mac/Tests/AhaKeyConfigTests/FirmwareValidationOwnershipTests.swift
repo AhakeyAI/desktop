@@ -135,13 +135,60 @@ final class FirmwareValidationOwnershipTests: XCTestCase {
         guard case .failed = flasher.phase else { return XCTFail("Erase fixture must fail") }
         XCTAssertTrue(flasher.hasStartedDestructiveOperation)
         XCTAssertTrue(flasher.canStartFlashing)
-        XCTAssertEqual(try recordedToolCalls(in: directory), "--usb info --chip CH582\n--usb eeprom erase\n")
+        XCTAssertEqual(try recordedToolCalls(in: directory), "--usb info --chip CH582\n--usb erase\n")
+        flasher.startFlashing()
+        await flasher.flashTask?.value
+        XCTAssertEqual(try recordedToolCalls(in: directory), String(repeating: "--usb info --chip CH582\n--usb erase\n", count: 2), "Failed preserve attempts must never fall back to clearing DataFlash")
         flasher.startFlashing()
         let retry = try XCTUnwrap(flasher.flashTask)
         XCTAssertEqual(flasher.phase, .validating)
         flasher.cancelSafely()
         await retry.value
         XCTAssertFalse(flasher.hasStartedDestructiveOperation)
+    }
+
+    @MainActor
+    func testDefaultUpgradePreservesDataFlashThroughRealCommandPath() async throws {
+        let image = try temporaryHEX(byte: 1)
+        let (bundle, directory) = try temporaryToolBundle(infoSucceeds: true, flashSucceeds: true)
+        defer {
+            try? FileManager.default.removeItem(at: image)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let flasher = AhaKeyFirmwareFlasher(bundle: bundle)
+        flasher.selectCustomFirmware(at: image)
+        await flasher.validationTask?.value
+        flasher.startFlashing()
+        flasher.startFlashing(policy: .eraseDataFlash) // Must not replace a pending preserve attempt.
+        await flasher.flashTask?.value
+        XCTAssertEqual(flasher.phase, .awaitingRuntimeVerification)
+        let calls = try recordedToolCalls(in: directory).split(separator: "\n").map(String.init)
+        XCTAssertEqual(calls.count, 3)
+        XCTAssertEqual(calls.first, "--usb info --chip CH582")
+        XCTAssertEqual(calls.dropFirst().first, "--usb erase")
+        XCTAssertTrue(calls.last?.hasPrefix("--usb flash --no-erase ") == true)
+        XCTAssertFalse(calls.contains { $0.contains("eeprom") })
+    }
+
+    @MainActor
+    func testExplicitClearErasesDataBeforeCodeAndCannotReplaceActiveAttempt() async throws {
+        let image = try temporaryHEX(byte: 1)
+        let (bundle, directory) = try temporaryToolBundle(infoSucceeds: true, flashSucceeds: true)
+        defer {
+            try? FileManager.default.removeItem(at: image)
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let flasher = AhaKeyFirmwareFlasher(bundle: bundle)
+        flasher.selectCustomFirmware(at: image)
+        await flasher.validationTask?.value
+        flasher.startFlashing(policy: .eraseDataFlash)
+        flasher.startFlashing(policy: .preserveDataFlash)
+        await flasher.flashTask?.value
+        XCTAssertEqual(flasher.phase, .awaitingRuntimeVerification)
+        let calls = try recordedToolCalls(in: directory).split(separator: "\n").map(String.init)
+        XCTAssertEqual(calls.count, 4)
+        XCTAssertEqual(Array(calls.prefix(3)), ["--usb info --chip CH582", "--usb eeprom erase", "--usb erase"])
+        XCTAssertTrue(calls.last?.hasPrefix("--usb flash --no-erase ") == true)
     }
 
     func testRetryEligibilityExcludesSuccessAndRuntimeVerification() {
@@ -280,7 +327,7 @@ final class FirmwareValidationOwnershipTests: XCTestCase {
         XCTAssertEqual(calls, "--usb info --chip CH582\n", "Only the isolated info command may execute")
     }
 
-    private func temporaryToolBundle(infoSucceeds: Bool = false) throws -> (Bundle, URL) {
+    private func temporaryToolBundle(infoSucceeds: Bool = false, flashSucceeds: Bool = false) throws -> (Bundle, URL) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("bundle")
         let contents = root.appendingPathComponent("Contents")
         try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
@@ -290,7 +337,8 @@ final class FirmwareValidationOwnershipTests: XCTestCase {
             let tool = contents.appendingPathComponent("Resources/FirmwareFlasher/tools/\(architecture)/wchisp")
             try FileManager.default.createDirectory(at: tool.deletingLastPathComponent(), withIntermediateDirectories: true)
             let script = infoSucceeds ? "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$0.calls\"\ncase \"$*\" in\n  '--usb info --chip CH582') printf 'Chip: CH582\\n'; exit 0;;\n  *) exit 9;;\nesac\n" : "#!/bin/sh\nexit 1\n"
-            try Data(script.utf8).write(to: tool)
+            let executable = flashSucceeds ? script.replacingOccurrences(of: "*) exit 9;;", with: "*) exit 0;;") : script
+            try Data(executable.utf8).write(to: tool)
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
         }
         return (try XCTUnwrap(Bundle(url: root)), root)

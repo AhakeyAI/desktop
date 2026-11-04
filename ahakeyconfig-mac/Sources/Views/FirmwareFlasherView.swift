@@ -9,7 +9,8 @@ struct FirmwareFlasherView: View {
     @StateObject private var releases = FirmwareReleaseLibrary()
     @StateObject private var session: StudioInspectorSession
     @Environment(\.dismiss) private var dismiss
-    @State private var acknowledgesDataLoss = false
+    @State private var acknowledgesPreparation = false
+    @State private var flashPolicy: FirmwareFlashPolicy = .preserveDataFlash
     @State private var showsFlashConfirmation = false
     @State private var preparationError: String?
 
@@ -40,15 +41,15 @@ struct FirmwareFlasherView: View {
             await releases.readIdentity(ble: bleManager, session: session)
         }
         .interactiveDismissDisabled(flasher.phase.isBusy || releases.isBusy)
-        .alert("确认全量烧录", isPresented: $showsFlashConfirmation) {
+        .alert(flashPolicy.title, isPresented: $showsFlashConfirmation) {
             Button("取消", role: .cancel) {}
-            Button("清空并开始烧录", role: .destructive) {
+            Button(NSLocalizedString(flashPolicy == .eraseDataFlash ? "清空并开始烧录" : "开始烧录", comment: ""), role: flashPolicy == .eraseDataFlash ? .destructive : nil) {
                 guard canStartSelectedFirmware else { return }
                 bleManager.disconnect()
-                flasher.startFlashing()
+                flasher.startFlashing(policy: flashPolicy)
             }
         } message: {
-            Text(NSLocalizedString("此操作将清空 AhaKey X1 的 CodeFlash 和全部 DataFlash 配置。确认固件文件及 SHA-256 无误，并确保烧录期间不会拔线或退出 App。", comment: "") +
+            Text(flashPolicy.explanation + "\n" + NSLocalizedString("确认固件文件及 SHA-256 无误，并确保烧录期间不会拔线或退出 App。", comment: "") +
                 (flasher.expectedCatalogKey == nil ? "\n" + NSLocalizedString("此本地／工程 HEX 未关联可信发布目录，无法确认其适用版本，也不属于已验证的稳定恢复版本。", comment: "") : ""))
         }
     }
@@ -115,7 +116,7 @@ struct FirmwareFlasherView: View {
         }
     }
     private func prepare(_ candidate: FirmwareInstallCandidate) {
-        acknowledgesDataLoss = false; preparationError = nil
+        acknowledgesPreparation = false; preparationError = nil
         Task {
             do {
                 let url = try await releases.prepare(candidate)
@@ -126,7 +127,7 @@ struct FirmwareFlasherView: View {
 
     private var canStartSelectedFirmware: Bool {
         guard !releases.isBusy, !session.isBusy, flasher.canStartFlashing,
-              acknowledgesDataLoss else { return false }
+              acknowledgesPreparation else { return false }
         guard let candidate = flasher.selectedCatalogCandidate else { return true }
         return FirmwareCandidateSelection.isCurrent(candidate, in: releases.candidates)
     }
@@ -139,7 +140,7 @@ struct FirmwareFlasherView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("AhaKey X1 固件升级")
                     .font(.title2.weight(.semibold))
-                Text("CH582M · USB ISP 全量烧录")
+                Text("CH582M · USB ISP")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -189,7 +190,7 @@ struct FirmwareFlasherView: View {
                     Button("选择 HEX…") { chooseFirmware() }
                     .disabled(flasher.phase.isBusy || releases.isBusy)
                     Button("使用内置工程固件") {
-                        acknowledgesDataLoss = false
+                        acknowledgesPreparation = false
                         flasher.selectBundledFirmware()
                     }
                     .disabled(flasher.phase.isBusy || releases.isBusy)
@@ -213,7 +214,16 @@ struct FirmwareFlasherView: View {
 
     private var preparationSection: some View {
         StudioInspectorSection {
-            Label("进入 USB ISP", systemImage: "cable.connector").font(.headline)
+            Label("烧录准备", systemImage: "cable.connector").font(.headline)
+            Picker("烧录方式", selection: $flashPolicy) {
+                ForEach(FirmwareFlashPolicy.allCases) { policy in
+                    Text(policy.title).tag(policy)
+                }
+            }
+            .pickerStyle(.segmented)
+            .disabled(flasher.phase.isBusy)
+            .onChange(of: flashPolicy) { _ in acknowledgesPreparation = false }
+            Text(flashPolicy.explanation).font(.callout).foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 10) {
                 instructionRow(1, "拔掉键盘 USB，并关闭键盘电源。")
                 instructionRow(2, "将 CN1 的 BOOT（PB22）与 GND 短接。")
@@ -228,7 +238,7 @@ struct FirmwareFlasherView: View {
                 }
                 .padding(.top, 4)
 
-                Toggle("我已确认目标是 AhaKey X1，并理解烧录会删除设备中的全部配置数据。", isOn: $acknowledgesDataLoss)
+                Toggle(NSLocalizedString(flashPolicy == .eraseDataFlash ? "我已确认目标、固件及备份，允许清空键盘配置和蓝牙绑定。" : "我已确认目标、固件及备份，并核对目标固件的升级说明。", comment: ""), isOn: $acknowledgesPreparation)
                     .toggleStyle(.checkbox)
                     .disabled(flasher.phase.isBusy)
                     .padding(.top, 6)
@@ -360,7 +370,7 @@ struct FirmwareFlasherView: View {
         panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [UTType(filenameExtension: "hex") ?? .data]
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        acknowledgesDataLoss = false
+        acknowledgesPreparation = false
         flasher.selectCustomFirmware(at: url) { descriptor in
             releases.matchingCandidate(sha256: descriptor.sha256, byteCount: descriptor.byteCount)
         }
