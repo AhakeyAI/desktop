@@ -14,6 +14,40 @@ final class StudioLightPreviewRestorationTests: XCTestCase {
             apply: { _, _, _ in XCTFail("Recovery must never use an unconditional write"); throw WS3PresentationError.rejected },
             followEnabled: { false }, setFollow: { _ in XCTFail() }, pause: {}, restore: restore)
     }
+    func testTransientBusyRetriesConditionalRestoreAfterFreshRead() async throws {
+        var attempts = 0
+        try await StudioLightPreviewRestoration.run(mode: .multi, deviceID: "A", access: access { mode, _, _ in
+            attempts += 1
+            if attempts == 1 { throw WS3PresentationError.busy }
+            return self.report(mode)
+        })
+        XCTAssertEqual(attempts, 2)
+    }
+
+    func testBusyRetryIsBounded() async {
+        var attempts = 0
+        do {
+            try await StudioLightPreviewRestoration.run(mode: .multi, deviceID: "A", access: access { _, _, _ in
+                attempts += 1; throw WS3PresentationError.busy
+            })
+            XCTFail("Busy must be surfaced after the retry budget")
+        } catch { XCTAssertEqual(error as? WS3PresentationError, .busy) }
+        XCTAssertEqual(attempts, 4)
+    }
+
+    func testBusyRetryCannotMoveToAnotherConnection() async {
+        var generation: UInt64 = 2, attempts = 0
+        var dependencies = access { _, _, _ in
+            attempts += 1; generation = 3; throw WS3PresentationError.busy
+        }
+        dependencies.read = { self.report(nil, generation: generation) }
+        do {
+            try await StudioLightPreviewRestoration.run(mode: .multi, deviceID: "A", access: dependencies)
+            XCTFail("Changed connection")
+        } catch { XCTAssertEqual(error as? WS3PresentationError, .connectionChanged) }
+        XCTAssertEqual(attempts, 1)
+    }
+
     func testRestoresMultiWithFreshConnectionProofAfterHandoff() async throws {
         var writes = 0
         try await StudioLightPreviewRestoration.run(mode: .multi, deviceID: "A", access: access { mode, target, generation in
