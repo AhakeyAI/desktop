@@ -103,6 +103,18 @@
     "hardwareWritesThisDiagnosis": 0,
     "monitorsStopped": true,
     "releaseHandoffOnHold": true,
-    "issue": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/11"
+    "issue": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/11",
+    "maintainerRegressionRunner": {
+      "script": "ahakeyconfig-mac/scripts/verify_firmware_enter_release.py",
+      "sourceCommit": "5fc01cf43990743051bbc68c9381c9a44441b1d8",
+      "cases": 6,
+      "normalControls": 3,
+      "injectedReleaseFailureCases": 3,
+      "verifyFixExitCode": 1,
+      "knownDefectCheckExitCode": 0,
+      "fixed": false,
+      "hardwareAccess": false,
+      "sanitizers": "ASan/UBSan"
+    }
   }
 }

@@ -34,3 +34,18 @@ F99D来源5fc01cf和最新Fireware-harness@24f72d3的普通键发送仍提前更
 固件应依据实际接受结果更新基线，保留失败报告及有界重试/背压，确保必要UP不会永久消失。还需覆盖DOWN失败、UP失败、连续忙、普通键与宏共用Enter、模式变化和断连/休眠/重连；旧连接的报告不得干扰新动作。仅在宏里增加延时不是可靠修复。
 
 本轮没有键位或宏写入、固件生产代码修改、候选HEX或刷写。当前原始监听已停止；新固件与发送日志到位后再按同一触发序列验收。此前普通功能键的用户正常确认，不关闭本次新增异常。
+
+## 维护者可直接运行的复现脚本
+
+仓库内脚本：`ahakeyconfig-mac/scripts/verify_firmware_enter_release.py`。仅从明确指定的本机固件Git提交读取4个源码文件，在临时目录用clang编译真实生产宏解释器与发送函数；硬件头/发送边界为host shim。没有键盘访问、刷写或网络下载，不把私有源码复制进客户端仓库。
+
+```sh
+python3 ahakeyconfig-mac/scripts/verify_firmware_enter_release.py \
+  --firmware-repo /path/to/AhaKey-X1-hardware-source \
+  --revision 5fc01cf43990743051bbc68c9381c9a44441b1d8 \
+  --output /tmp/enter-release-result.json
+```
+
+默认`verify-fix`对当前F99D返回1：三种宏各一组正常对照及一组松开发送失败，共6组，其中故障组主机保持Enter。增加`--expect-known-failure`后返回0，只表示已知缺陷仍按预期复现；JSON保持`fixed=false`，不代表修复通过。两种CLI模式均已实际执行，ASan/UBSan没有报告错误。
+
+修复后的源码应在默认模式通过，且固件真实传输错误日志和新HEX实物验收仍需完成。若固件调整发送函数签名/引入新队列模块，应同步接入真实模块并适配host传输shim；编译或sanitizer失败不能算作验证通过。当前脚本不是完整发送队列/生命周期验收，也不验证新协议合同。
