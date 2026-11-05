@@ -32,5 +32,18 @@
   },
   "fixedCandidateHardwareRetestPassed": false,
   "powerRetentionPassed": false,
-  "cleanupComplete": false
+  "cleanupComplete": false,
+  "fixedCandidate": {
+    "build": 562,
+    "sourceCommit": "87567615dabe769819f8e76e1fdaaf10fe9d1cd6",
+    "installedUniversalSigned": true,
+    "fullTests": 1051,
+    "ciRun": 41961015762,
+    "ciAllThreeJobs": "success",
+    "modeOnlyRetryRealPassed": true,
+    "modeReadback": 0,
+    "imageMutationCommandsDuringModeOnlyRetry": 0,
+    "originalFullPairRetestPassed": false
+  },
+  "nextStep": "Await the owner finishing concurrent Studio editing; revalidate test CRCs before cleanup. Preserve new drafts and mode labels."
 }
