@@ -89,6 +89,8 @@ final class NativeSpeechTranscriptionService: ObservableObject {
     }
 
     private func presentHUD(_ state: VoiceStatusHUDState, autoHideAfter delay: TimeInterval? = nil) {
+        let state = (state.kind == .recording || state.kind == .processing)
+            ? state.showingTranscript(transcriptPreview) : state
         if let hudHandler { hudHandler(state, delay) }
         else { VoiceStatusHUDController.shared.show(state, autoHideAfter: delay) }
     }
@@ -491,7 +493,10 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         if let text = update.text {
             if !text.isEmpty {
                 recording.text = recording.accumulator.apply(text, completion: update.completion)
-                if currentCapture === recording { transcriptPreview = recording.text }
+                if currentCapture === recording {
+                    transcriptPreview = recording.text
+                    if isRecording { presentHUD(.recording) }
+                }
             }
             appendDiagnostic("partial result=\(text) isFinal=\(update.isFinal)")
             if update.isFinal {

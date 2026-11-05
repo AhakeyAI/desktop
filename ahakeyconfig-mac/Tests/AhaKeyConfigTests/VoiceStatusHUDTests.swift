@@ -11,6 +11,20 @@ final class VoiceStatusHUDTests: XCTestCase {
         return (VoiceStatusHUDController(makePanel: { panel }), panel)
     }
 
+    func testStreamingTranscriptExpandsCapsuleWithoutTakingFocusAndShrinksAfterDone() {
+        let (hud, panel) = fixture()
+        defer { panel.orderOut(nil) }
+        let originalKeyWindow = NSApp.keyWindow
+        hud.show(.recording.showingTranscript("first phrase, then another phrase"))
+        XCTAssertEqual(panel.frame.size, NSSize(width: 520, height: 116))
+        XCTAssertTrue(panel.ignoresMouseEvents)
+        XCTAssertTrue(NSApp.keyWindow === originalKeyWindow)
+        hud.show(.recognizing.showingTranscript("first phrase, then another phrase"))
+        XCTAssertEqual(panel.frame.height, 116)
+        hud.show(.done)
+        XCTAssertEqual(panel.frame.size, NSSize(width: 360, height: 58))
+    }
+
     func testPendingOfferCanBeShownAgainWithoutInvokingConsent() {
         let (hud, panel) = fixture()
         defer { panel.orderOut(nil) }

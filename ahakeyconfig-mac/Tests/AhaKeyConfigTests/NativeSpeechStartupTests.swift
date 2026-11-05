@@ -59,6 +59,39 @@ final class NativeSpeechStartupTests: XCTestCase {
         service.handleVoiceKeyUp(trigger: 79)
     }
 
+    func testPartialTranscriptStreamsToHUDWithoutPastingUntilStop() async {
+        let entered = expectation(description: "capture entered")
+        let ready = expectation(description: "recording ready")
+        let preview = expectation(description: "partial visible in capsule")
+        let pasted = expectation(description: "final pasted once")
+        let capture = SuspendedSpeechCapture(entered)
+        var injected: [String] = []
+        var states: [VoiceStatusHUDState] = []
+        let service = NativeSpeechTranscriptionService(captureFactory: { capture }, authorizationCheck: { true },
+            hud: { state, _ in
+                states.append(state)
+                if state == .recording { ready.fulfill() }
+                if state.kind == .recording && state.transcript == "first phrase" { preview.fulfill() }
+            }, diagnosticSink: { _ in }, textInjector: { text in
+                injected.append(text); pasted.fulfill(); return true
+            })
+        shortPress(service)
+        await fulfillment(of: [entered], timeout: 1)
+        capture.complete()
+        await fulfillment(of: [ready], timeout: 1)
+        capture.emit("first phrase")
+        await fulfillment(of: [preview], timeout: 1)
+        XCTAssertTrue(service.isRecording)
+        XCTAssertEqual(service.transcriptPreview, "first phrase")
+        XCTAssertTrue(injected.isEmpty, "Interim recognition must never write into the target input")
+        shortPress(service)
+        XCTAssertEqual(states.last?.kind, .processing)
+        XCTAssertEqual(states.last?.transcript, "first phrase")
+        capture.emit("first phrase complete", isFinal: true)
+        await fulfillment(of: [pasted], timeout: 2)
+        XCTAssertEqual(injected, ["first phrase complete"])
+    }
+
     func testColdStartupShowsFeedbackBeforeReadyAndRetryCancelsWithoutQueuedRecording() async {
         let entered = expectation(description: "cold capture suspended")
         let discarded = expectation(description: "obsolete start discarded")

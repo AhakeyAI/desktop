@@ -68,8 +68,10 @@ final class VoiceStatusHUDController {
         panel.contentView = hostingView
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         panel.ignoresMouseEvents = true
-        panel.setContentSize(NSSize(width: 360, height: 58))
-        position(panel)
+        if !panel.isVisible || panel.frame.size != state.contentSize {
+            panel.setContentSize(state.contentSize)
+            position(panel)
+        }
         panel.orderFrontRegardless()
 
         if let delay {
@@ -141,6 +143,17 @@ struct VoiceStatusHUDState: Equatable {
     let kind: Kind
     let title: String
     let subtitle: String
+    var transcript: String = ""
+
+    var contentSize: NSSize {
+        transcript.isEmpty ? NSSize(width: 360, height: 58) : NSSize(width: 520, height: 116)
+    }
+
+    func showingTranscript(_ text: String) -> Self {
+        var state = self
+        state.transcript = text
+        return state
+    }
 
     static let recording = VoiceStatusHUDState(kind: .recording, title: NSLocalizedString("录音中", comment: ""), subtitle: NSLocalizedString("再次按语音键结束", comment: ""))
     static let starting = VoiceStatusHUDState(kind: .processing, title: NSLocalizedString("正在启动麦克风", comment: ""), subtitle: NSLocalizedString("就绪后说话，再按可取消", comment: ""))
@@ -169,11 +182,19 @@ private struct VoiceStatusHUDView: View {
                     .font(.system(size: 11, weight: .regular))
                     .foregroundColor(.secondary)
                     .lineLimit(1)
+                if !state.transcript.isEmpty {
+                    Text(state.transcript)
+                        .font(.system(size: 14))
+                        .foregroundColor(.primary)
+                        .lineLimit(3)
+                        .truncationMode(.head)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
-        .frame(width: 360, height: 58)
+        .frame(width: state.contentSize.width, height: state.contentSize.height)
         .background(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(Color(nsColor: .windowBackgroundColor).opacity(0.92))
