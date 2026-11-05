@@ -30,9 +30,9 @@
     "targetedTests": 22,
     "fullTests": 1051
   },
-  "fixedCandidateHardwareRetestPassed": false,
+  "fixedCandidateHardwareRetestPassed": true,
   "powerRetentionPassed": false,
-  "cleanupComplete": false,
+  "cleanupComplete": true,
   "fixedCandidate": {
     "build": 562,
     "sourceCommit": "87567615dabe769819f8e76e1fdaaf10fe9d1cd6",
@@ -45,5 +45,24 @@
     "imageMutationCommandsDuringModeOnlyRetry": 0,
     "originalFullPairRetestPassed": false
   },
-  "nextStep": "Await the owner finishing concurrent Studio editing; revalidate test CRCs before cleanup. Preserve new drafts and mode labels."
+  "nextStep": "Owner normal keyboard reboot and remaining concentrated physical validation; no test images remain. Temporary Codex F18 binding still requires guarded final cleanup.",
+  "finalCandidate": {
+    "build": 563,
+    "sourceCommit": "49c6089a9ef2f6a09086ecd8952613b6e5d5591e",
+    "ciRun": 41962345374,
+    "ciAllThreeJobs": "success",
+    "originalFullPairReproPassed": true,
+    "singleNativeSuccessAfterBothImagesAndMode": true,
+    "defaultRestorePairPassedTwice": true,
+    "independentResourceEntriesVerified": 19,
+    "allFinalResourceMetadataMatchesOriginalBaseline": true,
+    "brightnessFinal": 35,
+    "temporaryResourceArchiveAbsent": true,
+    "latestOwnerPreferenceKeysCompared": 15,
+    "latestOwnerPreferenceChangedKeys": [],
+    "newModeLabelAndVoiceDraftPreserved": true,
+    "originalScreenModeDraftRestored": 1,
+    "detailedLoggingDisabled": true,
+    "physicalOLEDObservationPerformed": false
+  }
 }
