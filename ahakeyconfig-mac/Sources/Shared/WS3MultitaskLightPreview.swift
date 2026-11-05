@@ -4,7 +4,7 @@ import Foundation
 /// Cleanup runs even on cancellation, before the caller releases its BLE lease.
 @MainActor
 public enum WS3MultitaskLightPreview {
-    public static func run(activate: (_ willChangeMode: () -> Void) async throws -> Void,
+    public static func run(restoreMode: WS3PresentationMode = .single, activate: (_ willChangeMode: () -> Void) async throws -> Void,
                            send: @escaping @MainActor (WS3PresentationCommand) async throws -> Void,
                            sleep: (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
                            cleanupFailed: @escaping @MainActor () -> Void) async throws {
@@ -28,7 +28,7 @@ public enum WS3MultitaskLightPreview {
         let cleaned = await Task { @MainActor in
             do {
                 try await send(.multi(WS3TaskSnapshot(slots: [nil, nil, nil, nil])!))
-                try await send(.setMode(.single))
+                try await send(.setMode(restoreMode))
                 return true
             } catch { cleanupFailed(); return false }
         }.value

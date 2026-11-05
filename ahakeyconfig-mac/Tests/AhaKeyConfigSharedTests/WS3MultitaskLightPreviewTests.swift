@@ -3,6 +3,13 @@ import XCTest
 
 @MainActor
 final class WS3MultitaskLightPreviewTests: XCTestCase {
+    func testPreviewRestoresPreviouslyEnabledMultiMode() async throws {
+        var commands: [WS3PresentationCommand] = []
+        try await WS3MultitaskLightPreview.run(restoreMode: .multi, activate: { $0() },
+            send: { commands.append($0) }, sleep: { _ in }, cleanupFailed: { XCTFail() })
+        XCTAssertEqual(commands.last, .setMode(.multi), "Preview must not disable an already enabled multitask mode")
+    }
+
     func testThreeSessionPreviewIsBoundedAndClearsBeforeReturning() async throws {
         var activated = false, commands: [WS3PresentationCommand] = [], duration: Duration = .zero
         try await WS3MultitaskLightPreview.run(activate: { $0(); activated = true }, send: {
@@ -22,7 +29,7 @@ final class WS3MultitaskLightPreviewTests: XCTestCase {
         var commands: [WS3PresentationCommand] = []
         var sleeping = false
         let task = Task {
-            try await WS3MultitaskLightPreview.run(activate: { $0() }, send: {
+            try await WS3MultitaskLightPreview.run(restoreMode: .multi, activate: { $0() }, send: {
                 try Task.checkCancellation(); commands.append($0)
             }, sleep: { _ in
                 sleeping = true
@@ -33,7 +40,7 @@ final class WS3MultitaskLightPreviewTests: XCTestCase {
         task.cancel()
         do { try await task.value; XCTFail("must cancel") } catch { XCTAssertTrue(error is CancellationError) }
         XCTAssertEqual(commands.count, 3)
-        XCTAssertEqual(commands.last, .setMode(.single))
+        XCTAssertEqual(commands.last, .setMode(.multi))
     }
 
     func testAmbiguousActivationFailureAttemptsCleanupAndSurfacesFailure() async {

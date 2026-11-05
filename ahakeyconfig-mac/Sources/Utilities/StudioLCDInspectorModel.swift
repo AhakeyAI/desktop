@@ -15,6 +15,7 @@ final class StudioLCDInspectorModel: ObservableObject {
         var followEnabled: () -> Bool
         var setFollow: (Bool) -> Void
         var pause: () async throws -> Void = { try await Task.sleep(for: .milliseconds(500)) }
+        var restore: ((WS3PresentationMode, String, UInt64) async throws -> WS3TaskOverview)? = nil
     }
     struct ArtworkAction {
         let title: String
@@ -110,7 +111,7 @@ final class StudioLCDInspectorModel: ObservableObject {
         readTask = Task { @MainActor in
             defer { if self.readID == id { self.isReading = false; self.readTask = nil; self.readID = nil; self.readRevision = nil } }
             do {
-                let value = try await self.freshOverview(using: access)
+                let value = try await Self.freshOverview(using: access)
                 guard self.readID == id else { return }
                 self.overview = value; self.actualFollow = access.followEnabled()
             } catch {
@@ -122,7 +123,7 @@ final class StudioLCDInspectorModel: ObservableObject {
     }
 
     /// Bounded reconnect wait for an explicit read/write, never a background poll.
-    private func freshOverview(using access: Access) async throws -> WS3TaskOverview {
+    static func freshOverview(using access: Access) async throws -> WS3TaskOverview {
         let revision = access.revision()
         for _ in 0..<20 {
             try Task.checkCancellation()
@@ -151,7 +152,7 @@ final class StudioLCDInspectorModel: ObservableObject {
                     completed.append(item.title)
                 }
                 if let mode, let deviceID {
-                    let fresh = try await self.freshOverview(using: access)
+                    let fresh = try await Self.freshOverview(using: access)
                     guard fresh.targetedModeWrites == true else { throw Failure.oldBackend }
                     guard let generation = fresh.connectionGeneration else { throw Failure.unavailable }
                     let revision = access.revision()

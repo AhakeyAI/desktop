@@ -619,7 +619,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         case "presentation_foreground":
             let accepted = WS3ForegroundUpdate(parameters: obj).map { receiveForeground($0) } ?? false
             Self.replyAndClose(clientFd, ["ok": accepted])
-        case "presentation_mode":
+        case "presentation_mode", "presentation_mode_restore":
             guard connected, approvalChannelReady else {
                 Self.replyAndClose(clientFd, ["error": WS3PresentationError.unavailable.rawValue]); return
             }
@@ -640,12 +640,15 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 guard self.approvalRequestID == nil, self.pendingApprovalRead == nil else {
                     Self.replyAndClose(clientFd, ["error": WS3PresentationError.busy.rawValue]); return
                 }
+                if cmd == "presentation_mode_restore", self.presentationSession.requestedMode != nil {
+                    self.replyWithPresentationOverview(clientFd); return
+                }
                 if self.presentationSession.requestedMode != mode {
                     self.pendingStateReset?.cancel(); self.pendingStateReset = nil
                     self.lastHookStateAt = nil
                 }
                 do {
-                    _ = try await self.presentationSession.activate(mode)
+                    _ = try await self.presentationSession.activate(mode, onlyIfUnselected: cmd == "presentation_mode_restore")
                     DistributedNotificationCenter.default().postNotificationName( WS3ForegroundReceiver.refreshNotification, object: nil,
                         userInfo: nil, deliverImmediately: true)
                     self.replyWithPresentationOverview(clientFd)

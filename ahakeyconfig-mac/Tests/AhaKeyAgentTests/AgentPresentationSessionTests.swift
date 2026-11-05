@@ -36,6 +36,17 @@ final class AgentPresentationSessionTests: XCTestCase {
     private func task(_ id: String) -> WS3TaskMetadata { WS3TaskMetadata(client: .codex, session: id, event: "CodexPreToolUse")! }
     private let ack = Data([0xAA, 0xBB, 0x99, 0, 0xCC, 0xDD])
 
+    func testPreviewRestorationCannotReplaceNewExplicitMode() async throws {
+        let io = Fixture(), session = io.session()
+        session.updateConnection(connected: true, generation: 1)
+        _ = try await session.activate(.single)
+        let count = io.requests.count
+        let result = try await session.activate(.multi, onlyIfUnselected: true)
+        XCTAssertEqual(result.requestedMode, .single)
+        XCTAssertEqual(io.requests.count, count, "Conditional recovery must not send another mode")
+        await session.quiesce()
+    }
+
     func testLateRepeatedModeAuthorityFailureCannotClearNewConnection() async throws {
         let io = Fixture(), snapshot = await FirmwareRuntimeCatalog.shared.snapshot()
         var pause = false

@@ -291,14 +291,14 @@ final class AgentManager: ObservableObject {
     /// Explicit user action only. It is not called by refresh, reconnect or a
     /// saved preference. The Agent owns capability checks and serial BLE IO.
     func applyPresentationMode(_ mode: WS3PresentationMode, expectedDeviceID: String? = nil,
-                               expectedGeneration: UInt64? = nil) async throws -> WS3TaskOverview {
+                               expectedGeneration: UInt64? = nil, restoreIfUnselected: Bool = false) async throws -> WS3TaskOverview {
         guard bluetoothConnectionOwner == .agentDaemon, isRunning else { throw WS3PresentationError.unavailable }
         let ownership = ownershipTransitionGeneration, publication = connectionPublicationGeneration
         let path = socketPath
         var parameters: [String: Any] = ["mode": Int(mode.rawValue)]
         if let expectedDeviceID { parameters["deviceID"] = expectedDeviceID }
         if let expectedGeneration { parameters["generation"] = expectedGeneration }
-        parameters["cmd"] = "presentation_mode"
+        parameters["cmd"] = restoreIfUnselected ? "presentation_mode_restore" : "presentation_mode"
         guard let requestData = try? JSONSerialization.data(withJSONObject: parameters) else { throw WS3PresentationError.invalidReply }
         let data = await Task.detached(priority: .utility) {
             Self.querySocketData(socketPath: path, requestData: requestData, timeoutSeconds: 25)
@@ -306,7 +306,7 @@ final class AgentManager: ObservableObject {
         guard ownershipTransitionGeneration == ownership, connectionPublicationGeneration == publication,
               bluetoothConnectionOwner == .agentDaemon, isRunning else { throw WS3PresentationError.connectionChanged }
         guard let data else { throw WS3PresentationError.timedOut }
-        if let report = WS3TaskOverview.decode(data), report.connected, report.requestedMode == mode { return report }
+        if let report = WS3TaskOverview.decode(data), report.connected, report.requestedMode == mode || (restoreIfUnselected && report.requestedMode != nil) { return report }
         let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
         throw (body?["error"] as? String).flatMap(WS3PresentationError.init(rawValue:)) ?? .invalidReply
     }

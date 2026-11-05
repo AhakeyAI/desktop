@@ -19,6 +19,15 @@ extension StudioLCDInspectorModel.Access {
                 return try await ble.studioPresentation.activate(mode).supportingTargetedModeWrites()
             }
             return try await manager.applyPresentationMode(mode, expectedDeviceID: deviceID, expectedGeneration: generation)
-        }, followEnabled: { bridge.enabled }, setFollow: { bridge.enabled = $0 })
+        }, followEnabled: { bridge.enabled }, setFollow: { bridge.enabled = $0 }, restore: { mode, deviceID, generation in
+            if manager.bluetoothConnectionOwner == .ahaKeyStudio {
+                guard ble.bleDeviceUUID == deviceID, ble.configurationSnapshot.generation == generation else {
+                    throw WS3PresentationError.connectionChanged
+                }
+                return try await ble.studioPresentation.activate(mode, onlyIfUnselected: true).supportingTargetedModeWrites()
+            }
+            return try await manager.applyPresentationMode(mode, expectedDeviceID: deviceID,
+                expectedGeneration: generation, restoreIfUnselected: true)
+        })
     }
 }

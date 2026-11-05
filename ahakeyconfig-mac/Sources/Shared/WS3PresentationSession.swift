@@ -92,9 +92,10 @@ public final class WS3PresentationSession {
     }
 
     @MainActor
-    public func activate(_ target: WS3PresentationMode) async throws -> WS3TaskOverview {
+    public func activate(_ target: WS3PresentationMode, onlyIfUnselected: Bool = false) async throws -> WS3TaskOverview {
         guard connected else { throw WS3PresentationError.unavailable }
         guard !isChangingMode else { throw WS3PresentationError.busy }
+        if onlyIfUnselected, requestedMode != nil { return overview() }
         if requestedMode == target {
             let epoch = generation, revision = presentationRevision
             do { try await checkCatalogAuthority(); return overview() }

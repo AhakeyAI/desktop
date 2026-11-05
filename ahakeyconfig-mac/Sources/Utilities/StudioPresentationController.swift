@@ -57,10 +57,11 @@ final class StudioPresentationController: ObservableObject {
     deinit { if let sleepObserver { NSWorkspace.shared.notificationCenter.removeObserver(sleepObserver) } }
 
     func readOverview() -> WS3TaskOverview { updateConnection(); overview = runtime.overview(); return overview }
-    func activate(_ mode: WS3PresentationMode) async throws -> WS3TaskOverview {
+    func activate(_ mode: WS3PresentationMode, onlyIfUnselected: Bool = false) async throws -> WS3TaskOverview {
         guard !isBusy, let ble, AgentManager.shared.bluetoothConnectionOwner == .ahaKeyStudio,
               ble.isConnected else { throw WS3PresentationError.unavailable }
         updateConnection()
+        if onlyIfUnselected, runtime.requestedMode != nil { return runtime.overview() }
         if runtime.requestedMode == mode { return try await runtime.activate(mode) }
         isBusy = true
         defer { isBusy = false }
@@ -74,7 +75,7 @@ final class StudioPresentationController: ObservableObject {
             generation = epoch
             defer { ble.finishPresentationOperation(generation: epoch) }
             runtime.updateConnection(connected: true, generation: epoch)
-            overview = try await runtime.activate(mode)
+            overview = try await runtime.activate(mode, onlyIfUnselected: onlyIfUnselected)
             ble.blockLegacySinglePresentation(mode == .multi)
             ble.setPresentationRuntimeActive(true)
             eventsMayBeIncomplete = false

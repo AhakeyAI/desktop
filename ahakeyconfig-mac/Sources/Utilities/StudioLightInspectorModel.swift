@@ -63,12 +63,17 @@ final class StudioLightInspectorModel: ObservableObject {
         }
         perform(scope: NSLocalizedString("多任务灯效", comment: ""), session: session) {
             defer { self.multitaskPreviewStartedAt = nil }
-            try await session.withConnection(expectedDeviceID: deviceID) { context in
+            let access = StudioLCDInspectorModel.Access.production(ble: ble)
+            let previousMode = await access.read()?.requestedMode
+            var acquiredLease = false
+            var previewFailure: Error?
+            do { try await session.withConnection(expectedDeviceID: deviceID) { context in
+                acquiredLease = true
                 _ = try await ble.readWS3DisplayForEditing()
                 try session.validate(context)
                 let epoch = try ble.beginPresentationOperation()
                 defer { ble.finishPresentationOperation(generation: epoch) }
-                try await WS3MultitaskLightPreview.run(activate: { willChangeMode in
+                try await WS3MultitaskLightPreview.run(restoreMode: previousMode ?? .single, activate: { willChangeMode in
                     try await ConfirmedWS3Presentation.activate(.multi, generation: epoch,
                         checkSession: { try session.validate(context) },
                         willChangeMode: { try session.validate(context); willChangeMode() }, exchange: {
@@ -84,7 +89,13 @@ final class StudioLightInspectorModel: ObservableObject {
                         throw WS3PresentationError.invalidReply
                     }
                 }, cleanupFailed: { ble.poisonPresentationConnection(generation: epoch) })
+            } } catch { previewFailure = error }
+            if acquiredLease {
+                try await Task { @MainActor in
+                    try await StudioLightPreviewRestoration.run(mode: previousMode, deviceID: deviceID, access: access)
+                }.value
             }
+            if let previewFailure { throw previewFailure }
             self.message = NSLocalizedString("预览已结束，已交还后台；未保存设置。", comment: "")
         }
     }
