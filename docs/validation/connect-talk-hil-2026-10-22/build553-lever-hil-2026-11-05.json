@@ -1,0 +1,44 @@
+{
+  "recordedAtUTC": "2026-11-05T00:40:12.431861+00:00",
+  "clientBuild": 553,
+  "sourceCommit": "595535b8f8d0a92cde93777bc171ad44247196c1",
+  "firmwareOwnerConfirmed": "HW1 F99D; responsive-off image not flashed",
+  "samePreviouslyAuthorizedSessions": true,
+  "newAuthorizationGrants": 0,
+  "stages": {
+    "manual": {
+      "physicalSwitch": 1,
+      "codexPolicy": "on-request",
+      "codexPermissions": ":workspace",
+      "codexLeases": 1,
+      "kimiModes": [
+        "manual"
+      ],
+      "allModifiersReleased": true,
+      "modelRequests": 0,
+      "writesFromReadOnlyProbe": 0
+    },
+    "auto": {
+      "physicalSwitch": 0,
+      "codexPolicy": "never",
+      "codexPermissions": ":danger-full-access",
+      "codexLeases": 0,
+      "kimiModes": [
+        "auto"
+      ],
+      "allModifiersReleased": true,
+      "modelRequests": 0,
+      "writesFromReadOnlyProbe": 0
+    }
+  },
+  "uiManualAndAutomaticMatched": true,
+  "lcdDraftVisualSingleTaskVerified": true,
+  "voiceAcceptancePending": true,
+  "originalRightAltRestorationPending": true,
+  "normalRestartPending": true,
+  "fullPermissionFaultMatrixPassed": false,
+  "CI": {
+    "run": 41813047241,
+    "conclusion": "success"
+  }
+}
