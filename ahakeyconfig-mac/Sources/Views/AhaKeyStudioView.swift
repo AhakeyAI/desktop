@@ -1822,7 +1822,7 @@ struct AhaKeyStudioView: View {
     @ViewBuilder private var oledInspector: some View {
         if !usesLegacyEditor {
             VStack(alignment: .leading, spacing: 14) {
-                StudioInspectorSection("图片与动图") {
+                StudioInspectorSection {
                     StudioResourceInspectorView(model: resourceInspectorModel, ble: bleManager, session: inspectorSession,
                         presentation: lcdInspectorModel, mode: selectedMode, onWrite: { writeLCDSettings() })
                 }
