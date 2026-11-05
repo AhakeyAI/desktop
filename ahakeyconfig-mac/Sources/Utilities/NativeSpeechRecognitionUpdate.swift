@@ -6,6 +6,7 @@ struct NativeSpeechRecognitionUpdate: Sendable {
     let text: String?
     let isFinal: Bool
     var completion: SpeechTranscriptAccumulator.Completion? = nil
+    var requiresReview: Bool = false
     var errorDescription: String? = nil
 
     static func capture(_ result: SFSpeechRecognitionResult?, error: Error?) -> Self {

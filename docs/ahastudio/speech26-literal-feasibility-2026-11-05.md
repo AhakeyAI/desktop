@@ -6,7 +6,7 @@
 
 旧链路读取 `SFSpeechRecognizer.bestTranscription.formattedString`。现场关闭云端整理时，回调已包含换行符，客户端原样粘贴，没有把“换行”替换为命令。关闭自动标点不等于禁用这类口令。
 
-Apple提供另一套[SpeechTranscriber模型](https://developer.apple.com/documentation/speech/speechtranscriber)，与系统听写模型有别；接口要求macOS26及受支持设备，必须动态核对硬件、语言和资产，不能仅按版本号启用。现有最低系统要求不能因此直接提高。旧系统是保留原链路及其限制，还是另引入本地识别引擎，已向Owner询问，尚未收到选择。
+Apple提供另一套[SpeechTranscriber模型](https://developer.apple.com/documentation/speech/speechtranscriber)，与系统听写模型有别；接口要求macOS26及受支持设备，必须动态核对硬件、语言和资产，不能仅按版本号启用。现有最低系统要求不能因此直接提高。Owner已确认：优先优化兼容设备；旧系统保留原链路及其口令限制，不提高最低系统版本，不新增第三方模型。
 
 ## 已执行实验
 
@@ -43,3 +43,9 @@ afconvert -f WAVE -d LEI16@16000 /tmp/speech26-input.aiff /tmp/speech26-input.wa
 ```
 
 [实验回执](../validation/connect-talk-hil-2026-10-22/speech26-literal-feasibility-2026-11-05.json)保留计时和验收边界，不包含用户录音或个人信息。
+
+## 后续生产接入（2026-11-05）
+
+已实现 `AdaptiveNativeSpeechCaptureSession`：macOS26且SpeechTranscriber可用、目标语言模型已安装时采用新版，否则保留SFSpeechRecognizer。不会主动下载模型或更改键盘路由；Consumer系统听写不受此替换影响。新版使用volatile＋fastResults，将句子定稿写入现有带时间轴的拼接器，整次录音结束前不粘贴。末尾显式排空重采样器；原生48kHz Float32→16kHz Int16及排空帧数测试通过。
+
+模型结束等待最多5秒；处理出错、音频队列溢出或结束未确认时，保留已有文字供核对，不把半段结果自动回填。启动取消不允许之后重新打开麦克风。11项初轮专项及后续1040项全量测试通过；真实麦克风、快捷键、口令原词与首次启动仍须Owner集中验收。实验回执中的“尚未接入”保留为实验当时状态，不作为当前开发进度。

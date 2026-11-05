@@ -6,6 +6,13 @@ protocol NativeSpeechCapturing: AnyObject {
     func start(onRecognition: @escaping (NativeSpeechRecognitionUpdate) -> Void) async throws -> String
     func finish() async
     func cancel()
+    var finalizationTimeout: TimeInterval { get }
+    var requiresConfirmedEnd: Bool { get }
+}
+
+extension NativeSpeechCapturing {
+    var finalizationTimeout: TimeInterval { 1 }
+    var requiresConfirmedEnd: Bool { false }
 }
 
 /// AVAudioEngine cold-start and teardown may block for Bluetooth microphones.

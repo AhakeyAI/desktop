@@ -49,6 +49,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         let policy: VoiceRecordingPolicySnapshot
         var accumulator = SpeechTranscriptAccumulator()
         var text = ""
+        var requiresReview = false
         var finishing = false
         var closed = false
         var finalizeWorkItem: DispatchWorkItem?
@@ -76,7 +77,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
     private let syntheticEventUserData: Int64 = 0x4148414B
 
-    init(captureFactory: @escaping () -> NativeSpeechCapturing = { NativeSpeechCaptureSession() },
+    init(captureFactory: @escaping () -> NativeSpeechCapturing = { AdaptiveNativeSpeechCaptureSession() },
          authorizationCheck: (() -> Bool)? = nil,
          hud: ((VoiceStatusHUDState, TimeInterval?) -> Void)? = nil,
          diagnosticSink: ((String) -> Void)? = nil,
@@ -417,10 +418,11 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             guard !recording.closed else { return }
             let work = DispatchWorkItem { [weak self, weak recording] in
                 guard let self, let recording, !recording.closed else { return }
+                recording.requiresReview = recording.requiresReview || recording.capture.requiresConfirmedEnd
                 self.finalizeCurrentTranscriptIfNeeded(reason: "timeout_finalize", recording: recording)
             }
             recording.finalizeWorkItem = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
+            DispatchQueue.main.asyncAfter(deadline: .now() + recording.capture.finalizationTimeout, execute: work)
         }
     }
 
@@ -490,6 +492,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
     private func handleRecognition(_ update: NativeSpeechRecognitionUpdate, recording: Recording) {
         guard !recording.closed else { return }
+        recording.requiresReview = recording.requiresReview || update.requiresReview
         if let text = update.text {
             if !text.isEmpty {
                 recording.text = recording.accumulator.apply(text, completion: update.completion)
@@ -525,7 +528,8 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             appendDiagnostic("skip duplicate finalize reason=\(reason)")
             return
         }
-        let finalization = recording.accumulator.finalization
+        let finalization: SpeechTranscriptAccumulator.Finalization = recording.requiresReview && !recording.text.isEmpty
+            ? .review(previous: recording.text, latest: recording.text) : recording.accumulator.finalization
         let capturedPolicy = recording.policy
         let isForeground = recordingGeneration == recording.id
         closeRecording(recording)

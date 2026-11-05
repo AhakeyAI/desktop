@@ -7,6 +7,10 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "音频处理未能完整完成，请重试。": "Audio processing could not finish completely. Please try again.",
+    "Mac 本地识别，AhaType 云端整理后回填。需要登录、开启 AhaType，并保持客户端运行。兼容设备优先使用新版转写；旧系统或缺少模型时沿用原转写，可能将“换行”等词作为口令。": "Local Mac recognition followed by AhaType cloud editing. Sign in, enable AhaType and keep Studio running. Compatible devices prefer the new transcriber. Older systems or missing models use the existing recognizer, which may interpret spoken words such as “new line” as commands.",
+    "调用苹果原生语音转写，结束后回填当前输入框。兼容设备优先使用新版转写；旧系统或缺少模型时沿用原转写，可能将“换行”等词作为口令。": "Uses Apple speech recognition and pastes into the current field when recording ends. Compatible devices prefer the new transcriber. Older systems or missing models use the existing recognizer, which may interpret spoken words such as “new line” as commands.",
+
     "展示方式与 LCD 联动，写入后对本次连接生效。": "Lighting and LCD share the display mode. Apply it for this connection.",
     "同时更新灯条和 LCD 展示方式": "Also update the lighting and LCD display mode",
     "灯条与 LCD 展示方式已更新。": "The lighting and LCD display mode has been updated.",

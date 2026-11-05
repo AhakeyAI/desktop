@@ -413,9 +413,9 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
         case .systemDictation:
             NSLocalizedString("出厂默认：键盘发送 Consumer 事件，由 macOS 系统听写处理。需在系统中启用听写。", comment: "")
         case .ahaTypeCloud:
-            NSLocalizedString("Mac 识别语音，AhaType 云端整理文字后回填。需要登录、开启 AhaType，并保持客户端运行。", comment: "")
+            NSLocalizedString("Mac 本地识别，AhaType 云端整理后回填。需要登录、开启 AhaType，并保持客户端运行。兼容设备优先使用新版转写；旧系统或缺少模型时沿用原转写，可能将“换行”等词作为口令。", comment: "")
         case .macOSNative, .claudeCode, .kimiCode:
-            NSLocalizedString("调用苹果原生语音转写，识别完成后以 ⌘V 写回当前光标位置。适合 Claude Code、Kimi Code、Codex 等 CLI 终端及任意输入框。按一次开始，再按一次结束。", comment: "")
+            NSLocalizedString("调用苹果原生语音转写，结束后回填当前输入框。兼容设备优先使用新版转写；旧系统或缺少模型时沿用原转写，可能将“换行”等词作为口令。", comment: "")
         case .typeless:
             NSLocalizedString("预设对应快捷键：Typeless/微信语音/豆包输入法内仍选 Fn/Globe。本 Studio 使用 F19 作为 Fn 触发键；按下后向系统注入「按住 Fn」。旧版 F18 仍会兼容监听。请授予输入监控与辅助功能。", comment: "")
         case .wechat:

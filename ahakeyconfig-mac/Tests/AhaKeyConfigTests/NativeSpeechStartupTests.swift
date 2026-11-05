@@ -10,6 +10,8 @@ private final class SuspendedSpeechCapture: NativeSpeechCapturing {
     private var finishes = 0
     private var recognition: ((NativeSpeechRecognitionUpdate) -> Void)?
     private var finishContinuation: CheckedContinuation<Void, Never>?
+    var requiresConfirmedEnd = false
+    var finalizationTimeout: TimeInterval = 1
     var finishEntered: XCTestExpectation?
     let entered: XCTestExpectation
 
@@ -33,9 +35,9 @@ private final class SuspendedSpeechCapture: NativeSpeechCapturing {
         lock.lock(); let continuation = finishContinuation; finishContinuation = nil; lock.unlock()
         continuation?.resume()
     }
-    func emit(_ text: String, isFinal: Bool = false) {
+    func emit(_ text: String, isFinal: Bool = false, requiresReview: Bool = false, completion: SpeechTranscriptAccumulator.Completion? = nil) {
         lock.lock(); let recognition = recognition; lock.unlock()
-        recognition?(.init(text: text, isFinal: isFinal))
+        recognition?(.init(text: text, isFinal: isFinal, completion: completion, requiresReview: requiresReview))
     }
     private func recordFinish() { lock.lock(); finishes += 1; lock.unlock() }
     func cancel() { lock.lock(); cancellations += 1; lock.unlock() }
@@ -57,6 +59,56 @@ final class NativeSpeechStartupTests: XCTestCase {
     private func shortPress(_ service: NativeSpeechTranscriptionService) {
         service.handleVoiceKeyDown(trigger: 79, policy: policy)
         service.handleVoiceKeyUp(trigger: 79)
+    }
+
+    func testSegmentCommitDoesNotPasteBeforeWholeRecordingEnds() async {
+        let entered = expectation(description: "capture entered")
+        let ready = expectation(description: "ready")
+        let prefix = expectation(description: "prefix")
+        let suffix = expectation(description: "suffix")
+        let pasted = expectation(description: "single paste")
+        let capture = SuspendedSpeechCapture(entered)
+        var injected: [String] = []
+        let service = NativeSpeechTranscriptionService(captureFactory: { capture }, authorizationCheck: { true },
+            hud: { state, _ in if state == .recording { ready.fulfill() } }, diagnosticSink: { message in
+                if message.hasPrefix("partial result=前句 ") { prefix.fulfill() }
+                if message.hasPrefix("partial result=后句 ") { suffix.fulfill() }
+            }, textInjector: { injected.append($0); pasted.fulfill(); return true })
+        shortPress(service); await fulfillment(of: [entered], timeout: 1)
+        capture.complete(); await fulfillment(of: [ready], timeout: 1)
+        capture.emit("前句", completion: .init(audio: .init(start: 0, duration: 1)!))
+        await fulfillment(of: [prefix], timeout: 1)
+        XCTAssertTrue(service.isRecording); XCTAssertTrue(injected.isEmpty)
+        capture.emit("后句", completion: .init(audio: .init(start: 3, duration: 1)!))
+        await fulfillment(of: [suffix], timeout: 1)
+        XCTAssertTrue(injected.isEmpty)
+        shortPress(service)
+        capture.emit("", isFinal: true)
+        await fulfillment(of: [pasted], timeout: 1)
+        XCTAssertEqual(injected.count, 1)
+        XCTAssertTrue(injected[0].contains("前句")); XCTAssertTrue(injected[0].contains("后句"))
+    }
+
+    func testUnconfirmedModernEndRetainsTextInsteadOfPasting() async {
+        let entered = expectation(description: "capture entered")
+        let ready = expectation(description: "ready")
+        let preview = expectation(description: "preview")
+        let review = expectation(description: "review")
+        let capture = SuspendedSpeechCapture(entered)
+        capture.requiresConfirmedEnd = true; capture.finalizationTimeout = 0.01
+        var injected: [String] = []
+        let service = NativeSpeechTranscriptionService(captureFactory: { capture }, authorizationCheck: { true },
+            hud: { state, _ in if state == .recording { ready.fulfill() } }, diagnosticSink: { message in
+                if message.hasPrefix("partial result=尚未完整 ") { preview.fulfill() }
+                if message.hasPrefix("finalize retained for review") { review.fulfill() }
+            }, textInjector: { injected.append($0); return true })
+        shortPress(service); await fulfillment(of: [entered], timeout: 1)
+        capture.complete(); await fulfillment(of: [ready], timeout: 1)
+        capture.emit("尚未完整"); await fulfillment(of: [preview], timeout: 1)
+        shortPress(service); await fulfillment(of: [review], timeout: 1)
+        XCTAssertTrue(injected.isEmpty)
+        XCTAssertEqual(service.deferredTranscripts.first?.text, "尚未完整")
+        XCTAssertEqual(service.deferredTranscripts.first?.requiresReview, true)
     }
 
     func testPartialTranscriptStreamsToHUDWithoutPastingUntilStop() async {
