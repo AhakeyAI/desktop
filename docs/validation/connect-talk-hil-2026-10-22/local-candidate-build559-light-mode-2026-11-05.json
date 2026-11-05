@@ -1,0 +1,45 @@
+{
+  "sourceCommit": "11827f706be91fac71fff33838b303d171bbfe52",
+  "build": 559,
+  "version": "0.2.3",
+  "dmgSHA256": "e903cb7db4df814ff6504b7b26c9b285f5a7052eebdeafc42f00569f1f5ffa56",
+  "bytes": 22055247,
+  "binarySHA256": {
+    "AhaKeyConfig": "d68a93629bda8c1a951d8a72e7b3af2c537001f1358b30767d59c2b1aea7c3c1",
+    "ahakeyconfig-agent": "eb3270d87e7d6267d43917ad5f5282c069fd72487ee6120421782d6b7636dad6"
+  },
+  "signatureVerified": true,
+  "mountedBytesMatch": true,
+  "notarized": false,
+  "recordedAtUTC": "2026-11-05T01:55:48.369265+00:00",
+  "installed": true,
+  "localFullTests": 1035,
+  "localFailures": 0,
+  "onlyMultitaskChoiceEnablesWrite": true,
+  "brightnessUnchanged": 35,
+  "nativeSuccessDialogPassed": true,
+  "successActionsEnabled": [
+    "continueEditing",
+    "finishEditing"
+  ],
+  "normalPreviewCompletionAndModeReadbackPassed": true,
+  "cancelClickedAfterVisiblePlayingStatus": true,
+  "playingCancelAndModeReadbackPassed": true,
+  "finalAgentConnected": true,
+  "finalRequestedPresentationMode": 1,
+  "finalPresentationBusy": false,
+  "otherSingleTaskEffectDraftsPreserved": true,
+  "screenDraftPreserved": {
+    "mode": 1
+  },
+  "localPreferenceKeysCompared": 16,
+  "localPreferenceChanges": 0,
+  "globalAhaTypeOffPreserved": true,
+  "hardwareKeyOrResourceWrites": 0,
+  "physicalLEDVisualObservationThisBuild": false,
+  "sourceCIStatus": "success",
+  "sourceCI": "https://github.com/AhakeyAI/desktop/actions/runs/41950875671",
+  "temporaryCodexF18RestorationStillRequired": true,
+  "firmwareOwnerConfirmed": "HW1 F99D; no new flash",
+  "fullReleaseMatricesRemainOpen": true
+}
