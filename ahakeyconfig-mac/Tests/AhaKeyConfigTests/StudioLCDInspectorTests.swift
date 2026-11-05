@@ -238,9 +238,26 @@ final class StudioLCDInspectorTests: XCTestCase {
         try await finish(model); XCTAssertEqual(model.modeDraft, .single)
     }
 
-    func testScopeIncludesCurrentModeAndSharedArtworkButPreservesOtherModes() {
-        XCTAssertEqual(StudioResourceInspectorModel.pendingEntries(mode: 2, dirty: [0, 7, 8, 9, 12, 16, 18, 19]), [8, 9, 16, 18])
-        XCTAssertTrue(StudioResourceInspectorModel.pendingEntries(mode: -1, dirty: [0, 16]).isEmpty)
+    func testArtworkSubmissionReappliesSelectedModeEvenWhenInitiallyEqual() async throws {
+        let model = StudioLCDInspectorModel()
+        model.read(using: access(read: { self.report(.single) }))
+        try await finish(model)
+        model.chooseMode(.single, force: true)
+        var uploaded = false, applied = false
+        model.write(artwork: [.init(title: "done + idle", run: { uploaded = true })], deviceID: device,
+            using: access(apply: { mode, _, _ in
+                XCTAssertTrue(uploaded); XCTAssertEqual(mode, .single)
+                applied = true; return self.report(.single)
+            }))
+        try await finish(model)
+        XCTAssertTrue(applied)
+        XCTAssertNil(model.modeDraft)
+    }
+
+    func testScopeIncludesOnlySelectedPresentationAndPreservesOtherDrafts() {
+        XCTAssertEqual(StudioScreenArtworkPlan.pending(mode: 2, presentation: .single, dirty: [0, 7, 8, 9, 12, 16, 18, 19]), [9, 8])
+        XCTAssertEqual(StudioScreenArtworkPlan.pending(mode: 2, presentation: .multi, dirty: [0, 7, 8, 9, 12, 16, 18, 19]), [16, 18])
+        XCTAssertTrue(StudioScreenArtworkPlan.pending(mode: -1, presentation: .single, dirty: [0, 16]).isEmpty)
     }
 
     func testTargetProofRejectsWrongDeviceOldGenerationAndMalformedFields() {

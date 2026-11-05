@@ -8,7 +8,7 @@
   "compatibilityDecision": "Prefer SpeechTranscriber on compatible macOS26 devices with installed target-language models; preserve legacy recognizer on other supported systems.",
   "minimumOSUnchanged": "13.0",
   "explicitAssetDownloads": 0,
-  "realMicrophoneTestPassed": false,
+  "realMicrophoneTestPassed": true,
   "newKeyboardWrites": 0,
   "cloudRequests": 0,
   "syntheticProductionPCMReplay": {
@@ -24,9 +24,7 @@
     "finalizedSeconds": 9.683656096458435
   },
   "pending": [
-    "Real microphone and physical Voice short/long press",
-    "Literal spoken command with cloud disabled",
-    "First startup and explicit cancellation",
+    "Broader voice and failure matrix",
     "Restore temporary Voice binding only after fresh identity/configuration guard"
   ],
   "installed": true,
@@ -42,5 +40,15 @@
   "physicalKeyboardModeAtInstall": 1,
   "runtimePresentationModeBeforeAndAfter": null,
   "legacyRuntimeHardwareNotTested": true,
-  "testPackageNotarized": false
+  "testPackageNotarized": false,
+  "ownerPhysicalVerification": {
+    "shortPressLiteralLinebreakWord": true,
+    "holdAcrossTwoSecondPause": true,
+    "intentionalRepetitionPreserved": true,
+    "streamingCapsule": true,
+    "endOnlySinglePaste": true,
+    "dockNormal": true,
+    "cloudEnabled": false,
+    "ownerAnswer": "均正常，换行保留为文字"
+  }
 }

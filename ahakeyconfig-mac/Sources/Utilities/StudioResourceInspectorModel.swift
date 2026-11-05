@@ -36,6 +36,7 @@ final class StudioResourceInspectorModel: ObservableObject {
     @Published var entry: UInt8 = 0
     @Published private(set) var drafts: [UInt8: Draft] = [:] { didSet { persistDrafts() } }
     @Published private(set) var defaultDrafts: Set<UInt8> = [] { didSet { persistDrafts() } }
+    @Published private(set) var completedFallbacks: Set<UInt8> = [] { didSet { persistDrafts() } }
     @Published private(set) var display: WS3DisplaySnapshot?
     @Published private(set) var deviceID: String?
     @Published private(set) var isBusy = false
@@ -69,6 +70,7 @@ final class StudioResourceInspectorModel: ObservableObject {
                         sourceFrameCount: item.sourceFrameCount, wasResized: item.wasResized))
                 })
                 defaultDrafts = loaded.snapshot.defaults; unconfirmed = loaded.snapshot.unconfirmed
+                completedFallbacks = loaded.snapshot.completedFallbacks ?? []
                 uncertainDeviceID = loaded.snapshot.uncertainDeviceID
             } catch {
                 message = NSLocalizedString("未能恢复本地素材草稿，请重新选择文件。本次未更改键盘。", comment: "")
@@ -84,7 +86,8 @@ final class StudioResourceInspectorModel: ObservableObject {
                   frameCount: $0.payload.frameCount, previewPNG: $0.previewPNG, filename: $0.filename,
                   sourceFrameCount: $0.sourceFrameCount, wasResized: $0.wasResized)
         }, defaults: defaultDrafts, unconfirmed: unconfirmed,
-           uncertainDeviceID: unconfirmed.isEmpty ? nil : uncertainDeviceID)
+           uncertainDeviceID: unconfirmed.isEmpty ? nil : uncertainDeviceID,
+           completedFallbacks: completedFallbacks.isEmpty ? nil : completedFallbacks)
         let task = Task { try await store.save(snapshot, revision: revision) }
         persistenceTask = task
         Task { @MainActor in
@@ -108,14 +111,37 @@ final class StudioResourceInspectorModel: ObservableObject {
         }).union(defaultDrafts)
     }
 
-    static func pendingEntries(mode: Int, dirty: Set<UInt8>) -> [UInt8] {
-        guard (0..<4).contains(mode) else { return [] }
-        return dirty.filter { $0 < 16 ? Int($0 / 4) == mode : (16..<19).contains($0) }.sorted()
+    var screenDirtyEntries: Set<UInt8> {
+        // Never rebuild animation payloads from a SwiftUI summary render.
+        dirtyEntries.filter { $0 >= 16 || $0 % 4 != 0 || completedFallbacks.contains($0) }
     }
 
     func select(mode: AhaKeyModeSlot) {
-        selectEntry(UInt8(mode.rawValue * 4))
+        selectEntry(UInt8(mode.rawValue * 4 + 1))
     }
+    func selectPresentation(_ presentation: WS3PresentationMode, mode: AhaKeyModeSlot) {
+        if StudioScreenArtworkPlan.entries(mode: mode.rawValue, presentation: presentation).contains(entry) { return }
+        selectEntry(presentation == .multi ? 16 : UInt8(mode.rawValue * 4 + 1))
+    }
+
+    /// Called only for an explicitly confirmed screen write. Existing hidden
+    /// idle drafts are not migrated or discarded merely by opening the editor.
+    func stageCompletedFallback(mode: AhaKeyModeSlot) throws {
+        guard !isBusy, !isPreparing else { return }
+        let completed = UInt8(mode.rawValue * 4 + 3), idle = completed - 3
+        guard dirtyEntries.contains(completed) else { return }
+        if defaultDrafts.contains(completed) {
+            completedFallbacks.insert(idle)
+            drafts[idle] = nil; defaultDrafts.insert(idle)
+        } else if let source = drafts[completed] {
+            let payload = try StudioScreenArtworkPlan.fallback(source.payload)
+            drafts[idle] = Draft(payload: payload, thumbnail: source.thumbnail, previewPNG: source.previewPNG,
+                filename: source.filename, sourceFrameCount: source.sourceFrameCount, wasResized: source.wasResized)
+            defaultDrafts.remove(idle)
+            completedFallbacks.insert(idle)
+        }
+    }
+
     func selectEntry(_ target: UInt8) {
         guard !isBusy, !isPreparing, target < 19 else { return }
         entry = target
@@ -127,9 +153,17 @@ final class StudioResourceInspectorModel: ObservableObject {
     }
     func discardSelection() {
         guard !isBusy, !isPreparing else { return }
+        discardCompletedFallback(for: entry)
         drafts[entry] = nil
         defaultDrafts.remove(entry)
         message = nil; conflict = nil; confirmsUpload = false
+    }
+
+    private func discardCompletedFallback(for entry: UInt8) {
+        guard entry < 16 else { return }
+        let idle = entry - entry % 4
+        guard completedFallbacks.contains(idle), entry % 4 == 0 || entry % 4 == 3 else { return }
+        drafts[idle] = nil; defaultDrafts.remove(idle); completedFallbacks.remove(idle)
     }
 
     func chooseDefault() {
@@ -230,7 +264,7 @@ final class StudioResourceInspectorModel: ObservableObject {
     func adopt(_ value: Conflict, discardDraft: Bool) {
         guard !isBusy else { return }
         display = value.snapshot
-        if discardDraft { drafts[value.entry] = nil; defaultDrafts.remove(value.entry) }
+        if discardDraft { discardCompletedFallback(for: value.entry); drafts[value.entry] = nil; defaultDrafts.remove(value.entry) }
         conflict = nil
     }
 

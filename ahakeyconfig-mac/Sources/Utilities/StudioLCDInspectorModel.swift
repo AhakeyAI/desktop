@@ -41,6 +41,7 @@ final class StudioLCDInspectorModel: ObservableObject {
     @Published private(set) var isWriting = false
     @Published private(set) var message: String?
     let writeCompleted = PassthroughSubject<KeyboardWriteOutcome, Never>()
+    let readCompleted = PassthroughSubject<Void, Never>()
     private var readTask: Task<Void, Never>?
     private var readID: UUID?
     private var readRevision: UInt64?
@@ -78,9 +79,9 @@ final class StudioLCDInspectorModel: ObservableObject {
     var followsTerminal: Bool { followDraft ?? actualFollow }
     var hasSettingsDraft: Bool { modeDraft != nil || followDraft != nil }
 
-    func chooseMode(_ value: WS3PresentationMode) {
+    func chooseMode(_ value: WS3PresentationMode, force: Bool = false) {
         guard !isWriting else { return }
-        modeDraft = value == overview?.requestedMode ? nil : value; message = nil
+        modeDraft = !force && value == overview?.requestedMode ? nil : value; message = nil
     }
     func chooseFollow(_ value: Bool) {
         guard !isWriting else { return }
@@ -114,6 +115,7 @@ final class StudioLCDInspectorModel: ObservableObject {
                 let value = try await Self.freshOverview(using: access)
                 guard self.readID == id else { return }
                 self.overview = value; self.actualFollow = access.followEnabled()
+                self.readCompleted.send(())
             } catch {
                 if self.readID == id, !(error is CancellationError) {
                     self.overview = nil; self.message = error.localizedDescription

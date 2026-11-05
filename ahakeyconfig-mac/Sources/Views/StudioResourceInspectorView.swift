@@ -6,6 +6,7 @@ struct StudioResourceInspectorView: View {
     @ObservedObject var model: StudioResourceInspectorModel
     @ObservedObject var ble: AhaKeyBLEManager
     @ObservedObject var session: StudioInspectorSession
+    @ObservedObject var presentation: StudioLCDInspectorModel
     let mode: AhaKeyModeSlot
     var onWrite: (() -> Void)? = nil
     @State private var choosingFile = false
@@ -14,24 +15,28 @@ struct StudioResourceInspectorView: View {
     private var busy: Bool { model.isBusy || model.isPreparing || session.isBusy }
     private var multitask: Bool { model.entry >= 16 }
     private var entries: [UInt8] {
-        multitask ? [16, 17, 18] : (0..<4).map { UInt8(mode.rawValue * 4 + $0) }
+        StudioScreenArtworkPlan.entries(mode: mode.rawValue, presentation: multitask ? .multi : .single)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker(NSLocalizedString("画面范围", comment: ""), selection: Binding(get: { multitask }, set: { value in
-                model.selectEntry(value ? 16 : UInt8(mode.rawValue * 4))
+            Picker(NSLocalizedString("展示模式", comment: ""), selection: Binding(get: { multitask }, set: { value in
+                presentation.chooseMode(value ? .multi : .single)
+                model.selectPresentation(value ? .multi : .single, mode: mode)
             })) {
-                Text(NSLocalizedString("单任务画面", comment: "")).tag(false)
-                Text(NSLocalizedString("多任务画面", comment: "")).tag(true)
+                Text(NSLocalizedString("单任务", comment: "")).tag(false)
+                Text(NSLocalizedString("多任务", comment: "")).tag(true)
             }
             .pickerStyle(.segmented).disabled(busy)
+
+            Text(NSLocalizedString("写入所选模式的图片并启用该模式，灯条与 LCD 联动。", comment: ""))
+                .font(.caption).foregroundStyle(.secondary)
 
             if multitask {
                 Text(NSLocalizedString("多任务画面为所有模式共用", comment: "")).font(.caption).foregroundStyle(.secondary)
             }
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: multitask ? 3 : 2), spacing: 8) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
                 ForEach(entries, id: \.self) { resourceCard($0) }
             }
 
@@ -49,6 +54,13 @@ struct StudioResourceInspectorView: View {
             }
 
             artworkPicker
+
+            if !multitask {
+                Text(NSLocalizedString("已完成画面也用于键盘默认画面。", comment: ""))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if multitask { StudioLCDForegroundOption(model: presentation) }
+
 
             if let draft = model.draft {
                 HStack(spacing: 8) {
@@ -85,7 +97,9 @@ struct StudioResourceInspectorView: View {
         }
         .fileImporter(isPresented: $choosingFile, allowedContentTypes: [.gif, .png, .jpeg, .bmp, .tiff]) { result in
             switch result {
-            case .success(let url): model.prepare(url)
+            case .success(let url):
+                if model.entry < 16, model.entry % 4 == 0 { model.selectEntry(model.entry + 3) }
+                model.prepare(url)
             case .failure(let error): model.message = error.localizedDescription
             }
         }
@@ -104,8 +118,8 @@ struct StudioResourceInspectorView: View {
     }
 
     private func resourceCard(_ entry: UInt8) -> some View {
-        let selected = model.entry == entry
-        let dirty = model.dirtyEntries.contains(entry)
+        let selected = model.entry == entry || (model.entry < 16 && model.entry % 4 == 0 && entry == model.entry + 3)
+        let dirty = model.dirtyEntries.contains(entry) || hasPendingFallback(entry)
         return Button { model.selectEntry(entry) } label: {
             VStack(alignment: .leading, spacing: 7) {
                 ZStack {
@@ -115,7 +129,7 @@ struct StudioResourceInspectorView: View {
                     } else {
                         Image(systemName: "photo").font(.system(size: 18)).foregroundStyle(.tertiary)
                     }
-                }.frame(height: multitask ? 42 : 55)
+                }.frame(height: 42)
                 HStack(spacing: 4) {
                     Image(systemName: stateIcon(entry))
                     Text(stateTitle(entry)).lineLimit(1).minimumScaleFactor(0.85)
@@ -228,7 +242,11 @@ struct StudioResourceInspectorView: View {
         let index = entry >= 16 ? Int(entry - 15) : Int(entry % 4)
         return ["photo", "arrow.triangle.2.circlepath", "pause.circle", "checkmark.circle"][index]
     }
+    private func hasPendingFallback(_ entry: UInt8) -> Bool {
+        entry < 16 && entry % 4 == 3 && model.completedFallbacks.contains(entry - 3) && model.screenDirtyEntries.contains(entry - 3)
+    }
     private func cardStatus(_ entry: UInt8) -> String {
+        if hasPendingFallback(entry) { return NSLocalizedString("待完成写入", comment: "") }
         if model.defaultDrafts.contains(entry) { return NSLocalizedString("待恢复默认", comment: "") }
         if model.unconfirmed.contains(entry) { return NSLocalizedString("待核对", comment: "") }
         if model.dirtyEntries.contains(entry) { return NSLocalizedString("未写入", comment: "") }

@@ -7,6 +7,12 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "待完成写入": "Writing incomplete",
+    "已完成画面也用于键盘默认画面。": "The Completed image is also used as the keyboard’s default screen.",
+    "写入所选模式的图片并启用该模式，灯条与 LCD 联动。": "Writes images for the selected mode and enables it for both the light bar and LCD.",
+    "图片暂不可回看": "Image preview unavailable",
+    "展示模式": "Display mode",
+
     "音频处理未能完整完成，请重试。": "Audio processing could not finish completely. Please try again.",
     "Mac 本地识别，AhaType 云端整理后回填。需要登录、开启 AhaType，并保持客户端运行。兼容设备优先使用新版转写；旧系统或缺少模型时沿用原转写，可能将“换行”等词作为口令。": "Local Mac recognition followed by AhaType cloud editing. Sign in, enable AhaType and keep Studio running. Compatible devices prefer the new transcriber. Older systems or missing models use the existing recognizer, which may interpret spoken words such as “new line” as commands.",
     "调用苹果原生语音转写，结束后回填当前输入框。兼容设备优先使用新版转写；旧系统或缺少模型时沿用原转写，可能将“换行”等词作为口令。": "Uses Apple speech recognition and pastes into the current field when recording ends. Compatible devices prefer the new transcriber. Older systems or missing models use the existing recognizer, which may interpret spoken words such as “new line” as commands.",

@@ -220,8 +220,13 @@ struct AhaKeyStudioView: View {
             lightCompletedMessage = nil; lightCompletedWrites = false
         }
         .onReceive(resourceInspectorModel.writeCompleted) { if !lcdInspectorModel.isWriting { writeOutcome = $0 } }
+        .onReceive(lcdInspectorModel.readCompleted) {
+            if isEditingInspector, selectedPart == .oledDisplay {
+                resourceInspectorModel.selectPresentation(lcdInspectorModel.selectedMode ?? .single, mode: selectedMode)
+            }
+        }
         .onReceive(lcdInspectorModel.writeCompleted) { result in
-            if result.succeeded, let entry = lcdSubmittedEntry { resourceInspectorModel.selectEntry(entry) }
+            if resourceInspectorModel.conflict == nil, let entry = lcdSubmittedEntry { resourceInspectorModel.selectEntry(entry) }
             lcdSubmittedEntry = nil
             writeOutcome = result
         }
@@ -919,7 +924,7 @@ struct AhaKeyStudioView: View {
         }
         .onChange(of: selectedMode) { _ in
             if inlineKeyTarget != nil { clearInlineKeyEditing(); isEditingInspector = false }
-            if isEditingInspector && selectedPart == .oledDisplay { resourceInspectorModel.select(mode: selectedMode) }
+            if isEditingInspector && selectedPart == .oledDisplay { resourceInspectorModel.selectPresentation(lcdInspectorModel.selectedMode ?? .single, mode: selectedMode) }
             if editingModeSlot != nil && editingModeSlot != selectedMode {
                 commitModeNameEdit()
             }
@@ -999,7 +1004,7 @@ struct AhaKeyStudioView: View {
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text(selectedPart.subtitle)
-                    .font(.callout)
+                    .font(selectedPart == .oledDisplay ? .caption : .callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -1215,7 +1220,7 @@ struct AhaKeyStudioView: View {
         case .oledDisplay:
             if usesLegacyEditor { oledSummary }
             else {
-                StudioScreenSummaryView(model: resourceInspectorModel, mode: selectedMode)
+                StudioScreenSummaryView(model: resourceInspectorModel, presentation: lcdInspectorModel, ble: bleManager, mode: selectedMode)
             }
         case .lightBar:      lightBarSummary
         case .toggleSwitch:  switchSummary
@@ -1817,12 +1822,10 @@ struct AhaKeyStudioView: View {
     @ViewBuilder private var oledInspector: some View {
         if !usesLegacyEditor {
             VStack(alignment: .leading, spacing: 14) {
-                StudioLCDDisplayEditor(model: lcdInspectorModel)
                 StudioInspectorSection("图片与动图") {
                     StudioResourceInspectorView(model: resourceInspectorModel, ble: bleManager, session: inspectorSession,
-                        mode: selectedMode, onWrite: { writeLCDSettings() })
+                        presentation: lcdInspectorModel, mode: selectedMode, onWrite: { writeLCDSettings() })
                 }
-                StudioLCDTaskList(model: lcdInspectorModel) { lcdInspectorModel.read(using: .production(ble: bleManager)) }
                 if let message = lcdInspectorModel.message {
                     Text(message).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
                 }
@@ -1840,18 +1843,21 @@ struct AhaKeyStudioView: View {
         } else { legacyOLEDInspector }
     }
 
+    private var lcdSelectedPresentation: WS3PresentationMode { resourceInspectorModel.entry >= 16 ? .multi : .single }
     private var lcdArtworkEntries: [UInt8] {
-        StudioResourceInspectorModel.pendingEntries(mode: selectedMode.rawValue, dirty: resourceInspectorModel.dirtyEntries)
+        StudioScreenArtworkPlan.pending(mode: selectedMode.rawValue, presentation: lcdSelectedPresentation, dirty: resourceInspectorModel.screenDirtyEntries)
     }
     private var canWriteLCD: Bool {
-        (!lcdArtworkEntries.isEmpty || lcdInspectorModel.hasSettingsDraft) &&
-            (lcdInspectorModel.modeDraft == nil || resourceInspectorModel.deviceID != nil)
+        (!lcdArtworkEntries.isEmpty || lcdInspectorModel.hasSettingsDraft ||
+            (lcdInspectorModel.overview?.connected == true && (lcdInspectorModel.overview?.requestedMode ?? .single) != lcdSelectedPresentation)) &&
+            resourceInspectorModel.deviceID != nil
     }
     private var lcdWriteSummary: String {
         var lines = lcdArtworkEntries.map(lcdArtworkTitle)
-        if let mode = lcdInspectorModel.modeDraft {
-            lines.append(NSLocalizedString("展示方式", comment: "") + "：" + NSLocalizedString(mode == .multi ? "多任务" : "单任务", comment: ""))
+        if lcdSelectedPresentation == .single, lcdArtworkEntries.contains(UInt8(selectedMode.rawValue * 4 + 3)) {
+            lines.append(NSLocalizedString("已完成画面也用于键盘默认画面。", comment: ""))
         }
+        lines.append(NSLocalizedString("展示模式", comment: "") + "：" + NSLocalizedString(lcdSelectedPresentation == .multi ? "多任务" : "单任务", comment: ""))
         if lcdInspectorModel.followDraft != nil { lines.append(NSLocalizedString("跟随当前终端", comment: "")) }
         if !lcdArtworkEntries.isEmpty {
             lines.append(NSLocalizedString("开始后可能覆盖原素材；失败或取消不保证恢复。其他模式草稿保留。", comment: ""))
@@ -1872,6 +1878,14 @@ struct AhaKeyStudioView: View {
         else { confirmsLCDWrite = true }
     }
     private func writeLCDSettings() {
+        let presentation = lcdSelectedPresentation
+        if presentation == .single {
+            do { try resourceInspectorModel.stageCompletedFallback(mode: selectedMode) }
+            catch { writeOutcome = .init(succeeded: false, message: error.localizedDescription); return }
+        }
+        // Artwork leases can reconnect the Agent. Reapply the selected mode
+        // even if it matched the connection before uploading.
+        lcdInspectorModel.chooseMode(presentation, force: true)
         lcdSubmittedEntry = resourceInspectorModel.entry
         let actions = lcdArtworkEntries.map { entry in
             let restoring = resourceInspectorModel.defaultDrafts.contains(entry)
@@ -2368,7 +2382,7 @@ struct AhaKeyStudioView: View {
                 count += 1
             }
         } + (usesLegacyEditor ? 0 :
-            resourceInspectorModel.dirtyEntries.count + (lcdInspectorModel.hasSettingsDraft ? 1 : 0) + (lightPresentationModel.hasSettingsDraft ? 1 : 0) + (deviceInspectorModel.standbyDirty ? 1 : 0) + (deviceInspectorModel.leverDirty ? 1 : 0))
+            resourceInspectorModel.screenDirtyEntries.count + (lcdInspectorModel.hasSettingsDraft ? 1 : 0) + (lightPresentationModel.hasSettingsDraft ? 1 : 0) + (deviceInspectorModel.standbyDirty ? 1 : 0) + (deviceInspectorModel.leverDirty ? 1 : 0))
     }
 
     private func clearCurrentOLED() {
@@ -2502,7 +2516,7 @@ struct AhaKeyStudioView: View {
             return current.key(for: role) != baseline.key(for: role)
         case .oledDisplay:
             if !usesLegacyEditor {
-                return lcdInspectorModel.hasSettingsDraft || resourceInspectorModel.dirtyEntries.contains { $0 / 4 == UInt8(selectedMode.rawValue) || $0 >= 16 }
+                return lcdInspectorModel.hasSettingsDraft || resourceInspectorModel.screenDirtyEntries.contains { $0 / 4 == UInt8(selectedMode.rawValue) || $0 >= 16 }
             }
             return current.oled != baseline.oled || current.oled.needsDeviceUpload
         case .lightBar:

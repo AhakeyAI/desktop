@@ -30,6 +30,7 @@ actor StudioResourceDraftStore {
         var defaults: Set<UInt8> = []
         var unconfirmed: Set<UInt8> = []
         var uncertainDeviceID: String?
+        var completedFallbacks: Set<UInt8>? = nil
         var isEmpty: Bool { items.isEmpty && defaults.isEmpty && unconfirmed.isEmpty }
     }
     struct Loaded: Sendable {
@@ -55,6 +56,7 @@ actor StudioResourceDraftStore {
         guard snapshot.items.count <= 19, Set(snapshot.items.map(\.entry)).count == snapshot.items.count,
               snapshot.defaults.allSatisfy({ $0 < 19 }), snapshot.unconfirmed.allSatisfy({ $0 < 19 }),
               snapshot.defaults.isDisjoint(with: snapshot.items.map(\.entry)),
+              (snapshot.completedFallbacks ?? []).allSatisfy({ $0 < 16 && $0 % 4 == 0 }),
               snapshot.unconfirmed.isEmpty || (snapshot.uncertainDeviceID?.isEmpty == false &&
                   (snapshot.uncertainDeviceID?.utf8.count ?? 0) <= 128) else { throw Failure.invalidArchive }
         var payloads: [UInt8: WS3ResourcePayload] = [:]
