@@ -1,0 +1,51 @@
+{
+  "atUTC": "2026-11-05T03:07:27.574524+00:00",
+  "sourceCommit": "adf16da4c3d4c0f3cd91b159d7827346072a7978",
+  "version": "0.2.3",
+  "build": 561,
+  "installed": true,
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "developerIDSignatureVerified": true,
+  "testPackageNotarized": false,
+  "dmgSHA256": "42cc2d21b56ef1b75e48506e7eb37376286da0413a9b4925635b0bae61f55a90",
+  "mountedBytesMatch": true,
+  "automatedTests": 1047,
+  "automatedFailures": 0,
+  "finalTargetedTests": 29,
+  "ci": {
+    "run": 41958673842,
+    "allThreeJobs": "success"
+  },
+  "nativeUI": {
+    "screenCaptionMatchesKeyCaption": true,
+    "readonlyCurrentPresentation": true,
+    "readonlyThreeThumbnails": true,
+    "singleThreeCardsNoIdleCard": true,
+    "multiThreeCards": true,
+    "oldSeparatePresentationBlockRemoved": true,
+    "taskOverviewBlockRemoved": true,
+    "oneBottomWriteButton": true,
+    "nativePNGFileSelectionAndThumbnail": true,
+    "completedAlsoDefaultConfirmation": true,
+    "confirmationCancelledBeforeUpload": true,
+    "testArtworkDiscarded": true
+  },
+  "preservation": {
+    "scopedPreferencesCompared": 16,
+    "changedKeys": [],
+    "originalPresentationDraftRetained": true,
+    "globalCloudToggleOff": true,
+    "resourceDraftArchiveAbsentBeforeAndAfter": true,
+    "agentReconnected": true
+  },
+  "hardwarePersistentWritesThisRound": 0,
+  "pairedDefaultAndCompletedHardwareUploadPassed": false,
+  "pending": [
+    "Physical paired completed/default upload and readback",
+    "Paired upload power retention/failure matrix",
+    "Original full WBS validation groups and external dependencies"
+  ]
+}
