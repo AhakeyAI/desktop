@@ -56,7 +56,7 @@
   "limitations": [
     "No confirmed pre-power metadata baseline for the newer owner artwork; matching current local payload is not strict pre/post retention proof.",
     "Full eight acceptance groups and four external development dependencies remain open.",
-    "Concentrated four-mode Key2/3/4 physical output test requested; not yet completed."
+    "Owner waived the supplementary four-mode ordinary-key capture and confirmed normal operation; do not label the missing event matrix as a measured PASS."
   ],
   "manualPermissionReadback": {
     "codex": "on-request / workspace",
@@ -80,5 +80,29 @@
     "otherModesAndDraftFieldsMatchPreCleanupSnapshot": true,
     "globalAhaTypeRemainsOff": true,
     "appReopenedAndAgentConnected": true
+  },
+  "ordinaryPhysicalKeys": {
+    "status": "owner-confirmed-normal-supplemental-capture-waived",
+    "ownerStatement": "跳过这一项 这些功能都正常",
+    "automatedPhysicalEventMatrixPassed": false,
+    "furtherOwnerRepetitionRequested": false,
+    "targetOnlyProbeStopped": true
+  },
+  "newOpenObservation": {
+    "symptom": "Claude Key3 macro followed by persistent Enter; one ordinary Enter press/release clears it",
+    "status": "device-and-system-held-enter-captured; matching-firmware-fault-mode-reproduced; not-fixed",
+    "ownerKeyAndModePending": false,
+    "snapshotDeviceAndSystemEnterHeld": true,
+    "macroDraftHasPairedEnterDownUp": true,
+    "rawDeviceMacroPayloadReReadThisRound": false,
+    "physicalTransportErrorCodeCaptured": false,
+    "hostProductionSourceReproCases": 4,
+    "hostNormalCasesPass": 2,
+    "hostOneFailedReleaseCasesReproduce": 2,
+    "firmwareProductionSourceModified": false,
+    "hardwareWritesThisDiagnosis": 0,
+    "monitorsStopped": true,
+    "releaseHandoffOnHold": true,
+    "issue": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/11"
   }
 }
