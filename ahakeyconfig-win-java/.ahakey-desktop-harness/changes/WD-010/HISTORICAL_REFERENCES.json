@@ -1,0 +1,81 @@
+{
+  "sources": [
+    {
+      "commit": "e9f3fba7cb3b0bc8a80ee11a14a870f4f5f0d760",
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/AhaTypeService.java",
+      "sha256": "434cae12de9835ee087e620edb4dffd19f7d91837de638cf5718ed046742cd08",
+      "snapshot": ".ahakey-desktop-harness\\changes\\WD-010\\evidence\\history\\e9f3fba7\\AhaTypeService.java",
+      "maturity": "historical_client_implementation_only_not_current_live_backend_validation"
+    },
+    {
+      "commit": "e9f3fba7cb3b0bc8a80ee11a14a870f4f5f0d760",
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/AhaTypeConfig.java",
+      "sha256": "7e288171cefd4b390681db57e49920604ab538b312b3fe9f1db36b1ce33e4223",
+      "snapshot": ".ahakey-desktop-harness\\changes\\WD-010\\evidence\\history\\e9f3fba7\\AhaTypeConfig.java",
+      "maturity": "historical_client_implementation_only_not_current_live_backend_validation"
+    },
+    {
+      "commit": "e9f3fba7cb3b0bc8a80ee11a14a870f4f5f0d760",
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/CloudAccountManager.java",
+      "sha256": "13f8546a2e06bdf4effcd94e96e1bfa4f435bf6d70ba0b314e280a26c677cebb",
+      "snapshot": ".ahakey-desktop-harness\\changes\\WD-010\\evidence\\history\\e9f3fba7\\CloudAccountManager.java",
+      "maturity": "historical_client_implementation_only_not_current_live_backend_validation"
+    },
+    {
+      "commit": "e9f3fba7cb3b0bc8a80ee11a14a870f4f5f0d760",
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/VoiceInputManager.java",
+      "sha256": "bda8664d4681a48dafe74956049ac3fd7991bbd5f5a13f81321d05ce18860942",
+      "snapshot": ".ahakey-desktop-harness\\changes\\WD-010\\evidence\\history\\e9f3fba7\\VoiceInputManager.java",
+      "maturity": "historical_client_implementation_only_not_current_live_backend_validation"
+    },
+    {
+      "commit": "f6c7a5c896eaa8a94682437ed857be7aecbfc4ba",
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/AhaTypeService.java",
+      "sha256": "b2da641a31c611e5b89f1cbe9daeec7da1a8f43d7cfea5aed234cad2b27e44e3",
+      "snapshot": ".ahakey-desktop-harness\\changes\\WD-010\\evidence\\history\\f6c7a5c8\\AhaTypeService.java",
+      "maturity": "historical_client_implementation_only_not_current_live_backend_validation"
+    },
+    {
+      "commit": "f6c7a5c896eaa8a94682437ed857be7aecbfc4ba",
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/AhaTypeConfig.java",
+      "sha256": "7e288171cefd4b390681db57e49920604ab538b312b3fe9f1db36b1ce33e4223",
+      "snapshot": ".ahakey-desktop-harness\\changes\\WD-010\\evidence\\history\\f6c7a5c8\\AhaTypeConfig.java",
+      "maturity": "historical_client_implementation_only_not_current_live_backend_validation"
+    },
+    {
+      "commit": "f6c7a5c896eaa8a94682437ed857be7aecbfc4ba",
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/CloudAccountManager.java",
+      "sha256": "7fb138df66df2dbb3db410e86efcfa417c35f1939bfbdc5d3d342404e5811bd1",
+      "snapshot": ".ahakey-desktop-harness\\changes\\WD-010\\evidence\\history\\f6c7a5c8\\CloudAccountManager.java",
+      "maturity": "historical_client_implementation_only_not_current_live_backend_validation"
+    },
+    {
+      "commit": "f6c7a5c896eaa8a94682437ed857be7aecbfc4ba",
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/VoiceInputManager.java",
+      "sha256": "f7f1218d71701f510492a3f367f5a3e2f8f1561b6b63975538bc17d1971e737a",
+      "snapshot": ".ahakey-desktop-harness\\changes\\WD-010\\evidence\\history\\f6c7a5c8\\VoiceInputManager.java",
+      "maturity": "historical_client_implementation_only_not_current_live_backend_validation"
+    },
+    {
+      "commit": "f6c7a5c896eaa8a94682437ed857be7aecbfc4ba",
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/view/CloudAccountDialog.java",
+      "sha256": "6eaef81104a1f3138cfc37ad9eb1cde5928639ede7b293bccb847b85085004e1",
+      "snapshot": ".ahakey-desktop-harness/changes/WD-010/evidence/history/f6c7a5c8/CloudAccountDialog.java",
+      "maturity": "historical_client_implementation_only_not_current_live_backend_validation"
+    },
+    {
+      "commit": "f6c7a5c896eaa8a94682437ed857be7aecbfc4ba",
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/model/StudioState.java",
+      "sha256": "e98ce9f568f4ae615a101e67d0f90d17ab53b2bc44d4eaef9c0bc4b8a82e0938",
+      "snapshot": ".ahakey-desktop-harness/changes/WD-010/evidence/history/f6c7a5c8/StudioState.java",
+      "maturity": "historical_client_implementation_only_not_current_live_backend_validation"
+    },
+    {
+      "commit": "f6c7a5c896eaa8a94682437ed857be7aecbfc4ba",
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/view/TopBar.java",
+      "sha256": "bd00384544cdf18e185a7623787a78d47bcbf3954670b075c87c2be6bfe48875",
+      "snapshot": ".ahakey-desktop-harness/changes/WD-010/evidence/history/f6c7a5c8/TopBar.java",
+      "maturity": "historical_client_implementation_only_not_current_live_backend_validation"
+    }
+  ]
+}

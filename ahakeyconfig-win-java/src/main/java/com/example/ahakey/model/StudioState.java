@@ -20,6 +20,23 @@ import java.util.List;
 import java.util.Map;
 
 public class StudioState {
+    private final FactoryResetState factoryReset=new FactoryResetState();
+    public FactoryResetState factoryReset(){return factoryReset;}
+    public void discardForFactoryReset(long generation){
+        dirtyParts.clear();dirtyModes.clear();dirtyCount.set(0);inputReadModes.clear();k1Routes.reset(generation);
+        for(ModeSlot mode:ModeSlot.values()){
+            for(StudioPart part:new StudioPart[]{StudioPart.KEY1,StudioPart.KEY2,StudioPart.KEY3,StudioPart.KEY4})keyConfigs.get(mode).put(part,new KeyConfig(0,"待设备读回"));
+            oledDrafts.put(mode,new OledModeDraft());oledSummaries.get(mode).set("待设备读回");oledCaptions.get(mode).set("恢复结果待同步");
+        }
+        displayConfig.discardDeviceDrafts();setCp4cInputConfigEnabled(false);markInputBaselineChanged();
+    }
+    public void applyFactoryPicture(AhaKeyResponseParser.PictureState picture){
+        ModeSlot mode=ModeSlot.fromIndex(picture.mode());
+        String summary="设备选择：起始 "+picture.startIndex()+"，帧数 "+picture.picLength()+"，间隔 "+picture.frameInterval();
+        oledSummaries.get(mode).set(summary);oledCaptions.get(mode).set("已从设备读取；电脑原图保留");
+        getOledDraft(mode).setLocalAssetPath(null);getOledDraft(mode).setFrameCount(picture.picLength());
+        getOledDraft(mode).setStatusLine(summary);
+    }
     private final K1RouteState k1Routes = new K1RouteState();
     public K1RouteState k1Routes() { return k1Routes; }
     public void applyK1Route(int mode, K1Route route) {
@@ -49,8 +66,8 @@ public class StudioState {
     private final StringProperty lastSyncSummary = new SimpleStringProperty("尚未保存");
     private final BooleanProperty syncing = new SimpleBooleanProperty(false);
     private final BooleanProperty modeSwitching = new SimpleBooleanProperty(false);
-    private final BooleanProperty ahaTypeEnabled = new SimpleBooleanProperty(true);
-    private final StringProperty ahaTypeStatus = new SimpleStringProperty("云端整理已启用");
+    private final BooleanProperty ahaTypeEnabled = new SimpleBooleanProperty(false);
+    private final StringProperty ahaTypeStatus = new SimpleStringProperty("AhaType 未就绪");
     private final ObjectProperty<LightBarPreviewState> lightBarPreview =
         new SimpleObjectProperty<>(LightBarPreviewState.AI_RUNNING);
     private final IntegerProperty lightBrightness = new SimpleIntegerProperty(35);
@@ -496,8 +513,13 @@ public class StudioState {
     }
 
     public void toggleAhaType(boolean enabled) {
-        ahaTypeEnabled.set(enabled);
-        ahaTypeStatus.set(enabled ? "云端整理已启用" : "语音结果直接粘贴");
+        var service=com.example.ahakey.service.AhaTypeService.getInstance();
+        try { service.setEnabled(enabled); refreshAhaTypeState(); }
+        catch (java.io.IOException e) { ahaTypeEnabled.set(service.isEnabled()); ahaTypeStatus.set("AhaType 开关保存失败"); }
+    }
+    public void refreshAhaTypeState() {
+        var service=com.example.ahakey.service.AhaTypeService.getInstance();
+        ahaTypeEnabled.set(service.isEnabled());ahaTypeStatus.set(service.getStatusMessage());
     }
 
     public boolean isDirty(StudioPart part) {
@@ -517,20 +539,6 @@ public class StudioState {
         syncStatus.set("有 " + dirtyParts.size() + " 处改动待保存。");
     }
 
-    public void restoreCurrentModeDefaults() {
-        resetModeDefaults(getSelectedMode());
-        k1Routes.markEdited(getSelectedMode().getIndex());
-        dirtyParts.add(StudioPart.KEY1);
-        dirtyParts.add(StudioPart.KEY2);
-        dirtyParts.add(StudioPart.KEY3);
-        dirtyParts.add(StudioPart.KEY4);
-        dirtyParts.add(StudioPart.OLED);
-        dirtyParts.add(StudioPart.LIGHT_BAR);
-        dirtyModes.add(getSelectedMode());
-        dirtyCount.set(dirtyParts.size());
-        revision.set(revision.get() + 1);
-        syncStatus.set("已恢复 " + getSelectedMode().getTitle() + " 默认值，等待保存。");
-    }
 
     public void clearOledPreview() {
         OledModeDraft draft = getOledDraft();

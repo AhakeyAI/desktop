@@ -67,6 +67,13 @@ public class TopBar extends VBox {
     private MenuItem languageMenuItem;
     private UpdateCenterDialog updateCenterDialog;
     private Stage hookManagerWindow;
+    private CloudAccountDialog cloudAccountDialog;
+    private FactoryResetDialog factoryResetDialog;
+    private boolean ahaRefreshing;
+    private void openFactoryReset(){
+        if(factoryResetDialog==null)factoryResetDialog=new FactoryResetDialog(getScene()==null?null:getScene().getWindow(),controller.getFactoryResetService());
+        factoryResetDialog.show();
+    }
     
     // 语音相关UI组件
     private Button voiceRecordButton;
@@ -103,6 +110,9 @@ public class TopBar extends VBox {
         approvalProblem.setWrapText(true);
         approvalProblem.setStyle("-fx-text-fill: #b45309; -fx-padding: 4 12 4 12;");
         getChildren().add(approvalProblem);
+        Label restoreReason=new Label();restoreReason.textProperty().bind(studioState.factoryReset().message);
+        restoreReason.setWrapText(true);Button restoreProgress=new Button("查看恢复进度");restoreProgress.setOnAction(e->openFactoryReset());
+        HBox restoreBanner=new HBox(10,restoreReason,restoreProgress);restoreBanner.visibleProperty().bind(studioState.factoryReset().pending);restoreBanner.managedProperty().bind(restoreBanner.visibleProperty());getChildren().add(restoreBanner);
         setupLanguageChangeListener();
     }
     
@@ -115,6 +125,7 @@ public class TopBar extends VBox {
     }
 
     private void initContent() {
+        studioState.refreshAhaTypeState();
         Text titleIcon = Icons.keyboard("20");
         Label titleLabel = new Label("AhaKey Studio");
         titleLabel.getStyleClass().add("title");
@@ -193,7 +204,7 @@ public class TopBar extends VBox {
             studioState.ahaTypeEnabledProperty()
         ));
         ahaTypeToggle.selectedProperty().bindBidirectional(studioState.ahaTypeEnabledProperty());
-        ahaTypeToggle.selectedProperty().addListener((obs, oldValue, newValue) -> studioState.toggleAhaType(newValue));
+        ahaTypeToggle.setOnAction(event -> studioState.toggleAhaType(ahaTypeToggle.isSelected()));
 
         // 语音启动按钮
         voiceRecordButton = new Button(languageManager.getString("button.start-voice"));
@@ -250,9 +261,11 @@ public class TopBar extends VBox {
             agentManager.bluetoothOwnerProperty()));
         configModeButton.disableProperty().bind(Bindings.createBooleanBinding(
             () -> studioState.syncingProperty().get()
+                || studioState.factoryReset().readOnly.get()
                 || agentManager.operationInProgressProperty().get()
                 || (agentManager.isEditingConfiguration() && !controller.canWriteToDevice()),
             studioState.syncingProperty(),
+            studioState.factoryReset().readOnly,
             agentManager.operationInProgressProperty(),
             agentManager.bluetoothOwnerProperty(),
             deviceStatus.isConnectedProperty()
@@ -264,8 +277,8 @@ public class TopBar extends VBox {
         Text moreIcon = Icons.moreHorizontal("16");
         moreMenu.setGraphic(moreIcon);
 
-        MenuItem restoreDefaults = new MenuItem(languageManager.getString("menu.restore-defaults"));
-        restoreDefaults.setOnAction(event -> studioState.restoreCurrentModeDefaults());
+        MenuItem restoreDefaults = new MenuItem(languageManager.getString("menu.factory-reset"));
+        restoreDefaults.setId("factory-reset-entry");restoreDefaults.setOnAction(event -> openFactoryReset());
         SeparatorMenuItem divider1 = new SeparatorMenuItem();
         MenuItem deviceInfo = new MenuItem("设备管理");
         deviceInfo.setOnAction(event -> showDeviceInfoDialog());
@@ -281,9 +294,18 @@ public class TopBar extends VBox {
         exitApp.setOnAction(event -> exitApplication());
         
         MenuItem cloudAccount = new MenuItem(languageManager.getString("menu.cloud-account"));
+        cloudAccount.setId("cloud-account-entry");
+        cloudAccount.setOnAction(event->{if(cloudAccountDialog==null)cloudAccountDialog=new CloudAccountDialog(getScene()==null?null:getScene().getWindow(),studioState::refreshAhaTypeState);cloudAccountDialog.show();});
         SeparatorMenuItem divider2 = new SeparatorMenuItem();
         MenuItem refresh = new MenuItem(languageManager.getString("menu.refresh-ahatype"));
-        refresh.setOnAction(event -> studioState.toggleAhaType(studioState.ahaTypeEnabledProperty().get()));
+        refresh.setOnAction(event -> {
+            if(ahaRefreshing)return;ahaRefreshing=true;refresh.setDisable(true);studioState.ahaTypeStatusProperty().set("正在刷新账号及 AhaType 状态…");
+            var session=com.example.ahakey.service.AhaTypeService.getInstance().session();
+            Thread worker=new Thread(()->{
+                String error=com.example.ahakey.service.CloudAccountManager.getInstance().refreshProfile(session);
+                Platform.runLater(()->{ahaRefreshing=false;refresh.setDisable(false);studioState.refreshAhaTypeState();studioState.ahaTypeStatusProperty().set(error==null?"AhaType 状态已刷新；"+studioState.ahaTypeStatusProperty().get():"AhaType 刷新失败："+error);});
+            },"ahatype-refresh");worker.setDaemon(true);worker.start();
+        });
 
         // 条件添加 AhaType 相关菜单项
         if (modelEnabled) {
@@ -301,6 +323,9 @@ public class TopBar extends VBox {
             );
         } else {
             moreMenu.getItems().addAll(
+                cloudAccount,
+                refresh,
+                divider2,
                 restoreDefaults,
                 divider1,
                 deviceInfo,
@@ -1388,13 +1413,15 @@ public class TopBar extends VBox {
         Button saveButton = new Button(languageManager.getString("sleep-wait-time.save"));
         BooleanProperty busy = new SimpleBooleanProperty(false);
         options.disableProperty().bind(Bindings.createBooleanBinding(
-            () -> !controller.isEffectivelyConnected() || busy.get(),
+            () -> !controller.isEffectivelyConnected() || busy.get() || studioState.factoryReset().readOnly.get(),
             this.deviceStatus.isConnectedProperty(),
+            studioState.factoryReset().readOnly,
             busy
         ));
         saveButton.disableProperty().bind(Bindings.createBooleanBinding(
-            () -> !controller.isEffectivelyConnected() || busy.get() || options.getSelectionModel().getSelectedItem() == null,
+            () -> !controller.isEffectivelyConnected() || busy.get() || studioState.factoryReset().readOnly.get() || options.getSelectionModel().getSelectedItem() == null,
             this.deviceStatus.isConnectedProperty(),
+            studioState.factoryReset().readOnly,
             busy,
             options.getSelectionModel().selectedItemProperty()
         ));
@@ -1405,6 +1432,10 @@ public class TopBar extends VBox {
 
         saveButton.setOnAction(event -> saveSleepWaitTime(options, status, busy));
         loadSleepWaitTime(options, status, busy, readSerial);
+        deviceStatus.factorySleepMinutesProperty().addListener((o,a,b)->{
+            readSerial.incrementAndGet();busy.set(false);SleepWaitTimeOption option=findSleepWaitTimeOption(options,b.intValue());
+            if(option!=null)options.getSelectionModel().select(option);status.setText("恢复后设备读回："+b+" 分钟");
+        });
 
         box.getChildren().addAll(row, description, status);
         return new SleepWaitTimeControl(box, () -> loadSleepWaitTime(options, status, busy, readSerial));

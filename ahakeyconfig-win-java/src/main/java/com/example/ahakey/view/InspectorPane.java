@@ -71,6 +71,7 @@ public class InspectorPane extends ScrollPane {
         this.controller = controller;
         this.deviceStatus = controller.getDeviceStatus();
         this.studioState = controller.getStudioState();
+        body.disableProperty().bind(studioState.factoryReset().readOnly);
         this.agentManager = controller.getAgentManager();
         controller.setSimulationShutdown(() -> {
             simulationClosed = true;

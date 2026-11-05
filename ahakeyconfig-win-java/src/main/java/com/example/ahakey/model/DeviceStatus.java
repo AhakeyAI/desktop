@@ -6,6 +6,9 @@ import org.slf4j.LoggerFactory;
 import javafx.beans.property.*;
 
 public class DeviceStatus {
+    private final IntegerProperty factorySleepMinutes=new SimpleIntegerProperty(-1);
+    public IntegerProperty factorySleepMinutesProperty(){return factorySleepMinutes;}
+    public void setFactorySleepMinutes(int minutes){factorySleepMinutes.set(minutes);}
     public enum IdentityState { DISCONNECTED, UNKNOWN, READING, SUPPORTED, UNSUPPORTED, FAILED }
     private final ObjectProperty<IdentityState> identityState = new SimpleObjectProperty<>(IdentityState.DISCONNECTED);
     public IdentityState getIdentityState() { return identityState.get(); }

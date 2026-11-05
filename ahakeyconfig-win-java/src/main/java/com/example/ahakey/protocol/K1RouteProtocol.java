@@ -27,6 +27,10 @@ public final class K1RouteProtocol {
         if(available<6)return 0;
         int status=data[start+3]&255,sub=data[start+5]&255;
         if(status==0&&data[start+4]==(byte)0xCC&&data[start+5]==(byte)0xDD)return 6;
+        if ((sub==0x30&&data[start+4]==1 || sub==0x31&&data[start+4]==2) && status<=1) {
+            if(available<17)return 0;
+            return data[start+15]==(byte)0xCC&&data[start+16]==(byte)0xDD?17:-2;
+        }
         if(status>1||data[start+4]!=1||!java.util.Set.of(0,0x10,0x20,0x21,0x22).contains(sub))return -2;
         int length=12;
         if(status==0) {

@@ -20,6 +20,9 @@ public class VoiceInputManager {
     private final java.util.function.Supplier<SpeechService> speechFactory;
     private final java.util.function.Supplier<KeyboardInjector> injectorFactory;
     private final Consumer<String> textOutput;
+    private final java.util.function.Function<String,AhaTypeService.ProcessResult> finalProcessor;
+    private final java.util.concurrent.Executor processing;
+    private final java.util.concurrent.ExecutorService ownedProcessing;
 
     public interface Consumer<T> { void accept(T value); }
     public enum VoiceStatus {
@@ -33,12 +36,23 @@ public class VoiceInputManager {
         public String getMessage() { return message; }
     }
 
-    public VoiceInputManager() { this(SpeechService::new, KeyboardInjector::new, null); }
+    public VoiceInputManager() { this(SpeechService::new, KeyboardInjector::new, null,
+            text -> AhaTypeService.getInstance().process(text), null); }
     VoiceInputManager(java.util.function.Supplier<SpeechService> speechFactory,
                       java.util.function.Supplier<KeyboardInjector> injectorFactory, Consumer<String> textOutput) {
+        this(speechFactory, injectorFactory, textOutput, text -> new AhaTypeService.ProcessResult(text, ""), Runnable::run);
+    }
+    public VoiceInputManager(java.util.function.Supplier<SpeechService> speechFactory,
+            java.util.function.Supplier<KeyboardInjector> injectorFactory, Consumer<String> textOutput,
+            java.util.function.Function<String,AhaTypeService.ProcessResult> processor, java.util.concurrent.Executor executor) {
         this.speechFactory = speechFactory;
         this.injectorFactory = injectorFactory;
         this.textOutput = textOutput;
+        this.finalProcessor = processor;
+        ownedProcessing = executor == null ? java.util.concurrent.Executors.newCachedThreadPool(r -> {
+            Thread t=new Thread(r,"ahatype-final");t.setDaemon(true);return t;
+        }) : null;
+        processing = executor == null ? ownedProcessing : executor;
     }
 
     public void initialize() {
@@ -148,13 +162,25 @@ public class VoiceInputManager {
             isRecording = false;
             callback = resultCallback;
         }
-        notifyStatus(VoiceStatus.PROCESSING);
-        String result = text == null ? "" : text.trim();
+        notifyState("processing:正在整理文字…");
+        String original = text == null ? "" : text.trim();
+        processing.execute(() -> {
+            synchronized(this) { if (!current(recording)) return; }
+            AhaTypeService.ProcessResult processed;
+            try { processed = original.isEmpty() ? new AhaTypeService.ProcessResult("", "") : finalProcessor.apply(original); }
+            catch (RuntimeException e) { processed = new AhaTypeService.ProcessResult(original, "已使用原文：整理失败"); }
+            synchronized(this) { if (!current(recording)) return; }
+            deliverFinal(recording, callback, processed);
+        });
+    }
+    private void deliverFinal(long recording, Consumer<String> callback, AhaTypeService.ProcessResult processed) {
+        if(!processed.deliverable())return;
+        String result = processed.text();
         if (!result.isEmpty()) {
             emit(callback, result);
             KeyboardInjector injector;
             synchronized (this) {
-                if (!current(recording)) return;
+                if (!current(recording)||!processed.deliverable()) return;
                 // Output commitment linearizes here against deactivate/shutdown. Cancellation
                 // that wins this monitor suppresses output. Already committed output may finish.
                 injector = keyboardInjector;
@@ -168,9 +194,9 @@ public class VoiceInputManager {
                 return;
             }
         }
-        synchronized (this) { if (!current(recording)) return; }
+        synchronized (this) { if (!current(recording)||!processed.deliverable()) return; }
         // Retain UI callbacks for the next F18 press. Slow callbacks/output never own the monitor.
-        notifyStatus(VoiceStatus.STOPPED);
+        notifyState("stopped:" + (processed.message().isBlank() ? VoiceStatus.STOPPED.message : processed.message()));
     }
     private boolean current(long recording) { return recording == generation && isActivated; }
     private void onFailure(long recording, String error) {
@@ -213,6 +239,7 @@ public class VoiceInputManager {
             if (speechService != null) { speechService.release(); speechService = null; }
             if (keyboardInjector != null) { keyboardInjector.release(); keyboardInjector = null; }
         }
+        if (ownedProcessing != null) ownedProcessing.shutdownNow();
         notifyStatus(VoiceStatus.STOPPED);
     }
     public SpeechService getSpeechService() { return speechService; }

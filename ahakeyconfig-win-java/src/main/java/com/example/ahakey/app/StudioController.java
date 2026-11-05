@@ -49,6 +49,8 @@ public class StudioController {
     private Runnable hookManagerOpener;
     private final com.example.ahakey.update.UpdateCenterService updateCenter;
     private final com.example.ahakey.service.K1RouteService k1RouteService;
+    private final com.example.ahakey.service.FactoryResetService factoryResetService;
+    public com.example.ahakey.service.FactoryResetService getFactoryResetService(){return factoryResetService;}
     public com.example.ahakey.service.K1RouteService getK1RouteService() { return k1RouteService; }
     private Runnable applicationExit = () -> {};
     private volatile Runnable simulationShutdown = () -> {};
@@ -134,6 +136,7 @@ public class StudioController {
         bleManager = transportFactory.apply(new BleManager.BleCallback() {
             @Override
             public void onConnected() {
+                if(factoryResetService!=null)factoryResetService.connectionChanged();
                 logger.info("收到设备连接通知");
                 long generation = bleManager.connectionGeneration();
                 deviceFx(() -> {
@@ -149,6 +152,7 @@ public class StudioController {
 
             @Override
             public void onDisconnected() {
+                if(factoryResetService!=null)factoryResetService.connectionChanged();
                 long generation = bleManager.connectionGeneration();
                 firmwareCatalogKeyRequested = false;
                 enterEditingAfterConnect = false;
@@ -215,6 +219,16 @@ public class StudioController {
         Path updates = Path.of(System.getProperty("user.home"), ".ahakey", "updates");
         var firmware = com.example.ahakey.firmware.FirmwareUpdateService.production(bleManager, updates.resolve("firmware"), this::maintenanceChanged);
         updateCenter = new com.example.ahakey.update.UpdateCenterService(bleManager, firmware, updates);
+        factoryResetService=com.example.ahakey.service.FactoryResetService.production(bleManager,studioState,deviceStatus,k1RouteService,displayConfigService,()->{
+            stopStatusPolling();aiRuntimeDisplayService.maintenanceChanged();displayConfigService.maintenanceChanged();
+            k1RouteService.invalidateForFactoryReset();enterEditingAfterConnect=false;
+            kimiAhaKeyBridge.connectionChanged();studioState.syncStatusProperty().set("目标设备恢复结果待确认，配置只读；请查看恢复进度");
+        },aiRuntimeDisplayService::factoryResetStarted,new com.example.ahakey.service.FactoryResetStore(),aiRuntimeDisplayService::factoryPreparationRecovered);
+        studioState.factoryReset().readOnly.addListener((o,before,after)->{
+            if(before&&!after&&bleManager.isConnected()&&bleManager.maintenance().normalAllowed()){
+                startStatusPolling();refreshVoiceRoutes();kimiAhaKeyBridge.connectionChanged();
+            }
+        });
     }
 
     public BleManager getBleManager() {
@@ -396,6 +410,8 @@ public class StudioController {
     }
 
     public void shutdown() {
+        factoryResetService.close();
+        com.example.ahakey.service.CloudAccountManager.getInstance().close();
         try { simulationShutdown.run(); } catch (RuntimeException failure) { logger.warn("Key simulation cleanup failed", failure); }
         aiRuntimeDisplayService.close();
         updateCenter.close();

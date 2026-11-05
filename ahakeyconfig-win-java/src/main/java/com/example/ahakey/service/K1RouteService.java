@@ -33,6 +33,7 @@ public final class K1RouteService implements AutoCloseable {
         }
         if(changed&&ble.isConnected()&&ble.getCachedStatus().isConnected())refresh();
     }
+    public void invalidateForFactoryReset(){refreshTicket++;state.busy.set(false);}
     public void refresh() {
         if(closed||!ble.isConnected()||!ble.getCachedStatus().isConnected()||!ble.maintenance().normalAllowed())return;
         long generation=ble.connectionGeneration();if(state.generation()!=generation)state.reset(generation);
@@ -103,6 +104,7 @@ public final class K1RouteService implements AutoCloseable {
             for(LegacyEdit edit:edits)state.savedLegacy(edit.mode(),edit.revision());
     }
     public void saveDirty(Runnable done,Consumer<String> error) {
+        if(!ble.maintenance().normalAllowed()){error.accept("目标设备恢复或维护中，配置只读");return;}
         if(state.busy.get()){error.accept("K1正在读取或保存，请稍后再试");return;}
         if(state.capability.get()==K1RouteState.Capability.LEGACY){done.run();return;}
         List<Edit> edits=new ArrayList<>();

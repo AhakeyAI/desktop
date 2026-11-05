@@ -254,6 +254,8 @@ public class UsbHidTransport implements Closeable {
         if (start < 0) {
             return null;
         }
+        int picture=com.example.ahakey.protocol.FactoryResetProtocol.pictureReplyLength(data,start,len-start);
+        if(picture>0)return Arrays.copyOfRange(data,start,start+picture);if(picture!=-1)return null;
         int k1=com.example.ahakey.protocol.K1RouteProtocol.replyLength(data,start,len-start,request);
         if(k1>0)return Arrays.copyOfRange(data,start,start+k1);
         if(k1!=-1)return null;

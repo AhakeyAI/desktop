@@ -41,9 +41,25 @@ public final class DeviceMaintenanceCoordinator {
     private int normalTransactions;
     private boolean exiting;
     private long epoch;
+    private long factoryGeneration=-1;
+    private final ThreadLocal<Long> factoryCaller=new ThreadLocal<>();
+    private final ThreadLocal<Boolean> factoryStart=new ThreadLocal<>();
+    public synchronized boolean factoryBlocked(){return factoryGeneration>=0;}
+    public synchronized boolean factoryCaller(){return factoryCaller.get()!=null&&factoryCaller.get()==factoryGeneration;}
+    public synchronized void bindFactory(long generation) throws IOException {
+        if(active!=null||normalTransactions!=0||exiting)throw new IOException("设备正在保存、上传或维护，请稍后再试");
+        if(factoryGeneration!=generation){factoryGeneration=generation;epoch++;}
+    }
+    public synchronized void releaseFactory(){if(factoryGeneration>=0){factoryGeneration=-1;epoch++;}}
+    public <T>T withinFactory(long generation,boolean start,Task<T> task)throws Exception{
+        synchronized(this){if(factoryGeneration!=generation||active!=null||exiting)throw new IOException("恢复目标或权限已改变");}
+        if(factoryCaller.get()!=null)throw new IOException("恢复权限不可嵌套");
+        factoryCaller.set(generation);factoryStart.set(start);
+        try{return task.run();}finally{factoryCaller.remove();factoryStart.remove();}
+    }
     public synchronized long epoch() { return epoch; }
     public synchronized boolean active() { return active != null; }
-    public synchronized boolean normalAllowed() { return active == null && !exiting; }
+    public synchronized boolean normalAllowed() { return active == null && !exiting && factoryGeneration<0; }
     public synchronized Operation current() { return active; }
     public synchronized Operation begin(Identity source, String hash, String profile, boolean install) throws IOException {
         if (!normalAllowed() || normalTransactions != 0) throw new IOException("设备或应用正忙，请等待当前操作完成。");
@@ -52,6 +68,7 @@ public final class DeviceMaintenanceCoordinator {
         return active;
     }
     public synchronized AutoCloseable normalTransaction() throws IOException {
+        if(factoryCaller())return () -> {};
         if (!normalAllowed()) throw new IOException("维护期间暂停普通设备操作。");
         normalTransactions++;
         return new AutoCloseable() {
@@ -71,6 +88,10 @@ public final class DeviceMaintenanceCoordinator {
     }
     public synchronized void admit(int opcode, long generation) throws IOException {
         if (exiting) throw new IOException("应用正在退出。");
+        if(factoryGeneration>=0){
+            if(generation!=factoryGeneration||!factoryCaller())throw new IOException("目标设备恢复结果待确认，配置只读；请查看恢复进度");
+            if(!Set.of(0x00,0x9F,0x87,0x97,0x95,0x83,0x88,0x9E).contains(opcode))throw new IOException("恢复权限禁止普通配置写入");
+        }
         if (active == null) return;
         Operation op = caller.get();
         require(op);
@@ -87,6 +108,19 @@ public final class DeviceMaintenanceCoordinator {
         if (frame == null || frame.length < 5) throw new IOException("设备帧无效。");
         int opcode = frame[2] & 255;
         admit(opcode, generation);
+        if(factoryGeneration>=0){
+            boolean read=switch(opcode){
+                case 0x00,0x9F,0x95,0x97 -> frame.length==5;
+                case 0x87 -> frame.length==7;
+                case 0x83 -> frame.length==6;
+                case 0x88 -> frame.length>=6&&(frame[3]&255)<=3;
+                case 0x9E -> com.example.ahakey.protocol.FactoryResetProtocol.isRead(frame)
+                    || Boolean.TRUE.equals(factoryStart.get())&&com.example.ahakey.protocol.FactoryResetProtocol.isStart(frame)
+                    || frame[3]==1&&(frame[4]==0||frame[4]==0x10);
+                default -> false;
+            };
+            if(!read)throw new IOException("恢复只读权限不允许此命令");
+        }
         if (active == null) return;
         if (active.stage == Stage.BACKUP && opcode == 0x97 && frame.length != 5)
             throw new IOException("备份阶段禁止写入侧拨。");

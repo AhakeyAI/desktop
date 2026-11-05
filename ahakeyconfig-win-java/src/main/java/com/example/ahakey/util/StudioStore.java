@@ -30,15 +30,30 @@ public final class StudioStore {
     }
 
     public static void save(StudioState.PersistedDraft draft) {
+        if(Files.exists(com.example.ahakey.service.FactoryResetStore.defaultPath()))return;
         try {
-            Files.createDirectories(DRAFT_PATH.getParent());
-            MAPPER.writeValue(DRAFT_PATH.toFile(), draft);
+            saveStrict(draft);
         } catch (IOException e) {
             logger.error("StudioStore.save failed: {}", e.getMessage(), e);
         }
     }
+    public static void saveStrict(StudioState.PersistedDraft draft)throws IOException{
+        Files.createDirectories(DRAFT_PATH.getParent());Path tmp=Files.createTempFile(DRAFT_PATH.getParent(),"studio-",".tmp");
+        try{Files.write(tmp,MAPPER.writeValueAsBytes(draft));try(var c=java.nio.channels.FileChannel.open(tmp,java.nio.file.StandardOpenOption.WRITE)){c.force(true);}
+            Files.move(tmp,DRAFT_PATH,java.nio.file.StandardCopyOption.ATOMIC_MOVE,java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }finally{Files.deleteIfExists(tmp);}
+    }
+    public static void prepareForFactoryReset()throws IOException{strictSnapshot();}
 
-    public static StudioState.PersistedDraft loadOrDefault() {
+    public static StudioState.PersistedDraft loadOrDefault() {return loadOrDefault(new com.example.ahakey.service.FactoryResetStore());}
+    public static StudioState.PersistedDraft loadOrDefault(com.example.ahakey.service.FactoryResetStore reset) {
+        try{
+            if(reset.localRecoveryRequired()){
+                // A provably local preparation never touched the original draft. Keep it
+                // available (under the service's read-only gate), even if cleanup must retry.
+                try{reset.recoverPreparation();}catch(IOException e){logger.warn("Local restore preparation cleanup pending: {}",e.getMessage());}
+            }else if(reset.load()!=null)return StudioState.PersistedDraft.defaults();
+        }catch(IOException e){return StudioState.PersistedDraft.defaults();}
         File file = DRAFT_PATH.toFile();
         if (!file.exists()) {
             return StudioState.PersistedDraft.defaults();

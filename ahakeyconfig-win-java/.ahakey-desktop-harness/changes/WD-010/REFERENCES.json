@@ -1,0 +1,81 @@
+{
+  "sources": [
+    {
+      "id": "restore-wire-v2",
+      "workspace": "firmware",
+      "path": "APP/sub_main/command_solve.c",
+      "revision_or_commit": "24f72d3e0301aa6bb2fa9e1b99337033bb801a4d",
+      "sha256": "26f672feb691ab90f0b2b235120206dafda2071b2ca52d221557a950970e1d4c",
+      "section": "command_k1_restore_handle/reply: v1 query, v2 expected attempt and 17-byte reply; source implementation only",
+      "kind": "protocol",
+      "maturity": "implemented",
+      "observed_at": "2026-11-05T01:38:55+00:00"
+    },
+    {
+      "id": "restore-coordinator",
+      "workspace": "firmware",
+      "path": "APP/services/restore_initialization.c",
+      "revision_or_commit": "24f72d3e0301aa6bb2fa9e1b99337033bb801a4d",
+      "sha256": "e6dfc29f41f3b6a0d431ea525c9e1cf3eeb13e8c310e2c453f4674f3362de538",
+      "section": "restore start_v2, external power and durable state transitions; not hardware PASS",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-11-05T01:38:56+00:00"
+    },
+    {
+      "id": "restore-state-layout",
+      "workspace": "firmware",
+      "path": "APP/services/k1_restore_store.h",
+      "revision_or_commit": "24f72d3e0301aa6bb2fa9e1b99337033bb801a4d",
+      "sha256": "43401a87dbb63e3fd4ff5e1fd0db2dd1fae078d4ae0e73e51d97dd3fdb41156d",
+      "section": "restore enums, attempt and shared durable store API",
+      "kind": "protocol",
+      "maturity": "implemented",
+      "observed_at": "2026-11-05T01:38:58+00:00"
+    },
+    {
+      "id": "restore-defaults",
+      "workspace": "firmware",
+      "path": "APP/sub_main/main.c",
+      "revision_or_commit": "24f72d3e0301aa6bb2fa9e1b99337033bb801a4d",
+      "sha256": "370e27d2ed6008085cd0c7c0487b8a9b2c387d8994048ea3ea3585ea35381ebb",
+      "section": "restore_initialization_apply_defaults: scope and preservation",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-11-05T01:38:59+00:00"
+    },
+    {
+      "id": "restore-usb-identity",
+      "workspace": "firmware",
+      "path": "APP/sub_main/usb1_hid.c",
+      "revision_or_commit": "24f72d3e0301aa6bb2fa9e1b99337033bb801a4d",
+      "sha256": "f91d70f673869a959eecc694b50b4aeb7e17d6afd82f85f9b2f14d5f7052240f",
+      "section": "MyDevDescr has no serial index; USB identity limitation",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-11-05T01:39:00+00:00"
+    },
+    {
+      "id": "restore-host-journey",
+      "workspace": "firmware",
+      "path": "tests/host/restore_initialization/test_restore_production_journey.c",
+      "revision_or_commit": "24f72d3e0301aa6bb2fa9e1b99337033bb801a4d",
+      "sha256": "f919c7c176502f0045bb40b278b9bd7b388cb1a7048cb630d427be3bb18b5a3d",
+      "section": "existing production journey fixture; not executed by Windows DLA",
+      "kind": "test",
+      "maturity": "observed",
+      "observed_at": "2026-11-05T01:39:02+00:00"
+    },
+    {
+      "id": "restore-closure-debt",
+      "workspace": "firmware",
+      "path": ".ahakey-harness/evidence/checkpoints/X1-PLATFORMIZATION-RELEASE-COMPOSITION/WS45_CP1_RESTORE_INITIALIZATION/checkpoint-review/20261030-oldline-close/closure.md",
+      "revision_or_commit": "24f72d3e0301aa6bb2fa9e1b99337033bb801a4d",
+      "sha256": "6731c04d12ace97b8a6138cdb6ecdbb2415321bfcb8eab3549b8269a16c992e9",
+      "section": "oldline accepted_with_debt; referenced v2 receipt/artifact availability still unbound",
+      "kind": "decision",
+      "maturity": "observed",
+      "observed_at": "2026-11-05T01:39:03+00:00"
+    }
+  ]
+}

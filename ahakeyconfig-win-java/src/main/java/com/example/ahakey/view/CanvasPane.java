@@ -68,7 +68,7 @@ public class CanvasPane extends VBox {
             button.setUserData(slot);
             button.setSelected(slot == studioState.getSelectedMode());
             button.setTooltip(new Tooltip("离线时只浏览本地草稿；连接后切换键盘当前模式。"));
-            button.disableProperty().bind(studioState.modeSwitchingProperty());
+            button.disableProperty().bind(studioState.modeSwitchingProperty().or(studioState.factoryReset().readOnly));
             button.setOnAction(event -> {
                 for (var node : picker.getChildren()) {
                     if (node instanceof ToggleButton tb && tb.getUserData() instanceof ModeSlot s) {

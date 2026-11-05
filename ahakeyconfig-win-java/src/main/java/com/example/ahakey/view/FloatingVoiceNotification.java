@@ -121,7 +121,7 @@ public class FloatingVoiceNotification {
         return switch (status) {
             case "recording" -> new StatusConfig("语音输入中", Color.rgb(231, 76, 60), true);   // 红色
             case "recognizing" -> new StatusConfig("识别中", Color.rgb(245, 166, 35), true);     // 橙色
-            case "processing" -> new StatusConfig("处理中", Color.rgb(245, 166, 35), true);     // 橙色
+            case "processing" -> new StatusConfig("正在整理文字…", Color.rgb(245, 166, 35), true);
             case "ready" -> new StatusConfig("语音就绪", Color.rgb(46, 204, 113), false);       // 绿色
             case "starting" -> new StatusConfig("启动中", Color.rgb(245, 166, 35), true);       // 橙色
             default -> new StatusConfig(message != null ? message : "空闲", Color.rgb(167, 175, 186), false); // 灰色

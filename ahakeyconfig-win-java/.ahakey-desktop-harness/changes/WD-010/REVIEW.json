@@ -1,0 +1,284 @@
+{
+  "schema_version": 1,
+  "id": "WD-010",
+  "pack_sha256": "c86361128abf1edad99e937549c6f7ba4cb5901f17360850624ed4350ac4688f",
+  "reviewer_role": "DLA",
+  "review_session": "01a1a594-ba84-7a33-bd03-48125a887c69",
+  "builder_session": "01a1a968-73d2-7cc3-84e1-0487f363f991",
+  "independence": "separate_dla_conversation",
+  "decision": "pass",
+  "scope_conclusion": "累计40文件在批准范围。已读前两轮累计差异和第3轮完整ROUND3_DIFF_DELTA及生产调用上下文；第3轮只改CloudAccountManager/CloudAccountDialog并新增QueuedDeliveryChecks，修复R2-FR-01，不改协议或产品语义。",
+  "per_file": [
+    {
+      "path": "pom.xml",
+      "purpose": "pom.xml：加入二维码ZXing依赖，离线构建和包内依赖需由最终EXE验证。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；pom.xml：加入二维码ZXing依赖，离线构建和包内依赖需由最终EXE验证。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "purpose": "真实FactoryReset生产接线新增本地准备恢复回调，设备锁及生命周期保留。",
+      "reviewed_hunks": "已读最终累计diff及第2轮相对第1轮差异，并核对生产上下文。真实FactoryReset生产接线新增本地准备恢复回调，设备锁及生命周期保留。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/DeviceMaintenanceCoordinator.java",
+      "purpose": "DeviceMaintenanceCoordinator：恢复专用只读/启动权限、连接代次及普通事务互斥。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；DeviceMaintenanceCoordinator：恢复专用只读/启动权限、连接代次及普通事务互斥。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DeviceStatus.java",
+      "purpose": "DeviceStatus：读回待机值。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；DeviceStatus：读回待机值。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+      "purpose": "DisplayConfigState：恢复清空及真实读回状态。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；DisplayConfigState：恢复清空及真实读回状态。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/FactoryResetState.java",
+      "purpose": "FactoryResetState：进度、待核实、只读及忙状态。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；FactoryResetState：进度、待核实、只读及忙状态。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+      "purpose": "StudioState：全部模式草稿清理及实际图片选择映射。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；StudioState：全部模式草稿清理及实际图片选择映射。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/platform/windows/WindowsCredentialStore.java",
+      "purpose": "WindowsCredentialStore：用户级DPAPI封装，凭据不明文持久化。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；WindowsCredentialStore：用户级DPAPI封装，凭据不明文持久化。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/FactoryResetProtocol.java",
+      "purpose": "FactoryResetProtocol：v1查询、v2 expected-next启动、nonce和17字节响应严格校验。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；FactoryResetProtocol：v1查询、v2 expected-next启动、nonce和17字节响应严格校验。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java",
+      "purpose": "K1RouteProtocol：空路由有效读回判断，不将缺失响应伪装成功。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；K1RouteProtocol：空路由有效读回判断，不将缺失响应伪装成功。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AhaTypeConfig.java",
+      "purpose": "AhaTypeConfig：账号存储及旧明文凭据迁移、严格损坏处理。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；AhaTypeConfig：账号存储及旧明文凭据迁移、严格损坏处理。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AhaTypeService.java",
+      "purpose": "只为同源服务端失效保留交易终态delivery；主动logout/auth/invalidate切断；语音投递继续录音与会话guard。",
+      "reviewed_hunks": "已读最终累计diff及第2轮相对第1轮差异，并核对生产上下文。只为同源服务端失效保留交易终态delivery；主动logout/auth/invalidate切断；语音投递继续录音与会话guard。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "purpose": "SINGLE持久准备移至服务本地事务；发送后内存失效不再执行失败磁盘保存；启动本地回滚恢复live mode；旧发送epoch检查保留。",
+      "reviewed_hunks": "已读最终累计diff及第2轮相对第1轮差异，并核对生产上下文。SINGLE持久准备移至服务本地事务；发送后内存失效不再执行失败磁盘保存；启动本地回滚恢复live mode；旧发送epoch检查保留。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "purpose": "BleManager：帧重组、原设备身份、恢复边界权限及专用catalog读回。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；BleManager：帧重组、原设备身份、恢复边界权限及专用catalog读回。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CloudAccountManager.java",
+      "purpose": "消费时解析同源服务端失效关联，在会话锁中验证并投递交易终态；失效后改用成功且需登录文案。",
+      "reviewed_hunks": "已读deliverOperation、redeemResult和complete调用；付款pollGeneration仍在校验后检查，主动logout/auth切断旧关联；不新增网络重试。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/FactoryResetService.java",
+      "purpose": "LOCAL_PREPARING可回滚，SENDING保守视为可能发送；原草稿隔离；可离线重试本地清理；目标代次再次检查；FX未执行超时取消、已执行等结果；全读回后解除锁。",
+      "reviewed_hunks": "已读最终累计diff及第2轮相对第1轮差异，并核对生产上下文。LOCAL_PREPARING可回滚，SENDING保守视为可能发送；原草稿隔离；可离线重试本地清理；目标代次再次检查；FX未执行超时取消、已执行等结果；全读回后解除锁。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/FactoryResetStore.java",
+      "purpose": "原子准备journal保存runtime及previous pending；严格schema/大小/JSON检查；本地恢复与legacy PREPARED/SENDING未知隔离。",
+      "reviewed_hunks": "已读最终累计diff及第2轮相对第1轮差异，并核对生产上下文。原子准备journal保存runtime及previous pending；严格schema/大小/JSON检查；本地恢复与legacy PREPARED/SENDING未知隔离。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/K1RouteService.java",
+      "purpose": "K1RouteService：完整读回能力判断。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；K1RouteService：完整读回能力判断。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "purpose": "UsbHidTransport：固定17字节二进制恢复响应，不按payload内尾字节提前截断。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；UsbHidTransport：固定17字节二进制恢复响应，不按payload内尾字节提前截断。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/VoiceInputManager.java",
+      "purpose": "VoiceInputManager：最终识别后异步整理、一次输出、录音世代/取消与账号guard。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；VoiceInputManager：最终识别后异步整理、一次输出、录音世代/取消与账号guard。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/StudioStore.java",
+      "purpose": "发送前保留原文件；确定本地准备时即使回滚暂败仍加载原稿，避免默认值覆盖；已发送pending不载入旧稿；完整读回原子保存。",
+      "reviewed_hunks": "已读最终累计diff及第2轮相对第1轮差异，并核对生产上下文。发送前保留原文件；确定本地准备时即使回滚暂败仍加载原稿，避免默认值覆盖；已发送pending不载入旧稿；完整读回原子保存。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "purpose": "CanvasController、CanvasPane、InspectorPane：目标只读时禁止编辑和写入入口。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；CanvasController、CanvasPane、InspectorPane：目标只读时禁止编辑和写入入口。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasPane.java",
+      "purpose": "CanvasController、CanvasPane、InspectorPane：目标只读时禁止编辑和写入入口。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；CanvasController、CanvasPane、InspectorPane：目标只读时禁止编辑和写入入口。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CloudAccountDialog.java",
+      "purpose": "兑换及付款最终FX消费复用deliverOperation，保留窗口/代次门禁，终态更新及重新登录提示。",
+      "reviewed_hunks": "已读最终99行回调、兑换stage身份、付款ticket/showing/closed检查；消费在aha锁内，主动认证不能在校验和实际显示间插入；重开兑换保留同一操作。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/FactoryResetDialog.java",
+      "purpose": "本地清理入口无需连接及设备身份确认，恢复/查询仍保持目标人工关联约束。",
+      "reviewed_hunks": "已读最终累计diff及第2轮相对第1轮差异，并核对生产上下文。本地清理入口无需连接及设备身份确认，恢复/查询仍保持目标人工关联约束。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/FloatingVoiceNotification.java",
+      "purpose": "FloatingVoiceNotification：显示真实整理等待提示。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；FloatingVoiceNotification：显示真实整理等待提示。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "purpose": "CanvasController、CanvasPane、InspectorPane：目标只读时禁止编辑和写入入口。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；CanvasController、CanvasPane、InspectorPane：目标只读时禁止编辑和写入入口。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/TopBar.java",
+      "purpose": "TopBar：云账号/刷新和恢复入口、待核实banner、旧模式恢复移除。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；TopBar：云账号/刷新和恢复入口、待核实banner、旧模式恢复移除。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/messages_en.properties",
+      "purpose": "messages_en.properties、messages_zh.properties：菜单标题统一。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；messages_en.properties、messages_zh.properties：菜单标题统一。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/resources/messages_zh.properties",
+      "purpose": "messages_en.properties、messages_zh.properties：菜单标题统一。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；messages_en.properties、messages_zh.properties：菜单标题统一。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/CheckProcess.java",
+      "purpose": "CheckProcess：隔离进程测试执行器，不作为产品入口。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；CheckProcess：隔离进程测试执行器，不作为产品入口。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/CloudChecks.java",
+      "purpose": "CloudChecks：DPAPI/loopback/真实20秒超时及历史schema；未执行真实账号交易。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；CloudChecks：DPAPI/loopback/真实20秒超时及历史schema；未执行真实账号交易。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/CloudTransactionUiChecks.java",
+      "purpose": "实际FX兑换/二维码窗口和loopback共47项，A/B独立兑换、未知不重发、两种并发401窗口和主动换号对照。",
+      "reviewed_hunks": "已读最终累计diff及第2轮相对第1轮差异，并核对生产上下文。实际FX兑换/二维码窗口和loopback共47项，A/B独立兑换、未知不重发、两种并发401窗口和主动换号对照。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/CloudUiChecks.java",
+      "purpose": "CloudUiChecks：真实JavaFX handler、401回登录、失败输入保留及排队兑换的账号隔离。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；CloudUiChecks：真实JavaFX handler、401回登录、失败输入保留及排队兑换的账号隔离。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/RestoreChecks.java",
+      "purpose": "验证持久SENDING隔离先于start，原live稿到发送边界前保留；其余603协议/状态机断言保持。",
+      "reviewed_hunks": "已读最终累计diff及第2轮相对第1轮差异，并核对生产上下文。验证持久SENDING隔离先于start，原live稿到发送边界前保留；其余603协议/状态机断言保持。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/RestorePreparationChecks.java",
+      "purpose": "真实生产adapter/原子文件/FX共61项；启动原稿/live mode、回滚清理失败、零恢复帧、排队30秒取消和已执行跨30秒保持锁、发送后保存失败不重放。",
+      "reviewed_hunks": "已读最终累计diff及第2轮相对第1轮差异，并核对生产上下文。真实生产adapter/原子文件/FX共61项；启动原稿/live mode、回滚清理失败、零恢复帧、排队30秒取消和已执行跨30秒保持锁、发送后保存失败不重放。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/RestoreProductionUiChecks.java",
+      "purpose": "RestoreProductionUiChecks：真实controller和恢复生产适配器、全字段读回及末尾metadata失败；内存USB不是硬件通过。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；RestoreProductionUiChecks：真实controller和恢复生产适配器、全字段读回及末尾metadata失败；内存USB不是硬件通过。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/RuntimeRestoreRaceChecks.java",
+      "purpose": "RuntimeRestoreRaceChecks：真实worker卡在transport monitor后跨恢复epoch放行，旧MULTI不能迟到写入。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；RuntimeRestoreRaceChecks：真实worker卡在transport monitor后跨恢复epoch放行，旧MULTI不能迟到写入。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/VoiceFinalChecks.java",
+      "purpose": "VoiceFinalChecks：真实AhaType→VoiceInputManager、捕获输出、取消/新录音/退出后禁止迟到文本。",
+      "reviewed_hunks": "逐段阅读本轮累计 ACTUAL_DIFF 及对应生产上下文；VoiceFinalChecks：真实AhaType→VoiceInputManager、捕获输出、取消/新录音/退出后禁止迟到文本。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/QueuedDeliveryChecks.java",
+      "purpose": "独立复现纳入正式fixture并覆盖最终投递和窗口/账号失效对照。",
+      "reviewed_hunks": "全文122行：真实FX和loopback，等待执行器空闲证明排队；11组兑换/付款场景、提示文字/回登录页/单次回调、服务层完成及取消/换号，共84检查。",
+      "within_contract": true
+    }
+  ],
+  "production_journey": "TopBar真实菜单到CloudAccountDialog/CloudAccountManager/AhaTypeService；VoiceInputManager最终识别到异步整理单次输出；FactoryResetDialog到持久任务、BleManager双传输0x9E、完整生产readback及UI只读联动。",
+  "preserved_behavior_assessment": "第3轮40文件身份已核对、相对第2轮只3变更；5套222项实际通过，6日志哈希匹配。恢复/协议/WD009无新增改动，前轮证据保留；1.0.20未交付及非模型前提fixture失败不改PASS。新EXE/Owner/正式固件待实际证据。",
+  "baseline_assessment": "最后formal CLOSED基线WD005；最近Owner实际通过版本1.0.19，WD009未正式关闭。本轮start Git 70ccc3361ecd90e6c67828bac581a6975ebdccb2可恢复，missing_start_bytes为空，保留原始起点。",
+  "protocol_assessment": "按REFERENCES中Firmware现有0x9E v1 query/v2 expected-next start及17字节回复核对；不回退旧ACK。正式v2 receipt与对应HEX缺口仍阻止正式设备UAT声明。",
+  "risk_level": "high",
+  "fresh_review_required": true,
+  "risk_rationale": "涉及恢复协议接入、持久任务及设备写入权限，需要与DIB/DLA不同会话的高影响独立审阅。",
+  "findings": [
+    {
+      "issue": "FR-01及ER2-01：已知未发送失败丢稿/锁不可达及重启默认稿覆盖",
+      "resolution": "fixed",
+      "evidence": "FactoryResetService/Store、StudioStore、AiRuntime生产路径；evidence/r2-RestorePreparationChecks-04.log 61项；r2-EXECUTION_EVIDENCE.json。"
+    },
+    {
+      "issue": "FR-02：完成兑换后无法兑换新码",
+      "resolution": "fixed",
+      "evidence": "CloudAccountDialog显式新码；evidence/r2-CloudTransactionUiChecks-03.log 47项，A和B各一次。"
+    },
+    {
+      "issue": "FR-03及ER2-02：已确认交易在同源服务端401中丢终态",
+      "resolution": "fixed",
+      "evidence": "AhaTypeService operationDelivery / CloudAccountManager /真实FX；r2-CloudTransactionUiChecks-03.log 包含success响应前、refresh期间的竞争及主动换号对照。"
+    },
+    {
+      "issue": "R2-FR-01：成功回调排入FX队列后同源401仍丢失终态",
+      "resolution": "fixed",
+      "evidence": "evidence/r3-QueuedDeliveryChecks-01.log 84项、r3-CloudTransactionUiChecks-01.log 47项；已读两个实际最终消费点和统一服务门禁。"
+    }
+  ],
+  "baseline_gap_owner_record": null,
+  "fresh_review_record": ".ahakey-desktop-harness/changes/WD-010/fresh-review/FINAL_REVIEW_R3.json"
+}

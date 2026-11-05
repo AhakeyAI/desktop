@@ -44,6 +44,20 @@ public class AiRuntimeDisplayService {
     private String cursorDataDir;
     private int primarySlotIndex = -1;
     private volatile boolean snapshotPending;
+    private volatile long factoryResetGeneration=-1;
+    public void factoryPreparationRecovered(){
+        try{
+            var saved=AiRuntimeStore.strictSnapshot();
+            String mode=saved.present()?new com.fasterxml.jackson.databind.ObjectMapper().readTree(java.util.Base64.getDecoder().decode(saved.base64())).path("displayMode").asText("SINGLE"):"SINGLE";
+            displayMode.set(AiRuntimeDisplayMode.fromName(mode));
+        }catch(java.io.IOException e){throw new java.io.UncheckedIOException(e);}
+    }
+    public void factoryResetStarted(){
+        factoryResetGeneration=bleManager.connectionGeneration();maintenanceChanged();
+        displayMode.set(AiRuntimeDisplayMode.SINGLE);
+        for(int i=0;i<4;i++)appliedSlots[i]=new AiRuntimeSlotBinding(i);
+        // SINGLE was prepared durably before the send boundary. No fallible disk I/O here.
+    }
     // Only protects in-memory intent. Device locks and ACK waits must never hold this lock.
     private boolean snapshotSending;
     private volatile long snapshotConnection = -1;
@@ -475,18 +489,19 @@ public class AiRuntimeDisplayService {
         }
         if (isDeviceSupported()) {
             long connection = bleManager.connectionGeneration();
+            long epoch = bleManager.maintenance().epoch();
             modeChangePending.set(true);
             new Thread(() -> {
                 String failure = null;
                 try {
-                    bleManager.setRuntimeDisplayMode(safe, connection);
+                    bleManager.setRuntimeDisplayMode(safe, connection,epoch);
                 } catch (Exception e) {
                     failure = "展示模式未确认：" + e.getMessage();
                 }
                 String result = failure;
                 Platform.runLater(() -> {
                     modeChangePending.set(false);
-                    if (connection != bleManager.connectionGeneration() || !isDeviceSupported()) {
+                    if (epoch!=bleManager.maintenance().epoch() || connection != bleManager.connectionGeneration() || !isDeviceSupported()) {
                         completion.accept("键盘连接已改变，展示模式未确认。"); return;
                     }
                     if (result == null) { displayMode.set(safe); persist(); }
@@ -508,6 +523,7 @@ public class AiRuntimeDisplayService {
         }
     }
     public void onDeviceReady() {
+        if(factoryResetGeneration==bleManager.connectionGeneration() || java.nio.file.Files.exists(FactoryResetStore.defaultPath()))return;
         if (!bleManager.maintenance().normalAllowed()) return;
         if (!isDeviceSupported()) {
             return;
@@ -518,7 +534,7 @@ public class AiRuntimeDisplayService {
         new Thread(() -> {
             try {
                 if (maintenanceEpoch != bleManager.maintenance().epoch() || !bleManager.maintenance().normalAllowed()) return;
-                bleManager.setRuntimeDisplayMode(preference, connection);
+                bleManager.setRuntimeDisplayMode(preference, connection,maintenanceEpoch);
             } catch (Exception e) {
                 logger.warn("Apply runtime display preference on connect failed: {}", e.getMessage());
             }

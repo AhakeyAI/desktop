@@ -1,0 +1,18 @@
+# WD010 完整Contract Owner批准
+
+日期：2026-11-05（Asia/Shanghai）。
+Owner在已展示完整范围、实现/验收边界及正式固件证据缺口后选择：
+> 批准完整Contract，进入实施（推荐）
+
+批准内容：云端账号全功能及已确认异常处理；微信充值按旧版；AhaType等待整理后单次输出，20秒请求超时回退原文；恢复出厂设置的确认/进度、目标只读、断连重启查询及人工确认原设备。明确允许按Harness进入DIB实施，之后仍需实际审阅、独立高影响审阅和测试。v2固件正式证据缺口须在正式交测前补齐，不视为已通过。
+
+本次不批准真实付款、兑换码消耗、设备写入/烧录、发布或修改main-anpx/Firmware。完整批准输入对应CONTRACT_REVIEW_INPUTS.json，以下hash固定本次已呈现资产：
+
+- CONTRACT.md: 30aa1df46d67eb2ef161b47a33999851a99fa1eaf84fb7ba896ae2b06fffca9f
+- REFERENCES.json: 55d2f4248b81e57494bbdec981918db54721968411ea614a1541f8208a874c15
+- IMPLEMENTATION_SCOPE.md: 1e0f001a69af8b22f3c4b25ab174eeb158c92053bbd2f34e14501f4d49a2e25b
+- HISTORICAL_REFERENCES.json: 62471c127a84b33ca0d42d26755f1b3bc681f5f37661a909eb3e4465d52c94c0
+- CLOUD_UI_GRILL.md: 2cdbf3216cebd4d63a0a22131c4962509de5c263dfbaf4d6d693833110109e84
+- RESTORE_UI_CASES_DRAFT.md: f653507b346a9ff8abbf31f8896b35b419994a68f185abe857c88ab96377072a
+- RESTORE_IDENTITY_REVIEW.md: 15b8cc6c13e852861518eefecac00f1117ac8f3c6203010dd9ce0641962d13ee
+- RESTORE_READBACK_PLAN.md: a63eb3c49d8493f5be8783a606a1f5a9b80700fdbef5d48c8f1e15cd766999ec

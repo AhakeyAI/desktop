@@ -50,6 +50,11 @@ public final class DisplayConfigState {
         changed();
     }
     public OledResourceState current() { return resources.get(selectedEntry.get()); }
+    public void discardDeviceDrafts(){
+        brightnessDirty=false;brightnessRevision++;endPreview();
+        for(int m=0;m<4;m++)for(int a=0;a<9;a++){effectDirty[m][a]=false;effectRevisions[m][a]++;effects[m][a]=-1;}
+        resources.replaceAll((i,r)->r.unknown());changed();
+    }
     public void put(OledResourceState state) { resources.put(state.entry(), state); changed(); }
     public void changed() { revision.set(revision.get() + 1); }
     public void editBrightness(int value) {

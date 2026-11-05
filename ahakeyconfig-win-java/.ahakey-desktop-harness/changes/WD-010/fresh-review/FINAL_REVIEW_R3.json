@@ -1,0 +1,150 @@
+{
+  "schema_version": 1,
+  "id": "WD-010",
+  "build_round": 3,
+  "decision": "pass",
+  "reviewer_role": "independent DLA",
+  "session": "01a1a970-ac70-77a3-bfc4-3e4ebe225604",
+  "at": "2026-11-05T09:35:28.116376+00:00",
+  "pack_sha256": "c86361128abf1edad99e937549c6f7ba4cb5901f17360850624ed4350ac4688f",
+  "code_fingerprint": "6de1cbfd7a26442edf44ee12c519a957bcd60c4f2366a6ae9b291944261f94c0",
+  "submission_sha256": "f9a75570cdd421c98981a0b0ebbec7b4a7168eb7a4cf0663b944c56077c8610c",
+  "report_sha256": "1802d268cb2f9ec8842b9aa54ae38ce2d0081e55d91e66cff56d8aec65b5238c",
+  "diff_sha256": "6af7412ace390f0718f5809837b1f0e516bcdd8807747a7f20a5665cbcb5006f",
+  "analysis": "第3轮仅修改CloudAccountManager、CloudAccountDialog并新增QueuedDeliveryChecks；已独立核对实际累计差异、三个文件的最终字节及必要生产调用链，其余37个文件与第2轮一致。本轮在最终服务完成与FX消费时重新解析原会话的服务端失效关联，同时保留显式退出/认证、窗口及轮询代次隔离。独立运行84项定向检查全部通过，且未改字节的第2轮原始复现源码在相同兑换、付款时序下由2/2失败变为2/2显示成功并提示重新登录。R2-FR-01已闭环，承接前两轮已完成的累计审阅，本冻结包没有未解决的审阅发现，独立代码审阅结论为PASS；这不代表最终EXE、真实账号/付款、设备或Owner UAT通过。",
+  "analysis_details": {
+    "scope": "针对R2-FR-01最终投递窗口复审；没有重跑未变化的恢复61项、设备或全仓检查，没有扩大到未发现问题的压力测试。",
+    "identity_audit": {
+      "pack": "canonical JSON哈希匹配委托，冻结PACK绑定本记录；ACTUAL_DIFF字节哈希匹配，无missing_start_bytes。",
+      "source": "40/40文件SHA与r3-IMPLEMENTATION_CODE_IDENTITY.json一致；相对R2只有2个生产文件及1个新增测试变化，其余37项逐文件身份一致。独立比较两轮实际累计diff内容（忽略hunk行号偏移和CR/LF）得到同样3个变化文件。准备轮已逐行阅读的三个文件哈希与最终冻结值相同。",
+      "evidence": "r3-LOG_MANIFEST 6/6日志SHA和字节数匹配；5套最终日志PASS计数合计222项；report SHA和submission canonical SHA匹配委托/回执。compile01为BUILD SUCCESS，102产品/45测试；不作为独立测试或产物验收。",
+      "previous_reviews": {
+        "FINAL_REVIEW.json": "3dfcdbab7881cb5cf8ad6c6af56282d0bc14b72b3737c8d85cea6909a06fcafa",
+        "FINAL_REVIEW_R2.json": "11354662a75fcc8a6994a6a7704086367cb770aeb3c74e4acaa4dbaa6f408759"
+      }
+    },
+    "implementation_reasoning": [
+      "deliverOperation在aha会话锁内调用operationDelivery、检查current并执行消费，已登记的同源服务端401可解析到失效后的delivery；主动logout、beginAuthentication、invalidatePendingOperations清除关联并改变代次，旧操作不能绑定任意新账号。",
+      "兑换服务完成状态、付款complete和实际兑换/付款FX回调共用最终投递校验；不再只依赖后台生成OperationResult时的旧session快照。失效时终态文案保留交易成功并引导重新登录，不继续声称账号信息已刷新。",
+      "付款服务仍检查pollGeneration，FX侧先检查closed、paymentWindow和窗口可见；兑换FX侧检查closed和具体redeemStage身份，隐藏再打开同一兑换操作仍可接收终态。",
+      "生产入口可达：TopBar账号菜单打开CloudAccountDialog；兑换按钮触发真实redeemResult，选择套餐/建单成功后调用showPayment并启动真实轮询。回调changed指向StudioState.refreshAhaTypeState，当前代码为同一服务同步读取及UI属性更新，没有等待后台线程或网络的循环锁路径。",
+      "未修改恢复协议、持久化准备、人工设备关联、发送后未知不重试、旧草稿隔离或其余已验证修复。"
+    ],
+    "independent_execution": {
+      "method": "提交后class、必要顶层资源及依赖JAR复制到独立临时快照，隔离user.home、java.io.tmpdir和cwd，避免与后续EXE构建互相覆盖。未重编译生产。原始复现源码只编译到临时original-repro-classes，并在该进程classpath首位运行；新84项fixture使用本轮提交后的test-classes，两个进程互不覆盖。",
+      "snapshot_path": "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r3-x6ahs7l5\\SNAPSHOT.json",
+      "snapshot_sha256": "781012c0fd6e099b3e377f4054430ffcbaaa467ebef0ff65fa0e4001931e366b",
+      "original_fixture_sha256": "143a5d0c07f5c44053de89fd22983fc72c5c18716a5e18fe7dced2ea8f77ad13",
+      "original_fixture_preservation": "与第2轮失败复现源码字节完全相同；全文已归档在FINAL_REVIEW_R2_DETAILS.md。没有改断言迎合修复。",
+      "runs": [
+        {
+          "suite": "QueuedDeliveryChecks84",
+          "command": [
+            "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+            "-Dfile.encoding=UTF-8",
+            "-Duser.home=C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r3-x6ahs7l5\\home-QueuedDeliveryChecks84",
+            "-Djava.io.tmpdir=C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r3-x6ahs7l5",
+            "-cp",
+            "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r3-x6ahs7l5\\classes;C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r3-x6ahs7l5\\test-classes;C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r3-x6ahs7l5\\lib\\*",
+            "com.example.ahakey.wd010.CheckProcess",
+            "com.example.ahakey.service.QueuedDeliveryChecks"
+          ],
+          "cwd": "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r3-x6ahs7l5",
+          "exit_code": 0,
+          "log": "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r3-x6ahs7l5\\QueuedDeliveryChecks84.log",
+          "sha256": "cfb0cb0bd8c09e5b116b4c05f79233215662d3186a15632ffd17b30de879b37a"
+        },
+        {
+          "suite": "OriginalQueuedDeliveryReproduction",
+          "command": [
+            "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+            "-Dfile.encoding=UTF-8",
+            "-Duser.home=C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r3-x6ahs7l5\\home-OriginalQueuedDeliveryReproduction",
+            "-Djava.io.tmpdir=C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r3-x6ahs7l5",
+            "-cp",
+            "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r3-x6ahs7l5\\original-repro-classes;C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r3-x6ahs7l5\\classes;C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r3-x6ahs7l5\\test-classes;C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r3-x6ahs7l5\\lib\\*",
+            "com.example.ahakey.wd010.CheckProcess",
+            "com.example.ahakey.service.QueuedDeliveryChecks"
+          ],
+          "cwd": "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r3-x6ahs7l5",
+          "exit_code": 0,
+          "log": "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r3-x6ahs7l5\\OriginalQueuedDeliveryReproduction.log",
+          "sha256": "c504e301b3d92272ae0aded10473f40d092615c471d168eb6bb6f6462871be81"
+        }
+      ],
+      "results": "84项退出0，包含排队后401、主动退出/换号、关闭/替换账号窗口、关闭/重开付款窗口、兑换隐藏重开及服务层轮询取消；原始复现退出0，coupon/payment terminalShown均true，显示成功及请重新登录。",
+      "boundary": "真实JavaFX/生产账号服务，HTTP仅loopback、合成凭据；付款fixture直接调用生产showPayment打开二维码窗口以固定时序，生产菜单和建单到该方法的可达性另经静态核对。未声称通过完整App启动或真实付款。",
+      "compiled_identity_limit": "执行使用提交后的既有编译输出并保存class/JAR快照SHA；源码与提交编译证据已核验，但本独立审阅未自行重建生产或形成Git/EXE候选。"
+    },
+    "prior_finding_resolution": {
+      "FR-01": "第2轮已闭环；第3轮恢复相关文件未变，继承第2轮生产路径分析及独立61项通过证据。",
+      "FR-02": "第2轮已闭环；第3轮没有改变显式新兑换与未知结果不重发语义。",
+      "FR-03": "现已闭环：请求中的失效、并发401及最终FX消费后的终态展示均有对应实现与定向证据。",
+      "ER2-01": "第2轮已闭环；原草稿载入及runtime清理后同步实现未变。",
+      "ER2-02": "现已闭环：原session的服务端失效关联保留至最终消费；主动退出/认证切断关联。",
+      "R2-FR-01": "本轮正式关闭；84项定向检查和原字节失败复现独立通过，两个实际窗口不再停在进行中。"
+    },
+    "limitations": [
+      "PASS只适用于本冻结代码包的独立代码审阅，不等于最终JAR/EXE/安装包、真实账号/兑换/支付、模型/麦克风/SendInput、设备恢复/断电或Owner UAT通过。",
+      "正式恢复v2 Firmware gate/receipt/确切HEX及Git candidate、最终产物身份由原DLA按交付流程继续绑定；本轮未修改Firmware、Git或执行相关脚本。",
+      "第2轮1.0.20构建及SpeechLifecycleCheck配置适用性失败原样保留，不借本次代码PASS将旧成品验证改记PASS；最终1.0.21 EXE需使用自身runtime/JAR/lib验证并如实记录配置与JVM差异。",
+      "前两轮历史额外诊断失败及其对照记录不变，本轮未重跑或改记通过。",
+      "本轮仅新增独立R3记录/说明及临时测试证据；未修改生产、根REVIEW、Harness状态、冻结报告或前两轮独立FAIL记录；未向其他聊天发送消息。"
+    ]
+  },
+  "findings": [],
+  "per_changed_file_review": {
+    "src/main/java/com/example/ahakey/service/CloudAccountManager.java": {
+      "sha256": "6b3f423241166db062de7f6f5e852fff8cefd8627ba92decdae9ca9644104f09",
+      "assessment": "新增最终消费校验统一兑换状态与付款完成门禁；保留同源server-expiry、主动认证切断和pollGeneration，已读全部实际新增/替换hunk及调用者。"
+    },
+    "src/main/java/com/example/ahakey/view/CloudAccountDialog.java": {
+      "sha256": "6eec46b4acbf04085944a75be1f5c22dac218d5803f2b6f35aa95d840e3a457b",
+      "assessment": "真实FX回调重新校验并更新终态；兑换具体stage身份、付款ticket/可见性/closed保护保留，主窗口失效切回登录。"
+    },
+    "src/test/java/com/example/ahakey/wd010/QueuedDeliveryChecks.java": {
+      "sha256": "3c530fefc2f048086c22c1affab981d84ca4dea902c2dd64e2e6edd0ecf18261",
+      "assessment": "逐行阅读全部122行；沿原复现真实HTTP/FX/执行器空闲门槛扩展84项，实际运行通过；额外未修改原复现独立交叉通过。"
+    }
+  },
+  "unchanged_files_inherited_from_round2": [
+    "pom.xml",
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/firmware/DeviceMaintenanceCoordinator.java",
+    "src/main/java/com/example/ahakey/model/DeviceStatus.java",
+    "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+    "src/main/java/com/example/ahakey/model/FactoryResetState.java",
+    "src/main/java/com/example/ahakey/model/StudioState.java",
+    "src/main/java/com/example/ahakey/platform/windows/WindowsCredentialStore.java",
+    "src/main/java/com/example/ahakey/protocol/FactoryResetProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java",
+    "src/main/java/com/example/ahakey/service/AhaTypeConfig.java",
+    "src/main/java/com/example/ahakey/service/AhaTypeService.java",
+    "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/FactoryResetService.java",
+    "src/main/java/com/example/ahakey/service/FactoryResetStore.java",
+    "src/main/java/com/example/ahakey/service/K1RouteService.java",
+    "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+    "src/main/java/com/example/ahakey/service/VoiceInputManager.java",
+    "src/main/java/com/example/ahakey/util/StudioStore.java",
+    "src/main/java/com/example/ahakey/view/CanvasController.java",
+    "src/main/java/com/example/ahakey/view/CanvasPane.java",
+    "src/main/java/com/example/ahakey/view/FactoryResetDialog.java",
+    "src/main/java/com/example/ahakey/view/FloatingVoiceNotification.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java",
+    "src/main/java/com/example/ahakey/view/TopBar.java",
+    "src/main/resources/messages_en.properties",
+    "src/main/resources/messages_zh.properties",
+    "src/test/java/com/example/ahakey/wd010/CheckProcess.java",
+    "src/test/java/com/example/ahakey/wd010/CloudChecks.java",
+    "src/test/java/com/example/ahakey/wd010/CloudTransactionUiChecks.java",
+    "src/test/java/com/example/ahakey/wd010/CloudUiChecks.java",
+    "src/test/java/com/example/ahakey/wd010/RestoreChecks.java",
+    "src/test/java/com/example/ahakey/wd010/RestorePreparationChecks.java",
+    "src/test/java/com/example/ahakey/wd010/RestoreProductionUiChecks.java",
+    "src/test/java/com/example/ahakey/wd010/RuntimeRestoreRaceChecks.java",
+    "src/test/java/com/example/ahakey/wd010/VoiceFinalChecks.java"
+  ],
+  "next_action": "原DLA可消费本次PASS，按现有授权和正式流程继续candidate及隔离的完整local-model EXE构建/成品验证；本独立记录不替代其状态登记、产物或真实验收证据。Owner无需复制转交。"
+}
