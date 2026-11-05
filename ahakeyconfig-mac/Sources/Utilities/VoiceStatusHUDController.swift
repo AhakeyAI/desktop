@@ -146,7 +146,17 @@ struct VoiceStatusHUDState: Equatable {
     var transcript: String = ""
 
     var contentSize: NSSize {
-        transcript.isEmpty ? NSSize(width: 360, height: 58) : NSSize(width: 520, height: 116)
+        guard !transcript.isEmpty else { return NSSize(width: 360, height: 58) }
+        // Keep the original capsule width. Grow upward only as wrapped text
+        // needs more room, capped at three lines so it cannot cover the app.
+        let font = NSFont.systemFont(ofSize: 14)
+        let lineHeight = ceil(font.ascender - font.descender + font.leading)
+        let bounds = (transcript as NSString).boundingRect(
+            with: NSSize(width: 292, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font])
+        let textHeight = min(max(lineHeight, ceil(bounds.height)), lineHeight * 3)
+        return NSSize(width: 360, height: 62 + textHeight)
     }
 
     func showingTranscript(_ text: String) -> Self {

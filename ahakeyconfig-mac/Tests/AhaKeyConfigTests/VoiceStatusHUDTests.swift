@@ -16,11 +16,19 @@ final class VoiceStatusHUDTests: XCTestCase {
         defer { panel.orderOut(nil) }
         let originalKeyWindow = NSApp.keyWindow
         hud.show(.recording.showingTranscript("first phrase, then another phrase"))
-        XCTAssertEqual(panel.frame.size, NSSize(width: 520, height: 116))
+        let shortHeight = panel.frame.height
+        XCTAssertEqual(panel.frame.width, 360)
+        XCTAssertGreaterThan(shortHeight, 58)
+        XCTAssertLessThan(shortHeight, 120)
         XCTAssertTrue(panel.ignoresMouseEvents)
         XCTAssertTrue(NSApp.keyWindow === originalKeyWindow)
-        hud.show(.recognizing.showingTranscript("first phrase, then another phrase"))
-        XCTAssertEqual(panel.frame.height, 116)
+        hud.show(.recording.showingTranscript(String(repeating: "wrapped transcript ", count: 100)))
+        XCTAssertEqual(panel.frame.width, 360, "Long recognition must wrap, never widen the capsule")
+        XCTAssertGreaterThan(panel.frame.height, shortHeight)
+        XCTAssertLessThanOrEqual(panel.frame.height, 120, "Transcript height must stop after three lines")
+        let cappedHeight = panel.frame.height
+        hud.show(.recognizing.showingTranscript(String(repeating: "wrapped transcript ", count: 1000)))
+        XCTAssertEqual(panel.frame.height, cappedHeight)
         hud.show(.done)
         XCTAssertEqual(panel.frame.size, NSSize(width: 360, height: 58))
     }
