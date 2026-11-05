@@ -1,0 +1,32 @@
+{
+  "atUTC": "2026-11-05T02:39:41.638278+00:00",
+  "functionalSource": "252e1aa40c6a0809843b481ed4ee027799a5f0ae",
+  "candidateBuild": 560,
+  "automatedTests": 1040,
+  "failures": 0,
+  "finalGuardTargetedTests": 13,
+  "compatibilityDecision": "Prefer SpeechTranscriber on compatible macOS26 devices with installed target-language models; preserve legacy recognizer on other supported systems.",
+  "minimumOSUnchanged": "13.0",
+  "explicitAssetDownloads": 0,
+  "realMicrophoneTestPassed": false,
+  "newKeyboardWrites": 0,
+  "cloudRequests": 0,
+  "syntheticProductionPCMReplay": {
+    "success": true,
+    "microphoneOpened": false,
+    "literalLinebreakWordCount": 2,
+    "lineBreakCount": 0,
+    "needsReview": false,
+    "volatileUpdates": 25,
+    "prepareCompletedSeconds": 1.8798329830169678,
+    "firstInputSeconds": 1.8798840045928955,
+    "inputFinishedSeconds": 9.628116011619568,
+    "finalizedSeconds": 9.683656096458435
+  },
+  "pending": [
+    "Real microphone and physical Voice short/long press",
+    "Literal spoken command with cloud disabled",
+    "First startup and explicit cancellation",
+    "Restore temporary Voice binding only after fresh identity/configuration guard"
+  ]
+}

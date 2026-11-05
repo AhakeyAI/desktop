@@ -38,6 +38,9 @@ jobs:
   macos-app:
     name: macOS · build + package
     runs-on: macos-15
+    env:
+      # SpeechAnalyzer is weak-linked at runtime, but requires the macOS26 SDK to compile.
+      DEVELOPER_DIR: /Applications/Xcode_26.1.1.app/Contents/Developer
     defaults:
       run:
         working-directory: ahakeyconfig-mac

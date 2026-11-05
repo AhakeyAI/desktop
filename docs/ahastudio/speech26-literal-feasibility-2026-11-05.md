@@ -49,3 +49,5 @@ afconvert -f WAVE -d LEI16@16000 /tmp/speech26-input.aiff /tmp/speech26-input.wa
 已实现 `AdaptiveNativeSpeechCaptureSession`：macOS26且SpeechTranscriber可用、目标语言模型已安装时采用新版，否则保留SFSpeechRecognizer。不会主动下载模型或更改键盘路由；Consumer系统听写不受此替换影响。新版使用volatile＋fastResults，将句子定稿写入现有带时间轴的拼接器，整次录音结束前不粘贴。末尾显式排空重采样器；原生48kHz Float32→16kHz Int16及排空帧数测试通过。
 
 模型结束等待最多5秒；处理出错、音频队列溢出或结束未确认时，保留已有文字供核对，不把半段结果自动回填。启动取消不允许之后重新打开麦克风。11项初轮专项及后续1040项全量测试通过；真实麦克风、快捷键、口令原词与首次启动仍须Owner集中验收。实验回执中的“尚未接入”保留为实验当时状态，不作为当前开发进度。
+
+编译工具链要求Xcode26+／macOS26 SDK（不等于运行系统要求）。首次源码CI41956346050的macOS任务因默认旧Xcode找不到新Speech类型失败；本机Xcode26.4双架构签名通过。CI、正式构建和晋级校验统一明确选择runner已公布的Xcode26.1.1，保留macOS13部署目标与运行时能力检查。来源：[GitHub官方macos15工具清单](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-Readme.md)。

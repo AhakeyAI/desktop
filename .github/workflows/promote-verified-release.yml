@@ -27,6 +27,9 @@ concurrency:
 jobs:
   verify-and-draft:
     runs-on: macos-15
+    env:
+      # SpeechAnalyzer is weak-linked at runtime, but requires the macOS26 SDK to compile.
+      DEVELOPER_DIR: /Applications/Xcode_26.1.1.app/Contents/Developer
     environment: ws5-release
     permissions:
       contents: write
