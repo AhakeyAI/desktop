@@ -1,0 +1,69 @@
+{
+  "atUTC": "2026-11-05T04:16:47.096561+00:00",
+  "ownerReportsNormalRebootAndScreenNormal": true,
+  "freshMetadataMatchesLocalArtwork": [
+    {
+      "entry": 1,
+      "frames": 1,
+      "bytes": 28672,
+      "crc32": 1849042192,
+      "matchesDevice": true
+    },
+    {
+      "entry": 3,
+      "frames": 1,
+      "bytes": 28672,
+      "crc32": 2663383340,
+      "matchesDevice": true
+    },
+    {
+      "entry": 0,
+      "frames": 1,
+      "bytes": 28672,
+      "crc32": 2663383340,
+      "matchesDevice": true
+    },
+    {
+      "entry": 2,
+      "frames": 1,
+      "bytes": 28672,
+      "crc32": 781405657,
+      "matchesDevice": true
+    }
+  ],
+  "brightness": 35,
+  "standbyMinutes": 60,
+  "platform": "Mac",
+  "mode": 3,
+  "physicalLever": "auto",
+  "keysRead": 16,
+  "hardwareWritesThisCheck": 0,
+  "strictPrePowerConfirmedBaselineAvailable": false,
+  "detailedLoggingOffAtEnd": true,
+  "candidateBuild": 563,
+  "candidateSource": "49c6089a9ef2f6a09086ecd8952613b6e5d5591e",
+  "firmwareOwnerConfirmedSHA256": "f99d3b9d505214be2082d7b696f9a4bcacbc9684ecd7e5ed7f04e631cba81142",
+  "firmwareProtocolIdentity": "1.0.1-r001",
+  "scope": "Post-owner-reboot readonly smoke; metadata comparison against current owner artwork, not historical all-default test baseline.",
+  "autoPermissionReadback": {
+    "codex": "never / danger-full-access",
+    "authorizedKimiSessions": 1,
+    "kimi": "auto",
+    "newGrants": 0,
+    "modelRequests": 0,
+    "modifierKeysHeld": false
+  },
+  "limitations": [
+    "No confirmed pre-power metadata baseline for the newer owner artwork; matching current local payload is not strict pre/post retention proof.",
+    "Temporary Codex F18 remains pending guarded restoration to original Right Alt after final physical voice testing.",
+    "Manual transition passed; physical return to auto requested and pending.",
+    "Full eight acceptance groups and four external development dependencies remain open."
+  ],
+  "manualPermissionReadback": {
+    "codex": "on-request / workspace",
+    "sameAuthorizedKimiSession": "manual",
+    "newGrants": 0,
+    "modelRequests": 0,
+    "modifierKeysHeld": false
+  }
+}
