@@ -238,6 +238,69 @@ final class StudioLCDInspectorTests: XCTestCase {
         try await finish(model); XCTAssertEqual(model.modeDraft, .single)
     }
 
+    func testModeBusyHasABoundedRetryAndNeverRetriesOtherErrors() async throws {
+        for error in [WS3PresentationError.busy, .invalidReply, .unavailable] {
+            let model = StudioLCDInspectorModel(); model.chooseMode(.single)
+            var attempts = 0, uploads = 0
+            model.write(artwork: [.init(title: "image", run: { uploads += 1 })], deviceID: device,
+                using: access(apply: { _, _, _ in attempts += 1; throw error }))
+            try await finish(model)
+            XCTAssertEqual(attempts, error == .busy ? 4 : 1)
+            XCTAssertEqual(uploads, 1); XCTAssertEqual(model.modeDraft, .single)
+        }
+    }
+
+    func testModeBusyStopsIfGenerationOrNewExplicitChoiceChanges() async throws {
+        for newChoice in [false, true] {
+            var reads = 0, attempts = 0
+            let model = StudioLCDInspectorModel(); model.chooseMode(.single)
+            model.write(artwork: [], deviceID: device, using: access(read: {
+                reads += 1
+                return self.report(reads > 1 && newChoice ? .multi : nil, generation: reads > 1 && !newChoice ? 8 : 7)
+            }, apply: { _, _, _ in attempts += 1; throw WS3PresentationError.busy }))
+            try await finish(model)
+            XCTAssertEqual(attempts, 1); XCTAssertEqual(model.modeDraft, .single)
+        }
+    }
+
+    func testModeOnlyTransientBusyCanFinishWithoutArtwork() async throws {
+        let model = StudioLCDInspectorModel()
+        model.chooseMode(.single)
+        var attempts = 0
+        model.write(artwork: [], deviceID: device, using: access(apply: { mode, _, _ in
+            attempts += 1
+            if attempts == 1 { throw WS3PresentationError.busy }
+            return self.report(mode)
+        }))
+        try await finish(model)
+        XCTAssertEqual(attempts, 2)
+        XCTAssertNil(model.modeDraft)
+        XCTAssertEqual(model.overview?.requestedMode, .single)
+    }
+
+    func testCompletedArtworkIsNotRepeatedWhenModeIsBrieflyBusy() async throws {
+        let model = StudioLCDInspectorModel()
+        model.chooseMode(.single, force: true)
+        var writes: [String] = [], modeAttempts = 0
+        var results: [KeyboardWriteOutcome] = []
+        let observation = model.writeCompleted.sink { results.append($0) }
+        defer { observation.cancel() }
+        model.write(artwork: [
+            .init(title: "completed", run: { writes.append("completed") }),
+            .init(title: "idle", run: { writes.append("idle") })
+        ], deviceID: device, using: access(apply: { mode, _, _ in
+            modeAttempts += 1
+            if modeAttempts == 1 { throw WS3PresentationError.busy }
+            return self.report(mode)
+        }))
+        try await finish(model)
+        XCTAssertEqual(writes, ["completed", "idle"])
+        XCTAssertEqual(modeAttempts, 2)
+        XCTAssertEqual(results.count, 1)
+        XCTAssertEqual(results.first?.succeeded, true)
+        XCTAssertNil(model.modeDraft)
+    }
+
     func testArtworkSubmissionReappliesSelectedModeEvenWhenInitiallyEqual() async throws {
         let model = StudioLCDInspectorModel()
         model.read(using: access(read: { self.report(.single) }))

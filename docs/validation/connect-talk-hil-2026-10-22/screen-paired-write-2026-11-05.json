@@ -1,0 +1,36 @@
+{
+  "testedBuild": 561,
+  "functionalSource": "adf16da4c3d4c0f3cd91b159d7827346072a7978",
+  "firmware": "Owner-confirmed HW1 F99D",
+  "fixture": "Locally generated 32x16 PNG; one normalized OLED frame",
+  "baseline": {
+    "defaultEntry": 12,
+    "completedEntry": 15,
+    "bothFactoryDefault": true,
+    "otherCustomResourceCount": 0
+  },
+  "uploadedPair": {
+    "entryIDs": [
+      12,
+      15
+    ],
+    "frameCountEach": 1,
+    "payloadBytesEach": 28672,
+    "crc32Each": 1125432989,
+    "independentFullDisplayReadback": true,
+    "other17ResourcesUnchanged": true,
+    "brightnessUnchanged": 35
+  },
+  "overallFirstAttemptPassed": false,
+  "failure": "After both artwork commits, runtime presentation activation returned typed busy; native result reported completed artwork and did not claim overall success.",
+  "rootFixDevelopment": {
+    "busyRetryOnlyAfterFreshEpochAndOwnershipChecks": true,
+    "artworkReplay": false,
+    "maximumModeAttempts": 4,
+    "targetedTests": 22,
+    "fullTests": 1051
+  },
+  "fixedCandidateHardwareRetestPassed": false,
+  "powerRetentionPassed": false,
+  "cleanupComplete": false
+}

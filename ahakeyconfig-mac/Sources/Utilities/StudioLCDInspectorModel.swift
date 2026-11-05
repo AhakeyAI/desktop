@@ -139,6 +139,34 @@ final class StudioLCDInspectorModel: ObservableObject {
         throw Failure.unavailable
     }
 
+    /// Retry only a backend busy rejection, which occurs before the mode write.
+    /// Completed artwork is outside this loop and must never be replayed.
+    static func applyMode(_ mode: WS3PresentationMode, deviceID: String, using access: Access) async throws -> WS3TaskOverview {
+        let ownership = access.revision()
+        var initial: WS3TaskOverview?
+        for attempt in 0..<4 {
+            let fresh = try await freshOverview(using: access)
+            guard access.revision() == ownership, let generation = fresh.connectionGeneration else { throw Failure.changed }
+            if let initial {
+                guard fresh.connectionGeneration == initial.connectionGeneration,
+                      fresh.requestedMode == initial.requestedMode,
+                      fresh.presentationRevision == initial.presentationRevision else { throw Failure.changed }
+            } else { initial = fresh }
+            guard fresh.targetedModeWrites == true else { throw Failure.oldBackend }
+            do {
+                let result = try await access.apply(mode, deviceID, generation)
+                try Task.checkCancellation()
+                guard access.revision() == ownership, result.connected, result.requestedMode == mode,
+                      result.connectionGeneration == generation else { throw Failure.changed }
+                return result
+            } catch WS3PresentationError.busy where attempt < 3 {
+                guard access.revision() == ownership else { throw Failure.changed }
+                try await access.pause()
+            }
+        }
+        throw WS3PresentationError.busy
+    }
+
     func write(artwork: [ArtworkAction], deviceID: String?, using access: Access) {
         guard !isWriting, !isReading, !artwork.isEmpty || hasSettingsDraft else { return }
         let mode = modeDraft, follow = followDraft
@@ -154,14 +182,7 @@ final class StudioLCDInspectorModel: ObservableObject {
                     completed.append(item.title)
                 }
                 if let mode, let deviceID {
-                    let fresh = try await Self.freshOverview(using: access)
-                    guard fresh.targetedModeWrites == true else { throw Failure.oldBackend }
-                    guard let generation = fresh.connectionGeneration else { throw Failure.unavailable }
-                    let revision = access.revision()
-                    let result = try await access.apply(mode, deviceID, generation)
-                    try Task.checkCancellation()
-                    guard access.revision() == revision, result.connected, result.requestedMode == mode,
-                          result.connectionGeneration == generation else { throw Failure.changed }
+                    let result = try await Self.applyMode(mode, deviceID: deviceID, using: access)
                     self.overview = result
                     if self.modeDraft == mode { self.modeDraft = nil }
                     completed.append(NSLocalizedString("展示方式", comment: ""))
