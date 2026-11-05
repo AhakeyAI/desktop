@@ -28,5 +28,19 @@
     "Literal spoken command with cloud disabled",
     "First startup and explicit cancellation",
     "Restore temporary Voice binding only after fresh identity/configuration guard"
-  ]
+  ],
+  "installed": true,
+  "signatureVerified": true,
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "nativeStartupVerified": true,
+  "agentConnectedAfterInstall": true,
+  "scopedPreferencesUnchanged": 16,
+  "globalAhaTypeEnabled": false,
+  "physicalKeyboardModeAtInstall": 1,
+  "runtimePresentationModeBeforeAndAfter": null,
+  "legacyRuntimeHardwareNotTested": true,
+  "testPackageNotarized": false
 }
