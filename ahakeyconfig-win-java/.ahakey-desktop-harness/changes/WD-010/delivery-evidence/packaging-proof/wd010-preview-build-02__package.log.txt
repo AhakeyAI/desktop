@@ -1,0 +1,70 @@
+[INFO] Scanning for projects...
+[WARNING] 
+[WARNING] Some problems were encountered while building the effective model for com.example:ahakey-studio:jar:1.0.0
+[WARNING] 'dependencies.dependency.systemPath' for com.k2fsa.sherpa:sherpa-onnx-java-api:jar should not point at files within the project directory, ${project.basedir}/third-party/sherpa-onnx-java-api-1.13.3.jar will be unresolvable by dependent projects @ line 97, column 25
+[WARNING] 
+[WARNING] It is highly recommended to fix these problems because they threaten the stability of your build.
+[WARNING] 
+[WARNING] For this reason, future Maven versions might no longer support building such malformed projects.
+[WARNING] 
+[INFO] 
+[INFO] ---------------------< com.example:ahakey-studio >----------------------
+[INFO] Building ahakey-studio 1.0.0
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[WARNING] 6 problems were encountered while building the effective model for org.openjfx:javafx-controls:jar:17.0.10 during dependency collection step for project (use -X to see details)
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ ahakey-studio ---
+[INFO] Copying 31 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- resources:3.3.1:copy-resources (copy-resources) @ ahakey-studio ---
+[INFO] Copying 31 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.11.0:compile (default-compile) @ ahakey-studio ---
+[INFO] Changes detected - recompiling the module! :source
+[INFO] Compiling 102 source files with javac [debug target 17] to target\classes
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ ahakey-studio ---
+[INFO] skip non existing resourceDirectory C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.11.0:testCompile (default-testCompile) @ ahakey-studio ---
+[INFO] Changes detected - recompiling the module! :dependency
+[INFO] Compiling 45 source files with javac [debug target 17] to target\test-classes
+[INFO] /C:/Users/20825/Desktop/windows��������/desktop/ahakeyconfig-win-java/target/WD010-Preview-Source-R3-1.0.21/src/test/java/com/example/ahakey/packaging/K1RouteEditorChecks.java: C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\src\test\java\com\example\ahakey\packaging\K1RouteEditorChecks.javaʹ����δ�����򲻰�ȫ�Ĳ�����
+[INFO] /C:/Users/20825/Desktop/windows��������/desktop/ahakeyconfig-win-java/target/WD010-Preview-Source-R3-1.0.21/src/test/java/com/example/ahakey/packaging/K1RouteEditorChecks.java: �й���ϸ��Ϣ, ��ʹ�� -Xlint:unchecked ���±��롣
+[INFO] 
+[INFO] --- surefire:3.2.5:test (default-test) @ ahakey-studio ---
+[INFO] Tests are skipped.
+[INFO] 
+[INFO] --- jar:3.3.0:jar (default-jar) @ ahakey-studio ---
+[INFO] Building jar: C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\ahakey-studio-1.0.0.jar
+[INFO] 
+[INFO] --- dependency:3.6.0:copy-dependencies (copy-dependencies) @ ahakey-studio ---
+[INFO] Copying core-3.5.3.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\core-3.5.3.jar
+[INFO] Copying javafx-controls-17.0.10.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\javafx-controls-17.0.10.jar
+[INFO] Copying javafx-controls-17.0.10-win.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\javafx-controls-17.0.10-win.jar
+[INFO] Copying javafx-fxml-17.0.10.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\javafx-fxml-17.0.10.jar
+[INFO] Copying javafx-fxml-17.0.10-win.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\javafx-fxml-17.0.10-win.jar
+[INFO] Copying javafx-graphics-17.0.10.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\javafx-graphics-17.0.10.jar
+[INFO] Copying javafx-graphics-17.0.10-win.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\javafx-graphics-17.0.10-win.jar
+[INFO] Copying javafx-base-17.0.10.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\javafx-base-17.0.10.jar
+[INFO] Copying javafx-base-17.0.10-win.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\javafx-base-17.0.10-win.jar
+[INFO] Copying tomlj-1.0.0.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\tomlj-1.0.0.jar
+[INFO] Copying antlr4-runtime-4.7.2.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\antlr4-runtime-4.7.2.jar
+[INFO] Copying jsr305-3.0.2.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\jsr305-3.0.2.jar
+[INFO] Copying jackson-databind-2.16.0.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\jackson-databind-2.16.0.jar
+[INFO] Copying jackson-annotations-2.16.0.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\jackson-annotations-2.16.0.jar
+[INFO] Copying jackson-core-2.16.0.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\jackson-core-2.16.0.jar
+[INFO] Copying sqlite-jdbc-3.46.1.0.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\sqlite-jdbc-3.46.1.0.jar
+[INFO] Copying jna-5.14.0.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\jna-5.14.0.jar
+[INFO] Copying jna-platform-5.14.0.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\jna-platform-5.14.0.jar
+[INFO] Copying slf4j-api-2.0.9.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\slf4j-api-2.0.9.jar
+[INFO] Copying logback-classic-1.4.11.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\logback-classic-1.4.11.jar
+[INFO] Copying logback-core-1.4.11.jar to C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\target\lib\logback-core-1.4.11.jar
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  14.440 s
+[INFO] Finished at: 2026-11-05T17:33:11+08:00
+[INFO] ------------------------------------------------------------------------
+Signed final EXE; do not change its bytes after this step.

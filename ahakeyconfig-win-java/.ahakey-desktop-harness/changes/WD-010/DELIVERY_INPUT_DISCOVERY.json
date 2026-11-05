@@ -1,0 +1,46 @@
+{
+  "status": "observed_inputs_not_build_receipt",
+  "variant": "local-model",
+  "files": [
+    {
+      "path": "scripts/package-local-model.ps1",
+      "bytes": 15462,
+      "sha256": "932d29a7ed654e06792ec7e87a99a58e0d34384dc73b74ff6c5eb623bbf979e2"
+    },
+    {
+      "path": "target/wd006-dependencies/verified-models/encoder.int8.onnx",
+      "bytes": 165462184,
+      "sha256": "81a70226a8934e6ed92aa1d4fc486b428b5398e2f2619ed4897b7294cab90e9a"
+    },
+    {
+      "path": "target/wd006-dependencies/verified-models/decoder.int8.onnx",
+      "bytes": 71664561,
+      "sha256": "f3cca9f77bb9d93c8fcbfb63ae617b6b1ee96818df3aa3b151c40658fe38594f"
+    },
+    {
+      "path": "target/wd006-dependencies/verified-models/tokens.txt",
+      "bytes": 75756,
+      "sha256": "59aba8873a2ed1e122c25fee421e25f283b63290efbde85c1f01a853d83cb6e6"
+    },
+    {
+      "path": "target/wd006-dependencies/sherpa-onnx-native-lib-win-x64-v1.13.3.jar",
+      "bytes": 7707183,
+      "sha256": "560926df020860b1e4549d299ac365eda3715660cc36f41e9c547cb7493302c7"
+    },
+    {
+      "path": "third-party/sherpa-onnx-java-api-1.13.3.jar",
+      "bytes": 175636,
+      "sha256": "4a1fabf547d5e3bb5c9b0ddfc767142692cabe658da84f16adfafd519149b082"
+    },
+    {
+      "path": "target/wd009-bridge-r2-build-02/BRIDGE_BUILD_MANIFEST.json",
+      "bytes": 23062,
+      "sha256": "28c2feea8bf8e68449ae57cda0ec8f2757d10a800db0360aa2319f16cb01630a"
+    },
+    {
+      "path": "target/wd009-bridge-r2-build-02/bin/BLE_tcp_driver.exe",
+      "bytes": 84480,
+      "sha256": "90ee250231048a1af7e0511881dfc924e6ec9e6dca9aa30019156abcd55e303d"
+    }
+  ]
+}

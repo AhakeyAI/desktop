@@ -89,6 +89,61 @@
       "owner_record_sha256": "d547985527683efc9b58aabb01b4604a152ec82bd5bd7e6e6984b7b3897d513a",
       "created_at": "2026-10-23T03:04:56+00:00",
       "status": "approved_reference"
+    },
+    {
+      "id": "J017",
+      "name": "云端账号登录注册刷新兑换充值",
+      "trigger": "更多菜单的云端账号及刷新 AhaType",
+      "state_owner": "云端账号服务拥有会话和额度事实，UI展示请求状态，不以开关代替认证",
+      "protocol": "恢复历史 HTTP JSON 账号、兑换、微信支付接口，不修改后端或设备协议",
+      "failure_modes": [
+        "离线、过期、余额不足、支付取消及陈旧响应有明确反馈，退出登录不得被旧响应复活"
+      ],
+      "regression": [
+        "现有更多菜单、主窗口、系统语音、WD009设备连接及Hook行为保持"
+      ],
+      "owner_record": ".ahakey-desktop-harness/evidence/20261104-wd010-owner-task.md",
+      "owner_record_sha256": "f677cbb07f743fb2539d16ec76e2ead91abcf7da947da39187e48ec22ce9aa3b",
+      "created_at": "2026-11-04T09:11:00+00:00",
+      "status": "approved_reference"
+    },
+    {
+      "id": "J018",
+      "name": "识别最终文本经AhaType整理后输出",
+      "trigger": "现有本地语音录音结束且AhaType开启并已登录",
+      "state_owner": "语音管理器拥有录音代次和输出资格，AhaType服务拥有云端请求及状态",
+      "protocol": "恢复 POST /api/v1/typeless/process，发送文字并读取data.text或data.result",
+      "failure_modes": [
+        "关闭、未登录、服务到期、超时或失败回退原文并显示真实原因，取消后不得注入迟到结果"
+      ],
+      "regression": [
+        "J007本地识别、F18路由、partial不注入、final仅一次、停止取消及下一次录音"
+      ],
+      "owner_record": ".ahakey-desktop-harness/evidence/20261104-wd010-owner-task.md",
+      "owner_record_sha256": "f677cbb07f743fb2539d16ec76e2ead91abcf7da947da39187e48ec22ce9aa3b",
+      "created_at": "2026-11-04T09:11:01+00:00",
+      "status": "approved_reference"
+    },
+    {
+      "id": "J019",
+      "name": "设备恢复出厂设置与状态读回",
+      "trigger": "更多菜单原当前模式恢复位置改为恢复出厂设置，执行前确认方式正在Grill",
+      "state_owner": "固件共享Restore持久状态及attempt拥有执行事实，桌面端只管理交互和读回",
+      "protocol": "复用0x9E/0x30 v1状态查询和0x9E/0x31 v2显式恢复，USB或BLE通道且需USB供电",
+      "failure_modes": [
+        "无供电或写入忙拒绝；丢回复只查状态；INCOMPLETE仅手动重试；旧草稿不得自动回写"
+      ],
+      "regression": [
+        "按Owner决定删除旧当前模式草稿恢复功能；设备选择、蓝牙身份配对及账号AhaType保持；真实恢复测试另行绑定候选"
+      ],
+      "owner_record": ".ahakey-desktop-harness/evidence/20261104-wd010-restore-owner-intake.md",
+      "owner_record_sha256": "fdd7e750756907a4900191d1bf8bdebebfedac8cb21f6fa10ef198550e3504af",
+      "created_at": "2026-11-04T09:37:37+00:00",
+      "status": "approved_reference",
+      "q1_owner_decision": {
+        "path": ".ahakey-desktop-harness/evidence/20261104-wd010-restore-q1-owner-decision.md",
+        "sha256": "4472361559b3d91770af451da6936df0c9c6ed4eb14bcda86d8b5a6554403bd1"
+      }
     }
   ]
 }

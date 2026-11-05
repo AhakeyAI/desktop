@@ -1,0 +1,2 @@
+注: C:\Users\20825\Desktop\windows软件代码\desktop\ahakeyconfig-win-java\target\WD010-Preview-Source-R3-1.0.21\src\test\java\com\example\ahakey\packaging\K1RouteEditorChecks.java使用了未经检查或不安全的操作。
+注: 有关详细信息, 请使用 -Xlint:unchecked 重新编译。

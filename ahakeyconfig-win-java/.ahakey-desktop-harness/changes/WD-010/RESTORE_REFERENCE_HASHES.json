@@ -1,0 +1,42 @@
+{
+  "root": "C:\\Users\\20825\\Desktop\\vibe-code",
+  "meaning": "read-only observed files; no formal gate/installed-device admission",
+  "files": [
+    {
+      "path": ".ahakey-harness/project-state.yaml",
+      "sha256": "54a9c9a162e19a658a4efb8ccf71947a93be1df60d18fdaa28d0261e0e1ec2f8"
+    },
+    {
+      "path": ".ahakey-harness/workstreams/X1-PLATFORMIZATION-RELEASE-COMPOSITION/STATE.yaml",
+      "sha256": "a8610e9e93514646695ee2148f0882b51bb2a2b7325d08996261cedcfc6ae602"
+    },
+    {
+      "path": ".ahakey-harness/workstreams/X1-PLATFORMIZATION-RELEASE-COMPOSITION/ARCHITECTURE.md",
+      "sha256": "5de15033ff3a3267473b5fef3a6268c87b792f922519fc042bc343905b30ad27"
+    },
+    {
+      "path": "APP/sub_main/command_solve.c",
+      "sha256": "26f672feb691ab90f0b2b235120206dafda2071b2ca52d221557a950970e1d4c"
+    },
+    {
+      "path": "APP/sub_main/main.c",
+      "sha256": "370e27d2ed6008085cd0c7c0487b8a9b2c387d8994048ea3ea3585ea35381ebb"
+    },
+    {
+      "path": "APP/services/restore_initialization.c",
+      "sha256": "e6dfc29f41f3b6a0d431ea525c9e1cf3eeb13e8c310e2c453f4674f3362de538"
+    },
+    {
+      "path": "APP/services/k1_restore_store.h",
+      "sha256": "43401a87dbb63e3fd4ff5e1fd0db2dd1fae078d4ae0e73e51d97dd3fdb41156d"
+    },
+    {
+      "path": "tests/host/restore_initialization/test_restore_initialization.c",
+      "sha256": "bf3614cddbb64da13cbf78ef640d170f5cd7a409a74909aa6f10f383d2a89d0d"
+    },
+    {
+      "path": "tests/host/restore_initialization/test_restore_production_journey.c",
+      "sha256": "f919c7c176502f0045bb40b278b9bd7b388cb1a7048cb630d427be3bb18b5a3d"
+    }
+  ]
+}

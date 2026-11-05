@@ -1,0 +1,43 @@
+11月 05, 2026 12:39:00 下午 com.sun.javafx.application.PlatformImpl startup
+警告: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @531d72ca'
+2026-11-05 12:39:02.728 [JavaFX Application Thread] WARN  c.example.ahakey.util.AiRuntimeStore - AiRuntimeStore.load failed, returning defaults: Unrecognized field "customPreserved" (class com.example.ahakey.util.AiRuntimeStore$Draft), not marked as ignorable (5 known properties: "codexDataDir", "primarySlotIndex", "displayMode", "cursorDataDir", "slots"])
+ at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); line: 1, column: 43] (through reference chain: com.example.ahakey.util.AiRuntimeStore$Draft["customPreserved"])
+2026-11-05 12:39:02.779 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0130C2D6824BCCDD
+2026-11-05 12:39:02.788 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 12:39:02.789 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 30 C2 D6 82 4B 00 00 00 00 00 CC 
+2026-11-05 12:39:02.789 [factory-reset] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 12:39:02.790 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 12:39:02.790 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 12:39:02.792 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 12:39:02.795 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01307992A4ECCCDD
+2026-11-05 12:39:02.795 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 12:39:02.796 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 30 79 92 A4 EC 00 00 00 00 00 CC 
+2026-11-05 12:39:02.797 [factory-reset] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 12:39:02.797 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 12:39:02.797 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 12:39:02.797 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 12:39:02.807 [JavaFX Application Thread] WARN  c.example.ahakey.util.AiRuntimeStore - AiRuntimeStore.load failed, returning defaults: Unrecognized field "customPreserved" (class com.example.ahakey.util.AiRuntimeStore$Draft), not marked as ignorable (5 known properties: "codexDataDir", "primarySlotIndex", "displayMode", "cursorDataDir", "slots"])
+ at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); line: 1, column: 43] (through reference chain: com.example.ahakey.util.AiRuntimeStore$Draft["customPreserved"])
+2026-11-05 12:39:02.809 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E013006AD62C2CCDD
+2026-11-05 12:39:02.809 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 12:39:02.811 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 30 06 AD 62 C2 00 00 00 00 00 CC 
+2026-11-05 12:39:02.811 [factory-reset] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 12:39:02.811 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 12:39:02.811 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 12:39:02.811 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 12:39:02.812 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0130335BE96ACCDD
+2026-11-05 12:39:02.813 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 12:39:02.813 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 30 33 5B E9 6A 00 00 00 00 00 CC 
+2026-11-05 12:39:02.813 [factory-reset] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 12:39:02.813 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 12:39:02.813 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 12:39:02.813 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+java.lang.AssertionError: live runtime preference unchanged
+	at com.example.ahakey.wd010.RestorePreparationChecks.check(RestorePreparationChecks.java:19)
+	at com.example.ahakey.wd010.RestorePreparationChecks$Fixture.preserved(RestorePreparationChecks.java:44)
+	at com.example.ahakey.wd010.RestorePreparationChecks.main(RestorePreparationChecks.java:67)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at com.example.ahakey.wd010.CheckProcess.main(CheckProcess.java:7)

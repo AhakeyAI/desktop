@@ -1,0 +1,1578 @@
+11月 05, 2026 11:41:26 上午 com.sun.javafx.application.PlatformImpl startup
+警告: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @123a439b'
+2026-11-05 11:41:29.055 [JavaFX Application Thread] INFO  c.example.ahakey.config.ModelConfig - 模型配置文件加载成功
+2026-11-05 11:41:29.538 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01003B644B13CCDD
+2026-11-05 11:41:29.544 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 14
+2026-11-05 11:41:29.546 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 00 3B 64 4B 13 03 04 CC DD 
+2026-11-05 11:41:29.546 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:29.547 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:29.547 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:29.549 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:29.550 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01107910DF7800002ACCDD
+2026-11-05 11:41:29.551 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:29.551 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 79 10 DF 78 00 00 66 00 AA 8F 
+2026-11-05 11:41:29.551 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:29.551 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:29.551 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:29.551 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:29.552 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0110BC82DB75002A2ACCDD
+2026-11-05 11:41:29.552 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:29.552 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 BC 82 DB 75 00 2A 66 00 AA 8F 
+2026-11-05 11:41:29.552 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:29.553 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:29.553 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:29.553 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:29.553 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01103186EFA6005412CCDD
+2026-11-05 11:41:29.554 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 38
+2026-11-05 11:41:29.554 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 31 86 EF A6 00 54 66 00 AA 8F 
+2026-11-05 11:41:29.554 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:29.554 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:29.556 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:29.556 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:29.556 [k1-route] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=0, keyIndex=0
+2026-11-05 11:41:29.557 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870000CCDD
+2026-11-05 11:41:29.557 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:29.558 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 00 00 73 01 04 0A 64 65 76 69 63 65 
+2026-11-05 11:41:29.558 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:29.558 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:29.558 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:29.558 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+PASS actual pane displays read-only Consumer usage
+PASS route refresh loads actual device description
+PASS Consumer has no authoring selector
+2026-11-05 11:41:29.892 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E010071140906CCDD
+2026-11-05 11:41:29.892 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 14
+2026-11-05 11:41:29.892 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 00 71 14 09 06 03 04 CC DD 
+2026-11-05 11:41:29.893 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:29.893 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:29.893 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:29.893 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:29.893 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01105ABDCDAE01002ACCDD
+2026-11-05 11:41:29.893 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:29.893 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 5A BD CD AE 01 00 66 00 0D C4 
+2026-11-05 11:41:29.893 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:29.893 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:29.893 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:29.893 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:29.894 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E011096A2AC5C012A2ACCDD
+2026-11-05 11:41:29.894 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:29.894 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 96 A2 AC 5C 01 2A 66 00 0D C4 
+2026-11-05 11:41:29.894 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:29.894 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:29.894 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:29.894 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:29.894 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E011061BCAB24015412CCDD
+2026-11-05 11:41:29.894 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 38
+2026-11-05 11:41:29.894 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 61 BC AB 24 01 54 66 00 0D C4 
+2026-11-05 11:41:29.896 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:29.896 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:29.896 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:29.896 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:29.896 [k1-route] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=1, keyIndex=0
+2026-11-05 11:41:29.896 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870100CCDD
+2026-11-05 11:41:29.896 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:29.897 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 01 00 73 01 05 0A 64 65 76 69 63 65 
+2026-11-05 11:41:29.897 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:29.897 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:29.897 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:29.897 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:30.110 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7373000128CCDD
+2026-11-05 11:41:30.110 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:30.110 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:30.110 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:30.111 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:30.163 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73750001596573CCDD
+2026-11-05 11:41:30.163 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:30.164 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:30.164 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:30.164 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:30.216 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7374000201510251030A01510251030A0151
+2026-11-05 11:41:30.217 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:30.217 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:30.217 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:30.217 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:30.268 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737500024E6FCCDD
+2026-11-05 11:41:30.268 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:30.268 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:30.268 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:30.268 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:30.319 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737300032ACCDD
+2026-11-05 11:41:30.319 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:30.319 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:30.319 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:30.319 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:30.373 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737500034261636B7370616365CCDD
+2026-11-05 11:41:30.373 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:30.373 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:30.373 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:30.374 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:30.424 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737301012ACCDD
+2026-11-05 11:41:30.424 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:30.424 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:30.424 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:30.424 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:30.476 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73750101416363657074CCDD
+2026-11-05 11:41:30.476 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:30.476 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:30.476 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:30.476 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:30.528 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737301022ACCDD
+2026-11-05 11:41:30.528 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:30.528 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:30.528 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:30.528 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:30.580 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7375010252656A656374CCDD
+2026-11-05 11:41:30.580 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:30.580 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:30.580 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:30.580 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:30.633 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737301032ACCDD
+2026-11-05 11:41:30.635 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:30.635 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:30.635 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:30.635 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:30.688 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737501034261636B7370616365CCDD
+2026-11-05 11:41:30.688 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:30.688 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:30.688 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:30.688 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:30.738 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7373020128CCDD
+2026-11-05 11:41:30.738 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:30.738 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:30.738 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:30.738 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:30.791 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73750201416363657074CCDD
+2026-11-05 11:41:30.791 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:30.791 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:30.791 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:30.791 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:30.843 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7373020229CCDD
+2026-11-05 11:41:30.843 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:30.844 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:30.844 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:30.844 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:30.894 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7375020252656A656374CCDD
+2026-11-05 11:41:30.894 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:30.894 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:30.894 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:30.894 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:30.945 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737302032ACCDD
+2026-11-05 11:41:30.945 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:30.945 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:30.945 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:30.945 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:30.996 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737502034261636B7370616365CCDD
+2026-11-05 11:41:30.996 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:30.996 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:30.998 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:30.998 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:31.049 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73730301CCDD
+2026-11-05 11:41:31.049 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:31.049 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:31.052 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.052 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:31.104 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737503014E2F41CCDD
+2026-11-05 11:41:31.104 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:31.104 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:31.104 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.104 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:31.155 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73730302CCDD
+2026-11-05 11:41:31.155 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:31.155 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:31.155 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.155 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:31.207 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737503024E2F41CCDD
+2026-11-05 11:41:31.207 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:31.207 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:31.207 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.207 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:31.259 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737303032ACCDD
+2026-11-05 11:41:31.259 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:31.259 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:31.259 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.259 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:31.310 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737503034261636B7370616365CCDD
+2026-11-05 11:41:31.310 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:31.310 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:31.310 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.310 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:31.361 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB04CCDD
+2026-11-05 11:41:31.361 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:31.361 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 04 00 CC DD 
+2026-11-05 11:41:31.361 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.361 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x4，唤醒等待线程
+PASS K2-only controller save preserves all Consumer routes
+PASS K2 save never sends legacy K1 action or description
+2026-11-05 11:41:31.687 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0100CB24BEA1CCDD
+2026-11-05 11:41:31.687 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 14
+2026-11-05 11:41:31.687 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 00 CB 24 BE A1 03 04 CC DD 
+2026-11-05 11:41:31.687 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.687 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.687 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.687 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.687 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E011032FC40C500002ACCDD
+2026-11-05 11:41:31.687 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:31.687 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 32 FC 40 C5 00 00 66 00 AA 8F 
+2026-11-05 11:41:31.687 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.687 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.687 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.687 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.687 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0110A4454531002A2ACCDD
+2026-11-05 11:41:31.688 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:31.688 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 A4 45 45 31 00 2A 66 00 AA 8F 
+2026-11-05 11:41:31.688 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.688 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.688 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.688 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.688 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01106154F571005412CCDD
+2026-11-05 11:41:31.688 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 38
+2026-11-05 11:41:31.688 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 61 54 F5 71 00 54 66 00 AA 8F 
+2026-11-05 11:41:31.688 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.688 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.688 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.688 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.688 [k1-route] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=0, keyIndex=0
+2026-11-05 11:41:31.688 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870000CCDD
+2026-11-05 11:41:31.688 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:31.690 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 00 00 73 01 04 0A 64 65 76 69 63 65 
+2026-11-05 11:41:31.690 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.690 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:31.690 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:31.690 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:31.692 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0100F025F7BFCCDD
+2026-11-05 11:41:31.692 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 14
+2026-11-05 11:41:31.692 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 00 F0 25 F7 BF 03 04 CC DD 
+2026-11-05 11:41:31.692 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.692 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.693 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.693 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.693 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0110B77E8BE900002ACCDD
+2026-11-05 11:41:31.693 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:31.693 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 B7 7E 8B E9 00 00 66 00 AA 8F 
+2026-11-05 11:41:31.693 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.693 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.693 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.693 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.693 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0110AB7C9B03002A2ACCDD
+2026-11-05 11:41:31.693 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:31.693 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 AB 7C 9B 03 00 2A 66 00 AA 8F 
+2026-11-05 11:41:31.693 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.694 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.694 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.694 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.695 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0110DD50AC57005412CCDD
+2026-11-05 11:41:31.695 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 38
+2026-11-05 11:41:31.695 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 DD 50 AC 57 00 54 66 00 AA 8F 
+2026-11-05 11:41:31.695 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.696 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.696 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.696 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.696 [k1-route] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=0, keyIndex=0
+2026-11-05 11:41:31.696 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870000CCDD
+2026-11-05 11:41:31.696 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:31.696 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 00 00 73 01 04 0A 64 65 76 69 63 65 
+2026-11-05 11:41:31.696 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.696 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:31.696 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:31.696 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+PASS real pane action-type change marks exact K1 mode dirty
+2026-11-05 11:41:31.783 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E010014C28D40CCDD
+2026-11-05 11:41:31.783 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 14
+2026-11-05 11:41:31.783 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 00 14 C2 8D 40 03 04 CC DD 
+2026-11-05 11:41:31.783 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.784 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.784 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.784 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.784 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0110A3C3383101002ACCDD
+2026-11-05 11:41:31.784 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:31.784 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 A3 C3 38 31 01 00 66 00 0D C4 
+2026-11-05 11:41:31.784 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.784 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.786 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.786 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.786 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0110268FF777012A2ACCDD
+2026-11-05 11:41:31.786 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:31.786 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 26 8F F7 77 01 2A 66 00 0D C4 
+2026-11-05 11:41:31.786 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.786 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.786 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.786 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.787 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0110E4ABB409015412CCDD
+2026-11-05 11:41:31.787 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 38
+2026-11-05 11:41:31.787 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 E4 AB B4 09 01 54 66 00 0D C4 
+2026-11-05 11:41:31.787 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.787 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.787 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.787 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.787 [k1-route] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=1, keyIndex=0
+2026-11-05 11:41:31.787 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870100CCDD
+2026-11-05 11:41:31.787 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:31.787 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 01 00 73 01 05 0A 64 65 76 69 63 65 
+2026-11-05 11:41:31.787 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.787 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:31.787 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:31.787 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:31.892 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0120006600A073DFF80CF9E7C0CCDD
+PASS begin is single mode, exact 102 bytes, nonzero token
+2026-11-05 11:41:31.893 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 18
+2026-11-05 11:41:31.893 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 20 0C F9 E7 C0 0C F9 E7 C0 00 00 
+2026-11-05 11:41:31.893 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.893 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.893 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.893 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.894 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01210CF9E7C00000002F00047402012800
+PASS chunk token/mode/offset and USB bound
+2026-11-05 11:41:31.895 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 16
+2026-11-05 11:41:31.895 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 21 0C F9 E7 C0 00 2F 00 2F CC DD 
+2026-11-05 11:41:31.895 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.895 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.895 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.895 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.895 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01210CF9E7C0002F002F00000000000000
+PASS chunk token/mode/offset and USB bound
+2026-11-05 11:41:31.896 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 16
+2026-11-05 11:41:31.896 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 21 0C F9 E7 C0 00 5E 00 2F CC DD 
+2026-11-05 11:41:31.896 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.896 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.896 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.896 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.897 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01210CF9E7C0005E000800000000000000
+PASS chunk token/mode/offset and USB bound
+2026-11-05 11:41:31.897 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 16
+2026-11-05 11:41:31.897 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 21 0C F9 E7 C0 00 66 00 08 CC DD 
+2026-11-05 11:41:31.897 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.897 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.897 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.897 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.898 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01220CF9E7C000CCDD
+PASS commit uses full staged record
+2026-11-05 11:41:31.898 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 11:41:31.898 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 22 0C F9 E7 C0 00 A0 73 DF F8 CC 
+2026-11-05 11:41:31.898 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.898 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.898 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.898 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.898 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0110593C063400002ACCDD
+2026-11-05 11:41:31.898 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:31.899 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 59 3C 06 34 00 00 66 00 A0 73 
+2026-11-05 11:41:31.899 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.899 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.899 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.899 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.899 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01100AAD1BA6002A2ACCDD
+2026-11-05 11:41:31.899 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:31.899 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 0A AD 1B A6 00 2A 66 00 A0 73 
+2026-11-05 11:41:31.899 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.899 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.899 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.899 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.899 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0110A3E4DF56005412CCDD
+2026-11-05 11:41:31.899 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 38
+2026-11-05 11:41:31.900 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 A3 E4 DF 56 00 54 66 00 A0 73 
+2026-11-05 11:41:31.900 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.900 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:31.900 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:31.900 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:31.900 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7375000041637475616C2064657363726970
+2026-11-05 11:41:31.900 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:31.900 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:31.900 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.900 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:31.900 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x73
+2026-11-05 11:41:31.900 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x73
+2026-11-05 11:41:31.900 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB04CCDD
+2026-11-05 11:41:31.900 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:31.901 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 04 00 CC DD 
+2026-11-05 11:41:31.901 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.901 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x4，唤醒等待线程
+2026-11-05 11:41:31.901 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x4
+2026-11-05 11:41:31.901 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x4
+2026-11-05 11:41:31.901 [k1-route] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=0, keyIndex=0
+2026-11-05 11:41:31.901 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870000CCDD
+2026-11-05 11:41:31.901 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 31
+2026-11-05 11:41:31.901 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 00 00 74 02 01 28 12 41 63 74 75 61 
+2026-11-05 11:41:31.901 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.901 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:31.901 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:31.901 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:31.909 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7373000128CCDD
+2026-11-05 11:41:31.909 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:31.909 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:31.909 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.909 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:31.960 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73750001596573CCDD
+2026-11-05 11:41:31.960 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:31.960 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:31.960 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:31.960 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.012 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7374000201510251030A01510251030A0151
+2026-11-05 11:41:32.012 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.012 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.012 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.013 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.064 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737500024E6FCCDD
+2026-11-05 11:41:32.064 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.064 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.064 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.064 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.118 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737300032ACCDD
+2026-11-05 11:41:32.118 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.118 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.118 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.118 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.169 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737500034261636B7370616365CCDD
+2026-11-05 11:41:32.169 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.169 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.170 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.170 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.221 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737301012BCCDD
+2026-11-05 11:41:32.221 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.222 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.222 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.222 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.273 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73750101416363657074CCDD
+2026-11-05 11:41:32.273 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.273 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.273 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.273 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.324 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737301022ACCDD
+2026-11-05 11:41:32.324 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.324 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.324 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.324 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.375 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7375010252656A656374CCDD
+2026-11-05 11:41:32.375 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.375 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.375 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.375 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.426 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737301032ACCDD
+2026-11-05 11:41:32.426 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.426 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.426 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.426 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.477 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737501034261636B7370616365CCDD
+2026-11-05 11:41:32.477 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.477 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.477 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.477 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.527 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7373020128CCDD
+2026-11-05 11:41:32.527 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.527 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.527 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.527 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.580 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73750201416363657074CCDD
+2026-11-05 11:41:32.580 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.580 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.580 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.580 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.631 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7373020229CCDD
+2026-11-05 11:41:32.631 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.631 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.632 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.632 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.682 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7375020252656A656374CCDD
+2026-11-05 11:41:32.682 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.682 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.682 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.682 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.733 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737302032ACCDD
+2026-11-05 11:41:32.733 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.733 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.733 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.733 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.784 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737502034261636B7370616365CCDD
+2026-11-05 11:41:32.784 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.784 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.784 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.784 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.835 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73730301CCDD
+2026-11-05 11:41:32.835 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.835 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.835 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.835 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.887 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737503014E2F41CCDD
+2026-11-05 11:41:32.887 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.887 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.887 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.887 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.939 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73730302CCDD
+2026-11-05 11:41:32.939 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.939 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.939 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.939 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:32.990 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737503024E2F41CCDD
+2026-11-05 11:41:32.990 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:32.990 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:32.990 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:32.990 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:33.041 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737303032ACCDD
+2026-11-05 11:41:33.041 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:33.041 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:33.041 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.041 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:33.093 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737503034261636B7370616365CCDD
+2026-11-05 11:41:33.093 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:33.093 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:33.093 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.093 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:33.145 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB04CCDD
+2026-11-05 11:41:33.145 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:33.145 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 04 00 CC DD 
+2026-11-05 11:41:33.145 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.145 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x4，唤醒等待线程
+PASS A K1 plus B K2 commits only A K1
+PASS K1 description uses existing ASCII truncation semantics
+PASS confirmed K1 route save clears matching revision
+2026-11-05 11:41:33.455 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01007EEE4D66CCDD
+2026-11-05 11:41:33.455 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 14
+2026-11-05 11:41:33.455 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 00 7E EE 4D 66 03 04 CC DD 
+2026-11-05 11:41:33.455 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.455 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:33.455 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:33.455 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01109418AB1100002ACCDD
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 94 18 AB 11 00 00 66 00 A0 73 
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E011001150F1C002A2ACCDD
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 01 15 0F 1C 00 2A 66 00 A0 73 
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E011063EA5E15005412CCDD
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 38
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 63 EA 5E 15 00 54 66 00 A0 73 
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:33.456 [k1-route] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=0, keyIndex=0
+2026-11-05 11:41:33.456 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870000CCDD
+2026-11-05 11:41:33.457 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 31
+2026-11-05 11:41:33.457 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 00 00 74 02 01 28 12 41 63 74 75 61 
+2026-11-05 11:41:33.457 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.457 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:33.457 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:33.457 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:33.459 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0100FCCF327DCCDD
+2026-11-05 11:41:33.459 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 14
+2026-11-05 11:41:33.459 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 00 FC CF 32 7D 03 04 CC DD 
+2026-11-05 11:41:33.459 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.459 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:33.459 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:33.459 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:33.459 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01103CD77D7C00002ACCDD
+2026-11-05 11:41:33.459 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:33.459 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 3C D7 7D 7C 00 00 66 00 A0 73 
+2026-11-05 11:41:33.459 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.459 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:33.459 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:33.459 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0110E48BD05F002A2ACCDD
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 E4 8B D0 5F 00 2A 66 00 A0 73 
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0110883D55D7005412CCDD
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 38
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 88 3D 55 D7 00 54 66 00 A0 73 
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:33.460 [k1-route] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=0, keyIndex=0
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870000CCDD
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 31
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 00 00 74 02 01 28 12 41 63 74 75 61 
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:33.460 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:33.504 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0120006600B1818E0965456D38CCDD
+PASS begin is single mode, exact 102 bytes, nonzero token
+2026-11-05 11:41:33.505 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 18
+2026-11-05 11:41:33.505 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 20 65 45 6D 38 65 45 6D 38 00 00 
+2026-11-05 11:41:33.505 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.505 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:33.505 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:33.505 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:33.506 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E012165456D380000002F000373016D0000
+PASS chunk token/mode/offset and USB bound
+2026-11-05 11:41:33.506 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 16
+2026-11-05 11:41:33.506 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 21 65 45 6D 38 00 2F 00 2F CC DD 
+2026-11-05 11:41:33.506 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.506 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:33.506 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:33.506 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:33.506 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E012165456D38002F002F00000000000000
+PASS chunk token/mode/offset and USB bound
+2026-11-05 11:41:33.507 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 16
+2026-11-05 11:41:33.507 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 21 65 45 6D 38 00 5E 00 2F CC DD 
+2026-11-05 11:41:33.507 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.507 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:33.507 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:33.507 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:33.507 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E012165456D38005E000800000000000000
+PASS chunk token/mode/offset and USB bound
+2026-11-05 11:41:33.507 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 16
+2026-11-05 11:41:33.507 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 21 65 45 6D 38 00 66 00 08 CC DD 
+2026-11-05 11:41:33.507 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.507 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:33.507 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:33.507 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:33.507 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E012265456D3800CCDD
+PASS commit uses full staged record
+2026-11-05 11:41:33.508 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 11:41:33.508 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 22 66 45 6D 38 00 B1 81 8E 09 CC 
+2026-11-05 11:41:33.508 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.508 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:33.508 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:33.508 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:33.508 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0110E0D0862300002ACCDD
+2026-11-05 11:41:33.508 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:33.509 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 E0 D0 86 23 00 00 66 00 B1 81 
+2026-11-05 11:41:33.509 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.509 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:33.509 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:33.509 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:33.509 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01106B7DCEBE002A2ACCDD
+2026-11-05 11:41:33.509 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:33.509 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 6B 7D CE BE 00 2A 66 00 B1 81 
+2026-11-05 11:41:33.509 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.509 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:33.509 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:33.509 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:33.509 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0110E6D902B7005412CCDD
+2026-11-05 11:41:33.509 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 38
+2026-11-05 11:41:33.510 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 E6 D9 02 B7 00 54 66 00 B1 81 
+2026-11-05 11:41:33.511 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.511 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:33.511 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:33.511 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:33.514 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7373000128CCDD
+2026-11-05 11:41:33.514 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:33.515 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:33.515 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.515 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:33.566 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73750001596573CCDD
+2026-11-05 11:41:33.566 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:33.566 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:33.566 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.566 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:33.617 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7374000201510251030A01510251030A0151
+2026-11-05 11:41:33.617 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:33.617 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:33.617 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.617 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:33.668 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737500024E6FCCDD
+2026-11-05 11:41:33.668 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:33.668 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:33.668 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.669 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:33.719 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737300032ACCDD
+2026-11-05 11:41:33.719 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:33.719 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:33.719 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.719 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:33.770 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737500034261636B7370616365CCDD
+2026-11-05 11:41:33.770 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:33.770 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:33.770 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.770 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:33.821 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737301012BCCDD
+2026-11-05 11:41:33.821 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:33.821 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:33.821 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.821 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:33.872 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73750101416363657074CCDD
+2026-11-05 11:41:33.872 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:33.872 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:33.872 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.872 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:33.924 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737301022ACCDD
+2026-11-05 11:41:33.924 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:33.924 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:33.924 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.924 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:33.975 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7375010252656A656374CCDD
+2026-11-05 11:41:33.975 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:33.975 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:33.975 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:33.975 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:34.027 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737301032ACCDD
+2026-11-05 11:41:34.027 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:34.028 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:34.028 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:34.028 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:34.078 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737501034261636B7370616365CCDD
+2026-11-05 11:41:34.078 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:34.078 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:34.078 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:34.078 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:34.131 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7373020128CCDD
+2026-11-05 11:41:34.131 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:34.131 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:34.131 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:34.131 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:34.182 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73750201416363657074CCDD
+2026-11-05 11:41:34.182 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:34.182 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:34.182 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:34.182 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:34.234 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7373020229CCDD
+2026-11-05 11:41:34.234 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:34.234 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:34.234 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:34.234 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:34.286 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7375020252656A656374CCDD
+2026-11-05 11:41:34.286 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:34.286 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:34.286 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:34.286 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:34.337 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737302032ACCDD
+2026-11-05 11:41:34.337 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:34.337 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:34.337 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:34.337 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:34.390 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737502034261636B7370616365CCDD
+2026-11-05 11:41:34.390 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:34.390 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:34.390 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:34.390 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:34.441 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73730301CCDD
+2026-11-05 11:41:34.441 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:34.441 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:34.441 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:34.441 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:34.491 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737503014E2F41CCDD
+2026-11-05 11:41:34.491 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:34.491 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:34.491 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:34.491 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:34.542 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73730302CCDD
+2026-11-05 11:41:34.542 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:34.542 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:34.542 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:34.542 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:34.593 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737503024E2F41CCDD
+2026-11-05 11:41:34.593 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:34.593 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:34.593 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:34.593 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:34.644 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737303032ACCDD
+2026-11-05 11:41:34.644 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:34.644 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:34.644 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:34.644 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:34.696 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737503034261636B7370616365CCDD
+2026-11-05 11:41:34.696 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:34.696 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:34.696 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:34.697 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:34.747 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB04CCDD
+2026-11-05 11:41:34.747 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:34.747 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 04 00 CC DD 
+2026-11-05 11:41:34.747 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:34.747 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x4，唤醒等待线程
+PASS uncertain commit resolved by authority read without replay
+2026-11-05 11:41:35.072 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0120006600359B29B768A69131CCDD
+PASS begin is single mode, exact 102 bytes, nonzero token
+2026-11-05 11:41:35.072 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 18
+2026-11-05 11:41:35.072 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 20 68 A6 91 31 68 A6 91 31 00 00 
+2026-11-05 11:41:35.072 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.072 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:35.072 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:35.072 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:35.072 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E012168A691310000002F00037301050000
+PASS chunk token/mode/offset and USB bound
+2026-11-05 11:41:35.072 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 16
+2026-11-05 11:41:35.072 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 21 68 A6 91 31 00 2F 00 2F CC DD 
+2026-11-05 11:41:35.072 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.072 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:35.072 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:35.072 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:35.073 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E012168A69131002F002F00000000000000
+PASS chunk token/mode/offset and USB bound
+2026-11-05 11:41:35.073 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 16
+2026-11-05 11:41:35.073 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 21 68 A6 91 31 00 5E 00 2F CC DD 
+2026-11-05 11:41:35.073 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.073 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:35.073 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:35.073 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:35.073 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E012168A69131005E000800000000000000
+PASS chunk token/mode/offset and USB bound
+2026-11-05 11:41:35.073 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 16
+2026-11-05 11:41:35.073 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 21 68 A6 91 31 00 66 00 08 CC DD 
+2026-11-05 11:41:35.073 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.073 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:35.073 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:35.073 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:35.073 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E012268A6913100CCDD
+PASS commit uses full staged record
+2026-11-05 11:41:35.076 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 11:41:35.076 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 22 69 A6 91 31 00 35 9B 29 B7 CC 
+2026-11-05 11:41:35.076 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.076 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:35.076 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:35.076 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:35.076 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0110EEB6A28900002ACCDD
+2026-11-05 11:41:35.078 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:35.078 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 EE B6 A2 89 00 00 66 00 35 9B 
+2026-11-05 11:41:35.078 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.078 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:35.078 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:35.078 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:35.078 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E011005D41ABB002A2ACCDD
+2026-11-05 11:41:35.078 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:35.078 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 05 D4 1A BB 00 2A 66 00 35 9B 
+2026-11-05 11:41:35.078 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.078 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:35.078 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:35.078 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:35.078 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0110CCCA19A8005412CCDD
+2026-11-05 11:41:35.078 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 38
+2026-11-05 11:41:35.079 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 CC CA 19 A8 00 54 66 00 35 9B 
+2026-11-05 11:41:35.079 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.079 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:35.079 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:35.079 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:35.081 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7373000128CCDD
+2026-11-05 11:41:35.081 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:35.081 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:35.081 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.081 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:35.133 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73750001596573CCDD
+2026-11-05 11:41:35.133 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:35.133 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:35.133 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.133 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:35.184 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7374000201510251030A01510251030A0151
+2026-11-05 11:41:35.184 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:35.184 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:35.184 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.184 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:35.235 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737500024E6FCCDD
+2026-11-05 11:41:35.235 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:35.235 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:35.235 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.235 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:35.285 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737300032ACCDD
+2026-11-05 11:41:35.285 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:35.285 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:35.285 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.285 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:35.338 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737500034261636B7370616365CCDD
+2026-11-05 11:41:35.338 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:35.338 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:35.338 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.338 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:35.388 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737301012BCCDD
+2026-11-05 11:41:35.388 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:35.388 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:35.388 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.388 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:35.441 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73750101416363657074CCDD
+2026-11-05 11:41:35.441 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:35.441 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:35.441 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.441 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:35.492 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737301022ACCDD
+2026-11-05 11:41:35.492 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:35.492 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:35.492 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.492 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:35.543 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7375010252656A656374CCDD
+2026-11-05 11:41:35.543 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:35.543 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:35.543 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.543 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:35.597 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737301032ACCDD
+2026-11-05 11:41:35.597 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:35.597 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:35.597 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.597 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:35.648 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737501034261636B7370616365CCDD
+2026-11-05 11:41:35.648 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:35.648 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:35.648 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.648 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:35.699 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7373020128CCDD
+2026-11-05 11:41:35.699 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:35.699 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:35.699 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.699 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:35.749 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73750201416363657074CCDD
+2026-11-05 11:41:35.749 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:35.749 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:35.749 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.749 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:35.800 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7373020229CCDD
+2026-11-05 11:41:35.800 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:35.800 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:35.800 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.800 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:35.851 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7375020252656A656374CCDD
+2026-11-05 11:41:35.851 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:35.851 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:35.851 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.851 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:35.901 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737302032ACCDD
+2026-11-05 11:41:35.901 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:35.901 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:35.901 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.901 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:35.953 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737502034261636B7370616365CCDD
+2026-11-05 11:41:35.953 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:35.953 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:35.953 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:35.953 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:36.004 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73730301CCDD
+2026-11-05 11:41:36.004 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:36.004 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:36.004 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:36.004 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:36.056 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737503014E2F41CCDD
+2026-11-05 11:41:36.056 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:36.056 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:36.056 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:36.056 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:36.110 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73730302CCDD
+2026-11-05 11:41:36.110 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:36.110 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:36.110 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:36.110 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:36.161 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737503024E2F41CCDD
+2026-11-05 11:41:36.162 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:36.162 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:36.162 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:36.162 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:36.213 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737303032ACCDD
+2026-11-05 11:41:36.213 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:36.213 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:36.213 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:36.213 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:36.264 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737503034261636B7370616365CCDD
+2026-11-05 11:41:36.264 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:36.264 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:36.264 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:36.264 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:36.315 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB04CCDD
+2026-11-05 11:41:36.315 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:36.315 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 04 00 CC DD 
+2026-11-05 11:41:36.315 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:36.315 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x4，唤醒等待线程
+PASS edit during route commit retains newer draft
+2026-11-05 11:41:36.630 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0100561A3750CCDD
+2026-11-05 11:41:36.630 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 14
+2026-11-05 11:41:36.630 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 00 56 1A 37 50 03 04 CC DD 
+2026-11-05 11:41:36.630 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:36.630 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:36.630 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:36.630 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:36.630 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01102AE6422902002ACCDD
+2026-11-05 11:41:36.630 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:36.630 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 2A E6 42 29 02 00 66 00 90 02 
+2026-11-05 11:41:36.630 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:36.630 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:36.631 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:36.631 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:36.631 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E011053CC4654022A2ACCDD
+2026-11-05 11:41:36.631 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 62
+2026-11-05 11:41:36.631 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 53 CC 46 54 02 2A 66 00 90 02 
+2026-11-05 11:41:36.631 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:36.631 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:36.631 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:36.631 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:36.631 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01108C31FC17025412CCDD
+2026-11-05 11:41:36.631 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 38
+2026-11-05 11:41:36.631 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 10 8C 31 FC 17 02 54 66 00 90 02 
+2026-11-05 11:41:36.631 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:36.631 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:36.631 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:36.631 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:36.631 [k1-route] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=2, keyIndex=0
+2026-11-05 11:41:36.631 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870200CCDD
+2026-11-05 11:41:36.632 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:36.632 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 02 00 73 01 06 0A 64 65 76 69 63 65 
+2026-11-05 11:41:36.632 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:36.632 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:36.632 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:36.632 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+PASS switch-mode loads matching device description
+2026-11-05 11:41:36.680 [JavaFX Application Thread] INFO  c.e.a.service.HookDispatchServer - Hook dispatch server stopped
+2026-11-05 11:41:36.680 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] === 开始断开连接 ===
+2026-11-05 11:41:36.680 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤1: 设置断开状态，耗时=0ms
+2026-11-05 11:41:36.680 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤2: 唤醒等待响应的线程，耗时=0ms
+2026-11-05 11:41:36.680 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤3: USB 传输已关闭，耗时=0ms
+2026-11-05 11:41:36.680 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 开始
+2026-11-05 11:41:36.680 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 完成，总耗时=0ms
+2026-11-05 11:41:36.680 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤4: TCP 连接已关闭，耗时=0ms
+2026-11-05 11:41:36.681 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤5: 回调通知成功，耗时=1ms
+2026-11-05 11:41:36.681 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] === 断开连接完成，总耗时=1ms ===
+2026-11-05 11:41:36.818 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01009E57BC16CCDD
+2026-11-05 11:41:36.818 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 14
+2026-11-05 11:41:36.818 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 00 9E 57 BC 16 03 04 CC DD 
+2026-11-05 11:41:36.818 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:36.818 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:36.818 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:36.818 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:36.820 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01102F72911D00002ACCDD
+2026-11-05 11:41:36.820 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 12
+2026-11-05 11:41:36.820 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 01 01 10 2F 72 91 1D CC DD 
+2026-11-05 11:41:36.820 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:36.820 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:36.820 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:36.820 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+PASS B1 capability remains ROUTE but authority is unavailable
+PASS B1 pane reports unavailable, never invents defaults
+PASS B1 actual key editor disabled
+2026-11-05 11:41:36.919 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E010030734057CCDD
+2026-11-05 11:41:36.920 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 14
+2026-11-05 11:41:36.920 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 00 30 73 40 57 03 04 CC DD 
+2026-11-05 11:41:36.920 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:36.920 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:36.920 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:36.920 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:36.920 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0110548DCA5901002ACCDD
+2026-11-05 11:41:36.921 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 12
+2026-11-05 11:41:36.921 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 01 01 10 54 8D CA 59 CC DD 
+2026-11-05 11:41:36.921 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:36.921 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:36.921 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:36.921 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:36.986 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7373000128CCDD
+2026-11-05 11:41:36.986 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:36.986 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:36.987 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:36.987 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.038 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73750001596573CCDD
+2026-11-05 11:41:37.038 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.038 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.038 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.038 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.089 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7374000201510251030A01510251030A0151
+2026-11-05 11:41:37.089 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.089 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.089 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.089 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.140 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737500024E6FCCDD
+2026-11-05 11:41:37.140 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.141 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.141 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.141 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.192 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737300032ACCDD
+2026-11-05 11:41:37.192 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.192 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.192 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.192 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.244 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737500034261636B7370616365CCDD
+2026-11-05 11:41:37.244 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.244 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.244 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.244 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.295 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7373010109CCDD
+2026-11-05 11:41:37.295 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.295 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.295 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.295 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.346 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73750101416363657074CCDD
+2026-11-05 11:41:37.346 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.346 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.346 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.346 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.398 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737301022ACCDD
+2026-11-05 11:41:37.398 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.399 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.399 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.399 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.451 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7375010252656A656374CCDD
+2026-11-05 11:41:37.451 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.451 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.451 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.451 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.502 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737301032ACCDD
+2026-11-05 11:41:37.502 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.502 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.502 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.502 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.553 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737501034261636B7370616365CCDD
+2026-11-05 11:41:37.553 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.553 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.553 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.553 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.607 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7373020128CCDD
+2026-11-05 11:41:37.607 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.607 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.607 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.607 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.658 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73750201416363657074CCDD
+2026-11-05 11:41:37.658 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.658 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.658 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.658 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.711 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7373020229CCDD
+2026-11-05 11:41:37.711 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.711 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.711 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.711 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.763 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB7375020252656A656374CCDD
+2026-11-05 11:41:37.763 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.763 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.763 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.763 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.813 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737302032ACCDD
+2026-11-05 11:41:37.813 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.813 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.813 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.813 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.864 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737502034261636B7370616365CCDD
+2026-11-05 11:41:37.864 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.864 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.864 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.864 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.918 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73730301CCDD
+2026-11-05 11:41:37.918 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.918 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.918 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.918 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:37.970 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737503014E2F41CCDD
+2026-11-05 11:41:37.970 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:37.970 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:37.970 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:37.970 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:38.020 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73730302CCDD
+2026-11-05 11:41:38.020 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:38.020 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:38.020 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.020 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:38.071 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737503024E2F41CCDD
+2026-11-05 11:41:38.071 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:38.071 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:38.071 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.071 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:38.123 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737303032ACCDD
+2026-11-05 11:41:38.123 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:38.123 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:38.123 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.123 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:38.175 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737503034261636B7370616365CCDD
+2026-11-05 11:41:38.175 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:38.175 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 11:41:38.175 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.175 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 11:41:38.226 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB04CCDD
+2026-11-05 11:41:38.226 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:38.226 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 04 00 CC DD 
+2026-11-05 11:41:38.226 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.226 [aha-device-sync] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x4，唤醒等待线程
+PASS B1 K2 saves while unconfirmed K1 draft stays dirty
+PASS B1 no old K1 fallback or whole-bank initialization
+2026-11-05 11:41:38.543 [JavaFX Application Thread] INFO  c.e.a.service.HookDispatchServer - Hook dispatch server stopped
+2026-11-05 11:41:38.543 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] === 开始断开连接 ===
+2026-11-05 11:41:38.543 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤1: 设置断开状态，耗时=0ms
+2026-11-05 11:41:38.543 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤2: 唤醒等待响应的线程，耗时=0ms
+2026-11-05 11:41:38.543 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤3: USB 传输已关闭，耗时=0ms
+2026-11-05 11:41:38.543 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 开始
+2026-11-05 11:41:38.543 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 完成，总耗时=0ms
+2026-11-05 11:41:38.543 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤4: TCP 连接已关闭，耗时=0ms
+2026-11-05 11:41:38.543 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤5: 回调通知成功，耗时=0ms
+2026-11-05 11:41:38.543 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] === 断开连接完成，总耗时=0ms ===
+2026-11-05 11:41:38.669 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E010044450718CCDD
+2026-11-05 11:41:38.669 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:38.669 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 CC DD 
+2026-11-05 11:41:38.669 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.669 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:38.669 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:38.669 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:38.669 [k1-route] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=0, keyIndex=0
+2026-11-05 11:41:38.669 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870000CCDD
+2026-11-05 11:41:38.669 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.670 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 00 00 73 01 04 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.670 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.670 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.670 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.670 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.670 [k1-route] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=1, keyIndex=0
+2026-11-05 11:41:38.670 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870100CCDD
+2026-11-05 11:41:38.670 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.670 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 01 00 73 01 05 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.670 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.670 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.670 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.670 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.670 [k1-route] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=2, keyIndex=0
+2026-11-05 11:41:38.670 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870200CCDD
+2026-11-05 11:41:38.671 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.671 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 02 00 73 01 06 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.671 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.671 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.671 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.671 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.671 [k1-route] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=3, keyIndex=0
+2026-11-05 11:41:38.671 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870300CCDD
+2026-11-05 11:41:38.672 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.672 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 03 00 73 01 07 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.672 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.672 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.672 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.672 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.726 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C side switch config with command 0x97
+2026-11-05 11:41:38.726 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB97CCDD
+2026-11-05 11:41:38.726 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 12
+2026-11-05 11:41:38.726 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 97 00 00 02 00 00 01 00 CC DD 
+2026-11-05 11:41:38.726 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.726 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x97，唤醒等待线程
+2026-11-05 11:41:38.726 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x97
+2026-11-05 11:41:38.726 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x97
+2026-11-05 11:41:38.727 [cp4c-input-readback] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-11-05 11:41:38.728 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: -1, 工作模式: 0, 拨杆状态: 0
+2026-11-05 11:41:38.728 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+2026-11-05 11:41:38.728 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=0, keyIndex=0
+2026-11-05 11:41:38.728 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870000CCDD
+2026-11-05 11:41:38.728 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.728 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 00 00 73 01 04 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.728 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.728 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.728 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.728 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.729 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=0, keyIndex=1
+2026-11-05 11:41:38.729 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870001CCDD
+2026-11-05 11:41:38.729 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.729 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 00 01 73 01 05 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.729 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.729 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.729 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.729 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.729 [firmware-catalog-key-connect-read] INFO  c.example.ahakey.service.BleManager - Reading firmware catalog key with command 0x9F
+2026-11-05 11:41:38.730 [firmware-catalog-key-connect-read] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9FCCDD
+2026-11-05 11:41:38.730 [firmware-catalog-key-connect-read] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 30
+2026-11-05 11:41:38.730 [firmware-catalog-key-connect-read] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9F 78 31 2D 63 35 38 32 2D 68 77 31 2D 70 
+2026-11-05 11:41:38.730 [firmware-catalog-key-connect-read] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.730 [firmware-catalog-key-connect-read] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9f，唤醒等待线程
+2026-11-05 11:41:38.730 [firmware-catalog-key-connect-read] INFO  c.example.ahakey.service.BleManager - Firmware catalog key: x1-c582-hw1-p1-1.0.0-r001
+2026-11-05 11:41:38.731 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=0, keyIndex=2
+2026-11-05 11:41:38.731 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870002CCDD
+2026-11-05 11:41:38.731 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.731 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 00 02 73 01 06 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.731 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.732 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.732 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.732 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.732 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=0, keyIndex=3
+2026-11-05 11:41:38.732 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870003CCDD
+2026-11-05 11:41:38.732 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.732 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 00 03 73 01 07 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.732 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.732 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.732 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.732 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.732 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=1, keyIndex=0
+2026-11-05 11:41:38.732 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870100CCDD
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 01 00 73 01 05 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.733 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=1, keyIndex=1
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870101CCDD
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 01 01 73 01 06 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.733 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=1, keyIndex=2
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870102CCDD
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 01 02 73 01 07 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.733 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=1, keyIndex=3
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870103CCDD
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 01 03 73 01 08 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.733 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.734 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=2, keyIndex=0
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870200CCDD
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 02 00 73 01 06 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.734 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=2, keyIndex=1
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870201CCDD
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 02 01 73 01 07 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.734 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=2, keyIndex=2
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870202CCDD
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 02 02 73 01 08 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.734 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=2, keyIndex=3
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870203CCDD
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 02 03 73 01 09 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.734 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=3, keyIndex=0
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870300CCDD
+2026-11-05 11:41:38.734 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 03 00 73 01 07 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.735 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=3, keyIndex=1
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870301CCDD
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 03 01 73 01 08 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.735 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=3, keyIndex=2
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870302CCDD
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 03 02 73 01 09 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.735 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=3, keyIndex=3
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870303CCDD
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 03 03 73 01 0A 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.735 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.744 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: -1, 工作模式: 0, 拨杆状态: 0
+2026-11-05 11:41:38.744 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-11-05 11:41:38.748 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E010003EA0C72CCDD
+2026-11-05 11:41:38.748 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:38.748 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 CC DD 
+2026-11-05 11:41:38.748 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 11:41:38.749 [k1-route] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=0, keyIndex=0
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870000CCDD
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 00 00 73 01 04 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.749 [k1-route] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=1, keyIndex=0
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870100CCDD
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 01 00 73 01 05 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.749 [k1-route] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=2, keyIndex=0
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870200CCDD
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 02 00 73 01 06 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.749 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.751 [k1-route] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=3, keyIndex=0
+2026-11-05 11:41:38.751 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870300CCDD
+2026-11-05 11:41:38.751 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.751 [k1-route] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 03 00 73 01 07 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.751 [k1-route] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.751 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.751 [k1-route] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.751 [k1-route] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.754 [ai-runtime-connect-apply] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9800CCDD
+2026-11-05 11:41:38.754 [ai-runtime-connect-apply] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 11:41:38.754 [ai-runtime-connect-apply] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 98 00 CC DD 
+2026-11-05 11:41:38.754 [ai-runtime-connect-apply] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.754 [ai-runtime-connect-apply] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x98，唤醒等待线程
+2026-11-05 11:41:38.754 [ai-runtime-connect-apply] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x98
+2026-11-05 11:41:38.754 [ai-runtime-connect-apply] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x98
+2026-11-05 11:41:38.754 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C side switch config with command 0x97
+2026-11-05 11:41:38.754 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB97CCDD
+2026-11-05 11:41:38.754 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 12
+2026-11-05 11:41:38.759 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 97 00 00 02 00 00 01 00 CC DD 
+2026-11-05 11:41:38.759 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.759 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x97，唤醒等待线程
+2026-11-05 11:41:38.760 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x97
+2026-11-05 11:41:38.760 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x97
+2026-11-05 11:41:38.760 [cp4c-input-readback] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+2026-11-05 11:41:38.760 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=0, keyIndex=0
+2026-11-05 11:41:38.760 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870000CCDD
+2026-11-05 11:41:38.760 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.760 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 00 00 73 01 04 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.760 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.760 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.760 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.760 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.760 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=0, keyIndex=1
+2026-11-05 11:41:38.760 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870001CCDD
+2026-11-05 11:41:38.760 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.760 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 00 01 73 01 05 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.761 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.761 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.761 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.761 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.761 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=0, keyIndex=2
+2026-11-05 11:41:38.761 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870002CCDD
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 00 02 73 01 06 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.762 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=0, keyIndex=3
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870003CCDD
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 00 03 73 01 07 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.762 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=1, keyIndex=0
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870100CCDD
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 01 00 73 01 05 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.762 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=1, keyIndex=1
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870101CCDD
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 01 01 73 01 06 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.762 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=1, keyIndex=2
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870102CCDD
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 01 02 73 01 07 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.762 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.762 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=1, keyIndex=3
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870103CCDD
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 01 03 73 01 08 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.763 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=2, keyIndex=0
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870200CCDD
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 02 00 73 01 06 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.763 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=2, keyIndex=1
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870201CCDD
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 02 01 73 01 07 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.763 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=2, keyIndex=2
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870202CCDD
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 02 02 73 01 08 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.763 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.764 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=2, keyIndex=3
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870203CCDD
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 02 03 73 01 09 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.764 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=3, keyIndex=0
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870300CCDD
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 03 00 73 01 07 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.764 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=3, keyIndex=1
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870301CCDD
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 03 01 73 01 08 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.764 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=3, keyIndex=2
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870302CCDD
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 03 02 73 01 09 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.764 [cp4c-input-readback] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=3, keyIndex=3
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870303CCDD
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 22
+2026-11-05 11:41:38.764 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 03 03 73 01 0A 0A 64 65 76 69 63 65 
+2026-11-05 11:41:38.765 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:41:38.765 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 11:41:38.765 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 11:41:38.765 [cp4c-input-readback] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+2026-11-05 11:41:38.813 [JavaFX Application Thread] INFO  c.e.ahakey.app.StudioController - 应用BLE状态 - 电量: -1, 工作模式: 0, 拨杆状态: 0
+2026-11-05 11:41:38.813 [JavaFX Application Thread] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: 0, 新值: 0
+PASS actual connect input reader completed before capability order=false
+2026-11-05 11:41:38.884 [JavaFX Application Thread] INFO  c.e.a.service.HookDispatchServer - Hook dispatch server stopped
+2026-11-05 11:41:38.884 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] === 开始断开连接 ===
+2026-11-05 11:41:38.884 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤1: 设置断开状态，耗时=0ms
+2026-11-05 11:41:38.884 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤2: 唤醒等待响应的线程，耗时=0ms
+2026-11-05 11:41:38.884 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤3: USB 传输已关闭，耗时=0ms
+2026-11-05 11:41:38.884 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 开始
+2026-11-05 11:41:38.884 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 完成，总耗时=0ms
+2026-11-05 11:41:38.884 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤4: TCP 连接已关闭，耗时=0ms
+2026-11-05 11:41:38.885 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤5: 回调通知成功，耗时=1ms
+2026-11-05 11:41:38.885 [JavaFX Application Thread] INFO  c.example.ahakey.service.BleManager - [BLE] === 断开连接完成，总耗时=1ms ===
+java.lang.AssertionError: old early K1 read cannot authorize unknown capability
+	at com.example.ahakey.update.UpdateCenterChecks.check(UpdateCenterChecks.java:11)
+	at com.example.ahakey.packaging.K1RouteEditorChecks.connectionOrdering(K1RouteEditorChecks.java:45)
+	at com.example.ahakey.packaging.K1RouteEditorChecks.main(K1RouteEditorChecks.java:90)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at com.example.ahakey.wd010.CheckProcess.main(CheckProcess.java:7)

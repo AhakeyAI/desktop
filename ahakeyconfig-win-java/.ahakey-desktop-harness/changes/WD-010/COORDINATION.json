@@ -1,0 +1,16 @@
+{
+  "owner_record": ".ahakey-desktop-harness/evidence/20261105-wd010-autonomous-exe-owner.md",
+  "dib": {
+    "threadId": "01a1a968-73d2-7cc3-84e1-0487f363f991",
+    "hostId": "local",
+    "title": "WD-010 DIB 实现与本地模型 EXE"
+  },
+  "requested_delivery": "local-model installer exe",
+  "implementation_started_by_dispatch": true,
+  "fresh_review": {
+    "threadId": "01a1a970-ac70-77a3-bfc4-3e4ebe225604",
+    "hostId": "local",
+    "title": "WD-010 独立高影响审阅",
+    "phase": "preparation_read_only_until_frozen_pack"
+  }
+}

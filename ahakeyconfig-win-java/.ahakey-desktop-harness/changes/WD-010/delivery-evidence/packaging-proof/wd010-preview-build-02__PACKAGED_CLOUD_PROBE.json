@@ -1,0 +1,40 @@
+{
+  "fixture_sha256": "136426ed52080ce6c579cabb7586d56ecabc2dbc62d9d98452cb0158cd6e8a8b",
+  "server_sha256": "9160ba7b778b39ab19971480a53e725ee2fb52da60e2bad554d34dfd9fe382ad",
+  "compile_command": [
+    "D:/jdk-17.0.19.10-hotspot/bin/javac.exe",
+    "-J-Dfile.encoding=UTF-8",
+    "-encoding",
+    "UTF-8",
+    "-cp",
+    "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd010-preview-build-02\\probe-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd010-preview-build-02\\test-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD010-Preview-R3-LocalModel-1.0.21\\image\\AhaKeyStudio\\app\\ahakey-studio-1.0.0.jar;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD010-Preview-R3-LocalModel-1.0.21\\image\\AhaKeyStudio\\app\\lib\\*",
+    "-d",
+    "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd010-preview-build-02\\probe-classes",
+    "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd010-preview-build-02\\PackagedCloudProbe.java"
+  ],
+  "classpath_excludes_development_product_classes": true,
+  "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd010-preview-build-02",
+  "compile_exit": 0,
+  "command": [
+    "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD010-Preview-R3-LocalModel-1.0.21\\image\\AhaKeyStudio\\runtime\\bin\\java.exe",
+    "-Dfile.encoding=UTF-8",
+    "-Duser.home=C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd010-preview-build-02\\homes\\wd010-cloud-probe",
+    "-Djava.io.tmpdir=D:\\ahakey-wd010-preview-r3-20261105-temp\\cloud-probe",
+    "-cp",
+    "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd010-preview-build-02\\probe-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\wd010-preview-build-02\\test-classes;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD010-Preview-R3-LocalModel-1.0.21\\image\\AhaKeyStudio\\app\\ahakey-studio-1.0.0.jar;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD010-Preview-R3-LocalModel-1.0.21\\image\\AhaKeyStudio\\app\\lib\\*",
+    "com.example.ahakey.wd010.CheckProcess",
+    "com.example.ahakey.service.PackagedCloudProbe",
+    "http://127.0.0.1:53366"
+  ],
+  "exit": 0,
+  "log_sha256": "cf7acef0695a3a916e17ee598964b3cc1bf361f27b105e3f8e83ebf4c4b99eee",
+  "loopback_requests": [
+    "/api/v1/auth/login",
+    "/api/v1/auth/users/me",
+    "/api/v1/coupon/redeem",
+    "/api/v1/auth/users/me",
+    "/api/v1/payment/wechat/native",
+    "/api/v1/payment/wechat/order-status",
+    "/api/v1/auth/users/me"
+  ]
+}

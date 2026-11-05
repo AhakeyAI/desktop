@@ -1,0 +1,14 @@
+11月 05, 2026 5:37:53 下午 com.sun.javafx.application.PlatformImpl startup
+警告: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @238e0d81'
+coupon queued result scenario=server_expiry PASS
+coupon queued result scenario=logout PASS
+coupon queued result scenario=switch_account PASS
+coupon queued result scenario=close_dialog PASS
+coupon queued result scenario=hide_reopen_coupon PASS
+payment queued result scenario=server_expiry PASS
+payment queued result scenario=logout PASS
+payment queued result scenario=switch_account PASS
+payment queued result scenario=close_dialog PASS
+payment queued result scenario=close_payment PASS
+payment queued result scenario=close_reopen_payment PASS
+PASS QueuedDeliveryChecks 84 checks; real queued FX transaction callbacks, loopback only

@@ -1,0 +1,93 @@
+{
+  "installer_sha256": "581f20847c375b6c569798d57459e86df41d307484f66f4556007e16e8710243",
+  "scope": "package-content-and-signature-only-not-install-or-device-test",
+  "resources": [
+    "update/app-release.properties",
+    "update/release-public-key.json",
+    "update/windows-update-worker.ps1",
+    "update/InstalledApplication.cs",
+    "firmware/wch-capture-worker.ps1",
+    "firmware/wch-driver-worker.ps1",
+    "firmware/catalog.json",
+    "firmware/wch-runtime-profiles.json"
+  ],
+  "identity": {
+    "upgradeCode": "{03E5A934-FFCA-3815-B455-7D49BF1CA1DC}",
+    "arch": "x64",
+    "certificateSha256": "",
+    "variant": "local-model",
+    "version": "1.0.21",
+    "productCode": "{112ED1A1-EA6B-431A-B014-4F5A1A5E0F90}",
+    "buildId": "52b0f380e5e72e673e623650727594e73c6f7d06f569e9c84d0c4cb9a1d50d71",
+    "msiSha256": "36be66980c59810ce29ce1b84df711e9e0362e63827156d70d8bebecfc2e4505",
+    "status": "NotSigned",
+    "productName": "AhaKeyStudio"
+  },
+  "wch": [
+    {
+      "bytes": 4014096,
+      "sha256": "7b5d84bfcc8786aabf74ba264de29c1e2eda7907fb8385426fda3270cd793f95",
+      "path": "app/tools/wchisp/WCHISPTool_CH57x-59x.exe"
+    },
+    {
+      "bytes": 139280,
+      "sha256": "c56f1f2250c9e3862e3ef86887d7e81302bb008a722a3b18555f5cd0acd875ff",
+      "path": "app/tools/wchisp/WCH55xISPDLL.dll"
+    },
+    {
+      "bytes": 39440,
+      "sha256": "4b7f30dfbc886e1359c7adc4d9fdcc3cb6543c373fc214e8641e314df41fe65a",
+      "path": "app/tools/wchisp/CH343PT.DLL"
+    },
+    {
+      "bytes": 35712,
+      "sha256": "0f019b958d4d3f6b8ec0d282ef848a57f0f92a0596d7405b6c58f5aa383a326c",
+      "path": "app/tools/wchisp/CH375DLL.DLL"
+    },
+    {
+      "bytes": 2515,
+      "sha256": "2e2369ed14f3c351c4404bdbfa45890e3b7562c7a201111e90f7004c4dc882a0",
+      "path": "app/tools/wchisp/ChipType/chiplist_CH57x_CH59x.wcfg"
+    },
+    {
+      "bytes": 66841,
+      "sha256": "f21f73360c7f650ab36cc4a0bbe2b88316c85bc1caf2e010139a47486abf5a8a",
+      "path": "app/tools/wchisp/CONFIG_CH57X59X.WCH"
+    },
+    {
+      "bytes": 35712,
+      "sha256": "0f019b958d4d3f6b8ec0d282ef848a57f0f92a0596d7405b6c58f5aa383a326c",
+      "path": "app/drivers/wch-ch375/CH375DLL.dll"
+    },
+    {
+      "bytes": 45448,
+      "sha256": "5ed04e4a8eb9006e92907fdc105c4d8f915408409a02c157ca492a65d9163aa7",
+      "path": "app/drivers/wch-ch375/CH375DLL64.dll"
+    },
+    {
+      "bytes": 58752,
+      "sha256": "9f40d09251f58be92ee2cb769c86900d52439a5b4f7e2ca2605e26cb464602b4",
+      "path": "app/drivers/wch-ch375/CH375M64.sys"
+    },
+    {
+      "bytes": 68992,
+      "sha256": "5803220ed9da96b310397aa81db6612280f7c1a58948c02a5fe6aedf49065f5a",
+      "path": "app/drivers/wch-ch375/CH375W64.sys"
+    },
+    {
+      "bytes": 14232,
+      "sha256": "08a8d8b21f42635243f0a7b4bd73195a4eea22a85508b3c4fce93a181054b4ba",
+      "path": "app/drivers/wch-ch375/CH375WDM.CAT"
+    },
+    {
+      "bytes": 7799,
+      "sha256": "76e5f3e96743b097c0d45d019b87c6dbef795934e2826fdade2b5e7b37b47fa4",
+      "path": "app/drivers/wch-ch375/CH375WDM.INF"
+    },
+    {
+      "bytes": 52488,
+      "sha256": "840de6b498b8f3613eeb83ee6987d90229200be125925899df0c1beb2da62d1b",
+      "path": "app/drivers/wch-ch375/CH375WDM.sys"
+    }
+  ]
+}

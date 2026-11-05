@@ -1,0 +1,43 @@
+PASS shortcut preserves Ctrl+C and release order
+PASS macro supersedes previous shortcut and preserves delay ticks
+PASS snapshot cannot be changed by subsequent editor edits
+PASS next click snapshots new draft
+PASS old shortcut plan is also immutable
+PASS deleting last macro step uses same shortcut mode as editor rebuild
+PASS all right modifiers retained
+PASS modifier-only shortcut supported
+PASS unbalanced macro releases all keys in finally
+PASS input failure is surfaced
+PASS input failure releases even potentially partially sent key
+PASS cancellation is surfaced
+PASS cancellation releases held keys
+PASS release failure reported
+PASS one failed release does not skip other held keys
+PASS invalid/empty snapshot rejected 0
+PASS invalid/empty snapshot rejected 255
+PASS F18 maps to VK_F18, not F24
+PASS right Ctrl uses extended flag
+PASS keypad Enter uses extended flag
+PASS regular Enter has no extended flag
+PASS version is from same install identity as updater
+PASS missing metadata shown unknown
+PASS null metadata shown unknown
+PASS exit fixture reached held key
+PASS menu exit bounded cancellation waits for key release
+PASS shortcut selector uses shared F18 promotion
+PASS macro step selector uses shared F18 promotion
+PASS shared promotion is before model-only labeling
+PASS non-K1 keys expose current-draft simulation
+PASS simulate no longer calls stale HID-only voice helper
+PASS snapshot is created inside click handler
+PASS simulation is off FX thread and cancellable
+PASS reconnect and clear OLED menu entries removed
+PASS cloud entries retain model guard and precede main menu
+PASS language and exit remain final pair in both variants
+PASS app version has no guessed fallback
+PASS unsaved switch marker reads dirty state
+PASS legacy switch view does not equate non-auto with manual
+PASS switch editor position uses live status, not draft position
+PASS pending editable delay is committed before snapshot
+PASS macro deletion rebuilds editor type and visible content
+WD009 UI checks passed: 42 (native input and device I/O not executed)

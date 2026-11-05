@@ -1,0 +1,1297 @@
+{
+  "token": "preview-20261105T093108031238Z-c5c559",
+  "start_sha256": "270fe46bb78ad02f8164b3bdd245ac257377e83564cd9a8fea56af305a0d5d9c",
+  "snapshot": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-010\\preview-20261105T093108031238Z-c5c559\\source",
+  "snapshot_fingerprint": "3a63edb8204941122418fabeab5c72c16e87e21ec10f605c3f6fb822b57fb1c5",
+  "frozen_implementation_fingerprint": "6de1cbfd7a26442edf44ee12c519a957bcd60c4f2366a6ae9b291944261f94c0",
+  "derived_source": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD010-Preview-Source-R3-1.0.21",
+  "product_code": "{112ED1A1-EA6B-431A-B014-4F5A1A5E0F90}",
+  "files": [
+    {
+      "path": "ahakey.jpg",
+      "snapshot_sha256": "a806907c934f0336b040741ecd88fb3381dedbea4b841a00e8bfb9c9ad17d9a9",
+      "derived_sha256": "a806907c934f0336b040741ecd88fb3381dedbea4b841a00e8bfb9c9ad17d9a9",
+      "restored_resource": false
+    },
+    {
+      "path": "ble_bridge.py",
+      "snapshot_sha256": "7b8dfc7b44f130f7bcc34b3a5905dac50d73f602e765fbce9f9f4815a90aa705",
+      "derived_sha256": "7b8dfc7b44f130f7bcc34b3a5905dac50d73f602e765fbce9f9f4815a90aa705",
+      "restored_resource": false
+    },
+    {
+      "path": "build-exe.bat",
+      "snapshot_sha256": "90a9053eeac118cc4c6914273689a78e21f193eec6afac8c14cd34de32588ef7",
+      "derived_sha256": "90a9053eeac118cc4c6914273689a78e21f193eec6afac8c14cd34de32588ef7",
+      "restored_resource": false
+    },
+    {
+      "path": "build-exe.ps1",
+      "snapshot_sha256": "c025b434e2edad0d8d76618404b176c39b8b43a21d83681253b60b124af76367",
+      "derived_sha256": "c025b434e2edad0d8d76618404b176c39b8b43a21d83681253b60b124af76367",
+      "restored_resource": false
+    },
+    {
+      "path": "build-installer.ps1",
+      "snapshot_sha256": "cd7fcac9673d2ef55619f456d9e647bc06f03bf2ae2d2a1d1453cf1637303abd",
+      "derived_sha256": "cd7fcac9673d2ef55619f456d9e647bc06f03bf2ae2d2a1d1453cf1637303abd",
+      "restored_resource": false
+    },
+    {
+      "path": "pom.xml",
+      "snapshot_sha256": "08602c3355495f772387fb37f26b1ec4f5857e9de172d24b7dace7a08026c4fa",
+      "derived_sha256": "08602c3355495f772387fb37f26b1ec4f5857e9de172d24b7dace7a08026c4fa",
+      "restored_resource": false
+    },
+    {
+      "path": "scripts/ble-driver-fixes.patch",
+      "snapshot_sha256": "71bf0097c9db9afc8c40c5e3dff71ef2ec0bd01e3ab63bf345e958bb4c4f5e53",
+      "derived_sha256": "71bf0097c9db9afc8c40c5e3dff71ef2ec0bd01e3ab63bf345e958bb4c4f5e53",
+      "restored_resource": false
+    },
+    {
+      "path": "scripts/build-ble-driver.ps1",
+      "snapshot_sha256": "7a8b90f2f498b05e17272c78c91c58df7360ccbf337f509326a962b54ad7ee10",
+      "derived_sha256": "7a8b90f2f498b05e17272c78c91c58df7360ccbf337f509326a962b54ad7ee10",
+      "restored_resource": false
+    },
+    {
+      "path": "scripts/package-local-model.ps1",
+      "snapshot_sha256": "932d29a7ed654e06792ec7e87a99a58e0d34384dc73b74ff6c5eb623bbf979e2",
+      "derived_sha256": "932d29a7ed654e06792ec7e87a99a58e0d34384dc73b74ff6c5eb623bbf979e2",
+      "restored_resource": false
+    },
+    {
+      "path": "scripts/sign-release-installer.ps1",
+      "snapshot_sha256": "af9799e4fe47acda35d009ff6cd32e1cbf126ce359fd19e0f4dea1e42b4ce15d",
+      "derived_sha256": "af9799e4fe47acda35d009ff6cd32e1cbf126ce359fd19e0f4dea1e42b4ce15d",
+      "restored_resource": false
+    },
+    {
+      "path": "scripts/test-ble-driver.ps1",
+      "snapshot_sha256": "683d24ed22d0e9bbb577c4d0415779439297e36c1e50436c934134c8e3289daa",
+      "derived_sha256": "683d24ed22d0e9bbb577c4d0415779439297e36c1e50436c934134c8e3289daa",
+      "restored_resource": false
+    },
+    {
+      "path": "scripts/verify-update-package.ps1",
+      "snapshot_sha256": "1fbaa651384f744e6634611afa02daa835b30a4705e408c5c97e1609e370e0d4",
+      "derived_sha256": "1fbaa651384f744e6634611afa02daa835b30a4705e408c5c97e1609e370e0d4",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "snapshot_sha256": "3f7f93f0ca0eb53937b747dfbd3fe4a2bc40b6c7143ecdad9d30c9fa470651ac",
+      "derived_sha256": "3f7f93f0ca0eb53937b747dfbd3fe4a2bc40b6c7143ecdad9d30c9fa470651ac",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/app/VoiceInputController.java",
+      "snapshot_sha256": "6f387b8dcb3e51c4248f487946f0d02ba1a4e0b0595cf60901590482e285106f",
+      "derived_sha256": "6f387b8dcb3e51c4248f487946f0d02ba1a4e0b0595cf60901590482e285106f",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/App.java",
+      "snapshot_sha256": "d1bab2ed5f75fd2da187907e72d96df88339ded8617bc4c5cc72d4c9bbbd2f73",
+      "derived_sha256": "d1bab2ed5f75fd2da187907e72d96df88339ded8617bc4c5cc72d4c9bbbd2f73",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/config/ModelConfig.java",
+      "snapshot_sha256": "e5cedf1f856b132a6bd05fc97a206b89b1b768cee586b0e2c090f963eafe35f5",
+      "derived_sha256": "e5cedf1f856b132a6bd05fc97a206b89b1b768cee586b0e2c090f963eafe35f5",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/BootDeviceDetector.java",
+      "snapshot_sha256": "6e1127e6c4457a0a2c905752c19544f5e6b5673a74796821590e6fe21113435f",
+      "derived_sha256": "6e1127e6c4457a0a2c905752c19544f5e6b5673a74796821590e6fe21113435f",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/DeviceBackup.java",
+      "snapshot_sha256": "8339b5dc96af4ca90eabd3ea09d8508204f1d13403dbbfd61ae78fd39cb636c3",
+      "derived_sha256": "8339b5dc96af4ca90eabd3ea09d8508204f1d13403dbbfd61ae78fd39cb636c3",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/DeviceBackupStore.java",
+      "snapshot_sha256": "f6fe62a662a46226ba104287c0dd78297b46c9423cec4e4b410d4f7a44d3a569",
+      "derived_sha256": "f6fe62a662a46226ba104287c0dd78297b46c9423cec4e4b410d4f7a44d3a569",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/DeviceMaintenanceCoordinator.java",
+      "snapshot_sha256": "a4aff1d6e9479dc7177b4572b0bfd7392be890c5dcc05e085161a99adae97726",
+      "derived_sha256": "a4aff1d6e9479dc7177b4572b0bfd7392be890c5dcc05e085161a99adae97726",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/DeviceRestoreService.java",
+      "snapshot_sha256": "5cfddf5b5cbd5dcda95b2d0b38bfdb20ce5f9a38af230bb385e06b07db21d026",
+      "derived_sha256": "5cfddf5b5cbd5dcda95b2d0b38bfdb20ce5f9a38af230bb385e06b07db21d026",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/FirmwareCatalog.java",
+      "snapshot_sha256": "b2830cd907c32673f7ba3334b4e9a259bb0306d87eaecee9cbb2725962e25794",
+      "derived_sha256": "b2830cd907c32673f7ba3334b4e9a259bb0306d87eaecee9cbb2725962e25794",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/FirmwareUpdateService.java",
+      "snapshot_sha256": "4f4338df81c6e549b2e33469bc20eb4c7c477bd4e9751a98ba0e3a1f308117d1",
+      "derived_sha256": "4f4338df81c6e549b2e33469bc20eb4c7c477bd4e9751a98ba0e3a1f308117d1",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/IntelHexValidator.java",
+      "snapshot_sha256": "40a41e8068099861b3e20df823f0c73d1cf5a49be1adb94d97023f9e78102054",
+      "derived_sha256": "40a41e8068099861b3e20df823f0c73d1cf5a49be1adb94d97023f9e78102054",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/WchDriverService.java",
+      "snapshot_sha256": "41b406db8f16a2d32fc0516c048d05a644d19f577044ee147d24bacbb155ce79",
+      "derived_sha256": "41b406db8f16a2d32fc0516c048d05a644d19f577044ee147d24bacbb155ce79",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/WchFlashAdapter.java",
+      "snapshot_sha256": "f508c9f87595e738df786654a24b2059b4bd22bb5df6258173be45dccae356ad",
+      "derived_sha256": "f508c9f87595e738df786654a24b2059b4bd22bb5df6258173be45dccae356ad",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/firmware/WchRuntimeLocator.java",
+      "snapshot_sha256": "19a16cbae5c80d3acd4ff2a323502c8ddf646bbcad190bc6b3a3b21e80e60f93",
+      "derived_sha256": "19a16cbae5c80d3acd4ff2a323502c8ddf646bbcad190bc6b3a3b21e80e60f93",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/Main.java",
+      "snapshot_sha256": "4f8baf764d68008afecd3bfd0d205f00d9b7f05d139df9cfa52d05680da13850",
+      "derived_sha256": "4f8baf764d68008afecd3bfd0d205f00d9b7f05d139df9cfa52d05680da13850",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/AiRuntimeDisplayMode.java",
+      "snapshot_sha256": "5e1f333e6496e13c6c939d9598a8bc2de253065b17d56a407974abb3eff79b92",
+      "derived_sha256": "5e1f333e6496e13c6c939d9598a8bc2de253065b17d56a407974abb3eff79b92",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/AiRuntimeSession.java",
+      "snapshot_sha256": "24dcb45e7f366768e1e87e985d956603b2b0e16ee9ed284e64751220d61765c5",
+      "derived_sha256": "24dcb45e7f366768e1e87e985d956603b2b0e16ee9ed284e64751220d61765c5",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/AiRuntimeSlotBinding.java",
+      "snapshot_sha256": "38e6e3d1acb840d9d73e166719b11a12920fb8ea64f6ef34b62540d68fd754ca",
+      "derived_sha256": "38e6e3d1acb840d9d73e166719b11a12920fb8ea64f6ef34b62540d68fd754ca",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/AiRuntimeSlotState.java",
+      "snapshot_sha256": "93cdd02c9e4c6ca2d59cc332a86d38e1007a2434d6669054b2e536d35938a33c",
+      "derived_sha256": "93cdd02c9e4c6ca2d59cc332a86d38e1007a2434d6669054b2e536d35938a33c",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/CodexSession.java",
+      "snapshot_sha256": "ed96c592d99a1d060e0bcbd6ced42823975e3a243b741b79650044a7bbecfd6f",
+      "derived_sha256": "ed96c592d99a1d060e0bcbd6ced42823975e3a243b741b79650044a7bbecfd6f",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DeviceStatus.java",
+      "snapshot_sha256": "21d2b233fac5e51b20c11547ce7a06e81be95ec0af7c28e0eb5836f886b0e1c9",
+      "derived_sha256": "21d2b233fac5e51b20c11547ce7a06e81be95ec0af7c28e0eb5836f886b0e1c9",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+      "snapshot_sha256": "54ae32772e69e94160fd35bed5dd860d2d443997ee925d57fafcb6339128ab42",
+      "derived_sha256": "54ae32772e69e94160fd35bed5dd860d2d443997ee925d57fafcb6339128ab42",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/FactoryResetState.java",
+      "snapshot_sha256": "b257fe82429c6a72fda83319500e8781a228c663feb3bccebb55a22ba94ad366",
+      "derived_sha256": "b257fe82429c6a72fda83319500e8781a228c663feb3bccebb55a22ba94ad366",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/HIDUsage.java",
+      "snapshot_sha256": "f2f10de83ca93383b95a059f1fdecc03fdb97cb2ba999cbe9bd7af9222a22791",
+      "derived_sha256": "f2f10de83ca93383b95a059f1fdecc03fdb97cb2ba999cbe9bd7af9222a22791",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/IDEState.java",
+      "snapshot_sha256": "72fcf03c92657020050ff1b2a1d8dee43f2b41b086b0060b039c6e850856b557",
+      "derived_sha256": "72fcf03c92657020050ff1b2a1d8dee43f2b41b086b0060b039c6e850856b557",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/K1Route.java",
+      "snapshot_sha256": "bfeec3ec2e8169ab9e37cb2d5480f71e37ac498d62c82148fe3f4867c34fd3e4",
+      "derived_sha256": "bfeec3ec2e8169ab9e37cb2d5480f71e37ac498d62c82148fe3f4867c34fd3e4",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/K1RouteState.java",
+      "snapshot_sha256": "69ca888dc3d57c2fd9f48dd120952b8cef6d69c7f278dfc7525ae74d161073c5",
+      "derived_sha256": "69ca888dc3d57c2fd9f48dd120952b8cef6d69c7f278dfc7525ae74d161073c5",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/KeyConfig.java",
+      "snapshot_sha256": "ce57f2431940dba6d2831ac90caea76d45c1b9c779ee1496b2e159d40161e540",
+      "derived_sha256": "ce57f2431940dba6d2831ac90caea76d45c1b9c779ee1496b2e159d40161e540",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/LightBarPreviewState.java",
+      "snapshot_sha256": "2269e7eb8dc77a7db3577f149b3cb571adc2b8c70b5e7b39aeff50b33d8002c7",
+      "derived_sha256": "2269e7eb8dc77a7db3577f149b3cb571adc2b8c70b5e7b39aeff50b33d8002c7",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/LightEffectStyle.java",
+      "snapshot_sha256": "d9fd3b240add3485233879e85bdbb6ca7f1b8f0fafd17571597531f6ca0aaf5a",
+      "derived_sha256": "d9fd3b240add3485233879e85bdbb6ca7f1b8f0fafd17571597531f6ca0aaf5a",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/MacroStep.java",
+      "snapshot_sha256": "515aa6b78f3eab9022352e23afdd5d9c7f6dbd0800180189b79bb947da3975de",
+      "derived_sha256": "515aa6b78f3eab9022352e23afdd5d9c7f6dbd0800180189b79bb947da3975de",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/ModeSlot.java",
+      "snapshot_sha256": "1069efebf0dbf1ba0331e45b520c010e08c02ee3d43270ea4332f43e0120b4d6",
+      "derived_sha256": "1069efebf0dbf1ba0331e45b520c010e08c02ee3d43270ea4332f43e0120b4d6",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/OledModeDraft.java",
+      "snapshot_sha256": "e043d60b3f4e857d57a9b99151d8427703f487490a522ce2dbf237b746af3d7e",
+      "derived_sha256": "e043d60b3f4e857d57a9b99151d8427703f487490a522ce2dbf237b746af3d7e",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/OledResourceState.java",
+      "snapshot_sha256": "5336eb30fc1ef093efc9449877bf8b90b1d2a7c77f721d801151e91067f2fb0e",
+      "derived_sha256": "5336eb30fc1ef093efc9449877bf8b90b1d2a7c77f721d801151e91067f2fb0e",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioPart.java",
+      "snapshot_sha256": "91b30de734e54e5b30a55e1c9991da7415c08436f8ef167aedbee1693846542f",
+      "derived_sha256": "91b30de734e54e5b30a55e1c9991da7415c08436f8ef167aedbee1693846542f",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/StudioState.java",
+      "snapshot_sha256": "fb23df07d5a84fa59154200a6a6edd02164e8720a85271ec8c37f3b07c1d2196",
+      "derived_sha256": "fb23df07d5a84fa59154200a6a6edd02164e8720a85271ec8c37f3b07c1d2196",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/VoicePreset.java",
+      "snapshot_sha256": "4370c15ce82c43a4ed26ca3e52963761f16103c662113a4ccbfa6c50e9632e8d",
+      "derived_sha256": "4370c15ce82c43a4ed26ca3e52963761f16103c662113a4ccbfa6c50e9632e8d",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/platform/VoiceRelayPlatform.java",
+      "snapshot_sha256": "056967d1b20d98d720c769721850d28a307e204282d9ab3304dc3f9144af9ce2",
+      "derived_sha256": "056967d1b20d98d720c769721850d28a307e204282d9ab3304dc3f9144af9ce2",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/platform/windows/WindowsCredentialStore.java",
+      "snapshot_sha256": "c35a486ee3ebdee11e93b295acd6e831099e659a13029573a85cea847ce11cda",
+      "derived_sha256": "c35a486ee3ebdee11e93b295acd6e831099e659a13029573a85cea847ce11cda",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/platform/windows/WindowsVoiceRelayService.java",
+      "snapshot_sha256": "8a14843b41d05061d33ae90b29a972c59af3081d41dbd7540b136994a1073f42",
+      "derived_sha256": "8a14843b41d05061d33ae90b29a972c59af3081d41dbd7540b136994a1073f42",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/platform/windows/WindowsVoiceTyping.java",
+      "snapshot_sha256": "61ad7c0d45a12de056af2a230a207b9bb507c7ea9382bbbf73fb8b3c2038bfc5",
+      "derived_sha256": "61ad7c0d45a12de056af2a230a207b9bb507c7ea9382bbbf73fb8b3c2038bfc5",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyProtocol.java",
+      "snapshot_sha256": "37282165fd0e7c25a170afd0eddc1fc81e5c5c9dee9d0704817c72a115ea55c6",
+      "derived_sha256": "37282165fd0e7c25a170afd0eddc1fc81e5c5c9dee9d0704817c72a115ea55c6",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java",
+      "snapshot_sha256": "4211a9c0b0070f961b37351aa177aec77718f6a1336c04e048542e6fd817205c",
+      "derived_sha256": "4211a9c0b0070f961b37351aa177aec77718f6a1336c04e048542e6fd817205c",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/BleTcpPacket.java",
+      "snapshot_sha256": "83b89ad48a8eef461373420b9fc382a0b24d1c7125b79c93f52f4656de4f3573",
+      "derived_sha256": "83b89ad48a8eef461373420b9fc382a0b24d1c7125b79c93f52f4656de4f3573",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/FactoryResetProtocol.java",
+      "snapshot_sha256": "f87f1651dd1dcf2f00de8fca1d561b9370b7b08adc9dc1b07775af77b729ae7b",
+      "derived_sha256": "f87f1651dd1dcf2f00de8fca1d561b9370b7b08adc9dc1b07775af77b729ae7b",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/FirmwareCapabilities.java",
+      "snapshot_sha256": "d4b3f22055bbae0fedabf0e5ebf42d403fe2a1004d0fbb1d24e61028d05dbc7b",
+      "derived_sha256": "d4b3f22055bbae0fedabf0e5ebf42d403fe2a1004d0fbb1d24e61028d05dbc7b",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java",
+      "snapshot_sha256": "34a8b4fa686566265f7a34be062b8ea67b2726ceef38dd70d13f60aaeeec7153",
+      "derived_sha256": "34a8b4fa686566265f7a34be062b8ea67b2726ceef38dd70d13f60aaeeec7153",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AgentManager.java",
+      "snapshot_sha256": "8b6898f805160f08a68f8f8bbd079c3fd1716c0507d3300e09ac452ecbf6abaf",
+      "derived_sha256": "8b6898f805160f08a68f8f8bbd079c3fd1716c0507d3300e09ac452ecbf6abaf",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AhaTypeConfig.java",
+      "snapshot_sha256": "336f7ad1d4290fce07aaf06777e67037964f25ee92c901e53e377a2587351470",
+      "derived_sha256": "336f7ad1d4290fce07aaf06777e67037964f25ee92c901e53e377a2587351470",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AhaTypeService.java",
+      "snapshot_sha256": "f3fe64dda7680da7cc0612777a8ee766434bdb4cf9ec9bf98620e6b342e69276",
+      "derived_sha256": "f3fe64dda7680da7cc0612777a8ee766434bdb4cf9ec9bf98620e6b342e69276",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "snapshot_sha256": "bd994a6e2367cd1c2a735567a3d264e10b94430918e0b0b367e6bb5e6e0157c2",
+      "derived_sha256": "bd994a6e2367cd1c2a735567a3d264e10b94430918e0b0b367e6bb5e6e0157c2",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "snapshot_sha256": "98e740ad36cf34a7361114ebae5a8105ecb33414e3528cd519c9fb252d89c1a8",
+      "derived_sha256": "98e740ad36cf34a7361114ebae5a8105ecb33414e3528cd519c9fb252d89c1a8",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CloudAccountManager.java",
+      "snapshot_sha256": "6b3f423241166db062de7f6f5e852fff8cefd8627ba92decdae9ca9644104f09",
+      "derived_sha256": "6b3f423241166db062de7f6f5e852fff8cefd8627ba92decdae9ca9644104f09",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CodexSessionDiscoveryService.java",
+      "snapshot_sha256": "248c9f07352ac19567a5af28c85874126cbc7e53caf1cfeb5099b5ebf7ac406b",
+      "derived_sha256": "248c9f07352ac19567a5af28c85874126cbc7e53caf1cfeb5099b5ebf7ac406b",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CursorSessionDiscoveryService.java",
+      "snapshot_sha256": "6dddb893dc19604410cbd9fa6b9290612d5f87f77cb7813131684f6322f6796f",
+      "derived_sha256": "6dddb893dc19604410cbd9fa6b9290612d5f87f77cb7813131684f6322f6796f",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+      "snapshot_sha256": "189d82c2ed53371f337addb1c3283da987453613b183534333ca74e3797002bf",
+      "derived_sha256": "189d82c2ed53371f337addb1c3283da987453613b183534333ca74e3797002bf",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "snapshot_sha256": "6cd3f799f0df7967525516994ae3a8fb00166446f54f2e44d6a11aff671f9700",
+      "derived_sha256": "6cd3f799f0df7967525516994ae3a8fb00166446f54f2e44d6a11aff671f9700",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/FactoryResetService.java",
+      "snapshot_sha256": "f4159ae81d393c39096a87732d50d61046a30e736c55811f8e2d3f4d30ea315d",
+      "derived_sha256": "f4159ae81d393c39096a87732d50d61046a30e736c55811f8e2d3f4d30ea315d",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/FactoryResetStore.java",
+      "snapshot_sha256": "cc1aa2406ef4d7c09999522710fec553d4f330ddbd4d540d0503beff978ef4a3",
+      "derived_sha256": "cc1aa2406ef4d7c09999522710fec553d4f330ddbd4d540d0503beff978ef4a3",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/FirmwareLightSimulator.java",
+      "snapshot_sha256": "38362fdd55ea2852539633a5472715caac8c7a785ca4205c4c42639d2bd6bc1d",
+      "derived_sha256": "38362fdd55ea2852539633a5472715caac8c7a785ca4205c4c42639d2bd6bc1d",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookClient.java",
+      "snapshot_sha256": "a9e31b9b98326b34ed73915d50aabc9cdcfbd0665fbb0b9d7705b75ba1f4ad17",
+      "derived_sha256": "a9e31b9b98326b34ed73915d50aabc9cdcfbd0665fbb0b9d7705b75ba1f4ad17",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookDispatchServer.java",
+      "snapshot_sha256": "561b0fdf25e8edd3109dc46cb45f36bba4c46208d438e77c6f5df284589d3448",
+      "derived_sha256": "561b0fdf25e8edd3109dc46cb45f36bba4c46208d438e77c6f5df284589d3448",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/HookInstaller.java",
+      "snapshot_sha256": "2227c209df5d71686107b4efa1350ef6f19491ae36cd7e6855c5b6a68281ce53",
+      "derived_sha256": "2227c209df5d71686107b4efa1350ef6f19491ae36cd7e6855c5b6a68281ce53",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/K1RouteService.java",
+      "snapshot_sha256": "ab5a9c288849bc3e5c3ebc7756d974b793bf27f30e723b2ef39b7d7ca109d0a0",
+      "derived_sha256": "ab5a9c288849bc3e5c3ebc7756d974b793bf27f30e723b2ef39b7d7ca109d0a0",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/KeyboardInjector.java",
+      "snapshot_sha256": "962e2ad16d311417fd866ecb50b01ec8a5525531152eefa8a9fe113a069d6397",
+      "derived_sha256": "962e2ad16d311417fd866ecb50b01ec8a5525531152eefa8a9fe113a069d6397",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/KeySimulationService.java",
+      "snapshot_sha256": "392f7b9e515510a5e29280fe86a8bd0b9f7d19ca8ec0d15ff5d02da2c4dd285d",
+      "derived_sha256": "392f7b9e515510a5e29280fe86a8bd0b9f7d19ca8ec0d15ff5d02da2c4dd285d",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/KimiAhaKeyBridge.java",
+      "snapshot_sha256": "97143897ca719eee71d0d9340d6cab96e3c0b3c82cd4b3c6bc64e307b1a6d287",
+      "derived_sha256": "97143897ca719eee71d0d9340d6cab96e3c0b3c82cd4b3c6bc64e307b1a6d287",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/KimiConfigLeverSync.java",
+      "snapshot_sha256": "f487245afba58861d7375f1ec6215feb2039493f99983be91d354d5e318cb2ab",
+      "derived_sha256": "f487245afba58861d7375f1ec6215feb2039493f99983be91d354d5e318cb2ab",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+      "snapshot_sha256": "7a6bc434109fa33e4a19088f0a56062621aa583fd226a6452b6bde0d03ad3a7c",
+      "derived_sha256": "7a6bc434109fa33e4a19088f0a56062621aa583fd226a6452b6bde0d03ad3a7c",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledUploadService.java",
+      "snapshot_sha256": "a0be0d322a0c3aabd527329928c7801c5b8d4114e0819f87edb5f8dc639dd25e",
+      "derived_sha256": "a0be0d322a0c3aabd527329928c7801c5b8d4114e0819f87edb5f8dc639dd25e",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/SocketServer.java",
+      "snapshot_sha256": "9f37703a2c04673fd9618fdf1b31d2e4befb7b6b1c65f391763b37e1c4b9df53",
+      "derived_sha256": "9f37703a2c04673fd9618fdf1b31d2e4befb7b6b1c65f391763b37e1c4b9df53",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/SpeechService.java",
+      "snapshot_sha256": "77da7ddb23605ada9db36e0c6e164c41f004611cd6fab4135612cf035fa516c5",
+      "derived_sha256": "77da7ddb23605ada9db36e0c6e164c41f004611cd6fab4135612cf035fa516c5",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "snapshot_sha256": "5a9ce47407f08adbeecf4074c96e4fdc4db11b16e8cfa2241d1df804dd880c3e",
+      "derived_sha256": "5a9ce47407f08adbeecf4074c96e4fdc4db11b16e8cfa2241d1df804dd880c3e",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/VoiceInputManager.java",
+      "snapshot_sha256": "b9d1f5ee4f6c66300afd80beb26ad924d0cc1d1c81a72c4f88994db41745992a",
+      "derived_sha256": "b9d1f5ee4f6c66300afd80beb26ad924d0cc1d1c81a72c4f88994db41745992a",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/sherpa/LibraryLoader.java",
+      "snapshot_sha256": "d45130efcb98d71494ac3fbdc39a3943ba6b8f01671cfd1d7f87a4139acd487d",
+      "derived_sha256": "d45130efcb98d71494ac3fbdc39a3943ba6b8f01671cfd1d7f87a4139acd487d",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/SingleInstanceChecker.java",
+      "snapshot_sha256": "0fe7ff989a3b8aa389e87ee6da093f3ff7422a3b1d0299262c56a3e9c61dca8c",
+      "derived_sha256": "0fe7ff989a3b8aa389e87ee6da093f3ff7422a3b1d0299262c56a3e9c61dca8c",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/InstalledAppIdentity.java",
+      "snapshot_sha256": "abb5535430e2446ffac9a2dd554940b3124313d3af577572c3991f65709b7b32",
+      "derived_sha256": "abb5535430e2446ffac9a2dd554940b3124313d3af577572c3991f65709b7b32",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/InstallerTrustPolicy.java",
+      "snapshot_sha256": "4e9bf41a65ffbd9fd190bbaa1c535857d111c72b69455b9a514b7257fc436504",
+      "derived_sha256": "4e9bf41a65ffbd9fd190bbaa1c535857d111c72b69455b9a514b7257fc436504",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/ReleaseManifest.java",
+      "snapshot_sha256": "29bb0b799cfdde798d1ad5e1440558046a8325effd9b8fff38b0744b93c58989",
+      "derived_sha256": "29bb0b799cfdde798d1ad5e1440558046a8325effd9b8fff38b0744b93c58989",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/ReleaseManifestClient.java",
+      "snapshot_sha256": "e5a645166ce5d3ba2b36d977ed4fe4be65e153f867dee8a531970cce6e563cd4",
+      "derived_sha256": "e5a645166ce5d3ba2b36d977ed4fe4be65e153f867dee8a531970cce6e563cd4",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/ReleaseSignature.java",
+      "snapshot_sha256": "639e753dc86544c4cb4b6201da62107c1a4dc4363fd31bf1428f244476c44b50",
+      "derived_sha256": "639e753dc86544c4cb4b6201da62107c1a4dc4363fd31bf1428f244476c44b50",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/UpdateCenterService.java",
+      "snapshot_sha256": "3da1a3c10d4c7b06c568eb1406cdf2a00e9f6a0e33bed556c288ac0a85b844c6",
+      "derived_sha256": "3da1a3c10d4c7b06c568eb1406cdf2a00e9f6a0e33bed556c288ac0a85b844c6",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/VerifiedDownload.java",
+      "snapshot_sha256": "a5ae5fc735e1cade6ebda51945fe0555eb51ea6e7629737867a9980388b26bab",
+      "derived_sha256": "a5ae5fc735e1cade6ebda51945fe0555eb51ea6e7629737867a9980388b26bab",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/WindowsInstalledApplication.java",
+      "snapshot_sha256": "5ec42ad4fce16ec1e1a16d4340cbef717ddd9b13c92b32673195a63104d7f078",
+      "derived_sha256": "5ec42ad4fce16ec1e1a16d4340cbef717ddd9b13c92b32673195a63104d7f078",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/update/WindowsUpdateInstaller.java",
+      "snapshot_sha256": "075ca71ec8492fad46097fc46b55f1f771bc866af49d7e81a102ae7ed55b2f5a",
+      "derived_sha256": "075ca71ec8492fad46097fc46b55f1f771bc866af49d7e81a102ae7ed55b2f5a",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/AiRuntimeStore.java",
+      "snapshot_sha256": "7e50bb077ccd8fee9568dfbaef6b5f5246cdc63fc6c31440e8c7f0d29087f195",
+      "derived_sha256": "7e50bb077ccd8fee9568dfbaef6b5f5246cdc63fc6c31440e8c7f0d29087f195",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/ConfigStore.java",
+      "snapshot_sha256": "aaf7fd90625c9a8aaf988c708fcf4a30e293b16bad1af1a2c1802bd35216d1b8",
+      "derived_sha256": "aaf7fd90625c9a8aaf988c708fcf4a30e293b16bad1af1a2c1802bd35216d1b8",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/Icons.java",
+      "snapshot_sha256": "03a13295d30b22575d080cf75c07bdd94a9e3e36ee72972a926fa29af5c0e7df",
+      "derived_sha256": "03a13295d30b22575d080cf75c07bdd94a9e3e36ee72972a926fa29af5c0e7df",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/LanguageManager.java",
+      "snapshot_sha256": "7abfa661aaee09fdbc63df1fde38a354f3b673820e91dccf62143f2d3a514cf4",
+      "derived_sha256": "7abfa661aaee09fdbc63df1fde38a354f3b673820e91dccf62143f2d3a514cf4",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+      "snapshot_sha256": "b81855200e9029a0e76bf6ddbc35e3562e94e42af0044700c4497467cf92001b",
+      "derived_sha256": "b81855200e9029a0e76bf6ddbc35e3562e94e42af0044700c4497467cf92001b",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/StudioStore.java",
+      "snapshot_sha256": "7e719ec0b0dd2ea64dd7effa4d28ee95d4088d64641498c23644ffa68164a0cb",
+      "derived_sha256": "7e719ec0b0dd2ea64dd7effa4d28ee95d4088d64641498c23644ffa68164a0cb",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "snapshot_sha256": "a2a5acaa9fa4ccf61c19b5f7c5ab8028f2881d44b43d4ea1af3a1b4f70b5ec96",
+      "derived_sha256": "a2a5acaa9fa4ccf61c19b5f7c5ab8028f2881d44b43d4ea1af3a1b4f70b5ec96",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasPane.java",
+      "snapshot_sha256": "16d0a42fa13c8c2b1aa7c3b065e7db02885a3a3750315e00a60cb260ca5689d0",
+      "derived_sha256": "16d0a42fa13c8c2b1aa7c3b065e7db02885a3a3750315e00a60cb260ca5689d0",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CloudAccountDialog.java",
+      "snapshot_sha256": "6eec46b4acbf04085944a75be1f5c22dac218d5803f2b6f35aa95d840e3a457b",
+      "derived_sha256": "6eec46b4acbf04085944a75be1f5c22dac218d5803f2b6f35aa95d840e3a457b",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/FactoryResetDialog.java",
+      "snapshot_sha256": "c23bc1f408aedd7233635719f0d22036a24908a84d10ae5d2159ecfeb9a5549a",
+      "derived_sha256": "c23bc1f408aedd7233635719f0d22036a24908a84d10ae5d2159ecfeb9a5549a",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/FloatingVoiceNotification.java",
+      "snapshot_sha256": "b4506ad40802c836ec0fe20a0af9f1298719c61e020b3d0ef0f8ed3de70162dc",
+      "derived_sha256": "b4506ad40802c836ec0fe20a0af9f1298719c61e020b3d0ef0f8ed3de70162dc",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InfoPill.java",
+      "snapshot_sha256": "0651484d3619e82996f3842e955955f241d1b4020e93c644dbe0c5631c2c3265",
+      "derived_sha256": "0651484d3619e82996f3842e955955f241d1b4020e93c644dbe0c5631c2c3265",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "snapshot_sha256": "7182c626581ceb7f5d4a459f19bd43f5532e2c56b7dcc8a93f68acaefb639ffd",
+      "derived_sha256": "7182c626581ceb7f5d4a459f19bd43f5532e2c56b7dcc8a93f68acaefb639ffd",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/StatusBar.java",
+      "snapshot_sha256": "034ac2932a9da2da370fed21b3874bc6c564d1554b23c61e995933b88312e4cc",
+      "derived_sha256": "034ac2932a9da2da370fed21b3874bc6c564d1554b23c61e995933b88312e4cc",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/TopBar.java",
+      "snapshot_sha256": "d7dbb326ee7a3e4bc01d99514b97ae0bf5ee816a1f7dd42a17407fca834068b9",
+      "derived_sha256": "d7dbb326ee7a3e4bc01d99514b97ae0bf5ee816a1f7dd42a17407fca834068b9",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/UpdateCenterDialog.java",
+      "snapshot_sha256": "21e7c7b7d9f22e4ce200c70d14bf2e7072137064087bb178c080333484426592",
+      "derived_sha256": "21e7c7b7d9f22e4ce200c70d14bf2e7072137064087bb178c080333484426592",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/ahakey.jpg",
+      "snapshot_sha256": "a806907c934f0336b040741ecd88fb3381dedbea4b841a00e8bfb9c9ad17d9a9",
+      "derived_sha256": "a806907c934f0336b040741ecd88fb3381dedbea4b841a00e8bfb9c9ad17d9a9",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/firmware/catalog.json",
+      "snapshot_sha256": "6af612e00178b6685b0e81df32bcff382b40c0f9ef0f5fb0ac3b60c0a9bd6610",
+      "derived_sha256": "6af612e00178b6685b0e81df32bcff382b40c0f9ef0f5fb0ac3b60c0a9bd6610",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/firmware/wch/CH343PT.DLL",
+      "snapshot_sha256": "4b7f30dfbc886e1359c7adc4d9fdcc3cb6543c373fc214e8641e314df41fe65a",
+      "derived_sha256": "4b7f30dfbc886e1359c7adc4d9fdcc3cb6543c373fc214e8641e314df41fe65a",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/firmware/wch/CH375DLL.dll",
+      "snapshot_sha256": "0f019b958d4d3f6b8ec0d282ef848a57f0f92a0596d7405b6c58f5aa383a326c",
+      "derived_sha256": "0f019b958d4d3f6b8ec0d282ef848a57f0f92a0596d7405b6c58f5aa383a326c",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/firmware/wch/ChipType/chiplist_CH57x_CH59x.wcfg",
+      "snapshot_sha256": "2e25c59c08ec6518a16c40a3b1f01dc9957ad9bb6ae59533bdb4901120cfc8fc",
+      "derived_sha256": "2e2369ed14f3c351c4404bdbfa45890e3b7562c7a201111e90f7004c4dc882a0",
+      "restored_resource": true
+    },
+    {
+      "path": "src/main/resources/firmware/wch/CONFIG_CH57X59X.WCH",
+      "snapshot_sha256": "f21f73360c7f650ab36cc4a0bbe2b88316c85bc1caf2e010139a47486abf5a8a",
+      "derived_sha256": "f21f73360c7f650ab36cc4a0bbe2b88316c85bc1caf2e010139a47486abf5a8a",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375DLL.dll",
+      "snapshot_sha256": "0f019b958d4d3f6b8ec0d282ef848a57f0f92a0596d7405b6c58f5aa383a326c",
+      "derived_sha256": "0f019b958d4d3f6b8ec0d282ef848a57f0f92a0596d7405b6c58f5aa383a326c",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375DLL64.dll",
+      "snapshot_sha256": "5ed04e4a8eb9006e92907fdc105c4d8f915408409a02c157ca492a65d9163aa7",
+      "derived_sha256": "5ed04e4a8eb9006e92907fdc105c4d8f915408409a02c157ca492a65d9163aa7",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375M64.sys",
+      "snapshot_sha256": "9f40d09251f58be92ee2cb769c86900d52439a5b4f7e2ca2605e26cb464602b4",
+      "derived_sha256": "9f40d09251f58be92ee2cb769c86900d52439a5b4f7e2ca2605e26cb464602b4",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375W64.sys",
+      "snapshot_sha256": "5803220ed9da96b310397aa81db6612280f7c1a58948c02a5fe6aedf49065f5a",
+      "derived_sha256": "5803220ed9da96b310397aa81db6612280f7c1a58948c02a5fe6aedf49065f5a",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375WDM.CAT",
+      "snapshot_sha256": "08a8d8b21f42635243f0a7b4bd73195a4eea22a85508b3c4fce93a181054b4ba",
+      "derived_sha256": "08a8d8b21f42635243f0a7b4bd73195a4eea22a85508b3c4fce93a181054b4ba",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375WDM.INF",
+      "snapshot_sha256": "76e5f3e96743b097c0d45d019b87c6dbef795934e2826fdade2b5e7b37b47fa4",
+      "derived_sha256": "76e5f3e96743b097c0d45d019b87c6dbef795934e2826fdade2b5e7b37b47fa4",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/firmware/wch/driver/CH375WDM.sys",
+      "snapshot_sha256": "840de6b498b8f3613eeb83ee6987d90229200be125925899df0c1beb2da62d1b",
+      "derived_sha256": "840de6b498b8f3613eeb83ee6987d90229200be125925899df0c1beb2da62d1b",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/firmware/wch/WCH55xISPDLL.dll",
+      "snapshot_sha256": "c56f1f2250c9e3862e3ef86887d7e81302bb008a722a3b18555f5cd0acd875ff",
+      "derived_sha256": "c56f1f2250c9e3862e3ef86887d7e81302bb008a722a3b18555f5cd0acd875ff",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/firmware/wch/WCHISPTool_CH57x-59x.exe",
+      "snapshot_sha256": "7b5d84bfcc8786aabf74ba264de29c1e2eda7907fb8385426fda3270cd793f95",
+      "derived_sha256": "7b5d84bfcc8786aabf74ba264de29c1e2eda7907fb8385426fda3270cd793f95",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/firmware/wch-capture-worker.ps1",
+      "snapshot_sha256": "a40ef90b0bc7f64e7192ce5f688d6db16ba03be3e649e3c3d203ee7e3288dfda",
+      "derived_sha256": "a40ef90b0bc7f64e7192ce5f688d6db16ba03be3e649e3c3d203ee7e3288dfda",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/firmware/wch-driver-worker.ps1",
+      "snapshot_sha256": "f0f2736a0363bb4baf13dfa51b472785a4988ed02471b0ce19bfcc7a7bb39f02",
+      "derived_sha256": "f0f2736a0363bb4baf13dfa51b472785a4988ed02471b0ce19bfcc7a7bb39f02",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/firmware/wch-runtime-profiles.json",
+      "snapshot_sha256": "4638d32f0905e475aa19c7b678ee079adb72a94b69c2f706ec71531531673da1",
+      "derived_sha256": "4638d32f0905e475aa19c7b678ee079adb72a94b69c2f706ec71531531673da1",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/firmware/x1-c582-hw1-p1-r001-cp2-memory-safety-20261018.hex",
+      "snapshot_sha256": "70df169e1cb516954a7c5ac1df050f9163b0c9cc81493194cf781c05eb6dac09",
+      "derived_sha256": "ffb9208f79084aa24a832ad2562a14dbbea5df4d114a135cb5b2eb98d4e05539",
+      "restored_resource": true
+    },
+    {
+      "path": "src/main/resources/fxml/CanvasLayout.fxml",
+      "snapshot_sha256": "b9b8bf3d86343f9dc0a3ec7a32194d7ebf000ac422080950495807be31d03908",
+      "derived_sha256": "b9b8bf3d86343f9dc0a3ec7a32194d7ebf000ac422080950495807be31d03908",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/fxml/VoiceInputPanel.fxml",
+      "snapshot_sha256": "b6c5f658e60e6c0bfe06bbcaace30db2265e8045d8ac97250e1448ff3b75d291",
+      "derived_sha256": "b6c5f658e60e6c0bfe06bbcaace30db2265e8045d8ac97250e1448ff3b75d291",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/logback.xml",
+      "snapshot_sha256": "47aef3936b40d7baa595aa77064c8f238bb296989f474dfa6cefc2b35b73e618",
+      "derived_sha256": "47aef3936b40d7baa595aa77064c8f238bb296989f474dfa6cefc2b35b73e618",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/messages_en.properties",
+      "snapshot_sha256": "90bb6b0b5d7a705a0a71a46b24303a61ade26902919826434aae1e2de6a0d29a",
+      "derived_sha256": "90bb6b0b5d7a705a0a71a46b24303a61ade26902919826434aae1e2de6a0d29a",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/messages_zh.properties",
+      "snapshot_sha256": "af5df9f828458112efa48de7f1bec0747a8e235f0d9fe76b2209b04a0270ace0",
+      "derived_sha256": "af5df9f828458112efa48de7f1bec0747a8e235f0d9fe76b2209b04a0270ace0",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/model_config.properties",
+      "snapshot_sha256": "aa31731af390141f2d987938fa337bb2b13c89aa96d92d4c16ec476c37732d0e",
+      "derived_sha256": "aa31731af390141f2d987938fa337bb2b13c89aa96d92d4c16ec476c37732d0e",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/style.css",
+      "snapshot_sha256": "3b2894aa3b907bcea77e66197bbb27d47b2958eca3e5959a77fa91ca4a723ad6",
+      "derived_sha256": "3b2894aa3b907bcea77e66197bbb27d47b2958eca3e5959a77fa91ca4a723ad6",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/update/app-release.properties",
+      "snapshot_sha256": "f8c99fbdd490b7fd2974c9b9c4d4027b49cffe5d88aec325a652280a9b793f82",
+      "derived_sha256": "f8c99fbdd490b7fd2974c9b9c4d4027b49cffe5d88aec325a652280a9b793f82",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/update/InstalledApplication.cs",
+      "snapshot_sha256": "496a7815ee8df38b54f0774889373c7792f123ed7e5694a5f151474ef0c33028",
+      "derived_sha256": "496a7815ee8df38b54f0774889373c7792f123ed7e5694a5f151474ef0c33028",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/update/release-public-key.json",
+      "snapshot_sha256": "ba95228ac0a3331b6004e7b2b68270daea35b345decc351ab67bc15a7e055c25",
+      "derived_sha256": "ba95228ac0a3331b6004e7b2b68270daea35b345decc351ab67bc15a7e055c25",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/update/trust-policy.json",
+      "snapshot_sha256": "a3a513bd626a7846bab73cd1d208fd16985a8e5544686ed3299314166e0f3916",
+      "derived_sha256": "a3a513bd626a7846bab73cd1d208fd16985a8e5544686ed3299314166e0f3916",
+      "restored_resource": false
+    },
+    {
+      "path": "src/main/resources/update/windows-update-worker.ps1",
+      "snapshot_sha256": "da562d504761cb3949fd9f5fa2faba9a324be84d320dfe37012333ff3ab3b574",
+      "derived_sha256": "da562d504761cb3949fd9f5fa2faba9a324be84d320dfe37012333ff3ab3b574",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/compatibility/FirmwareIdentityCompatibilityChecks.java",
+      "snapshot_sha256": "62a25779c72a832fa8da97481fb967fc9f7fc45dbe1c77b9bb0b6ef37a03fee6",
+      "derived_sha256": "62a25779c72a832fa8da97481fb967fc9f7fc45dbe1c77b9bb0b6ef37a03fee6",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigCapabilityChecks.java",
+      "snapshot_sha256": "fdb4c9404f55b7573b23c9cc0471f1f83eef7483b0a46d44793157a076060801",
+      "derived_sha256": "fdb4c9404f55b7573b23c9cc0471f1f83eef7483b0a46d44793157a076060801",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigChecks.java",
+      "snapshot_sha256": "585455f0ec2364ab412d1a1a202c2d119aad19108b82a2ce1ad6bfefaa9adc8c",
+      "derived_sha256": "585455f0ec2364ab412d1a1a202c2d119aad19108b82a2ce1ad6bfefaa9adc8c",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigEncodingProbe.java",
+      "snapshot_sha256": "9143d4c5449dd4e56a9e381cd48b8a61b749635c57c36671a2dd821e7dbc65a0",
+      "derived_sha256": "9143d4c5449dd4e56a9e381cd48b8a61b749635c57c36671a2dd821e7dbc65a0",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigFxChecks.java",
+      "snapshot_sha256": "3aa6b3d363936052f001219d702deaf63191ff6e988e37284c7fdab242e2d4a8",
+      "derived_sha256": "3aa6b3d363936052f001219d702deaf63191ff6e988e37284c7fdab242e2d4a8",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigIsolationChecks.java",
+      "snapshot_sha256": "20ffaef9af18d9a03d31f4f159b4ea9e4dd3d6eb8e151a1b94892089aee4a116",
+      "derived_sha256": "20ffaef9af18d9a03d31f4f159b4ea9e4dd3d6eb8e151a1b94892089aee4a116",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRaceChecks.java",
+      "snapshot_sha256": "16a00f57a1d1da89b69436b006ba7944f4fd7573fcfe375701ad590badf3925c",
+      "derived_sha256": "16a00f57a1d1da89b69436b006ba7944f4fd7573fcfe375701ad590badf3925c",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3Checks.java",
+      "snapshot_sha256": "bf1a88ba7a7769eb36874be7401956fe3c6bb8ee681ee93d6a3335e823dd4c49",
+      "derived_sha256": "bf1a88ba7a7769eb36874be7401956fe3c6bb8ee681ee93d6a3335e823dd4c49",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRevision3UiChecks.java",
+      "snapshot_sha256": "083b03aa562069069b7cbfe9066f238603e0b38b601ecb753612c306e312ebc8",
+      "derived_sha256": "083b03aa562069069b7cbfe9066f238603e0b38b601ecb753612c306e312ebc8",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/DisplayConfigRound5Checks.java",
+      "snapshot_sha256": "29973ac0232804a78cabe858056f7d24eb05f28c432934f4c19891d86d51616c",
+      "derived_sha256": "29973ac0232804a78cabe858056f7d24eb05f28c432934f4c19891d86d51616c",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/displayconfig/OfflineBleManager.java",
+      "snapshot_sha256": "ea6f8220f2dcacee0e185cdf359b336d4233a88a336cc7e45f5b6f7c7716a1a2",
+      "derived_sha256": "ea6f8220f2dcacee0e185cdf359b336d4233a88a336cc7e45f5b6f7c7716a1a2",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/BackupRestoreChecks.java",
+      "snapshot_sha256": "377fe1fc03363c252ba8f4e10944563b00d6f4e6babc971a82f87e0772d41332",
+      "derived_sha256": "377fe1fc03363c252ba8f4e10944563b00d6f4e6babc971a82f87e0772d41332",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/DeviceMaintenanceChecks.java",
+      "snapshot_sha256": "8ce8bb4009fb625a1ff4a656323be40537e60d867f30bc2ad2ab31f97efcaa98",
+      "derived_sha256": "8ce8bb4009fb625a1ff4a656323be40537e60d867f30bc2ad2ab31f97efcaa98",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/FirmwareUpdateChecks.java",
+      "snapshot_sha256": "091e9bed869b7e1187c8c51a2e703688c3455d4f327e514231010ca129894ac2",
+      "derived_sha256": "091e9bed869b7e1187c8c51a2e703688c3455d4f327e514231010ca129894ac2",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/SimpleFlashChecks.java",
+      "snapshot_sha256": "c425ce3e8ccc3c06a2419849db278be4ebecfe89b530fe5f51b7c6c693e7d0f0",
+      "derived_sha256": "c425ce3e8ccc3c06a2419849db278be4ebecfe89b530fe5f51b7c6c693e7d0f0",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/firmware/WchAdapterChecks.java",
+      "snapshot_sha256": "81c83aa98b1d4c1dc3055865ff469adccbcdf21398b6630c27e63d5916c5c66b",
+      "derived_sha256": "81c83aa98b1d4c1dc3055865ff469adccbcdf21398b6630c27e63d5916c5c66b",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/K1RouteEditorChecks.java",
+      "snapshot_sha256": "909397763199e8a41b461b79149aa274f609815e67ff5b8a22b2327269385f34",
+      "derived_sha256": "909397763199e8a41b461b79149aa274f609815e67ff5b8a22b2327269385f34",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/PackagedStartupCheck.java",
+      "snapshot_sha256": "26cf7a332868ac79dc60a12c1d038785fc05f6fed654d81969ec951de2fedd13",
+      "derived_sha256": "26cf7a332868ac79dc60a12c1d038785fc05f6fed654d81969ec951de2fedd13",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/UpdatePackageCheck.java",
+      "snapshot_sha256": "f996bb164bb07e348fdd27f07701f2844cdff4c7faeaecfcf0a43aaeb6187ac4",
+      "derived_sha256": "f996bb164bb07e348fdd27f07701f2844cdff4c7faeaecfcf0a43aaeb6187ac4",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/packaging/WindowCloseChecks.java",
+      "snapshot_sha256": "deae35155a65ea0de49e002dc492d58d809c1e20c7f84c3d44dd0b25486a084f",
+      "derived_sha256": "deae35155a65ea0de49e002dc492d58d809c1e20c7f84c3d44dd0b25486a084f",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/protocol/K1RouteProtocolChecks.java",
+      "snapshot_sha256": "f61538d7933aa14b85b2ad3daceb8ce2670e1927686da6dac05ff2ded7e24572",
+      "derived_sha256": "f61538d7933aa14b85b2ad3daceb8ce2670e1927686da6dac05ff2ded7e24572",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/speech/SpeechLifecycleCheck.java",
+      "snapshot_sha256": "701b339f5c5735c35ade567fdad3c1050ba2b6163b46e1d14acc4759f0e587b3",
+      "derived_sha256": "701b339f5c5735c35ade567fdad3c1050ba2b6163b46e1d14acc4759f0e587b3",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/speech/SpeechNativeCheck.java",
+      "snapshot_sha256": "a55f84c900c0acc9bc9280d58e20aba5ea8231d1557c1c5255c6ec36134af3b8",
+      "derived_sha256": "a55f84c900c0acc9bc9280d58e20aba5ea8231d1557c1c5255c6ec36134af3b8",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/speech/SpeechNativeFailureCheck.java",
+      "snapshot_sha256": "d6dfb2c07b1b0529a2dd1861dd2d0d7695edc6a2f01826792ebcd6499d0b6508",
+      "derived_sha256": "d6dfb2c07b1b0529a2dd1861dd2d0d7695edc6a2f01826792ebcd6499d0b6508",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/transport/KimiBridgeLifecycleCheck.java",
+      "snapshot_sha256": "7db07199ae2fd89a379b4f98506d7a636a78c465402162dbbbcb853e2a05259b",
+      "derived_sha256": "7db07199ae2fd89a379b4f98506d7a636a78c465402162dbbbcb853e2a05259b",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/update/InstallerTrustChecks.java",
+      "snapshot_sha256": "843aed56c12ba3cc801548d53d36d6a2f97183ca9621fc006669c0802a1056f6",
+      "derived_sha256": "843aed56c12ba3cc801548d53d36d6a2f97183ca9621fc006669c0802a1056f6",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/update/ReleaseSignatureChecks.java",
+      "snapshot_sha256": "c16274987e10edda1183d35a48a4ea32571cf6900906bb3ebc80ee04aa4f6c9b",
+      "derived_sha256": "c16274987e10edda1183d35a48a4ea32571cf6900906bb3ebc80ee04aa4f6c9b",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/update/UpdateCenterChecks.java",
+      "snapshot_sha256": "d698b47ac6b2c1561f253778db48f86891bce173c6b43c47947661c7d848007d",
+      "derived_sha256": "d698b47ac6b2c1561f253778db48f86891bce173c6b43c47947661c7d848007d",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd009/ApprovalFactsChecks.java",
+      "snapshot_sha256": "46792415e6d9ecd7c5f3622ca3ab7345678f4f80ea31c68522ef016394d551fc",
+      "derived_sha256": "46792415e6d9ecd7c5f3622ca3ab7345678f4f80ea31c68522ef016394d551fc",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd009/CursorWaitingChecks.java",
+      "snapshot_sha256": "9fc2ebcbf16e74563492a3424acb39fb3c6a31495274055169630ad8b0eadda3",
+      "derived_sha256": "9fc2ebcbf16e74563492a3424acb39fb3c6a31495274055169630ad8b0eadda3",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd009/HookManagementChecks.java",
+      "snapshot_sha256": "78910f6ad366ffba33278c68a999d7fa396f7081c6b431820eb7c6d2caa11530",
+      "derived_sha256": "78910f6ad366ffba33278c68a999d7fa396f7081c6b431820eb7c6d2caa11530",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd009/KimiConsumerFixture.java",
+      "snapshot_sha256": "b5b9a35e0fc92f8071a4298f5c0b0c41680c21c8bfb831e02d5fd1f368c237d9",
+      "derived_sha256": "b5b9a35e0fc92f8071a4298f5c0b0c41680c21c8bfb831e02d5fd1f368c237d9",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd009/KimiRoutingChecks.java",
+      "snapshot_sha256": "da4b1df7d50d2fe6c3b5704ffee7b332734c3ad8e50debc54f8f12a375233906",
+      "derived_sha256": "da4b1df7d50d2fe6c3b5704ffee7b332734c3ad8e50debc54f8f12a375233906",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd009/replay_kimi_consumer.py",
+      "snapshot_sha256": "df673e9b326df7e8dfe1e9ea7faca03160bbc460db613bedc09b4f7dec773e99",
+      "derived_sha256": "df673e9b326df7e8dfe1e9ea7faca03160bbc460db613bedc09b4f7dec773e99",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd009/Wd009HookUiChecks.java",
+      "snapshot_sha256": "ed957212bedb3373a8372b05e59afa92cf51f5397f170fb970808e6b10142df7",
+      "derived_sha256": "ed957212bedb3373a8372b05e59afa92cf51f5397f170fb970808e6b10142df7",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd009/Wd009UiChecks.java",
+      "snapshot_sha256": "bdcd19c9a1f16fe941b476c515fbe07d2e9007e070377ea2edd77ddc269c0322",
+      "derived_sha256": "bdcd19c9a1f16fe941b476c515fbe07d2e9007e070377ea2edd77ddc269c0322",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/CheckProcess.java",
+      "snapshot_sha256": "eecb2b5a8e05a06c7a2ac75ab6b218e3ad7e92ffdb9853ddbbbb820eb213b4c6",
+      "derived_sha256": "eecb2b5a8e05a06c7a2ac75ab6b218e3ad7e92ffdb9853ddbbbb820eb213b4c6",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/CloudChecks.java",
+      "snapshot_sha256": "71bd26f036ad3d196ea495673f466b4ab470ab3f7db90f0745436219a3722bb7",
+      "derived_sha256": "71bd26f036ad3d196ea495673f466b4ab470ab3f7db90f0745436219a3722bb7",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/CloudTransactionUiChecks.java",
+      "snapshot_sha256": "96bf5a4b27027b0a796f10e56298f6b32f52efab6c49fbf1558899b0f0084f23",
+      "derived_sha256": "96bf5a4b27027b0a796f10e56298f6b32f52efab6c49fbf1558899b0f0084f23",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/CloudUiChecks.java",
+      "snapshot_sha256": "65e1684d274e6616a66affbd653252e3a1950c51f6966effd4f6784f5b33bf71",
+      "derived_sha256": "65e1684d274e6616a66affbd653252e3a1950c51f6966effd4f6784f5b33bf71",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/QueuedDeliveryChecks.java",
+      "snapshot_sha256": "3c530fefc2f048086c22c1affab981d84ca4dea902c2dd64e2e6edd0ecf18261",
+      "derived_sha256": "3c530fefc2f048086c22c1affab981d84ca4dea902c2dd64e2e6edd0ecf18261",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/RestoreChecks.java",
+      "snapshot_sha256": "dbd7aea9390f15434eb9fb6d5161490a240b264925df79b218ed3102a19eccc8",
+      "derived_sha256": "dbd7aea9390f15434eb9fb6d5161490a240b264925df79b218ed3102a19eccc8",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/RestorePreparationChecks.java",
+      "snapshot_sha256": "7cb0420adf1f73e839650c4b02ac9e28aa87fffdd6b57aa210fbb8f3338cb095",
+      "derived_sha256": "7cb0420adf1f73e839650c4b02ac9e28aa87fffdd6b57aa210fbb8f3338cb095",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/RestoreProductionUiChecks.java",
+      "snapshot_sha256": "0617da923ff36dd75baf8e06fa78dbe7bfdfe18bb4039b7c4c060d2efbd2e2b9",
+      "derived_sha256": "0617da923ff36dd75baf8e06fa78dbe7bfdfe18bb4039b7c4c060d2efbd2e2b9",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/RuntimeRestoreRaceChecks.java",
+      "snapshot_sha256": "475761ad457ac8d53f496eb12d3e81670a361a25e563f53b6c2ea65695c86524",
+      "derived_sha256": "475761ad457ac8d53f496eb12d3e81670a361a25e563f53b6c2ea65695c86524",
+      "restored_resource": false
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd010/VoiceFinalChecks.java",
+      "snapshot_sha256": "dbc52f23804f126c1c555bb792d420522284796601b75326e36619f474920e94",
+      "derived_sha256": "dbc52f23804f126c1c555bb792d420522284796601b75326e36619f474920e94",
+      "restored_resource": false
+    },
+    {
+      "path": "third-party/sherpa-onnx-java-api-1.13.3.jar",
+      "snapshot_sha256": "4a1fabf547d5e3bb5c9b0ddfc767142692cabe658da84f16adfafd519149b082",
+      "derived_sha256": "4a1fabf547d5e3bb5c9b0ddfc767142692cabe658da84f16adfafd519149b082",
+      "restored_resource": false
+    },
+    {
+      "path": "VibeCodeKeyboard.ico",
+      "snapshot_sha256": "316514a13803807c5662c8d187075e720ef64ab04b57aab3aab54b548df2873c",
+      "derived_sha256": "316514a13803807c5662c8d187075e720ef64ab04b57aab3aab54b548df2873c",
+      "restored_resource": false
+    },
+    {
+      "path": "VibeCodeKeyboard_preview.png",
+      "snapshot_sha256": "a572ada08c25b196c9764a3675999bc6b17ba5c2fd29cd7f4d7f658ff57fd222",
+      "derived_sha256": "a572ada08c25b196c9764a3675999bc6b17ba5c2fd29cd7f4d7f658ff57fd222",
+      "restored_resource": false
+    },
+    {
+      "path": "scripts/installer/AhaKeyUpgradeUI.wxs",
+      "snapshot_sha256": null,
+      "derived_sha256": "7b4455adba6644e2c19172b14e110eaad151463749debe8205896eac1dc11eea",
+      "git_blob_sha256": "7b4455adba6644e2c19172b14e110eaad151463749debe8205896eac1dc11eea",
+      "git_equal_after_crlf_normalization": true,
+      "restored_resource": false,
+      "origin": "Existing verified installer recipe; same prior recipe hashes; Git baseline matches after CRLF normalization"
+    },
+    {
+      "path": "scripts/installer/CustomAction.config",
+      "snapshot_sha256": null,
+      "derived_sha256": "79b099c338b16bb1ea814c3726e469c9be971afddaf8ca8bc853ae55e3ddc283",
+      "git_blob_sha256": "79b099c338b16bb1ea814c3726e469c9be971afddaf8ca8bc853ae55e3ddc283",
+      "git_equal_after_crlf_normalization": true,
+      "restored_resource": false,
+      "origin": "Existing verified installer recipe; same prior recipe hashes; Git baseline matches after CRLF normalization"
+    },
+    {
+      "path": "scripts/installer/DTF-LICENSE.txt",
+      "snapshot_sha256": null,
+      "derived_sha256": "dfdf2048787635215a6baf3b9d461dee89a2904d246787258a44f072a98d4786",
+      "git_blob_sha256": "dfdf2048787635215a6baf3b9d461dee89a2904d246787258a44f072a98d4786",
+      "git_equal_after_crlf_normalization": true,
+      "restored_resource": false,
+      "origin": "Existing verified installer recipe; same prior recipe hashes; Git baseline matches after CRLF normalization"
+    },
+    {
+      "path": "scripts/installer/DTF-NOTICE.txt",
+      "snapshot_sha256": null,
+      "derived_sha256": "81774536a329979fb48bc28e126be5b69de689123aec083974dec807db80ae3a",
+      "git_blob_sha256": "81774536a329979fb48bc28e126be5b69de689123aec083974dec807db80ae3a",
+      "git_equal_after_crlf_normalization": true,
+      "restored_resource": false,
+      "origin": "Existing verified installer recipe; same prior recipe hashes; Git baseline matches after CRLF normalization"
+    },
+    {
+      "path": "scripts/installer/dtf-toolchain.json",
+      "snapshot_sha256": null,
+      "derived_sha256": "f3615cbd10b6256a886eeb8ae51c32b6c36c7d7e2cc8825cf5e5c12f7a8cef71",
+      "git_blob_sha256": "0344e7815eb77efce5184d14392bac8f8eff6407ae46d82f5b1f99f5a59c41c3",
+      "git_equal_after_crlf_normalization": true,
+      "restored_resource": false,
+      "origin": "Existing verified installer recipe; same prior recipe hashes; Git baseline matches after CRLF normalization"
+    },
+    {
+      "path": "scripts/installer/InstalledApplicationActions.cs",
+      "snapshot_sha256": null,
+      "derived_sha256": "1a4d61b0edbc64dc7cc001b4b704de00d3152d19b3dc6b948a8926373ec89470",
+      "git_blob_sha256": "1a4d61b0edbc64dc7cc001b4b704de00d3152d19b3dc6b948a8926373ec89470",
+      "git_equal_after_crlf_normalization": true,
+      "restored_resource": false,
+      "origin": "Existing verified installer recipe; same prior recipe hashes; Git baseline matches after CRLF normalization"
+    },
+    {
+      "path": "scripts/installer/prepare-upgrade-resources.ps1",
+      "snapshot_sha256": null,
+      "derived_sha256": "a9af215fd437477b974ea9b538c92b9c02e1056912efbf23408e75b2e27075a2",
+      "git_blob_sha256": "687181dd3f5d6bb9ea72f06238b9aa12b20ab0381ebf7be6c97e3b10a8365cda",
+      "git_equal_after_crlf_normalization": true,
+      "restored_resource": false,
+      "origin": "Existing verified installer recipe; same prior recipe hashes; Git baseline matches after CRLF normalization"
+    },
+    {
+      "path": "scripts/installer/resolve-dtf-toolchain.ps1",
+      "snapshot_sha256": null,
+      "derived_sha256": "74c8abe81f56fc82fa644780ef56358dce93ca40b2c3830bce112845ff8f3b18",
+      "git_blob_sha256": "74c8abe81f56fc82fa644780ef56358dce93ca40b2c3830bce112845ff8f3b18",
+      "git_equal_after_crlf_normalization": true,
+      "restored_resource": false,
+      "origin": "Existing verified installer recipe; same prior recipe hashes; Git baseline matches after CRLF normalization"
+    },
+    {
+      "path": "scripts/installer/test-installer-upgrade.ps1",
+      "snapshot_sha256": null,
+      "derived_sha256": "de3bad830ad9b77cdd2005094fe373392fb60bd70c9cdf237a6a16d35ba86452",
+      "git_blob_sha256": "6bccfd76770804084ad25ac3acdc7d86899805274fe4d47ad590ca95451c50af",
+      "git_equal_after_crlf_normalization": true,
+      "restored_resource": false,
+      "origin": "Existing verified installer recipe; same prior recipe hashes; Git baseline matches after CRLF normalization"
+    },
+    {
+      "path": "scripts/installer/test-jpackage-template.ps1",
+      "snapshot_sha256": null,
+      "derived_sha256": "d0b5046158d049f381abaf22b0ebd9e1dda22062300ebe9ee2edceac4056420f",
+      "git_blob_sha256": "fe0a857b78fecc7350ac96fe80cc2da027b5168ddb3f1e18807b52d0d7a5a5a8",
+      "git_equal_after_crlf_normalization": true,
+      "restored_resource": false,
+      "origin": "Existing verified installer recipe; same prior recipe hashes; Git baseline matches after CRLF normalization"
+    },
+    {
+      "path": "scripts/installer/verify-installer-structure.ps1",
+      "snapshot_sha256": null,
+      "derived_sha256": "6326ab060b60c6da4b56dc2a9689aefc628c31e5d646b13186ba2adf6df12da7",
+      "git_blob_sha256": "8623a0acc0df911428639361fa7ce8ca50b2f9896ca8d81e7b05d7888a2edccb",
+      "git_equal_after_crlf_normalization": true,
+      "restored_resource": false,
+      "origin": "Existing verified installer recipe; same prior recipe hashes; Git baseline matches after CRLF normalization"
+    },
+    {
+      "path": "scripts/installer/tests/InstalledApplicationChecks.cs",
+      "snapshot_sha256": null,
+      "derived_sha256": "1fc423bfab8575ba0b9b0fba3a98cefa5041172c18dbcfda4ca88fbbb496fbf6",
+      "git_blob_sha256": "1fc423bfab8575ba0b9b0fba3a98cefa5041172c18dbcfda4ca88fbbb496fbf6",
+      "git_equal_after_crlf_normalization": true,
+      "restored_resource": false,
+      "origin": "Existing verified installer recipe; same prior recipe hashes; Git baseline matches after CRLF normalization"
+    },
+    {
+      "path": "scripts/installer/tests/Test-DtfToolchain.ps1",
+      "snapshot_sha256": null,
+      "derived_sha256": "1a7e898de99ae614d80a769300510e41620c8a6730857220ad537d4bca750c64",
+      "git_blob_sha256": "1a7e898de99ae614d80a769300510e41620c8a6730857220ad537d4bca750c64",
+      "git_equal_after_crlf_normalization": true,
+      "restored_resource": false,
+      "origin": "Existing verified installer recipe; same prior recipe hashes; Git baseline matches after CRLF normalization"
+    }
+  ],
+  "restoration": "Two profile-pinned CRLF resource restores and 13 prior-hash/Git-normalized-baseline installer recipes; no production code or pom replacement",
+  "space_before": {
+    "C:/": 6061244416,
+    "D:/": 124864581632
+  }
+}

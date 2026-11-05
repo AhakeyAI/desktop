@@ -1,0 +1,424 @@
+{
+  "at": "2026-11-05T03:49:57.834584+00:00",
+  "role": "DIB",
+  "code_identity": {
+    "at": "2026-11-05T03:49:57.834584+00:00",
+    "git_head": "70ccc3361ecd90e6c67828bac581a6975ebdccb2",
+    "branch": "codex/win-zxy-work",
+    "start_fingerprint": "b184b8b7478757a45d39a65e803a677914a1ab8eb2c7d17a24704e6cedc47775",
+    "current_fingerprint": "fc132cf04011722017bbaa714aa8fc2e0f611f9a899fafd8243af816a52749ed",
+    "changed_paths": [
+      "pom.xml",
+      "src/main/java/com/example/ahakey/app/StudioController.java",
+      "src/main/java/com/example/ahakey/firmware/DeviceMaintenanceCoordinator.java",
+      "src/main/java/com/example/ahakey/model/DeviceStatus.java",
+      "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+      "src/main/java/com/example/ahakey/model/FactoryResetState.java",
+      "src/main/java/com/example/ahakey/model/StudioState.java",
+      "src/main/java/com/example/ahakey/platform/windows/WindowsCredentialStore.java",
+      "src/main/java/com/example/ahakey/protocol/FactoryResetProtocol.java",
+      "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java",
+      "src/main/java/com/example/ahakey/service/AhaTypeConfig.java",
+      "src/main/java/com/example/ahakey/service/AhaTypeService.java",
+      "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "src/main/java/com/example/ahakey/service/BleManager.java",
+      "src/main/java/com/example/ahakey/service/CloudAccountManager.java",
+      "src/main/java/com/example/ahakey/service/FactoryResetService.java",
+      "src/main/java/com/example/ahakey/service/FactoryResetStore.java",
+      "src/main/java/com/example/ahakey/service/K1RouteService.java",
+      "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "src/main/java/com/example/ahakey/service/VoiceInputManager.java",
+      "src/main/java/com/example/ahakey/util/StudioStore.java",
+      "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "src/main/java/com/example/ahakey/view/CanvasPane.java",
+      "src/main/java/com/example/ahakey/view/CloudAccountDialog.java",
+      "src/main/java/com/example/ahakey/view/FactoryResetDialog.java",
+      "src/main/java/com/example/ahakey/view/FloatingVoiceNotification.java",
+      "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "src/main/java/com/example/ahakey/view/TopBar.java",
+      "src/main/resources/messages_en.properties",
+      "src/main/resources/messages_zh.properties",
+      "src/test/java/com/example/ahakey/wd010/CheckProcess.java",
+      "src/test/java/com/example/ahakey/wd010/CloudChecks.java",
+      "src/test/java/com/example/ahakey/wd010/CloudUiChecks.java",
+      "src/test/java/com/example/ahakey/wd010/RestoreChecks.java",
+      "src/test/java/com/example/ahakey/wd010/RestoreProductionUiChecks.java",
+      "src/test/java/com/example/ahakey/wd010/RuntimeRestoreRaceChecks.java",
+      "src/test/java/com/example/ahakey/wd010/VoiceFinalChecks.java"
+    ],
+    "file_hashes": {
+      "pom.xml": "08602c3355495f772387fb37f26b1ec4f5857e9de172d24b7dace7a08026c4fa",
+      "src/main/java/com/example/ahakey/app/StudioController.java": "613cf05120de1f67ce9d77c98556700e8d6d252680aa164fd23c1fc0998b3a7e",
+      "src/main/java/com/example/ahakey/firmware/DeviceMaintenanceCoordinator.java": "a4aff1d6e9479dc7177b4572b0bfd7392be890c5dcc05e085161a99adae97726",
+      "src/main/java/com/example/ahakey/model/DeviceStatus.java": "21d2b233fac5e51b20c11547ce7a06e81be95ec0af7c28e0eb5836f886b0e1c9",
+      "src/main/java/com/example/ahakey/model/DisplayConfigState.java": "54ae32772e69e94160fd35bed5dd860d2d443997ee925d57fafcb6339128ab42",
+      "src/main/java/com/example/ahakey/model/FactoryResetState.java": "b257fe82429c6a72fda83319500e8781a228c663feb3bccebb55a22ba94ad366",
+      "src/main/java/com/example/ahakey/model/StudioState.java": "fb23df07d5a84fa59154200a6a6edd02164e8720a85271ec8c37f3b07c1d2196",
+      "src/main/java/com/example/ahakey/platform/windows/WindowsCredentialStore.java": "c35a486ee3ebdee11e93b295acd6e831099e659a13029573a85cea847ce11cda",
+      "src/main/java/com/example/ahakey/protocol/FactoryResetProtocol.java": "f87f1651dd1dcf2f00de8fca1d561b9370b7b08adc9dc1b07775af77b729ae7b",
+      "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java": "34a8b4fa686566265f7a34be062b8ea67b2726ceef38dd70d13f60aaeeec7153",
+      "src/main/java/com/example/ahakey/service/AhaTypeConfig.java": "336f7ad1d4290fce07aaf06777e67037964f25ee92c901e53e377a2587351470",
+      "src/main/java/com/example/ahakey/service/AhaTypeService.java": "74e2acdad9004bae8eb5b87996d519835b115a3557cc14273393ca2160aa68bf",
+      "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java": "06218ffbfa027cbbbb3b134c985a82d78391cd2acf8d1ca8ef8277b96b62d806",
+      "src/main/java/com/example/ahakey/service/BleManager.java": "98e740ad36cf34a7361114ebae5a8105ecb33414e3528cd519c9fb252d89c1a8",
+      "src/main/java/com/example/ahakey/service/CloudAccountManager.java": "00b2ba16db7849a3dde3350640e8c126df3129c1ebb82a0cf0622e040a002874",
+      "src/main/java/com/example/ahakey/service/FactoryResetService.java": "b5ba01f635133378fb8e8e78a3e5f2599914a84276a0ba5bb7537204be5027c8",
+      "src/main/java/com/example/ahakey/service/FactoryResetStore.java": "498f9f9bcd63606f418daac117601f722543ff4c48a770bd981d1fdc40cfa614",
+      "src/main/java/com/example/ahakey/service/K1RouteService.java": "ab5a9c288849bc3e5c3ebc7756d974b793bf27f30e723b2ef39b7d7ca109d0a0",
+      "src/main/java/com/example/ahakey/service/UsbHidTransport.java": "5a9ce47407f08adbeecf4074c96e4fdc4db11b16e8cfa2241d1df804dd880c3e",
+      "src/main/java/com/example/ahakey/service/VoiceInputManager.java": "b9d1f5ee4f6c66300afd80beb26ad924d0cc1d1c81a72c4f88994db41745992a",
+      "src/main/java/com/example/ahakey/util/StudioStore.java": "cbb0423c4072b6f271d59950bf438fd9b346ecb53cddc6a58573ee7c997e929f",
+      "src/main/java/com/example/ahakey/view/CanvasController.java": "a2a5acaa9fa4ccf61c19b5f7c5ab8028f2881d44b43d4ea1af3a1b4f70b5ec96",
+      "src/main/java/com/example/ahakey/view/CanvasPane.java": "16d0a42fa13c8c2b1aa7c3b065e7db02885a3a3750315e00a60cb260ca5689d0",
+      "src/main/java/com/example/ahakey/view/CloudAccountDialog.java": "ad71c2fcac0f398ee070a849789365740e7d56cc14f2ca96d43568f0ace62a4b",
+      "src/main/java/com/example/ahakey/view/FactoryResetDialog.java": "919c62846bbdbe786b45f8956f72a42dc91817441175fd89a3391f2e56684319",
+      "src/main/java/com/example/ahakey/view/FloatingVoiceNotification.java": "b4506ad40802c836ec0fe20a0af9f1298719c61e020b3d0ef0f8ed3de70162dc",
+      "src/main/java/com/example/ahakey/view/InspectorPane.java": "7182c626581ceb7f5d4a459f19bd43f5532e2c56b7dcc8a93f68acaefb639ffd",
+      "src/main/java/com/example/ahakey/view/TopBar.java": "d7dbb326ee7a3e4bc01d99514b97ae0bf5ee816a1f7dd42a17407fca834068b9",
+      "src/main/resources/messages_en.properties": "90bb6b0b5d7a705a0a71a46b24303a61ade26902919826434aae1e2de6a0d29a",
+      "src/main/resources/messages_zh.properties": "af5df9f828458112efa48de7f1bec0747a8e235f0d9fe76b2209b04a0270ace0",
+      "src/test/java/com/example/ahakey/wd010/CheckProcess.java": "eecb2b5a8e05a06c7a2ac75ab6b218e3ad7e92ffdb9853ddbbbb820eb213b4c6",
+      "src/test/java/com/example/ahakey/wd010/CloudChecks.java": "71bd26f036ad3d196ea495673f466b4ab470ab3f7db90f0745436219a3722bb7",
+      "src/test/java/com/example/ahakey/wd010/CloudUiChecks.java": "65e1684d274e6616a66affbd653252e3a1950c51f6966effd4f6784f5b33bf71",
+      "src/test/java/com/example/ahakey/wd010/RestoreChecks.java": "9bc5c253a0204fcf0847c940596322f7bc9b78414c10620e5d3c676bf4a7f9b0",
+      "src/test/java/com/example/ahakey/wd010/RestoreProductionUiChecks.java": "0617da923ff36dd75baf8e06fa78dbe7bfdfe18bb4039b7c4c060d2efbd2e2b9",
+      "src/test/java/com/example/ahakey/wd010/RuntimeRestoreRaceChecks.java": "475761ad457ac8d53f496eb12d3e81670a361a25e563f53b6c2ea65695c86524",
+      "src/test/java/com/example/ahakey/wd010/VoiceFinalChecks.java": "dbc52f23804f126c1c555bb792d420522284796601b75326e36619f474920e94"
+    },
+    "no_git_writes": true
+  },
+  "compile": {
+    "command": [
+      "mvn",
+      "-Dmaven.repo.local=.m2repo",
+      "-DskipTests",
+      "test-compile"
+    ],
+    "JAVA_HOME": "D:/jdk-17.0.19.10-hotspot",
+    "exit_code": 0,
+    "log": ".ahakey-desktop-harness/changes/WD-010/evidence/compile-08.log",
+    "qualification": "102 production and 42 test sources compiled; no new JAR/EXE"
+  },
+  "passed_suites": [
+    {
+      "suite": "service.CloudChecks",
+      "exit_code": 0,
+      "checks": 52,
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=target/wd010-final-CloudChecks-04",
+        "-cp",
+        "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+        "com.example.ahakey.service.CloudChecks"
+      ],
+      "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+      "log": ".ahakey-desktop-harness/changes/WD-010/evidence/CloudChecks-04.log",
+      "log_sha256": "af5e12ba15dc0ef20eeb4da09808a5b4c51a32c01433a38ae18725db8032df5f"
+    },
+    {
+      "suite": "service.VoiceFinalChecks",
+      "exit_code": 0,
+      "checks": 32,
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=target/wd010-final-VoiceFinalChecks-04",
+        "-cp",
+        "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+        "com.example.ahakey.service.VoiceFinalChecks"
+      ],
+      "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+      "log": ".ahakey-desktop-harness/changes/WD-010/evidence/VoiceFinalChecks-04.log",
+      "log_sha256": "e16f2d4cf8430cf6e08ce5a018769d8d57b0c1b91e423cb1b44e396b82a4d828"
+    },
+    {
+      "suite": "wd010.RestoreChecks",
+      "exit_code": 0,
+      "checks": 603,
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=target/wd010-final-RestoreChecks-03",
+        "-cp",
+        "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+        "com.example.ahakey.wd010.RestoreChecks"
+      ],
+      "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+      "log": ".ahakey-desktop-harness/changes/WD-010/evidence/RestoreChecks-03.log",
+      "log_sha256": "d2fb2b1380b88eb873f5b991359b49dc3ea0dc9b090c8917529139cf102ed452"
+    },
+    {
+      "suite": "wd010.RestoreProductionUiChecks",
+      "exit_code": 0,
+      "checks": 21,
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=target/wd010-test-home-production-02",
+        "-cp",
+        "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+        "com.example.ahakey.wd010.RestoreProductionUiChecks",
+        ".ahakey-desktop-harness/changes/WD-010/evidence/ui-02"
+      ],
+      "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+      "log": ".ahakey-desktop-harness/changes/WD-010/evidence/RestoreProductionUiChecks-02.log",
+      "log_sha256": "9b3c3b75917040e61002f48479189811ebf0f98b1bb850e4ebf1ec0772495729"
+    },
+    {
+      "suite": "service.CloudUiChecks",
+      "exit_code": 0,
+      "checks": 7,
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=target/wd010-test-home-cloud-ui-02",
+        "-cp",
+        "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+        "com.example.ahakey.service.CloudUiChecks"
+      ],
+      "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+      "log": ".ahakey-desktop-harness/changes/WD-010/evidence/CloudUiChecks-02.log",
+      "log_sha256": "0cd724eebfe3e17f25f49921d9aa7cff02022c6db4dd5a36dd7aa4d791cd7a5d"
+    },
+    {
+      "suite": "wd010.RuntimeRestoreRaceChecks",
+      "exit_code": 0,
+      "checks": 7,
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=target/wd010-test-home-runtime-race-01",
+        "-cp",
+        "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+        "com.example.ahakey.wd010.RuntimeRestoreRaceChecks"
+      ],
+      "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+      "log": ".ahakey-desktop-harness/changes/WD-010/evidence/RuntimeRestoreRaceChecks-01.log",
+      "log_sha256": "afc6341596fcdf02d126ac4f4641a99203e6f9726a45f5c4a8cc503620bf149e"
+    },
+    {
+      "suite": "service.SpeechLifecycleCheck",
+      "exit_code": 0,
+      "checks": 37,
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=target/wd010-regression-SpeechLifecycleCheck-01",
+        "-cp",
+        "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+        "com.example.ahakey.service.SpeechLifecycleCheck"
+      ],
+      "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+      "log": ".ahakey-desktop-harness/changes/WD-010/evidence/SpeechLifecycleCheck-01.log",
+      "log_sha256": "d9a4d692625987f9122f571963de7164c5b392cc6c8d16a5907cbf6e88f297f9"
+    },
+    {
+      "suite": "service.CursorWaitingChecks",
+      "exit_code": 0,
+      "checks": 148,
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=target/wd010-regression-CursorWaitingChecks-01",
+        "-cp",
+        "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+        "com.example.ahakey.service.CursorWaitingChecks"
+      ],
+      "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+      "log": ".ahakey-desktop-harness/changes/WD-010/evidence/CursorWaitingChecks-01.log",
+      "log_sha256": "86f36738c10f54881b0e27073d5c6dc2abb6cd88a441137e4e64cf716a616c33"
+    },
+    {
+      "suite": "wd009.HookManagementChecks",
+      "exit_code": 0,
+      "checks": 135,
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=target/wd009-hook-r3-wd010-HookManagementChecks-02",
+        "-cp",
+        "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+        "com.example.ahakey.wd009.HookManagementChecks"
+      ],
+      "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+      "log": ".ahakey-desktop-harness/changes/WD-010/evidence/HookManagementChecks-02.log",
+      "log_sha256": "027422afb7024c24ca75153fc1722103c0abfd0a271a9fe881363294aa010d6c"
+    },
+    {
+      "suite": "wd009.Wd009UiChecks",
+      "exit_code": 0,
+      "checks": 42,
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=target/wd009-hook-r3-wd010-Wd009UiChecks-01",
+        "-cp",
+        "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+        "com.example.ahakey.wd009.Wd009UiChecks"
+      ],
+      "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+      "log": ".ahakey-desktop-harness/changes/WD-010/evidence/Wd009UiChecks-01.log",
+      "log_sha256": "ced5c553025127c75977fd29bc55b80b73d80fe871b94c15576ad772476f6bb2"
+    },
+    {
+      "suite": "wd009.Wd009HookUiChecks",
+      "exit_code": 0,
+      "checks": 23,
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=target/wd009-hook-r3-wd010-Wd009HookUiChecks-01",
+        "-cp",
+        "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+        "com.example.ahakey.wd009.Wd009HookUiChecks"
+      ],
+      "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+      "log": ".ahakey-desktop-harness/changes/WD-010/evidence/Wd009HookUiChecks-01.log",
+      "log_sha256": "70c5186e1cc226a7b0f3559524c7be63f4d1ba280f21f2e6996a6b3490d6a9f0"
+    },
+    {
+      "suite": "protocol.K1RouteProtocolChecks",
+      "exit_code": 0,
+      "checks": null,
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=target/wd010-regression-K1RouteProtocolChecks-01",
+        "-cp",
+        "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+        "com.example.ahakey.protocol.K1RouteProtocolChecks"
+      ],
+      "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+      "log": ".ahakey-desktop-harness/changes/WD-010/evidence/K1RouteProtocolChecks-01.log",
+      "log_sha256": "4537789f5e3abdd7b8afa111b6e48d05298b27d6c7dc0d799b0d09113026bd07"
+    },
+    {
+      "suite": "firmware.DeviceMaintenanceChecks",
+      "exit_code": 0,
+      "checks": null,
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=target/wd010-regression-DeviceMaintenanceChecks-01",
+        "-cp",
+        "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+        "com.example.ahakey.firmware.DeviceMaintenanceChecks"
+      ],
+      "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+      "log": ".ahakey-desktop-harness/changes/WD-010/evidence/DeviceMaintenanceChecks-01.log",
+      "log_sha256": "ca257ddb65211e07d06d391998bd5e047a1b12772ef160c012d72e364b8b415e"
+    },
+    {
+      "suite": "displayconfig.DisplayConfigIsolationChecks",
+      "exit_code": 0,
+      "checks": 64,
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=target/wd010-regression-DisplayConfigIsolationChecks-01",
+        "-cp",
+        "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+        "com.example.ahakey.displayconfig.DisplayConfigIsolationChecks"
+      ],
+      "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+      "log": ".ahakey-desktop-harness/changes/WD-010/evidence/DisplayConfigIsolationChecks-01.log",
+      "log_sha256": "31ec45c38b923caaa47e7afae635baf8b40d5da885250459daa9a1b6cfdc4bba"
+    },
+    {
+      "suite": "displayconfig.DisplayConfigRaceChecks",
+      "exit_code": 0,
+      "checks": 72,
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=target/wd010-regression-DisplayConfigRaceChecks-01",
+        "-cp",
+        "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+        "com.example.ahakey.displayconfig.DisplayConfigRaceChecks"
+      ],
+      "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+      "log": ".ahakey-desktop-harness/changes/WD-010/evidence/DisplayConfigRaceChecks-01.log",
+      "log_sha256": "ac45892f964843749d98b4fe75731f602749d086c3eb1e973bea96c5025b31f9"
+    },
+    {
+      "suite": "compatibility.FirmwareIdentityCompatibilityChecks",
+      "exit_code": 0,
+      "checks": 85,
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=target/wd010-regression-compatibility-01",
+        "-cp",
+        "target/classes;target/test-classes;target/lib/*",
+        "com.example.ahakey.compatibility.FirmwareIdentityCompatibilityChecks"
+      ],
+      "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+      "log": ".ahakey-desktop-harness/changes/WD-010/evidence/FirmwareIdentityCompatibilityChecks-01.log",
+      "log_sha256": "11315c7523d05df72916bf5c10466d217a18209379c281fb1d91ed8db742dc14"
+    },
+    {
+      "suite": "packaging.WindowCloseChecks",
+      "exit_code": 0,
+      "checks": 23,
+      "command": [
+        "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+        "-Dfile.encoding=UTF-8",
+        "-Duser.home=target/wd010-regression-close-01",
+        "-cp",
+        "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+        "com.example.ahakey.packaging.WindowCloseChecks"
+      ],
+      "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+      "log": ".ahakey-desktop-harness/changes/WD-010/evidence/WindowCloseChecks-01.log",
+      "log_sha256": "33b245c59b41631a560e3abbc99199a7f6c029f22344b6c6f98c4c41405cdac0"
+    }
+  ],
+  "supplemental_failures": [
+    {
+      "suite": "DisplayConfigCapabilityChecks",
+      "current_exit_code": 1,
+      "current_log": ".ahakey-desktop-harness/changes/WD-010/evidence/DisplayConfigCapabilityChecks-01.log",
+      "old_1_0_19_exit_code": 1,
+      "old_1_0_19_log": ".ahakey-desktop-harness/changes/WD-010/evidence/DisplayConfigCapabilityChecks-old-1.0.19-01.log",
+      "qualification": "same assertion reproduced using unmodified old packaged JAR/lib; suite NOT claimed passing; old tests unchanged"
+    },
+    {
+      "suite": "K1RouteEditorChecks",
+      "current_exit_code": 1,
+      "current_log": ".ahakey-desktop-harness/changes/WD-010/evidence/K1RouteEditorChecks-02.log",
+      "old_1_0_19_exit_code": 1,
+      "old_1_0_19_log": ".ahakey-desktop-harness/changes/WD-010/evidence/K1RouteEditorChecks-old-1.0.19-01.log",
+      "qualification": "same assertion reproduced using unmodified old packaged JAR/lib; suite NOT claimed passing; old tests unchanged"
+    }
+  ],
+  "historical_control": {
+    "runtime": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD009-Preview-R4-LocalModel-1.0.19\\image\\AhaKeyStudio\\runtime\\bin\\java.exe",
+    "jar": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD009-Preview-R4-LocalModel-1.0.19\\image\\AhaKeyStudio\\app\\ahakey-studio-1.0.0.jar",
+    "jar_sha256": "22d37934b5ad79f3ca3eb41e053642af4bb1adbf084a5e1c0b631b3e78af1f95",
+    "classpath": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD009-Preview-R4-LocalModel-1.0.19\\image\\AhaKeyStudio\\app\\ahakey-studio-1.0.0.jar;C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD009-Preview-R4-LocalModel-1.0.19\\image\\AhaKeyStudio\\app\\lib\\*;target/test-classes",
+    "source": "target/wd009-preview-build-04/BUILD_RECEIPT.json",
+    "no_current_production_classes": true
+  },
+  "harness_check_scope": "core_regression refers to 11 passed applicable suites above; two supplemental historical suites remain FAIL and are explicitly not included as PASS",
+  "not_verified": [
+    "real account/backend deployment",
+    "real coupon/payment",
+    "real microphone/model inference/SendInput",
+    "real USB/BLE device restore and power interruption",
+    "firmware v2 formal gate receipt",
+    "installer/JAR runtime packaging",
+    "Owner UAT",
+    "DLA or independent review"
+  ],
+  "prohibited_actions_not_done": [
+    "Git writes",
+    "process kill",
+    "driver installation",
+    "model download",
+    "device writes",
+    "firmware flash",
+    "payment",
+    "publishing"
+  ]
+}

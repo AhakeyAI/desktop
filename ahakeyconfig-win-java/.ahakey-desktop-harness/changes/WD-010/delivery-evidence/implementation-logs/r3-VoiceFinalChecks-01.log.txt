@@ -1,0 +1,1 @@
+PASS VoiceFinalChecks 32 checks; actual cloud-final pipeline, synthetic loopback HTTP and captured output

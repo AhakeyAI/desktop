@@ -1,0 +1,24 @@
+PASS batch only selects outdated platforms and excludes uninstalled hooks
+PASS errors and in-progress scans cannot trigger writes
+PASS empty scan cannot trigger writes
+PASS batch success includes exact platform and verified result
+PASS batch failure includes concrete platform and cause
+PASS partial failure does not hide successful platforms
+PASS result rendering does not replace cause with administrator message
+PASS result order remains deterministic
+PASS null reason does not render literal null
+PASS automatic summary method and memory flag removed
+PASS opening manager and rescans create no nested alert/dialog
+PASS scan requests concrete inspection result
+PASS scan IO is dispatched before FX rendering callback
+PASS unexpected scan exception is shown as error
+PASS each card displays service inspection reason
+PASS single action is explicitly user initiated
+PASS batch action is explicitly user initiated
+PASS scan cannot initiate a write
+PASS write IO is background before FX result delivery
+PASS writes snapshot target selection
+PASS results survive automatic card re-read
+PASS duplicate manager opening reuses visible window
+PASS update and scan buttons disabled during background operation
+WD009 Hook UI checks passed: 23 (rendered UI and real user Hook writes not executed)

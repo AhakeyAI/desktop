@@ -1,0 +1,17 @@
+java.base@17.0.19
+java.datatransfer@17.0.19
+java.desktop@17.0.19
+java.logging@17.0.19
+java.management@17.0.19
+java.naming@17.0.19
+java.net.http@17.0.19
+java.prefs@17.0.19
+java.scripting@17.0.19
+java.security.sasl@17.0.19
+java.sql@17.0.19
+java.transaction.xa@17.0.19
+java.xml@17.0.19
+jdk.crypto.ec@17.0.19
+jdk.jfr@17.0.19
+jdk.unsupported@17.0.19
+jdk.zipfs@17.0.19

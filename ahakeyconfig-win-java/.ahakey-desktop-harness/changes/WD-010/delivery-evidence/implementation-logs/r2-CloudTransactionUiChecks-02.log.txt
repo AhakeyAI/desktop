@@ -1,0 +1,3 @@
+11月 05, 2026 12:45:43 下午 com.sun.javafx.application.PlatformImpl startup
+警告: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @31221be2'
+PASS CloudTransactionUiChecks 33 checks; actual coupon and QR windows, loopback only

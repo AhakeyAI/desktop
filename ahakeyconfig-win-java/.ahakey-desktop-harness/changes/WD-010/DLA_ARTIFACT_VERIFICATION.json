@@ -1,0 +1,18 @@
+{
+  "at": "2026-11-05T09:46:36.226984+00:00",
+  "role": "original DLA",
+  "artifact_files_verified": 319,
+  "build_logs_verified": 45,
+  "test_suites_exit0": 21,
+  "packaged_runtime_suites": 16,
+  "full_jdk_test_only_httpserver_suites": 5,
+  "installer": {
+    "path": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD010-Preview-R3-LocalModel-1.0.21\\installer\\AhaKeyStudio-1.0.21.exe",
+    "bytes": 297409080,
+    "sha256": "581f20847c375b6c569798d57459e86df41d307484f66f4556007e16e8710243"
+  },
+  "preview_token": "preview-20261105T093108031238Z-c5c559",
+  "candidate_commit": "9380f85229aa26d4c159f35695ab003458f6ac36",
+  "implementation_report_unchanged": true,
+  "meaning": "Independent byte/log binding check and read build evidence; does not claim a second execution, installation or Owner UAT."
+}

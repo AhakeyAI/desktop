@@ -1,0 +1,103 @@
+11月 05, 2026 11:28:14 上午 com.sun.javafx.application.PlatformImpl startup
+警告: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @7a30d1e6'
+2026-11-05 11:28:16.667 [race-test] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+PASS F1-identity-true
+PASS F1-input-flow-true
+PASS F1-metadata-not-dropped-true
+2026-11-05 11:28:16.683 [race-test] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 0
+PASS F1-identity-false
+PASS F1-input-flow-false
+PASS F1-metadata-not-dropped-false
+2026-11-05 11:28:16.721 [race-test] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 1
+2026-11-05 11:28:16.976 [race-test] DEBUG c.example.ahakey.model.DeviceStatus - [DeviceStatus] setSwitchState - 旧值: -1, 新值: 1
+PASS F1-mode-confirmed-after-read
+PASS F1-mode-no-local-rollback
+PASS F1-mode-92-and-status
+PASS F1-cancel-old-read-and-refresh-current
+PASS F2-reject-false-SINGLE
+PASS F2-no-persist-false-SINGLE
+PASS F2-reject-false-MULTI
+PASS F2-no-persist-false-MULTI
+PASS F2-reject-true-SINGLE
+PASS F2-no-persist-true-SINGLE
+PASS F2-reject-true-MULTI
+PASS F2-no-persist-true-MULTI
+PASS F2-conflicts-send-no-98
+PASS F2-no-local-success-before-ACK
+PASS F2-confirmed-mode-persisted
+PASS F2-device-FAIL-keeps-mode
+PASS F2-reverse-success
+PASS R1-SINGLE-latest-once
+PASS R1-SINGLE-old-connection-not-replayed
+2026-11-05 11:28:17.158 [main] INFO  c.e.a.s.AiRuntimeDisplayService - Runtime event platform=Codex session=race-session matchedSession=race-session state=PRE_TOOL_USE source=UNKNOWN result=PENDING connection=1
+2026-11-05 11:28:17.159 [main] INFO  c.e.a.s.AiRuntimeDisplayService - Runtime event platform=Codex session=race-session matchedSession=race-session state=TASK_COMPLETED source=UNKNOWN result=PENDING connection=1
+PASS R1-MULTI-latest-once
+PASS R1-MULTI-latest-content
+2026-11-05 11:28:17.162 [main] INFO  c.e.a.s.AiRuntimeDisplayService - Runtime event platform=Codex session=race-session matchedSession=race-session state=PERMISSION_REQUEST source=UNKNOWN result=PENDING connection=1
+PASS R1-MULTI-old-connection-not-replayed
+PASS R1-reconnect-mode-sync-retained
+2026-11-05 11:28:17.171 [main] INFO  c.e.a.s.AiRuntimeDisplayService - Runtime event platform=Codex session=race-session matchedSession=race-session state=TASK_COMPLETED source=UNKNOWN result=PENDING connection=2
+PASS R1-new-connection-new-fact-delivered
+2026-11-05 11:28:17.185 [display-config] INFO  c.e.a.service.DisplayConfigService - Brightness ACK: connection=0, operation=1, value=67
+PASS F3-brightness-false-brightness-draft
+PASS F3-brightness-false-light-drafts
+PASS F3-brightness-false-no-preview
+PASS F3-brightness-false-no-success-message
+PASS F3-brightness-false-operation-complete
+PASS F3-brightness-false-actual-ACKs-not-erased
+2026-11-05 11:28:17.198 [display-config] INFO  c.e.a.service.DisplayConfigService - Light ACK: connection=0, operation=1, mode=0, ai=0, confirmed=1/9
+2026-11-05 11:28:17.199 [display-config] INFO  c.e.a.service.DisplayConfigService - Light ACK: connection=0, operation=1, mode=0, ai=1, confirmed=2/9
+2026-11-05 11:28:17.199 [display-config] INFO  c.e.a.service.DisplayConfigService - Light ACK: connection=0, operation=1, mode=0, ai=2, confirmed=3/9
+2026-11-05 11:28:17.199 [display-config] INFO  c.e.a.service.DisplayConfigService - Light ACK: connection=0, operation=1, mode=0, ai=3, confirmed=4/9
+2026-11-05 11:28:17.199 [display-config] INFO  c.e.a.service.DisplayConfigService - Light ACK: connection=0, operation=1, mode=0, ai=4, confirmed=5/9
+2026-11-05 11:28:17.199 [display-config] INFO  c.e.a.service.DisplayConfigService - Light ACK: connection=0, operation=1, mode=0, ai=5, confirmed=6/9
+2026-11-05 11:28:17.199 [display-config] INFO  c.e.a.service.DisplayConfigService - Light ACK: connection=0, operation=1, mode=0, ai=6, confirmed=7/9
+2026-11-05 11:28:17.201 [display-config] INFO  c.e.a.service.DisplayConfigService - Light ACK: connection=0, operation=1, mode=0, ai=7, confirmed=8/9
+2026-11-05 11:28:17.201 [display-config] INFO  c.e.a.service.DisplayConfigService - Light ACK: connection=0, operation=1, mode=0, ai=8, confirmed=9/9
+PASS F3-lights-false-brightness-draft
+PASS F3-lights-false-light-drafts
+PASS F3-lights-false-no-preview
+PASS F3-lights-false-no-success-message
+PASS F3-lights-false-operation-complete
+PASS F3-lights-false-actual-ACKs-not-erased
+PASS F3-preview-false-brightness-draft
+PASS F3-preview-false-light-drafts
+PASS F3-preview-false-no-preview
+PASS F3-preview-false-no-success-message
+PASS F3-preview-false-operation-complete
+PASS F3-preview-false-actual-ACKs-not-erased
+2026-11-05 11:28:17.221 [display-config] INFO  c.e.a.service.DisplayConfigService - Brightness ACK: connection=0, operation=1, value=67
+PASS F3-brightness-true-brightness-draft
+PASS F3-brightness-true-light-drafts
+PASS F3-brightness-true-no-preview
+PASS F3-brightness-true-no-success-message
+PASS F3-brightness-true-operation-complete
+PASS F3-brightness-true-actual-ACKs-not-erased
+PASS F3-brightness-new-device-read-preserves-intent
+2026-11-05 11:28:17.237 [display-config] INFO  c.e.a.service.DisplayConfigService - Light ACK: connection=0, operation=1, mode=0, ai=0, confirmed=1/9
+2026-11-05 11:28:17.237 [display-config] INFO  c.e.a.service.DisplayConfigService - Light ACK: connection=0, operation=1, mode=0, ai=1, confirmed=2/9
+2026-11-05 11:28:17.237 [display-config] INFO  c.e.a.service.DisplayConfigService - Light ACK: connection=0, operation=1, mode=0, ai=2, confirmed=3/9
+2026-11-05 11:28:17.237 [display-config] INFO  c.e.a.service.DisplayConfigService - Light ACK: connection=0, operation=1, mode=0, ai=3, confirmed=4/9
+2026-11-05 11:28:17.237 [display-config] INFO  c.e.a.service.DisplayConfigService - Light ACK: connection=0, operation=1, mode=0, ai=4, confirmed=5/9
+2026-11-05 11:28:17.238 [display-config] INFO  c.e.a.service.DisplayConfigService - Light ACK: connection=0, operation=1, mode=0, ai=5, confirmed=6/9
+2026-11-05 11:28:17.238 [display-config] INFO  c.e.a.service.DisplayConfigService - Light ACK: connection=0, operation=1, mode=0, ai=6, confirmed=7/9
+2026-11-05 11:28:17.238 [display-config] INFO  c.e.a.service.DisplayConfigService - Light ACK: connection=0, operation=1, mode=0, ai=7, confirmed=8/9
+2026-11-05 11:28:17.238 [display-config] INFO  c.e.a.service.DisplayConfigService - Light ACK: connection=0, operation=1, mode=0, ai=8, confirmed=9/9
+PASS F3-lights-true-brightness-draft
+PASS F3-lights-true-light-drafts
+PASS F3-lights-true-no-preview
+PASS F3-lights-true-no-success-message
+PASS F3-lights-true-operation-complete
+PASS F3-lights-true-actual-ACKs-not-erased
+PASS F3-lights-new-device-read-preserves-intent
+PASS F3-preview-true-brightness-draft
+PASS F3-preview-true-light-drafts
+PASS F3-preview-true-no-preview
+PASS F3-preview-true-no-success-message
+PASS F3-preview-true-operation-complete
+PASS F3-preview-true-actual-ACKs-not-erased
+PASS F3-preview-new-device-read-preserves-intent
+PASS F3-same-value-new-brightness-intent
+PASS F3-same-value-new-effect-intent
+PASS F3-preview-deadline-starts-at-ACK
+PASS 72 controlled race checks; no full application or hardware claim

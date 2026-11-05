@@ -1,0 +1,141 @@
+PASS constructor-no-discovery
+2026-11-05 17:36:52.346 [main] INFO  c.example.ahakey.service.BleManager - Reading firmware catalog key with command 0x9F
+2026-11-05 17:36:52.351 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9FCCDD
+2026-11-05 17:36:52.352 [main] DEBUG c.example.ahakey.service.BleManager - 发送 TCP 包: type=0x2, len=5
+2026-11-05 17:36:52.353 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:36:52.353 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9f，唤醒等待线程
+2026-11-05 17:36:52.354 [main] INFO  c.example.ahakey.service.BleManager - Firmware catalog key: x1-c582-hw1-p1-1.0.0-r001
+PASS closed-memory-usb-default
+PASS connect-blocked-before-thread
+PASS no-real-socket
+PASS no-real-inputStream
+PASS no-real-readerThread
+PASS try-connect-absent
+PASS no-fake-quarantine
+2026-11-05 17:36:52.356 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9001CCDD
+2026-11-05 17:36:52.356 [main] DEBUG c.example.ahakey.service.BleManager - 发送 TCP 包: type=0x2, len=6
+2026-11-05 17:36:52.357 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:36:52.357 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x90，唤醒等待线程
+PASS BLE-real-send-entry
+PASS BLE-memory-output-not-USB
+PASS lease-holds-runtime
+PASS lease-replaces-runtime
+2026-11-05 17:36:52.357 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9003CCDD
+2026-11-05 17:36:52.357 [main] DEBUG c.example.ahakey.service.BleManager - 发送 TCP 包: type=0x2, len=6
+2026-11-05 17:36:52.358 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:36:52.358 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x90，唤醒等待线程
+PASS lease-close-real-flush
+PASS reset-real-generation
+PASS reset-keeps-fake-USB
+2026-11-05 17:36:52.358 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9004CCDD
+2026-11-05 17:36:52.358 [main] DEBUG c.example.ahakey.service.BleManager - 发送 TCP 包: type=0x2, len=6
+2026-11-05 17:36:52.358 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:36:52.358 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x90，唤醒等待线程
+PASS reset-keeps-BLE-discovery-policy
+PASS reset-does-not-forge-quarantine
+PASS real-recovery-defers
+PASS late-ACK-still-quarantined
+PASS reset-clears-old-pending
+PASS connect-blocked-before-thread
+PASS no-real-socket
+PASS no-real-inputStream
+PASS no-real-readerThread
+2026-11-05 17:36:52.359 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9001CCDD
+2026-11-05 17:36:52.359 [main] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 开始
+2026-11-05 17:36:52.359 [main] INFO  c.example.ahakey.service.BleManager - [BLE] outputStream 已关闭，耗时=0ms
+2026-11-05 17:36:52.359 [main] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 完成，总耗时=0ms
+2026-11-05 17:36:52.360 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:36:52.360 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x90，唤醒等待线程
+PASS ensure-connect-present
+PASS fake-discovery-and-open-false
+PASS USB-real-send-branch-false
+PASS no-real-socket
+PASS no-real-inputStream
+PASS no-real-readerThread
+PASS raw-data-memory-only
+2026-11-05 17:36:52.361 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9002CCDD
+2026-11-05 17:36:52.361 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:36:52.361 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x90，唤醒等待线程
+PASS open-USB-survives-generation
+PASS closed-USB-send-rejected
+2026-11-05 17:36:52.362 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9003CCDD
+2026-11-05 17:36:52.362 [main] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 开始
+2026-11-05 17:36:52.362 [main] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 完成，总耗时=0ms
+2026-11-05 17:36:52.362 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:36:52.362 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x90，唤醒等待线程
+PASS closed-USB-rediscovered-in-memory
+PASS connect-blocked-before-thread
+PASS no-real-socket
+PASS no-real-inputStream
+PASS no-real-readerThread
+2026-11-05 17:36:52.363 [main] INFO  c.example.ahakey.service.BleManager - [BLE] === 开始断开连接 ===
+2026-11-05 17:36:52.363 [main] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤1: 设置断开状态，耗时=0ms
+2026-11-05 17:36:52.363 [main] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤2: 唤醒等待响应的线程，耗时=0ms
+2026-11-05 17:36:52.363 [main] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤3: USB 传输已关闭，耗时=0ms
+2026-11-05 17:36:52.363 [main] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 开始
+2026-11-05 17:36:52.363 [main] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 完成，总耗时=0ms
+2026-11-05 17:36:52.363 [main] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤4: TCP 连接已关闭，耗时=0ms
+2026-11-05 17:36:52.363 [main] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤5: 回调通知成功，耗时=0ms
+2026-11-05 17:36:52.363 [main] INFO  c.example.ahakey.service.BleManager - [BLE] === 断开连接完成，总耗时=0ms ===
+PASS real-disconnect-fake-close
+PASS no-real-socket
+PASS no-real-inputStream
+PASS no-real-readerThread
+2026-11-05 17:36:52.364 [main] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 开始
+2026-11-05 17:36:52.364 [main] INFO  c.example.ahakey.service.BleManager - [BLE] outputStream 已关闭，耗时=0ms
+2026-11-05 17:36:52.364 [main] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 完成，总耗时=0ms
+2026-11-05 17:36:52.364 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB00CCDD
+2026-11-05 17:36:52.365 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:36:52.365 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x0，唤醒等待线程
+PASS try-connect-present
+PASS fake-discovery-and-open-true
+PASS USB-real-send-branch-true
+PASS no-real-socket
+PASS no-real-inputStream
+PASS no-real-readerThread
+PASS raw-data-memory-only
+2026-11-05 17:36:52.365 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9002CCDD
+2026-11-05 17:36:52.365 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:36:52.365 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x90，唤醒等待线程
+PASS open-USB-survives-generation
+PASS closed-USB-send-rejected
+2026-11-05 17:36:52.366 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9003CCDD
+2026-11-05 17:36:52.366 [main] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 开始
+2026-11-05 17:36:52.366 [main] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 完成，总耗时=0ms
+2026-11-05 17:36:52.366 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:36:52.366 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x90，唤醒等待线程
+PASS closed-USB-rediscovered-in-memory
+PASS connect-blocked-before-thread
+PASS no-real-socket
+PASS no-real-inputStream
+PASS no-real-readerThread
+2026-11-05 17:36:52.366 [main] INFO  c.example.ahakey.service.BleManager - [BLE] === 开始断开连接 ===
+2026-11-05 17:36:52.366 [main] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤1: 设置断开状态，耗时=0ms
+2026-11-05 17:36:52.366 [main] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤2: 唤醒等待响应的线程，耗时=0ms
+2026-11-05 17:36:52.366 [main] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤3: USB 传输已关闭，耗时=0ms
+2026-11-05 17:36:52.366 [main] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 开始
+2026-11-05 17:36:52.366 [main] INFO  c.example.ahakey.service.BleManager - [BLE] closeTcpOnly 完成，总耗时=0ms
+2026-11-05 17:36:52.366 [main] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤4: TCP 连接已关闭，耗时=0ms
+2026-11-05 17:36:52.366 [main] INFO  c.example.ahakey.service.BleManager - [BLE] 步骤5: 回调通知成功，耗时=0ms
+2026-11-05 17:36:52.368 [main] INFO  c.example.ahakey.service.BleManager - [BLE] === 断开连接完成，总耗时=2ms ===
+PASS real-disconnect-fake-close
+PASS no-real-socket
+PASS no-real-inputStream
+PASS no-real-readerThread
+2026-11-05 17:36:52.368 [main] INFO  c.example.ahakey.service.BleManager - Reading firmware catalog key with command 0x9F
+2026-11-05 17:36:52.368 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9FCCDD
+2026-11-05 17:36:52.368 [main] DEBUG c.example.ahakey.service.BleManager - 发送 TCP 包: type=0x2, len=5
+2026-11-05 17:36:52.368 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:36:52.368 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9f，唤醒等待线程
+2026-11-05 17:36:52.368 [main] INFO  c.example.ahakey.service.BleManager - Firmware catalog key: x1-c582-hw1-p1-1.0.0-r001
+2026-11-05 17:36:52.543 [main] INFO  c.e.a.s.AiRuntimeDisplayService - Runtime event platform=Kimi session=absent matchedSession=absent state=USER_PROMPT_SUBMIT source=UNKNOWN result=PENDING connection=0
+PASS anonymous-start-pending
+2026-11-05 17:36:52.555 [main] INFO  c.e.a.s.AiRuntimeDisplayService - Runtime event platform=Kimi session=absent matchedSession=absent state=SESSION_END source=UNKNOWN result=PENDING connection=0
+PASS anonymous-own-terminal-pending
+PASS anonymous-lease-no-write
+2026-11-05 17:36:52.556 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9008CCDD
+2026-11-05 17:36:52.556 [main] DEBUG c.example.ahakey.service.BleManager - 发送 TCP 包: type=0x2, len=6
+2026-11-05 17:36:52.556 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:36:52.556 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x90，唤醒等待线程
+PASS anonymous-own-terminal-flushed
+PASS 64 isolation checks; memory USB/TCP only

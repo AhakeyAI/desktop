@@ -1,0 +1,101 @@
+PASS R9-startup-uses-temporary-home-0
+PASS R9-original-failure-preserved-0
+PASS R9-shutdown-failure-suppressed-0
+PASS R9-home-restored-0
+PASS R9-temporary-files-cleaned-0
+PASS R9-lifecycle-order-0
+PASS R9-startup-uses-temporary-home-1
+PASS R9-original-failure-preserved-1
+PASS R9-shutdown-failure-suppressed-1
+PASS R9-home-restored-1
+PASS R9-temporary-files-cleaned-1
+PASS R9-lifecycle-order-1
+PASS R9-startup-uses-temporary-home-2
+PASS R9-original-failure-preserved-2
+PASS R9-shutdown-failure-suppressed-2
+PASS R9-home-restored-2
+PASS R9-temporary-files-cleaned-2
+PASS R9-lifecycle-order-2
+Retained process-loaded JavaFX cache: C:\Users\20825\AppData\Local\Temp\wd005-r9-cache-16020046987147577909\.openjfx
+PASS R9-cache-retained-other-files-cleaned
+PASS R9-success-restores-home
+11月 05, 2026 11:28:21 上午 com.sun.javafx.application.PlatformImpl startup
+警告: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @77afea7d'
+PASS C01-arbitrary-cache-not-authority-false
+PASS C01-98-denied-false
+PASS C01-99-denied-false
+PASS C01-direct-136-false
+PASS C01-direct-137-false
+PASS C01-direct-138-false
+PASS C01-direct-139-false
+PASS C01-direct-140-false
+PASS C01-direct-142-false
+PASS C01-upload-lease-denied-false
+PASS C01-no-new-wire-write-false
+2026-11-05 11:28:23.916 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9001CCDD
+2026-11-05 11:28:23.917 [main] DEBUG c.example.ahakey.service.BleManager - 发送 TCP 包: type=0x2, len=6
+2026-11-05 11:28:23.918 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:28:23.919 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x90，唤醒等待线程
+PASS C04-single-legacy-delivered-false
+PASS C04-single-wire90-false
+2026-11-05 11:28:23.919 [main] INFO  c.example.ahakey.service.BleManager - Reading firmware catalog key with command 0x9F
+2026-11-05 11:28:23.920 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9FCCDD
+2026-11-05 11:28:23.920 [main] DEBUG c.example.ahakey.service.BleManager - 发送 TCP 包: type=0x2, len=5
+2026-11-05 11:28:23.920 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:28:23.920 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9f，唤醒等待线程
+2026-11-05 11:28:23.921 [main] INFO  c.example.ahakey.service.BleManager - Firmware catalog key: V1.0
+PASS C01-no-admission-false-V1.0
+2026-11-05 11:28:23.922 [main] INFO  c.example.ahakey.service.BleManager - Reading firmware catalog key with command 0x9F
+2026-11-05 11:28:23.922 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9FCCDD
+2026-11-05 11:28:23.922 [main] DEBUG c.example.ahakey.service.BleManager - 发送 TCP 包: type=0x2, len=5
+2026-11-05 11:28:23.922 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:28:23.923 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9f，唤醒等待线程
+PASS C01-no-admission-false-
+2026-11-05 11:28:23.923 [main] INFO  c.example.ahakey.service.BleManager - Reading firmware catalog key with command 0x9F
+2026-11-05 11:28:23.923 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9FCCDD
+2026-11-05 11:28:23.923 [main] DEBUG c.example.ahakey.service.BleManager - 发送 TCP 包: type=0x2, len=5
+2026-11-05 11:28:23.923 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:28:23.923 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9f，唤醒等待线程
+2026-11-05 11:28:23.923 [main] INFO  c.example.ahakey.service.BleManager - Firmware catalog key: x1-c582-hw1-p1-1.0.0-r002
+PASS C01-no-admission-false-x1-c582-hw1-p1-1.0.0-r002
+2026-11-05 11:28:23.923 [main] INFO  c.example.ahakey.service.BleManager - Reading firmware catalog key with command 0x9F
+2026-11-05 11:28:23.923 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9FCCDD
+2026-11-05 11:28:23.923 [main] DEBUG c.example.ahakey.service.BleManager - 发送 TCP 包: type=0x2, len=5
+2026-11-05 11:28:23.923 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:28:23.923 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9f，唤醒等待线程
+2026-11-05 11:28:23.923 [main] INFO  c.example.ahakey.service.BleManager - Firmware catalog key: junk
+PASS C01-no-admission-false-junk
+2026-11-05 11:28:23.924 [main] INFO  c.example.ahakey.service.BleManager - Reading firmware catalog key with command 0x9F
+2026-11-05 11:28:23.924 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9FCCDD
+2026-11-05 11:28:23.924 [main] DEBUG c.example.ahakey.service.BleManager - 发送 TCP 包: type=0x2, len=5
+2026-11-05 11:28:23.924 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:28:23.924 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9f，唤醒等待线程
+2026-11-05 11:28:23.924 [main] INFO  c.example.ahakey.service.BleManager - Firmware catalog key: x1-c582-hw1-p1-1.0.0-r001
+PASS C01-no-admission-false- x1-c582-hw1-p1-1.0.0-r001
+2026-11-05 11:28:23.924 [main] INFO  c.example.ahakey.service.BleManager - Reading firmware catalog key with command 0x9F
+2026-11-05 11:28:23.924 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9FCCDD
+2026-11-05 11:28:23.925 [main] DEBUG c.example.ahakey.service.BleManager - 发送 TCP 包: type=0x2, len=5
+2026-11-05 11:28:23.925 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:28:23.925 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9f，唤醒等待线程
+2026-11-05 11:28:23.925 [main] INFO  c.example.ahakey.service.BleManager - Firmware catalog key: x1-c582-hw1-p1-1.0.0-r001
+PASS C01-no-admission-false-x1-c582-hw1-p1-1.0.0-r001
+2026-11-05 11:28:23.925 [main] INFO  c.example.ahakey.service.BleManager - Reading firmware catalog key with command 0x9F
+2026-11-05 11:28:23.925 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9FCCDD
+2026-11-05 11:28:23.925 [main] DEBUG c.example.ahakey.service.BleManager - 发送 TCP 包: type=0x2, len=5
+2026-11-05 11:28:23.925 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:28:23.925 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9f，唤醒等待线程
+2026-11-05 11:28:23.925 [main] INFO  c.example.ahakey.service.BleManager - Firmware catalog key: x1-c582-hw1-p1-1.0.0-r001
+PASS C01-no-admission-false-x1-c582-hw1-p1-1.0.0-r001?junk
+2026-11-05 11:28:23.926 [main] INFO  c.example.ahakey.service.BleManager - Reading firmware catalog key with command 0x9F
+2026-11-05 11:28:23.926 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9FCCDD
+2026-11-05 11:28:23.926 [main] DEBUG c.example.ahakey.service.BleManager - 发送 TCP 包: type=0x2, len=5
+2026-11-05 11:28:23.926 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 11:28:23.926 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9f，唤醒等待线程
+PASS C01-empty-response-fails-false
+Retained process-loaded JavaFX cache: C:\Users\20825\AppData\Local\Temp\wd005-r9-10747578724455036144\.openjfx
+Exception in thread "main" java.lang.AssertionError: C04-basic-version-fallback-false
+	at com.example.ahakey.displayconfig.DisplayConfigCapabilityChecks.check(DisplayConfigCapabilityChecks.java:23)
+	at com.example.ahakey.displayconfig.DisplayConfigCapabilityChecks.admission(DisplayConfigCapabilityChecks.java:188)
+	at com.example.ahakey.displayconfig.DisplayConfigCapabilityChecks.lambda$main$3(DisplayConfigCapabilityChecks.java:52)
+	at com.example.ahakey.displayconfig.DisplayConfigCapabilityChecks.withIsolatedHome(DisplayConfigCapabilityChecks.java:68)
+	at com.example.ahakey.displayconfig.DisplayConfigCapabilityChecks.main(DisplayConfigCapabilityChecks.java:51)

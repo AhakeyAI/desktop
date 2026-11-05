@@ -1,0 +1,42 @@
+PASS 4 modes 16 keys and 36 lights
+PASS draft independent from device
+PASS corrupt saved backup
+PASS corrupt PC not defaults
+PASS missing PC distinct
+PASS target capabilities crop restore
+PASS partial failure no retry or later write
+2026-11-05 17:37:30.084 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB73730000CCDD
+2026-11-05 17:37:30.089 [main] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 17:37:30.090 [main] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 17:37:30.091 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:37:30.092 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 17:37:30.092 [main] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x73
+2026-11-05 17:37:30.092 [main] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x73
+2026-11-05 17:37:30.093 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB737500004B657930CCDD
+2026-11-05 17:37:30.093 [main] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 17:37:30.093 [main] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 73 00 CC DD 
+2026-11-05 17:37:30.093 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:37:30.093 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x73，唤醒等待线程
+2026-11-05 17:37:30.093 [main] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x73
+2026-11-05 17:37:30.093 [main] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x73
+2026-11-05 17:37:30.094 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB04CCDD
+2026-11-05 17:37:30.094 [main] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 6
+2026-11-05 17:37:30.094 [main] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 04 00 CC DD 
+2026-11-05 17:37:30.094 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:37:30.094 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x4，唤醒等待线程
+2026-11-05 17:37:30.094 [main] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x4
+2026-11-05 17:37:30.094 [main] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x4
+2026-11-05 17:37:30.094 [main] INFO  c.example.ahakey.service.BleManager - Reading CP4C ordinary key with command 0x87: mode=0, keyIndex=0
+2026-11-05 17:37:30.095 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB870000CCDD
+2026-11-05 17:37:30.095 [main] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 15
+2026-11-05 17:37:30.095 [main] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 87 00 00 00 00 00 04 4B 65 79 30 CC DD 
+2026-11-05 17:37:30.095 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:37:30.095 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x87，唤醒等待线程
+2026-11-05 17:37:30.095 [main] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x87
+2026-11-05 17:37:30.096 [main] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x87
+PASS empty action real encode ACK save readback
+PASS ordinary restore whitelist excludes draft lights
+PASS missing mode key blocks erase
+PASS brightness zero invalid
+PASS empty present PC snapshot blocks erase
+PASS backup and actual restore transport checks; no device

@@ -1,0 +1,2 @@
+Exception in thread "main" java.lang.IllegalStateException: isolated home required
+	at com.example.ahakey.wd009.HookManagementChecks.main(HookManagementChecks.java:42)

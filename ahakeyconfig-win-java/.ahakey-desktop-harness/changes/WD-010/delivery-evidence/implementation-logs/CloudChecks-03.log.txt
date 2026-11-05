@@ -1,0 +1,1 @@
+PASS CloudChecks 48 checks; loopback HTTP, synthetic credentials, no real account/payment/coupon

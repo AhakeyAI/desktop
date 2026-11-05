@@ -1,0 +1,4 @@
+Nov 05, 2026 5:36:47 PM com.sun.javafx.application.PlatformImpl startup
+警告: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @7a79be86'
+2026-11-05 17:36:50.006 [ai-runtime-connect-apply] WARN  c.e.a.s.AiRuntimeDisplayService - Apply runtime display preference on connect failed: 展示模式请求已因设备维护失效。
+PASS RuntimeRestoreRaceChecks 7 checks; actual UI worker, transport lock, restore epoch and callback

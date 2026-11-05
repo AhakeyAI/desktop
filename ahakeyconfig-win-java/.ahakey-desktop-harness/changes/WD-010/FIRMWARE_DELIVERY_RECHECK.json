@@ -1,0 +1,20 @@
+{
+  "root": "C:\\Users\\20825\\Desktop\\vibe-code",
+  "meaning": "read-only recheck; missing receipt not regenerated",
+  "files": [
+    {
+      "path": ".ahakey-harness/evidence/checkpoints/X1-PLATFORMIZATION-RELEASE-COMPOSITION/WS45_CP1_RESTORE_INITIALIZATION/20261027T203634/gate-receipt.json",
+      "exists": false
+    },
+    {
+      "path": ".ahakey-harness/evidence/builds/ws45-repeat-v2-regate-20261027-4035fca/HID_Keyboard_582m_vibe_coding.hex",
+      "exists": false
+    },
+    {
+      "path": ".ahakey-harness/evidence/builds/ws45-cp2_6-restore-combined-regate-20261025/HID_Keyboard_582m_vibe_coding.hex",
+      "exists": false
+    }
+  ],
+  "receipt_commits": [],
+  "git_exit": 0
+}

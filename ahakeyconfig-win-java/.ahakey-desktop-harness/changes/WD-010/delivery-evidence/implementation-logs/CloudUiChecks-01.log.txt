@@ -1,0 +1,3 @@
+11月 05, 2026 11:26:52 上午 com.sun.javafx.application.PlatformImpl startup
+警告: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @2e5d6d97'
+PASS CloudUiChecks 7 checks; actual login/refresh/coupon handlers and loopback HTTP

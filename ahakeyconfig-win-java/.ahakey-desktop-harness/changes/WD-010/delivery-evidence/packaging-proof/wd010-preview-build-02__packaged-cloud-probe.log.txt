@@ -1,0 +1,3 @@
+Nov 05, 2026 5:36:24 PM com.sun.javafx.application.PlatformImpl startup
+警告: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @4b8ee4de'
+PASS PackagedCloudProbe 9 checks; packaged HttpClient/DPAPI/JavaFX/ZXing, external Python loopback only

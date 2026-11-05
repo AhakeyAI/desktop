@@ -1,0 +1,14 @@
+{
+  "ModelRoot": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java/target/wd006-dependencies/verified-models",
+  "BleDriver": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java/target/wd009-bridge-r2-build-02/bin/BLE_tcp_driver.exe",
+  "BleDriverManifest": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java/target/wd009-bridge-r2-build-02/BRIDGE_BUILD_MANIFEST.json",
+  "SherpaLicense": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java/target/wd006-dependencies/Sherpa-ONNX-LICENSE.txt",
+  "NativeJar": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java/target/wd006-dependencies/sherpa-onnx-native-lib-win-x64-v1.13.3.jar",
+  "MavenRepository": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java/.m2repo",
+  "DtfRoot": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java/target/wd006-dependencies/wix-dtf-5.0.2",
+  "ProductCode": "{112ED1A1-EA6B-431A-B014-4F5A1A5E0F90}",
+  "AppVersion": "1.0.21",
+  "OutputRoot": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java/target/WD010-Preview-R3-LocalModel-1.0.21",
+  "InstallerType": "exe",
+  "SourceRoot": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java\\target\\WD010-Preview-Source-R3-1.0.21"
+}

@@ -1,0 +1,2 @@
+# Preserve exact bytes of archived execution evidence, including CRLF logs.
+* -text

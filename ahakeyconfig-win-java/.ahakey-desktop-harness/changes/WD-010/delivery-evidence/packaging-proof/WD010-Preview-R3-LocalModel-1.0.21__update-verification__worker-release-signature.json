@@ -1,0 +1,9 @@
+{
+    "version":  "1.0.21",
+    "variant":  "local-model",
+    "arch":  "x64",
+    "productId":  "AhaKeyStudio",
+    "upgradeCode":  "{03E5A934-FFCA-3815-B455-7D49BF1CA1DC}",
+    "productCode":  "{112ED1A1-EA6B-431A-B014-4F5A1A5E0F90}",
+    "prefixLength":  297408512
+}

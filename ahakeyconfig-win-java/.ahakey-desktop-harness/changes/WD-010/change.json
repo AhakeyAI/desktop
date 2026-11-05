@@ -1,0 +1,120 @@
+{
+  "schema_version": 3,
+  "id": "WD-010",
+  "title": "云端账号与 AhaType 完整恢复及设备恢复出厂设置",
+  "revision": 1,
+  "phase": "VERIFY",
+  "status": "ACTIVE",
+  "build_round": 3,
+  "assignment": {
+    "owner_record": ".ahakey-desktop-harness/evidence/20261104-wd010-owner-task.md",
+    "record_sha256": "f677cbb07f743fb2539d16ec76e2ead91abcf7da947da39187e48ec22ce9aa3b",
+    "at": "2026-11-04T09:10:28+00:00"
+  },
+  "delivery_scope": "internal_integration",
+  "requirements": {
+    "ui_entry_changed": true,
+    "device_related": true,
+    "real_device": true,
+    "owner_uat": true
+  },
+  "allowed_paths": [
+    "src/main/java/com/example/ahakey/App.java",
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/model/StudioState.java",
+    "src/main/java/com/example/ahakey/model/DeviceStatus.java",
+    "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+    "src/main/java/com/example/ahakey/model/FactoryResetState.java",
+    "src/main/java/com/example/ahakey/view/TopBar.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java",
+    "src/main/java/com/example/ahakey/view/CanvasController.java",
+    "src/main/java/com/example/ahakey/view/CanvasPane.java",
+    "src/main/java/com/example/ahakey/view/StatusBar.java",
+    "src/main/java/com/example/ahakey/view/FloatingVoiceNotification.java",
+    "src/main/java/com/example/ahakey/view/CloudAccountDialog.java",
+    "src/main/java/com/example/ahakey/view/FactoryResetDialog.java",
+    "src/main/java/com/example/ahakey/service/AhaTypeService.java",
+    "src/main/java/com/example/ahakey/service/AhaTypeConfig.java",
+    "src/main/java/com/example/ahakey/service/CloudAccountManager.java",
+    "src/main/java/com/example/ahakey/service/VoiceInputManager.java",
+    "src/main/java/com/example/ahakey/platform/windows/WindowsCredentialStore.java",
+    "src/main/java/com/example/ahakey/protocol/FactoryResetProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java",
+    "src/main/java/com/example/ahakey/service/FactoryResetService.java",
+    "src/main/java/com/example/ahakey/service/FactoryResetStore.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+    "src/main/java/com/example/ahakey/service/K1RouteService.java",
+    "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+    "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+    "src/main/java/com/example/ahakey/firmware/DeviceMaintenanceCoordinator.java",
+    "src/main/java/com/example/ahakey/util/StudioStore.java",
+    "src/main/resources/messages_zh.properties",
+    "src/main/resources/messages_en.properties",
+    "pom.xml",
+    "src/test/java/com/example/ahakey/wd010"
+  ],
+  "preserved_behaviors": [
+    "现有本地识别、F18/Win+H路由及取消/单次输出语义",
+    "WD009设备选择、Hook与Cursor行为",
+    "现有固件协议、输入配置及OLED/灯光行为"
+  ],
+  "approval_assets": [
+    "CONTRACT.md",
+    "REFERENCES.json",
+    "IMPLEMENTATION_SCOPE.md",
+    "HISTORICAL_REFERENCES.json",
+    "CLOUD_UI_GRILL.md",
+    "RESTORE_UI_CASES_DRAFT.md",
+    "RESTORE_IDENTITY_REVIEW.md",
+    "RESTORE_READBACK_PLAN.md"
+  ],
+  "ui_mode": "minimal",
+  "ui_note_ref": "CONTRACT.md",
+  "ui_current_refs": [
+    "src/main/java/com/example/ahakey/view/TopBar.java",
+    "src/main/java/com/example/ahakey/model/StudioState.java"
+  ],
+  "ui_preview_refs": [],
+  "mock_plan": null,
+  "checkpoints": [],
+  "approval": {
+    "at": "2026-11-05T01:45:18+00:00",
+    "owner_record": ".ahakey-desktop-harness/evidence/20261105-wd010-contract-owner-approval.md",
+    "owner_record_sha256": "fea4d0fb399f712e2440cdbd6d2f49b2442b28642326b5ed54c462ac74c7aa8f",
+    "inputs": {
+      "meta_sha256": "467a3ebcb1c11c502820f57c1836b6b78f998929e25b27bd0842ae07062cba97",
+      "assets": {
+        "CONTRACT.md": "30aa1df46d67eb2ef161b47a33999851a99fa1eaf84fb7ba896ae2b06fffca9f",
+        "REFERENCES.json": "55d2f4248b81e57494bbdec981918db54721968411ea614a1541f8208a874c15",
+        "IMPLEMENTATION_SCOPE.md": "1e0f001a69af8b22f3c4b25ab174eeb158c92053bbd2f34e14501f4d49a2e25b",
+        "HISTORICAL_REFERENCES.json": "62471c127a84b33ca0d42d26755f1b3bc681f5f37661a909eb3e4465d52c94c0",
+        "CLOUD_UI_GRILL.md": "2cdbf3216cebd4d63a0a22131c4962509de5c263dfbaf4d6d693833110109e84",
+        "RESTORE_UI_CASES_DRAFT.md": "f653507b346a9ff8abbf31f8896b35b419994a68f185abe857c88ab96377072a",
+        "RESTORE_IDENTITY_REVIEW.md": "15b8cc6c13e852861518eefecac00f1117ac8f3c6203010dd9ce0641962d13ee",
+        "RESTORE_READBACK_PLAN.md": "a63eb3c49d8493f5be8783a606a1f5a9b80700fdbef5d48c8f1e15cd766999ec"
+      },
+      "reference_sha256": "721bbe39a07a29783393e934c0dc0f1d78442fccb41a31a9d102616c4594d9dd"
+    }
+  },
+  "change_classification": [
+    "architecture_change",
+    "bug_fix",
+    "protocol_change",
+    "scope_expansion"
+  ],
+  "journey_ids": [
+    "J007",
+    "J017",
+    "J018",
+    "J019"
+  ],
+  "review_policy": "high_impact",
+  "activated_at": "2026-11-05T01:45:18+00:00",
+  "isolation_record": ".ahakey-desktop-harness/evidence/20261105-wd010-start-isolation.md",
+  "fix_request": {
+    "at": "2026-11-05T09:16:20+00:00",
+    "record": ".ahakey-desktop-harness/changes/WD-010/fresh-review/FINAL_REVIEW_R2.json",
+    "sha256": "11354662a75fcc8a6994a6a7704086367cb770aeb3c74e4acaa4dbaa6f408759"
+  }
+}

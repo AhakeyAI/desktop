@@ -1,0 +1,26 @@
+2026-11-05 13:18:27.282 [ahakey-local-speech] ERROR c.e.ahakey.service.SpeechService - 本地语音录音/识别失败
+javax.sound.sampled.LineUnavailableException: fake unavailable
+	at com.example.ahakey.service.SpeechLifecycleCheck.lambda$main$7(SpeechLifecycleCheck.java:96)
+	at com.example.ahakey.service.SpeechService.record(SpeechService.java:146)
+	at com.example.ahakey.service.SpeechService.lambda$startListening$3(SpeechService.java:137)
+	at java.base/java.lang.Thread.run(Unknown Source)
+2026-11-05 13:18:27.294 [main] ERROR c.e.ahakey.service.VoiceInputManager - 本地语音初始化失败
+java.lang.UnsatisfiedLinkError: fake missing DLL
+	at com.example.ahakey.service.SpeechLifecycleCheck$4.initialize(SpeechLifecycleCheck.java:119)
+	at com.example.ahakey.service.VoiceInputManager.initialize(VoiceInputManager.java:65)
+	at com.example.ahakey.service.SpeechLifecycleCheck.main(SpeechLifecycleCheck.java:121)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)
+	at java.base/java.lang.reflect.Method.invoke(Unknown Source)
+	at com.example.ahakey.wd010.CheckProcess.main(CheckProcess.java:7)
+2026-11-05 13:18:27.298 [main] INFO  c.example.ahakey.config.ModelConfig - 模型配置文件加载成功
+java.lang.AssertionError: disabled model must not initialize keyboard
+	at com.example.ahakey.service.SpeechLifecycleCheck.lambda$main$15(SpeechLifecycleCheck.java:125)
+	at com.example.ahakey.service.VoiceInputManager.initialize(VoiceInputManager.java:66)
+	at com.example.ahakey.service.SpeechLifecycleCheck.main(SpeechLifecycleCheck.java:126)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(Unknown Source)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(Unknown Source)
+	at java.base/java.lang.reflect.Method.invoke(Unknown Source)
+	at com.example.ahakey.wd010.CheckProcess.main(CheckProcess.java:7)

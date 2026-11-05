@@ -1,0 +1,180 @@
+{
+  "schema_version": 1,
+  "id": "WD-010",
+  "build_round": 2,
+  "decision": "fail",
+  "reviewer_role": "independent DLA",
+  "session": "01a1a970-ac70-77a3-bfc4-3e4ebe225604",
+  "at": "2026-11-05T05:18:42.991334+00:00",
+  "pack_sha256": "dac7f24c2375abd670d2d698eceb179cf9d9fa0a3c07170878013039dc008c51",
+  "code_fingerprint": "aeda3627d82d8d5b7c9751dfde57c366d59ed65f176018daa8e912099d0e67ef",
+  "submission_sha256": "418c5c994170fdee104903ed8af55ad80b95067887e70c3ce09bdbed13be8099",
+  "diff_sha256": "4aa83aa03fa63ea2fd10200b7ec501e0e1669f10c41a3af0cfd8412907236000",
+  "analysis": "第2轮12个变化文件已按实际累计差异、必要调用链与测试审阅，其余27个文件与第1轮字节一致。恢复准备及新兑换缺陷已闭环，提交的61项恢复和47项交易检查独立重跑通过。但新增定向fixture在真实兑换与付款窗口均复现：成功结果已排入JavaFX队列之后，另一请求触发服务端401，最终UI以旧delivery session拒收，窗口永久停在进行中。这是FR-03/ER2-02的残留投递边界，故本冻结包仍为FAIL，不能以现有套件通过代替该实际失败。",
+  "analysis_details": {
+    "identity_audit": {
+      "pack": "按Harness canonical JSON计算pack哈希匹配委托；review_pack.json与冻结PACK.json相同。",
+      "source": "39/39当前文件SHA匹配r2-IMPLEMENTATION_CODE_IDENTITY.json；与第1轮比较12变化、27不变。独立比较两轮ACTUAL_DIFF的逐文件hunk内容（仅忽略行号偏移与换行）也得到相同12个变化文件。累计差异哈希匹配，无missing_start_bytes。",
+      "report": "EXECUTION_REPORT.md SHA256=32441403744dde13d0b4f4ce41aa1a5506399a091ffac2d0e26f091a887ac118，匹配回执；builder_submission canonical哈希匹配委托与回执。",
+      "manifest": "r2-LOG_MANIFEST的27/27项SHA及字节数匹配；11套最终日志的SHA及PASS文字逐项核对。compile07 BUILD SUCCESS；保留compile06和首轮fixture失败，不宣称它们通过。",
+      "previous_review": "第1轮FINAL_REVIEW.json保持原字节，SHA256=3dfcdbab7881cb5cf8ad6c6af56282d0bc14b72b3737c8d85cea6909a06fcafa。"
+    },
+    "finding_disposition": {
+      "FR-01": "本轮审查范围内已闭环。预发送本地准备失败不删草稿，准备journal可回滚，失败有本地重试；发送后未知保留隔离并仅查询。61项独立重跑包含关键真实生产路径。",
+      "FR-02": "已闭环。实际窗口显式兑换新码，A/B各一次请求；未知结果重开不重发，47项套件独立通过。",
+      "FR-03": "请求完成时生成正确delivery的路径已修复，但最终FX投递仍存在R2-FR-01，未完全闭环。",
+      "ER2-01": "已闭环。已知本地回滚失败也加载原live草稿；本地清理后恢复runtime模式；两种启动时序、正常保存后重载均在61项套件中独立通过。",
+      "ER2-02": "刷新中及成功响应前的另一401路径已修复；新增server-expiry关联在主动退出/认证时切断。成功结果排队之后发生401仍未处理，见R2-FR-01。"
+    },
+    "independent_execution": {
+      "method": "为了不干扰并行构建，将提交后target/classes、target/test-classes的class文件、必要顶层资源与依赖JAR复制到独立临时目录；隔离user.home、java.io.tmpdir及cwd执行。未重编译生产代码。只编译一个新增审阅fixture到临时review-classes。真实JavaFX/生产账号服务，HTTP只连loopback，设备传输仅内存。",
+      "snapshot_path": "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\SNAPSHOT.json",
+      "snapshot_sha256": "2aa79455b789b473c212be5e842908b22c18ca24a659366cbf72f8112e230d12",
+      "source_binding_limit": "执行字节来自提交后的现有编译输出，快照保留全部SHA；生产源码身份与提交编译证据独立核验，但本轮没有自行从源码重建产品或形成Git/EXE候选。",
+      "runs": [
+        {
+          "suite": "RestorePreparationChecks",
+          "command": [
+            "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+            "-Dfile.encoding=UTF-8",
+            "-Duser.home=C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\home-RestorePreparationChecks",
+            "-Djava.io.tmpdir=C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_",
+            "-cp",
+            "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\classes;C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\test-classes;C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\lib\\*",
+            "com.example.ahakey.wd010.CheckProcess",
+            "com.example.ahakey.wd010.RestorePreparationChecks"
+          ],
+          "cwd": "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_",
+          "exit_code": 0,
+          "log": "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\RestorePreparationChecks.log",
+          "sha256": "2145f3b9154ed53d834f40b1897608578f69d00688f87a12eeddd122a6fb0589"
+        },
+        {
+          "suite": "CloudTransactionUiChecks",
+          "command": [
+            "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+            "-Dfile.encoding=UTF-8",
+            "-Duser.home=C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\home-CloudTransactionUiChecks",
+            "-Djava.io.tmpdir=C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_",
+            "-cp",
+            "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\classes;C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\test-classes;C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\lib\\*",
+            "com.example.ahakey.wd010.CheckProcess",
+            "com.example.ahakey.service.CloudTransactionUiChecks"
+          ],
+          "cwd": "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_",
+          "exit_code": 0,
+          "log": "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\CloudTransactionUiChecks.log",
+          "sha256": "0dbcea5746b6caa0ba011c5ec9feb388875ea9875ff09657420bcdbdacced5ec"
+        },
+        {
+          "compile_command": [
+            "D:/jdk-17.0.19.10-hotspot/bin/javac.exe",
+            "-encoding",
+            "UTF-8",
+            "-cp",
+            "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\classes;C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\test-classes;C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\lib\\*",
+            "-d",
+            "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\review-classes",
+            "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\QueuedDeliveryChecks.java"
+          ],
+          "command": [
+            "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+            "-Dfile.encoding=UTF-8",
+            "-Duser.home=C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\home-queued-delivery",
+            "-Djava.io.tmpdir=C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_",
+            "-cp",
+            "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\review-classes;C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\classes;C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\test-classes;C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\lib\\*",
+            "com.example.ahakey.wd010.CheckProcess",
+            "com.example.ahakey.service.QueuedDeliveryChecks"
+          ],
+          "cwd": "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_",
+          "exit_code": 1,
+          "log": "C:\\Users\\20825\\AppData\\Local\\Temp\\wd010-fresh-r2-ijewsc9_\\QueuedDeliveryChecks.log",
+          "sha256": "ae098d7d75f1c3bfe480915d9f466396b81bb570bf7f8144e03deea07d470c82",
+          "fixture_sha256": "143a5d0c07f5c44053de89fd22983fc72c5c18716a5e18fe7dced2ea8f77ad13"
+        }
+      ],
+      "results": "RestorePreparationChecks exit0/61；CloudTransactionUiChecks exit0/47；QueuedDeliveryChecks exit1，兑换及付款2/2未显示终态，失败不是超时或测试配置错误。"
+    },
+    "limitations": [
+      "未验证真实账号、付款、兑换、麦克风/模型/SendInput、真实USB/BLE恢复/断电、EXE/安装/Owner UAT。",
+      "Firmware v2正式gate/receipt和确切HEX仍是交付绑定工作；本轮没有改协议、执行Firmware脚本或以源码代替准入。",
+      "第1轮两个历史额外诊断FAIL未重复运行，也未改记PASS；未扩大审阅到无变化的其他模块。",
+      "仅新增本轮独立JSON/MD和临时fixture证据；未修改生产、根REVIEW、Harness状态、旧记录或冻结报告，未向其他聊天发送消息。"
+    ]
+  },
+  "findings": [
+    {
+      "id": "R2-FR-01",
+      "priority": "P2",
+      "resolution": "unresolved",
+      "origin": "FR-03 / ER2-02 residual",
+      "title": "成功结果排入FX队列后发生服务端401，最终回调仍丢弃交易终态",
+      "file": "src/main/java/com/example/ahakey/view/CloudAccountDialog.java",
+      "line_start": 98,
+      "line_end": 100,
+      "related_locations": [
+        {
+          "file": "src/main/java/com/example/ahakey/view/CloudAccountDialog.java",
+          "line": 133
+        },
+        {
+          "file": "src/main/java/com/example/ahakey/service/CloudAccountManager.java",
+          "line": 163
+        }
+      ],
+      "analysis": "OperationResult.delivery是生成结果时的session快照。交易和资料刷新已成功，后台已将终态回调Platform.runLater排队后，另一并发请求可能使同一账号因服务端401失效。AhaTypeService.operationDelivery(origin)此时仍可解析到合法的server-expired delivery，但兑换99行和付款133行只检查aha.current(result.delivery())，不重新解析这条关联，直接丢弃已排队的成功。用户未退出/换号，却永久看到正在兑换或正在查询付款结果。服务层complete在最终检查前遇到同一代次变化也有相同旧快照窗口。",
+      "reproduction": "独立QueuedDeliveryChecks使用实际按钮/二维码窗口和本地HTTP：阻塞成功后的users/me；阻塞FX队列；放行200资料，等待真实执行器activeCount归零证明成功回调已排队；另一请求401使会话失效且operationDelivery(origin)仍合法；释放FX。兑换和付款均terminalShown=false并停在进行中，exit1。",
+      "contract": "CONTRACT.md:19、25要求显示已确认兑换/支付成功并与资料刷新分离；16要求明确登录失效时回登录页。此时不能因为服务端失效而抹掉交易成功事实。",
+      "requested_fix": "在实际最终投递处针对原操作会话重新验证允许的server-expiry关联，同时保留窗口/轮询代次和主动退出/重新认证的隔离。交易成功作为终态保留，并按当前状态提示重新登录；不要移除current检查或无条件改用当前账号session。服务层完成检查与FX消费两处应采用一致语义。",
+      "required_validation": "将本定向时序加入真实UI fixture：结果排队后服务端401仍显示成功且不再进行中；同一队列窗口中主动logout/login必须抑制旧结果，关付款窗口后仍不能迟到更新。可保留现有47项，不需要重跑所有无变化模块。",
+      "evidence_log_sha256": "ae098d7d75f1c3bfe480915d9f466396b81bb570bf7f8144e03deea07d470c82",
+      "fixture_sha256": "143a5d0c07f5c44053de89fd22983fc72c5c18716a5e18fe7dced2ea8f77ad13",
+      "details": "fresh-review/FINAL_REVIEW_R2_DETAILS.md"
+    }
+  ],
+  "per_changed_file_review": {
+    "src/main/java/com/example/ahakey/app/StudioController.java": "生产adapter明确传入factoryPreparationRecovered，重启失败后清理成功能够恢复live runtime模式。",
+    "src/main/java/com/example/ahakey/service/AhaTypeService.java": "serverExpiredOrigin/serverExpiredDelivery仅关联原session的服务端失效，显式logout、beginAuthentication、invalidatePendingOperations均断开关联；但UI排队结果仍持有旧delivery，见R2-FR-01。",
+    "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java": "发送前落盘移交Store；factoryResetStarted仅变live状态；factoryPreparationRecovered读取恢复后的持久模式，排队epoch保护维持。",
+    "src/main/java/com/example/ahakey/service/CloudAccountManager.java": "OperationResult区分成功/未知及delivery；成功响应晚于并发401与刷新中401可沿原session关联投递。结果创建至最终FX执行之间的再次失效仍有缺口。",
+    "src/main/java/com/example/ahakey/service/FactoryResetService.java": "LOCAL_PREPARING与SENDING分界、预发送回滚及失败保留本地清理入口；清理不要求设备；FX未开始可取消，开始后等待真正结束。未知发送不重放，读回仍先获取catalog。",
+    "src/main/java/com/example/ahakey/service/FactoryResetStore.java": "原子准备journal、runtime快照/校验/回滚及原pending恢复；旧PREPARED不当成已知未发送；SENDING保守隔离直到只读结果核实。",
+    "src/main/java/com/example/ahakey/util/StudioStore.java": "已知本地准备即使清理暂时失败仍加载未被修改的原草稿；已发送pending继续隔离。读取旧草稿未升级为设备完成证据。",
+    "src/main/java/com/example/ahakey/view/CloudAccountDialog.java": "成功后显式兑换新码，进行中/未知不重发；服务端失效终态可切回登录。最终FX回调未重新解析可投递关联，R2-FR-01在兑换和付款实测复现。",
+    "src/main/java/com/example/ahakey/view/FactoryResetDialog.java": "本地清理文案/入口绕过另一设备判断及人工关联；恢复未知状态的设备关联约束仍保留。",
+    "src/test/java/com/example/ahakey/wd010/CloudTransactionUiChecks.java": "逐行审读47项真实UI/HTTP检查，独立重跑通过；覆盖成功后401、并发401早/晚响应、新码及主动换号。没有成功结果已排入FX队列再失效的用例。",
+    "src/test/java/com/example/ahakey/wd010/RestoreChecks.java": "唯一行为断言调整为SENDING先持久、发送前live草稿尚未丢弃；603项原协议/状态机检查报告与日志一致。",
+    "src/test/java/com/example/ahakey/wd010/RestorePreparationChecks.java": "逐行审读61项并独立重跑通过。实际adapter/文件/FX，内存传输；覆盖回滚、启动恢复两时序、UI离线清理、30秒排队超时和已经开始动作跨30秒再失败。"
+  },
+  "unchanged_files_inherited_from_round1": [
+    "pom.xml",
+    "src/main/java/com/example/ahakey/firmware/DeviceMaintenanceCoordinator.java",
+    "src/main/java/com/example/ahakey/model/DeviceStatus.java",
+    "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+    "src/main/java/com/example/ahakey/model/FactoryResetState.java",
+    "src/main/java/com/example/ahakey/model/StudioState.java",
+    "src/main/java/com/example/ahakey/platform/windows/WindowsCredentialStore.java",
+    "src/main/java/com/example/ahakey/protocol/FactoryResetProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java",
+    "src/main/java/com/example/ahakey/service/AhaTypeConfig.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/K1RouteService.java",
+    "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+    "src/main/java/com/example/ahakey/service/VoiceInputManager.java",
+    "src/main/java/com/example/ahakey/view/CanvasController.java",
+    "src/main/java/com/example/ahakey/view/CanvasPane.java",
+    "src/main/java/com/example/ahakey/view/FloatingVoiceNotification.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java",
+    "src/main/java/com/example/ahakey/view/TopBar.java",
+    "src/main/resources/messages_en.properties",
+    "src/main/resources/messages_zh.properties",
+    "src/test/java/com/example/ahakey/wd010/CheckProcess.java",
+    "src/test/java/com/example/ahakey/wd010/CloudChecks.java",
+    "src/test/java/com/example/ahakey/wd010/CloudUiChecks.java",
+    "src/test/java/com/example/ahakey/wd010/RestoreProductionUiChecks.java",
+    "src/test/java/com/example/ahakey/wd010/RuntimeRestoreRaceChecks.java",
+    "src/test/java/com/example/ahakey/wd010/VoiceFinalChecks.java"
+  ],
+  "next_action": "原DLA按合同内FIX处理R2-FR-01并补最终投递时序证据，重新冻结包后针对该变化复审。本记录不更改状态或许可Preview/EXE放行；Owner无需转发。"
+}

@@ -1,0 +1,1 @@
+PASS RestoreChecks 587 checks; actual frame extractors/gates plus deterministic failure state machine; no hardware

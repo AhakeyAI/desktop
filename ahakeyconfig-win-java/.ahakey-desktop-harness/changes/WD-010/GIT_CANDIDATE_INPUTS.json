@@ -1,0 +1,252 @@
+{
+  "destination": "C:\\Users\\20825\\.codex\\worktrees\\wd010-zxy-20261105",
+  "base": "46c5f3ffec7135470ee8cf12e76342eaab130e7d",
+  "target_ref": "refs/heads/win-zxy-harness",
+  "files": [
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-010/CLOUD_UI_GRILL.md",
+      "sha256": "2cdbf3216cebd4d63a0a22131c4962509de5c263dfbaf4d6d693833110109e84"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-010/CONTRACT.md",
+      "sha256": "30aa1df46d67eb2ef161b47a33999851a99fa1eaf84fb7ba896ae2b06fffca9f"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-010/EXECUTION_REPORT.md",
+      "sha256": "1802d268cb2f9ec8842b9aa54ae38ce2d0081e55d91e66cff56d8aec65b5238c"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-010/HISTORICAL_REFERENCES.json",
+      "sha256": "62471c127a84b33ca0d42d26755f1b3bc681f5f37661a909eb3e4465d52c94c0"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-010/IMPLEMENTATION_RECEIPT.json",
+      "sha256": "9598e713e4c47b21286f4dee8ecac2afc8cb40a847207d8168e8d800a229a08c"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-010/IMPLEMENTATION_SCOPE.md",
+      "sha256": "1e0f001a69af8b22f3c4b25ab174eeb158c92053bbd2f34e14501f4d49a2e25b"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-010/REFERENCES.json",
+      "sha256": "55d2f4248b81e57494bbdec981918db54721968411ea614a1541f8208a874c15"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-010/RESTORE_IDENTITY_REVIEW.md",
+      "sha256": "15b8cc6c13e852861518eefecac00f1117ac8f3c6203010dd9ce0641962d13ee"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-010/RESTORE_READBACK_PLAN.md",
+      "sha256": "a63eb3c49d8493f5be8783a606a1f5a9b80700fdbef5d48c8f1e15cd766999ec"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-010/RESTORE_UI_CASES_DRAFT.md",
+      "sha256": "f653507b346a9ff8abbf31f8896b35b419994a68f185abe857c88ab96377072a"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-010/REVIEW.json",
+      "sha256": "24714bfbbbcb38e4b312d3ff183c0052bc1b03fa88215fc924517ff8836f6a7b"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-010/builder_submission.json",
+      "sha256": "15f5159e5a3962bd144aa8833358ecd31bd2303782d0561c6f6d7ee0227145ed"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-010/fresh-review/FINAL_REVIEW_R3.json",
+      "sha256": "90af1622c3fd2d5f3809f9ef9a3d0f7d0ac26c9a11634744876679f7eefd8629"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-010/guard-origin.json",
+      "sha256": "962f29925339fbef3f4f01f0bab516a8230647fdfdcb08c8553fe5d33fa5375f"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-010/preserved_foreign_inputs.json",
+      "sha256": "4e2f71116364454b80eae5dc9bfbc5788d59cf8f23bbd8baa73c8cfea8e6e765"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-010/review_pack.json",
+      "sha256": "4871dc814705555145f8a9e19ee7d7cd3aeba8635bcdf39cdf221ce68209c6ca"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-010/reviews/20261105T092922839224Z-50df27/ACTUAL_DIFF.txt",
+      "sha256": "6af7412ace390f0718f5809837b1f0e516bcdd8807747a7f20a5665cbcb5006f"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/changes/WD-010/start-fingerprint.json",
+      "sha256": "297d7e6e3625852e4f976d74085ea58220c2c38b47272770c9acf3d268802598"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/20261104-wd010-owner-task.md",
+      "sha256": "f677cbb07f743fb2539d16ec76e2ead91abcf7da947da39187e48ec22ce9aa3b"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/20261105-wd010-contract-owner-approval.md",
+      "sha256": "fea4d0fb399f712e2440cdbd6d2f49b2442b28642326b5ed54c462ac74c7aa8f"
+    },
+    {
+      "path": "ahakeyconfig-win-java/pom.xml",
+      "sha256": "08602c3355495f772387fb37f26b1ec4f5857e9de172d24b7dace7a08026c4fa"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/app/StudioController.java",
+      "sha256": "3f7f93f0ca0eb53937b747dfbd3fe4a2bc40b6c7143ecdad9d30c9fa470651ac"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/firmware/DeviceMaintenanceCoordinator.java",
+      "sha256": "a4aff1d6e9479dc7177b4572b0bfd7392be890c5dcc05e085161a99adae97726"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/model/DeviceStatus.java",
+      "sha256": "21d2b233fac5e51b20c11547ce7a06e81be95ec0af7c28e0eb5836f886b0e1c9"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+      "sha256": "54ae32772e69e94160fd35bed5dd860d2d443997ee925d57fafcb6339128ab42"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/model/FactoryResetState.java",
+      "sha256": "b257fe82429c6a72fda83319500e8781a228c663feb3bccebb55a22ba94ad366"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/model/StudioState.java",
+      "sha256": "fb23df07d5a84fa59154200a6a6edd02164e8720a85271ec8c37f3b07c1d2196"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/platform/windows/WindowsCredentialStore.java",
+      "sha256": "c35a486ee3ebdee11e93b295acd6e831099e659a13029573a85cea847ce11cda"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/protocol/FactoryResetProtocol.java",
+      "sha256": "f87f1651dd1dcf2f00de8fca1d561b9370b7b08adc9dc1b07775af77b729ae7b"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java",
+      "sha256": "34a8b4fa686566265f7a34be062b8ea67b2726ceef38dd70d13f60aaeeec7153"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/AhaTypeConfig.java",
+      "sha256": "336f7ad1d4290fce07aaf06777e67037964f25ee92c901e53e377a2587351470"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/AhaTypeService.java",
+      "sha256": "f3fe64dda7680da7cc0612777a8ee766434bdb4cf9ec9bf98620e6b342e69276"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java",
+      "sha256": "bd994a6e2367cd1c2a735567a3d264e10b94430918e0b0b367e6bb5e6e0157c2"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/BleManager.java",
+      "sha256": "98e740ad36cf34a7361114ebae5a8105ecb33414e3528cd519c9fb252d89c1a8"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/CloudAccountManager.java",
+      "sha256": "6b3f423241166db062de7f6f5e852fff8cefd8627ba92decdae9ca9644104f09"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/FactoryResetService.java",
+      "sha256": "f4159ae81d393c39096a87732d50d61046a30e736c55811f8e2d3f4d30ea315d"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/FactoryResetStore.java",
+      "sha256": "cc1aa2406ef4d7c09999522710fec553d4f330ddbd4d540d0503beff978ef4a3"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/K1RouteService.java",
+      "sha256": "ab5a9c288849bc3e5c3ebc7756d974b793bf27f30e723b2ef39b7d7ca109d0a0"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+      "sha256": "5a9ce47407f08adbeecf4074c96e4fdc4db11b16e8cfa2241d1df804dd880c3e"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/service/VoiceInputManager.java",
+      "sha256": "b9d1f5ee4f6c66300afd80beb26ad924d0cc1d1c81a72c4f88994db41745992a"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/util/StudioStore.java",
+      "sha256": "7e719ec0b0dd2ea64dd7effa4d28ee95d4088d64641498c23644ffa68164a0cb"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/view/CanvasController.java",
+      "sha256": "a2a5acaa9fa4ccf61c19b5f7c5ab8028f2881d44b43d4ea1af3a1b4f70b5ec96"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/view/CanvasPane.java",
+      "sha256": "16d0a42fa13c8c2b1aa7c3b065e7db02885a3a3750315e00a60cb260ca5689d0"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/view/CloudAccountDialog.java",
+      "sha256": "6eec46b4acbf04085944a75be1f5c22dac218d5803f2b6f35aa95d840e3a457b"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/view/FactoryResetDialog.java",
+      "sha256": "c23bc1f408aedd7233635719f0d22036a24908a84d10ae5d2159ecfeb9a5549a"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/view/FloatingVoiceNotification.java",
+      "sha256": "b4506ad40802c836ec0fe20a0af9f1298719c61e020b3d0ef0f8ed3de70162dc"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "sha256": "7182c626581ceb7f5d4a459f19bd43f5532e2c56b7dcc8a93f68acaefb639ffd"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/java/com/example/ahakey/view/TopBar.java",
+      "sha256": "d7dbb326ee7a3e4bc01d99514b97ae0bf5ee816a1f7dd42a17407fca834068b9"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/resources/messages_en.properties",
+      "sha256": "90bb6b0b5d7a705a0a71a46b24303a61ade26902919826434aae1e2de6a0d29a"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/main/resources/messages_zh.properties",
+      "sha256": "af5df9f828458112efa48de7f1bec0747a8e235f0d9fe76b2209b04a0270ace0"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/wd010/CheckProcess.java",
+      "sha256": "eecb2b5a8e05a06c7a2ac75ab6b218e3ad7e92ffdb9853ddbbbb820eb213b4c6"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/wd010/CloudChecks.java",
+      "sha256": "71bd26f036ad3d196ea495673f466b4ab470ab3f7db90f0745436219a3722bb7"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/wd010/CloudTransactionUiChecks.java",
+      "sha256": "96bf5a4b27027b0a796f10e56298f6b32f52efab6c49fbf1558899b0f0084f23"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/wd010/CloudUiChecks.java",
+      "sha256": "65e1684d274e6616a66affbd653252e3a1950c51f6966effd4f6784f5b33bf71"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/wd010/QueuedDeliveryChecks.java",
+      "sha256": "3c530fefc2f048086c22c1affab981d84ca4dea902c2dd64e2e6edd0ecf18261"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/wd010/RestoreChecks.java",
+      "sha256": "dbd7aea9390f15434eb9fb6d5161490a240b264925df79b218ed3102a19eccc8"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/wd010/RestorePreparationChecks.java",
+      "sha256": "7cb0420adf1f73e839650c4b02ac9e28aa87fffdd6b57aa210fbb8f3338cb095"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/wd010/RestoreProductionUiChecks.java",
+      "sha256": "0617da923ff36dd75baf8e06fa78dbe7bfdfe18bb4039b7c4c060d2efbd2e2b9"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/wd010/RuntimeRestoreRaceChecks.java",
+      "sha256": "475761ad457ac8d53f496eb12d3e81670a361a25e563f53b6c2ea65695c86524"
+    },
+    {
+      "path": "ahakeyconfig-win-java/src/test/java/com/example/ahakey/wd010/VoiceFinalChecks.java",
+      "sha256": "dbc52f23804f126c1c555bb792d420522284796601b75326e36619f474920e94"
+    },
+    {
+      "path": "ahakeyconfig-win-java/.ahakey-desktop-harness/evidence/20261105-wd010-autonomous-exe-owner.md",
+      "sha256": "83e39ba311c9a06b21834f3acb3d1b74bd6093c6069234a5aaf7b9fb79d1978a"
+    }
+  ],
+  "meaning": "Exact 60-file reviewed candidate plan plus its preserved-foreign Owner authorization; isolated worktree only."
+}

@@ -1,0 +1,503 @@
+PASS 98-byte ordinary payload fits exact record
+PASS 99-byte action cannot overflow envelope
+PASS valid empty ordinary is not missing route bank
+PASS nonzero unused padding
+PASS capability accepted with exact nonce
+PASS wrong nonce
+PASS generic ACK is not route capability
+PASS matching generic FAIL remains unavailable
+PASS trailing frame byte
+PASS unknown capability flags
+PASS USB fixed report preserves embedded markers sub=0 fail=false data=0 prefix=0
+PASS USB actual read length rejects truncation sub=0 fail=false data=0
+PASS USB fixed report preserves embedded markers sub=0 fail=false data=0 prefix=1
+PASS USB actual read length rejects truncation sub=0 fail=false data=0
+PASS USB fixed report preserves embedded markers sub=0 fail=false data=0 prefix=2
+PASS USB actual read length rejects truncation sub=0 fail=false data=0
+PASS USB fixed report preserves embedded markers sub=0 fail=false data=0 prefix=3
+PASS USB actual read length rejects truncation sub=0 fail=false data=0
+PASS BLE binary split sub=0 fail=false data=0 at 1
+PASS BLE binary split sub=0 fail=false data=0 at 2
+PASS BLE binary split sub=0 fail=false data=0 at 3
+PASS BLE binary split sub=0 fail=false data=0 at 4
+PASS BLE binary split sub=0 fail=false data=0 at 5
+PASS BLE binary split sub=0 fail=false data=0 at 6
+PASS BLE binary split sub=0 fail=false data=0 at 7
+PASS BLE binary split sub=0 fail=false data=0 at 8
+PASS BLE binary split sub=0 fail=false data=0 at 9
+PASS BLE binary split sub=0 fail=false data=0 at 10
+PASS BLE binary split sub=0 fail=false data=0 at 11
+PASS BLE binary split sub=0 fail=false data=0 at 12
+PASS BLE binary split sub=0 fail=false data=0 at 13
+PASS BLE coalesced binary replies sub=0 fail=false data=0
+PASS USB rejects invalid bounded footer sub=0 fail=false data=0
+PASS BLE rejects invalid bounded footer sub=0 fail=false data=0
+PASS USB fixed report preserves embedded markers sub=0 fail=true data=0 prefix=0
+PASS USB actual read length rejects truncation sub=0 fail=true data=0
+PASS USB fixed report preserves embedded markers sub=0 fail=true data=0 prefix=1
+PASS USB actual read length rejects truncation sub=0 fail=true data=0
+PASS USB fixed report preserves embedded markers sub=0 fail=true data=0 prefix=2
+PASS USB actual read length rejects truncation sub=0 fail=true data=0
+PASS USB fixed report preserves embedded markers sub=0 fail=true data=0 prefix=3
+PASS USB actual read length rejects truncation sub=0 fail=true data=0
+PASS BLE binary split sub=0 fail=true data=0 at 1
+PASS BLE binary split sub=0 fail=true data=0 at 2
+PASS BLE binary split sub=0 fail=true data=0 at 3
+PASS BLE binary split sub=0 fail=true data=0 at 4
+PASS BLE binary split sub=0 fail=true data=0 at 5
+PASS BLE binary split sub=0 fail=true data=0 at 6
+PASS BLE binary split sub=0 fail=true data=0 at 7
+PASS BLE binary split sub=0 fail=true data=0 at 8
+PASS BLE binary split sub=0 fail=true data=0 at 9
+PASS BLE binary split sub=0 fail=true data=0 at 10
+PASS BLE binary split sub=0 fail=true data=0 at 11
+PASS BLE coalesced binary replies sub=0 fail=true data=0
+PASS USB rejects invalid bounded footer sub=0 fail=true data=0
+PASS BLE rejects invalid bounded footer sub=0 fail=true data=0
+PASS USB fixed report preserves embedded markers sub=16 fail=false data=1 prefix=0
+PASS USB actual read length rejects truncation sub=16 fail=false data=1
+PASS USB fixed report preserves embedded markers sub=16 fail=false data=1 prefix=1
+PASS USB actual read length rejects truncation sub=16 fail=false data=1
+PASS USB fixed report preserves embedded markers sub=16 fail=false data=1 prefix=2
+PASS USB actual read length rejects truncation sub=16 fail=false data=1
+PASS USB fixed report preserves embedded markers sub=16 fail=false data=1 prefix=3
+PASS USB actual read length rejects truncation sub=16 fail=false data=1
+PASS BLE binary split sub=16 fail=false data=1 at 1
+PASS BLE binary split sub=16 fail=false data=1 at 2
+PASS BLE binary split sub=16 fail=false data=1 at 3
+PASS BLE binary split sub=16 fail=false data=1 at 4
+PASS BLE binary split sub=16 fail=false data=1 at 5
+PASS BLE binary split sub=16 fail=false data=1 at 6
+PASS BLE binary split sub=16 fail=false data=1 at 7
+PASS BLE binary split sub=16 fail=false data=1 at 8
+PASS BLE binary split sub=16 fail=false data=1 at 9
+PASS BLE binary split sub=16 fail=false data=1 at 10
+PASS BLE binary split sub=16 fail=false data=1 at 11
+PASS BLE binary split sub=16 fail=false data=1 at 12
+PASS BLE binary split sub=16 fail=false data=1 at 13
+PASS BLE binary split sub=16 fail=false data=1 at 14
+PASS BLE binary split sub=16 fail=false data=1 at 15
+PASS BLE binary split sub=16 fail=false data=1 at 16
+PASS BLE binary split sub=16 fail=false data=1 at 17
+PASS BLE binary split sub=16 fail=false data=1 at 18
+PASS BLE binary split sub=16 fail=false data=1 at 19
+PASS BLE binary split sub=16 fail=false data=1 at 20
+PASS BLE coalesced binary replies sub=16 fail=false data=1
+PASS USB rejects invalid bounded footer sub=16 fail=false data=1
+PASS BLE rejects invalid bounded footer sub=16 fail=false data=1
+PASS USB fixed report preserves embedded markers sub=16 fail=false data=18 prefix=0
+PASS USB actual read length rejects truncation sub=16 fail=false data=18
+PASS USB fixed report preserves embedded markers sub=16 fail=false data=18 prefix=1
+PASS USB actual read length rejects truncation sub=16 fail=false data=18
+PASS USB fixed report preserves embedded markers sub=16 fail=false data=18 prefix=2
+PASS USB actual read length rejects truncation sub=16 fail=false data=18
+PASS USB fixed report preserves embedded markers sub=16 fail=false data=18 prefix=3
+PASS USB actual read length rejects truncation sub=16 fail=false data=18
+PASS BLE binary split sub=16 fail=false data=18 at 1
+PASS BLE binary split sub=16 fail=false data=18 at 2
+PASS BLE binary split sub=16 fail=false data=18 at 3
+PASS BLE binary split sub=16 fail=false data=18 at 4
+PASS BLE binary split sub=16 fail=false data=18 at 5
+PASS BLE binary split sub=16 fail=false data=18 at 6
+PASS BLE binary split sub=16 fail=false data=18 at 7
+PASS BLE binary split sub=16 fail=false data=18 at 8
+PASS BLE binary split sub=16 fail=false data=18 at 9
+PASS BLE binary split sub=16 fail=false data=18 at 10
+PASS BLE binary split sub=16 fail=false data=18 at 11
+PASS BLE binary split sub=16 fail=false data=18 at 12
+PASS BLE binary split sub=16 fail=false data=18 at 13
+PASS BLE binary split sub=16 fail=false data=18 at 14
+PASS BLE binary split sub=16 fail=false data=18 at 15
+PASS BLE binary split sub=16 fail=false data=18 at 16
+PASS BLE binary split sub=16 fail=false data=18 at 17
+PASS BLE binary split sub=16 fail=false data=18 at 18
+PASS BLE binary split sub=16 fail=false data=18 at 19
+PASS BLE binary split sub=16 fail=false data=18 at 20
+PASS BLE binary split sub=16 fail=false data=18 at 21
+PASS BLE binary split sub=16 fail=false data=18 at 22
+PASS BLE binary split sub=16 fail=false data=18 at 23
+PASS BLE binary split sub=16 fail=false data=18 at 24
+PASS BLE binary split sub=16 fail=false data=18 at 25
+PASS BLE binary split sub=16 fail=false data=18 at 26
+PASS BLE binary split sub=16 fail=false data=18 at 27
+PASS BLE binary split sub=16 fail=false data=18 at 28
+PASS BLE binary split sub=16 fail=false data=18 at 29
+PASS BLE binary split sub=16 fail=false data=18 at 30
+PASS BLE binary split sub=16 fail=false data=18 at 31
+PASS BLE binary split sub=16 fail=false data=18 at 32
+PASS BLE binary split sub=16 fail=false data=18 at 33
+PASS BLE binary split sub=16 fail=false data=18 at 34
+PASS BLE binary split sub=16 fail=false data=18 at 35
+PASS BLE binary split sub=16 fail=false data=18 at 36
+PASS BLE binary split sub=16 fail=false data=18 at 37
+PASS BLE coalesced binary replies sub=16 fail=false data=18
+PASS USB rejects invalid bounded footer sub=16 fail=false data=18
+PASS BLE rejects invalid bounded footer sub=16 fail=false data=18
+PASS USB fixed report preserves embedded markers sub=16 fail=false data=42 prefix=0
+PASS USB actual read length rejects truncation sub=16 fail=false data=42
+PASS USB fixed report preserves embedded markers sub=16 fail=false data=42 prefix=1
+PASS USB actual read length rejects truncation sub=16 fail=false data=42
+PASS USB fixed report preserves embedded markers sub=16 fail=false data=42 prefix=2
+PASS USB actual read length rejects truncation sub=16 fail=false data=42
+PASS USB fixed report preserves embedded markers sub=16 fail=false data=42 prefix=3
+PASS USB actual read length rejects truncation sub=16 fail=false data=42
+PASS BLE binary split sub=16 fail=false data=42 at 1
+PASS BLE binary split sub=16 fail=false data=42 at 2
+PASS BLE binary split sub=16 fail=false data=42 at 3
+PASS BLE binary split sub=16 fail=false data=42 at 4
+PASS BLE binary split sub=16 fail=false data=42 at 5
+PASS BLE binary split sub=16 fail=false data=42 at 6
+PASS BLE binary split sub=16 fail=false data=42 at 7
+PASS BLE binary split sub=16 fail=false data=42 at 8
+PASS BLE binary split sub=16 fail=false data=42 at 9
+PASS BLE binary split sub=16 fail=false data=42 at 10
+PASS BLE binary split sub=16 fail=false data=42 at 11
+PASS BLE binary split sub=16 fail=false data=42 at 12
+PASS BLE binary split sub=16 fail=false data=42 at 13
+PASS BLE binary split sub=16 fail=false data=42 at 14
+PASS BLE binary split sub=16 fail=false data=42 at 15
+PASS BLE binary split sub=16 fail=false data=42 at 16
+PASS BLE binary split sub=16 fail=false data=42 at 17
+PASS BLE binary split sub=16 fail=false data=42 at 18
+PASS BLE binary split sub=16 fail=false data=42 at 19
+PASS BLE binary split sub=16 fail=false data=42 at 20
+PASS BLE binary split sub=16 fail=false data=42 at 21
+PASS BLE binary split sub=16 fail=false data=42 at 22
+PASS BLE binary split sub=16 fail=false data=42 at 23
+PASS BLE binary split sub=16 fail=false data=42 at 24
+PASS BLE binary split sub=16 fail=false data=42 at 25
+PASS BLE binary split sub=16 fail=false data=42 at 26
+PASS BLE binary split sub=16 fail=false data=42 at 27
+PASS BLE binary split sub=16 fail=false data=42 at 28
+PASS BLE binary split sub=16 fail=false data=42 at 29
+PASS BLE binary split sub=16 fail=false data=42 at 30
+PASS BLE binary split sub=16 fail=false data=42 at 31
+PASS BLE binary split sub=16 fail=false data=42 at 32
+PASS BLE binary split sub=16 fail=false data=42 at 33
+PASS BLE binary split sub=16 fail=false data=42 at 34
+PASS BLE binary split sub=16 fail=false data=42 at 35
+PASS BLE binary split sub=16 fail=false data=42 at 36
+PASS BLE binary split sub=16 fail=false data=42 at 37
+PASS BLE binary split sub=16 fail=false data=42 at 38
+PASS BLE binary split sub=16 fail=false data=42 at 39
+PASS BLE binary split sub=16 fail=false data=42 at 40
+PASS BLE binary split sub=16 fail=false data=42 at 41
+PASS BLE binary split sub=16 fail=false data=42 at 42
+PASS BLE binary split sub=16 fail=false data=42 at 43
+PASS BLE binary split sub=16 fail=false data=42 at 44
+PASS BLE binary split sub=16 fail=false data=42 at 45
+PASS BLE binary split sub=16 fail=false data=42 at 46
+PASS BLE binary split sub=16 fail=false data=42 at 47
+PASS BLE binary split sub=16 fail=false data=42 at 48
+PASS BLE binary split sub=16 fail=false data=42 at 49
+PASS BLE binary split sub=16 fail=false data=42 at 50
+PASS BLE binary split sub=16 fail=false data=42 at 51
+PASS BLE binary split sub=16 fail=false data=42 at 52
+PASS BLE binary split sub=16 fail=false data=42 at 53
+PASS BLE binary split sub=16 fail=false data=42 at 54
+PASS BLE binary split sub=16 fail=false data=42 at 55
+PASS BLE binary split sub=16 fail=false data=42 at 56
+PASS BLE binary split sub=16 fail=false data=42 at 57
+PASS BLE binary split sub=16 fail=false data=42 at 58
+PASS BLE binary split sub=16 fail=false data=42 at 59
+PASS BLE binary split sub=16 fail=false data=42 at 60
+PASS BLE binary split sub=16 fail=false data=42 at 61
+PASS BLE coalesced binary replies sub=16 fail=false data=42
+PASS USB rejects invalid bounded footer sub=16 fail=false data=42
+PASS BLE rejects invalid bounded footer sub=16 fail=false data=42
+PASS USB fixed report preserves embedded markers sub=16 fail=true data=1 prefix=0
+PASS USB actual read length rejects truncation sub=16 fail=true data=1
+PASS USB fixed report preserves embedded markers sub=16 fail=true data=1 prefix=1
+PASS USB actual read length rejects truncation sub=16 fail=true data=1
+PASS USB fixed report preserves embedded markers sub=16 fail=true data=1 prefix=2
+PASS USB actual read length rejects truncation sub=16 fail=true data=1
+PASS USB fixed report preserves embedded markers sub=16 fail=true data=1 prefix=3
+PASS USB actual read length rejects truncation sub=16 fail=true data=1
+PASS BLE binary split sub=16 fail=true data=1 at 1
+PASS BLE binary split sub=16 fail=true data=1 at 2
+PASS BLE binary split sub=16 fail=true data=1 at 3
+PASS BLE binary split sub=16 fail=true data=1 at 4
+PASS BLE binary split sub=16 fail=true data=1 at 5
+PASS BLE binary split sub=16 fail=true data=1 at 6
+PASS BLE binary split sub=16 fail=true data=1 at 7
+PASS BLE binary split sub=16 fail=true data=1 at 8
+PASS BLE binary split sub=16 fail=true data=1 at 9
+PASS BLE binary split sub=16 fail=true data=1 at 10
+PASS BLE binary split sub=16 fail=true data=1 at 11
+PASS BLE coalesced binary replies sub=16 fail=true data=1
+PASS USB rejects invalid bounded footer sub=16 fail=true data=1
+PASS BLE rejects invalid bounded footer sub=16 fail=true data=1
+PASS USB fixed report preserves embedded markers sub=16 fail=true data=18 prefix=0
+PASS USB actual read length rejects truncation sub=16 fail=true data=18
+PASS USB fixed report preserves embedded markers sub=16 fail=true data=18 prefix=1
+PASS USB actual read length rejects truncation sub=16 fail=true data=18
+PASS USB fixed report preserves embedded markers sub=16 fail=true data=18 prefix=2
+PASS USB actual read length rejects truncation sub=16 fail=true data=18
+PASS USB fixed report preserves embedded markers sub=16 fail=true data=18 prefix=3
+PASS USB actual read length rejects truncation sub=16 fail=true data=18
+PASS BLE binary split sub=16 fail=true data=18 at 1
+PASS BLE binary split sub=16 fail=true data=18 at 2
+PASS BLE binary split sub=16 fail=true data=18 at 3
+PASS BLE binary split sub=16 fail=true data=18 at 4
+PASS BLE binary split sub=16 fail=true data=18 at 5
+PASS BLE binary split sub=16 fail=true data=18 at 6
+PASS BLE binary split sub=16 fail=true data=18 at 7
+PASS BLE binary split sub=16 fail=true data=18 at 8
+PASS BLE binary split sub=16 fail=true data=18 at 9
+PASS BLE binary split sub=16 fail=true data=18 at 10
+PASS BLE binary split sub=16 fail=true data=18 at 11
+PASS BLE coalesced binary replies sub=16 fail=true data=18
+PASS USB rejects invalid bounded footer sub=16 fail=true data=18
+PASS BLE rejects invalid bounded footer sub=16 fail=true data=18
+PASS USB fixed report preserves embedded markers sub=16 fail=true data=42 prefix=0
+PASS USB actual read length rejects truncation sub=16 fail=true data=42
+PASS USB fixed report preserves embedded markers sub=16 fail=true data=42 prefix=1
+PASS USB actual read length rejects truncation sub=16 fail=true data=42
+PASS USB fixed report preserves embedded markers sub=16 fail=true data=42 prefix=2
+PASS USB actual read length rejects truncation sub=16 fail=true data=42
+PASS USB fixed report preserves embedded markers sub=16 fail=true data=42 prefix=3
+PASS USB actual read length rejects truncation sub=16 fail=true data=42
+PASS BLE binary split sub=16 fail=true data=42 at 1
+PASS BLE binary split sub=16 fail=true data=42 at 2
+PASS BLE binary split sub=16 fail=true data=42 at 3
+PASS BLE binary split sub=16 fail=true data=42 at 4
+PASS BLE binary split sub=16 fail=true data=42 at 5
+PASS BLE binary split sub=16 fail=true data=42 at 6
+PASS BLE binary split sub=16 fail=true data=42 at 7
+PASS BLE binary split sub=16 fail=true data=42 at 8
+PASS BLE binary split sub=16 fail=true data=42 at 9
+PASS BLE binary split sub=16 fail=true data=42 at 10
+PASS BLE binary split sub=16 fail=true data=42 at 11
+PASS BLE coalesced binary replies sub=16 fail=true data=42
+PASS USB rejects invalid bounded footer sub=16 fail=true data=42
+PASS BLE rejects invalid bounded footer sub=16 fail=true data=42
+PASS USB fixed report preserves embedded markers sub=32 fail=false data=0 prefix=0
+PASS USB actual read length rejects truncation sub=32 fail=false data=0
+PASS USB fixed report preserves embedded markers sub=32 fail=false data=0 prefix=1
+PASS USB actual read length rejects truncation sub=32 fail=false data=0
+PASS USB fixed report preserves embedded markers sub=32 fail=false data=0 prefix=2
+PASS USB actual read length rejects truncation sub=32 fail=false data=0
+PASS USB fixed report preserves embedded markers sub=32 fail=false data=0 prefix=3
+PASS USB actual read length rejects truncation sub=32 fail=false data=0
+PASS BLE binary split sub=32 fail=false data=0 at 1
+PASS BLE binary split sub=32 fail=false data=0 at 2
+PASS BLE binary split sub=32 fail=false data=0 at 3
+PASS BLE binary split sub=32 fail=false data=0 at 4
+PASS BLE binary split sub=32 fail=false data=0 at 5
+PASS BLE binary split sub=32 fail=false data=0 at 6
+PASS BLE binary split sub=32 fail=false data=0 at 7
+PASS BLE binary split sub=32 fail=false data=0 at 8
+PASS BLE binary split sub=32 fail=false data=0 at 9
+PASS BLE binary split sub=32 fail=false data=0 at 10
+PASS BLE binary split sub=32 fail=false data=0 at 11
+PASS BLE binary split sub=32 fail=false data=0 at 12
+PASS BLE binary split sub=32 fail=false data=0 at 13
+PASS BLE binary split sub=32 fail=false data=0 at 14
+PASS BLE binary split sub=32 fail=false data=0 at 15
+PASS BLE binary split sub=32 fail=false data=0 at 16
+PASS BLE binary split sub=32 fail=false data=0 at 17
+PASS BLE coalesced binary replies sub=32 fail=false data=0
+PASS USB rejects invalid bounded footer sub=32 fail=false data=0
+PASS BLE rejects invalid bounded footer sub=32 fail=false data=0
+PASS USB fixed report preserves embedded markers sub=32 fail=true data=0 prefix=0
+PASS USB actual read length rejects truncation sub=32 fail=true data=0
+PASS USB fixed report preserves embedded markers sub=32 fail=true data=0 prefix=1
+PASS USB actual read length rejects truncation sub=32 fail=true data=0
+PASS USB fixed report preserves embedded markers sub=32 fail=true data=0 prefix=2
+PASS USB actual read length rejects truncation sub=32 fail=true data=0
+PASS USB fixed report preserves embedded markers sub=32 fail=true data=0 prefix=3
+PASS USB actual read length rejects truncation sub=32 fail=true data=0
+PASS BLE binary split sub=32 fail=true data=0 at 1
+PASS BLE binary split sub=32 fail=true data=0 at 2
+PASS BLE binary split sub=32 fail=true data=0 at 3
+PASS BLE binary split sub=32 fail=true data=0 at 4
+PASS BLE binary split sub=32 fail=true data=0 at 5
+PASS BLE binary split sub=32 fail=true data=0 at 6
+PASS BLE binary split sub=32 fail=true data=0 at 7
+PASS BLE binary split sub=32 fail=true data=0 at 8
+PASS BLE binary split sub=32 fail=true data=0 at 9
+PASS BLE binary split sub=32 fail=true data=0 at 10
+PASS BLE binary split sub=32 fail=true data=0 at 11
+PASS BLE coalesced binary replies sub=32 fail=true data=0
+PASS USB rejects invalid bounded footer sub=32 fail=true data=0
+PASS BLE rejects invalid bounded footer sub=32 fail=true data=0
+PASS USB fixed report preserves embedded markers sub=33 fail=false data=0 prefix=0
+PASS USB actual read length rejects truncation sub=33 fail=false data=0
+PASS USB fixed report preserves embedded markers sub=33 fail=false data=0 prefix=1
+PASS USB actual read length rejects truncation sub=33 fail=false data=0
+PASS USB fixed report preserves embedded markers sub=33 fail=false data=0 prefix=2
+PASS USB actual read length rejects truncation sub=33 fail=false data=0
+PASS USB fixed report preserves embedded markers sub=33 fail=false data=0 prefix=3
+PASS USB actual read length rejects truncation sub=33 fail=false data=0
+PASS BLE binary split sub=33 fail=false data=0 at 1
+PASS BLE binary split sub=33 fail=false data=0 at 2
+PASS BLE binary split sub=33 fail=false data=0 at 3
+PASS BLE binary split sub=33 fail=false data=0 at 4
+PASS BLE binary split sub=33 fail=false data=0 at 5
+PASS BLE binary split sub=33 fail=false data=0 at 6
+PASS BLE binary split sub=33 fail=false data=0 at 7
+PASS BLE binary split sub=33 fail=false data=0 at 8
+PASS BLE binary split sub=33 fail=false data=0 at 9
+PASS BLE binary split sub=33 fail=false data=0 at 10
+PASS BLE binary split sub=33 fail=false data=0 at 11
+PASS BLE binary split sub=33 fail=false data=0 at 12
+PASS BLE binary split sub=33 fail=false data=0 at 13
+PASS BLE binary split sub=33 fail=false data=0 at 14
+PASS BLE binary split sub=33 fail=false data=0 at 15
+PASS BLE coalesced binary replies sub=33 fail=false data=0
+PASS USB rejects invalid bounded footer sub=33 fail=false data=0
+PASS BLE rejects invalid bounded footer sub=33 fail=false data=0
+PASS USB fixed report preserves embedded markers sub=33 fail=true data=0 prefix=0
+PASS USB actual read length rejects truncation sub=33 fail=true data=0
+PASS USB fixed report preserves embedded markers sub=33 fail=true data=0 prefix=1
+PASS USB actual read length rejects truncation sub=33 fail=true data=0
+PASS USB fixed report preserves embedded markers sub=33 fail=true data=0 prefix=2
+PASS USB actual read length rejects truncation sub=33 fail=true data=0
+PASS USB fixed report preserves embedded markers sub=33 fail=true data=0 prefix=3
+PASS USB actual read length rejects truncation sub=33 fail=true data=0
+PASS BLE binary split sub=33 fail=true data=0 at 1
+PASS BLE binary split sub=33 fail=true data=0 at 2
+PASS BLE binary split sub=33 fail=true data=0 at 3
+PASS BLE binary split sub=33 fail=true data=0 at 4
+PASS BLE binary split sub=33 fail=true data=0 at 5
+PASS BLE binary split sub=33 fail=true data=0 at 6
+PASS BLE binary split sub=33 fail=true data=0 at 7
+PASS BLE binary split sub=33 fail=true data=0 at 8
+PASS BLE binary split sub=33 fail=true data=0 at 9
+PASS BLE binary split sub=33 fail=true data=0 at 10
+PASS BLE binary split sub=33 fail=true data=0 at 11
+PASS BLE coalesced binary replies sub=33 fail=true data=0
+PASS USB rejects invalid bounded footer sub=33 fail=true data=0
+PASS BLE rejects invalid bounded footer sub=33 fail=true data=0
+PASS USB fixed report preserves embedded markers sub=34 fail=false data=0 prefix=0
+PASS USB actual read length rejects truncation sub=34 fail=false data=0
+PASS USB fixed report preserves embedded markers sub=34 fail=false data=0 prefix=1
+PASS USB actual read length rejects truncation sub=34 fail=false data=0
+PASS USB fixed report preserves embedded markers sub=34 fail=false data=0 prefix=2
+PASS USB actual read length rejects truncation sub=34 fail=false data=0
+PASS USB fixed report preserves embedded markers sub=34 fail=false data=0 prefix=3
+PASS USB actual read length rejects truncation sub=34 fail=false data=0
+PASS BLE binary split sub=34 fail=false data=0 at 1
+PASS BLE binary split sub=34 fail=false data=0 at 2
+PASS BLE binary split sub=34 fail=false data=0 at 3
+PASS BLE binary split sub=34 fail=false data=0 at 4
+PASS BLE binary split sub=34 fail=false data=0 at 5
+PASS BLE binary split sub=34 fail=false data=0 at 6
+PASS BLE binary split sub=34 fail=false data=0 at 7
+PASS BLE binary split sub=34 fail=false data=0 at 8
+PASS BLE binary split sub=34 fail=false data=0 at 9
+PASS BLE binary split sub=34 fail=false data=0 at 10
+PASS BLE binary split sub=34 fail=false data=0 at 11
+PASS BLE binary split sub=34 fail=false data=0 at 12
+PASS BLE binary split sub=34 fail=false data=0 at 13
+PASS BLE binary split sub=34 fail=false data=0 at 14
+PASS BLE binary split sub=34 fail=false data=0 at 15
+PASS BLE binary split sub=34 fail=false data=0 at 16
+PASS BLE coalesced binary replies sub=34 fail=false data=0
+PASS USB rejects invalid bounded footer sub=34 fail=false data=0
+PASS BLE rejects invalid bounded footer sub=34 fail=false data=0
+PASS USB fixed report preserves embedded markers sub=34 fail=true data=0 prefix=0
+PASS USB actual read length rejects truncation sub=34 fail=true data=0
+PASS USB fixed report preserves embedded markers sub=34 fail=true data=0 prefix=1
+PASS USB actual read length rejects truncation sub=34 fail=true data=0
+PASS USB fixed report preserves embedded markers sub=34 fail=true data=0 prefix=2
+PASS USB actual read length rejects truncation sub=34 fail=true data=0
+PASS USB fixed report preserves embedded markers sub=34 fail=true data=0 prefix=3
+PASS USB actual read length rejects truncation sub=34 fail=true data=0
+PASS BLE binary split sub=34 fail=true data=0 at 1
+PASS BLE binary split sub=34 fail=true data=0 at 2
+PASS BLE binary split sub=34 fail=true data=0 at 3
+PASS BLE binary split sub=34 fail=true data=0 at 4
+PASS BLE binary split sub=34 fail=true data=0 at 5
+PASS BLE binary split sub=34 fail=true data=0 at 6
+PASS BLE binary split sub=34 fail=true data=0 at 7
+PASS BLE binary split sub=34 fail=true data=0 at 8
+PASS BLE binary split sub=34 fail=true data=0 at 9
+PASS BLE binary split sub=34 fail=true data=0 at 10
+PASS BLE binary split sub=34 fail=true data=0 at 11
+PASS BLE coalesced binary replies sub=34 fail=true data=0
+PASS USB rejects invalid bounded footer sub=34 fail=true data=0
+PASS BLE rejects invalid bounded footer sub=34 fail=true data=0
+PASS exact reported nonce DDCC is a 14-byte reply
+PASS exact legacy ACK retained
+PASS read without bounded outstanding request rejected
+PASS invalid requested slice bound 0
+PASS invalid requested slice bound 43
+PASS invalid requested slice bound 255
+PASS unknown subcommand never delimiter scans
+PASS unknown subcommand never delimiter scans
+2026-11-05 17:37:28.786 [ForkJoinPool.commonPool-worker-1] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01004D000000CCDD
+PASS actual K1 wait entered success
+2026-11-05 17:37:28.789 [ForkJoinPool.commonPool-worker-1] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+PASS maintenance cannot enter active K1 transaction
+2026-11-05 17:37:28.793 [main] INFO  c.e.a.s.AiRuntimeDisplayService - Runtime event platform=Kimi session=absent matchedSession=absent state=USER_PROMPT_SUBMIT source=UNKNOWN result=PENDING connection=0
+PASS SINGLE Hook pending during K1 successUSER_PROMPT_SUBMIT
+2026-11-05 17:37:28.814 [main] INFO  c.e.a.s.AiRuntimeDisplayService - Runtime event platform=Kimi session=absent matchedSession=absent state=TASK_COMPLETED source=UNKNOWN result=PENDING connection=0
+PASS SINGLE Hook pending during K1 successTASK_COMPLETED
+PASS no runtime writes while K1 owns transaction
+2026-11-05 17:37:28.815 [main] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 14
+2026-11-05 17:37:28.816 [main] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 00 4D 00 00 00 03 04 CC DD 
+2026-11-05 17:37:28.816 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:37:28.816 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 17:37:28.818 [ForkJoinPool.commonPool-worker-1] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 17:37:28.819 [ForkJoinPool.commonPool-worker-1] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9006CCDD
+PASS idle callback outside command and transaction locks
+PASS success and failed K1 transactions notify safe release success
+PASS release flushes latest once unless expired or cross-generation success
+PASS maintenance invalidates pending fact without later replay
+2026-11-05 17:37:28.823 [ForkJoinPool.commonPool-worker-1] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01004D000000CCDD
+PASS actual K1 wait entered failure
+PASS maintenance cannot enter active K1 transaction
+2026-11-05 17:37:28.824 [ForkJoinPool.commonPool-worker-1] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 17:37:28.825 [main] INFO  c.e.a.s.AiRuntimeDisplayService - Runtime event platform=Kimi session=absent matchedSession=absent state=USER_PROMPT_SUBMIT source=UNKNOWN result=PENDING connection=0
+PASS SINGLE Hook pending during K1 failureUSER_PROMPT_SUBMIT
+2026-11-05 17:37:28.825 [main] INFO  c.e.a.s.AiRuntimeDisplayService - Runtime event platform=Kimi session=absent matchedSession=absent state=TASK_COMPLETED source=UNKNOWN result=PENDING connection=0
+PASS SINGLE Hook pending during K1 failureTASK_COMPLETED
+PASS no runtime writes while K1 owns transaction
+2026-11-05 17:37:28.825 [main] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 12
+2026-11-05 17:37:28.826 [main] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 01 01 00 4D 00 00 00 CC DD 
+2026-11-05 17:37:28.826 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:37:28.826 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 17:37:28.826 [ForkJoinPool.commonPool-worker-1] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 17:37:28.826 [ForkJoinPool.commonPool-worker-1] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9006CCDD
+PASS idle callback outside command and transaction locks
+PASS success and failed K1 transactions notify safe release failure
+PASS release flushes latest once unless expired or cross-generation failure
+PASS maintenance invalidates pending fact without later replay
+2026-11-05 17:37:28.828 [ForkJoinPool.commonPool-worker-1] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01004D000000CCDD
+PASS actual K1 wait entered expired
+PASS maintenance cannot enter active K1 transaction
+2026-11-05 17:37:28.829 [ForkJoinPool.commonPool-worker-1] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 17:37:28.829 [main] INFO  c.e.a.s.AiRuntimeDisplayService - Runtime event platform=Kimi session=absent matchedSession=absent state=USER_PROMPT_SUBMIT source=UNKNOWN result=PENDING connection=0
+PASS SINGLE Hook pending during K1 expiredUSER_PROMPT_SUBMIT
+2026-11-05 17:37:28.830 [main] INFO  c.e.a.s.AiRuntimeDisplayService - Runtime event platform=Kimi session=absent matchedSession=absent state=TASK_COMPLETED source=UNKNOWN result=PENDING connection=0
+PASS SINGLE Hook pending during K1 expiredTASK_COMPLETED
+PASS no runtime writes while K1 owns transaction
+2026-11-05 17:37:28.830 [main] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 14
+2026-11-05 17:37:28.830 [main] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 00 4D 00 00 00 03 04 CC DD 
+2026-11-05 17:37:28.830 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:37:28.830 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 17:37:28.830 [ForkJoinPool.commonPool-worker-1] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+PASS idle callback outside command and transaction locks
+PASS success and failed K1 transactions notify safe release expired
+PASS release flushes latest once unless expired or cross-generation expired
+PASS maintenance invalidates pending fact without later replay
+2026-11-05 17:37:28.831 [ForkJoinPool.commonPool-worker-1] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01004D000000CCDD
+PASS actual K1 wait entered generation
+PASS maintenance cannot enter active K1 transaction
+2026-11-05 17:37:28.833 [ForkJoinPool.commonPool-worker-1] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 17:37:28.833 [main] INFO  c.e.a.s.AiRuntimeDisplayService - Runtime event platform=Kimi session=absent matchedSession=absent state=USER_PROMPT_SUBMIT source=UNKNOWN result=PENDING connection=0
+PASS SINGLE Hook pending during K1 generationUSER_PROMPT_SUBMIT
+2026-11-05 17:37:28.833 [main] INFO  c.e.a.s.AiRuntimeDisplayService - Runtime event platform=Kimi session=absent matchedSession=absent state=TASK_COMPLETED source=UNKNOWN result=PENDING connection=0
+PASS SINGLE Hook pending during K1 generationTASK_COMPLETED
+PASS no runtime writes while K1 owns transaction
+2026-11-05 17:37:28.834 [main] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 14
+2026-11-05 17:37:28.834 [main] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 00 4D 00 00 00 03 04 CC DD 
+2026-11-05 17:37:28.835 [main] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 17:37:28.835 [main] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 17:37:28.835 [ForkJoinPool.commonPool-worker-1] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+PASS idle callback outside command and transaction locks
+PASS success and failed K1 transactions notify safe release generation
+PASS release flushes latest once unless expired or cross-generation generation
+PASS maintenance invalidates pending fact without later replay
+PASS strict K1 v1 frame, real USB/BLE extraction, and SINGLE Hook interleaving

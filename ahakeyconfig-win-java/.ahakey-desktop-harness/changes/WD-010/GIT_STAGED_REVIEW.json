@@ -1,0 +1,10 @@
+{
+  "at": "2026-11-05T09:43:29.159096+00:00",
+  "exact_staged_file_count": 61,
+  "source_and_index_equivalent": true,
+  "production_whitespace_check_exit": 0,
+  "full_check_exit": 2,
+  "full_check_explanation": "All warnings are existing blank-context/removed whitespace represented inside immutable ACTUAL_DIFF.txt, not new production whitespace. Preserve reviewed artifact bytes; no rule or Git configuration modified.",
+  "review_pack": "c86361128abf1edad99e937549c6f7ba4cb5901f17360850624ed4350ac4688f",
+  "remote_baseline": "46c5f3ffec7135470ee8cf12e76342eaab130e7d"
+}

@@ -1,0 +1,39 @@
+[INFO] Scanning for projects...
+[WARNING] 
+[WARNING] Some problems were encountered while building the effective model for com.example:ahakey-studio:jar:1.0.0
+[WARNING] 'dependencies.dependency.systemPath' for com.k2fsa.sherpa:sherpa-onnx-java-api:jar should not point at files within the project directory, ${project.basedir}/third-party/sherpa-onnx-java-api-1.13.3.jar will be unresolvable by dependent projects @ line 97, column 25
+[WARNING] 
+[WARNING] It is highly recommended to fix these problems because they threaten the stability of your build.
+[WARNING] 
+[WARNING] For this reason, future Maven versions might no longer support building such malformed projects.
+[WARNING] 
+[INFO] 
+[INFO] ---------------------< com.example:ahakey-studio >----------------------
+[INFO] Building ahakey-studio 1.0.0
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[WARNING] 6 problems were encountered while building the effective model for org.openjfx:javafx-controls:jar:17.0.10 during dependency collection step for project (use -X to see details)
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ ahakey-studio ---
+[INFO] Copying 31 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- resources:3.3.1:copy-resources (copy-resources) @ ahakey-studio ---
+[INFO] Copying 31 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.11.0:compile (default-compile) @ ahakey-studio ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ ahakey-studio ---
+[INFO] skip non existing resourceDirectory C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.11.0:testCompile (default-testCompile) @ ahakey-studio ---
+[INFO] Changes detected - recompiling the module! :source
+[INFO] Compiling 44 source files with javac [debug target 17] to target\test-classes
+[INFO] /C:/Users/20825/Desktop/windows��������/desktop/ahakeyconfig-win-java/src/test/java/com/example/ahakey/packaging/K1RouteEditorChecks.java: C:\Users\20825\Desktop\windows��������\desktop\ahakeyconfig-win-java\src\test\java\com\example\ahakey\packaging\K1RouteEditorChecks.javaʹ����δ�����򲻰�ȫ�Ĳ�����
+[INFO] /C:/Users/20825/Desktop/windows��������/desktop/ahakeyconfig-win-java/src/test/java/com/example/ahakey/packaging/K1RouteEditorChecks.java: �й���ϸ��Ϣ, ��ʹ�� -Xlint:unchecked ���±��롣
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  5.735 s
+[INFO] Finished at: 2026-11-05T13:02:59+08:00
+[INFO] ------------------------------------------------------------------------

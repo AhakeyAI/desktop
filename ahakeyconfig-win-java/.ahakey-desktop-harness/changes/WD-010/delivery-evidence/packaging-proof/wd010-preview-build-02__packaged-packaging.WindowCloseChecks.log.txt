@@ -1,0 +1,26 @@
+Nov 05, 2026 5:37:41 PM com.sun.javafx.application.PlatformImpl startup
+警告: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @2d6e8792'
+PASS tray supported before testing production X
+PASS frozen HEX for download
+PASS actual failed service retains gate
+PASS actual X hides after ended failed attempt cleanup
+PASS X does not reserve application exit
+PASS explicit tray exit gate admits ended cleanup
+PASS frozen HEX for download
+PASS actual failed service retains gate
+PASS update window close releases ended failed maintenance
+PASS frozen HEX for download
+PASS actual failed service retains gate
+PASS cleanup enters worker
+PASS FX remains responsive while cleanup waits
+PASS worker owns cleanup
+PASS unknown process stays protected
+PASS duplicate X does not enqueue cleanup twice
+PASS blocked X keeps primary visible
+PASS blocked update dialog stays visible
+PASS blocked dialog notice does not stack
+PASS frozen HEX for download
+PASS actual failed service retains gate
+PASS cleanup completed before delayed callback
+PASS late callback cannot hide a new maintenance attempt
+PASS actual close handlers; checks=23; no App.start/shutdown, WCH, device I/O or process kill

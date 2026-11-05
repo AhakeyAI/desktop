@@ -1,0 +1,66 @@
+[
+  {
+    "suite": "CloudTransactionUiChecks",
+    "command": [
+      "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+      "-Dfile.encoding=UTF-8",
+      "-Duser.home=target/wd010-r3-CloudTransactionUiChecks-01",
+      "-cp",
+      "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+      "com.example.ahakey.wd010.CheckProcess",
+      "com.example.ahakey.service.CloudTransactionUiChecks"
+    ],
+    "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "exit": 0,
+    "log": ".ahakey-desktop-harness/changes/WD-010/evidence/r3-CloudTransactionUiChecks-01.log",
+    "sha256": "f6960b8698d30798b7d59988601166a5c4c669376f1b58adeda0a339fcaae10d"
+  },
+  {
+    "suite": "CloudChecks",
+    "command": [
+      "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+      "-Dfile.encoding=UTF-8",
+      "-Duser.home=target/wd010-r3-CloudChecks-01",
+      "-cp",
+      "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+      "com.example.ahakey.wd010.CheckProcess",
+      "com.example.ahakey.service.CloudChecks"
+    ],
+    "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "exit": 0,
+    "log": ".ahakey-desktop-harness/changes/WD-010/evidence/r3-CloudChecks-01.log",
+    "sha256": "af5e12ba15dc0ef20eeb4da09808a5b4c51a32c01433a38ae18725db8032df5f"
+  },
+  {
+    "suite": "VoiceFinalChecks",
+    "command": [
+      "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+      "-Dfile.encoding=UTF-8",
+      "-Duser.home=target/wd010-r3-VoiceFinalChecks-01",
+      "-cp",
+      "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+      "com.example.ahakey.wd010.CheckProcess",
+      "com.example.ahakey.service.VoiceFinalChecks"
+    ],
+    "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "exit": 0,
+    "log": ".ahakey-desktop-harness/changes/WD-010/evidence/r3-VoiceFinalChecks-01.log",
+    "sha256": "e16f2d4cf8430cf6e08ce5a018769d8d57b0c1b91e423cb1b44e396b82a4d828"
+  },
+  {
+    "suite": "CloudUiChecks",
+    "command": [
+      "D:/jdk-17.0.19.10-hotspot/bin/java.exe",
+      "-Dfile.encoding=UTF-8",
+      "-Duser.home=target/wd010-r3-CloudUiChecks-01",
+      "-cp",
+      "target/classes;target/test-classes;target/lib/*;third-party/sherpa-onnx-java-api-1.13.3.jar;.m2repo/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+      "com.example.ahakey.wd010.CheckProcess",
+      "com.example.ahakey.service.CloudUiChecks"
+    ],
+    "cwd": "C:\\Users\\20825\\Desktop\\windows软件代码\\desktop\\ahakeyconfig-win-java",
+    "exit": 0,
+    "log": ".ahakey-desktop-harness/changes/WD-010/evidence/r3-CloudUiChecks-01.log",
+    "sha256": "dfe8d8461cd023acb0830931c533326beeddea14277608c42fd62e318dce910a"
+  }
+]

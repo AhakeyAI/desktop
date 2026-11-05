@@ -1,0 +1,27 @@
+PASS double close cannot consume another ordinary lease
+PASS whole normal transaction excludes maintenance
+PASS USB bypass entered physical write
+PASS maintenance waits across physical USB write
+PASS ordinary command
+PASS data bypass
+PASS query snapshot USB bypass
+PASS mode readback USB bypass
+PASS display lease
+PASS sleep setter
+PASS mode setter
+PASS runtime fact not SENT
+PASS TCP bottom gate 3
+PASS TCP bottom gate 4
+PASS TCP bottom gate 2
+PASS TCP bottom gate 1
+PASS no bypass wrote
+2026-11-05 11:28:14.383 [main] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB97CCDD
+PASS backup read allowed
+PASS backup token cannot write side
+PASS backup token cannot save
+PASS exit excluded
+PASS epoch invalidates deferred callbacks
+PASS same port cannot override container conflict
+PASS same container different port conflict
+PASS live tool cannot release
+PASS maintenance actual BleManager paths; memory USB only

@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "id": "WD-010",
+  "decision": "fail",
+  "reviewer_role": "independent DLA",
+  "session": "01a1a970-ac70-77a3-bfc4-3e4ebe225604",
+  "pack_sha256": "251455d9e58d17bc8e54bbd2115b2532f7ac1b9e5a1f6467941591b4d6bafead",
+  "code_fingerprint": "fc132cf04011722017bbaa714aa8fc2e0f611f9a899fafd8243af816a52749ed",
+  "diff_sha256": "0af9c792d6f6f4f7eaf909ec33cb2ed059218f2e9068c449e26016f4ccbd271c",
+  "analysis": {
+    "conclusion": "完整阅读冻结累计差异的37个文件及必要生产调用链后，确认1项P1和2项P2实现缺陷。前次EF-01至EF-04已针对性修复；本包仍不可登记PASS。原DLA提出的恢复提交前失败疑点已独立沿生产adapter、运行偏好存储、异常分支及后续查询核实。",
+    "method": "静态逐hunk审阅、调用链与合同交叉核对、独立哈希校验、提交测试源码与实际日志检查。未独立重跑测试，以下发现均为明确源码路径推导，不宣称动态复现。",
+    "scope": "J007/J017/J018/J019；云端账号、凭据迁移、最终文本处理、恢复协议/隔离/持久化/读回、WD009及既有行为交叉影响。不是EXE或真机验收。",
+    "identity_audit": {
+      "current_changed_file_hashes": "37/37匹配IMPLEMENTATION_CODE_IDENTITY.json；当前文件可用于定位冻结差异。",
+      "log_manifest": "46/46日志及截图文件的SHA256和bytes与LOG_MANIFEST.json匹配。",
+      "pack": "review_pack.json与冻结PACK.json字节一致，文件SHA256为aa6573e19809be4d25a2310ab624a5805e87827913d6d13b36c3506aa5a6688f；按Harness sort_keys/ensure_ascii=False/紧凑JSON规范计算的pack_sha256为本记录绑定值。",
+      "report": "EXECUTION_REPORT.md SHA256=0d2c3ccc454418238f951c834cc58c3b48bc63e6f841e58051fbb97dc972301a。",
+      "references": "本轮7/7 Firmware REFERENCES源文件哈希匹配；读取0x9E handler、恢复coordinator和持久状态枚举，Windows v1 query/v2 start、17字节回复及attempt语义与这些源码一致。准备轮8项批准资产、11项历史快照校验见PREPARATION.md。",
+      "missing_start_bytes": []
+    },
+    "submitted_test_evidence": {
+      "compile": "compile-08.log明确BUILD SUCCESS，Java17 test-compile；无新JAR/EXE证明。",
+      "wd010": "CloudChecks 52、VoiceFinalChecks 32、RestoreChecks 603、RestoreProductionUiChecks 21、CloudUiChecks 7、RuntimeRestoreRaceChecks 7；日志和报告一致，测试使用实际服务/JavaFX入口与可控本地HTTP或内存传输。",
+      "regression": "检查11项提交通过suite的日志及哈希；SpeechLifecycle、CursorWaiting、HookManagement、Wd009Ui、Wd009HookUi、K1RouteProtocol、DeviceMaintenance、DisplayConfigIsolation、DisplayConfigRace、FirmwareIdentityCompatibility、WindowClose。",
+      "historical_failures": "DisplayConfigCapabilityChecks的C04-basic-version-fallback-false与K1RouteEditorChecks的old early K1 read cannot authorize unknown capability在当前和原1.0.19日志出现相同断言。旧JAR哈希独立核对一致。它们仍为FAIL，不计为PASS；现有对照证据不足以把这两项归咎于WD010新增回归。",
+      "coverage_gap": "RestoreChecks仅注入intent save失败，fake discardDraft不会失败；未覆盖生产draft删除之后运行偏好持久化失败。CloudUiChecks未覆盖成功后第二次兑换；CloudChecks的刷新失败案例不能覆盖明确401导致session代次变化后的终态展示。"
+    },
+    "early_findings_disposition": {
+      "EF-01": "当前session在UI确认时冻结并传到redeem/createOrder；执行前校验。已修复，CloudUiChecks排队换账号证据相关。",
+      "EF-02": "Association绑定taskId/attempt/Target/generation，确认后再次核对。已修复，换USB连接零查询测试相关。",
+      "EF-03": "模式任务捕获maintenance epoch，实际传输锁内和回调再次检查；onDeviceReady传原epoch。已修复，RuntimeRestoreRaceChecks覆盖两条实际worker路径。",
+      "EF-04": "生产readback先在factory权限下获取firmware catalog。已修复，RestoreProductionUiChecks覆盖失去catalog身份后的重试。",
+      "usb_quarantine": "未关联的潜在原设备由protectCurrentTarget及维护门禁暂停普通写入；人工关联仍只是用户确认，不升级成硬件唯一身份。"
+    },
+    "limitations": [
+      "未启动完整App、未执行真实麦克风/模型/SendInput、真实账号/兑换/付款、USB/BLE恢复/断电、安装包或Owner UAT。",
+      "Firmware源码兼容不等于v2正式gate/receipt及确切HEX准入；本审阅不补造此交付证据。",
+      "本轮仅写本独立审阅记录；未修改生产代码、Git、Harness状态、根REVIEW.json或冻结实现报告；未向其他聊天发送消息。"
+    ]
+  },
+  "findings": [
+    {
+      "id": "FR-01",
+      "priority": "P1",
+      "resolution": "unresolved",
+      "title": "提交前的草稿/运行偏好存储失败被当成已提交未知结果，且会丢失草稿",
+      "file": "src/main/java/com/example/ahakey/service/FactoryResetService.java",
+      "line_start": 81,
+      "line_end": 97,
+      "analysis": "confirm保存PREPARED(expected=oldAttempt+1)后立即置durable=true。生产discardDraft在187行先删除StudioStore文件，再在FX线程调用AiRuntimeDisplayService.factoryResetStarted；后者52-57行持久化SINGLE并strictSnapshot核验，可因运行偏好文件不可写/不可读/损坏抛异常。此时还未进入86行start，设备没有恢复，但95-97行仅进入UNKNOWN且保留pending与锁。后续queryAgain得到旧attempt，被137行拒绝；prepare又被57行禁止。结果是草稿已删、设备未恢复、同一任务无法通过正常查询/重试收敛，重启加载相同PREPARED仍卡住。即便StudioStore删除本身失败，也会留下这个未发送任务。",
+      "contract": "CONTRACT.md:38要求提交前存储失败不发送且保留草稿；53要求提交阶段可核验，不把未提交与发送后未知混同。",
+      "requested_fix": "把所有可能失败的本地持久化前提完成并可安全回滚后才丢弃目标草稿；显式区分尚未开始发送与可能已发送。保证确认中的本地失败不丢草稿且能安全解除或恢复未提交任务，同时保留发送后未知绝不自动重发的约束。不要仅在异常时删除pending而忽略已删除草稿或真实发送窗口。",
+      "required_validation": "通过生产adapter注入StudioStore删除失败、AiRuntime保存/快照失败（删除草稿之后）、FX执行失败/超时等边界；断言恢复start为零、原草稿保留/恢复、pending与锁可安全收敛、重启不卡旧attempt；保留发送后超时/存储失败绝不重放检查。"
+    },
+    {
+      "id": "FR-02",
+      "priority": "P2",
+      "resolution": "unresolved",
+      "title": "终态兑换窗口永久复用，成功后无法兑换另一张码",
+      "file": "src/main/java/com/example/ahakey/view/CloudAccountDialog.java",
+      "line_start": 81,
+      "line_end": 95,
+      "analysis": "成功兑换后95行永久禁用submit，但81-83行只要账号session没变化就重新显示同一个redeemStage。取消仅hide，窗口关闭也没有清空引用或重置操作，编辑另一张码亦不会重新启用submit。因此一次成功兑换后，关闭重开仍不能进行第二次兑换；结果未知也无法执行注释所称的deliberate fresh window。必须退出/重登账号或销毁整个账号窗口才能恢复正常操作。进行中操作复用正确，但不应把账号的整个会话等同于一次兑换。",
+      "contract": "CONTRACT.md:8完整恢复兑换功能；19防重复与关闭重开查看同一操作应有操作生命周期，不能禁止后续独立兑换。",
+      "requested_fix": "保留进行中及未知结果的同一操作展示与禁止自动重发；为已完成操作提供明确的新兑换入口，清空旧码并重新确认当前账号。不要因关窗而自动重发未知操作。",
+      "required_validation": "实际JavaFX handler完成兑换A并关闭重开，明确发起兑换B应仅产生一笔新的B请求；进行中关闭重开仍仅A一次；未知结果关窗重开不自动重发；跨账号旧码不携带。"
+    },
+    {
+      "id": "FR-03",
+      "priority": "P2",
+      "resolution": "unresolved",
+      "title": "成功后的资料刷新返回401时，已确认支付/兑换成功的提示被丢弃",
+      "file": "src/main/java/com/example/ahakey/service/CloudAccountManager.java",
+      "line_start": 135,
+      "line_end": 137,
+      "analysis": "order-status已明确paid后refreshProfile若返回有效JSON的HTTP401，AhaTypeService.request:163-166会logout并增加会话代次。complete:149因此不再调用completion；CloudAccountDialog:121的UI回调同样要求旧session仍current。二维码窗口停留在正在查询付款结果，worker已退出。兑换路径83-87行同样在成功后刷新401时返回账号已变化，而UI93行直接丢弃结果，停留正在兑换。这里并无用户退出/切换账号，而是同一笔操作的后续读取导致失效；不能因此抹掉已经确认的写入结果。",
+      "contract": "CONTRACT.md:19和25明确区分兑换/支付成功与权益刷新失败；16明确会话失效应回登录页。",
+      "requested_fix": "将已确认的交易终态与资料刷新/凭据失效分离，并把失效原因绑定原操作/窗口。服务端使会话失效时仍显示该笔操作已成功、资料未刷新和重新登录引导；继续抑制用户主动退出/换号后旧结果应用到新账号。仅放宽current检查会引入旧会话污染，不应这样修。",
+      "required_validation": "本地fixture覆盖paid→users/me 401与redeem成功→users/me 401，真实UI应退出进行中并显示成功但未刷新；同时验证期间主动logout/login仍不能向新账号窗口投递旧结果。"
+    }
+  ],
+  "per_file_review": {
+    "pom.xml": "二维码ZXing依赖；检查新增依赖用途与原打包路径。编译证明不扩大为EXE验证。",
+    "src/main/java/com/example/ahakey/app/StudioController.java": "实际菜单/账号/刷新/恢复服务接线、维护失效通知、生命周期及退出释放；调用生产adapter。",
+    "src/main/java/com/example/ahakey/firmware/DeviceMaintenanceCoordinator.java": "factory专用绑定、权限/epoch及互斥；核对普通写入与restore readback的区分。",
+    "src/main/java/com/example/ahakey/model/DeviceStatus.java": "设备状态读回/字段更新用途；未凭本地默认宣称设备完成。",
+    "src/main/java/com/example/ahakey/model/DisplayConfigState.java": "恢复相关状态/事实失效及只读展示。",
+    "src/main/java/com/example/ahakey/model/FactoryResetState.java": "恢复阶段、busy/readOnly/pending状态模型；异常收敛问题见FR-01。",
+    "src/main/java/com/example/ahakey/model/StudioState.java": "整机目标草稿及事实清理、读回重新构建；区分现有默认构造和删除旧入口。",
+    "src/main/java/com/example/ahakey/platform/windows/WindowsCredentialStore.java": "DPAPI封装、原生资源释放与失败传播；未使用真实凭据做验证。",
+    "src/main/java/com/example/ahakey/protocol/FactoryResetProtocol.java": "v1只读查询/v2期望attempt启动、17字节严格回复、nonce/sub/version/u32及固定图片帧长度；核对Firmware源码。",
+    "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java": "0x9E恢复子命令提取及K1原协议分流；二进制尾标识不能截断帧。",
+    "src/main/java/com/example/ahakey/service/AhaTypeConfig.java": "保护凭据、旧明文迁移的先保护保存后删除、失败不宣称成功及配置保留。",
+    "src/main/java/com/example/ahakey/service/AhaTypeService.java": "会话代次/认证/刷新、HTTP响应、最终文本整理、原文回退和可投递性；401对交易UI的影响见FR-03。",
+    "src/main/java/com/example/ahakey/service/AiRuntimeDisplayService.java": "维护epoch、排队模式worker和onDeviceReady旧回调；运行偏好落盘失败影响见FR-01。",
+    "src/main/java/com/example/ahakey/service/BleManager.java": "实际命令锁处恢复门禁、目标连接代次、catalog重获、工厂权限、模式epoch；对照原普通事务/维护路径。",
+    "src/main/java/com/example/ahakey/service/CloudAccountManager.java": "登录/注册/刷新、冻结兑换及套餐账号、订单只查询轮询、关闭取消、无自动写重试；FR-03。",
+    "src/main/java/com/example/ahakey/service/FactoryResetService.java": "从prepare到confirm、重关联、UNKNOWN/INCOMPLETE/COMPLETE、生产全字段读回及清除记录；FR-01阻塞。",
+    "src/main/java/com/example/ahakey/service/FactoryResetStore.java": "原子pending存储、schema/target/attempt/阶段、BLE区别与USB弱身份；记录不存自动执行写帧。",
+    "src/main/java/com/example/ahakey/service/K1RouteService.java": "恢复下K1读回/事实失效与普通路线维护权限。",
+    "src/main/java/com/example/ahakey/service/UsbHidTransport.java": "0x9E与固定图片回复接收分帧；关联具体连接，不把USB path升级为硬件序列号。",
+    "src/main/java/com/example/ahakey/service/VoiceInputManager.java": "最终识别异步处理、录音代次、取消/停止/原文回退及最终投递检查；未把UI回调等同真实SendInput证明。",
+    "src/main/java/com/example/ahakey/util/StudioStore.java": "pending期间防旧草稿保存/加载、严格原子保存及删除；生产删除顺序参与FR-01。",
+    "src/main/java/com/example/ahakey/view/CanvasController.java": "恢复门禁与旧恢复当前模式入口删除；普通保存调用链。",
+    "src/main/java/com/example/ahakey/view/CanvasPane.java": "整机恢复状态/编辑只读联动。",
+    "src/main/java/com/example/ahakey/view/CloudAccountDialog.java": "账号单窗口、实际控件handler、冻结账号、二维码及子窗口生命周期；FR-02/FR-03。",
+    "src/main/java/com/example/ahakey/view/FactoryResetDialog.java": "默认取消、目标/影响/供电提示、Association冻结、进行中与查询/重试状态。",
+    "src/main/java/com/example/ahakey/view/FloatingVoiceNotification.java": "云端处理/原文回退提示与既有通知生命周期。",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java": "工厂维护只读与原编辑功能接线。",
+    "src/main/java/com/example/ahakey/view/TopBar.java": "更多菜单、账号/刷新/恢复行为接线及忙态。",
+    "src/main/resources/messages_en.properties": "新增入口及状态英文文案对应。",
+    "src/main/resources/messages_zh.properties": "新增入口及状态中文文案对应，替换当前模式恢复名称。",
+    "src/test/java/com/example/ahakey/wd010/CheckProcess.java": "测试启动/进程结果包装；不把进程结束作为业务断言。",
+    "src/test/java/com/example/ahakey/wd010/CloudChecks.java": "真实服务加loopback合成凭据；提交52检查；缺FR-03会话失效组合。",
+    "src/test/java/com/example/ahakey/wd010/CloudUiChecks.java": "真实JavaFX登录/刷新/兑换handler与排队换账号；提交7检查；缺后续兑换及401终态。",
+    "src/test/java/com/example/ahakey/wd010/RestoreChecks.java": "真实协议/门禁与状态机失败fixture；603检查；fake discardDraft不会失败，FR-01未覆盖。",
+    "src/test/java/com/example/ahakey/wd010/RestoreProductionUiChecks.java": "真实production adapter全读回与JavaFX控件、内存传输；21检查；未覆盖生产存储准备的部分失败。",
+    "src/test/java/com/example/ahakey/wd010/RuntimeRestoreRaceChecks.java": "实际模式worker/传输锁/epoch可控时序，7检查；相关早期竞态修复证据。",
+    "src/test/java/com/example/ahakey/wd010/VoiceFinalChecks.java": "实际最终文本pipeline加本地HTTP和捕获输出，32检查；不代表真实录音/模型/原生注入。"
+  },
+  "next_action": "原DLA按当前授权在合同内交DIB FIX，修复FR-01/02/03并补对应生产路径测试，重新冻结代码与证据包后再独立复审。本记录不改变Harness状态，不授权Preview/EXE放行。"
+}

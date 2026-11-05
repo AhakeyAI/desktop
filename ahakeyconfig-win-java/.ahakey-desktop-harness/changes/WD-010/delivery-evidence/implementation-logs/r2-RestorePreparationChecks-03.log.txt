@@ -1,0 +1,116 @@
+11月 05, 2026 12:50:00 下午 com.sun.javafx.application.PlatformImpl startup
+警告: Unsupported JavaFX configuration: classes were loaded from 'unnamed module @531d72ca'
+2026-11-05 12:50:03.368 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E013092CE4A78CCDD
+2026-11-05 12:50:03.388 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 12:50:03.389 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 30 92 CE 4A 78 00 00 00 00 00 CC 
+2026-11-05 12:50:03.389 [factory-reset] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 12:50:03.390 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 12:50:03.390 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 12:50:03.394 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 12:50:03.402 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0130B7437166CCDD
+2026-11-05 12:50:03.402 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 12:50:03.402 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 30 B7 43 71 66 00 00 00 00 00 CC 
+2026-11-05 12:50:03.402 [factory-reset] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 12:50:03.402 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 12:50:03.404 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 12:50:03.404 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 12:50:03.428 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0130A5EAA9FFCCDD
+2026-11-05 12:50:03.428 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 12:50:03.431 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 30 A5 EA A9 FF 00 00 00 00 00 CC 
+2026-11-05 12:50:03.432 [factory-reset] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 12:50:03.432 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 12:50:03.435 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 12:50:03.435 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 12:50:03.445 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01305C5726D3CCDD
+2026-11-05 12:50:03.446 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 12:50:03.446 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 30 5C 57 26 D3 00 00 00 00 00 CC 
+2026-11-05 12:50:03.446 [factory-reset] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 12:50:03.446 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 12:50:03.448 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 12:50:03.448 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 12:50:03.569 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0130CE746C6FCCDD
+2026-11-05 12:50:03.570 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 12:50:03.570 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 30 CE 74 6C 6F 00 00 00 00 00 CC 
+2026-11-05 12:50:03.570 [factory-reset] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 12:50:03.570 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 12:50:03.572 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 12:50:03.572 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 12:50:03.574 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0130801AA302CCDD
+2026-11-05 12:50:03.574 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 12:50:03.574 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 30 80 1A A3 02 00 00 00 00 00 CC 
+2026-11-05 12:50:03.575 [factory-reset] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 12:50:03.575 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 12:50:03.575 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 12:50:03.575 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 12:50:03.634 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0130CC27532FCCDD
+2026-11-05 12:50:03.635 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 12:50:03.635 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 30 CC 27 53 2F 00 00 00 00 00 CC 
+2026-11-05 12:50:03.635 [factory-reset] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 12:50:03.635 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 12:50:03.635 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 12:50:03.635 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 12:50:03.638 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01308A94BF6CCCDD
+2026-11-05 12:50:03.638 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 12:50:03.639 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 30 8A 94 BF 6C 00 00 00 00 00 CC 
+2026-11-05 12:50:03.639 [factory-reset] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 12:50:03.639 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 12:50:03.639 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 12:50:03.639 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 12:50:03.710 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0130AB8EF94BCCDD
+2026-11-05 12:50:03.710 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 12:50:03.710 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 30 AB 8E F9 4B 00 00 00 00 00 CC 
+2026-11-05 12:50:03.710 [factory-reset] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 12:50:03.711 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 12:50:03.711 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 12:50:03.711 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 12:50:03.822 [JavaFX Application Thread] WARN  com.example.ahakey.util.StudioStore - Local restore preparation cleanup pending: fixture rollback unavailable
+2026-11-05 12:50:04.553 [JavaFX Application Thread] WARN  com.example.ahakey.util.StudioStore - Local restore preparation cleanup pending: fixture rollback unavailable
+2026-11-05 12:50:04.574 [k1-route] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01002C9C3539CCDD
+Exception in thread "k1-route" java.lang.AssertionError: unexpected device command
+	at com.example.ahakey.wd010.RestorePreparationChecks$Fixture.lambda$new$1(RestorePreparationChecks.java:36)
+	at com.example.ahakey.firmware.DeviceMaintenanceChecks$MemoryUsb.sendCommand(DeviceMaintenanceChecks.java:34)
+	at com.example.ahakey.service.BleManager.sendUsbCommand(BleManager.java:102)
+	at com.example.ahakey.service.BleManager.sendCommand(BleManager.java:674)
+	at com.example.ahakey.service.BleManager.exchangeK1Route(BleManager.java:205)
+	at com.example.ahakey.service.K1RouteService.lambda$refresh$4(K1RouteService.java:45)
+	at com.example.ahakey.service.BleManager.k1RouteTransaction(BleManager.java:190)
+	at com.example.ahakey.service.K1RouteService.lambda$refresh$8(K1RouteService.java:44)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+2026-11-05 12:50:04.584 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0130235B581ECCDD
+2026-11-05 12:50:04.584 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 12:50:04.584 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 30 23 5B 58 1E 00 00 00 00 00 CC 
+2026-11-05 12:50:04.584 [factory-reset] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 12:50:04.584 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 12:50:04.584 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 12:50:04.584 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 12:50:34.595 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0130C323E8B8CCDD
+2026-11-05 12:50:34.596 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 12:50:34.596 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 30 C3 23 E8 B8 00 00 00 00 00 CC 
+2026-11-05 12:50:34.596 [factory-reset] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 12:50:34.597 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 12:50:34.597 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 12:50:34.597 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 12:50:34.598 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01300E69447ECCDD
+2026-11-05 12:50:34.598 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 12:50:34.598 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 30 0E 69 44 7E 00 00 00 00 00 CC 
+2026-11-05 12:50:34.598 [factory-reset] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 12:50:34.599 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 12:50:34.599 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 12:50:34.599 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 12:50:34.645 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E0231BF9E0E2F01000000CCDD
+2026-11-05 12:50:34.645 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 12:50:34.645 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 02 31 BF 9E 0E 2F 01 01 00 00 00 CC 
+2026-11-05 12:50:34.645 [factory-reset] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 12:50:34.645 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 12:50:34.646 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 12:50:34.646 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+2026-11-05 12:50:34.655 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 发送命令: AABB9E01304F5E4DAECCDD
+2026-11-05 12:50:34.655 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到 BLE NOTIFY 通知，数据长度: 17
+2026-11-05 12:50:34.656 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 数据内容(前16字节): AA BB 9E 00 01 30 4F 5E 4D AE 00 00 00 00 00 CC 
+2026-11-05 12:50:34.656 [factory-reset] DEBUG c.example.ahakey.service.BleManager - parseDeviceStatus 返回 null
+2026-11-05 12:50:34.656 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到响应 0x9e，唤醒等待线程
+2026-11-05 12:50:34.656 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 开始等待响应 0x9e
+2026-11-05 12:50:34.656 [factory-reset] DEBUG c.example.ahakey.service.BleManager - 收到期望的响应 0x9e
+PASS RestorePreparationChecks 52 checks; real production adapter/files/FX timeout, in-memory transport only

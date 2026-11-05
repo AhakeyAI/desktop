@@ -1,0 +1,26 @@
+{
+  ".ahakey-desktop-harness/changes/WD-010/evidence/r3-CloudChecks-01.log": {
+    "sha256": "af5e12ba15dc0ef20eeb4da09808a5b4c51a32c01433a38ae18725db8032df5f",
+    "bytes": 98
+  },
+  ".ahakey-desktop-harness/changes/WD-010/evidence/r3-CloudTransactionUiChecks-01.log": {
+    "sha256": "f6960b8698d30798b7d59988601166a5c4c669376f1b58adeda0a339fcaae10d",
+    "bytes": 260
+  },
+  ".ahakey-desktop-harness/changes/WD-010/evidence/r3-CloudUiChecks-01.log": {
+    "sha256": "dfe8d8461cd023acb0830931c533326beeddea14277608c42fd62e318dce910a",
+    "bytes": 259
+  },
+  ".ahakey-desktop-harness/changes/WD-010/evidence/r3-compile-01.log": {
+    "sha256": "716424134cc00b603f8f3ced4f1462e767d86e972f1d036a0d1407a70b9503db",
+    "bytes": 3096
+  },
+  ".ahakey-desktop-harness/changes/WD-010/evidence/r3-QueuedDeliveryChecks-01.log": {
+    "sha256": "da4cf31f93355b349f2193e70f89dfefc14befb8caae6737b2ae9fd6b59f5478",
+    "bytes": 818
+  },
+  ".ahakey-desktop-harness/changes/WD-010/evidence/r3-VoiceFinalChecks-01.log": {
+    "sha256": "e16f2d4cf8430cf6e08ce5a018769d8d57b0c1b91e423cb1b44e396b82a4d828",
+    "bytes": 107
+  }
+}

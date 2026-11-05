@@ -1,0 +1,15 @@
+{
+  "method": "GET",
+  "endpoint": "https://956798.xyz/prod-api/api/v1/auth/users/me",
+  "authenticated": false,
+  "purpose": "read-only unauthenticated reachability; not login or account verification",
+  "http_status": 200,
+  "content_type": "application/json",
+  "json_keys": [
+    "msg",
+    "code",
+    "data"
+  ],
+  "business_code": 500,
+  "elapsed_seconds": 1.19
+}
