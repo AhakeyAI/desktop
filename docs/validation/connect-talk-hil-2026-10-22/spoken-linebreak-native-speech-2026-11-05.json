@@ -1,0 +1,20 @@
+{
+  "recordedAtUTC": "2026-11-05T01:06:07.142931+00:00",
+  "build": 556,
+  "scope": "App native speech, cloud processing disabled",
+  "evidence": {
+    "recognizerCallbackAtUTC": "2026-11-05T01:02:41Z",
+    "recognizerTextContainedLineBreak": true,
+    "recognizerTextContainedLiteralSpokenCommand": false,
+    "pasteAtUTC": "2026-11-05T01:02:46Z",
+    "cloudBypassed": true,
+    "rawEqualsPasted": true,
+    "inputLineBreakCount": 1,
+    "outputLineBreakCount": 1
+  },
+  "clientSpokenCommandReplacementFound": false,
+  "literalTranscriptionRequirementPending": true,
+  "addsPunctuationIsNotVerifiedCommandDisableSwitch": true,
+  "noAudioRecordedForDiagnosis": true,
+  "notFixed": true
+}

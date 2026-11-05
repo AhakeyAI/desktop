@@ -4,23 +4,35 @@ import AhaKeyConfigShared
 struct StudioLightInspectorView: View {
     @ObservedObject var model: StudioLightInspectorModel
     @ObservedObject var session: StudioInspectorSession
+    @ObservedObject var presentation: StudioLCDInspectorModel
     let bleManager: AhaKeyBLEManager
     let mode: AhaKeyModeSlot
     let selectPreviewState: (UInt8) -> Void
 
     private var target: StudioLightDrafts.Target { model.showsMultitask ? .brightness : model.target(for: mode) }
-    private var busy: Bool { model.isBusy || session.isBusy }
+    private var busy: Bool { model.isBusy || session.isBusy || presentation.isReading || presentation.isWriting }
     private var editable: Bool { model.values.facts[target].map { target.accepts($0.value) } ?? false }
+
+    @State private var initializedPresentation = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Picker(NSLocalizedString("灯效范围", comment: ""), selection: $model.showsMultitask) {
+            Picker(NSLocalizedString("灯效范围", comment: ""), selection: Binding(get: { model.showsMultitask }, set: { value in
+                initializedPresentation = true
+                model.showsMultitask = value
+                presentation.chooseMode(value ? .multi : .single)
+            })) {
                 Text(NSLocalizedString("单任务灯效", comment: "")).tag(false)
                 Text(NSLocalizedString("多任务灯效", comment: "")).tag(true)
             }
             .pickerStyle(.segmented)
             .disabled(busy)
 
+            Text(NSLocalizedString("展示方式与 LCD 联动，写入后对本次连接生效。", comment: ""))
+                .font(.caption).foregroundStyle(.secondary)
+            if let message = presentation.message {
+                Text(message).font(.caption).foregroundStyle(.secondary)
+            }
             if model.showsMultitask {
                 StudioMultitaskLightView(busy: busy, previewMultitask: { model.previewMultitask(ble: bleManager, session: session) },
                     mockStartedAt: model.multitaskPreviewStartedAt ?? model.multitaskDemoStartedAt)
@@ -67,7 +79,18 @@ struct StudioLightInspectorView: View {
         }
         .onAppear {
             selectPreviewState(model.selectedState)
+            if let chosen = presentation.modeDraft {
+                model.showsMultitask = chosen == .multi
+                initializedPresentation = true
+            }
             if model.values.facts[target] == nil { readSelectedState() }
+            else { readPresentation() }
+        }
+        .onReceive(model.readCompleted) { if !presentation.isWriting { readPresentation() } }
+        .onChange(of: presentation.overview) { overview in
+            guard !initializedPresentation, presentation.modeDraft == nil, let overview else { return }
+            model.showsMultitask = overview.requestedMode == .multi
+            initializedPresentation = true
         }
         .onChange(of: model.showsMultitask) { _ in resetSelectionFeedback() }
         .onChange(of: mode) { _ in resetSelectionFeedback() }
@@ -75,7 +98,11 @@ struct StudioLightInspectorView: View {
             selectPreviewState(value)
             resetSelectionFeedback()
         }
-        .onDisappear { model.cancel() }
+        .onDisappear { model.cancel(); presentation.cancelRead(); presentation.cancelWrite() }
+    }
+
+    private func readPresentation() {
+        presentation.read(using: .production(ble: bleManager))
     }
 
     private var readbackTitle: String {
@@ -122,24 +149,26 @@ struct StudioLightInspectorView: View {
 struct StudioLightInspectorActions: View {
     @ObservedObject var model: StudioLightInspectorModel
     @ObservedObject var session: StudioInspectorSession
+    @ObservedObject var presentation: StudioLCDInspectorModel
     let bleManager: AhaKeyBLEManager
     let mode: AhaKeyModeSlot
+    let write: () -> Void
 
     private var target: StudioLightDrafts.Target { model.showsMultitask ? .brightness : model.target(for: mode) }
-    private var busy: Bool { model.isBusy || session.isBusy }
+    private var busy: Bool { model.isBusy || session.isBusy || presentation.isReading || presentation.isWriting }
 
     var body: some View {
         Group {
             if busy {
-                Button("取消") { model.cancel() }
+                Button("取消") { model.cancel(); presentation.cancelRead(); presentation.cancelWrite() }
             } else {
                 Button("停止") { model.run(target: target, ble: bleManager, session: session, preview: .stop) }
                     .help(NSLocalizedString("停止灯效预览", comment: ""))
             }
-            Button("写入键盘") { model.writeChanges(mode: mode, ble: bleManager, session: session) }
+            Button("写入键盘", action: write)
                 .buttonStyle(.borderedProminent)
-                .help(model.pendingSummary(for: mode))
-                .disabled(busy || model.writePlan(for: mode)?.items.isEmpty != false)
+                .help(model.pendingSummary(for: mode) + (presentation.modeDraft == nil ? "" : "\n" + NSLocalizedString("同时更新灯条和 LCD 展示方式", comment: "")))
+                .disabled(busy || !model.canWrite(mode: mode, presentation: presentation))
         }.controlSize(.small)
     }
 }

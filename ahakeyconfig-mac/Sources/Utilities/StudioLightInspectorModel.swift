@@ -19,6 +19,7 @@ final class StudioLightInspectorModel: ObservableObject {
         }
     }
     let writeCompleted = PassthroughSubject<(message: String, wrote: Bool), Never>()
+    let readCompleted = PassthroughSubject<Void, Never>()
     @Published var batchConflict: StudioInlineLightBatch.Conflict?
     @Published var showsMultitask = false {
         didSet { if showsMultitask { multitaskDemoStartedAt = Date().timeIntervalSince1970 } }
@@ -111,7 +112,7 @@ final class StudioLightInspectorModel: ObservableObject {
         let deviceID = StudioInlineLightOperation.expectedDeviceID(for: action,
             cached: baseline?.deviceID ?? values.facts[.brightness]?.deviceID)
         let scope = preview == .stop ? NSLocalizedString("临时预览", comment: "") : Self.scopeTitle(target)
-        perform(scope: scope, session: session) { [self] in
+        perform(scope: scope, session: session, notifyReadCompletion: !save && preview == nil) { [self] in
             let result = try await StudioInlineLightOperation.run(target: target, action: action,
                 session: session, expectedDeviceID: deviceID, read: { selected, context in
                     guard values.permitsReadback(deviceID: context.deviceID) else {
@@ -160,6 +161,12 @@ final class StudioLightInspectorModel: ObservableObject {
 
     func writePlan(for mode: AhaKeyModeSlot) -> StudioLightWritePlan? {
         try? StudioLightWritePlan.make(mode: UInt8(mode.rawValue), values: values, brightnessOnly: showsMultitask)
+    }
+
+    func canWrite(mode: AhaKeyModeSlot, presentation: StudioLCDInspectorModel) -> Bool {
+        guard let plan = writePlan(for: mode) else { return false }
+        return !plan.items.isEmpty ||
+            (presentation.modeDraft != nil && values.facts[.brightness]?.deviceID.isEmpty == false)
     }
 
     func writeChanges(mode: AhaKeyModeSlot, ble: AhaKeyBLEManager, session: StudioInspectorSession,
@@ -232,14 +239,17 @@ final class StudioLightInspectorModel: ObservableObject {
         values = updated
     }
 
-    private func perform(scope: String, session: StudioInspectorSession, failureContext: (() -> String?)? = nil, body: @escaping @MainActor () async throws -> Void) {
+    private func perform(scope: String, session: StudioInspectorSession, notifyReadCompletion: Bool = false, failureContext: (() -> String?)? = nil, body: @escaping @MainActor () async throws -> Void) {
         guard !isBusy, !session.isBusy else { return }
         isBusy = true
         showsError = false
         message = nil
         conflict = nil
         operation = Task { @MainActor in
-            defer { isBusy = false; operation = nil }
+            defer {
+                isBusy = false; operation = nil
+                if notifyReadCompletion { readCompleted.send() }
+            }
             do {
                 try await body()
                 if let currentMessage = message { message = Self.receipt(scope: scope, text: currentMessage) }

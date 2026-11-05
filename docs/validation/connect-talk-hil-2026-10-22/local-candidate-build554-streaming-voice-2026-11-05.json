@@ -1,0 +1,34 @@
+{
+  "sourceCommit": "6f71dd258a820ac598d90042fc608529f0cdf09b",
+  "build": 554,
+  "version": "0.2.3",
+  "dmgSHA256": "3e3a51c2a309bd204a8ecc079162faf841bf4121b5d2a5e4f0faa4dbf885419b",
+  "bytes": 22005525,
+  "binarySHA256": {
+    "AhaKeyConfig": "6954c4389f4a9ad80901b6ae1e905b7edd48b61ea9dbfcc37d5871dfae64dbad",
+    "ahakeyconfig-agent": "4040f33660e327f8270108651c9d13b15816fb4863c989af9e79a5e9606145b6"
+  },
+  "signatureVerified": true,
+  "mountedBytesMatch": true,
+  "notarized": false,
+  "installed": true,
+  "fullTests": 1021,
+  "failures": 0,
+  "targetedSpeechAndHUDTests": 13,
+  "nativeProductionHUDLayoutVerifiedWithSyntheticText": true,
+  "nonactivatingPanelAndFinalOnlyPasteRegressionPassed": true,
+  "localPreferenceKeysCompared": 16,
+  "localPreferenceChanges": 0,
+  "hardwareWritesForStreamingFeature": 0,
+  "realStreamingVoiceAcceptancePending": true,
+  "temporaryCodexF18RestorationStillRequired": true,
+  "previousBuild553VoiceShortAndLongPressOwnerPassed": true,
+  "sourceCI": "https://github.com/AhakeyAI/desktop/actions/runs/41943651794",
+  "sourceCIStatus": "cancelled_by_successor",
+  "ownerObservedCapsuleAndRequestedSmallerSize": true,
+  "supersededByBuild": 556,
+  "originalCapsuleDimensionsPoints": [
+    520,
+    116
+  ]
+}

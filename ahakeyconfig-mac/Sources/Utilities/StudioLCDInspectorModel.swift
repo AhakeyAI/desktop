@@ -51,12 +51,14 @@ final class StudioLCDInspectorModel: ObservableObject {
     }
     private static let storageKey = "ahakey.studio.lcd-display-draft.v1"
     private let defaults: UserDefaults?
+    private let persistenceKey: String
 
     /// Restore pending choices only. Never revive a live overview, connection
     /// generation, terminal permission, or an enabled following observer.
-    init(defaults: UserDefaults? = nil) {
+    init(defaults: UserDefaults? = nil, storageKey: String? = nil) {
         self.defaults = defaults
-        if let bytes = defaults?.data(forKey: Self.storageKey), bytes.count <= 512,
+        self.persistenceKey = storageKey ?? Self.storageKey
+        if let bytes = defaults?.data(forKey: persistenceKey), bytes.count <= 512,
            let saved = try? JSONDecoder().decode(SavedDraft.self, from: bytes) {
             modeDraft = saved.mode; followDraft = saved.follow
         }
@@ -64,10 +66,10 @@ final class StudioLCDInspectorModel: ObservableObject {
     private func persistDrafts() {
         guard let defaults else { return }
         guard modeDraft != nil || followDraft != nil else {
-            defaults.removeObject(forKey: Self.storageKey); return
+            defaults.removeObject(forKey: persistenceKey); return
         }
         if let bytes = try? JSONEncoder().encode(SavedDraft(mode: modeDraft, follow: followDraft)) {
-            defaults.set(bytes, forKey: Self.storageKey)
+            defaults.set(bytes, forKey: persistenceKey)
         }
     }
 

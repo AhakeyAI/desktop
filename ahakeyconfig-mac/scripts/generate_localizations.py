@@ -7,6 +7,9 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "展示方式与 LCD 联动，写入后对本次连接生效。": "Lighting and LCD share the display mode. Apply it for this connection.",
+    "同时更新灯条和 LCD 展示方式": "Also update the lighting and LCD display mode",
+    "灯条与 LCD 展示方式已更新。": "The lighting and LCD display mode has been updated.",
     "保留配置升级": "Upgrade Keeping Settings",
     "清空配置刷写": "Flash and Clear Settings",
     "仅重写程序，不主动擦除 DataFlash。配置是否兼容由目标固件决定；升级前仍请备份。": "Rewrites the program without explicitly erasing DataFlash. Settings compatibility depends on the target firmware; back up before upgrading.",

@@ -12,6 +12,19 @@ final class StudioInlineLightTests: XCTestCase {
                             deviceID: { "keyboard-A" }, release: { _ in release() }, pause: {}))
     }
 
+    func testChoosingMultitaskEnablesWriteWithoutBrightnessChanges() {
+        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let model = StudioLightInspectorModel(defaults: defaults)
+        model.values.observe(.brightness, fact: baseline)
+        model.showsMultitask = true
+        let presentation = StudioLCDInspectorModel()
+        XCTAssertFalse(model.canWrite(mode: .mode2, presentation: presentation))
+        presentation.chooseMode(.multi)
+        XCTAssertTrue(model.canWrite(mode: .mode2, presentation: presentation),
+            "Selecting multitask must enable its explicit write even when brightness is unchanged")
+        XCTAssertTrue(model.writePlan(for: .mode2)!.items.isEmpty)
+    }
+
     func testMultitaskPreviewUsesReadbackTargetBeforeFirstAppConnection() {
         let defaults = UserDefaults(suiteName: UUID().uuidString)!
         let model = StudioLightInspectorModel(defaults: defaults)

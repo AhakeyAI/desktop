@@ -44,6 +44,10 @@ struct AhaKeyStudioView: View {
     @AppStorage(VibeBarVisibilityPreference.enabledKey) private var vibeBarEnabled = true
     @AppStorage(UnifiedOnboardingStorage.completedKey) private var unifiedOnboardingCompleted = false
     @StateObject private var lightInspectorModel = StudioLightInspectorModel()
+    @StateObject private var lightPresentationModel = StudioLCDInspectorModel(defaults: .standard,
+        storageKey: "ahakey.studio.light.presentation-draft.v1")
+    @State private var lightCompletedMessage: String?
+    @State private var lightCompletedWrites = false
     @StateObject private var taskLightMonitor = StudioTaskLightMonitor()
     @State private var lightWindowActive = NSApp.isActive
     @Environment(\.scenePhase) private var scenePhase
@@ -201,7 +205,19 @@ struct AhaKeyStudioView: View {
             syncStatusMessage = "Mode \(actual.mode + 1) · Key \(actual.keyIndex + 1) 已保存并读回确认。"
         }
         .onReceive(lightInspectorModel.writeCompleted) { result in
-            writeOutcome = .init(succeeded: true, message: result.message, wrote: result.wrote)
+            if lightPresentationModel.hasSettingsDraft {
+                lightCompletedMessage = result.message
+                lightCompletedWrites = result.wrote
+                applyLightPresentation()
+            } else { writeOutcome = .init(succeeded: true, message: result.message, wrote: result.wrote) }
+        }
+        .onReceive(lightPresentationModel.writeCompleted) { result in
+            let detail = result.message.replacingOccurrences(of: NSLocalizedString("屏幕设置已更新，请在键盘上确认效果。", comment: ""),
+                with: NSLocalizedString("灯条与 LCD 展示方式已更新。", comment: ""))
+            writeOutcome = .init(succeeded: result.succeeded,
+                message: [lightCompletedMessage, detail].compactMap { $0 }.joined(separator: "\n"),
+                wrote: lightCompletedWrites || result.wrote)
+            lightCompletedMessage = nil; lightCompletedWrites = false
         }
         .onReceive(resourceInspectorModel.writeCompleted) { if !lcdInspectorModel.isWriting { writeOutcome = $0 } }
         .onReceive(lcdInspectorModel.writeCompleted) { result in
@@ -209,9 +225,9 @@ struct AhaKeyStudioView: View {
             lcdSubmittedEntry = nil
             writeOutcome = result
         }
-        .onChange(of: agentManager.bluetoothOwnershipRevision) { revision in lcdInspectorModel.invalidateFacts(ownershipRevision: revision) }
+        .onChange(of: agentManager.bluetoothOwnershipRevision) { revision in lcdInspectorModel.invalidateFacts(ownershipRevision: revision); lightPresentationModel.invalidateFacts(ownershipRevision: revision) }
         .onChange(of: agentManager.isAgentBLEConnected) { connected in
-            if !connected, agentManager.bluetoothConnectionOwner == .agentDaemon { lcdInspectorModel.invalidateConnectionFacts() }
+            if !connected, agentManager.bluetoothConnectionOwner == .agentDaemon { lcdInspectorModel.invalidateConnectionFacts(); lightPresentationModel.invalidateConnectionFacts() }
         }
         .onChange(of: bleManager.firmwareCapabilityProfile?.identity) { identity in
             if isEditingInspector, identity == .legacy {
@@ -228,7 +244,7 @@ struct AhaKeyStudioView: View {
             legacyWriteConfirmationMessage
         }
         .onChange(of: bleManager.configurationSnapshot.generation) { _ in
-            if agentManager.bluetoothConnectionOwner == .ahaKeyStudio { lcdInspectorModel.invalidateFacts() }
+            if agentManager.bluetoothConnectionOwner == .ahaKeyStudio { lcdInspectorModel.invalidateFacts(); lightPresentationModel.invalidateFacts() }
         }
         .onReceive(deviceInspectorModel.writeCompleted) { writeOutcome = $0 }
         .onChange(of: isEditingInspector) { editing in
@@ -328,6 +344,7 @@ struct AhaKeyStudioView: View {
                 inlineKeyFact = nil; inlineKeyConflict = nil
                 deviceInspectorModel.invalidateReadbacks()
                 lcdInspectorModel.invalidateConnectionFacts()
+                lightPresentationModel.invalidateConnectionFacts()
             }
         }
         .sheet(isPresented: $showsFirmwareFlasher) {
@@ -589,7 +606,7 @@ struct AhaKeyStudioView: View {
             [.lightBar, .oledDisplay, .toggleSwitch, .modeButton].contains(selectedPart)
     }
     private var componentBusy: Bool {
-        isSyncing || inlineKeyTask != nil || inspectorSession.isBusy || lightInspectorModel.isBusy || resourceInspectorModel.isBusy || resourceInspectorModel.isPreparing || deviceInspectorModel.isBusy || lcdInspectorModel.isReading || lcdInspectorModel.isWriting
+        isSyncing || inlineKeyTask != nil || inspectorSession.isBusy || lightInspectorModel.isBusy || lightPresentationModel.isReading || lightPresentationModel.isWriting || resourceInspectorModel.isBusy || resourceInspectorModel.isPreparing || deviceInspectorModel.isBusy || lcdInspectorModel.isReading || lcdInspectorModel.isWriting
     }
 
     private var canvasModeDraft: AhaKeyModeDraft {
@@ -760,9 +777,10 @@ struct AhaKeyStudioView: View {
                             Spacer()
                             if usesInlineLightEditor {
                                 Button {
+                                    lightPresentationModel.invalidateFacts()
                                     lightInspectorModel.run(target: lightInspectorModel.target(for: selectedMode), ble: bleManager, session: inspectorSession)
                                 } label: { Image(systemName: "arrow.clockwise") }
-                                .buttonStyle(.borderless).disabled(lightInspectorModel.isBusy || inspectorSession.isBusy)
+                                .buttonStyle(.borderless).disabled(lightInspectorModel.isBusy || inspectorSession.isBusy || lightPresentationModel.isReading || lightPresentationModel.isWriting)
                                 .help(NSLocalizedString("读取键盘设置", comment: ""))
                             }
                         }
@@ -824,6 +842,7 @@ struct AhaKeyStudioView: View {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             clearInlineKeyEditing()
                             lcdInspectorModel.cancelRead()
+                            lightPresentationModel.cancelRead()
                             isEditingInspector = false
                             returnToKeyboardControl()
                         }
@@ -863,7 +882,8 @@ struct AhaKeyStudioView: View {
 
                     if usesInlineLightEditor {
                         StudioLightInspectorActions(model: lightInspectorModel, session: inspectorSession,
-                                                    bleManager: bleManager, mode: selectedMode)
+                                                    presentation: lightPresentationModel,
+                                                    bleManager: bleManager, mode: selectedMode, write: requestLightWrite)
                     } else if usesInlineHardwareEditor {
                         Button(NSLocalizedString(componentBusy ? "处理中…" : "写入键盘", comment: "")) {
                             if selectedPart == .oledDisplay { requestLCDWrite() }
@@ -1952,13 +1972,25 @@ struct AhaKeyStudioView: View {
         Group {
             if !usesLegacyEditor {
                 StudioLightInspectorView(model: lightInspectorModel, session: inspectorSession,
-                                         bleManager: bleManager, mode: selectedMode, selectPreviewState: { value in
+                                         presentation: lightPresentationModel, bleManager: bleManager, mode: selectedMode, selectPreviewState: { value in
                                              if let state = IDEState(rawValue: value) { lightBarPreview = state }
                                          })
             } else {
                 legacyLightBarInspector
             }
         }
+    }
+
+    private func requestLightWrite() {
+        lightCompletedMessage = nil; lightCompletedWrites = false
+        if lightInspectorModel.writePlan(for: selectedMode)?.items.isEmpty == false {
+            lightInspectorModel.writeChanges(mode: selectedMode, ble: bleManager, session: inspectorSession)
+        } else { applyLightPresentation() }
+    }
+
+    private func applyLightPresentation() {
+        let deviceID = inspectorSession.editingDeviceID ?? lightInspectorModel.values.facts[.brightness]?.deviceID
+        lightPresentationModel.write(artwork: [], deviceID: deviceID, using: .production(ble: bleManager))
     }
 
     private var legacyLightBarInspector: some View {
@@ -2336,7 +2368,7 @@ struct AhaKeyStudioView: View {
                 count += 1
             }
         } + (usesLegacyEditor ? 0 :
-            resourceInspectorModel.dirtyEntries.count + (lcdInspectorModel.hasSettingsDraft ? 1 : 0) + (deviceInspectorModel.standbyDirty ? 1 : 0) + (deviceInspectorModel.leverDirty ? 1 : 0))
+            resourceInspectorModel.dirtyEntries.count + (lcdInspectorModel.hasSettingsDraft ? 1 : 0) + (lightPresentationModel.hasSettingsDraft ? 1 : 0) + (deviceInspectorModel.standbyDirty ? 1 : 0) + (deviceInspectorModel.leverDirty ? 1 : 0))
     }
 
     private func clearCurrentOLED() {
@@ -2475,7 +2507,7 @@ struct AhaKeyStudioView: View {
             return current.oled != baseline.oled || current.oled.needsDeviceUpload
         case .lightBar:
             if !usesLegacyEditor {
-                return lightInspectorModel.values.isDirty(mode: UInt8(selectedMode.rawValue))
+                return lightPresentationModel.hasSettingsDraft || lightInspectorModel.values.isDirty(mode: UInt8(selectedMode.rawValue))
             }
             return current.lightBar != baseline.lightBar
         case .toggleSwitch:

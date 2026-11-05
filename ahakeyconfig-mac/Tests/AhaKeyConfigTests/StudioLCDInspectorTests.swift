@@ -24,6 +24,43 @@ final class StudioLCDInspectorTests: XCTestCase {
         XCTFail("Inspector did not finish")
     }
 
+    func testLightModeOnlyCommitKeepsSeparateScreenDraftAndDoesNotWriteArtworkOrFollowing() async throws {
+        let name = "LightPresentation.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let screen = StudioLCDInspectorModel(defaults: defaults)
+        screen.chooseMode(.single); screen.chooseFollow(true)
+        let light = StudioLCDInspectorModel(defaults: defaults, storageKey: "light-mode")
+        light.chooseMode(.multi)
+        var calls = 0
+        light.write(artwork: [], deviceID: device, using: access(apply: { mode, target, generation in
+            XCTAssertEqual(mode, .multi); XCTAssertEqual(target, self.device); XCTAssertEqual(generation, 7)
+            calls += 1; return self.report(mode)
+        }, setFollow: { _ in XCTFail("Light mode must not change foreground following") }))
+        try await finish(light)
+        XCTAssertEqual(calls, 1)
+        XCTAssertFalse(light.hasSettingsDraft)
+        XCTAssertEqual(StudioLCDInspectorModel(defaults: defaults).modeDraft, .single)
+        XCTAssertEqual(StudioLCDInspectorModel(defaults: defaults).followDraft, true)
+        XCTAssertFalse(StudioLCDInspectorModel(defaults: defaults, storageKey: "light-mode").hasSettingsDraft)
+    }
+
+    func testFailedLightModeCommitKeepsChoiceForRetryWithoutChangingScreenDraft() async throws {
+        enum Rejected: Error { case mode }
+        let name = "LightPresentation.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defer { defaults.removePersistentDomain(forName: name) }
+        let screen = StudioLCDInspectorModel(defaults: defaults)
+        screen.chooseMode(.single)
+        let light = StudioLCDInspectorModel(defaults: defaults, storageKey: "light-mode")
+        light.chooseMode(.multi)
+        light.write(artwork: [], deviceID: device, using: access(apply: { _, _, _ in throw Rejected.mode }))
+        try await finish(light)
+        XCTAssertEqual(light.modeDraft, .multi)
+        XCTAssertEqual(StudioLCDInspectorModel(defaults: defaults, storageKey: "light-mode").modeDraft, .multi)
+        XCTAssertEqual(StudioLCDInspectorModel(defaults: defaults).modeDraft, .single)
+    }
+
     func testRelaunchRestoresChoicesWithoutRevivingFactsOrFollowing() async throws {
         let name = "StudioLCDInspectorTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
