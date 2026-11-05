@@ -49,3 +49,7 @@ python3 ahakeyconfig-mac/scripts/verify_firmware_enter_release.py \
 默认`verify-fix`对当前F99D返回1：三种宏各一组正常对照及一组松开发送失败，共6组，其中故障组主机保持Enter。增加`--expect-known-failure`后返回0，只表示已知缺陷仍按预期复现；JSON保持`fixed=false`，不代表修复通过。两种CLI模式均已实际执行，ASan/UBSan没有报告错误。
 
 修复后的源码应在默认模式通过，且固件真实传输错误日志和新HEX实物验收仍需完成。若固件调整发送函数签名/引入新队列模块，应同步接入真实模块并适配host传输shim；编译或sanitizer失败不能算作验证通过。当前脚本不是完整发送队列/生命周期验收，也不验证新协议合同。
+
+[六组实际机器结果](../validation/connect-talk-hil-2026-10-22/firmware-enter-release-host-2026-11-05.json) · [维护者交接评论](https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/11#issuecomment-6654314486)。
+
+复现脚本提交3d5bc571的[客户端CI三项](https://github.com/AhakeyAI/desktop/actions/runs/42001480979)已通过；上述六组固件源码对照是在本机有权限的私有源目录执行，不冒充公开CI已取得该固件源码，也不代表固件修复通过。

@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "5fc01cf43990743051bbc68c9381c9a44441b1d8",
+  "sourceSHA256": {
+    "keyboard.c": "b5b8c2cc5c43ca7654e39848d044c16b118b9ed8c4d12ec432434b93ac1dd2ef",
+    "keyboard.h": "a9a7d2a0510b1931dc0d5d8757afca0d0d3b67be29aeddc95393a31bb7629cc0",
+    "lwrb.c": "718b9634254c0f2cf7729b95fbb5027a717c732fe77c4576acdf2b0b087e08b2",
+    "lwrb.h": "6fba29e3c1cf4e0f6dfe7d72001580bd67541becd2d170896092e10a0f0679af"
+  },
+  "mode": "known-defect-check",
+  "expectationMet": true,
+  "fixed": false,
+  "knownDefectReproduced": true,
+  "actualDeviceTransportFailureCodeCaptured": false,
+  "hardwareAccess": false,
+  "cases": [
+    {
+      "macro": "minimal-enter-pair",
+      "oneReleaseFailureInjected": false,
+      "exitCode": 0,
+      "hostEnterAfter1000Ticks": false,
+      "internalEnter": false,
+      "reportsBeforeRecovery": 2,
+      "failedRelease": 0,
+      "hostEnterAfterRecovery": false
+    },
+    {
+      "macro": "minimal-enter-pair",
+      "oneReleaseFailureInjected": true,
+      "exitCode": 1,
+      "hostEnterAfter1000Ticks": true,
+      "internalEnter": false,
+      "reportsBeforeRecovery": 2,
+      "failedRelease": 1,
+      "hostEnterAfterRecovery": false
+    },
+    {
+      "macro": "six-step-readback-shape",
+      "oneReleaseFailureInjected": false,
+      "exitCode": 0,
+      "hostEnterAfter1000Ticks": false,
+      "internalEnter": false,
+      "reportsBeforeRecovery": 5,
+      "failedRelease": 0,
+      "hostEnterAfterRecovery": false
+    },
+    {
+      "macro": "six-step-readback-shape",
+      "oneReleaseFailureInjected": true,
+      "exitCode": 1,
+      "hostEnterAfter1000Ticks": true,
+      "internalEnter": false,
+      "reportsBeforeRecovery": 5,
+      "failedRelease": 1,
+      "hostEnterAfterRecovery": false
+    },
+    {
+      "macro": "eight-step-screenshot-shape",
+      "oneReleaseFailureInjected": false,
+      "exitCode": 0,
+      "hostEnterAfter1000Ticks": false,
+      "internalEnter": false,
+      "reportsBeforeRecovery": 6,
+      "failedRelease": 0,
+      "hostEnterAfterRecovery": false
+    },
+    {
+      "macro": "eight-step-screenshot-shape",
+      "oneReleaseFailureInjected": true,
+      "exitCode": 1,
+      "hostEnterAfter1000Ticks": true,
+      "internalEnter": false,
+      "reportsBeforeRecovery": 6,
+      "failedRelease": 1,
+      "hostEnterAfterRecovery": false
+    }
+  ],
+  "issue": "https://github.com/AhakeyAI/AhaKey-X1-hardware-source/issues/11#issuecomment-6654314486",
+  "evidenceScope": "Host execution of production keyboard and ring-buffer source with injected transport failure; not physical transport error-code capture or a firmware fix."
+}
