@@ -144,12 +144,13 @@ struct VoiceStatusHUDState: Equatable {
     let title: String
     let subtitle: String
     var transcript: String = ""
+    static let secondaryFontSize: CGFloat = 11
 
     var contentSize: NSSize {
         guard !transcript.isEmpty else { return NSSize(width: 360, height: 58) }
         // Keep the original capsule width. Grow upward only as wrapped text
         // needs more room, capped at three lines so it cannot cover the app.
-        let font = NSFont.systemFont(ofSize: 14)
+        let font = NSFont.systemFont(ofSize: Self.secondaryFontSize)
         let lineHeight = ceil(font.ascender - font.descender + font.leading)
         let bounds = (transcript as NSString).boundingRect(
             with: NSSize(width: 292, height: CGFloat.greatestFiniteMagnitude),
@@ -189,12 +190,12 @@ private struct VoiceStatusHUDView: View {
                     .foregroundColor(.primary)
                     .lineLimit(1)
                 Text(state.subtitle)
-                    .font(.system(size: 11, weight: .regular))
+                    .font(.system(size: VoiceStatusHUDState.secondaryFontSize, weight: .regular))
                     .foregroundColor(.secondary)
                     .lineLimit(1)
                 if !state.transcript.isEmpty {
                     Text(state.transcript)
-                        .font(.system(size: 14))
+                        .font(.system(size: VoiceStatusHUDState.secondaryFontSize, weight: .regular))
                         .foregroundColor(.primary)
                         .lineLimit(3)
                         .truncationMode(.head)
