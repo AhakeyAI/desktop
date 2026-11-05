@@ -55,9 +55,8 @@
   },
   "limitations": [
     "No confirmed pre-power metadata baseline for the newer owner artwork; matching current local payload is not strict pre/post retention proof.",
-    "Temporary Codex F18 remains pending guarded restoration to original Right Alt after final physical voice testing.",
-    "Manual transition passed; physical return to auto requested and pending.",
-    "Full eight acceptance groups and four external development dependencies remain open."
+    "Full eight acceptance groups and four external development dependencies remain open.",
+    "Concentrated four-mode Key2/3/4 physical output test requested; not yet completed."
   ],
   "manualPermissionReadback": {
     "codex": "on-request / workspace",
@@ -65,5 +64,21 @@
     "newGrants": 0,
     "modelRequests": 0,
     "modifierKeysHeld": false
+  },
+  "autoReturnPermissionReadback": {
+    "codex": "never / danger-full-access",
+    "sameAuthorizedKimiSession": "auto",
+    "newGrants": 0,
+    "modelRequests": 0,
+    "modifierKeysHeld": false
+  },
+  "temporaryVoiceCleanup": {
+    "originalRightAltWrittenThroughProductUI": true,
+    "nativeSuccessDialog": true,
+    "independentFreshReadback": "Right Alt / Record",
+    "originalCodexKeyAndProcessingPolicyRestoredExactly": true,
+    "otherModesAndDraftFieldsMatchPreCleanupSnapshot": true,
+    "globalAhaTypeRemainsOff": true,
+    "appReopenedAndAgentConnected": true
   }
 }
