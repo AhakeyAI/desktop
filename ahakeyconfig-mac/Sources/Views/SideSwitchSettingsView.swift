@@ -160,39 +160,18 @@ struct KeyboardActionEditor: View {
         guard bytes.count <= maximumPayloadBytes else { return }
         action = Data([0x74, UInt8(bytes.count)] + bytes)
     }
-    private func step(at index: Int) -> MacroStep {
-        steps.indices.contains(index) ? steps[index] : MacroStep(action: .noOp)
-    }
     private var macroEditor: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(steps.indices, id: \.self) { index in
-                HStack {
-                    Text("\(index + 1)")
-                    Picker(NSLocalizedString("动作", comment: ""), selection: Binding(get: { step(at: index).action }, set: { action in
-                        var next = steps; guard next.indices.contains(index) else { return }; next[index].action = action
-                        next[index].param = action.takesKeycodeParam ? HIDUsage.enter : 0
-                        updateSteps(next)
-                    })) {
-                        ForEach(MacroAction.allCases) { Text($0.title).tag($0) }
-                    }
-                    if step(at: index).action.takesKeycodeParam {
-                        Picker(NSLocalizedString("按键", comment: ""), selection: Binding(get: { step(at: index).param }, set: { value in
-                            var next = steps; guard next.indices.contains(index) else { return }; next[index].param = value; updateSteps(next)
-                        })) {
-                            ForEach(HIDUsage.allOptions, id: \.code) { Text($0.name).tag($0.code) }
-                        }
-                    } else if step(at: index).action.takesDelayParam {
-                        Stepper("\(Int(step(at: index).param) * 3) ms", value: Binding(get: { Int(step(at: index).param) }, set: { value in
-                            var next = steps; guard next.indices.contains(index) else { return }; next[index].param = UInt8(value); updateSteps(next)
-                        }), in: 0...255)
-                    }
-                    Button(NSLocalizedString("删除", comment: "")) { var next = steps; guard next.indices.contains(index) else { return }; next.remove(at: index); updateSteps(next) }
-                }
-            }
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Button(NSLocalizedString("添加按键步骤", comment: "")) { updateSteps(steps + [MacroStep(action: .downKey, param: HIDUsage.enter)]) }
-                Button(NSLocalizedString("添加全部松开", comment: "")) { updateSteps(steps + [MacroStep(action: .upAllKeys)]) }
-            }.disabled(steps.count >= maximumPayloadBytes / 2)
+                Text(String(format: NSLocalizedString("宏：%@", comment: ""), steps.displaySummary))
+                    .font(.system(.callout, design: .rounded).weight(.semibold))
+                    .lineLimit(2)
+                Spacer()
+                Text(NSLocalizedString("固件宏", comment: ""))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            MacroStepsEditor(steps: Binding(get: { steps }, set: { updateSteps($0) }),
+                             maximumPayloadBytes: maximumPayloadBytes, minimumDelay: 0)
         }
     }
 }
