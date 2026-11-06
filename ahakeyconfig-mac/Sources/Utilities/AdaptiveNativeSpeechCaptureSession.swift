@@ -130,7 +130,9 @@ final class SpeechAnalyzerCaptureSession: NativeSpeechCapturing, @unchecked Send
                             let span = SpeechTranscriptAccumulator.AudioSpan(start: result.range.start.seconds, duration: result.range.duration.seconds)
                             // Final here commits a segment, never the entire recording.
                             let completion = result.isFinal ? span.map { SpeechTranscriptAccumulator.Completion(audio: $0) } : nil
-                            await self?.deliver(.init(text: String(result.text.characters), isFinal: false, completion: completion))
+                            await self?.deliver(.init(text: String(result.text.characters), isFinal: false, completion: completion,
+                                audioObservation: .init(isFinal: result.isFinal, start: result.range.start.seconds,
+                                                        duration: result.range.duration.seconds)))
                         }
                     } catch { await self?.failed(error) }
                 }

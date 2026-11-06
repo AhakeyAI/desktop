@@ -64,6 +64,13 @@ struct SpeechTranscriptAccumulator {
     private var unresolved: [UnresolvedEdit] = []
     private var pending = ""
 
+    /// Audio boundaries and counts only; never expose utterance text in these diagnostics.
+    var diagnosticSummary: String {
+        let committed = pieces.map { "\($0.audio.start)..\($0.audio.end)" }.joined(separator: ",")
+        let conflicting = unresolved.map { "\($0.audio.start)..\($0.audio.end)" }.joined(separator: ",")
+        return "committed=[\(committed)] unresolved=[\(conflicting)] pendingChars=\(pending.count)"
+    }
+
     private var completedText: String {
         var result = ""
         for piece in pieces {

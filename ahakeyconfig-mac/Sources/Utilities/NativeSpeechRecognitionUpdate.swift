@@ -3,11 +3,17 @@ import Speech
 
 /// Immutable recognition facts cross from the audio callback to the UI actor.
 struct NativeSpeechRecognitionUpdate: Sendable {
+    struct AudioObservation: Sendable {
+        let isFinal: Bool
+        let start: TimeInterval
+        let duration: TimeInterval
+    }
     let text: String?
     let isFinal: Bool
     var completion: SpeechTranscriptAccumulator.Completion? = nil
     var requiresReview: Bool = false
     var errorDescription: String? = nil
+    var audioObservation: AudioObservation? = nil
 
     static func capture(_ result: SFSpeechRecognitionResult?, error: Error?) -> Self {
         var completion: SpeechTranscriptAccumulator.Completion?

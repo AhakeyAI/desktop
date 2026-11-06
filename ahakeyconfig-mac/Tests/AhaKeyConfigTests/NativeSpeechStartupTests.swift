@@ -35,9 +35,11 @@ private final class SuspendedSpeechCapture: NativeSpeechCapturing {
         lock.lock(); let continuation = finishContinuation; finishContinuation = nil; lock.unlock()
         continuation?.resume()
     }
-    func emit(_ text: String, isFinal: Bool = false, requiresReview: Bool = false, completion: SpeechTranscriptAccumulator.Completion? = nil) {
+    func emit(_ text: String, isFinal: Bool = false, requiresReview: Bool = false, completion: SpeechTranscriptAccumulator.Completion? = nil,
+              audioObservation: NativeSpeechRecognitionUpdate.AudioObservation? = nil) {
         lock.lock(); let recognition = recognition; lock.unlock()
-        recognition?(.init(text: text, isFinal: isFinal, completion: completion, requiresReview: requiresReview))
+        recognition?(.init(text: text, isFinal: isFinal, completion: completion, requiresReview: requiresReview,
+                           audioObservation: audioObservation))
     }
     private func recordFinish() { lock.lock(); finishes += 1; lock.unlock() }
     func cancel() { lock.lock(); cancellations += 1; lock.unlock() }
@@ -59,6 +61,43 @@ final class NativeSpeechStartupTests: XCTestCase {
     private func shortPress(_ service: NativeSpeechTranscriptionService) {
         service.handleVoiceKeyDown(trigger: 79, policy: policy)
         service.handleVoiceKeyUp(trigger: 79)
+    }
+
+    func testBoundaryDiagnosticsPreserveReviewProtectionWithoutLoggingUtterances() async {
+        let entered = expectation(description: "capture entered")
+        let ready = expectation(description: "capture ready")
+        let prefix = expectation(description: "committed prefix received")
+        let tail = expectation(description: "unconfirmed tail received")
+        let review = expectation(description: "text retained")
+        let capture = SuspendedSpeechCapture(entered)
+        capture.requiresConfirmedEnd = true
+        var diagnostics: [String] = [], injected: [String] = []
+        let service = NativeSpeechTranscriptionService(captureFactory: { capture }, authorizationCheck: { true },
+            hud: { state, _ in if state == .recording { ready.fulfill() } }, diagnosticSink: { message in
+                diagnostics.append(message)
+                if message.hasPrefix("partial result=private-prefix ") { prefix.fulfill() }
+                if message.hasPrefix("partial result=private-tail ") { tail.fulfill() }
+                if message.hasPrefix("finalize retained for review") { review.fulfill() }
+            }, textInjector: { injected.append($0); return true })
+        shortPress(service); await fulfillment(of: [entered], timeout: 1)
+        capture.complete(); await fulfillment(of: [ready], timeout: 1)
+        capture.emit("private-prefix", completion: .init(audio: .init(start: 0, duration: 1)!),
+                     audioObservation: .init(isFinal: true, start: 0, duration: 1))
+        await fulfillment(of: [prefix], timeout: 1)
+        capture.emit("private-tail", audioObservation: .init(isFinal: false, start: 2, duration: 1))
+        await fulfillment(of: [tail], timeout: 1)
+        shortPress(service); capture.emit("", isFinal: true)
+        await fulfillment(of: [review], timeout: 1)
+        let metadata = diagnostics.filter { $0.hasPrefix("speech boundary ") || $0.hasPrefix("finalize boundary ") }
+        XCTAssertEqual(metadata.count, 3)
+        XCTAssertTrue(metadata.contains { $0.contains("sourceFinal=true") && $0.contains("completionValid=true") })
+        XCTAssertTrue(metadata.contains { $0.contains("sourceFinal=false") && $0.contains("completionValid=false") })
+        XCTAssertTrue(metadata.contains { $0.contains("committed=[0.0..1.0]") && $0.contains("pendingChars=12") })
+        XCTAssertFalse(metadata.joined().contains("private-prefix"))
+        XCTAssertFalse(metadata.joined().contains("private-tail"))
+        XCTAssertTrue(injected.isEmpty)
+        XCTAssertEqual(service.deferredTranscripts.first?.previousText, "private-prefix")
+        XCTAssertEqual(service.deferredTranscripts.first?.text, "private-tail")
     }
 
     func testSegmentCommitDoesNotPasteBeforeWholeRecordingEnds() async {

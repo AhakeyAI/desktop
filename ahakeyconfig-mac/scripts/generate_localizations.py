@@ -7,6 +7,8 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "App 本地转写": "Local App Transcription",
+    "当前使用 App 本地转写，保存其他选择后才切换方案。": "Local App Transcription is active. Another method takes effect only after saving.",
     "%d 步 · %d / %d 字节": "%d steps · %d / %d bytes",
     "有未写入的改动": "Changes not yet written",
     "自动批准仅在拨杆在上且保留出厂自动绑定时启用。": "Automatic approval requires the lever to be up with its factory automatic binding.",

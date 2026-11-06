@@ -492,6 +492,9 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
     private func handleRecognition(_ update: NativeSpeechRecognitionUpdate, recording: Recording) {
         guard !recording.closed else { return }
+        if let audio = update.audioObservation {
+            appendDiagnostic("speech boundary source=SpeechTranscriber sourceFinal=\(audio.isFinal) start=\(audio.start) duration=\(audio.duration) completionValid=\(update.completion != nil) chars=\(update.text?.count ?? 0)")
+        }
         recording.requiresReview = recording.requiresReview || update.requiresReview
         if let text = update.text {
             if !text.isEmpty {
@@ -530,6 +533,7 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
         let finalization: SpeechTranscriptAccumulator.Finalization = recording.requiresReview && !recording.text.isEmpty
             ? .review(previous: recording.text, latest: recording.text) : recording.accumulator.finalization
+        appendDiagnostic("finalize boundary reason=\(reason) captureReview=\(recording.requiresReview) \(recording.accumulator.diagnosticSummary)")
         let capturedPolicy = recording.policy
         let isForeground = recordingGeneration == recording.id
         closeRecording(recording)

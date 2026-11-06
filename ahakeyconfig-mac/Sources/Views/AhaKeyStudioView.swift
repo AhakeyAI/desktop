@@ -1414,7 +1414,7 @@ struct AhaKeyStudioView: View {
                                 .font(.caption).foregroundStyle(.orange)
                         }
                         if key.voicePreset?.isMacOSNativeFamily == true {
-                            Text(NSLocalizedString("当前保留旧版 App 原生转写，保存新选择前行为不变。", comment: ""))
+                            Text(NSLocalizedString("当前使用 App 本地转写，保存其他选择后才切换方案。", comment: ""))
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         if (key.voicePreset ?? .custom).pickerCategory == .custom {

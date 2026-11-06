@@ -394,7 +394,7 @@ enum VoicePreset: String, CaseIterable, Codable, Identifiable {
         case .ahaTypeCloud:
             NSLocalizedString("AhaType 云端转写", comment: "")
         case .macOSNative, .claudeCode, .kimiCode:
-            NSLocalizedString("App 原生转写（旧方案）", comment: "")
+            NSLocalizedString("App 本地转写", comment: "")
         case .typeless:
             "Fn/Globe"
         case .wechat:
