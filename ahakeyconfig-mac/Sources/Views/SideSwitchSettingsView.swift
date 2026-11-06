@@ -161,17 +161,7 @@ struct KeyboardActionEditor: View {
         action = Data([0x74, UInt8(bytes.count)] + bytes)
     }
     private var macroEditor: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(String(format: NSLocalizedString("宏：%@", comment: ""), steps.displaySummary))
-                    .font(.system(.callout, design: .rounded).weight(.semibold))
-                    .lineLimit(2)
-                Spacer()
-                Text(NSLocalizedString("固件宏", comment: ""))
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            MacroStepsEditor(steps: Binding(get: { steps }, set: { updateSteps($0) }),
-                             maximumPayloadBytes: maximumPayloadBytes, minimumDelay: 0)
-        }
+        MacroStepsEditor(steps: Binding(get: { steps }, set: { updateSteps($0) }),
+                         maximumPayloadBytes: maximumPayloadBytes, minimumDelay: 0)
     }
 }

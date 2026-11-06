@@ -1496,14 +1496,16 @@ struct AhaKeyStudioView: View {
                                     Divider()
 
                                     // 绑定摘要（短按 = 语音键 HID 绑定）
-                                    HStack {
-                                        Text(key.displaySummary)
-                                            .font(.system(.callout, design: .rounded).weight(.semibold))
-                                            .lineLimit(1)
-                                        Spacer()
-                                        Text(key.usesMacro ? NSLocalizedString("固件宏", comment: "") : NSLocalizedString("底层 HID", comment: ""))
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                    if !key.usesMacro {
+                                        HStack {
+                                            Text(key.displaySummary)
+                                                .font(.system(.callout, design: .rounded).weight(.semibold))
+                                                .lineLimit(1)
+                                            Spacer()
+                                            Text(NSLocalizedString("底层 HID", comment: ""))
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
                                     }
                                     Picker("", selection: selectedKeyBindingModeBinding) {
                                         Text(NSLocalizedString("单键 / 组合键", comment: "")).tag(KeyBindingMode.shortcut)
@@ -1571,14 +1573,16 @@ struct AhaKeyStudioView: View {
                             // ── 普通键触发方式 ──────────────────────────────
                             if selectedTriggerTab == 0 {
                                 VStack(alignment: .leading, spacing: 10) {
-                                    HStack {
-                                        Text(key.displaySummary)
-                                            .font(.system(.callout, design: .rounded).weight(.semibold))
-                                            .lineLimit(2)
-                                        Spacer()
-                                        Text(key.usesMacro ? NSLocalizedString("固件宏", comment: "") : NSLocalizedString("底层 HID", comment: ""))
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                    if !key.usesMacro {
+                                        HStack {
+                                            Text(key.displaySummary)
+                                                .font(.system(.callout, design: .rounded).weight(.semibold))
+                                                .lineLimit(2)
+                                            Spacer()
+                                            Text(NSLocalizedString("底层 HID", comment: ""))
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
                                     }
                                     Picker("", selection: selectedKeyBindingModeBinding) {
                                         Text(NSLocalizedString("单键 / 组合键", comment: "")).tag(KeyBindingMode.shortcut)
