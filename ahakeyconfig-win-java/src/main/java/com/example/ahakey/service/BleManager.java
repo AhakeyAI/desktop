@@ -284,6 +284,7 @@ public class BleManager {
             displayReadUncertain = false;
             displayReply = null;
             k1ReplyRequest = null;
+            compactExpected = null; compactReply = null;
             displayLease = null;
             deferredRuntimeState = null;
             pendingNotifyFramesByCommand.clear();
@@ -403,6 +404,36 @@ public class BleManager {
                         (acquiredAt - queuedAt) / 1000, sentAt == 0 ? -1 : (sentAt - acquiredAt) / 1000,
                         sentAt == 0 ? -1 : (finishedAt - sentAt) / 1000);
             }
+        }
+    }
+
+    private byte[] compactExpected;
+    private byte[] compactReply;
+    /** ACR3 shares the display lease, but only its caller decides whether a timeout is recoverable. */
+    public byte[] exchangeCompact(DisplayLease lease, byte[] request, long timeoutMillis) throws Exception {
+        byte[] expected = request == null ? null : request.clone();
+        commandLock.lockInterruptibly();
+        try {
+            checkDisplayLease(lease);
+            maintenance.admitFrame(request, connectionGeneration);
+            if (!lease.writing || !isDisplayAdmitted() || displayWriteUncertain)
+                throw new IOException("快速上传尚未准入或上次结果未确认。");
+            if (request == null || request.length < 12 || request.length > (lease.usb ? 57 : 145)
+                    || request[2] != (byte) 0x9E || request[3] != 3 || request.length != 12 + (request[5] & 255))
+                throw new IOException("快速上传请求格式无效。");
+            compactExpected = expected; compactReply = null;
+            if (lease.usb) sendUsbCommand(request); else writePacket(BleTcpPacket.WRITE_COMMAND, request);
+            long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
+            while (true) {
+                checkDisplayLease(lease);
+                if (compactReply != null) return compactReply.clone();
+                long remaining = deadline - System.nanoTime();
+                if (remaining <= 0) throw new java.net.SocketTimeoutException("快速上传响应超时。");
+                responseReady.awaitNanos(Math.min(remaining, TimeUnit.MILLISECONDS.toNanos(100)));
+            }
+        } finally {
+            if (compactExpected == expected) { compactExpected = null; compactReply = null; }
+            commandLock.unlock();
         }
     }
 
@@ -1789,6 +1820,19 @@ public class BleManager {
 
     private void processNotifyFrame(byte[] data) {
         int opcode = data.length > 2 ? data[2] & 255 : -1;
+        if (opcode == 0x9E) {
+            commandLock.lock();
+            try {
+                if (displayLease != null && compactExpected != null && displayLease.generation == connectionGeneration) {
+                    boolean unsupportedAck = (compactExpected[4] & 255) == 0x40
+                            && com.example.ahakey.protocol.K1RouteProtocol.legacyAck(data);
+                    if (unsupportedAck || com.example.ahakey.protocol.CompactUploadProtocol.matches(data, compactExpected)) {
+                        compactReply = data.clone(); responseReady.signalAll();
+                    }
+                    return; // Older/unrelated 9E replies never enter a compact transaction.
+                }
+            } finally { commandLock.unlock(); }
+        }
         if (opcode == 0x88 || opcode == 0x89 || opcode == 0x8A || opcode == 0x8B || opcode == 0x8C || opcode == 0x8E) {
             commandLock.lock();
             try {

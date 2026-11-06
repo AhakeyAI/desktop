@@ -126,6 +126,36 @@ public final class DisplayConfigService implements AutoCloseable {
             fx(() -> { state.put(next); state.message.set("草稿已保存。"); });
         });
     }
+    /** Preparation stays local and freezes the selected slot until the preview is ready. */
+    public void prepareImport(Path path, int entry, boolean compact, Consumer<OledResourceState.Asset> preview) {
+        if (!state.ready.get() || state.busy.get()) return;
+        long operation = ++operationGeneration;
+        loadGeneration++; state.loading.set(false); state.busy.set(true); updateWriteReady();
+        worker.execute(() -> {
+            OledResourceState.Asset asset = null; String failure = null;
+            try {
+                var frames = OLEDFrameEncoder.importFile(path, AhaKeyProtocol.resourceCapacity(entry));
+                asset = compact ? OledResourceState.Asset.fromCompact(com.example.ahakey.util.CompactResourceEncoder.encode(frames))
+                        : OledResourceState.Asset.fromBytes(OLEDFrameEncoder.paddedStream(frames));
+            } catch (Exception e) { failure = reason(e); }
+            var prepared = asset; var problem = failure;
+            fx(() -> {
+                if (operation != operationGeneration) return;
+                state.busy.set(false); updateWriteReady();
+                if (problem != null) error("导入失败：" + problem);
+                else if (state.selectedEntry.get() == entry) preview.accept(prepared);
+            });
+        });
+    }
+    public void acceptImport(int entry, OledResourceState.Asset asset) {
+        if (!state.ready.get() || state.busy.get() || state.selectedEntry.get() != entry) return;
+        var next = state.resources.get(entry).replace(asset);
+        work(operation -> {
+            store.save(next);
+            fx(() -> { state.put(next); state.message.set("已按预览保存草稿；尚未写入键盘。"); });
+        });
+    }
+
     public void clear(OledResourceState frozen) {
         if (!state.ready.get() || state.busy.get()) return;
         var current = state.resources.get(frozen.entry());

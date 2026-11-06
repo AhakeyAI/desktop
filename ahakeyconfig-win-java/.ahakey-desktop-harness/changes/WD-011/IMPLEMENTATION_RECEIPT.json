@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "id": "WD-011",
+  "at": "2026-11-06T07:10:16+00:00",
+  "build_round": 1,
+  "code_fingerprint": "7ff87e2d9c05f5d7ff3059465696c28655d2c66afeb51ab2b5b65a7aa8a602ae",
+  "approval_sha256": "7506674aba79c70ea32170c770ae252e144ea96d3f490b6b0afbc28bc963a4e9",
+  "report_sha256": "bcceb2d8b9833ad17bc2a83838ec0614a9501735bddfd0743f320e95026484d2",
+  "builder_submission_sha256": "a97d8a5556bd6b7bc22347bf92e37aecdb7e3700a7e0b3c873258d5eb21d4784",
+  "meaning": "Frozen IMPLEMENT evidence identity. Later build/test evidence must be written to phase-scoped records, not appended here."
+}

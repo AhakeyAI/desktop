@@ -1,0 +1,1504 @@
+
+### src/main/java/com/example/ahakey/app/StudioController.java
+--- start/src/main/java/com/example/ahakey/app/StudioController.java
++++ current/src/main/java/com/example/ahakey/app/StudioController.java
+@@ -788,19 +788,34 @@
+     public void selectOledGif(javafx.stage.Window owner) {
+         if (studioState.displayConfig().busy.get()) return;
+         int entry = studioState.displayConfig().selectedEntry.get();
++        var mode = com.example.ahakey.view.CompactUploadPreviewDialog.modeDialog(owner).showAndWait();
++        if (mode.isEmpty()) return;
++        boolean compact = "快速上传".equals(mode.get());
+         FileChooser chooser = new FileChooser();
+         chooser.setTitle("选择 OLED 资源");
+         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("GIF / PNG / JPEG", "*.gif", "*.png", "*.jpg", "*.jpeg"));
+         var file = chooser.showOpenDialog(owner);
+-        if (file != null) displayConfigService.importFile(file.toPath(), entry);
++        if (file != null) displayConfigService.prepareImport(file.toPath(), entry, compact, asset -> {
++            var target = studioState.displayConfig().resources.get(entry).targetName();
++            var preview = new com.example.ahakey.view.CompactUploadPreviewDialog(owner, target, asset);
++            if (preview.showAndWait().orElse(false)) displayConfigService.acceptImport(entry, asset);
++        });
+     }
+ 
+     public void uploadCurrentOledToDevice() {
+         var state = studioState.displayConfig();
+         var target = state.current();
+         if (state.busy.get() || !state.writeReady.get() || !target.canUpload()) return;
+-        if (confirmDisplayAction("确认上传到 " + target.targetName() + "？"))
++        long generation = bleManager.connectionGeneration();
++        if (confirmDisplayAction("确认上传到 " + target.targetName() + "？\n"
++                + target.asset().modeText() + " · " + target.asset().frames() + " 帧 · " + target.asset().transferBytes() + " 字节\n"
++                + "替换失败可能使此位置显示内置图；本地草稿将保留。")) {
++            if (generation != bleManager.connectionGeneration()) {
++                showOledWarning("连接已改变", "请重新确认目标设备后上传。");
++                return;
++            }
+             displayConfigService.upload(target);
++        }
+     }
+ 
+     public void clearCurrentOled() {
+
+### src/main/java/com/example/ahakey/model/OledResourceState.java
+--- start/src/main/java/com/example/ahakey/model/OledResourceState.java
++++ current/src/main/java/com/example/ahakey/model/OledResourceState.java
+@@ -9,14 +9,19 @@
+                                 boolean commitUncertain, String notice) {
+     public enum LocalStatus { EMPTY, DRAFT, FAILED, APPLIED }
+ 
+-    public record Asset(byte[] bytes, int frames, long crc) {
++    public record Asset(byte[] bytes, int frames, long crc, byte[] compactBytes) {
++        public Asset(byte[] bytes, int frames, long crc) { this(bytes, frames, crc, null); }
+         public Asset {
+             if (frames < 1 || frames > 12 || bytes.length != frames * AhaKeyProtocol.OLED_FRAME_SLOT_SIZE)
+                 throw new IllegalArgumentException("Invalid OLED asset size");
+             CRC32 checksum = new CRC32();
+             checksum.update(bytes);
+             if (checksum.getValue() != crc) throw new IllegalArgumentException("Invalid OLED asset CRC");
+-            for (int f = 0; f < frames; f++) {
++            if (compactBytes != null) {
++                if (!java.util.Arrays.equals(bytes, com.example.ahakey.util.CompactResourceEncoder.expand(compactBytes)))
++                    throw new IllegalArgumentException("Compact/expanded OLED identity mismatch");
++                compactBytes = compactBytes.clone();
++            } else for (int f = 0; f < frames; f++) {
+                 for (int i = AhaKeyProtocol.OLED_FRAME_BYTES; i < AhaKeyProtocol.OLED_FRAME_SLOT_SIZE; i++)
+                     if (bytes[f * AhaKeyProtocol.OLED_FRAME_SLOT_SIZE + i] != 0)
+                         throw new IllegalArgumentException("Invalid OLED padding");
+@@ -24,6 +29,18 @@
+             bytes = bytes.clone();
+         }
+         @Override public byte[] bytes() { return bytes.clone(); }
++        @Override public byte[] compactBytes() { return compactBytes == null ? null : compactBytes.clone(); }
++        public boolean compact() { return compactBytes != null; }
++        public String modeText() { return compact() ? "快速上传 · 16色 / 80×40" : "原画质上传 · RGB565 / 160×80"; }
++        public int transferBytes() { return compact() ? compactBytes.length : bytes.length; }
++        public int durationMillis(int frame) {
++            if (frame < 0 || frame >= frames) throw new IllegalArgumentException("frame");
++            return compact() ? Short.toUnsignedInt(java.nio.ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN).getShort(frame * 28672 + 25608)) : 100;
++        }
++        public static Asset fromCompact(byte[] object) {
++            byte[] expanded = com.example.ahakey.util.CompactResourceEncoder.expand(object);
++            return new Asset(expanded, expanded.length / 28672, com.example.ahakey.protocol.CompactUploadProtocol.crc(expanded), object);
++        }
+         public static Asset fromBytes(byte[] bytes) {
+             CRC32 crc = new CRC32();
+             crc.update(bytes);
+
+### src/main/java/com/example/ahakey/protocol/CompactUploadProtocol.java
+--- start/src/main/java/com/example/ahakey/protocol/CompactUploadProtocol.java
++++ current/src/main/java/com/example/ahakey/protocol/CompactUploadProtocol.java
+@@ -0,0 +1,63 @@
++package com.example.ahakey.protocol;
++
++import java.io.IOException;
++import java.nio.ByteBuffer;
++import java.nio.ByteOrder;
++import java.util.Arrays;
++import java.util.zip.CRC32;
++
++/** HW1 ACR3 wire contract. The length byte, never an interior delimiter, frames binary replies. */
++public final class CompactUploadProtocol {
++    public static final int CAPS=0x40, BEGIN=0x41, CHUNK=0x42, COMMIT=0x43, CANCEL=0x44, STATUS=0x45, METADATA=0x46;
++    private static final int[] RESPONSE_SIZES={14,8,9,10,6,11,10};
++    private CompactUploadProtocol() {}
++    public static ByteBuffer fields(int length) { return ByteBuffer.allocate(length).order(ByteOrder.LITTLE_ENDIAN); }
++    public static ByteBuffer read(byte[] data) { return ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN); }
++    public static long crc(byte[] data) { CRC32 crc=new CRC32();crc.update(data);return crc.getValue(); }
++    public static byte[] request(int sub,int token,byte[] fields) {
++        if(sub<CAPS||sub>METADATA||fields.length>255||token==0)throw new IllegalArgumentException("ACR3 request");
++        ByteBuffer b=fields(12+fields.length);
++        b.put((byte)0xAA).put((byte)0xBB).put((byte)0x9E).put((byte)3).put((byte)sub).put((byte)fields.length)
++                .putInt(token).put(fields).put((byte)0xCC).put((byte)0xDD);return b.array();
++    }
++    /** 0 incomplete, -2 malformed, -1 another version; otherwise exact total length. */
++    public static int replyLength(byte[] b,int start,int available) {
++        if(available<5)return 0;
++        if(b[start+2]!=(byte)0x9E||b[start+4]!=3)return -1;
++        if(available<7)return 0;
++        int sub=b[start+5]&255,status=b[start+3]&255,n=b[start+6]&255;
++        if(status>11||sub<CAPS||sub>METADATA||n!=(status==0?RESPONSE_SIZES[sub-CAPS]:4))return -2;
++        int length=13+n;
++        if(available<length)return 0;
++        return b[start+length-2]==(byte)0xCC&&b[start+length-1]==(byte)0xDD?length:-2;
++    }
++    public record Reply(int status,byte[] fields) {
++        public Reply { fields=fields.clone(); }
++        @Override public byte[] fields(){return fields.clone();}
++        public ByteBuffer buffer(){return read(fields);}
++    }
++    public static boolean matches(byte[] reply,byte[] request) {
++        return reply!=null&&reply.length>=13&&request!=null&&request.length>=12&&reply[4]==3
++                &&reply[5]==request[4]&&read(reply).getInt(7)==read(request).getInt(6);
++    }
++    public static Reply response(byte[] frame,int sub,int token)throws IOException {
++        if(frame==null||frame.length<13||frame[0]!=(byte)0xAA||frame[1]!=(byte)0xBB
++                ||replyLength(frame,0,frame.length)!=frame.length||(frame[5]&255)!=sub||read(frame).getInt(7)!=token)
++            throw new IOException("快速上传响应格式或事务标识不匹配。");
++        return new Reply(frame[3]&255,Arrays.copyOfRange(frame,11,frame.length-2));
++    }
++    public static int capability(Reply reply,boolean usb)throws IOException {
++        if(reply.status()==2)throw new IOException("固件不支持快速上传，请主动选择原画质上传。");
++        if(reply.status()!=0)throw rejected(reply.status(),"协商快速上传能力");
++        ByteBuffer b=reply.buffer();byte[] magic=new byte[4];b.get(magic);
++        int flags=Short.toUnsignedInt(b.getShort());long max=Integer.toUnsignedLong(b.getInt());int chunk=b.get()&255;
++        if(!Arrays.equals(magic,new byte[]{65,67,82,51})||flags!=15||max!=50000||chunk!=(usb?40:128)
++                ||b.get()!=7||b.get()!=8||b.get()!=12)
++            throw new IOException("固件快速上传能力无法确认，请主动选择原画质上传。");
++        return chunk;
++    }
++    public static IOException rejected(int status,String phase) {
++        String[] names={"成功","请求格式无效","不支持","设备忙","范围无效","资源过大","事务归属不符","偏移不符","校验失败","解码失败","存储失败","事务不存在"};
++        return new IOException(phase+"："+(status>=0&&status<names.length?names[status]:"未知状态")+"。");
++    }
++}
+
+### src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java
+--- start/src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java
++++ current/src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java
+@@ -1,62 +1,63 @@
+-package com.example.ahakey.protocol;
+-
+-import java.io.IOException;
+-import java.nio.ByteBuffer;
+-import java.nio.ByteOrder;
+-import java.util.Arrays;
+-import java.util.zip.CRC32;
+-
+-/** v1 reviewed allocation. Every response is matched to its request, not just its opcode. */
+-public final class K1RouteProtocol {
+-    private K1RouteProtocol() {}
+-    public static long crc(byte[] data) { CRC32 crc = new CRC32(); crc.update(data); return crc.getValue(); }
+-    public static ByteBuffer fields(int size) { return ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN); }
+-    public static byte[] request(int sub, byte[] fields) {
+-        byte[] frame = new byte[7 + fields.length];
+-        frame[0]=(byte)0xAA; frame[1]=(byte)0xBB; frame[2]=(byte)0x9E; frame[3]=1; frame[4]=(byte)sub;
+-        System.arraycopy(fields,0,frame,5,fields.length); frame[frame.length-2]=(byte)0xCC; frame[frame.length-1]=(byte)0xDD;
+-        if(frame.length>62)throw new IllegalArgumentException("K1帧超过62字节"); return frame;
+-    }
+-    public static boolean legacyAck(byte[] frame) { return Arrays.equals(frame,new byte[]{(byte)0xAA,(byte)0xBB,(byte)0x9E,0,(byte)0xCC,(byte)0xDD}); }
+-    /** Framing only: positive exact length, 0 incomplete, -1 other opcode, -2 invalid.
+-     * Read replies carry no slice length, so their boundary comes from the outstanding request.
+-     * Correlation, CRC and generation are still checked by the transaction/service. */
+-    public static int replyLength(byte[] data,int start,int available,byte[] request) {
+-        if(available<3)return 0;
+-        if(data[start+2]!=(byte)0x9E)return -1;
+-        if(available<6)return 0;
+-        int status=data[start+3]&255,sub=data[start+5]&255;
+-        if(status==0&&data[start+4]==(byte)0xCC&&data[start+5]==(byte)0xDD)return 6;
+-        if ((sub==0x30&&data[start+4]==1 || sub==0x31&&data[start+4]==2) && status<=1) {
+-            if(available<17)return 0;
+-            return data[start+15]==(byte)0xCC&&data[start+16]==(byte)0xDD?17:-2;
+-        }
+-        if(status>1||data[start+4]!=1||!java.util.Set.of(0,0x10,0x20,0x21,0x22).contains(sub))return -2;
+-        int length=12;
+-        if(status==0) {
+-            length=switch(sub){case 0->14;case 0x20->18;case 0x21->16;case 0x22->17;default->0;};
+-            if(sub==0x10) {
+-                if(request==null||request.length!=14||request[2]!=(byte)0x9E||request[3]!=1||request[4]!=0x10)return -2;
+-                int offset=request[10]&255,count=request[11]&255;
+-                if((request[9]&255)>3||offset>=102||count<1||count>42)return -2;
+-                length=20+Math.min(count,102-offset);
+-            }
+-        }
+-        if(available<length)return 0;
+-        return data[start+length-2]==(byte)0xCC&&data[start+length-1]==(byte)0xDD?length:-2;
+-    }
+-    public static ByteBuffer response(byte[] f,int sub,int correlation,int fieldsLength) throws IOException {
+-        if(f==null||f.length<12||f.length>62||f[0]!=(byte)0xAA||f[1]!=(byte)0xBB||f[2]!=(byte)0x9E
+-                ||f[4]!=1||(f[5]&255)!=sub||f[f.length-2]!=(byte)0xCC||f[f.length-1]!=(byte)0xDD)
+-            throw new IOException("K1响应格式不匹配");
+-        ByteBuffer b=ByteBuffer.wrap(f,6,f.length-8).slice().order(ByteOrder.LITTLE_ENDIAN);
+-        if(b.getInt()!=correlation)throw new IOException("K1响应nonce/token不匹配");
+-        if(f[3]==1&&f.length==12)throw new IOException("K1配置暂不可读取或保存，无法确认当前设置");
+-        if(f[3]!=0||f.length!=fieldsLength+8)throw new IOException("K1响应状态或长度不匹配");
+-        return b;
+-    }
+-    public static void capability(byte[] frame,int nonce)throws IOException {
+-        var b=response(frame,0,nonce,6);int flags=b.get()&255,count=b.get()&255;
+-        if((flags&1)==0||(flags&~3)!=0||count!=4)throw new IOException("K1能力响应无效");
+-    }
+-}
++package com.example.ahakey.protocol;
++
++import java.io.IOException;
++import java.nio.ByteBuffer;
++import java.nio.ByteOrder;
++import java.util.Arrays;
++import java.util.zip.CRC32;
++
++/** v1 reviewed allocation. Every response is matched to its request, not just its opcode. */
++public final class K1RouteProtocol {
++    private K1RouteProtocol() {}
++    public static long crc(byte[] data) { CRC32 crc = new CRC32(); crc.update(data); return crc.getValue(); }
++    public static ByteBuffer fields(int size) { return ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN); }
++    public static byte[] request(int sub, byte[] fields) {
++        byte[] frame = new byte[7 + fields.length];
++        frame[0]=(byte)0xAA; frame[1]=(byte)0xBB; frame[2]=(byte)0x9E; frame[3]=1; frame[4]=(byte)sub;
++        System.arraycopy(fields,0,frame,5,fields.length); frame[frame.length-2]=(byte)0xCC; frame[frame.length-1]=(byte)0xDD;
++        if(frame.length>62)throw new IllegalArgumentException("K1帧超过62字节"); return frame;
++    }
++    public static boolean legacyAck(byte[] frame) { return Arrays.equals(frame,new byte[]{(byte)0xAA,(byte)0xBB,(byte)0x9E,0,(byte)0xCC,(byte)0xDD}); }
++    /** Framing only: positive exact length, 0 incomplete, -1 other opcode, -2 invalid.
++     * Read replies carry no slice length, so their boundary comes from the outstanding request.
++     * Correlation, CRC and generation are still checked by the transaction/service. */
++    public static int replyLength(byte[] data,int start,int available,byte[] request) {
++        if(available<3)return 0;
++        if(data[start+2]!=(byte)0x9E)return -1;
++        if(available>=5 && data[start+4]==3) return CompactUploadProtocol.replyLength(data,start,available);
++        if(available<6)return 0;
++        int status=data[start+3]&255,sub=data[start+5]&255;
++        if(status==0&&data[start+4]==(byte)0xCC&&data[start+5]==(byte)0xDD)return 6;
++        if ((sub==0x30&&data[start+4]==1 || sub==0x31&&data[start+4]==2) && status<=1) {
++            if(available<17)return 0;
++            return data[start+15]==(byte)0xCC&&data[start+16]==(byte)0xDD?17:-2;
++        }
++        if(status>1||data[start+4]!=1||!java.util.Set.of(0,0x10,0x20,0x21,0x22).contains(sub))return -2;
++        int length=12;
++        if(status==0) {
++            length=switch(sub){case 0->14;case 0x20->18;case 0x21->16;case 0x22->17;default->0;};
++            if(sub==0x10) {
++                if(request==null||request.length!=14||request[2]!=(byte)0x9E||request[3]!=1||request[4]!=0x10)return -2;
++                int offset=request[10]&255,count=request[11]&255;
++                if((request[9]&255)>3||offset>=102||count<1||count>42)return -2;
++                length=20+Math.min(count,102-offset);
++            }
++        }
++        if(available<length)return 0;
++        return data[start+length-2]==(byte)0xCC&&data[start+length-1]==(byte)0xDD?length:-2;
++    }
++    public static ByteBuffer response(byte[] f,int sub,int correlation,int fieldsLength) throws IOException {
++        if(f==null||f.length<12||f.length>62||f[0]!=(byte)0xAA||f[1]!=(byte)0xBB||f[2]!=(byte)0x9E
++                ||f[4]!=1||(f[5]&255)!=sub||f[f.length-2]!=(byte)0xCC||f[f.length-1]!=(byte)0xDD)
++            throw new IOException("K1响应格式不匹配");
++        ByteBuffer b=ByteBuffer.wrap(f,6,f.length-8).slice().order(ByteOrder.LITTLE_ENDIAN);
++        if(b.getInt()!=correlation)throw new IOException("K1响应nonce/token不匹配");
++        if(f[3]==1&&f.length==12)throw new IOException("K1配置暂不可读取或保存，无法确认当前设置");
++        if(f[3]!=0||f.length!=fieldsLength+8)throw new IOException("K1响应状态或长度不匹配");
++        return b;
++    }
++    public static void capability(byte[] frame,int nonce)throws IOException {
++        var b=response(frame,0,nonce,6);int flags=b.get()&255,count=b.get()&255;
++        if((flags&1)==0||(flags&~3)!=0||count!=4)throw new IOException("K1能力响应无效");
++    }
++}
+
+### src/main/java/com/example/ahakey/service/BleManager.java
+--- start/src/main/java/com/example/ahakey/service/BleManager.java
++++ current/src/main/java/com/example/ahakey/service/BleManager.java
+@@ -284,6 +284,7 @@
+             displayReadUncertain = false;
+             displayReply = null;
+             k1ReplyRequest = null;
++            compactExpected = null; compactReply = null;
+             displayLease = null;
+             deferredRuntimeState = null;
+             pendingNotifyFramesByCommand.clear();
+@@ -403,6 +404,36 @@
+                         (acquiredAt - queuedAt) / 1000, sentAt == 0 ? -1 : (sentAt - acquiredAt) / 1000,
+                         sentAt == 0 ? -1 : (finishedAt - sentAt) / 1000);
+             }
++        }
++    }
++
++    private byte[] compactExpected;
++    private byte[] compactReply;
++    /** ACR3 shares the display lease, but only its caller decides whether a timeout is recoverable. */
++    public byte[] exchangeCompact(DisplayLease lease, byte[] request, long timeoutMillis) throws Exception {
++        byte[] expected = request == null ? null : request.clone();
++        commandLock.lockInterruptibly();
++        try {
++            checkDisplayLease(lease);
++            maintenance.admitFrame(request, connectionGeneration);
++            if (!lease.writing || !isDisplayAdmitted() || displayWriteUncertain)
++                throw new IOException("快速上传尚未准入或上次结果未确认。");
++            if (request == null || request.length < 12 || request.length > (lease.usb ? 57 : 145)
++                    || request[2] != (byte) 0x9E || request[3] != 3 || request.length != 12 + (request[5] & 255))
++                throw new IOException("快速上传请求格式无效。");
++            compactExpected = expected; compactReply = null;
++            if (lease.usb) sendUsbCommand(request); else writePacket(BleTcpPacket.WRITE_COMMAND, request);
++            long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMillis);
++            while (true) {
++                checkDisplayLease(lease);
++                if (compactReply != null) return compactReply.clone();
++                long remaining = deadline - System.nanoTime();
++                if (remaining <= 0) throw new java.net.SocketTimeoutException("快速上传响应超时。");
++                responseReady.awaitNanos(Math.min(remaining, TimeUnit.MILLISECONDS.toNanos(100)));
++            }
++        } finally {
++            if (compactExpected == expected) { compactExpected = null; compactReply = null; }
++            commandLock.unlock();
+         }
+     }
+ 
+@@ -1789,6 +1820,19 @@
+ 
+     private void processNotifyFrame(byte[] data) {
+         int opcode = data.length > 2 ? data[2] & 255 : -1;
++        if (opcode == 0x9E) {
++            commandLock.lock();
++            try {
++                if (displayLease != null && compactExpected != null && displayLease.generation == connectionGeneration) {
++                    boolean unsupportedAck = (compactExpected[4] & 255) == 0x40
++                            && com.example.ahakey.protocol.K1RouteProtocol.legacyAck(data);
++                    if (unsupportedAck || com.example.ahakey.protocol.CompactUploadProtocol.matches(data, compactExpected)) {
++                        compactReply = data.clone(); responseReady.signalAll();
++                    }
++                    return; // Older/unrelated 9E replies never enter a compact transaction.
++                }
++            } finally { commandLock.unlock(); }
++        }
+         if (opcode == 0x88 || opcode == 0x89 || opcode == 0x8A || opcode == 0x8B || opcode == 0x8C || opcode == 0x8E) {
+             commandLock.lock();
+             try {
+
+### src/main/java/com/example/ahakey/service/CompactUploadService.java
+--- start/src/main/java/com/example/ahakey/service/CompactUploadService.java
++++ current/src/main/java/com/example/ahakey/service/CompactUploadService.java
+@@ -0,0 +1,148 @@
++package com.example.ahakey.service;
++
++import com.example.ahakey.model.OledResourceState.Asset;
++import com.example.ahakey.protocol.AhaKeyProtocol;
++import com.example.ahakey.protocol.CompactUploadProtocol;
++import java.io.IOException;
++import java.net.SocketTimeoutException;
++import java.nio.ByteBuffer;
++import java.util.Arrays;
++import java.util.concurrent.ThreadLocalRandom;
++import java.util.function.Consumer;
++import java.util.function.LongSupplier;
++import static com.example.ahakey.protocol.CompactUploadProtocol.*;
++
++/** One connection-bound upload. Recovery reads never authorize writing another device or another token. */
++public final class CompactUploadService {
++    public interface Transport {
++        byte[] exchange(byte[] request,long timeoutMillis)throws Exception;
++        boolean usb();
++    }
++    private final Transport transport;
++    private final LongSupplier clock;
++    private final Runnable pause;
++    private long deadline,verified,expanded;
++    private int entry,token;
++    private boolean began,commitAttempted;
++    public CompactUploadService(Transport transport) { this(transport,System::nanoTime,()->{
++        try { Thread.sleep(50); } catch(InterruptedException e){Thread.currentThread().interrupt();throw new IllegalStateException("上传被中断。",e);}
++    }); }
++    /** Clock/pause injection is only for deterministic offline timeout tests. */
++    public CompactUploadService(Transport transport,LongSupplier clock,Runnable pause) {
++        this.transport=transport;this.clock=clock;this.pause=pause;
++    }
++    public static void upload(BleManager ble,long generation,int entry,Asset asset,
++            OledUploadService.BeforeCommit beforeCommit,Consumer<OledUploadService.Progress> progress)throws Exception {
++        try(BleManager.DisplayLease lease=ble.openDisplayLease(true,generation)) {
++            CompactUploadService service=new CompactUploadService(new Transport(){
++                public byte[] exchange(byte[] request,long timeout)throws Exception{return ble.exchangeCompact(lease,request,timeout);}
++                public boolean usb(){return ble.isUsbTransportOpen();}
++            });
++            try { service.upload(entry,asset,beforeCommit,progress); }
++            catch(Exception e) {
++                // Set before closing the lease, so deferred runtime writers cannot race an uncertain flash writer.
++                if(service.began)ble.requireDisplayRecovery(generation);
++                throw e;
++            }
++        }
++    }
++    private static int nonce(){int n;do{n=ThreadLocalRandom.current().nextInt();}while(n==0);return n;}
++    private void checkTime()throws IOException {
++        if(Thread.currentThread().isInterrupted()||clock.getAsLong()>=deadline)throw new IOException("快速上传已达到总时限，结果未确认。");
++    }
++    private Reply ask(int sub,int correlation,byte[] data)throws Exception {
++        checkTime();long remaining=Math.max(1,(deadline-clock.getAsLong())/1_000_000);
++        return response(transport.exchange(request(sub,correlation,data),Math.min(15000,remaining)),sub,correlation);
++    }
++    private Reply ask(int sub)throws Exception{return ask(sub,token,new byte[0]);}
++    private static void requireOk(Reply reply,String phase)throws IOException {
++        if(reply.status()!=0)throw rejected(reply.status(),phase);
++    }
++    private record State(int state,long offset,int error){}
++    private State settled()throws Exception {
++        long until=Math.min(deadline,clock.getAsLong()+90_000_000_000L);
++        while(clock.getAsLong()<until) {
++            checkTime();Reply reply;
++            try { reply=ask(STATUS); }catch(SocketTimeoutException e){continue;}
++            if(reply.status()==11)return null;
++            requireOk(reply,"查询上传状态");ByteBuffer b=reply.buffer();
++            int state=b.get()&255,target=b.get()&255;long offset=Integer.toUnsignedLong(b.getInt()),written=Integer.toUnsignedLong(b.getInt());int error=b.get()&255;
++            if(target!=entry||state>4||error>11||written<verified||written>expanded)
++                throw new IOException("快速上传状态与当前资源不匹配。");
++            verified=written;
++            if(state!=2&&state!=3)return new State(state,offset,error);
++            pause.run();
++        }
++        throw new IOException("等待设备完成写入超时，结果未确认。");
++    }
++    private void metadata(Asset asset)throws Exception {
++        long until=Math.min(deadline,clock.getAsLong()+90_000_000_000L);
++        do {
++            Reply reply;
++            try { reply=ask(METADATA,nonce(),new byte[]{(byte)entry}); }
++            catch(SocketTimeoutException e){continue;}
++            requireOk(reply,"读取资源校验记录");ByteBuffer b=reply.buffer();
++            int state=b.get()&255,frames=b.get()&255;long bytes=Integer.toUnsignedLong(b.getInt()),crc=Integer.toUnsignedLong(b.getInt());
++            if(state==2&&frames==asset.frames()&&bytes==expanded&&crc==asset.crc())return;
++            if(state!=1)throw new IOException("设备保存记录不匹配，不能确认快速上传成功。");
++            State current=settled();
++            if(current!=null&&current.state()==4)throw new IOException("设备存储故障，请重启设备后重新连接。");
++            pause.run();
++        }while(clock.getAsLong()<until);
++        throw new IOException("设备保存结果尚未确认，请重新连接后同步。");
++    }
++    public void upload(int target,Asset asset,OledUploadService.BeforeCommit beforeCommit,
++            Consumer<OledUploadService.Progress> progress)throws Exception {
++        if(!asset.compact()||asset.frames()>AhaKeyProtocol.resourceCapacity(target))throw new IllegalArgumentException("快速资源目标或帧数不适用。");
++        byte[] object=asset.compactBytes();entry=target;expanded=asset.bytes().length;verified=0;began=false;commitAttempted=false;
++        long start=clock.getAsLong();deadline=start+600_000_000_000L;
++        String phase="协商能力";int offset=0;
++        try {
++            int chunk=capability(ask(CAPS,nonce(),new byte[0]),transport.usb());
++            token=nonce();phase="开始上传";
++            byte[] begin=fields(25).put((byte)entry).putInt(object.length).putInt((int)crc(object)).put(object,0,16).array();
++            began=true;
++            try {
++                Reply reply=ask(BEGIN,token,begin);requireOk(reply,phase);ByteBuffer b=reply.buffer();
++                if(b.getInt()!=16||Integer.toUnsignedLong(b.getInt())!=expanded)throw new IOException("开始上传响应不匹配。");
++            }catch(SocketTimeoutException e) {
++                State state=settled();
++                if(state==null||state.state()!=1||state.offset()!=16)throw new IOException("开始上传结果未确认，未重复开始命令。");
++            }
++            offset=16;progress.accept(new OledUploadService.Progress(offset,object.length,(clock.getAsLong()-start)/1_000_000));
++            phase="传输资源";
++            while(offset<object.length) {
++                int count=Math.min(chunk,object.length-offset),end=offset+count;boolean accepted=false;
++                byte[] data=fields(5+count).putInt(offset).put((byte)count).put(object,offset,count).array();
++                for(int attempts=0;attempts<5&&!accepted;attempts++) {
++                    State state;
++                    try {
++                        Reply reply=ask(CHUNK,token,data);
++                        if(reply.status()==0) {
++                            ByteBuffer b=reply.buffer();long next=Integer.toUnsignedLong(b.getInt());int used=b.get()&255;long written=Integer.toUnsignedLong(b.getInt());
++                            if(next==end&&used==count&&written>=verified&&written<=expanded){verified=written;accepted=true;break;}
++                        }else if(reply.status()!=7)throw rejected(reply.status(),phase);
++                        state=settled();
++                    }catch(SocketTimeoutException e){state=settled();}
++                    if(state==null||state.state()!=1)throw new IOException("资源块结果未确认，已停止发送。");
++                    if(state.offset()==end)accepted=true;
++                    else if(state.offset()!=offset)throw new IOException("设备上传偏移不匹配，已停止发送。");
++                }
++                if(!accepted)throw new IOException("资源块重试已达上限。");
++                offset=end;progress.accept(new OledUploadService.Progress(offset,object.length,(clock.getAsLong()-start)/1_000_000));
++            }
++            phase="保存本地待确认记录";beforeCommit.persist();
++            phase="确认设备保存";commitAttempted=true;
++            try {
++                Reply reply=ask(COMMIT);requireOk(reply,phase);ByteBuffer b=reply.buffer();
++                if((b.get()&255)!=entry||(b.get()&255)!=asset.frames()||Integer.toUnsignedLong(b.getInt())!=expanded||Integer.toUnsignedLong(b.getInt())!=asset.crc())
++                    throw new IOException("设备提交校验不匹配。");
++            }catch(SocketTimeoutException e){/* Never resend COMMIT. Persisted metadata is the authority. */}
++            phase="读取设备保存记录";metadata(asset);
++        }catch(Exception e) {
++            throw new OledUploadService.UploadFailure("快速上传未完成（"+phase+"，已确认 "+offset+"/"+object.length+" 字节）："
++                    +(e.getMessage()==null?e.getClass().getSimpleName():e.getMessage())
++                    +(began?" 草稿已保留；目标资源可能已无效，请重新连接后同步。":" 未开始写入，可主动选择原画质上传。"),e,commitAttempted);
++        }
++    }
++}
+
+### src/main/java/com/example/ahakey/service/DisplayConfigService.java
+--- start/src/main/java/com/example/ahakey/service/DisplayConfigService.java
++++ current/src/main/java/com/example/ahakey/service/DisplayConfigService.java
+@@ -126,6 +126,36 @@
+             fx(() -> { state.put(next); state.message.set("草稿已保存。"); });
+         });
+     }
++    /** Preparation stays local and freezes the selected slot until the preview is ready. */
++    public void prepareImport(Path path, int entry, boolean compact, Consumer<OledResourceState.Asset> preview) {
++        if (!state.ready.get() || state.busy.get()) return;
++        long operation = ++operationGeneration;
++        loadGeneration++; state.loading.set(false); state.busy.set(true); updateWriteReady();
++        worker.execute(() -> {
++            OledResourceState.Asset asset = null; String failure = null;
++            try {
++                var frames = OLEDFrameEncoder.importFile(path, AhaKeyProtocol.resourceCapacity(entry));
++                asset = compact ? OledResourceState.Asset.fromCompact(com.example.ahakey.util.CompactResourceEncoder.encode(frames))
++                        : OledResourceState.Asset.fromBytes(OLEDFrameEncoder.paddedStream(frames));
++            } catch (Exception e) { failure = reason(e); }
++            var prepared = asset; var problem = failure;
++            fx(() -> {
++                if (operation != operationGeneration) return;
++                state.busy.set(false); updateWriteReady();
++                if (problem != null) error("导入失败：" + problem);
++                else if (state.selectedEntry.get() == entry) preview.accept(prepared);
++            });
++        });
++    }
++    public void acceptImport(int entry, OledResourceState.Asset asset) {
++        if (!state.ready.get() || state.busy.get() || state.selectedEntry.get() != entry) return;
++        var next = state.resources.get(entry).replace(asset);
++        work(operation -> {
++            store.save(next);
++            fx(() -> { state.put(next); state.message.set("已按预览保存草稿；尚未写入键盘。"); });
++        });
++    }
++
+     public void clear(OledResourceState frozen) {
+         if (!state.ready.get() || state.busy.get()) return;
+         var current = state.resources.get(frozen.entry());
+
+### src/main/java/com/example/ahakey/service/OledResourceStore.java
+--- start/src/main/java/com/example/ahakey/service/OledResourceStore.java
++++ current/src/main/java/com/example/ahakey/service/OledResourceStore.java
+@@ -54,7 +54,13 @@
+                     Path path = assetPath(node.path("file").asText());
+                     int frames = node.path("frames").asInt(-1);
+                     if (frames < 1 || frames > 12 || Files.size(path) != frames * 28672L) throw new IOException("本地成品尺寸无效：目标 " + entry);
+-                    asset = new Asset(Files.readAllBytes(path), frames, node.path("crc").asLong(-1));
++                    byte[] compact = null;
++                    if (node.hasNonNull("compactFile")) {
++                        Path encodedPath = assetPath(node.path("compactFile").asText());
++                        if (Files.size(encodedPath) > 50000) throw new IOException("紧凑资源过大。");
++                        compact = Files.readAllBytes(encodedPath);
++                    }
++                    asset = new Asset(Files.readAllBytes(path), frames, node.path("crc").asLong(-1), compact);
+                 }
+                 Metadata device = node.hasNonNull("device") ? mapper.treeToValue(node.get("device"), Metadata.class) : null;
+                 LocalStatus status = LocalStatus.valueOf(node.path("status").asText());
+@@ -93,6 +99,15 @@
+                 file = state.entry() + "-" + UUID.randomUUID() + ".rgb565";
+                 atomicWrite(root.resolve(file), bytes);
+             }
++            if (state.asset().compact()) {
++                String compactFile = previous.path("compactFile").asText("");
++                if (compactFile.isBlank() || !Files.isRegularFile(assetPath(compactFile))
++                        || !java.util.Arrays.equals(Files.readAllBytes(assetPath(compactFile)), state.asset().compactBytes())) {
++                    compactFile = state.entry() + "-" + UUID.randomUUID() + ".acr3";
++                    atomicWrite(root.resolve(compactFile), state.asset().compactBytes());
++                }
++                record.put("compactFile", compactFile);
++            }
+             record.put("file", file);
+             record.put("frames", state.asset().frames());
+             record.put("crc", state.asset().crc());
+@@ -106,10 +121,11 @@
+         atomicWrite(root.resolve("index.json"), mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(next));
+         index = next;
+         // A cleared entry remains a tombstone so legacy migration cannot resurrect it.
+-        if (file == null && previous.hasNonNull("file")) {
+-            String old = previous.path("file").asText();
++        if (file == null) for (String field : new String[]{"file", "compactFile"}) {
++            if (!previous.hasNonNull(field)) continue;
++            String old = previous.path(field).asText();
+             boolean shared = false;
+-            for (JsonNode other : entries) if (old.equals(other.path("file").asText())) shared = true;
++            for (JsonNode other : entries) if (old.equals(other.path(field).asText())) shared = true;
+             if (!shared) {
+                 try { Files.deleteIfExists(assetPath(old)); }
+                 catch (IOException e) { throw new CleanupFailure(e); }
+@@ -121,7 +137,7 @@
+         if (index == null) throw new IOException("本地资源库尚未成功读取，禁止覆盖。");
+     }
+     private Path assetPath(String name) throws IOException {
+-        if (!name.matches("[0-9]{1,2}-[a-f0-9-]{36}\\.rgb565")) throw new IOException("本地成品路径无效。");
++        if (!name.matches("[0-9]{1,2}-[a-f0-9-]{36}\\.(rgb565|acr3)")) throw new IOException("本地成品路径无效。");
+         Path path = root.resolve(name).normalize();
+         if (!root.equals(path.getParent()) || Files.isSymbolicLink(path)) throw new IOException("本地成品路径越界。");
+         return path;
+
+### src/main/java/com/example/ahakey/service/OledUploadService.java
+--- start/src/main/java/com/example/ahakey/service/OledUploadService.java
++++ current/src/main/java/com/example/ahakey/service/OledUploadService.java
+@@ -27,13 +27,18 @@
+     public record Progress(int acknowledgedBytes, int totalBytes, long elapsedMillis) {
+         public String text() {
+             long rate = elapsedMillis > 0 ? acknowledgedBytes * 1000L / elapsedMillis : 0;
+-            return (acknowledgedBytes * 100 / totalBytes) + "% · " + (elapsedMillis / 1000) + " 秒 · " + rate + " B/s";
++            return (acknowledgedBytes * 100 / totalBytes) + "% · 已确认 " + acknowledgedBytes + "/" + totalBytes + " 字节 · " + (elapsedMillis / 1000) + " 秒 · " + rate + " B/s";
+         }
+     }
+ 
+     public static void uploadResource(BleManager ble, long generation, int entry,
+             com.example.ahakey.model.OledResourceState.Asset asset,
+             Consumer<Integer> acknowledgedPercent, BeforeCommit beforeCommit, Consumer<Progress> progress) throws Exception {
++        if (asset.compact()) {
++            CompactUploadService.upload(ble, generation, entry, asset, beforeCommit, progress);
++            acknowledgedPercent.accept(100);
++            return;
++        }
+         if (asset.frames() > AhaKeyProtocol.resourceCapacity(entry)) throw new IllegalArgumentException("frames");
+         byte[] bytes = asset.bytes();
+         boolean commitSent = false;
+
+### src/main/java/com/example/ahakey/util/CompactResourceEncoder.java
+--- start/src/main/java/com/example/ahakey/util/CompactResourceEncoder.java
++++ current/src/main/java/com/example/ahakey/util/CompactResourceEncoder.java
+@@ -0,0 +1,110 @@
++package com.example.ahakey.util;
++
++import com.example.ahakey.protocol.CompactUploadProtocol;
++import java.awt.Graphics2D;
++import java.awt.RenderingHints;
++import java.awt.image.BufferedImage;
++import java.nio.ByteBuffer;
++import java.util.*;
++
++/** Deterministic shared-palette encoding; expansion is also the source of the exact device preview. */
++public final class CompactResourceEncoder {
++    private CompactResourceEncoder() {}
++    public static byte[] encode(List<OLEDFrameEncoder.EncodedFrame> frames) {
++        if(frames.isEmpty()||frames.size()>12)throw new IllegalArgumentException("快速上传需要 1 至 12 帧。");
++        List<int[]> pixels=new ArrayList<>();Map<Integer,Integer> histogram=new TreeMap<>();
++        for(var frame:frames) {
++            if(frame.durationMillis<20||frame.durationMillis>60000)
++                throw new IllegalArgumentException("快速上传支持每帧 20 至 60000 ms；当前帧为 "+frame.durationMillis+" ms，请调整源 GIF。");
++            BufferedImage small=new BufferedImage(80,40,BufferedImage.TYPE_INT_RGB);
++            Graphics2D g=small.createGraphics();g.setRenderingHint(RenderingHints.KEY_INTERPOLATION,RenderingHints.VALUE_INTERPOLATION_BILINEAR);
++            g.drawImage(frame.preview,0,0,80,40,null);g.dispose();
++            int[] p=new int[3200];
++            for(int y=0;y<40;y++)for(int x=0;x<80;x++) {
++                int rgb=small.getRGB(x,y),color=((rgb>>19)&31)<<11|((rgb>>10)&63)<<5|((rgb>>3)&31);
++                p[y*80+x]=color;histogram.merge(color,1,Integer::sum);
++            }
++            pixels.add(p);
++        }
++        int[] palette=palette(histogram);Map<Integer,Integer> lookup=new HashMap<>();
++        for(int color:histogram.keySet()) {
++            int best=0,distance=Integer.MAX_VALUE;
++            for(int i=0;i<16;i++) { int d=distance(color,palette[i]);if(d<distance){best=i;distance=d;} }
++            lookup.put(color,best);
++        }
++        ByteBuffer out=CompactUploadProtocol.fields(48+frames.size()*1602);
++        out.put(new byte[]{65,67,82,51,2,2,(byte)frames.size(),(byte)(frames.size()>1?1:0)});
++        out.putShort((short)80).putShort((short)40).putInt(frames.size()*28672);
++        for(int color:palette)out.put((byte)(color>>8)).put((byte)color);
++        for(int f=0;f<frames.size();f++) {
++            out.putShort((short)frames.get(f).durationMillis);int[] p=pixels.get(f);
++            for(int i=0;i<p.length;i+=2)out.put((byte)((lookup.get(p[i])<<4)|lookup.get(p[i+1])));
++        }
++        return out.array();
++    }
++    private static int component(int c,int channel) {
++        return switch(channel){case 0->((c>>11)&31)*255/31;case 1->((c>>5)&63)*255/63;default->(c&31)*255/31;};
++    }
++    private static int distance(int a,int b) {
++        int r=component(a,0)-component(b,0),g=component(a,1)-component(b,1),bl=component(a,2)-component(b,2);
++        return r*r+g*g+bl*bl;
++    }
++    private static int[] palette(Map<Integer,Integer> histogram) {
++        List<List<Integer>> boxes=new ArrayList<>();boxes.add(new ArrayList<>(histogram.keySet()));
++        while(boxes.size()<16) {
++            int choice=-1,axis=0,score=-1;
++            for(int i=0;i<boxes.size();i++) {
++                var box=boxes.get(i);if(box.size()<2)continue;
++                for(int channel=0;channel<3;channel++) {
++                    int min=255,max=0;for(int c:box){int value=component(c,channel);min=Math.min(min,value);max=Math.max(max,value);}
++                    if(max-min>score){score=max-min;choice=i;axis=channel;}
++                }
++            }
++            if(choice<0)break;
++            var box=boxes.remove(choice);final int channel=axis;
++            box.sort(Comparator.comparingInt((Integer c)->component(c,channel)).thenComparingInt(Integer::intValue));
++            long total=0,weight=0;for(int c:box)total+=histogram.get(c);
++            int split=1;for(int i=0;i<box.size()-1;i++){weight+=histogram.get(box.get(i));split=i+1;if(weight*2>=total)break;}
++            boxes.add(new ArrayList<>(box.subList(0,split)));boxes.add(new ArrayList<>(box.subList(split,box.size())));
++        }
++        int[] result=new int[16];
++        for(int i=0;i<boxes.size();i++) {
++            long r=0,g=0,b=0,n=0;
++            for(int c:boxes.get(i)){int w=histogram.get(c);r+=(long)component(c,0)*w;g+=(long)component(c,1)*w;b+=(long)component(c,2)*w;n+=w;}
++            result[i]=((int)(r/n)>>3)<<11|((int)(g/n)>>2)<<5|((int)(b/n)>>3);
++        }
++        return result;
++    }
++    /** Strict decoder shared by persistence validation, upload identity and preview. No firmware execution. */
++    public static byte[] expand(byte[] object) {
++        if(object==null||object.length<16||object.length>50000||!Arrays.equals(Arrays.copyOf(object,4),new byte[]{65,67,82,51}))
++            throw new IllegalArgumentException("紧凑资源头无效。");
++        ByteBuffer b=CompactUploadProtocol.read(object);b.position(4);
++        int encoding=b.get()&255,scale=b.get()&255,frames=b.get()&255,flags=b.get()&255;
++        int width=Short.toUnsignedInt(b.getShort()),height=Short.toUnsignedInt(b.getShort()),total=b.getInt();
++        if((encoding!=1&&encoding!=2)||(scale!=1&&scale!=2&&scale!=4)||frames<1||frames>12
++                ||flags!=(frames>1?1:0)||width*scale!=160||height*scale!=80||total!=frames*28672)
++            throw new IllegalArgumentException("紧凑资源参数无效。");
++        int count=encoding==1?width*height*2:width*height/2;
++        if(object.length!=16+(encoding==2?32:0)+frames*(2+count))throw new IllegalArgumentException("紧凑资源长度无效。");
++        int[] palette=new int[16];
++        if(encoding==2)for(int i=0;i<16;i++)palette[i]=((b.get()&255)<<8)|(b.get()&255);
++        byte[] expanded=new byte[total];Arrays.fill(expanded,(byte)0xFF);
++        for(int f=0;f<frames;f++) {
++            int duration=Short.toUnsignedInt(b.getShort());if(duration<20||duration>60000)throw new IllegalArgumentException("紧凑资源帧时长无效。");
++            int start=b.position();
++            for(int y=0;y<80;y++)for(int x=0;x<160;x++) {
++                int source=(y/scale)*width+x/scale,color;
++                if(encoding==1)color=((object[start+source*2]&255)<<8)|(object[start+source*2+1]&255);
++                else { int packed=object[start+source/2]&255;color=palette[source%2==0?packed>>4:packed&15]; }
++                int at=f*28672+(y*160+x)*2;expanded[at]=(byte)(color>>8);expanded[at+1]=(byte)color;
++            }
++            b.position(start+count);
++            ByteBuffer tail=CompactUploadProtocol.fields(16);
++            tail.put(new byte[]{65,84,48,51,1,(byte)f,(byte)frames,0}).putShort((short)duration).putShort((short)0);
++            tail.putInt((int)CompactUploadProtocol.crc(Arrays.copyOf(tail.array(),12)));
++            System.arraycopy(tail.array(),0,expanded,f*28672+25600,16);
++        }
++        return expanded;
++    }
++}
+
+### src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java
+--- start/src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java
++++ current/src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java
+@@ -22,8 +22,14 @@
+     public static class EncodedFrame {
+         public final byte[] rgb565;
+         public final BufferedImage preview;
++        public final int durationMillis;
+ 
+         public EncodedFrame(byte[] rgb565, BufferedImage preview) {
++            this(rgb565, preview, 100);
++        }
++
++        public EncodedFrame(byte[] rgb565, BufferedImage preview, int durationMillis) {
++            this.durationMillis = durationMillis;
+             this.rgb565 = rgb565;
+             this.preview = preview;
+         }
+@@ -117,7 +123,8 @@
+                     Graphics2D g = canvas.createGraphics();
+                     g.drawImage(frame, x, y, null);
+                     g.dispose();
+-                    out.add(encodeFrame(canvas));
++                    EncodedFrame encoded = encodeFrame(canvas);
++                    out.add(new EncodedFrame(encoded.rgb565, encoded.preview, attributeInt(control, "delayTime") * 10));
+                     if ("restoreToBackgroundColor".equals(disposal)) {
+                         g = canvas.createGraphics();
+                         g.setComposite(AlphaComposite.Src);
+
+### src/main/java/com/example/ahakey/view/CanvasController.java
+--- start/src/main/java/com/example/ahakey/view/CanvasController.java
++++ current/src/main/java/com/example/ahakey/view/CanvasController.java
+@@ -197,6 +197,7 @@
+     private com.example.ahakey.model.OledResourceState.Asset displayedAsset;
+     private final java.util.List<javafx.scene.image.Image> oledFrames = new java.util.ArrayList<>();
+     private int oledFrame;
++    private final Timeline oledAnimation = new Timeline();
+ 
+     private void refreshOledPreviewImage(ModeSlot mode) {
+         if (oledPreviewImage == null) return;
+@@ -205,6 +206,8 @@
+             displayedAsset = resource.asset();
+             oledFrames.clear();
+             oledFrame = 0;
++            oledAnimation.stop();
++            oledAnimation.getKeyFrames().clear();
+             if (displayedAsset != null) {
+                 byte[] bytes = displayedAsset.bytes();
+                 for (int i = 0; i < displayedAsset.frames(); i++) {
+@@ -214,6 +217,17 @@
+                         image.getPixelWriter().setArgb(x, y, 0xff000000 | decoded.getRGB(x, y));
+                     oledFrames.add(image);
+                 }
++                long elapsed = 0;
++                for (int f = 0; f < displayedAsset.frames(); f++) {
++                    final int frame = f;
++                    oledAnimation.getKeyFrames().add(new KeyFrame(Duration.millis(elapsed), event -> {
++                        oledFrame = frame; oledPreviewImage.setImage(oledFrames.get(frame));
++                    }));
++                    elapsed += displayedAsset.durationMillis(f);
++                }
++                oledAnimation.getKeyFrames().add(new KeyFrame(Duration.millis(elapsed)));
++                oledAnimation.setCycleCount(Timeline.INDEFINITE);
++                oledAnimation.playFromStart();
+             }
+         }
+         oledPreviewImage.setImage(oledFrames.isEmpty() ? null : oledFrames.get(oledFrame % oledFrames.size()));
+@@ -259,6 +273,7 @@
+             new com.example.ahakey.service.FirmwareLightSimulator();
+ 
+     private void startLightAnimation() {
++        if (!oledFrames.isEmpty()) oledAnimation.play();
+         if (lightAnimation != null) lightAnimation.stop();
+         lightAnimation = new Timeline(new KeyFrame(Duration.millis(50), event -> {
+             var display = studioState.displayConfig();
+@@ -268,10 +283,8 @@
+             }
+             int effect = display.simulatedEffect.get();
+             renderLight(effect < 0 ? new int[8] : lightSimulator.step(effect, display.simulatedBrightness.get()));
+-            if (++animationFrame % 2 == 0 && !oledFrames.isEmpty()) {
+-                oledFrame = (oledFrame + 1) % oledFrames.size();
+-                oledPreviewImage.setImage(oledFrames.get(oledFrame));
+-            }
++            animationFrame++;
++
+         }));
+         lightAnimation.setCycleCount(Timeline.INDEFINITE);
+         lightAnimation.play();
+@@ -284,6 +297,7 @@
+     }
+     
+     public void stopAnimation() {
++        oledAnimation.stop();
+         if (lightAnimation != null) {
+             lightAnimation.stop();
+         }
+
+### src/main/java/com/example/ahakey/view/CompactUploadPreviewDialog.java
+--- start/src/main/java/com/example/ahakey/view/CompactUploadPreviewDialog.java
++++ current/src/main/java/com/example/ahakey/view/CompactUploadPreviewDialog.java
+@@ -0,0 +1,60 @@
++package com.example.ahakey.view;
++
++import com.example.ahakey.model.OledResourceState.Asset;
++import com.example.ahakey.util.OLEDFrameEncoder;
++import javafx.animation.KeyFrame;
++import javafx.animation.Timeline;
++import javafx.scene.control.*;
++import javafx.scene.image.Image;
++import javafx.scene.image.ImageView;
++import javafx.scene.image.WritableImage;
++import javafx.scene.layout.VBox;
++import javafx.stage.Window;
++import javafx.util.Duration;
++import java.util.ArrayList;
++import java.util.List;
++
++/** Local-only preview. No transport or persistence access exists in this dialog. */
++public final class CompactUploadPreviewDialog extends Dialog<Boolean> {
++    private final Timeline animation=new Timeline();
++    public CompactUploadPreviewDialog(Window owner,String target,Asset asset) {
++        if(owner!=null)initOwner(owner);
++        setTitle("OLED 上传预览");setHeaderText(target+" · "+asset.modeText());
++        ButtonType keep=new ButtonType("使用此预览保存草稿",ButtonBar.ButtonData.OK_DONE);
++        getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL,keep);
++        ((Button)getDialogPane().lookupButton(keep)).setDefaultButton(false);
++        ((Button)getDialogPane().lookupButton(ButtonType.CANCEL)).setDefaultButton(true);
++        ImageView view=new ImageView();view.setId("compact-preview-image");view.setFitWidth(480);view.setFitHeight(240);view.setSmooth(false);
++        byte[] bytes=asset.bytes();List<Image> images=new ArrayList<>();
++        for(int f=0;f<asset.frames();f++) {
++            var decoded=OLEDFrameEncoder.decodeFrame(bytes,f*28672);WritableImage image=new WritableImage(160,80);
++            for(int y=0;y<80;y++)for(int x=0;x<160;x++)image.getPixelWriter().setArgb(x,y,decoded.getRGB(x,y));
++            images.add(image);
++        }
++        view.setImage(images.get(0));Label frameLabel=new Label("第 1 / "+asset.frames()+" 帧 · "+asset.durationMillis(0)+" ms");frameLabel.setId("compact-preview-timing");
++        long total=0;List<String> durations=new ArrayList<>();
++        for(int f=0;f<asset.frames();f++) {
++            final int frame=f;int ms=asset.durationMillis(f);durations.add(Integer.toString(ms));
++            animation.getKeyFrames().add(new KeyFrame(Duration.millis(total),e->{view.setImage(images.get(frame));frameLabel.setText("第 "+(frame+1)+" / "+asset.frames()+" 帧 · "+ms+" ms");}));
++            total+=ms;
++        }
++        animation.getKeyFrames().add(new KeyFrame(Duration.millis(total)));
++        animation.setCycleCount(Timeline.INDEFINITE);
++        Label details=new Label(asset.frames()+" 帧 · 一轮 "+total+" ms · 上传 "+asset.transferBytes()+" 字节\n每帧时长（ms）："+String.join(" / ",durations));
++        details.setWrapText(true);details.setId("compact-preview-details");
++        Label note=new Label(asset.compact()?"快速模式：整段动画共用 16 色，80×40 放大到 160×80。上方显示设备实际编码后的像素，颜色与细节会减少。":"原画质模式：160×80 RGB565，沿用兼容上传；动画沿用 100 ms 每帧。");
++        note.setWrapText(true);
++        Label local=new Label("此窗口只预览，不写入键盘。保存草稿后，需再点击“上传并应用”。");local.setWrapText(true);
++        VBox body=new VBox(12,view,frameLabel,details,note,local);body.setPrefWidth(500);
++        getDialogPane().setContent(body);
++        setResultConverter(button->button==keep);
++        setOnShown(e->animation.playFromStart());setOnHidden(e->animation.stop());
++    }
++    public static ChoiceDialog<String> modeDialog(Window owner) {
++        ChoiceDialog<String> dialog=new ChoiceDialog<>("原画质上传","原画质上传","快速上传");
++        if(owner!=null)dialog.initOwner(owner);
++        dialog.setTitle("选择 OLED 上传方式");dialog.setHeaderText("导入后先预览，确认上传才会写入键盘");
++        dialog.setContentText("原画质：现有 RGB565 画质\n快速：16 色、80×40，需支持 ACR3 的固件");
++        return dialog;
++    }
++}
+
+### src/main/java/com/example/ahakey/view/InspectorPane.java
+--- start/src/main/java/com/example/ahakey/view/InspectorPane.java
++++ current/src/main/java/com/example/ahakey/view/InspectorPane.java
+@@ -1421,7 +1421,12 @@
+                 controller.clearCurrentOled();
+             });
+             actions.getChildren().addAll(choose, clear);
+-            card.getChildren().addAll(title, status, frames, actions);
++            card.getChildren().addAll(title, status, frames);
++            if (resource.asset() != null) {
++                Label encoding = new Label(resource.asset().modeText() + " · " + resource.asset().transferBytes() + " 字节");
++                encoding.setWrapText(true); card.getChildren().add(encoding);
++            }
++            card.getChildren().add(actions);
+             card.setOnMouseClicked(e -> {
+                 if (display.selectedEntry.get() != index)
+                     controller.getDisplayConfigService().select(display.group.get(), selectedSub);
+
+### src/test/java/com/example/ahakey/wd011/CompactChecks.java
+--- start/src/test/java/com/example/ahakey/wd011/CompactChecks.java
++++ current/src/test/java/com/example/ahakey/wd011/CompactChecks.java
+@@ -0,0 +1,216 @@
++package com.example.ahakey.wd011;
++
++import com.example.ahakey.model.OledResourceState;
++import com.example.ahakey.model.OledResourceState.Asset;
++import com.example.ahakey.protocol.*;
++import com.example.ahakey.service.*;
++import com.example.ahakey.util.*;
++import com.example.ahakey.firmware.DeviceMaintenanceChecks;
++import com.fasterxml.jackson.databind.ObjectMapper;
++import java.awt.image.BufferedImage;
++import java.io.*;
++import java.lang.reflect.Method;
++import java.net.SocketTimeoutException;
++import java.nio.*;
++import java.nio.file.*;
++import java.util.*;
++import java.util.concurrent.atomic.AtomicLong;
++import javax.imageio.ImageIO;
++import static com.example.ahakey.protocol.CompactUploadProtocol.*;
++
++/** Memory USB/TCP only; no connect, HID enumeration, firmware execution or App.start. */
++public final class CompactChecks {
++    static int checks;
++    static final Path FIXTURES=Path.of("src/test/resources/wd011");
++    static void check(String label,boolean condition){if(!condition)throw new AssertionError(label);checks++;}
++    interface Action{void run()throws Exception;}
++    static Exception reject(String label,Action action)throws Exception {
++        try{action.run();throw new AssertionError(label);}catch(AssertionError e){throw e;}catch(Exception e){checks++;return e;}
++    }
++    static Asset sample()throws Exception{return Asset.fromCompact(Files.readAllBytes(FIXTURES.resolve("animation8/resource.acr")));}
++    public static void main(String[] args)throws Exception {
++        System.setProperty("user.home",Files.createTempDirectory("wd011-check-home-").toString());
++        ((ch.qos.logback.classic.Logger)org.slf4j.LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME)).setLevel(ch.qos.logback.classic.Level.WARN);
++        golden();encoding();persistence();framing();engine();transport();
++        System.out.println("PASS WD-011 "+checks+" assertions; offline only; no hardware timing/UAT claim");
++    }
++    static void golden()throws Exception {
++        var mapper=new ObjectMapper();
++        for(String name:List.of("static","noise","low40","animation8","animation12")) {
++            Path dir=FIXTURES.resolve(name);byte[] object=Files.readAllBytes(dir.resolve("resource.acr"));
++            var report=mapper.readTree(dir.resolve("encoding.json").toFile());Asset asset=Asset.fromCompact(object);
++            check(name+" object CRC",crc(object)==report.path("object_crc32").asLong());
++            check(name+" expanded CRC",asset.crc()==report.path("expanded_crc32").asLong());
++            check(name+" object bytes",object.length==report.path("object_bytes").asInt());
++            byte[] expanded=asset.bytes();
++            for(int f=0;f<asset.frames();f++) {
++                check(name+" duration",asset.durationMillis(f)==report.path("durations_ms").get(f).asInt());
++                BufferedImage golden=ImageIO.read(dir.resolve(String.format("frame-%02d.png",f)).toFile());
++                BufferedImage decoded=OLEDFrameEncoder.decodeFrame(expanded,f*28672);
++                for(int y=0;y<80;y++)for(int x=0;x<160;x++)check(name+" exact RGB565 pixels",golden.getRGB(x,y)==decoded.getRGB(x,y));
++                check(name+" tail magic",new String(expanded,f*28672+25600,4,java.nio.charset.StandardCharsets.US_ASCII).equals("AT03"));
++                for(int i=25616;i<28672;i++)check(name+" FF fill",expanded[f*28672+i]==(byte)255);
++            }
++            byte[] truncated=Arrays.copyOf(object,object.length-1);reject(name+" truncated",()->Asset.fromCompact(truncated));
++        }
++        byte[] invalid=sample().compactBytes();invalid[48]=0;invalid[49]=0;reject("zero duration",()->Asset.fromCompact(invalid));
++        byte[] badFlag=sample().compactBytes();badFlag[7]=0;reject("animation flag",()->Asset.fromCompact(badFlag));
++    }
++    static void encoding()throws Exception {
++        List<OLEDFrameEncoder.EncodedFrame> frames=new ArrayList<>();
++        for(int n=0;n<8;n++) {
++            BufferedImage source=new BufferedImage(160,80,BufferedImage.TYPE_INT_RGB);
++            for(int y=0;y<80;y++)for(int x=0;x<160;x++)source.setRGB(x,y,((x*255/159)<<16)|((y*255/79)<<8)|(n*32));
++            var base=OLEDFrameEncoder.encodeFrame(source);frames.add(new OLEDFrameEncoder.EncodedFrame(base.rgb565,base.preview,(n+1)*20));
++        }
++        byte[] a=CompactResourceEncoder.encode(frames),b=CompactResourceEncoder.encode(frames);Asset asset=Asset.fromCompact(a);
++        check("deterministic",Arrays.equals(a,b));check("80x40 8-frame budget",a.length==12864&&a[4]==2&&a[5]==2);
++        Set<Integer> colors=new HashSet<>();byte[] bytes=asset.bytes();
++        for(int f=0;f<8;f++){check("retained timing",asset.durationMillis(f)==(f+1)*20);for(int i=0;i<25600;i+=2)colors.add(((bytes[f*28672+i]&255)<<8)|(bytes[f*28672+i+1]&255));}
++        check("whole animation <=16 colors",colors.size()<=16);
++        var original=frames.get(0);reject("13 frames rejected",()->CompactResourceEncoder.encode(Collections.nCopies(13,original)));
++        reject("10ms not silently adjusted",()->CompactResourceEncoder.encode(List.of(new OLEDFrameEncoder.EncodedFrame(original.rgb565,original.preview,10))));
++        reject("too long not silently adjusted",()->CompactResourceEncoder.encode(List.of(new OLEDFrameEncoder.EncodedFrame(original.rgb565,original.preview,60001))));
++        reject("8-frame default slot enforced",()->OledResourceState.empty(0).replace(Asset.fromCompact(Files.readAllBytes(FIXTURES.resolve("animation12/resource.acr")))));
++    }
++    static void persistence()throws Exception {
++        Path root=Files.createTempDirectory("wd011-resource-");var store=new OledResourceStore(root);store.load();
++        Asset legacy=Asset.fromBytes(new byte[28672]);store.save(OledResourceState.empty(0).replace(legacy));
++        store.save(OledResourceState.empty(1).replace(sample()).applied());
++        var loaded=new OledResourceStore(root).load();check("old asset retained",!loaded.get(0).asset().compact());
++        check("new object roundtrip",Arrays.equals(loaded.get(1).asset().compactBytes(),sample().compactBytes()));
++        check("expanded identity matches",loaded.get(1).device().matches(sample()));
++        store.save(loaded.get(1).committing());check("interrupted commit retained",new OledResourceStore(root).load().get(1).commitUncertain());
++        byte[] copy=sample().compactBytes();copy[0]=0;check("immutable asset",sample().compactBytes()[0]==65);
++        var index=new ObjectMapper().readTree(root.resolve("index.json").toFile());Path encoded=root.resolve(index.path("entries").path("1").path("compactFile").asText());
++        byte[] corrupt=Files.readAllBytes(encoded);corrupt[50]^=1;Files.write(encoded,corrupt);
++        reject("mismatched encoded/expanded asset rejected",()->new OledResourceStore(root).load());
++        check("index failure preserves bytes",Files.exists(root.resolve("index.json")));
++    }
++    static byte[] reply(int sub,int status,int token,byte[] fields) {
++        ByteBuffer b=ByteBuffer.allocate(13+fields.length).order(ByteOrder.LITTLE_ENDIAN);
++        b.put(new byte[]{(byte)0xAA,(byte)0xBB,(byte)0x9E,(byte)status,3,(byte)sub,(byte)fields.length}).putInt(token).put(fields).put((byte)0xCC).put((byte)0xDD);return b.array();
++    }
++    static byte[] capFields(boolean usb){return fields(14).put(new byte[]{65,67,82,51}).putShort((short)15).putInt(50000).put((byte)(usb?40:128)).put(new byte[]{7,8,12}).array();}
++    static void framing()throws Exception {
++        Method usb=UsbHidTransport.class.getDeclaredMethod("extractFrame",byte[].class,int.class,byte[].class);usb.setAccessible(true);
++        Method assemble=BleManager.class.getDeclaredMethod("reassembleNotifyFrames",byte[].class);assemble.setAccessible(true);
++        for(int sub=CAPS;sub<=METADATA;sub++)for(int status:new int[]{0,1,2,3,7,8,10,11}) {
++            int n=status==0?new int[]{14,8,9,10,6,11,10}[sub-CAPS]:4;
++            byte[] content=new byte[n];for(int i=0;i<n;i++)content[i]=new byte[]{(byte)0xAA,(byte)0xBB,(byte)0xCC,(byte)0xDD}[i%4];
++            byte[] r=reply(sub,status,0xDDCCBBAA,content),req=request(sub,0xDDCCBBAA,new byte[0]);
++            check("strict response",response(r,sub,0xDDCCBBAA).status()==status);
++            for(int prefix=0;prefix<4;prefix++) {
++                byte[] report=new byte[65];System.arraycopy(r,0,report,prefix,r.length);
++                check("USB binary extraction",Arrays.equals(r,(byte[])usb.invoke(null,report,65,req)));
++                check("USB truncation",usb.invoke(null,report,prefix+r.length-1,req)==null);
++            }
++            var ble=new DeviceMaintenanceChecks.FixtureBle();
++            for(int split=1;split<r.length;split++) {
++                check("fragment waits",((List<?>)assemble.invoke(ble,(Object)Arrays.copyOf(r,split))).isEmpty());
++                var completed=(List<?>)assemble.invoke(ble,(Object)Arrays.copyOfRange(r,split,r.length));
++                check("fragment exact",completed.size()==1&&Arrays.equals((byte[])completed.get(0),r));
++            }
++            byte[] joined=new byte[r.length*2];System.arraycopy(r,0,joined,0,r.length);System.arraycopy(r,0,joined,r.length,r.length);
++            check("coalesced",((List<?>)assemble.invoke(ble,(Object)joined)).size()==2);
++        }
++        byte[] cap=reply(CAPS,0,1,capFields(true));reject("wrong nonce",()->response(cap,CAPS,2));reject("wrong sub",()->response(cap,BEGIN,1));
++        byte[] version=cap.clone();version[4]=2;reject("wrong version",()->response(version,CAPS,1));
++        reject("generic ACK never capability",()->response(new byte[]{(byte)0xAA,(byte)0xBB,(byte)0x9E,0,(byte)0xCC,(byte)0xDD},CAPS,1));
++        check("busy accurately reported",reject("busy",()->capability(new Reply(3,new byte[4]),true)).getMessage().contains("设备忙"));
++    }
++    static final class Device implements CompactUploadService.Transport {
++        final boolean usb; final Asset asset; final String mode; final AtomicLong time=new AtomicLong();
++        int offset,token,entry,beginCount,commitCount,chunkCount,statusCount,metadataCount;boolean triggered;byte[] lastChunk;
++        Device(boolean usb,String mode,Asset asset){this.usb=usb;this.mode=mode;this.asset=asset;}
++        public boolean usb(){return usb;}
++        public byte[] exchange(byte[] req,long timeout)throws Exception {
++            time.addAndGet(1_000_000);int sub=req[4]&255,correlation=read(req).getInt(6);ByteBuffer data=read(Arrays.copyOfRange(req,10,req.length-2));
++            check("request bounded",req.length<=(usb?57:145));check("explicit request length",req.length==12+(req[5]&255));
++            if(sub==CAPS){if(mode.equals("unsupported"))return reply(sub,2,correlation,new byte[4]);if(mode.equals("generic"))return new byte[]{(byte)0xAA,(byte)0xBB,(byte)0x9E,0,(byte)0xCC,(byte)0xDD};return reply(sub,0,correlation,capFields(usb));}
++            if(sub==BEGIN){beginCount++;entry=data.get()&255;check("object size",data.getInt()==asset.transferBytes());check("object CRC",Integer.toUnsignedLong(data.getInt())==crc(asset.compactBytes()));byte[] header=new byte[16];data.get(header);check("header included once",Arrays.equals(header,Arrays.copyOf(asset.compactBytes(),16)));token=correlation;offset=16;if(mode.startsWith("begin"))throw new SocketTimeoutException();return reply(sub,0,correlation,fields(8).putInt(16).putInt(asset.bytes().length).array());}
++            if(sub!=METADATA)check("same transaction token",token==correlation);
++            if(sub==CHUNK) {
++                chunkCount++;int at=data.getInt(),count=data.get()&255;byte[] payload=new byte[count];data.get(payload);
++                check("chunk source exact",Arrays.equals(payload,Arrays.copyOfRange(asset.compactBytes(),at,at+count)));
++                check("chunk limit",count<=(usb?40:128));
++                if(mode.equals("disconnect"))throw new IOException("连接已改变");
++                if(mode.equals("crc"))return reply(sub,8,correlation,new byte[4]);
++                if(mode.equals("storage"))return reply(sub,10,correlation,new byte[4]);
++                if(mode.equals("retryLimit"))throw new SocketTimeoutException();
++                if(mode.equals("stale")&&lastChunk!=null&&!triggered){triggered=true;return lastChunk;}
++                if(mode.equals("unaccepted")&&!triggered){triggered=true;throw new SocketTimeoutException();}
++                check("offset continuity",at==offset);offset+=count;
++                if((mode.equals("accepted")||mode.equals("wrongOffset")||mode.equals("fault")||mode.equals("processing"))&&!triggered){triggered=true;throw new SocketTimeoutException();}
++                lastChunk=reply(sub,0,correlation,fields(9).putInt(offset).put((byte)count).putInt(0).array());return lastChunk;
++            }
++            if(sub==STATUS){statusCount++;if(mode.equals("beginInactive"))return reply(sub,11,correlation,new byte[4]);int state=mode.equals("fault")?4:mode.equals("processing")&&statusCount==1?2:1;return reply(sub,0,correlation,fields(11).put((byte)state).put((byte)entry).putInt(mode.equals("wrongOffset")?offset+1:offset).putInt(0).put((byte)0).array());}
++            if(sub==COMMIT){commitCount++;check("complete before commit",offset==asset.transferBytes());if(mode.startsWith("commit"))throw new SocketTimeoutException();return reply(sub,0,correlation,fields(10).put((byte)entry).put((byte)asset.frames()).putInt(asset.bytes().length).putInt((int)asset.crc()).array());}
++            if(sub==METADATA){metadataCount++;check("metadata target",data.get()==entry);return reply(sub,0,correlation,fields(10).put((byte)2).put((byte)asset.frames()).putInt(asset.bytes().length).putInt((int)asset.crc()+(mode.equals("commitWrong")?1:0)).array());}
++            throw new AssertionError("unexpected sub "+sub);
++        }
++        void run(List<Integer> progress)throws Exception {new CompactUploadService(this,time::get,()->time.addAndGet(50_000_000)).upload(0,asset,()->{},p->progress.add(p.acknowledgedBytes()));}
++    }
++    static void engine()throws Exception {
++        for(boolean usb:new boolean[]{true,false})for(String mode:List.of("normal","accepted","unaccepted","stale","processing","beginAccepted","commitLost")) {
++            Device d=new Device(usb,mode,sample());List<Integer> progress=new ArrayList<>();d.run(progress);
++            check(mode+" begin not repeated",d.beginCount==1);check(mode+" commit not repeated",d.commitCount==1);check("persisted metadata required",d.metadataCount==1);
++            int previous=0;for(int n:progress){check("progress credited once",n>previous);previous=n;}check("complete encoded bytes",previous==sample().transferBytes());
++            if(mode.equals("stale"))check("stale chunk resolves via status",d.statusCount>0);
++        }
++        for(String mode:List.of("unsupported","generic","beginInactive","retryLimit","wrongOffset","fault","crc","storage","disconnect","commitWrong")) {
++            Device d=new Device(true,mode,sample());Exception error=reject(mode,()->d.run(new ArrayList<>()));
++            check(mode+" typed failure",error instanceof OledUploadService.UploadFailure);
++            if(mode.equals("unsupported")||mode.equals("generic"))check("no BEGIN without CAPS",d.beginCount==0);
++            if(mode.equals("retryLimit"))check("bounded retries",d.chunkCount==5);
++            if(mode.equals("commitWrong"))check("commit uncertainty persisted",((OledUploadService.UploadFailure)error).commitUncertain());
++            else check("never commit after precommit failure",d.commitCount==0);
++        }
++    }
++    static void transport()throws Exception {
++        for(boolean usb:new boolean[]{true,false}) {
++            var ble=new DeviceMaintenanceChecks.FixtureBle();Device device=new Device(usb,"normal",sample());
++            java.util.function.Consumer<byte[]> send=req->{try {
++                if((req[2]&255)!=0x9E)return;
++                if((req[4]&255)==CHUNK) {
++                    reject("lease excludes config write",()->ble.sendCommand(AhaKeyProtocol.setWorkMode(2)));
++                    reject("lease excludes K1",()->ble.k1RouteTransaction(0,()->null));
++                    reject("lease excludes factory reset",()->ble.beginFactoryReset(0));
++                    check("runtime deferred",!ble.sendRuntimeState((byte)1));
++                }
++                byte[] response=device.exchange(req,15000);
++                byte[] wrong=response.clone();wrong[7]^=1;ble.reply(wrong); // Stale token cannot satisfy this request.
++                ble.reply(response);
++            }catch(Exception e){throw new RuntimeException(e);}};
++            if(usb)ble.usb.consumer=send;
++            else {ble.usb.opened=false;DeviceMaintenanceChecks.field(ble,"outputStream",new OutputStream(){
++                public void write(int b){throw new AssertionError("bytewise TCP");}
++                public void write(byte[] packet,int off,int length){check("TCP type retained",packet[off]==2);check("TCP size retained",length==3+(packet[off+1]&255)+((packet[off+2]&255)<<8));send.accept(Arrays.copyOfRange(packet,off+3,off+length));}
++            });}
++            OledUploadService.uploadResource(ble,0,0,sample(),p->{},()->{});
++            check("real upload call chain USB="+usb,device.commitCount==1&&!ble.isDisplayWriteUncertain());
++        }
++        var timeout=new DeviceMaintenanceChecks.FixtureBle();
++        try(var lease=timeout.openDisplayLease(true)) {
++            reject("real timeout bounded",()->timeout.exchangeCompact(lease,request(CAPS,1,new byte[0]),3));
++            check("read timeout alone not write quarantine",!timeout.isDisplayWriteUncertain());
++        }
++        var changed=new DeviceMaintenanceChecks.FixtureBle();Method reset=BleManager.class.getDeclaredMethod("resetDisplaySession");reset.setAccessible(true);
++        changed.usb.consumer=req->{try{reset.invoke(changed);}catch(Exception e){throw new RuntimeException(e);}};
++        reject("connection changes stop before BEGIN",()->CompactUploadService.upload(changed,0,0,sample(),()->{},p->{}));
++        check("no restart into new generation",changed.usb.writes.get()==1&&changed.connectionGeneration()==1);
++        var failed=new DeviceMaintenanceChecks.FixtureBle();Device d=new Device(true,"storage",sample());int[] idle={0};failed.setDisplayIdleListener(()->idle[0]++);
++        failed.usb.consumer=req->{try{failed.reply(d.exchange(req,15000));}catch(Exception e){throw new RuntimeException(e);}};
++        reject("storage failure stops upload",()->CompactUploadService.upload(failed,0,0,sample(),()->{},p->{}));
++        check("quarantine before deferred writes",failed.isDisplayWriteUncertain()&&idle[0]==0);
++        var factory = new DeviceMaintenanceChecks.FixtureBle();factory.setFactoryWriteGuard(()->true);
++        reject("factory unresolved blocks fast write",()->CompactUploadService.upload(factory,0,0,sample(),()->{},p->{}));
++        check("factory blocked before physical request",factory.usb.writes.get()==0);
++        var fresh = new DeviceMaintenanceChecks.FixtureBle();
++        try(var lease = fresh.openDisplayLease(true)) {
++            byte[] request = request(CAPS,0x1234,new byte[0]);
++            fresh.usb.consumer = ignored -> {try{fresh.reply(reply(CAPS,0,0x1235,capFields(true)));}catch(Exception e){throw new RuntimeException(e);}};
++            reject("wrong nonce never completes transaction",()->fresh.exchangeCompact(lease,request,3));
++        }
++    }
++}
+
+### src/test/java/com/example/ahakey/wd011/CompactUiChecks.java
+--- start/src/test/java/com/example/ahakey/wd011/CompactUiChecks.java
++++ current/src/test/java/com/example/ahakey/wd011/CompactUiChecks.java
+@@ -0,0 +1,75 @@
++package com.example.ahakey.wd011;
++
++import com.example.ahakey.app.StudioController;
++import com.example.ahakey.firmware.DeviceMaintenanceChecks;
++import com.example.ahakey.model.*;
++import com.example.ahakey.service.*;
++import com.example.ahakey.view.*;
++import javafx.application.Platform;
++import javafx.scene.Scene;
++import javafx.scene.control.*;
++import javafx.scene.image.ImageView;
++import javafx.scene.layout.BorderPane;
++import javafx.stage.Stage;
++import java.awt.image.BufferedImage;
++import java.nio.file.*;
++import java.util.concurrent.*;
++import java.util.concurrent.atomic.*;
++import javax.imageio.ImageIO;
++
++/** Production dialogs, Inspector and preparation service; transport is replaced before use. */
++public final class CompactUiChecks {
++    static int checks;
++    static <T>T fx(Callable<T> call)throws Exception{FutureTask<T> task=new FutureTask<>(call);Platform.runLater(task);return task.get(20,TimeUnit.SECONDS);}
++    static void check(String label,boolean ok){if(!ok)throw new AssertionError(label);checks++;}
++    static void await(Callable<Boolean> ready)throws Exception{
++        long end=System.nanoTime()+TimeUnit.SECONDS.toNanos(10);
++        while(!fx(ready)){if(System.nanoTime()>end)throw new AssertionError("UI timed out");Thread.sleep(10);}
++    }
++    static void screenshot(javafx.scene.Parent pane,Path output)throws Exception {
++        pane.applyCss();pane.layout();var image=pane.snapshot(null,null);BufferedImage png=new BufferedImage((int)image.getWidth(),(int)image.getHeight(),BufferedImage.TYPE_INT_ARGB);
++        for(int y=0;y<png.getHeight();y++)for(int x=0;x<png.getWidth();x++)png.setRGB(x,y,image.getPixelReader().getArgb(x,y));ImageIO.write(png,"png",output.toFile());
++    }
++    public static void main(String[] args)throws Exception {
++        System.setProperty("user.home",Files.createTempDirectory("wd011-ui-home-").toString());
++        Path output=Path.of(args[0]);Files.createDirectories(output);Platform.startup(()->{});Platform.setImplicitExit(false);
++        AtomicReference<DeviceMaintenanceChecks.FixtureBle> wire=new AtomicReference<>();AtomicReference<StudioController> control=new AtomicReference<>();AtomicReference<Stage> main=new AtomicReference<>();
++        try {
++            fx(()->{
++                StudioController controller=new StudioController(callback->{try{
++                    var ble=new DeviceMaintenanceChecks.FixtureBle(callback);DeviceMaintenanceChecks.field(ble,"isConnected",false);ble.getCachedStatus().setConnected(false);ble.usb.consumer=f->{throw new AssertionError("preview must not write a device");};wire.set(ble);return ble;
++                }catch(Exception e){throw new RuntimeException(e);}},KimiAhaKeyBridge::new,false);
++                control.set(controller);controller.getStudioState().setSelectedPart(StudioPart.OLED);
++                Stage stage=new Stage();stage.setTitle("WD011 isolated UI check");stage.setScene(new Scene(new BorderPane(new InspectorPane(controller)),650,850));
++                stage.getScene().getStylesheets().add(CompactUiChecks.class.getResource("/style.css").toExternalForm());stage.show();main.set(stage);return null;
++            });
++            var service=control.get().getDisplayConfigService();await(()->service.state().ready.get());
++            AtomicReference<OledResourceState.Asset> prepared=new AtomicReference<>();
++            fx(()->{service.prepareImport(CompactChecks.FIXTURES.resolve("animation-8.gif"),0,true,prepared::set);return null;});await(()->prepared.get()!=null);
++            var asset=prepared.get();check("GIF frames kept",asset.frames()==8);
++            for(int f=0;f<8;f++)check("GIF original duration "+f,asset.durationMillis(f)==(f%4+1)*100);
++            check("preparation leaves draft empty",fx(()->service.state().current().asset()==null));
++            fx(()->{
++                var choice=CompactUploadPreviewDialog.modeDialog(main.get());choice.show();check("two options",choice.getItems().size()==2);
++                check("default compatible",choice.getSelectedItem().equals("原画质上传"));choice.setSelectedItem("快速上传");screenshot(choice.getDialogPane(),output.resolve("upload-mode.png"));choice.close();
++                var preview=new CompactUploadPreviewDialog(main.get(),"Mode 1 · 默认屏幕",asset);preview.show();
++                var image=(ImageView)preview.getDialogPane().lookup("#compact-preview-image");
++                check("actual decoded preview",image!=null&&image.getImage().getWidth()==160&&!image.isSmooth());
++                String details=((Label)preview.getDialogPane().lookup("#compact-preview-details")).getText();
++                check("size and original durations visible",details.contains("12864")&&details.contains("100 / 200 / 300 / 400"));
++                check("cancel default",((Button)preview.getDialogPane().lookupButton(ButtonType.CANCEL)).isDefaultButton());
++                screenshot(preview.getDialogPane(),output.resolve("fast-preview.png"));preview.setResult(false);preview.close();
++                check("cancel preview no local replacement",service.state().current().asset()==null);return null;
++            });
++            fx(()->{service.acceptImport(0,asset);return null;});await(()->service.state().current().asset()==asset&&!service.state().busy.get());
++            fx(()->{
++                screenshot(main.get().getScene().getRoot(),output.resolve("resource-draft.png"));
++                check("persisted mode label in real Inspector",main.get().getScene().getRoot().lookupAll(".label").stream().filter(n->n instanceof Label).map(n->((Label)n).getText()).anyMatch(t->t.contains("16色 / 80×40")));
++                check("draft not applied",service.state().current().localStatus()==OledResourceState.LocalStatus.DRAFT);
++                return null;
++            });
++            check("local workflow emits no device write",wire.get().usb.writes.get()==0);
++            System.out.println("PASS WD-011 "+checks+" production JavaFX/service assertions; snapshots="+output.toAbsolutePath());
++        }finally{fx(()->{if(main.get()!=null)main.get().close();if(control.get()!=null)control.get().shutdown();return null;});Platform.exit();}
++    }
++}
+
+### src/test/resources/wd011/SOURCE.json
+--- start/src/test/resources/wd011/SOURCE.json
++++ current/src/test/resources/wd011/SOURCE.json
+@@ -0,0 +1,41 @@
++{
++  "firmware_sha256": "6CB9958A047E57885F272FD0715C1DC4AD9D1AD4A8E4880E71243A74DDFF0624",
++  "source_commit": "709c546a00eda03ef3bf6a2ef9c3f4438ad31415",
++  "files": {
++    "animation12\\resource.acr": "d0f341fc4395adf9eab99914053b3746f0dfa1fbf458805ac7729b72dadf3515",
++    "animation12\\encoding.json": "c7041f95ede1b541e97701a2bbead067aca0f96982ff06eacc11a85ec11f5676",
++    "animation12\\frame-00.png": "abbaf4ae4d52a623cb194106a7479ef6dfd9ae331fabe7a56ba51f8bf713f1a4",
++    "animation12\\frame-01.png": "22193e42a77bd7bcc1471e01d67d6ff16dc53b91beeba4e9f3157c2ded9841f6",
++    "animation12\\frame-02.png": "68bba334d7c5f6589ff5a1c9fdf7eb9997400697303006ce2b69ea85889ae552",
++    "animation12\\frame-03.png": "c982a0ffeefe73433915183d452b19d2834e80029b058bc7db374e04536c4184",
++    "animation12\\frame-04.png": "ece39aae68fb8f7f24a86c7872a6b37425d6ccfcec7554188f6e229f29ea4f7c",
++    "animation12\\frame-05.png": "54fbf4f3461890466162e95816178ec95377b2e0ca8f8348d390524eeab7769c",
++    "animation12\\frame-06.png": "3fa8a394830a9fa4465361cb335b29e2090ca3d5851e52c99dd8c6d2ecc75c92",
++    "animation12\\frame-07.png": "7e34212ed65c254a5d58e4d8ba104f4c892631e66f798fd35460079f0fdfb0b9",
++    "animation12\\frame-08.png": "10630ea5e50f89abdbc3a42957714b39679d4722273388c484a930eaf062e6d4",
++    "animation12\\frame-09.png": "af15a4186d85b4dc40ded4c58b08085eca40f0b54ac63bbffc4e24e24994add1",
++    "animation12\\frame-10.png": "c9c0edcb396af98faab4397f63fd6e8908193b5d41791233261a19d1f8861d55",
++    "animation12\\frame-11.png": "34d329b91a6f97df44063df73bdb08a24dc1664e6a4d00efd90874f8b768c480",
++    "animation8\\resource.acr": "396d0516818ba2adb94a9c1100a3c20e2eb45dfc03659bc6b7da70b2bfb141ab",
++    "animation8\\encoding.json": "c37a58ca5fa7c68078e6dfb7bd5967cecdfb150e159ffb737a32af4bc0a3fc85",
++    "animation8\\frame-00.png": "2de3214dfa053a7cacbbbe35ccda9e0a74cb5c30245b01851d83fd68f3f2d067",
++    "animation8\\frame-01.png": "8ed0fca0c703a2b596f462c92b1dd3fac1851920e41edef9bdced841a059756b",
++    "animation8\\frame-02.png": "c8b47002831f2f5fd9070e8cefe9f922065a35bf6be883a6425bc34c3f51a854",
++    "animation8\\frame-03.png": "c635cc26de60a2515a976d83b52ff6cd47adbe12c404ca6bcbf116d58bbc66a9",
++    "animation8\\frame-04.png": "764dce778627d95e36d49d8317f4f5063e2334e56eb87938fdde348373898f9b",
++    "animation8\\frame-05.png": "9087a4612fa8c474cff7173a3ca98ae7158028b1194d6163ec4703a861986e9c",
++    "animation8\\frame-06.png": "bb1f84291470358cebe737638203080d4a5dbcdbae3caf1d112a0e7a0e157260",
++    "animation8\\frame-07.png": "ac7c22da6e097574ede794d1ece10f69de41cbda997875b1e8bec5b50f939aba",
++    "low40\\resource.acr": "2a8214d8dae32f793b5df151f3fb8f5d0b8bafd46f47730e0c3653427dfef225",
++    "low40\\encoding.json": "06ecba3b544ecda83cbf1df3e5981331994d31cdd20d02cc06dcc92c88598157",
++    "low40\\frame-00.png": "2c72bff0406d72bfe2ecd3831f6795ee56f2a8b11c0577511530ab1c60c1cd8d",
++    "noise\\resource.acr": "b85dea13f570e7b05c00112522835f287666282850c7390b0e10239204dda47a",
++    "noise\\encoding.json": "239d823803ee618a155c6c7cff5e03661a837e676c404a2dbd6d117a804acac9",
++    "noise\\frame-00.png": "562e7ffc5d053b3ac6b1a26b36bb0418b16d8d930cde97339e0ae92e531e09ed",
++    "static\\resource.acr": "91f1ddb3f719f0a71278189a261b5370f310bd9998c4e28c62ea21b1a95db1e7",
++    "static\\encoding.json": "e7aa80f622874f1b491488b4054a8baefb4c2ccacd36b25df89b0178d88973de",
++    "static\\frame-00.png": "340c8a76ea3691e4f575ac0e5fa1f759c585ed5686ee293315f117d171409837",
++    "animation-8.gif": "45a78743ad9ebce70451a16f9d79fdfddaf1b89ad5167fba00f2f099debe875f",
++    "animation-12.gif": "25cd252358aeb1d92ee9ea53072ca4aa85e03a63761b71af4ddcd6b5fd9ef087"
++  }
++}
+### src/test/resources/wd011/animation-12.gif
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation-8.gif
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation12/encoding.json
+--- start/src/test/resources/wd011/animation12/encoding.json
++++ current/src/test/resources/wd011/animation12/encoding.json
+@@ -0,0 +1,31 @@
++{
++  "format": "index4",
++  "dimensions": [
++    80,
++    40
++  ],
++  "scale": 2,
++  "frames": 12,
++  "durations_ms": [
++    100,
++    200,
++    300,
++    400,
++    100,
++    200,
++    300,
++    400,
++    100,
++    200,
++    300,
++    400
++  ],
++  "object_bytes": 19272,
++  "object_crc32": 2091554063,
++  "expanded_bytes": 344064,
++  "expanded_crc32": 4225423960,
++  "preprocessing_seconds": 0.06723479996435344,
++  "quantization_colors": 16,
++  "quality": "OWNER_REVIEW_REQUIRED",
++  "hardware_timing": "NOT_MEASURED"
++}
+
+### src/test/resources/wd011/animation12/frame-00.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation12/frame-01.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation12/frame-02.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation12/frame-03.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation12/frame-04.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation12/frame-05.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation12/frame-06.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation12/frame-07.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation12/frame-08.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation12/frame-09.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation12/frame-10.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation12/frame-11.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation12/resource.acr
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation8/encoding.json
+--- start/src/test/resources/wd011/animation8/encoding.json
++++ current/src/test/resources/wd011/animation8/encoding.json
+@@ -0,0 +1,27 @@
++{
++  "format": "index4",
++  "dimensions": [
++    80,
++    40
++  ],
++  "scale": 2,
++  "frames": 8,
++  "durations_ms": [
++    100,
++    200,
++    300,
++    400,
++    100,
++    200,
++    300,
++    400
++  ],
++  "object_bytes": 12864,
++  "object_crc32": 363861200,
++  "expanded_bytes": 229376,
++  "expanded_crc32": 174131088,
++  "preprocessing_seconds": 0.045792900025844574,
++  "quantization_colors": 16,
++  "quality": "OWNER_REVIEW_REQUIRED",
++  "hardware_timing": "NOT_MEASURED"
++}
+
+### src/test/resources/wd011/animation8/frame-00.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation8/frame-01.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation8/frame-02.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation8/frame-03.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation8/frame-04.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation8/frame-05.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation8/frame-06.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation8/frame-07.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/animation8/resource.acr
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/low40/encoding.json
+--- start/src/test/resources/wd011/low40/encoding.json
++++ current/src/test/resources/wd011/low40/encoding.json
+@@ -0,0 +1,20 @@
++{
++  "format": "rgb565",
++  "dimensions": [
++    40,
++    20
++  ],
++  "scale": 4,
++  "frames": 1,
++  "durations_ms": [
++    100
++  ],
++  "object_bytes": 1618,
++  "object_crc32": 2715503262,
++  "expanded_bytes": 28672,
++  "expanded_crc32": 3103996299,
++  "preprocessing_seconds": 0.005046100006438792,
++  "quantization_colors": 65536,
++  "quality": "OWNER_REVIEW_REQUIRED",
++  "hardware_timing": "NOT_MEASURED"
++}
+
+### src/test/resources/wd011/low40/frame-00.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/low40/resource.acr
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/noise/encoding.json
+--- start/src/test/resources/wd011/noise/encoding.json
++++ current/src/test/resources/wd011/noise/encoding.json
+@@ -0,0 +1,20 @@
++{
++  "format": "rgb565",
++  "dimensions": [
++    160,
++    80
++  ],
++  "scale": 1,
++  "frames": 1,
++  "durations_ms": [
++    100
++  ],
++  "object_bytes": 25618,
++  "object_crc32": 2601754298,
++  "expanded_bytes": 28672,
++  "expanded_crc32": 1767598265,
++  "preprocessing_seconds": 0.01230180001584813,
++  "quantization_colors": 65536,
++  "quality": "OWNER_REVIEW_REQUIRED",
++  "hardware_timing": "NOT_MEASURED"
++}
+
+### src/test/resources/wd011/noise/frame-00.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/noise/resource.acr
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/static/encoding.json
+--- start/src/test/resources/wd011/static/encoding.json
++++ current/src/test/resources/wd011/static/encoding.json
+@@ -0,0 +1,20 @@
++{
++  "format": "rgb565",
++  "dimensions": [
++    160,
++    80
++  ],
++  "scale": 1,
++  "frames": 1,
++  "durations_ms": [
++    100
++  ],
++  "object_bytes": 25618,
++  "object_crc32": 68521773,
++  "expanded_bytes": 28672,
++  "expanded_crc32": 3419772314,
++  "preprocessing_seconds": 0.01492580003105104,
++  "quantization_colors": 65536,
++  "quality": "OWNER_REVIEW_REQUIRED",
++  "hardware_timing": "NOT_MEASURED"
++}
+
+### src/test/resources/wd011/static/frame-00.png
+Binary change; compare hashes and inspect with appropriate tool.
+
+### src/test/resources/wd011/static/resource.acr
+Binary change; compare hashes and inspect with appropriate tool.

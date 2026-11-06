@@ -27,13 +27,18 @@ public final class OledUploadService {
     public record Progress(int acknowledgedBytes, int totalBytes, long elapsedMillis) {
         public String text() {
             long rate = elapsedMillis > 0 ? acknowledgedBytes * 1000L / elapsedMillis : 0;
-            return (acknowledgedBytes * 100 / totalBytes) + "% · " + (elapsedMillis / 1000) + " 秒 · " + rate + " B/s";
+            return (acknowledgedBytes * 100 / totalBytes) + "% · 已确认 " + acknowledgedBytes + "/" + totalBytes + " 字节 · " + (elapsedMillis / 1000) + " 秒 · " + rate + " B/s";
         }
     }
 
     public static void uploadResource(BleManager ble, long generation, int entry,
             com.example.ahakey.model.OledResourceState.Asset asset,
             Consumer<Integer> acknowledgedPercent, BeforeCommit beforeCommit, Consumer<Progress> progress) throws Exception {
+        if (asset.compact()) {
+            CompactUploadService.upload(ble, generation, entry, asset, beforeCommit, progress);
+            acknowledgedPercent.accept(100);
+            return;
+        }
         if (asset.frames() > AhaKeyProtocol.resourceCapacity(entry)) throw new IllegalArgumentException("frames");
         byte[] bytes = asset.bytes();
         boolean commitSent = false;

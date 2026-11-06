@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "id": "WD-011",
+  "decision": "pass",
+  "session": "/root/wd011_review",
+  "role": "independent_high_impact_reviewer",
+  "at": "2026-11-06T07:17:09.152001+00:00",
+  "pack_path": ".ahakey-desktop-harness/changes/WD-011/reviews/20261106T071107106179Z-35efc6/PACK.json",
+  "pack_sha256": "e73296f9dd3b641c76ee92bf62b6fb130ac86ff67f26dfc67cba52e0288a62f0",
+  "diff_sha256": "45406d7d23714bb6b277226f6a0a07fc64e1bb6f1224391b4f945eb94f3faeec",
+  "code_fingerprint": "7ff87e2d9c05f5d7ff3059465696c28655d2c66afeb51ab2b5b65a7aa8a602ae",
+  "analysis": "已独立阅读冻结累计diff中的全部14个生产文件、2个测试及fixture来源，追踪实际StudioController→本地准备/预览→DisplayConfigService→OledUploadService→CompactUploadService→BleManager→USB/TCP调用链，并对照配对固件709c546a的codec/command实现与交付协议。双选项保留CP2原画质；快速编码固定80×40共享16色、保留合法帧时长，预览来自将被设备展开的真实RGB565字节。新v3显式长度解析复用于USB/BLE，不改BLE桥；CAPS、token/sub、connection generation、维护/显示lease共同约束新事务。BEGIN头计入首16字节，ACK丢失与迟到CHUNK通过STATUS偏移消歧，重发有界，BEGIN/COMMIT不盲重发；COMMIT后新nonce METADATA完整比较VALID/帧数/展开长度/CRC，错误在释放lease之前保留写隔离。AT03描述符及FF填充参与展开CRC，本地资源以原子索引保存编码与展开身份，旧零填充记录向前兼容。当前未发现阻塞交付给Owner联调的本轮实现缺陷；此结论不是实机或安装器验收。",
+  "findings": [],
+  "coverage": [
+    {
+      "area": "编码与预览",
+      "files": [
+        "CompactResourceEncoder.java",
+        "OLEDFrameEncoder.java",
+        "OledResourceState.java",
+        "CompactUploadPreviewDialog.java",
+        "CanvasController.java"
+      ],
+      "conclusion": "编码预算、尺寸、8/12帧入口限制、时长上下限、共享palette、GIF既有disposal/透明合成与真实展开预览一致；时长单独Timeline而非灯光tick驱动。"
+    },
+    {
+      "area": "协议与传输",
+      "files": [
+        "CompactUploadProtocol.java",
+        "K1RouteProtocol.java",
+        "BleManager.java",
+        "CompactUploadService.java",
+        "OledUploadService.java"
+      ],
+      "conclusion": "严格v3长度/状态/字段尺寸；USB40、BLE128；v1/v2分流保留；当前代次和display lease冻结；未知结果不假成功、不自动切换旧协议或跨代次续传。只读检查既有UsbHidTransport命令封套与接收路径，不要求修改其生产文件。"
+    },
+    {
+      "area": "真实产品入口与持久化",
+      "files": [
+        "StudioController.java",
+        "DisplayConfigService.java",
+        "OledResourceStore.java",
+        "InspectorPane.java"
+      ],
+      "conclusion": "选择/预览无设备写，接受预览仅保存草稿；上传另行确认并校验目标/连接，现有busy互斥保留。新asset同时校验encoded/expanded identity，store先写成品再原子替换索引。"
+    },
+    {
+      "area": "测试与来源",
+      "files": [
+        "CompactChecks.java",
+        "CompactUiChecks.java",
+        "src/test/resources/wd011/SOURCE.json"
+      ],
+      "conclusion": "阅读所有测试语义；35个fixture字节逐个与固件交付包samples/encoded/preview比对一致，无执行固件工具。现有证据覆盖金样像素/CRC/填充、分帧、多种丢ACK与offset错误、lease阻断旧写/恢复/K1/运行状态、新代次拒绝、JavaFX真实预览无IO；394868断言主要为逐像素/填充，不解释为同等独立场景数。"
+    }
+  ],
+  "files_reviewed": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/model/OledResourceState.java",
+    "src/main/java/com/example/ahakey/protocol/CompactUploadProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/CompactUploadService.java",
+    "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+    "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+    "src/main/java/com/example/ahakey/service/OledUploadService.java",
+    "src/main/java/com/example/ahakey/util/CompactResourceEncoder.java",
+    "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+    "src/main/java/com/example/ahakey/view/CanvasController.java",
+    "src/main/java/com/example/ahakey/view/CompactUploadPreviewDialog.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java",
+    "src/test/java/com/example/ahakey/wd011/CompactChecks.java",
+    "src/test/java/com/example/ahakey/wd011/CompactUiChecks.java",
+    "src/test/resources/wd011/SOURCE.json",
+    "src/test/resources/wd011/animation-12.gif",
+    "src/test/resources/wd011/animation-8.gif",
+    "src/test/resources/wd011/animation12/encoding.json",
+    "src/test/resources/wd011/animation12/frame-00.png",
+    "src/test/resources/wd011/animation12/frame-01.png",
+    "src/test/resources/wd011/animation12/frame-02.png",
+    "src/test/resources/wd011/animation12/frame-03.png",
+    "src/test/resources/wd011/animation12/frame-04.png",
+    "src/test/resources/wd011/animation12/frame-05.png",
+    "src/test/resources/wd011/animation12/frame-06.png",
+    "src/test/resources/wd011/animation12/frame-07.png",
+    "src/test/resources/wd011/animation12/frame-08.png",
+    "src/test/resources/wd011/animation12/frame-09.png",
+    "src/test/resources/wd011/animation12/frame-10.png",
+    "src/test/resources/wd011/animation12/frame-11.png",
+    "src/test/resources/wd011/animation12/resource.acr",
+    "src/test/resources/wd011/animation8/encoding.json",
+    "src/test/resources/wd011/animation8/frame-00.png",
+    "src/test/resources/wd011/animation8/frame-01.png",
+    "src/test/resources/wd011/animation8/frame-02.png",
+    "src/test/resources/wd011/animation8/frame-03.png",
+    "src/test/resources/wd011/animation8/frame-04.png",
+    "src/test/resources/wd011/animation8/frame-05.png",
+    "src/test/resources/wd011/animation8/frame-06.png",
+    "src/test/resources/wd011/animation8/frame-07.png",
+    "src/test/resources/wd011/animation8/resource.acr",
+    "src/test/resources/wd011/low40/encoding.json",
+    "src/test/resources/wd011/low40/frame-00.png",
+    "src/test/resources/wd011/low40/resource.acr",
+    "src/test/resources/wd011/noise/encoding.json",
+    "src/test/resources/wd011/noise/frame-00.png",
+    "src/test/resources/wd011/noise/resource.acr",
+    "src/test/resources/wd011/static/encoding.json",
+    "src/test/resources/wd011/static/frame-00.png",
+    "src/test/resources/wd011/static/resource.acr"
+  ],
+  "validation": {
+    "independent_checks": [
+      "全部RESULTS.scope_input_sha256与当前文件匹配",
+      "全部归档evidence_sha256匹配",
+      "35个交付包fixture字节一致",
+      "冻结ACTUAL_DIFF SHA一致",
+      "1.0.21 JAR SHA=1611bc7a7efec9976fa641fa4546af634139cb15d1c6dac77e91447fcaae50b1",
+      "当前DeviceStatus.class与1.0.21 JAR内字节完全相同",
+      "检查最终fast-preview.png显示真实像素、颜色/细节说明、帧时长、12864字节和取消默认按钮"
+    ],
+    "builder_evidence_reviewed": ".ahakey-desktop-harness/changes/WD-011/evidence/implementation-r1/RESULTS.json",
+    "passed_suites": [
+      "CompactChecks",
+      "CompactUiChecks",
+      "DisplayConfigChecks",
+      "DisplayConfigIsolationChecks",
+      "DisplayConfigRaceChecks",
+      "DisplayConfigRevision3Checks",
+      "DisplayConfigRound5Checks",
+      "DisplayConfigFxChecks",
+      "K1RouteProtocolChecks",
+      "RestoreChecks",
+      "RuntimeRestoreRaceChecks",
+      "VoiceFinalChecks"
+    ],
+    "rerun_by_this_reviewer": false,
+    "hardware_io_performed": false,
+    "firmware_scripts_executed": false
+  },
+  "baseline_debt": {
+    "test": "DisplayConfigCapabilityChecks",
+    "assertion": "C04-basic-version-fallback-false",
+    "status": "existing_baseline_debt_not_pass",
+    "analysis": "当前与实际1.0.21 JAR运行日志均在同一断言失败；旧测试期望V1.2，而未改动且编译字节一致的DeviceStatus返回V1.2（完整标识未读到）。此失败不是WD-011引入。该套后续未执行断言不能计为PASS；保留原失败证据，不修改测试或既有catalog语义。",
+    "logs": [
+      "evidence/implementation-r1/baseline-1.0.21-capability.log",
+      "evidence/implementation-r1/displayconfig.DisplayConfigCapabilityChecks-final.log"
+    ]
+  },
+  "nonblocking_notes": [
+    "保存compact资产后直接降级1.0.21会触发旧零填充验证拒绝；交测必须明确资源库备份和恢复方法，不能声称旧安装版直接读取新资产。",
+    "无UI取消入口，上传异常以结果未确认/草稿保留/重新连接同步处理；不宣称关闭能取消设备写入。",
+    "真实USB/BLE耗时、断电、无线重试、设备显示效果/时长及配对HEX仍需Owner UAT；模拟检查不能证明30–60秒。",
+    "本报告只绑定冻结代码，不替代Git候选、Local Model安装器SHA/内容核验、正式Firmware准入与Owner反馈。"
+  ]
+}

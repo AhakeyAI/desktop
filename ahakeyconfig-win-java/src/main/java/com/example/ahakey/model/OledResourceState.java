@@ -9,14 +9,19 @@ public record OledResourceState(int entry, Asset asset, LocalStatus localStatus,
                                 boolean commitUncertain, String notice) {
     public enum LocalStatus { EMPTY, DRAFT, FAILED, APPLIED }
 
-    public record Asset(byte[] bytes, int frames, long crc) {
+    public record Asset(byte[] bytes, int frames, long crc, byte[] compactBytes) {
+        public Asset(byte[] bytes, int frames, long crc) { this(bytes, frames, crc, null); }
         public Asset {
             if (frames < 1 || frames > 12 || bytes.length != frames * AhaKeyProtocol.OLED_FRAME_SLOT_SIZE)
                 throw new IllegalArgumentException("Invalid OLED asset size");
             CRC32 checksum = new CRC32();
             checksum.update(bytes);
             if (checksum.getValue() != crc) throw new IllegalArgumentException("Invalid OLED asset CRC");
-            for (int f = 0; f < frames; f++) {
+            if (compactBytes != null) {
+                if (!java.util.Arrays.equals(bytes, com.example.ahakey.util.CompactResourceEncoder.expand(compactBytes)))
+                    throw new IllegalArgumentException("Compact/expanded OLED identity mismatch");
+                compactBytes = compactBytes.clone();
+            } else for (int f = 0; f < frames; f++) {
                 for (int i = AhaKeyProtocol.OLED_FRAME_BYTES; i < AhaKeyProtocol.OLED_FRAME_SLOT_SIZE; i++)
                     if (bytes[f * AhaKeyProtocol.OLED_FRAME_SLOT_SIZE + i] != 0)
                         throw new IllegalArgumentException("Invalid OLED padding");
@@ -24,6 +29,18 @@ public record OledResourceState(int entry, Asset asset, LocalStatus localStatus,
             bytes = bytes.clone();
         }
         @Override public byte[] bytes() { return bytes.clone(); }
+        @Override public byte[] compactBytes() { return compactBytes == null ? null : compactBytes.clone(); }
+        public boolean compact() { return compactBytes != null; }
+        public String modeText() { return compact() ? "快速上传 · 16色 / 80×40" : "原画质上传 · RGB565 / 160×80"; }
+        public int transferBytes() { return compact() ? compactBytes.length : bytes.length; }
+        public int durationMillis(int frame) {
+            if (frame < 0 || frame >= frames) throw new IllegalArgumentException("frame");
+            return compact() ? Short.toUnsignedInt(java.nio.ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN).getShort(frame * 28672 + 25608)) : 100;
+        }
+        public static Asset fromCompact(byte[] object) {
+            byte[] expanded = com.example.ahakey.util.CompactResourceEncoder.expand(object);
+            return new Asset(expanded, expanded.length / 28672, com.example.ahakey.protocol.CompactUploadProtocol.crc(expanded), object);
+        }
         public static Asset fromBytes(byte[] bytes) {
             CRC32 crc = new CRC32();
             crc.update(bytes);

@@ -1,0 +1,27 @@
+{
+  "format": "index4",
+  "dimensions": [
+    80,
+    40
+  ],
+  "scale": 2,
+  "frames": 8,
+  "durations_ms": [
+    100,
+    200,
+    300,
+    400,
+    100,
+    200,
+    300,
+    400
+  ],
+  "object_bytes": 12864,
+  "object_crc32": 363861200,
+  "expanded_bytes": 229376,
+  "expanded_crc32": 174131088,
+  "preprocessing_seconds": 0.045792900025844574,
+  "quantization_colors": 16,
+  "quality": "OWNER_REVIEW_REQUIRED",
+  "hardware_timing": "NOT_MEASURED"
+}

@@ -197,6 +197,7 @@ public class CanvasController {
     private com.example.ahakey.model.OledResourceState.Asset displayedAsset;
     private final java.util.List<javafx.scene.image.Image> oledFrames = new java.util.ArrayList<>();
     private int oledFrame;
+    private final Timeline oledAnimation = new Timeline();
 
     private void refreshOledPreviewImage(ModeSlot mode) {
         if (oledPreviewImage == null) return;
@@ -205,6 +206,8 @@ public class CanvasController {
             displayedAsset = resource.asset();
             oledFrames.clear();
             oledFrame = 0;
+            oledAnimation.stop();
+            oledAnimation.getKeyFrames().clear();
             if (displayedAsset != null) {
                 byte[] bytes = displayedAsset.bytes();
                 for (int i = 0; i < displayedAsset.frames(); i++) {
@@ -214,6 +217,17 @@ public class CanvasController {
                         image.getPixelWriter().setArgb(x, y, 0xff000000 | decoded.getRGB(x, y));
                     oledFrames.add(image);
                 }
+                long elapsed = 0;
+                for (int f = 0; f < displayedAsset.frames(); f++) {
+                    final int frame = f;
+                    oledAnimation.getKeyFrames().add(new KeyFrame(Duration.millis(elapsed), event -> {
+                        oledFrame = frame; oledPreviewImage.setImage(oledFrames.get(frame));
+                    }));
+                    elapsed += displayedAsset.durationMillis(f);
+                }
+                oledAnimation.getKeyFrames().add(new KeyFrame(Duration.millis(elapsed)));
+                oledAnimation.setCycleCount(Timeline.INDEFINITE);
+                oledAnimation.playFromStart();
             }
         }
         oledPreviewImage.setImage(oledFrames.isEmpty() ? null : oledFrames.get(oledFrame % oledFrames.size()));
@@ -259,6 +273,7 @@ public class CanvasController {
             new com.example.ahakey.service.FirmwareLightSimulator();
 
     private void startLightAnimation() {
+        if (!oledFrames.isEmpty()) oledAnimation.play();
         if (lightAnimation != null) lightAnimation.stop();
         lightAnimation = new Timeline(new KeyFrame(Duration.millis(50), event -> {
             var display = studioState.displayConfig();
@@ -268,10 +283,8 @@ public class CanvasController {
             }
             int effect = display.simulatedEffect.get();
             renderLight(effect < 0 ? new int[8] : lightSimulator.step(effect, display.simulatedBrightness.get()));
-            if (++animationFrame % 2 == 0 && !oledFrames.isEmpty()) {
-                oledFrame = (oledFrame + 1) % oledFrames.size();
-                oledPreviewImage.setImage(oledFrames.get(oledFrame));
-            }
+            animationFrame++;
+
         }));
         lightAnimation.setCycleCount(Timeline.INDEFINITE);
         lightAnimation.play();
@@ -284,6 +297,7 @@ public class CanvasController {
     }
     
     public void stopAnimation() {
+        oledAnimation.stop();
         if (lightAnimation != null) {
             lightAnimation.stop();
         }

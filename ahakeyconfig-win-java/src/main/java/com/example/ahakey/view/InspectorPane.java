@@ -1421,7 +1421,12 @@ public class InspectorPane extends ScrollPane {
                 controller.clearCurrentOled();
             });
             actions.getChildren().addAll(choose, clear);
-            card.getChildren().addAll(title, status, frames, actions);
+            card.getChildren().addAll(title, status, frames);
+            if (resource.asset() != null) {
+                Label encoding = new Label(resource.asset().modeText() + " · " + resource.asset().transferBytes() + " 字节");
+                encoding.setWrapText(true); card.getChildren().add(encoding);
+            }
+            card.getChildren().add(actions);
             card.setOnMouseClicked(e -> {
                 if (display.selectedEntry.get() != index)
                     controller.getDisplayConfigService().select(display.group.get(), selectedSub);

@@ -1,0 +1,20 @@
+{
+  "format": "rgb565",
+  "dimensions": [
+    40,
+    20
+  ],
+  "scale": 4,
+  "frames": 1,
+  "durations_ms": [
+    100
+  ],
+  "object_bytes": 1618,
+  "object_crc32": 2715503262,
+  "expanded_bytes": 28672,
+  "expanded_crc32": 3103996299,
+  "preprocessing_seconds": 0.005046100006438792,
+  "quantization_colors": 65536,
+  "quality": "OWNER_REVIEW_REQUIRED",
+  "hardware_timing": "NOT_MEASURED"
+}

@@ -1,0 +1,346 @@
+{
+  "schema_version": 1,
+  "id": "WD-011",
+  "pack_sha256": "e73296f9dd3b641c76ee92bf62b6fb130ac86ff67f26dfc67cba52e0288a62f0",
+  "reviewer_role": "DLA",
+  "review_session": "/root",
+  "builder_session": "/root/wd011_builder",
+  "independence": "separate_dla_conversation",
+  "decision": "pass",
+  "scope_conclusion": "52个文件均在批准路径和GIF上传语义内，14生产文件、2测试入口、36测试资源；五项延期修正未混入。此为DLA实际审阅结论，独立high-impact报告尚待完成后才登记门。",
+  "per_file": [
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "purpose": "双模式导入与上传确认接线",
+      "reviewed_hunks": "审阅selectOledGif本地预览保存、冻结entry及uploadCurrentOledToDevice连接代次二次检查；无确认前设备写",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/OledResourceState.java",
+      "purpose": "双格式不可变资源与设备身份",
+      "reviewed_hunks": "审阅兼容构造、完整CRC、compact解码字节匹配和clone、实际时长/传输字节，旧零尾校验保留",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/CompactUploadProtocol.java",
+      "purpose": "严格ACR3帧格式与能力",
+      "reviewed_hunks": "逐项对照13+length响应、各sub长度、状态0..11、nonce/token、完整CAPS标识/flags/预算/chunk；不以通用ACK当支持",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java",
+      "purpose": "共享9E解析扩展",
+      "reviewed_hunks": "仅增加v3长度路由，v1/v2旧分支不变；USB extractor与BLE拼帧通过实际反射入口金样",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "purpose": "显示租约内新协议交换",
+      "reviewed_hunks": "审阅租约/maintenance/identity/connection检查、USB57与BLE145上限、精确期待回复、迟到清理仅清本人expected、断连清空；未改桥/连接策略",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CompactUploadService.java",
+      "purpose": "上传及未知结果恢复状态机",
+      "reviewed_hunks": "审阅先CAPS再BEGIN头16、USB40/BLE128、有界重试及STATUS offset消歧、COMMIT不盲重发、完整METADATA匹配、600/90秒边界和失败在lease关闭前隔离",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "purpose": "异步本地准备与接受草稿",
+      "reviewed_hunks": "审阅operationGeneration失效隔离、处理失败不替换、所选entry复核、保存草稿与设备上传分离；既有work和设备事务保持",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+      "purpose": "编码对象sidecar持久化",
+      "reviewed_hunks": "审阅原子索引、对象尺寸和展开一致性、重用sidecar及本地清除安全路径；旧资产可读；降级到1.0.21不能读取新格式如实列限制",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledUploadService.java",
+      "purpose": "按资源格式分派上传并显示字节",
+      "reviewed_hunks": "compact只分派新service；旧CP2路径保持；百分比前缀兼容问题已修并经原Revision3测试复跑",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/CompactResourceEncoder.java",
+      "purpose": "共享16色80x40编码及严格展开",
+      "reviewed_hunks": "审阅加权分箱调色板、全动画共享palette、RGB565颜色字节序、帧时长、16字节头、最近邻展开、AT03 CRC和FF填充；5组固件金样独立逐像素/CRC比对",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+      "purpose": "保留GIF时长供快速路径使用",
+      "reviewed_hunks": "仅新增时长字段/兼容构造与GIF delay读取；原GIF合成/输入边界/RGB565不变；旧模式仍100ms",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "purpose": "OLED预览使用各帧时长",
+      "reviewed_hunks": "审阅独立Timeline、换资源stop/clear、末帧duration、旧100ms等价；没有画布布局或跨屏修复混入",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CompactUploadPreviewDialog.java",
+      "purpose": "本地效果与质量说明窗口",
+      "reviewed_hunks": "审阅原画质默认、快速明确16色80x40、actual expanded像素无平滑、帧时长/字节、取消默认与关闭停动画；无transport和store访问",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "purpose": "资源卡显示编码及字节",
+      "reviewed_hunks": "仅有资产时增加可换行说明；无按钮自动排列/全局布局改动",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd011/CompactChecks.java",
+      "purpose": "协议编解码和实际路由离线检查",
+      "reviewed_hunks": "审阅固件金样CRC和像素、数据截断/时长/帧数、store损坏、两通道分片内含delimiter、nonce/sub、迟到块ACK和STATUS、COMMIT丢回复、真实lease排他；断言数量主要为像素循环，未冒充硬件场景",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd011/CompactUiChecks.java",
+      "purpose": "生产UI与本地服务隔离探针",
+      "reviewed_hunks": "审阅隔离home、FixtureBle零写、实际预览及Inspector截图、取消不保存、时长/大小展示；DLA已视觉检查3图",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/SOURCE.json",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation-12.gif",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation-8.gif",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/encoding.json",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-00.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-01.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-02.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-03.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-04.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-05.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-06.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-07.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-08.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-09.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-10.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-11.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/resource.acr",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/encoding.json",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/frame-00.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/frame-01.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/frame-02.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/frame-03.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/frame-04.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/frame-05.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/frame-06.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/frame-07.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/resource.acr",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/low40/encoding.json",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/low40/frame-00.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/low40/resource.acr",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/noise/encoding.json",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/noise/frame-00.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/noise/resource.acr",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/static/encoding.json",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/static/frame-00.png",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/static/resource.acr",
+      "purpose": "固件交付包测试金样及来源清单",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "within_contract": true
+    }
+  ],
+  "production_journey": "OLED选择原画质/快速→本地读取合成编码→实际展开预览→明确接受保存草稿→上传确认并复核代次→OledUploadService按资源类型→DisplayLease内旧CP2或完整CAPS/ACR3→匹配持久化身份→APPLIED/UI；失败保留草稿与未确认状态，未触发自动兼容写或重连续传。",
+  "preserved_behavior_assessment": "12个当前入口通过，含旧显示互斥/竞态/进度、K1、FactoryReset、语音final；13个保护主体源与已保存1.0.21相同。桥未改。C04能力标签旧断言在当前及实际1.0.21同样失败，未声称其及提前停止后的分支通过，不扩大任务改既有DeviceStatus。",
+  "baseline_assessment": "98a58926已保存1.0.21主功能Owner通过反馈，start有Git和内容备份且pack无missing bytes；不把Owner主要功能通过扩展成所有固件/UAT通过。新compact后降级到旧1.0.21资源兼容不在承诺内，交测需提示备份。",
+  "protocol_assessment": "逐项对照只读6CB9958A交付包ACR3 v3及709c546a实现。所有64交付文件SHA一致；标准CP2/v1/v2保持。固定16色80x40是Owner明确选择，原画质仍RGB565 CP2；Flash写入及真实耗时未实测。",
+  "risk_level": "high",
+  "fresh_review_required": true,
+  "risk_rationale": "新增设备写协议和共享9E响应路由，要求独立审阅与配对USB/BLE实机验收；离线测试不替代真实写入。",
+  "findings": [
+    {
+      "issue": "初版进度文案破坏既有百分比前缀",
+      "resolution": "fixed",
+      "evidence": "OledUploadService.Progress保留100%前缀；targeted-final-results.json Revision3原入口exit0"
+    },
+    {
+      "issue": "初版非零CAPS错误均误称不支持",
+      "resolution": "fixed",
+      "evidence": "CompactUploadProtocol仅UNSUPPORTED状态特判，其他状态实际映射；CompactChecks BUSY提示断言通过"
+    }
+  ],
+  "baseline_gap_owner_record": null,
+  "fresh_review_record": ".ahakey-desktop-harness/changes/WD-011/fresh-review/REVIEW.json"
+}

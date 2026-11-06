@@ -54,7 +54,13 @@ public final class OledResourceStore {
                     Path path = assetPath(node.path("file").asText());
                     int frames = node.path("frames").asInt(-1);
                     if (frames < 1 || frames > 12 || Files.size(path) != frames * 28672L) throw new IOException("本地成品尺寸无效：目标 " + entry);
-                    asset = new Asset(Files.readAllBytes(path), frames, node.path("crc").asLong(-1));
+                    byte[] compact = null;
+                    if (node.hasNonNull("compactFile")) {
+                        Path encodedPath = assetPath(node.path("compactFile").asText());
+                        if (Files.size(encodedPath) > 50000) throw new IOException("紧凑资源过大。");
+                        compact = Files.readAllBytes(encodedPath);
+                    }
+                    asset = new Asset(Files.readAllBytes(path), frames, node.path("crc").asLong(-1), compact);
                 }
                 Metadata device = node.hasNonNull("device") ? mapper.treeToValue(node.get("device"), Metadata.class) : null;
                 LocalStatus status = LocalStatus.valueOf(node.path("status").asText());
@@ -93,6 +99,15 @@ public final class OledResourceStore {
                 file = state.entry() + "-" + UUID.randomUUID() + ".rgb565";
                 atomicWrite(root.resolve(file), bytes);
             }
+            if (state.asset().compact()) {
+                String compactFile = previous.path("compactFile").asText("");
+                if (compactFile.isBlank() || !Files.isRegularFile(assetPath(compactFile))
+                        || !java.util.Arrays.equals(Files.readAllBytes(assetPath(compactFile)), state.asset().compactBytes())) {
+                    compactFile = state.entry() + "-" + UUID.randomUUID() + ".acr3";
+                    atomicWrite(root.resolve(compactFile), state.asset().compactBytes());
+                }
+                record.put("compactFile", compactFile);
+            }
             record.put("file", file);
             record.put("frames", state.asset().frames());
             record.put("crc", state.asset().crc());
@@ -106,10 +121,11 @@ public final class OledResourceStore {
         atomicWrite(root.resolve("index.json"), mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(next));
         index = next;
         // A cleared entry remains a tombstone so legacy migration cannot resurrect it.
-        if (file == null && previous.hasNonNull("file")) {
-            String old = previous.path("file").asText();
+        if (file == null) for (String field : new String[]{"file", "compactFile"}) {
+            if (!previous.hasNonNull(field)) continue;
+            String old = previous.path(field).asText();
             boolean shared = false;
-            for (JsonNode other : entries) if (old.equals(other.path("file").asText())) shared = true;
+            for (JsonNode other : entries) if (old.equals(other.path(field).asText())) shared = true;
             if (!shared) {
                 try { Files.deleteIfExists(assetPath(old)); }
                 catch (IOException e) { throw new CleanupFailure(e); }
@@ -121,7 +137,7 @@ public final class OledResourceStore {
         if (index == null) throw new IOException("本地资源库尚未成功读取，禁止覆盖。");
     }
     private Path assetPath(String name) throws IOException {
-        if (!name.matches("[0-9]{1,2}-[a-f0-9-]{36}\\.rgb565")) throw new IOException("本地成品路径无效。");
+        if (!name.matches("[0-9]{1,2}-[a-f0-9-]{36}\\.(rgb565|acr3)")) throw new IOException("本地成品路径无效。");
         Path path = root.resolve(name).normalize();
         if (!root.equals(path.getParent()) || Files.isSymbolicLink(path)) throw new IOException("本地成品路径越界。");
         return path;

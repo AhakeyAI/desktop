@@ -788,19 +788,34 @@ public class StudioController {
     public void selectOledGif(javafx.stage.Window owner) {
         if (studioState.displayConfig().busy.get()) return;
         int entry = studioState.displayConfig().selectedEntry.get();
+        var mode = com.example.ahakey.view.CompactUploadPreviewDialog.modeDialog(owner).showAndWait();
+        if (mode.isEmpty()) return;
+        boolean compact = "快速上传".equals(mode.get());
         FileChooser chooser = new FileChooser();
         chooser.setTitle("选择 OLED 资源");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("GIF / PNG / JPEG", "*.gif", "*.png", "*.jpg", "*.jpeg"));
         var file = chooser.showOpenDialog(owner);
-        if (file != null) displayConfigService.importFile(file.toPath(), entry);
+        if (file != null) displayConfigService.prepareImport(file.toPath(), entry, compact, asset -> {
+            var target = studioState.displayConfig().resources.get(entry).targetName();
+            var preview = new com.example.ahakey.view.CompactUploadPreviewDialog(owner, target, asset);
+            if (preview.showAndWait().orElse(false)) displayConfigService.acceptImport(entry, asset);
+        });
     }
 
     public void uploadCurrentOledToDevice() {
         var state = studioState.displayConfig();
         var target = state.current();
         if (state.busy.get() || !state.writeReady.get() || !target.canUpload()) return;
-        if (confirmDisplayAction("确认上传到 " + target.targetName() + "？"))
+        long generation = bleManager.connectionGeneration();
+        if (confirmDisplayAction("确认上传到 " + target.targetName() + "？\n"
+                + target.asset().modeText() + " · " + target.asset().frames() + " 帧 · " + target.asset().transferBytes() + " 字节\n"
+                + "替换失败可能使此位置显示内置图；本地草稿将保留。")) {
+            if (generation != bleManager.connectionGeneration()) {
+                showOledWarning("连接已改变", "请重新确认目标设备后上传。");
+                return;
+            }
             displayConfigService.upload(target);
+        }
     }
 
     public void clearCurrentOled() {

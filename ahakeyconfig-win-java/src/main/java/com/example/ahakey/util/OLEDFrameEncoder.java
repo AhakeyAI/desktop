@@ -22,8 +22,14 @@ public final class OLEDFrameEncoder {
     public static class EncodedFrame {
         public final byte[] rgb565;
         public final BufferedImage preview;
+        public final int durationMillis;
 
         public EncodedFrame(byte[] rgb565, BufferedImage preview) {
+            this(rgb565, preview, 100);
+        }
+
+        public EncodedFrame(byte[] rgb565, BufferedImage preview, int durationMillis) {
+            this.durationMillis = durationMillis;
             this.rgb565 = rgb565;
             this.preview = preview;
         }
@@ -117,7 +123,8 @@ public final class OLEDFrameEncoder {
                     Graphics2D g = canvas.createGraphics();
                     g.drawImage(frame, x, y, null);
                     g.dispose();
-                    out.add(encodeFrame(canvas));
+                    EncodedFrame encoded = encodeFrame(canvas);
+                    out.add(new EncodedFrame(encoded.rgb565, encoded.preview, attributeInt(control, "delayTime") * 10));
                     if ("restoreToBackgroundColor".equals(disposal)) {
                         g = canvas.createGraphics();
                         g.setComposite(AlphaComposite.Src);
