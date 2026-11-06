@@ -1132,6 +1132,13 @@ enum AhaKeyStudioStore {
     /// 最近一次经固件确认写入键盘的配置，作为"未同步改动"的基线；重启后据此恢复未下发计数。
     private static let syncedKey = "ahakey.studio.synced.v1"
 
+    /// Keep `modes` at the root so existing draft decoders can still read it.
+    /// Template upgrades apply to untagged legacy data, never to a new user save.
+    private struct StoredDraft: Codable {
+        let modes: [AhaKeyModeDraft]
+        let legacyTemplateMigrationVersion: Int?
+    }
+
     static func load(from defaults: UserDefaults = .standard) -> AhaKeyStudioDraft? {
         decode(forKey: key, from: defaults)
     }
@@ -1151,18 +1158,21 @@ enum AhaKeyStudioStore {
 
     private static func decode(forKey key: String, from defaults: UserDefaults) -> AhaKeyStudioDraft? {
         guard let data = defaults.data(forKey: key),
-              var draft = try? JSONDecoder().decode(AhaKeyStudioDraft.self, from: data) else {
+              let stored = try? JSONDecoder().decode(StoredDraft.self, from: data) else {
             return nil
         }
+        var draft = AhaKeyStudioDraft(modes: stored.modes)
         let existingSlots = Set(draft.modes.map(\.mode))
         for slot in AhaKeyModeSlot.allCases where !existingSlots.contains(slot) {
             draft.modes.append(AhaKeyModeDraft.default(for: slot))
         }
-        return migratedDraft(from: draft)
+        return (stored.legacyTemplateMigrationVersion ?? 0) >= 1
+            ? repairedDraft(from: draft) : migratedDraft(from: draft)
     }
 
     private static func encode(_ draft: AhaKeyStudioDraft, forKey key: String, to defaults: UserDefaults) {
-        guard let data = try? JSONEncoder().encode(draft) else { return }
+        let stored = StoredDraft(modes: draft.modes, legacyTemplateMigrationVersion: 1)
+        guard let data = try? JSONEncoder().encode(stored) else { return }
         defaults.set(data, forKey: key)
     }
 
@@ -1271,25 +1281,6 @@ enum AhaKeyStudioStore {
             if legacyOLEDStatusLines.contains(modeDraft.oled.statusLine) {
                 modeDraft.oled.statusLine = AhaKeyOLEDDraft.default(for: mode).statusLine
             }
-            // 上传中途退出/崩溃（含 ≤0.2.3 卡死后重启）：状态行停在「正在上传…」，改为可执行的恢复提示并标记待重传。
-            if modeDraft.oled.statusLine.hasPrefix(AhaKeyOLEDDraft.uploadInProgressStatusPrefix) {
-                modeDraft.oled.statusLine = AhaKeyOLEDDraft.interruptedUploadStatusLine
-                modeDraft.oled.needsDeviceUpload = true
-            }
-
-            // LCD 素材路径自愈：用户没选过自定义 GIF（为 nil）或引用的是旧 bundle 路径时，
-            // 刷成当前构建下内置 GIF 的绝对路径；用户自选的外部路径原样保留。
-            if let bundled = DefaultOLEDAssets.bundledAssetPath(for: mode) {
-                if modeDraft.oled.localAssetPath == nil
-                    || (modeDraft.oled.localAssetPath.map(DefaultOLEDAssets.isBundledPath) ?? false)
-                {
-                    modeDraft.oled.localAssetPath = bundled
-                }
-            } else if let existing = modeDraft.oled.localAssetPath,
-                      DefaultOLEDAssets.isBundledPath(existing) {
-                modeDraft.oled.localAssetPath = nil
-            }
-
             var voiceKey = modeDraft.key(for: .voice)
             if voiceKey.voicePreset == .wechat || voiceKey.voicePreset == .doubao {
                 voiceKey.voicePreset = .typeless
@@ -1431,6 +1422,35 @@ enum AhaKeyStudioStore {
             next.updateMode(modeDraft)
         }
 
+        return repairedDraft(from: next)
+    }
+
+    /// Runtime repairs must still run after template migration has completed.
+    private static func repairedDraft(from draft: AhaKeyStudioDraft) -> AhaKeyStudioDraft {
+        var next = draft
+        for mode in AhaKeyModeSlot.allCases {
+            var modeDraft = next.draft(for: mode)
+            // 上传中途退出/崩溃（含 ≤0.2.3 卡死后重启）：状态行停在「正在上传…」，改为可执行的恢复提示并标记待重传。
+            if modeDraft.oled.statusLine.hasPrefix(AhaKeyOLEDDraft.uploadInProgressStatusPrefix) {
+                modeDraft.oled.statusLine = AhaKeyOLEDDraft.interruptedUploadStatusLine
+                modeDraft.oled.needsDeviceUpload = true
+            }
+
+            // LCD 素材路径自愈：用户没选过自定义 GIF（为 nil）或引用的是旧 bundle 路径时，
+            // 刷成当前构建下内置 GIF 的绝对路径；用户自选的外部路径原样保留。
+            if let bundled = DefaultOLEDAssets.bundledAssetPath(for: mode) {
+                if modeDraft.oled.localAssetPath == nil
+                    || (modeDraft.oled.localAssetPath.map(DefaultOLEDAssets.isBundledPath) ?? false)
+                {
+                    modeDraft.oled.localAssetPath = bundled
+                }
+            } else if let existing = modeDraft.oled.localAssetPath,
+                      DefaultOLEDAssets.isBundledPath(existing) {
+                modeDraft.oled.localAssetPath = nil
+            }
+
+            next.updateMode(modeDraft)
+        }
         return next
     }
 }

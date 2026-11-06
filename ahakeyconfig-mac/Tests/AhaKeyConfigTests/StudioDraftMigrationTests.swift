@@ -2,6 +2,81 @@ import XCTest
 @testable import AhaKeyConfig
 
 final class StudioDraftMigrationTests: XCTestCase {
+    func testCurrentSavedShortcutDoesNotTurnBackIntoClaudeMacro() throws {
+        let suite = "StudioDraftMigrationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var draft = AhaKeyStudioDraft.default
+        var mode = draft.draft(for: .mode0)
+        var reject = mode.key(for: .reject)
+        reject.macro = []
+        reject.shortcut = ShortcutBinding(keyCode: HIDUsage.enter)
+        mode.updateKey(reject)
+        draft.updateMode(mode)
+        AhaKeyStudioStore.save(draft, to: defaults)
+        AhaKeyStudioStore.saveSynced(draft, to: defaults)
+        for _ in 0..<2 {
+            let loaded = try XCTUnwrap(AhaKeyStudioStore.load(from: defaults))
+            let baseline = try XCTUnwrap(AhaKeyStudioStore.loadSynced(from: defaults))
+            XCTAssertEqual(loaded.draft(for: .mode0).key(for: .reject), reject)
+            XCTAssertEqual(baseline.draft(for: .mode0).key(for: .reject), reject)
+            AhaKeyStudioStore.save(loaded, to: defaults)
+        }
+    }
+
+    func testCurrentSavedEnterAndFiftyPercentBrightnessRemainUserChoices() throws {
+        let suite = "StudioDraftMigrationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var draft = AhaKeyStudioDraft.default
+        var mode = draft.draft(for: .mode3)
+        var key = mode.key(for: .submit)
+        key.shortcut = ShortcutBinding(keyCode: HIDUsage.enter)
+        key.description = "Enter"
+        mode.updateKey(key)
+        mode.lightBar.brightness = 50
+        draft.updateMode(mode)
+        AhaKeyStudioStore.save(draft, to: defaults)
+        let loaded = try XCTUnwrap(AhaKeyStudioStore.load(from: defaults)).draft(for: .mode3)
+        XCTAssertEqual(loaded.key(for: .submit), key)
+        XCTAssertEqual(loaded.lightBar.brightness, 50)
+    }
+
+    func testCurrentSavedDraftStillRepairsInterruptedUpload() throws {
+        let suite = "StudioDraftMigrationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var draft = AhaKeyStudioDraft.default
+        var mode = draft.draft(for: .mode3)
+        mode.oled.localAssetPath = "/tmp/owner-artwork.gif"
+        mode.oled.statusLine = "正在上传动图到 Mode 4…"
+        draft.updateMode(mode)
+        AhaKeyStudioStore.save(draft, to: defaults)
+        let oled = try XCTUnwrap(AhaKeyStudioStore.load(from: defaults)).draft(for: .mode3).oled
+        XCTAssertEqual(oled.statusLine, AhaKeyOLEDDraft.interruptedUploadStatusLine)
+        XCTAssertTrue(oled.needsDeviceUpload)
+        XCTAssertEqual(oled.localAssetPath, mode.oled.localAssetPath)
+    }
+
+    func testUntaggedLegacyDraftStillMigratesAndCurrentEncodingKeepsModesReadable() throws {
+        let suite = "StudioDraftMigrationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var draft = AhaKeyStudioDraft.default
+        var mode = draft.draft(for: .mode3)
+        var key = mode.key(for: .submit)
+        key.shortcut = ShortcutBinding(keyCode: HIDUsage.enter)
+        key.description = "回车"
+        mode.updateKey(key)
+        draft.updateMode(mode)
+        defaults.set(try JSONEncoder().encode(draft), forKey: "ahakey.studio.draft.v1")
+        let loaded = try XCTUnwrap(AhaKeyStudioStore.load(from: defaults))
+        XCTAssertEqual(loaded.draft(for: .mode3).key(for: .submit).shortcut.keyCode, HIDUsage.backspace)
+        AhaKeyStudioStore.save(loaded, to: defaults)
+        let data = try XCTUnwrap(defaults.data(forKey: "ahakey.studio.draft.v1"))
+        XCTAssertEqual(try JSONDecoder().decode(AhaKeyStudioDraft.self, from: data), loaded)
+    }
+
     func testCursorRejectMacroCreatedFromDefaultShortcutSurvivesRepeatedLoads() throws {
         let suite = "StudioDraftMigrationTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
