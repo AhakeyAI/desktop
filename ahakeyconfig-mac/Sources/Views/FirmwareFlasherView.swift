@@ -97,7 +97,7 @@ struct FirmwareFlasherView: View {
 
     private var identityDescription: String {
         switch releases.decision.state {
-        case .ready: return NSLocalizedString("已读取键盘版本标识。", comment: "")
+        case .ready: return NSLocalizedString("已读取当前设置：键盘版本标识。", comment: "")
         case .legacy: return NSLocalizedString("当前为旧版固件。", comment: "")
         case .keyReadFailed: return NSLocalizedString("尚未读取到键盘版本，普通版本安装暂不可用。", comment: "")
         case .unknownKey: return NSLocalizedString("键盘版本尚未收录；可主动刷新版本列表。", comment: "")

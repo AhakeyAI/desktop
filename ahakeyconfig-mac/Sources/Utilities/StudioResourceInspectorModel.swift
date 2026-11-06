@@ -182,7 +182,7 @@ final class StudioResourceInspectorModel: ObservableObject {
                 throw Failure.anotherKeyboard
             }
             self.deviceID = result.0; self.display = result.1
-            self.message = NSLocalizedString("已读取键盘素材信息。", comment: "")
+            self.message = NSLocalizedString("已读取当前设置：键盘素材信息。", comment: "")
             if verifying, let payload, let actual = result.1.resources.first(where: { $0.id == target }) {
                 switch WS3ResourceMetadataComparison(payload: payload, resource: actual) {
                 case .matches: self.message = NSLocalizedString("所选文件与最近读回的素材元数据一致；实际画面仍需在键盘确认。", comment: "")

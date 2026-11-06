@@ -115,7 +115,7 @@ final class StudioDeviceInspectorModel: ObservableObject {
                 }
                 self.observeStandby(fact)
             }
-            self.message = lever ? NSLocalizedString("已读取。", comment: "") : nil
+            self.message = lever ? NSLocalizedString("已读取当前设置。", comment: "") : nil
         }
     }
     func write(lever: Bool, ble: AhaKeyBLEManager, session: StudioInspectorSession) {

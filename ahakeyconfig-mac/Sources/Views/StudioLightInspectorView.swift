@@ -107,7 +107,7 @@ struct StudioLightInspectorView: View {
 
     private var readbackTitle: String {
         guard let fact = model.values.facts[target] else { return NSLocalizedString("尚未读取", comment: "") }
-        return String(format: NSLocalizedString("已读取：%@", comment: ""), label(fact.value, target: target))
+        return String(format: NSLocalizedString("已读取当前设置：%@", comment: ""), label(fact.value, target: target))
     }
 
     private var brightnessControls: some View {

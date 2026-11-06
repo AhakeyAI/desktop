@@ -69,7 +69,7 @@ struct WS3LightCatalogView: View {
             do {
                 _ = try await bleManager.readWS3LightCatalogForEditing()
                 guard readID == id, generation == bleManager.configurationSnapshot.generation else { return }
-                message = NSLocalizedString("已读取四个模式共 36 项灯效，未写入键盘。", comment: "")
+                message = NSLocalizedString("已读取当前设置：四个模式共 36 项灯效，未写入键盘。", comment: "")
             } catch {
                 guard readID == id, generation == bleManager.configurationSnapshot.generation else { return }
                 message = KeyboardSettingsFeedback.message(for: error)

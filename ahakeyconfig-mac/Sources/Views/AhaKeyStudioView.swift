@@ -5239,12 +5239,12 @@ private extension AhaKeyStudioView {
                         ProgressView().controlSize(.small)
                         Text(NSLocalizedString("处理中…", comment: ""))
                     } else if let route = inlineCurrentK1Route, let fact = inlineKeyFact {
-                        Text(String(format: NSLocalizedString("已读取：%@", comment: ""), StudioK1VoiceProposal.summary(route: route, actual: fact.value)))
+                        Text(String(format: NSLocalizedString("已读取当前设置：%@", comment: ""), StudioK1VoiceProposal.summary(route: route, actual: fact.value)))
                     } else if target.index == 0, currentSelectedKey.voicePreset == .systemDictation,
                               let voiceState = inlineVoiceState {
-                        Text(NSLocalizedString(voiceState == 2 ? "已读取：Consumer（系统听写）" : "未启用 Consumer，当前为普通键绑定", comment: ""))
+                        Text(NSLocalizedString(voiceState == 2 ? "已读取当前设置：Consumer（系统听写）" : "未启用 Consumer，当前为普通键绑定", comment: ""))
                     } else if let fact = inlineKeyFact {
-                        Text(String(format: NSLocalizedString("已读取：%@", comment: ""), StudioKeyWriteProposal.actionSummary(fact.value)))
+                        Text(String(format: NSLocalizedString("已读取当前设置：%@", comment: ""), StudioKeyWriteProposal.actionSummary(fact.value)))
                             .textSelection(.enabled)
                     } else {
                         Text(NSLocalizedString("尚未读取", comment: ""))
@@ -5831,7 +5831,7 @@ private extension AhaKeyStudioView {
                 }
                 guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
                 inlineK1InitializationFact = fact
-                inlineKeyMessage = NSLocalizedString("已读取四模式初始化方案，尚未写入键盘。", comment: "")
+                inlineKeyMessage = NSLocalizedString("已读取当前设置：四模式初始化方案，尚未写入键盘。", comment: "")
             } catch {
                 guard inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
                 inlineKeyMessage = error.localizedDescription

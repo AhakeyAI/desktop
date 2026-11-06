@@ -259,7 +259,7 @@ struct StudioResourceInspectorView: View {
     }
     private var feedback: String? {
         guard let message = model.message else { return nil }
-        let routine = ["已读取键盘素材信息。", "素材上传完成，帧数、长度和 CRC 元数据已核对一致；请在键盘确认画面并验证重启保持。", "此位置已恢复默认显示，空素材标记读回一致；请在键盘确认实际显示。", "此画面已恢复默认，请在键盘上确认效果。", "画面已写入，请在键盘上确认效果。"].map { NSLocalizedString($0, comment: "") }
+        let routine = ["已读取当前设置：键盘素材信息。", "素材上传完成，帧数、长度和 CRC 元数据已核对一致；请在键盘确认画面并验证重启保持。", "此位置已恢复默认显示，空素材标记读回一致；请在键盘确认实际显示。", "此画面已恢复默认，请在键盘上确认效果。", "画面已写入，请在键盘上确认效果。"].map { NSLocalizedString($0, comment: "") }
         if routine.contains(message) { return nil }
         if message == NSLocalizedString("所选文件与最近读回的素材元数据一致；实际画面仍需在键盘确认。", comment: "") { return NSLocalizedString("素材与键盘一致", comment: "") }
         if message == NSLocalizedString("所选文件与最近读回的素材元数据不同；本次核对未更改键盘。", comment: "") { return NSLocalizedString("素材不同，尚未写入键盘", comment: "") }

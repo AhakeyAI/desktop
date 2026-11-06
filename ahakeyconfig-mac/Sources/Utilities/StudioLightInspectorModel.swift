@@ -147,7 +147,7 @@ final class StudioLightInspectorModel: ObservableObject {
             switch result {
             case .read(let reading):
                 observe(reading, target: target)
-                message = NSLocalizedString("已读取。", comment: "")
+                message = NSLocalizedString("已读取当前设置。", comment: "")
             case .readOnly(let reading):
                 showsError = true
                 if let preview {
