@@ -822,8 +822,6 @@ struct AhaKeyStudioView: View {
                                 )
                         )
 
-                        if selectedPart == .toggleSwitch { leverPermissions().disabled(componentBusy) }
-
                         HStack {
                             Spacer()
                             Button {
