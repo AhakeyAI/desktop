@@ -1,5 +1,7 @@
 # Mac客户端适配总WBS v2 — Inspector、WS3与WS4/5
 
+2026-11-06集中验收发现并修复 **App直连固件版本回退，build573/source506e4441已安装**：旧入口只显示0x00的v1.0，手动0x9F即恢复；设备信息现按当前连接自动等待状态/空闲后只读查询目录。冷连接、Agent及Agent→App三路径均显示1.0.1-r001，8专项/1066全量及源码CI三项通过，15项偏好保持，无键盘写入。[回执](../validation/connect-talk-hil-2026-10-22/device-info-direct-firmware-build573-2026-11-06.json)。本轮实体拨杆572已完成Codex手动/自动往返；更新573只改显示查询且Shared/Agent源未改，不冒充573全部硬件矩阵完成。后续语音/重启验收进行中。另发现本机Kimi Code Desktop已更新1.3.1，当前门禁外并报instanceChanged，保留待验，不标本轮Kimi通过。
+
 2026-11-06开发补漏 **build572/sourcec6bd5ad1** 已签名安装：当前保存值与历史模板迁移分离，修复普通Enter被改回宏/Backspace及50%亮度被改回35%；草稿与确认基线均保护。原3测试6失败→11迁移及1058全量通过，源码CI三项成功；两次原生重开后15项设置内容保持，仅新增内部迁移标记，未写键盘。保留旧数据迁移与上传中断/内置素材路径修复；不计固件Issue11及完整矩阵通过。[设计与证据](current-draft-template-migration-2026-11-06.md)。
 
 2026-11-06开发补漏 **build571/source731db53f** 已签名安装：补齐Cursor默认删除键切换自定义宏后重开客户端仍保留的闭环。原Store连续两次保存/加载复现2次宏丢失；删除“默认Backspace即清空任意宏”的迁移分支，同时保留可识别旧版普通组合键的升级。7项迁移与1054项全量、源码CI三项通过，15项现有草稿/语音偏好语义保持，后台已连；未更改键盘配置。此为新发现并修复的客户端持久化缺口，不等于固件宏释放Issue11或I02a完整宏/HID矩阵通过。[回执](../validation/connect-talk-hil-2026-10-22/cursor-macro-persistence-build571-2026-11-06.json)。

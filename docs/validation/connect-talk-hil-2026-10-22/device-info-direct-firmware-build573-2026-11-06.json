@@ -1,0 +1,27 @@
+{
+  "clientDate": "2026-11-06",
+  "version": "0.2.3",
+  "build": 573,
+  "sourceCommit": "506e44418110d72d963ad16cd1bfd6e988c2605c",
+  "rootCause": "Agent reads 0x9F catalog; device-info App-direct entry previously displayed 0x00 major/minor without automatically requesting catalog.",
+  "oldNativeReproduction": "App direct showed v1.0; explicit read-only catalog button immediately showed1.0.1-r001.",
+  "fix": "On direct device-info connection, bounded read-only gate waits for status and idle configuration channel and queries catalog; known profile is reused on the same connection, stale-generation result is discarded.",
+  "validation": {
+    "targetedTests": 8,
+    "fullTests": 1066,
+    "failures": 0,
+    "ciRun": 42179609320,
+    "ciAllThreeJobs": "success",
+    "signedUniversalInstalled": true,
+    "nativeColdDirectIdentity": "1.0.1-r001",
+    "nativeAgentIdentity": "1.0.1-r001",
+    "nativeAgentToAppIdentityWithoutManualCatalogClick": "1.0.1-r001",
+    "scopedPreferencesSemanticallyPreserved": 15
+  },
+  "identityScope": "Device protocol identity, not an independently read HEX SHA256",
+  "hardwareConfigurationWrites": 0,
+  "firmwareFlashed": false,
+  "physicalQAInProgress": true,
+  "firmwareIssue11Fixed": false,
+  "newKimiVersionPending": "Local Code Desktop1.3.1 is outside verified1.2.1; instanceChanged and notSynchronized observed, no version gate expansion."
+}
