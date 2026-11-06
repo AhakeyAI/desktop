@@ -25,7 +25,8 @@ struct DeviceInfoView: View {
     @State private var agentLogPanel = 0
     @State private var logPanelContentTick = 0
     @State private var showAgentRequiredForAgentBLE = false
-    @State private var isReadingFirmwareCatalog = false
+    @State private var firmwareCatalogReadingConnection: DeviceInfoFirmwareReadback.Connection?
+    private var isReadingFirmwareCatalog: Bool { firmwareCatalogReadingConnection != nil }
     @State private var firmwareCatalogError: String?
     @State private var configurationReadError: String?
 
@@ -36,7 +37,9 @@ struct DeviceInfoView: View {
                 HStack(spacing: 0) {
                     infoCell("电量", value: bleManager.batteryLevelForDisplay.map { "\($0)%" } ?? "未知")
                     Divider()
-                    infoCell(NSLocalizedString(bleManager.firmwareCatalogKeyForDisplay == nil ? "固件" : "固件标识", comment: ""), value: bleManager.firmwareVersionForDisplay ?? "未读取")
+                    infoCell(NSLocalizedString(bleManager.firmwareCatalogKeyForDisplay == nil ? "固件" : "固件标识", comment: ""),
+                             value: isReadingFirmwareCatalog && bleManager.firmwareCatalogKeyForDisplay == nil
+                                ? NSLocalizedString("读取中…", comment: "") : bleManager.firmwareVersionForDisplay ?? "未读取")
                         .help([bleManager.firmwareCatalogKeyForDisplay.map { String(format: NSLocalizedString("设备协议标识：%@", comment: ""), $0) },
                                bleManager.firmwareStatusVersionForDisplay.map { String(format: NSLocalizedString("状态版本：%@", comment: ""), $0) }]
                             .compactMap { $0 }.joined(separator: "\n"))
@@ -425,13 +428,17 @@ struct DeviceInfoView: View {
                         .help("发送 AA BB 00 CC DD 查询设备状态")
 
                         Button(isReadingFirmwareCatalog ? "读取中…" : "读取固件能力") {
-                            isReadingFirmwareCatalog = true
+                            let connection = bleManager.deviceInfoFirmwareReadbackState.connection
+                            firmwareCatalogReadingConnection = connection
                             firmwareCatalogError = nil
                             Task { @MainActor in
-                                defer { isReadingFirmwareCatalog = false }
+                                defer {
+                                    if firmwareCatalogReadingConnection == connection { firmwareCatalogReadingConnection = nil }
+                                }
                                 do {
                                     _ = try await bleManager.readFirmwareCapabilityProfile()
                                 } catch {
+                                    guard bleManager.deviceInfoFirmwareReadbackState.connection == connection else { return }
                                     firmwareCatalogError = error.localizedDescription
                                 }
                             }
@@ -516,6 +523,26 @@ struct DeviceInfoView: View {
         .formStyle(.grouped)
         .disabled(isSubmittingName)
         .onAppear { bleManager.setDiagnosticsWindowVisible(true) }
+        .task(id: bleManager.deviceInfoFirmwareReadbackState.connection) {
+            let connection = bleManager.deviceInfoFirmwareReadbackState.connection
+            guard connection.connected, firmwareCatalogReadingConnection != connection,
+                  !bleManager.deviceInfoFirmwareReadbackState.profileKnown else { return }
+            firmwareCatalogReadingConnection = connection
+            firmwareCatalogError = nil
+            defer {
+                if firmwareCatalogReadingConnection == connection { firmwareCatalogReadingConnection = nil }
+            }
+            do {
+                _ = try await DeviceInfoFirmwareReadback.run(connection: connection,
+                    state: { bleManager.deviceInfoFirmwareReadbackState },
+                    read: { _ = try await bleManager.readFirmwareCapabilityProfile() })
+            } catch is CancellationError {
+                // Closing the sheet or moving to another connection revokes this probe.
+            } catch {
+                guard bleManager.deviceInfoFirmwareReadbackState.connection == connection else { return }
+                firmwareCatalogError = error.localizedDescription
+            }
+        }
         .onDisappear {
             nameTask?.cancel()
             bleManager.setDiagnosticsWindowVisible(false)

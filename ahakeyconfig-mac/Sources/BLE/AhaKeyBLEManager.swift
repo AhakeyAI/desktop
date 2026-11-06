@@ -211,6 +211,12 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         FirmwareIdentityDisplay.label(catalogKey: firmwareCatalogKeyForDisplay,
                                       statusVersion: firmwareStatusVersionForDisplay)
     }
+    var deviceInfoFirmwareReadbackState: DeviceInfoFirmwareReadback.State {
+        .init(connection: .init(connected: isConnected, generation: commandSessionGeneration),
+              statusReady: hasValidStatusReadback,
+              operationBusy: isConfigurationOperationInProgress,
+              profileKnown: firmwareCapabilityProfile != nil)
+    }
     /// 各 mode flash 里的真实图片元信息。
     /// 主 App 自占 BLE 后通过 0x83 查询填充；frameCount == 0 表示用户没自定义上传，
     /// 键盘显示固件出厂动图（与 bundle/DefaultOLED 同源）。
