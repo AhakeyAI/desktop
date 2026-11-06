@@ -1,0 +1,66 @@
+{
+  "checkedAtUTC": "2026-11-06T00:52:20.203121+00:00",
+  "clientDate": "2026-11-06",
+  "sourceBeforeAudit": "acff711f078807c4cab628e140bdc518448cb85a",
+  "remoteMain": "0ddab17fc8128d4090a5f1963354be666771f6f3",
+  "remoteMainAlreadyIntegrated": true,
+  "installedBuild": "564",
+  "firmwareRefs": {
+    "Fireware-harness": "24f72d3e0301aa6bb2fa9e1b99337033bb801a4d",
+    "harness/x1-refactor-main": "efecc471376f99ce6753e257933bfba287937bb4"
+  },
+  "firmwareIssues": {
+    "10": {
+      "comments": 1,
+      "number": 10,
+      "state": "open",
+      "updated_at": "2026-11-04T03:51:46Z"
+    },
+    "11": {
+      "comments": 2,
+      "number": 11,
+      "state": "open",
+      "updated_at": "2026-11-05T09:20:18Z"
+    },
+    "12": {
+      "comments": 1,
+      "number": 12,
+      "state": "open",
+      "updated_at": "2026-11-04T03:52:11Z"
+    },
+    "17": {
+      "comments": 1,
+      "number": 17,
+      "state": "open",
+      "updated_at": "2026-11-04T03:53:25Z"
+    },
+    "18": {
+      "comments": 0,
+      "number": 18,
+      "state": "open",
+      "updated_at": "2026-11-05T01:26:42Z"
+    }
+  },
+  "latestKimiRelease": {
+    "html_url": "https://github.com/MoonshotAI/kimi-code/releases/tag/%40moonshot-ai/kimi-code%402.5.1",
+    "published_at": "2026-11-05T09:53:44Z",
+    "tag_name": "@moonshot-ai/kimi-code@2.5.1"
+  },
+  "independentlyActionableClientDevelopmentItemsFound": 0,
+  "developmentDependencies": [
+    "Issue12: full long-macro action and description readback contract",
+    "Issue17: arbitrary-key independent short/long actions configuration contract",
+    "Original Kimi Work and official CLI TUI authorized instance permission control",
+    "Issue18: compact animated artwork transport contract"
+  ],
+  "newFirmwareDefectBlocker": "Issue11: macro Enter remains held; physical observation and production-source fault injection exist, no fix/new verified HEX",
+  "releaseInputClassOpen": true,
+  "fullAcceptanceGroupsOpen": 8,
+  "currentTurnNewTestsRun": 0,
+  "currentTurnHardwareConfigurationWrites": 0,
+  "currentTurnFlashesOrResets": 0,
+  "currentTurnModelRequests": 0,
+  "remainingWorkIsNotOnlyOwnerPhysicalInteraction": true,
+  "goalComplete": false,
+  "evidenceScope": "Fresh remote refs, live Issue metadata, official latest release metadata, installed build and client ancestry. Unchanged source reuses existing exact-source audit and tests; no new hardware or full-matrix pass claimed."
+}
