@@ -1,0 +1,39 @@
+{
+  "build": 564,
+  "sourceCommit": "7b88555bcfd71775d5f1faf4ffa06bbf23fc59a1",
+  "version": "0.2.3",
+  "dmgSHA256": "2b521f4a1a5040b53b85f465def42667a57602a8199de9206006f6ca1425cc57",
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "signatureVerified": true,
+  "mountedBytesMatch": true,
+  "notarized": false,
+  "automatedTests": 1051,
+  "nativeUIVerified": true,
+  "installed": true,
+  "ciRun": 42137126409,
+  "ciAllThreeJobs": "success",
+  "scopedPreferencesSemanticallyPreserved": 15,
+  "originalLeverDraftsRestored": true,
+  "hardwareConfigurationWrites": 0,
+  "newSessionAuthorizations": 0,
+  "clientDate": "2026-11-06",
+  "nativeCases": {
+    "currentPositionOnlyInReadMode": true,
+    "positionsAlwaysExpandedWithoutFoldingControls": true,
+    "actionRadioSelectorNoTypeDropdown": true,
+    "noApprovalSectionHeadingOrSecondTabLayer": true,
+    "factoryApprovalShowsIDEPoliciesInline": true,
+    "customShortcutAndMacroHideApprovalPolicies": true,
+    "keyboardModeChangePreservesIDEFilter": true,
+    "codexAndKimiVisibleInDIYMode": true,
+    "readModeNoCodexOrKimiManagementControls": true,
+    "twoApprovalPanelsShareStateModel": true
+  },
+  "nativeUIUsedTemporaryDraftsThenRestored": true,
+  "keyboardSwitchOrVoicePressedByUserThisRound": false,
+  "fullApprovalLifecycleOrFirmwareIssue11Fixed": false,
+  "agentConnectedAtEnd": true
+}

@@ -1,6 +1,6 @@
 # 拨杆侧栏改版 — 交互原型
 
-状态：用户已选择A并继续细化为两档始终展开的表单；生产SwiftUI已按该方向实现，最终1051项回归通过，候选打包和原生界面验收进行中，尚未替换已安装客户端。
+状态：用户已选择A并继续细化为两档始终展开的表单；生产SwiftUI已按该方向实现，1051项回归、源码CI三项、签名安装及原生界面验收已通过，当前已安装build564。
 
 ## 已确定的产品要求
 
@@ -54,3 +54,9 @@ python3 -m http.server 18763 --bind 127.0.0.1 --directory ahakeyconfig-mac/Proto
 - 查看态保留实体档位，管理授权操作仅在编辑态显示；原会话授权、能力门禁、冲突核对、写入锁定和底部结果弹窗沿用原链路。
 
 原始A/B/C对比保存在commit64aca773；现有原型仅保留本次选中的布局。生产UI主要涉及StudioLeverPositionEditor、StudioDeviceInspectorView及AhaKeyStudioView；不修改固件协议和审批后台的控制合同。
+
+### 本机验收结果
+
+build564/source7b88555b已双架构签名安装，[源码CI](https://github.com/AhakeyAI/desktop/actions/runs/42137126409)三项及本地1051项回归通过。原生客户端已验证：DIY模式可选Codex/Kimi、切换Mode保留IDE筛选；只有自动/手动动作显示审批详情；宏/快捷键隐藏该详情；查看态有档位且无管理授权按钮。验收临时选择已通过界面还原，15项偏好语义一致（明确编辑位置集合仅序列化顺序不同），未点击键盘写入或确认新增会话授权，后台连接正常。
+
+[本轮回执](../validation/connect-talk-hil-2026-10-22/lever-inspector-build564-2026-11-06.json)。本轮仅关闭该界面重组的限定检查，不关闭固件宏发送问题或原I05的旧/未知设备完整矩阵。
