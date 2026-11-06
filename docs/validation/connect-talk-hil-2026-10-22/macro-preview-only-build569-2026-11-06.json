@@ -1,0 +1,30 @@
+{
+  "clientDate": "2026-11-06",
+  "version": "0.2.3",
+  "build": 569,
+  "sourceCommit": "b9b36d622ea92807e35014f7083d1b076d49764a",
+  "change": "Remove redundant macro summary and firmware-macro badge from edit-mode headers; retain shared bottom preview.",
+  "paths": [
+    "ordinary key macro editor",
+    "voice custom macro editor",
+    "KeyboardActionEditor including both lever positions and settings callers"
+  ],
+  "readModeBindingSummaryRetained": true,
+  "sharedBottomPreviewRetained": true,
+  "keyboardProtocolsOrStoredActionsChanged": false,
+  "signedUniversalAppInstalled": true,
+  "nativeKeyMacroHeaderAbsentAndPreviewPresent": true,
+  "nativeBothLeverMacroHeadersAbsentAndPreviewsPresent": true,
+  "voiceMacroPathCheckedInSource": true,
+  "localValidation": "AhaKeyConfig product build and git diff --check; no new business tests for this presentation-only removal",
+  "ciRun": 42146720447,
+  "ciAllThreeJobs": "success",
+  "scopedPreferences": {
+    "count": 15,
+    "14Unchanged": true,
+    "keyBaselineChange": "Reading Claude Key3 regenerated only six macro-step UUIDs; coordinates and action data unchanged."
+  },
+  "hardwareConfigurationWrites": 0,
+  "newAuthorizations": 0,
+  "wbsFullAcceptanceNotImplied": true
+}
