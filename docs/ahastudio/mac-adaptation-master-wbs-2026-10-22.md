@@ -1,5 +1,7 @@
 # Mac客户端适配总WBS v2 — Inspector、WS3与WS4/5
 
+2026-11-06开发补漏 **build571/source731db53f** 已签名安装：补齐Cursor默认删除键切换自定义宏后重开客户端仍保留的闭环。原Store连续两次保存/加载复现2次宏丢失；删除“默认Backspace即清空任意宏”的迁移分支，同时保留可识别旧版普通组合键的升级。7项迁移与1054项全量、源码CI三项通过，15项现有草稿/语音偏好语义保持，后台已连；未更改键盘配置。此为新发现并修复的客户端持久化缺口，不等于固件宏释放Issue11或I02a完整宏/HID矩阵通过。[回执](../validation/connect-talk-hil-2026-10-22/cursor-macro-persistence-build571-2026-11-06.json)。
+
 2026-11-06最新界面候选 **build570/source00e0ef15** 已签名安装：拨杆查看态移除IDE筛选及Agent策略，仅在修改态的批准动作详情中展示。原生查看/修改/返回路径、15项偏好保持及源码CI三项通过；无键盘写入，剩余开发/验收范围不变。[回执](../validation/connect-talk-hil-2026-10-22/lever-policies-edit-only-build570-2026-11-06.json)。
 
 2026-11-06界面增量 **build569/sourceb9b36d62** 已签名安装：全部宏编辑路径移除顶部重复摘要和“固件宏”标记，仅保留底部预览；普通按键及拨杆原生界面、产品构建和源码CI三项通过，未写入键盘。查看态摘要保留，本轮不关闭其他WBS范围。[回执](../validation/connect-talk-hil-2026-10-22/macro-preview-only-build569-2026-11-06.json)。

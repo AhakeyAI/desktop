@@ -1,0 +1,32 @@
+{
+  "clientDate": "2026-11-06",
+  "version": "0.2.3",
+  "build": 571,
+  "sourceCommit": "731db53f3cfd553c2d7020d150549816d83ff8a2",
+  "bug": "Cursor Reject macro created from its default Backspace shortcut was erased on loading saved drafts.",
+  "reproduction": {
+    "command": "swift test --package-path ahakeyconfig-mac --filter StudioDraftMigrationTests.testCursorRejectMacroCreatedFromDefaultShortcutSurvivesRepeatedLoads",
+    "redTests": 1,
+    "redAssertions": 2,
+    "scope": "Production Store save/load with isolated UserDefaults suite; no personal preference mutation."
+  },
+  "fix": "Keep nonempty macros; migrate only the recognizable legacy plain command-shortcut template.",
+  "validation": {
+    "migrationTests": 7,
+    "fullTests": 1054,
+    "failures": 0,
+    "defaultPlainBackspaceRetained": true,
+    "legacyCommandShortcutUpgradeRetained": true,
+    "ciRun": 42150621694,
+    "ciAllThreeJobs": "success",
+    "signedUniversalInstalled": true,
+    "scopedPreferencesSemanticallyPreserved": 15,
+    "nativeStartupAndBackgroundConnection": true
+  },
+  "hardwareConfigurationWrites": 0,
+  "newAuthorizations": 0,
+  "modelRequests": 0,
+  "userPhysicalInteractionNeededForThisFix": false,
+  "firmwareIssue11Fixed": false,
+  "fullWBSComplete": false
+}
