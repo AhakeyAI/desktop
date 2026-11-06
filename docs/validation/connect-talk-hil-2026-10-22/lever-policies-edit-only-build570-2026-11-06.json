@@ -1,0 +1,20 @@
+{
+  "clientDate": "2026-11-06",
+  "version": "0.2.3",
+  "build": 570,
+  "sourceCommit": "00e0ef158003db2011bc11b90948594d1acf2814",
+  "change": "Lever read mode shows physical position/connection/scope only; IDE filters and approval policies appear only after Modify.",
+  "nativeCases": {
+    "readModeNoIDEFiltersOrApprovalPolicy": true,
+    "modifyShowsFactoryAutoManualInlineIDEPolicies": true,
+    "returnHidesPoliciesAgain": true
+  },
+  "signedUniversalAppInstalled": true,
+  "ciRun": 42148564976,
+  "ciAllThreeJobs": "success",
+  "scopedPreferencesSemanticallyPreserved": 15,
+  "hardwareConfigurationWrites": 0,
+  "newSessionAuthorizations": 0,
+  "localBusinessTestsRerun": false,
+  "validation": "Signed universal product build, exact-source CI and native read-edit-return path; presentation-only removal does not claim full approval lifecycle acceptance."
+}

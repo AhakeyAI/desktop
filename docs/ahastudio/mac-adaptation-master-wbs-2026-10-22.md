@@ -1,5 +1,7 @@
 # Mac客户端适配总WBS v2 — Inspector、WS3与WS4/5
 
+2026-11-06最新界面候选 **build570/source00e0ef15** 已签名安装：拨杆查看态移除IDE筛选及Agent策略，仅在修改态的批准动作详情中展示。原生查看/修改/返回路径、15项偏好保持及源码CI三项通过；无键盘写入，剩余开发/验收范围不变。[回执](../validation/connect-talk-hil-2026-10-22/lever-policies-edit-only-build570-2026-11-06.json)。
+
 2026-11-06界面增量 **build569/sourceb9b36d62** 已签名安装：全部宏编辑路径移除顶部重复摘要和“固件宏”标记，仅保留底部预览；普通按键及拨杆原生界面、产品构建和源码CI三项通过，未写入键盘。查看态摘要保留，本轮不关闭其他WBS范围。[回执](../validation/connect-talk-hil-2026-10-22/macro-preview-only-build569-2026-11-06.json)。
 
 2026-11-06文案增量 **build568/source91691b51** 已签名安装：客户端读取反馈统一为“已读取当前设置”，中英文资源及原生拨杆/底栏验证通过，源码CI三项成功，15项草稿/语音偏好语义保持；无键盘写入，仅关闭本轮文案调整，不变更剩余WBS判定。[回执](../validation/connect-talk-hil-2026-10-22/readback-wording-build568-2026-11-06.json)。
