@@ -1403,8 +1403,9 @@ enum AhaKeyStudioStore {
                 }
             }
 
-            // Mode 1（Cursor）取消键为「单键 Backspace」HID 快捷键。若草稿里仍残留非空 macro（例如从其它 mode 误带、或 UI 曾切宏后未清干净），
-            // `usesMacro` 会为 true，全量同步会走 0x74 覆盖 0x73，设备表现与界面上的 ⌫ 不一致（ble-comm 里可见「取消键 宏: …」）。
+            // Upgrade the recognizable plain shortcut template only. A macro
+            // may intentionally keep Backspace as its fallback shortcut; that
+            // is also what the editor creates when switching the default to Macro.
             if mode == .mode1 {
                 let oldDefaultApprove = ShortcutBinding(modifiers: [.command], keyCode: HIDUsage.enter)
                 let oldDefaultReject = ShortcutBinding(modifiers: [.command], keyCode: HIDUsage.backspace)
@@ -1423,15 +1424,6 @@ enum AhaKeyStudioStore {
                     modeDraft.updateKey(approve1)
                     reject1.shortcut = t.key(for: .reject).shortcut
                     reject1.macro = t.key(for: .reject).macro
-                    modeDraft.updateKey(reject1)
-                }
-
-                reject1 = modeDraft.key(for: .reject)
-                let defaultCursorReject = AhaKeyModeDraft.default(for: .mode1).key(for: .reject)
-                if !reject1.macro.isEmpty,
-                   reject1.shortcut == defaultCursorReject.shortcut
-                {
-                    reject1.macro = []
                     modeDraft.updateKey(reject1)
                 }
             }

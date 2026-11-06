@@ -2,6 +2,44 @@ import XCTest
 @testable import AhaKeyConfig
 
 final class StudioDraftMigrationTests: XCTestCase {
+    func testCursorRejectMacroCreatedFromDefaultShortcutSurvivesRepeatedLoads() throws {
+        let suite = "StudioDraftMigrationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var draft = AhaKeyStudioDraft.default
+        var mode = draft.draft(for: .mode1)
+        var key = mode.key(for: .reject)
+        XCTAssertEqual(key.shortcut, ShortcutBinding(keyCode: HIDUsage.backspace))
+        // This is exactly what switching the default key to Macro produces.
+        key.macro = [MacroStep(action: .downKey, param: HIDUsage.backspace),
+                     MacroStep(action: .upKey, param: HIDUsage.backspace)]
+        mode.updateKey(key)
+        draft.updateMode(mode)
+        AhaKeyStudioStore.save(draft, to: defaults)
+        for _ in 0..<2 {
+            let loaded = try XCTUnwrap(AhaKeyStudioStore.load(from: defaults))
+            XCTAssertEqual(loaded.draft(for: .mode1).key(for: .reject), key)
+            AhaKeyStudioStore.save(loaded, to: defaults)
+        }
+    }
+
+    func testCursorPlainDefaultAndLegacyCommandShortcutMigrationRemainPlain() {
+        var draft = AhaKeyStudioDraft.default
+        let expected = draft.draft(for: .mode1)
+        XCTAssertTrue(AhaKeyStudioStore.migratedDraft(from: draft).draft(for: .mode1).key(for: .reject).macro.isEmpty)
+        var mode = expected
+        var approve = mode.key(for: .approve)
+        var reject = mode.key(for: .reject)
+        approve.shortcut = ShortcutBinding(modifiers: [.command], keyCode: HIDUsage.enter)
+        reject.shortcut = ShortcutBinding(modifiers: [.command], keyCode: HIDUsage.backspace)
+        mode.updateKey(approve)
+        mode.updateKey(reject)
+        draft.updateMode(mode)
+        let migrated = AhaKeyStudioStore.migratedDraft(from: draft).draft(for: .mode1)
+        XCTAssertEqual(migrated.key(for: .approve), expected.key(for: .approve))
+        XCTAssertEqual(migrated.key(for: .reject), expected.key(for: .reject))
+    }
+
     func testSavedRejectMacroSurvivesRepeatedLoadsWithLegacyShortcutAndLabel() throws {
         let suite = "StudioDraftMigrationTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
