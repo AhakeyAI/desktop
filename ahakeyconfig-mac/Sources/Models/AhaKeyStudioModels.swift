@@ -1350,7 +1350,8 @@ enum AhaKeyStudioStore {
 
                 var rejectKey = modeDraft.key(for: .reject)
                 if rejectKey.shortcut == legacyRejectBinding,
-                   legacyRejectDescriptions.contains(rejectKey.description)
+                   legacyRejectDescriptions.contains(rejectKey.description),
+                   rejectKey.macro.isEmpty
                 {
                     let targetReject = target.key(for: .reject)
                     rejectKey.shortcut = targetReject.shortcut

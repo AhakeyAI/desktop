@@ -2,6 +2,29 @@ import XCTest
 @testable import AhaKeyConfig
 
 final class StudioDraftMigrationTests: XCTestCase {
+    func testSavedRejectMacroSurvivesRepeatedLoadsWithLegacyShortcutAndLabel() throws {
+        let suite = "StudioDraftMigrationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        for slot in [AhaKeyModeSlot.mode0, .mode2, .mode3] {
+            var draft = AhaKeyStudioDraft.default
+            var mode = draft.draft(for: slot)
+            var key = mode.key(for: .reject)
+            key.shortcut = ShortcutBinding(keyCode: HIDUsage.escape)
+            key.description = "Reject"
+            key.macro = [MacroStep(action: .downKey, param: HIDUsage.escape),
+                         MacroStep(action: .upKey, param: HIDUsage.escape)]
+            mode.updateKey(key)
+            draft.updateMode(mode)
+            AhaKeyStudioStore.save(draft, to: defaults)
+            for _ in 0..<2 {
+                let loaded = try XCTUnwrap(AhaKeyStudioStore.load(from: defaults))
+                XCTAssertEqual(loaded.draft(for: slot).key(for: .reject).macro, key.macro, "\(slot)")
+                AhaKeyStudioStore.save(loaded, to: defaults)
+            }
+        }
+    }
+
     func testChineseLegacySubmitMigratesInEveryMode() {
         for mode in AhaKeyModeSlot.allCases {
             var draft = AhaKeyStudioDraft.default
