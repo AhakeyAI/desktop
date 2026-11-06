@@ -109,14 +109,17 @@ struct KeyboardActionEditor: View {
     @Binding var action: Data
     var allowEmptyShortcut = false
     var maximumPayloadBytes = 50
+    var showsActionTypePicker = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-                Picker(NSLocalizedString("动作类型", comment: ""), selection: Binding(get: { action.first == 0x74 ? 1 : 0 }, set: { value in
-                    action = value == 1 ? Data([0x74, 2, 4, 0]) : Data([0x73, 0])
-                })) {
-                    Text(NSLocalizedString("快捷键", comment: "")).tag(0)
-                    Text(NSLocalizedString("宏", comment: "")).tag(1)
+                if showsActionTypePicker {
+                    Picker(NSLocalizedString("动作类型", comment: ""), selection: Binding(get: { action.first == 0x74 ? 1 : 0 }, set: { value in
+                        action = value == 1 ? Data([0x74, 2, 4, 0]) : Data([0x73, 0])
+                    })) {
+                        Text(NSLocalizedString("快捷键", comment: "")).tag(0)
+                        Text(NSLocalizedString("宏", comment: "")).tag(1)
+                    }
                 }
                 if action.first == 0x74 {
                     if steps.count * 2 == max(0, action.count - 2) { macroEditor }

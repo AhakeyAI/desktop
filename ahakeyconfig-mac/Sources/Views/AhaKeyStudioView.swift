@@ -31,6 +31,9 @@ struct AhaKeyStudioView: View {
     @State private var modeCustomNames: [Int: String] = [:]
     @State private var lastSyncDate: Date?
     @State private var codexDesktopLeverStatus: CodexDesktopLeverStatus?
+    private enum LeverApprovalIDE: String, CaseIterable { case claude = "Claude", cursor = "Cursor", codex = "Codex", kimi = "Kimi" }
+    @State private var leverApprovalIDE: LeverApprovalIDE = .claude
+    @StateObject private var leverKimiPermissionsModel = StudioKimiPermissionsModel()
     @State private var syncStatusMessage = NSLocalizedString("修改会先保存在本地，连接设备后再同步。", comment: "")
     @State private var isSyncing = false
     // AhaKeyStudio 交还蓝牙给 Agent 的过渡期：保持"已连接"显示，直到 Agent 接管或超时。
@@ -819,7 +822,7 @@ struct AhaKeyStudioView: View {
                                 )
                         )
 
-                        if selectedPart == .toggleSwitch { leverPermissions.disabled(componentBusy) }
+                        if selectedPart == .toggleSwitch { leverPermissions().disabled(componentBusy) }
 
                         HStack {
                             Spacer()
@@ -2044,55 +2047,73 @@ struct AhaKeyStudioView: View {
     }
 
     private var switchInspector: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            StudioInspectorSection(NSLocalizedString("当前档位", comment: "")) {
-                Text(currentSwitchTitle).font(.title3.weight(.semibold))
-                Text(NSLocalizedString("请使用实体拨杆切换，不能在软件中切档。", comment: ""))
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            leverPermissions.disabled(componentBusy)
+        Group {
             if !usesLegacyEditor {
-                StudioDeviceInspectorView(model: deviceInspectorModel, ble: bleManager, session: inspectorSession, lever: true)
+                StudioDeviceInspectorView(model: deviceInspectorModel, ble: bleManager,
+                    session: inspectorSession, lever: true,
+                    leverApprovalContent: { kind, ownsStatusUpdates in
+                        AnyView(leverPermissions(for: kind, pollsStatus: ownsStatusUpdates).disabled(componentBusy))
+                    })
+            } else {
+                leverPermissions().disabled(componentBusy)
             }
         }
     }
 
-    private var leverModeHooksInstalled: Bool {
-        switch selectedMode {
-        case .mode0: return agentManager.claudeHooksInstalled
-        case .mode1: return agentManager.cursorHooksInstalled
-        case .mode2: return agentManager.codexHooksInstalled
-        case .mode3: return agentManager.kimiHooksInstalled
+    private var leverIDEHooksInstalled: Bool {
+        switch leverApprovalIDE {
+        case .claude: return agentManager.claudeHooksInstalled
+        case .cursor: return agentManager.cursorHooksInstalled
+        case .codex: return agentManager.codexHooksInstalled
+        case .kimi: return agentManager.kimiHooksInstalled
         }
     }
 
-    @ViewBuilder private var leverPermissions: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if !agentManager.isRunning || !bleManager.agentBLEConnectedProvider() {
-                HStack(alignment: .top) {
-                    Label(NSLocalizedString("后台未连接，权限尚未同步。", comment: ""), systemImage: "exclamationmark.circle")
-                        .font(.caption).foregroundStyle(.orange)
-                    Spacer(minLength: 4)
-                    Button(NSLocalizedString("后台连接…", comment: "")) { showsDeviceInfo = true }
-                        .buttonStyle(.link).font(.caption)
+    @ViewBuilder private func leverPermissions(for approvalType: UInt8? = nil, pollsStatus: Bool = true) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 0) {
+                ForEach(LeverApprovalIDE.allCases, id: \.self) { ide in
+                    Button { leverApprovalIDE = ide } label: {
+                        Text(ide.rawValue).font(.caption)
+                            .foregroundStyle(leverApprovalIDE == ide ? Color.accentColor : Color.secondary)
+                            .frame(maxWidth: .infinity).padding(.vertical, 7)
+                            .overlay(alignment: .bottom) {
+                                if leverApprovalIDE == ide { Rectangle().fill(Color.accentColor).frame(height: 2) }
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(leverApprovalIDE == ide ? .isSelected : [])
                 }
             }
-            switch selectedMode {
-            case .mode0, .mode1:
-                StudioInspectorSection(selectedMode.defaultName + " · " + NSLocalizedString("审批", comment: "")) {
+            if !agentManager.isRunning || !bleManager.agentBLEConnectedProvider() {
+                HStack(alignment: .top) {
+                    Text(NSLocalizedString("后台未连接，权限尚未同步。", comment: ""))
+                        .font(.caption).foregroundStyle(.orange)
+                    Spacer(minLength: 4)
+                    if isEditingInspector {
+                        Button(NSLocalizedString("后台连接…", comment: "")) { showsDeviceInfo = true }
+                            .buttonStyle(.link).font(.caption)
+                    }
+                }
+            }
+            Group {
+                switch leverApprovalIDE {
+                case .claude, .cursor:
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(NSLocalizedString("自动档由后台处理审批；手动档沿用应用原有审批。", comment: ""))
-                        if !leverModeHooksInstalled {
+                        Text(NSLocalizedString(approvalType == 0 ? "自动档由后台处理审批。" :
+                            approvalType == 1 ? "手动档沿用应用原有审批。" :
+                            "自动档由后台处理审批；手动档沿用应用原有审批。", comment: ""))
+                        if !leverIDEHooksInstalled && isEditingInspector {
                             Button(NSLocalizedString("配置自动批准…", comment: "")) { showsDeviceInfo = true }
                                 .buttonStyle(.link)
                         }
                     }.font(.caption).foregroundStyle(.secondary)
-                }
-            case .mode2:
-                StudioInspectorSection(NSLocalizedString("Codex 权限", comment: "")) {
-                    VStack(alignment: .leading, spacing: 8) {
+                case .codex:
+                    VStack(alignment: .leading, spacing: 6) {
                         codexDesktopStatusText.font(.callout.weight(.semibold))
-                        Text(NSLocalizedString("授权后：自动档完全访问，手动档请求批准；下一轮生效。", comment: ""))
+                        Text(NSLocalizedString(approvalType == 0 ? "授权后：自动档完全访问，下一轮生效。" :
+                            approvalType == 1 ? "授权后：手动档请求批准，下一轮生效。" :
+                            "授权后：自动档完全访问，手动档请求批准；下一轮生效。", comment: ""))
                             .font(.caption).foregroundStyle(.secondary)
                         if isEditingInspector {
                             Button(NSLocalizedString("管理会话权限…", comment: "")) {
@@ -2100,20 +2121,22 @@ struct AhaKeyStudioView: View {
                             }.buttonStyle(.link)
                         }
                     }
-                }
-                .task {
-                    while !Task.isCancelled {
-                        let status = await agentManager.readCodexDesktopLeverStatus()
-                        guard !Task.isCancelled else { break }
-                        codexDesktopLeverStatus = status
-                        do { try await Task.sleep(nanoseconds: 2_000_000_000) } catch { break }
+                    .task(id: pollsStatus) {
+                        guard pollsStatus else { return }
+                        while !Task.isCancelled {
+                            let status = await agentManager.readCodexDesktopLeverStatus()
+                            guard !Task.isCancelled else { break }
+                            codexDesktopLeverStatus = status
+                            do { try await Task.sleep(nanoseconds: 2_000_000_000) } catch { break }
+                        }
                     }
+                case .kimi:
+                    StudioKimiPermissionsView(allowsManagement: isEditingInspector,
+                        showsHeading: false, approvalType: approvalType, model: leverKimiPermissionsModel,
+                        pollsStatus: pollsStatus)
                 }
-            case .mode3:
-                StudioKimiPermissionsView()
             }
-            Text(NSLocalizedString("拨杆对所有已接管会话生效，这里仅显示当前模式。", comment: ""))
-                .font(.caption2).foregroundStyle(.secondary)
+            .id(leverApprovalIDE)
         }
     }
 

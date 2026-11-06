@@ -21,6 +21,7 @@ final class StudioKimiPermissionsModel: ObservableObject {
     @Published private(set) var leases: [KimiDesktopLeverState.Lease] = []
     @Published private(set) var isBusy = false
     @Published private(set) var message: String?
+    @Published var syncPhase: String?
     private let state: KimiDesktopLeverState
     private let access: Access
     private var revision: UInt64 = 0
