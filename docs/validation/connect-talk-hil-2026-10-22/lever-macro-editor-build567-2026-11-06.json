@@ -1,0 +1,51 @@
+{
+  "clientDate": "2026-11-06",
+  "sourceCommit": "0d652f322e7630484beb1c236f88940876f01d66",
+  "installedBuild": 567,
+  "version": "0.2.3",
+  "signatureVerified": true,
+  "architectures": [
+    "arm64",
+    "x86_64"
+  ],
+  "fullTests": {
+    "count": 1052,
+    "failures": 0
+  },
+  "draftMigrationRegression": {
+    "redAssertions": 6,
+    "greenMigrationTests": 5,
+    "isolatedDefaultsSuite": true,
+    "repeatedSaveLoad": true
+  },
+  "ciRun": 42143988746,
+  "ciJobs": {
+    "macOS": "success",
+    "WindowsJava": "success",
+    "TypeScriptSDK": "success"
+  },
+  "changes": [
+    "Shared MacroStepsEditor for key and lever: numbered steps, action/key/delay controls, up/down, red remove, add/clear, preview",
+    "Protocol-specific byte budgets retained; 98 key payload / 50 lever payload with unchanged combined52-byte validation",
+    "One rounded one-point detail frame with 12-point padding for approval/shortcut/macro; selectors stay outside",
+    "Legacy Reject/Escape migration only applies without a custom macro"
+  ],
+  "nativeEvidence": {
+    "build566ShortcutAndMacroFramesVisuallyChecked": true,
+    "build567OriginalDIYRejectMacroReadMode": "Escape macro, two steps",
+    "build567ViewCodeSameAs566": true,
+    "stepMutationExerciseCompleted": false,
+    "mutationExerciseReason": "User concurrently changed Studio; stopped synthetic edits and preserved user changes",
+    "latestUserLeverSelectionPreserved": true,
+    "onlyKnownLostMacroRecoveredFromScopedBackup": true,
+    "otherScopedPreferencesEqual": 14,
+    "keyBaselineEntryOrderNormalized": true,
+    "latestLeverDraftDiffPreserved": true,
+    "agentConnectedAtEnd": true
+  },
+  "hardwareConfigurationWrites": 0,
+  "newAuthorizations": 0,
+  "flashesOrResets": 0,
+  "firmwareIssue11Fixed": false,
+  "fullWBSComplete": false
+}
