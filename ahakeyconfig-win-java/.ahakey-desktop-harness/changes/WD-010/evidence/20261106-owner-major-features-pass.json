@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-06",
+  "change_id": "WD-010",
+  "source": "当前Owner聊天原文",
+  "app_version": "1.0.21",
+  "artifact_kind": "LocalModel EXE",
+  "preview_token": "preview-20261105T093108031238Z-c5c559",
+  "owner_quote": "嗯嗯好，刚才我测试下你1.0.21的几个主要改动都是通过了且正常运行的，所以那些阶段我是通过的",
+  "result": "OWNER_REPORTED_MAJOR_FEATURES_PASS",
+  "interpretation": "记录Owner对1.0.21主要改动的通过反馈；不自行补写每个子测试、支付操作、固件版本或设备执行轨迹。",
+  "open_followups": [
+    "语音结果预览撑宽与白字",
+    "安装版日志路径不可写",
+    "混合DPI跨屏窗口尺寸漂移与越界",
+    "窄宽屏画布布局协调性"
+  ],
+  "formal_gate_note": "这是新增Owner反馈原始证据，不覆写冻结实现、旧审阅、候选或自动完成正式固件身份/UAT字段。"
+}
