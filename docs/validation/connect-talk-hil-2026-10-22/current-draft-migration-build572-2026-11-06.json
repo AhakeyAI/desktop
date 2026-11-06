@@ -1,0 +1,37 @@
+{
+  "clientDate": "2026-11-06",
+  "version": "0.2.3",
+  "build": 572,
+  "sourceCommit": "c6bd5ad1357ae04704ac6a0d7275d7c0851a9e76",
+  "bug": "Repeated template migration changed newly saved choices: Claude No/Enter shortcut to macro; DIY Enter to Backspace; 50% brightness to35%.",
+  "redFeedback": {
+    "selectedTests": 3,
+    "failedAssertions": 6
+  },
+  "fix": {
+    "currentSaveMarker": "legacyTemplateMigrationVersion=1",
+    "markerAppliesTo": "draft and confirmed-baseline Store saves",
+    "untaggedLegacyData": "still uses existing template migration",
+    "runtimeRepairsRetained": [
+      "interrupted OLED upload recovery",
+      "bundled artwork path refresh"
+    ],
+    "rootModesStillReadableByPreviousDraftDecoder": true
+  },
+  "validation": {
+    "migrationTests": 11,
+    "fullTests": 1058,
+    "failures": 0,
+    "ciRun": 42152594498,
+    "ciAllThreeJobs": "success",
+    "signedUniversalAppInstalled": true,
+    "nativeLaunchesAfterInstall": 2,
+    "scopedSettingValuesPreserved": 15,
+    "newMetadataOnly": "draft root legacyTemplateMigrationVersion=1",
+    "nativeBackgroundConnected": true
+  },
+  "hardwareConfigurationWrites": 0,
+  "newAuthorizations": 0,
+  "modelRequests": 0,
+  "fullWBSComplete": false
+}
