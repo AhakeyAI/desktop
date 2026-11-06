@@ -1,0 +1,19 @@
+{
+  "clientDate": "2026-11-06",
+  "build": 568,
+  "version": "0.2.3",
+  "sourceCommit": "91691b519ec2a7c32536f856d2c82c9c1edba1d4",
+  "change": "All Mac UI readback messages use 已读取当前设置; already updated standby wording is retained without duplication.",
+  "liveStatusKeysChecked": 8,
+  "localizedEntriesPerLanguage": 2117,
+  "localizationSyntaxValid": true,
+  "oldPrefixInProductionSourceOrGeneratedResources": false,
+  "signedUniversalAppInstalled": true,
+  "nativeLeverAndBottomStatusVerified": true,
+  "preferencesSemanticallyPreserved": 15,
+  "hardwareConfigurationWrites": 0,
+  "ciRun": 42145459310,
+  "ciAllThreeJobs": "success",
+  "localBusinessTestsRerun": false,
+  "reason": "Text-only change; localization checks, signed universal build, CI and native read-only verification cover this change. Previous1052 test result is not reported as a new local run."
+}
