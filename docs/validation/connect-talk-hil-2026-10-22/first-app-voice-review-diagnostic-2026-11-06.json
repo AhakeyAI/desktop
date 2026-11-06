@@ -1,0 +1,42 @@
+{
+  "clientDate": "2026-11-06",
+  "installedBuildAtObservation": 573,
+  "diagnosticCandidate": {
+    "build": 574,
+    "sourceCommit": "aa5bbff90d3f002ae5d5e12d801e0a8951d974b1",
+    "signedUniversalBuildComplete": true,
+    "installed": false,
+    "fullTests": 1067,
+    "failures": 0,
+    "ciRun": 42195773168,
+    "ciAtThisCheckpoint": "macOS in progress; Windows and TypeScript success",
+    "behaviorFixClaimed": false
+  },
+  "authorizedPermanentVoiceChange": {
+    "mode": 0,
+    "ordinaryKey": "F18",
+    "preset": "macOSNative",
+    "nativeSuccessDialogObserved": true,
+    "otherModesNotWritten": true,
+    "globalCloudEnabled": false,
+    "restoreConsumerAfterQA": false
+  },
+  "firstRecording": {
+    "startupMs": 4536,
+    "completionReason": "final_result",
+    "automaticallyPasted": false,
+    "retainedForReview": true,
+    "transcriptPrivatelyBackedUp": true,
+    "rootCause": "not established; SDK audio boundaries missing from original log"
+  },
+  "subsequentOwnerTests": "short and long press normal; lifecycle logs show single paste per completed recording",
+  "newDiagnosticsContainUtteranceText": false,
+  "existingSpeechLogsMayContainText": true,
+  "microphoneOpenedByBackendSelectionProbe": false,
+  "uiBlockedByMacLock": true,
+  "firmwareFlashed": false,
+  "newSessionPermissionGrants": 0,
+  "modelRequests": 0,
+  "overallVoiceAcceptancePassed": false,
+  "fullWBSComplete": false
+}
