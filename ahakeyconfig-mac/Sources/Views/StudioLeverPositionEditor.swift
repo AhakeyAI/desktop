@@ -31,16 +31,24 @@ struct StudioLeverPositionEditor: View {
                     choiceRow([.shortcut, .macro, .disabled])
                 }
             }
-            if position.bindType == 0 || position.bindType == 1 {
-                if positionIndex == 1 && position.bindType == 0 {
-                    Text(NSLocalizedString("自动批准仅在拨杆在上且保留出厂自动绑定时启用。", comment: ""))
-                        .font(.caption).foregroundStyle(.orange)
+            if position.bindType == 0 || position.bindType == 1 || position.bindType == 3 {
+                VStack(alignment: .leading, spacing: 10) {
+                    if position.bindType == 0 || position.bindType == 1 {
+                        if positionIndex == 1 && position.bindType == 0 {
+                            Text(NSLocalizedString("自动批准仅在拨杆在上且保留出厂自动绑定时启用。", comment: ""))
+                                .font(.caption).foregroundStyle(.orange)
+                        }
+                        if let approvalContent { approvalContent(position.bindType) }
+                    } else {
+                        KeyboardActionEditor(action: Binding(get: { position.action }, set: {
+                            position = .init(bindType: 3, action: $0)
+                        }), showsActionTypePicker: false)
+                    }
                 }
-                if let approvalContent { approvalContent(position.bindType) }
-            } else if position.bindType == 3 {
-                KeyboardActionEditor(action: Binding(get: { position.action }, set: {
-                    position = .init(bindType: 3, action: $0)
-                }), showsActionTypePicker: false)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+                .overlay(RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.primary.opacity(0.14), lineWidth: 1))
             } else if position.bindType == 2 {
                 Text(NSLocalizedString("拨到此位置不发送按键动作。", comment: ""))
                     .font(.caption).foregroundStyle(.secondary)
