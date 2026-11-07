@@ -1,7 +1,7 @@
 {
   "clientDate": "2026-11-07",
   "build": 574,
-  "stage": "Owner short/long voice response pending",
+  "stage": "Voice confirmed normal; waiting for physical manual lever",
   "preflight": {
     "agentSocketInitiallyRefused": true,
     "systemLaunchAgentExplicitlyDisabled": true,
@@ -17,7 +17,13 @@
   "hardwareWrites": 0,
   "newSessionGrants": 0,
   "modelRequests": 0,
-  "voiceResult": "pending",
+  "voiceResult": {
+    "ownerConfirmedShortLongNormal": true,
+    "allObservedCompletedRecordings": 3,
+    "pastePosts": 3,
+    "reviewWarnings": 0,
+    "scope": "Post-offset log contains three completed captures; do not assert exact one-to-one mapping to the two instructed recordings."
+  },
   "allWbsPassed": false,
   "codexIndependentReadBeforePhysicalStep": {
     "managementEnabled": true,
