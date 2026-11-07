@@ -1,0 +1,89 @@
+{
+  "clientDate": "2026-11-07",
+  "build": 575,
+  "functionalSource": "4e6898c6b5d1e2d5c67fe7d268d86b240702ff17",
+  "scope": [
+    "Idle/sleep and wake",
+    "Resource capacity and failure recovery",
+    "Sustained multitask and foreground GIF",
+    "Legacy firmware compatibility"
+  ],
+  "otherDevelopmentDeferredByOwner": true,
+  "legacyContractTests": {
+    "tests": 39,
+    "failures": 0,
+    "newOldFirmwareHardwareRun": false,
+    "secondKeyboardAvailability": "Owner response pending",
+    "currentKeyboardNotReflashed": true
+  },
+  "resourceFaultContractTests": {
+    "tests": 29,
+    "failures": 0,
+    "fullNativeCapacityUploadStartedByThisRound": false
+  },
+  "firmwareHostTests": {
+    "source": "5fc01cf43990743051bbc68c9381c9a44441b1d8",
+    "sanitizers": [
+      "address",
+      "undefined"
+    ],
+    "scope": "C host executables only; not original PowerShell static checks or target power measurement",
+    "cases": {
+      "device_lifecycle": {
+        "compileExit": 0,
+        "runExit": 0,
+        "stdout": "PASS: device_lifecycle host tests"
+      },
+      "standby_config": {
+        "compileExit": 0,
+        "runExit": 0,
+        "stdout": "PASS: standby_config host tests"
+      },
+      "power_lifecycle": {
+        "compileExit": 0,
+        "runExit": 0,
+        "stdout": "PASS: power_lifecycle host tests"
+      },
+      "connectivity_identity": {
+        "compileExit": 0,
+        "runExit": 0,
+        "stdout": "PASS: connectivity_identity host tests"
+      }
+    }
+  },
+  "gifPreflight": {
+    "sourceSHA256": "3d1c2365273b80d0fd3f849f3537b4ae7414601f41c50c76ae7fd73279b6f5cf",
+    "imageIOFrameCount": 120,
+    "configuredFPS": 12,
+    "renderedFPSMeasured": false
+  },
+  "nativePreflight": {
+    "existingUserImageUploadObserved": true,
+    "snapshotProgressPercent": 25,
+    "snapshotReportedBytesPerSecond": 333,
+    "isTransferAverageMeasurement": false,
+    "existingUploadNotCancelledByThisAgent": true,
+    "windowControlTimedOut": true,
+    "priorAuthorizedAppleScriptReadonlyAccessWorked": true,
+    "windowOwnershipFor10minSample": "Owner response pending"
+  },
+  "sleepScope": {
+    "sourceCommit": "5fc01cf43990743051bbc68c9381c9a44441b1d8",
+    "supportedMinutes": [
+      0,
+      30,
+      60,
+      120
+    ],
+    "quietAtThreshold": true,
+    "sleepPhaseAtTwiceThreshold": true,
+    "AIHostPresentationActivityRefreshesIdle": true,
+    "sourceSleepActuatorKeepsScanTimersTMOSRunning": true,
+    "targetHardwareSleepOrCurrentMeasured": false,
+    "trueLowPowerSleepPassed": false,
+    "timedStateAndWakeRun": "not started"
+  },
+  "hardwareConfigurationWritesByThisRound": 0,
+  "newModelRequests": 0,
+  "allFourAcceptanceGroupsPassed": false
+}
