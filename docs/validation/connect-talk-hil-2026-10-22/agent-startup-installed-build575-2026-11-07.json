@@ -1,0 +1,60 @@
+{
+  "clientDate": "2026-11-07",
+  "version": "0.2.3",
+  "build": 575,
+  "sourceCommit": "4e6898c6b5d1e2d5c67fe7d268d86b240702ff17",
+  "fixes": [
+    "Same selected Agent retries an actual App fallback",
+    "Normal selected Agent avoids redundant restarts",
+    "System disabled override diagnosed without silently enabling",
+    "Explicit Enable and Retry restores existing service"
+  ],
+  "redTests": {
+    "AgentStartupFallbackTests": {
+      "tests": 2,
+      "failures": 1
+    }
+  },
+  "greenTargetedTests": 11,
+  "fullTests": 1071,
+  "fullFailures": 0,
+  "signedUniversalInstalled": true,
+  "scopedPreferencesPreserved": 15,
+  "nativeChecks": {
+    "normalStartupReconnected": true,
+    "temporaryDisabledOverrideOnlyForExistingAgent": true,
+    "uiSpecificDisabledMessage": true,
+    "systemOverrideRemainedDisabledUntilExplicitAction": true,
+    "nativeEnableAndRetryReturnedServiceToEnabled": true,
+    "agentActuallyConnected": true,
+    "freshPhysicalAutoVerified": true,
+    "pendingRecovery": 0,
+    "systemOverrideRestoredToOriginalEnabled": true
+  },
+  "hardwareWrites": 0,
+  "newSessionGrants": 0,
+  "modelRequests": 0,
+  "notarized": false,
+  "ciRun": 42359061182,
+  "ciStatus": "completed",
+  "allWbsPassed": false,
+  "automaticLateAgentFallbackRecoveryPassed": false,
+  "firstSpeechFailureFixed": false,
+  "intermittentCodexExternalChangeFixed": false,
+  "localTestPackage": {
+    "version": "0.2.3",
+    "build": 575,
+    "sourceCommit": "4e6898c6b5d1e2d5c67fe7d268d86b240702ff17",
+    "path": "/Users/heartline/Documents/Codex/local-builds/QA-build575-agent-startup-20261107/AhaKey-Studio-0.2.3-build575-4e6898c6-test.dmg",
+    "sha256": "de7229d19d353796f101c2aed17bf7b03001b1154b9bc77f8a53730cb55bdfc2",
+    "signed": true,
+    "universal": true,
+    "notarized": false,
+    "mountedBinaryHashesMatched": true,
+    "privateUserPreferencesIncluded": false,
+    "internalQAOnly": true
+  },
+  "ciConclusion": "success",
+  "ciAllThreeJobs": "success",
+  "finalMainWindowRestored": true
+}
