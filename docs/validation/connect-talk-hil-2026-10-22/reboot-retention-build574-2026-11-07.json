@@ -1,0 +1,24 @@
+{
+  "clientDate": "2026-11-07",
+  "build": 574,
+  "ownerConfirmedNormalReboot": true,
+  "hardwareReadback": {
+    "mode1Key1": "F18",
+    "mode1Key1Description": "Record",
+    "appPreset": "App local transcription",
+    "firmwareProtocolIdentity": "1.0.1-r001",
+    "cloudEnabled": false
+  },
+  "initialAgentConnected": true,
+  "initialFreshAutomaticApprovalVerified": true,
+  "subsequentAppDirectReadbackSucceeded": true,
+  "subsequentConnectionTimedOut": true,
+  "recentReportedBatteryPercent": [
+    10,
+    11
+  ],
+  "agentHandoffComplete": false,
+  "pending": "Owner wake and stable wireless reconnection before remaining read-only checks",
+  "hardwareWrites": 0,
+  "fullRebootAcceptancePassed": false
+}
