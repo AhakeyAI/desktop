@@ -16,10 +16,37 @@
   "globalCloudEnabled": false,
   "oldRetainedTranscriptPrivateBackupVerified": true,
   "oldRetainedTranscriptNotMarkedReviewed": true,
-  "currentTest": "One first short-press recording after relaunch; SDK time boundaries will be read after Owner response.",
-  "physicalResult": "pending",
+  "currentTest": "First short-press after relaunch completed; SDK boundaries inspected.",
+  "physicalResult": "Owner confirmed complete single automatic paste with no yellow review prompt.",
   "hardwareConfigurationWritesThisInstall": 0,
   "newPermissionGrants": 0,
   "modelRequests": 0,
-  "fullVoiceAcceptancePassed": false
+  "fullVoiceAcceptancePassed": false,
+  "observedBackend": "SpeechTranscriber",
+  "startupMilliseconds": 1657,
+  "physicalFinalBoundary": {
+    "startSeconds": 0,
+    "durationSeconds": 12.3,
+    "completionValid": true,
+    "pendingCharacters": 0,
+    "unresolvedRanges": 0
+  },
+  "syntheticSegmentedReplay": {
+    "productionAccumulatorAndPCMConversion": true,
+    "silenceSeconds": 12,
+    "finalizedSegments": 2,
+    "needsReview": false,
+    "audioRangesSeconds": [
+      [
+        0,
+        7.02
+      ],
+      [
+        13.02,
+        22.74
+      ]
+    ],
+    "ownerAudioUsed": false
+  },
+  "intermittentOriginalFailureReproduced": false
 }
