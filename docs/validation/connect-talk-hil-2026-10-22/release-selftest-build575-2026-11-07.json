@@ -13,7 +13,7 @@
     "tests": 39,
     "failures": 0,
     "newOldFirmwareHardwareRun": false,
-    "secondKeyboardAvailability": "Owner response pending",
+    "secondKeyboardAvailability": "Owner confirmed only current keyboard; no reflash",
     "currentKeyboardNotReflashed": true
   },
   "resourceFaultContractTests": {
@@ -65,7 +65,18 @@
     "existingUploadNotCancelledByThisAgent": true,
     "windowControlTimedOut": true,
     "priorAuthorizedAppleScriptReadonlyAccessWorked": true,
-    "windowOwnershipFor10minSample": "Owner response pending"
+    "windowOwnershipFor10minSample": "Owner granted exclusive test window and keyboard idle period",
+    "latestHandoffScopedBaselineCount": 15,
+    "controlRecovery": "AppleScript reopen and bounded window readiness wait; CUA session unreliable",
+    "currentDeviceReady": false,
+    "currentBlocker": "No live BLE connection; repeated reconnect timeouts; owner wake requested before timed tests",
+    "standbyConfigurationChanged": false,
+    "performanceSampleStarted": false,
+    "resourceCapacityWriteStarted": false,
+    "deviceWakeRequestedAfterHandoff": true,
+    "originalAgentOwnerRestoredWhileWaiting": true,
+    "performanceSamplerPrepared": true,
+    "performanceWorkload": "120-frame GIF configured12FPS plus explicitly synthetic three-session QA workload; no claim of real CLI three-session discovery"
   },
   "sleepScope": {
     "sourceCommit": "5fc01cf43990743051bbc68c9381c9a44441b1d8",
