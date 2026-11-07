@@ -1,7 +1,7 @@
 {
   "clientDate": "2026-11-07",
   "build": 574,
-  "stage": "Physical auto returned, actual never read; external-change ownership diagnostic pending",
+  "stage": "Controlled manual/auto exact readback passed; prior intermittent external-change remains open",
   "preflight": {
     "agentSocketInitiallyRefused": true,
     "systemLaunchAgentExplicitlyDisabled": true,
@@ -63,6 +63,116 @@
     "causeProven": false,
     "permissionOnlyReadObserverPrepared": true,
     "observerWritesPermissions": false,
-    "newControlledCyclePending": true
-  }
+    "newControlledCyclePending": false,
+    "previousIntermittentFailureReproduced": false,
+    "behaviorFixClaimed": false
+  },
+  "controlledDiagnosticManual": {
+    "physicalSwitchState": 1,
+    "automaticApprovalVerified": false,
+    "phase": "synchronized",
+    "managedSessions": 1,
+    "pendingRecovery": 0,
+    "actualPolicy": "on-request",
+    "actualProfile": ":workspace",
+    "acknowledged": true,
+    "intendedEqualsActual": true,
+    "baselinePolicy": "never",
+    "baselineProfile": ":danger-full-access",
+    "scope": "Direct read after owner manual response; initial600s monitor expired before this response, so continuous transition capture not claimed."
+  },
+  "controlledDiagnosticAuto": {
+    "ownerConfirmedPhysicalAuto": true,
+    "actualPolicy": "never",
+    "actualProfile": ":danger-full-access",
+    "acknowledged": true,
+    "intendedEqualsActual": true,
+    "leases": 1,
+    "noExternalChangeObservedDuringControlledCycle": true,
+    "independentProbeWrites": 0,
+    "modelRequests": 0,
+    "physicalSwitchState": 0,
+    "approvalAutoVerified": true,
+    "phase": "synchronized",
+    "managedSessions": 1,
+    "pendingRecovery": 0
+  },
+  "controlledPermissionTrace": [
+    {
+      "atUTC": "2026-11-07T07:50:34.794860+00:00",
+      "kind": "journal",
+      "acknowledged": [],
+      "intended": []
+    },
+    {
+      "atUTC": "2026-11-07T07:50:35.155166+00:00",
+      "kind": "native",
+      "actualPolicy": "never",
+      "actualProfile": ":danger-full-access",
+      "leases": 0
+    },
+    {
+      "atUTC": "2026-11-07T08:39:48.538236+00:00",
+      "kind": "journal",
+      "acknowledged": [
+        true
+      ],
+      "intended": [
+        {
+          "policy": "on-request",
+          "profile": ":workspace"
+        }
+      ]
+    },
+    {
+      "atUTC": "2026-11-07T08:39:48.871944+00:00",
+      "kind": "native",
+      "actualPolicy": "on-request",
+      "actualProfile": ":workspace",
+      "leases": 1
+    },
+    {
+      "atUTC": "2026-11-07T08:40:06.514103+00:00",
+      "kind": "journal",
+      "acknowledged": [
+        false
+      ],
+      "intended": [
+        {
+          "policy": "never",
+          "profile": ":danger-full-access"
+        }
+      ]
+    },
+    {
+      "atUTC": "2026-11-07T08:40:06.830101+00:00",
+      "kind": "journal",
+      "acknowledged": [
+        true
+      ],
+      "intended": [
+        {
+          "policy": "never",
+          "profile": ":danger-full-access"
+        }
+      ]
+    },
+    {
+      "atUTC": "2026-11-07T08:40:06.960920+00:00",
+      "kind": "native",
+      "actualPolicy": "never",
+      "actualProfile": ":danger-full-access",
+      "leases": 1
+    },
+    {
+      "atUTC": "2026-11-07T08:40:08.220172+00:00",
+      "kind": "native",
+      "actualPolicy": "never",
+      "actualProfile": ":danger-full-access",
+      "leases": 1
+    }
+  ],
+  "controlledCodexLeverCyclePassed": true,
+  "readonlyObserverStoppedAfterCapture": true,
+  "finishedOnMainUIWithAgentBLEConnected": true
 }
