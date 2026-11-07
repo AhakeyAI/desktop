@@ -1,0 +1,61 @@
+{
+  "clientDate": "2026-11-07",
+  "version": "0.2.3",
+  "build": 574,
+  "hardwareConfigurationWrites": 0,
+  "firmwareFlashes": 0,
+  "modelRequests": 0,
+  "newSessionGrants": 0,
+  "checks": {
+    "normalAgentStop": {
+      "socketRemoved": true,
+      "uiReportedNotRunning": true
+    },
+    "normalAgentStart": {
+      "automaticBLEReconnect": true,
+      "freshAutoApprovalVerifiedSamples": 3,
+      "connectionGenerationStable": true
+    },
+    "agentToAppHandoff": {
+      "appConnected": true,
+      "agentUnloaded": true,
+      "firmwareIdentityWithoutManualCatalogRead": "1.0.1-r001"
+    },
+    "currentModeLightRead": {
+      "scope": "Claude notification effect and brightness only; not all36 writes",
+      "readSucceeded": true,
+      "brightnessPercent": 35,
+      "all37DraftValuesPreservedAfterNormalizingEncodedDictionaryOrder": true,
+      "readFactMetadataRefreshed": true
+    },
+    "screenRead": {
+      "scope": "Current Claude three-state cards",
+      "threeOneFrameCustomResourcesRead": true,
+      "noUploadOrDefaultRestore": true,
+      "secondExplicitRefreshCompletionNotObserved": true
+    },
+    "unexpectedUIInterruption": {
+      "AXTimedOut": true,
+      "appProcessLaterAbsent": true,
+      "matchingCrashReportFound": false,
+      "causeProven": false,
+      "reopenedUsingPreviouslyAuthorizedStudioAppleScript": true,
+      "agentRemainedConnected": true
+    },
+    "finalState": {
+      "agentConnected": true,
+      "physicalAutomaticPosition": true,
+      "freshApprovalVerified": true,
+      "claudeAppLocalTranscriptionRetained": true,
+      "globalCloudEnabled": false
+    },
+    "sessionPermissions": {
+      "codexIndependentRead": "timedOut",
+      "kimiIndependentRead": "instanceChanged",
+      "afterAgentRestartBothStatus": "notSynchronized",
+      "permissionFollowingPassedThisRound": false
+    },
+    "freshAppVoice": "Owner response pending; diagnostic offset captured"
+  },
+  "fullWbsOrReleasePassed": false
+}
