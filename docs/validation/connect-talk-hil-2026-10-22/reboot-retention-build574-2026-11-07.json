@@ -17,8 +17,27 @@
     10,
     11
   ],
-  "agentHandoffComplete": false,
-  "pending": "Owner wake and stable wireless reconnection before remaining read-only checks",
+  "agentHandoffComplete": true,
+  "pending": "No further owner input for this reboot check; automatic recovery defect remains open.",
   "hardwareWrites": 0,
-  "fullRebootAcceptancePassed": false
+  "fullRebootAcceptancePassed": false,
+  "postWakeReportedBatteryPercent": 82,
+  "lowBatteryCauseProven": false,
+  "readOnlyConfiguration": {
+    "all16KeysMatchedExpected": true,
+    "onlyPreviouslyAuthorizedChange": "Mode1 Key1 F18 / Record instead of Consumer / Voice",
+    "mode3Key1": "Right Alt",
+    "standbyMinutes": 60,
+    "platform": "Mac"
+  },
+  "recovery": {
+    "initialAgentSelectionDidNotMatchActualAppBLEOwnership": true,
+    "normalUIAppThenAgentSwitchRecovered": true,
+    "freshAutoApprovalVerified": true,
+    "stableSamples": 3,
+    "sampleIntervalSeconds": 5,
+    "connectionGenerationUnchanged": true
+  },
+  "configurationRetentionPassed": true,
+  "unattendedReconnectPassed": false
 }
