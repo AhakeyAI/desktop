@@ -1,7 +1,7 @@
 {
   "clientDate": "2026-11-07",
   "build": 574,
-  "stage": "Voice confirmed normal; waiting for physical manual lever",
+  "stage": "Physical auto returned, actual never read; external-change ownership diagnostic pending",
   "preflight": {
     "agentSocketInitiallyRefused": true,
     "systemLaunchAgentExplicitlyDisabled": true,
@@ -31,5 +31,38 @@
     "approvalPolicy": "never",
     "modifiersHeld": false,
     "writes": 0
+  },
+  "manualLever": {
+    "ownerConfirmedPhysicalManual": true,
+    "physicalSwitchState": 1,
+    "freshAutomaticApprovalVerified": false,
+    "codexAgentPhase": "synchronized",
+    "managedSessions": 1,
+    "pendingRecovery": 0,
+    "sameOriginalCodexSessionActualPolicy": "on-request",
+    "independentReadWrites": 0,
+    "modelRequests": 0,
+    "modifiersHeld": false
+  },
+  "automaticReturn": {
+    "ownerConfirmedPhysicalAuto": true,
+    "physicalSwitchState": 0,
+    "freshAutomaticApprovalVerified": true,
+    "sameOriginalCodexSessionActualPolicy": "never",
+    "leases": 0,
+    "managedSessions": 0,
+    "pendingRecovery": 0,
+    "codexAgentPhase": "externalChange",
+    "modifiersHeld": false,
+    "causeOfExternalChangeProven": false
+  },
+  "completeCodexLeverLifecyclePassed": false,
+  "ownerDeniedConcurrentPermissionEdits": true,
+  "externalChangeDiagnosis": {
+    "priorComparedExpectedObservedValuesAvailable": false,
+    "causeProven": false,
+    "permissionOnlyReadObserverPrepared": true,
+    "observerWritesPermissions": false,
+    "newControlledCyclePending": true
   }
 }
