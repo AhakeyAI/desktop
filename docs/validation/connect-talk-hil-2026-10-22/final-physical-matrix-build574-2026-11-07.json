@@ -1,7 +1,7 @@
 {
   "clientDate": "2026-11-07",
   "build": 574,
-  "status": "Owner consolidated physical steps pending",
+  "status": "Owner completed consolidated steps and reported no issues",
   "hardwareConfigurationWrites": 0,
   "newSessionGrants": 0,
   "modelRequests": 0,
@@ -18,7 +18,8 @@
     "openResult": 0,
     "matchingHIDCollections": 18,
     "recordsTypedText": false,
-    "durationLimitSeconds": 1800
+    "durationLimitSeconds": 1800,
+    "stoppedAfterCapture": true
   },
   "requestedSteps": [
     "Cursor Consumer short start/stop",
@@ -37,5 +38,52 @@
     "New destructive firmware or resource writes without appropriate preparation",
     "Kimi unsupported-version original-session permission acceptance"
   ],
-  "fullWbsPassed": false
+  "fullWbsPassed": false,
+  "ownerResults": {
+    "cursorSystemDictation": "reported normal",
+    "diySystemDictation": "reported normal",
+    "codexCustomShortcut": "reported normal; no Studio recording or Dock abnormality",
+    "claudeRecordingAcrossFourPhysicalModeChanges": "reported complete single paste, no review warning"
+  },
+  "speechDiagnostic": {
+    "startupMilliseconds": 1020,
+    "completedRecordings": 1,
+    "pastePosts": 1,
+    "requiresReview": false,
+    "unresolvedRanges": 0,
+    "pendingCharacters": 0,
+    "confirmedAudioRangesSeconds": [
+      [
+        0,
+        5.7
+      ],
+      [
+        11.7,
+        24.72
+      ],
+      [
+        24.72,
+        29.4
+      ]
+    ],
+    "ownerTranscriptIncluded": false
+  },
+  "hidDiagnostic": {
+    "consumerVoicePairs": 2,
+    "rightAltPairs": 7,
+    "f18Pairs": 2,
+    "allObservedFilteredPressesReleased": true,
+    "deviceReturnCodes": 0,
+    "exactPerModeAssociationProven": false,
+    "note": "Filtered trace verifies observed paired events; it does not independently identify physical mode for every event or prove two distinct Consumer-mode start/stop sequences."
+  },
+  "finalState": {
+    "physicalSwitchState": 0,
+    "freshAutoApprovalVerified": true,
+    "codexAgentPhase": "synchronized",
+    "codexManagedSessions": 1,
+    "pendingRecovery": 0
+  },
+  "currentOwnerBatchComplete": true,
+  "priorIntermittentSpeechAndExternalChangeBugsClosed": false
 }
