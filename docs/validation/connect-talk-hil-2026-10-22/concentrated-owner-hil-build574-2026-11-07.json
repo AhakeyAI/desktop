@@ -1,0 +1,29 @@
+{
+  "clientDate": "2026-11-07",
+  "build": 574,
+  "stage": "Owner short/long voice response pending",
+  "preflight": {
+    "agentSocketInitiallyRefused": true,
+    "systemLaunchAgentExplicitlyDisabled": true,
+    "whoDisabledItKnown": false,
+    "uiStartDidNotClearDisabledOverride": true,
+    "existingServiceEnabledBootstrappedAndKickstarted": true,
+    "normalUIAppToAgentHandoffAfterRecoverySucceeded": true,
+    "hardwareConnected": true,
+    "physicalAutoVerified": true,
+    "codexStatus": "synchronized",
+    "kimiStatus": "notSynchronized"
+  },
+  "hardwareWrites": 0,
+  "newSessionGrants": 0,
+  "modelRequests": 0,
+  "voiceResult": "pending",
+  "allWbsPassed": false,
+  "codexIndependentReadBeforePhysicalStep": {
+    "managementEnabled": true,
+    "leases": 0,
+    "approvalPolicy": "never",
+    "modifiersHeld": false,
+    "writes": 0
+  }
+}
