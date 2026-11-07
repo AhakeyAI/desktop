@@ -1,5 +1,7 @@
 # Mac客户端适配总WBS v2 — Inspector、WS3与WS4/5
 
+2026-11-07：Owner解锁后，时间边界诊断候选 **build574/sourceaa5bbff9已签名安装**。1067自动测试及源码CI三项通过，15项设置内容保持，Claude永久App本地转写不回滚。首次短按复测已安排，实物结果待反馈；本轮没有修改识别/回填保护，语音首次失败及最终集中验收仍未关闭。[当前回执](../validation/connect-talk-hil-2026-10-22/speech-boundary-installed-build574-2026-11-07.json)。
+
 2026-11-06集中验收新增客户端未闭合项：Owner已授权将Claude永久切为F18/App本地转写，但首次录音约4536ms启动后进入待核对、未自动回填；后续短按/长按正常。不能判语音整组通过。build574/sourceaa5bbff9为时间边界诊断候选，1067测试通过、已签名构建，Mac锁屏下尚未安装；无行为修复声明。原始保留文字已私密备份，等待解锁后首次短按复测。详见[诊断与当前边界](first-app-voice-retained-review-2026-11-06.md)。
 
 2026-11-06集中验收发现并修复 **App直连固件版本回退，build573/source506e4441已安装**：旧入口只显示0x00的v1.0，手动0x9F即恢复；设备信息现按当前连接自动等待状态/空闲后只读查询目录。冷连接、Agent及Agent→App三路径均显示1.0.1-r001，8专项/1066全量及源码CI三项通过，15项偏好保持，无键盘写入。[回执](../validation/connect-talk-hil-2026-10-22/device-info-direct-firmware-build573-2026-11-06.json)。本轮实体拨杆572已完成Codex手动/自动往返；更新573只改显示查询且Shared/Agent源未改，不冒充573全部硬件矩阵完成。后续语音/重启验收进行中。另发现本机Kimi Code Desktop已更新1.3.1，当前门禁外并报instanceChanged，保留待验，不标本轮Kimi通过。

@@ -1,5 +1,9 @@
 # 首次 App 转写未自动回填：诊断进行中
 
+## 2026-11-07 当前进度
+
+Owner已解锁，build574已按正常停止后台/退出流程安装，签名和双架构核对通过；源码CI三项及1067项自动测试通过。15项草稿/语音设置语义保持，Claude永久App本地转写及关闭的云端整理保留，旧首段备份可读，未代用户确认核对或粘贴。已安排仅一次首次短按的时间边界复测，等待Owner结果；此候选仍不改变回填保护，不能标为修复已通过。见[本次安装回执](../validation/connect-talk-hil-2026-10-22/speech-boundary-installed-build574-2026-11-07.json)。下方“待安装/锁屏”为11月6日检查点。
+
 当前实物为 build573；build574/sourceaa5bbff9 是已构建、待安装的诊断候选，**不是修复通过版本**。
 
 Owner 本轮明确选择将 Claude 模式永久改为 App 本地转写。已通过产品侧栏写入 F18、独立读回及成功弹窗确认，其他模式不改，AhaType 总开关保持关闭；此后不再按历史临时测试流程恢复 Claude 的 Consumer 路由。当前生产后端选择代码在本机返回 SpeechAnalyzerCaptureSession，使用 SpeechTranscriber；该只读选择探针没有打开麦克风，不代替每段录音的运行时证明。
