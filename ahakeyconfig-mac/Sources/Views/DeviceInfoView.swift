@@ -107,6 +107,16 @@ struct DeviceInfoView: View {
                         }
                         .font(.callout)
                     }
+                    if agentManager.agentIsSystemDisabled && agentManager.bluetoothConnectionOwner == .agentDaemon {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("后台服务已被系统停用。")
+                                .font(.caption).foregroundStyle(.orange)
+                            Button("启用并重试") {
+                                agentManager.enableAgentAndRetry(bleManager: bleManager)
+                            }
+                            .disabled(agentManager.isAgentOperationInProgress)
+                        }
+                    }
                 }
             } header: {
                 Text("蓝牙连接")

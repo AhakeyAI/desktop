@@ -7,6 +7,10 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "后台服务已被系统停用。": "The background service is disabled by macOS.",
+    "后台服务已被系统停用。请点击“启用并重试”恢复运行。": "The background service is disabled by macOS. Click Enable and Retry to resume it.",
+    "启用并重试": "Enable and Retry",
+    "无法启用后台服务，请检查系统后台运行设置后重试。": "Unable to enable the background service. Check the system background settings and try again.",
     "App 本地转写": "Local App Transcription",
     "当前使用 App 本地转写，保存其他选择后才切换方案。": "Local App Transcription is active. Another method takes effect only after saving.",
     "%d 步 · %d / %d 字节": "%d steps · %d / %d bytes",

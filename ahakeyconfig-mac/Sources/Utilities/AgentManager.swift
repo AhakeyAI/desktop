@@ -56,6 +56,9 @@ final class AgentManager: ObservableObject {
 
     /// 正在执行安装或 launchctl 启停，用于界面显示进度，避免「点了没反应」。
     @Published private(set) var isAgentOperationInProgress = false
+    @Published private(set) var agentIsSystemDisabled = false
+
+    private weak var agentFallbackBLEManager: AhaKeyBLEManager?
 
     private let label = "lab.jawa.ahakeyconfig.agent"
     private let socketPath: String
@@ -398,13 +401,26 @@ final class AgentManager: ObservableObject {
 
     /// 用户在「设备信息」里切换占用方时调用。
     func setBluetoothConnectionOwner(_ owner: BluetoothConnectionOwner, bleManager: AhaKeyBLEManager) {
-        guard owner != bluetoothConnectionOwner else { return }
-        bluetoothConnectionOwner = owner
-        UserDefaults.standard.set(owner.rawValue, forKey: Self.bluetoothOwnerKey)
+        guard owner != bluetoothConnectionOwner || (owner == .agentDaemon && agentFallbackBLEManager != nil) else { return }
+        if owner != bluetoothConnectionOwner {
+            bluetoothConnectionOwner = owner
+            UserDefaults.standard.set(owner.rawValue, forKey: Self.bluetoothOwnerKey)
+        }
         applyBluetoothOwner(owner, bleManager: bleManager, isLaunch: false)
     }
 
+    /// Keep the App usable when the requested Agent cannot start.
+    func fallBackToAppForAgent(bleManager: AhaKeyBLEManager, alert: String? = nil) {
+        agentFallbackBLEManager = bleManager
+        bleManager.setSuppressedForAgentOwningKeyboard(false)
+        if let alert { agentUserAlert = alert }
+        if !bleManager.isConnected, !bleManager.isScanning {
+            bleManager.connectAutomatically()
+        }
+    }
+
     private func applyBluetoothOwner(_ owner: BluetoothConnectionOwner, bleManager: AhaKeyBLEManager, isLaunch: Bool) {
+        agentFallbackBLEManager = nil
         ownershipTransitionGeneration &+= 1
         let transition = ownershipTransitionGeneration
         // 阶段 4：把 Agent 活性通道注入 BLEManager——共享文件 agent* 状态的过期判断以 socket status 心跳为准
@@ -426,6 +442,7 @@ final class AgentManager: ObservableObject {
             guard isInstalled else {
                 log.info("未安装 LaunchAgent，无法将蓝牙交给 Agent，临时允许 App 连接")
                 bleManager.setSuppressedForAgentOwningKeyboard(false)
+                agentFallbackBLEManager = bleManager
                 if !isLaunch {
                     agentUserAlert = "尚未安装 Agent，无法切回「键盘控制中」。请在「更多 → 设备信息 · Agent」里先安装并启用 Agent。"
                 }
@@ -443,9 +460,14 @@ final class AgentManager: ObservableObject {
                 try? await Task.sleep(nanoseconds: UInt64(isLaunch ? 500 : 550) * 1_000_000)
                 guard self.ownershipTransitionGeneration == transition else { return }
                 guard self.bluetoothConnectionOwner == .agentDaemon else { return }
+                if self.checkAgentSystemDisabled() {
+                    self.fallBackToAppForAgent(bleManager: bleManager,
+                        alert: isLaunch ? nil : self.agentSystemDisabledMessage)
+                    self.refresh()
+                    return
+                }
                 guard self.prepareLaunchAgentForStart() else {
-                    bleManager.setSuppressedForAgentOwningKeyboard(false)
-                    bleManager.connectAutomatically()
+                    self.fallBackToAppForAgent(bleManager: bleManager)
                     return
                 }
                 _ = runLaunchctlQuiet(["load", plistPath])
@@ -465,13 +487,7 @@ final class AgentManager: ObservableObject {
                 }
                 if !agentUp {
                     log.info("Agent 已安装但未能启动（socket 未出现），临时回退由 App 直连键盘")
-                    bleManager.setSuppressedForAgentOwningKeyboard(false)
-                    if !isLaunch {
-                        self.agentUserAlert = "Agent 已安装但未能启动，已临时由 App 直接连接键盘。请在「更多 → 设备信息 · Agent」里检查或重新安装 Agent。"
-                    }
-                    if !bleManager.isConnected, !bleManager.isScanning {
-                        bleManager.connectAutomatically()
-                    }
+                    self.fallBackToAppForAgent(bleManager: bleManager, alert: isLaunch ? nil : "Agent 已安装但未能启动，已临时由 App 直接连接键盘。请在「更多 → 设备信息 · Agent」里检查或重新安装 Agent。")
                     self.refresh()
                 }
             }
@@ -751,6 +767,14 @@ final class AgentManager: ObservableObject {
     func start() {
         guard isInstalled else {
             agentUserAlert = "尚未安装 LaunchAgent。请先点「安装并启用」。"
+            return
+        }
+        if checkAgentSystemDisabled() {
+            agentUserAlert = agentSystemDisabledMessage
+            return
+        }
+        if bluetoothConnectionOwner == .agentDaemon, let bleManager = agentFallbackBLEManager {
+            applyBluetoothOwner(.agentDaemon, bleManager: bleManager, isLaunch: false)
             return
         }
         guard prepareLaunchAgentForStart() else { return }
@@ -1776,6 +1800,36 @@ final class AgentManager: ObservableObject {
     }
 
     // MARK: - launchctl
+
+    var agentSystemDisabledMessage: String {
+        NSLocalizedString("后台服务已被系统停用。请点击“启用并重试”恢复运行。", comment: "")
+    }
+
+    private func checkAgentSystemDisabled() -> Bool {
+        let result = runLaunchctlDetailed(["print-disabled", "gui/\(getuid())"])
+        agentIsSystemDisabled = LaunchAgentConfiguration.systemDisabledOverride(
+            in: result.mergedOutput, commandSucceeded: result.ok, label: label) == true
+        return agentIsSystemDisabled
+    }
+
+    /// Only an explicit user action clears a system-disabled override. Neither
+    /// launch nor periodic heartbeat silently enables a service the user stopped.
+    func enableAgentAndRetry(bleManager: AhaKeyBLEManager) {
+        guard isInstalled, bluetoothConnectionOwner == .agentDaemon,
+              !isAgentOperationInProgress else { return }
+        let result = runLaunchctlDetailed(["enable", "gui/\(getuid())/\(label)"])
+        guard result.ok else {
+            agentUserAlert = NSLocalizedString("无法启用后台服务，请检查系统后台运行设置后重试。", comment: "")
+            return
+        }
+        guard !checkAgentSystemDisabled() else {
+            agentUserAlert = agentSystemDisabledMessage
+            return
+        }
+        agentUserAlert = nil
+        // Retry even if Agent is still the requested owner of an App fallback.
+        applyBluetoothOwner(.agentDaemon, bleManager: bleManager, isLaunch: false)
+    }
 
     private struct LaunchctlResult {
         let ok: Bool

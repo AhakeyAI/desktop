@@ -2,6 +2,38 @@ import XCTest
 @testable import AhaKeyConfigShared
 
 final class LaunchAgentConfigurationTests: XCTestCase {
+    func testCapturedSystemDisabledOverrideMatchesOnlyOurExactLabel() {
+        let output = #"""
+            disabled services = {
+                "lab.jawa.ahakeyconfig.agent.hil" => enabled
+                "lab.jawa.ahakeyconfig.agent" => disabled
+                "other.background.service" => disabled
+            }
+            """#
+        XCTAssertEqual(LaunchAgentConfiguration.systemDisabledOverride(in: output,
+            commandSucceeded: true, label: "lab.jawa.ahakeyconfig.agent"), true)
+        XCTAssertEqual(LaunchAgentConfiguration.systemDisabledOverride(in: output,
+            commandSucceeded: true, label: "lab.jawa.ahakeyconfig.agent.hil"), false)
+        XCTAssertNil(LaunchAgentConfiguration.systemDisabledOverride(in: output,
+            commandSucceeded: true, label: "lab.jawa.ahakeyconfig"))
+        XCTAssertNil(LaunchAgentConfiguration.systemDisabledOverride(in: output,
+            commandSucceeded: false, label: "lab.jawa.ahakeyconfig.agent"))
+    }
+
+    func testMissingMalformedAndConflictingOverrideRowsAreUnknown() {
+        for output in ["", "not available", #""lab.jawa.ahakeyconfig.agent" => not-disabled"#,
+                       "\"lab.jawa.ahakeyconfig.agent\" => enabled\n\"lab.jawa.ahakeyconfig.agent\" => disabled"] {
+            XCTAssertNil(LaunchAgentConfiguration.systemDisabledOverride(in: output,
+                commandSucceeded: true, label: "lab.jawa.ahakeyconfig.agent"))
+        }
+        XCTAssertEqual(LaunchAgentConfiguration.systemDisabledOverride(
+            in: #""lab.jawa.ahakeyconfig.agent" => true"#,
+            commandSucceeded: true, label: "lab.jawa.ahakeyconfig.agent"), true)
+        XCTAssertEqual(LaunchAgentConfiguration.systemDisabledOverride(
+            in: #""lab.jawa.ahakeyconfig.agent" => false,"#,
+            commandSucceeded: true, label: "lab.jawa.ahakeyconfig.agent"), false)
+    }
+
     func testSameBinaryWithOldSocketMustBeMigratedBeforeStarting() throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: url) }
