@@ -1,0 +1,41 @@
+{
+  "clientDate": "2026-11-07",
+  "build": 574,
+  "status": "Owner consolidated physical steps pending",
+  "hardwareConfigurationWrites": 0,
+  "newSessionGrants": 0,
+  "modelRequests": 0,
+  "observer": {
+    "readOnlyIOHID": true,
+    "productFilter": "AhaKey 505C",
+    "usageFilter": [
+      "Keyboard F18",
+      "Keyboard RightAlt",
+      "Keyboard LeftCommand",
+      "Keyboard RightCommand",
+      "Consumer Voice"
+    ],
+    "openResult": 0,
+    "matchingHIDCollections": 18,
+    "recordsTypedText": false,
+    "durationLimitSeconds": 1800
+  },
+  "requestedSteps": [
+    "Cursor Consumer short start/stop",
+    "DIY Consumer short start/stop",
+    "Codex existing Right Alt tap and release without Studio capture",
+    "Claude App short recording; four physical mode changes back to Claude; finish same recording and preserve both phrases"
+  ],
+  "alreadyPassedNotRepeated": [
+    "Normal reboot configuration retention",
+    "Basic App short/long voice",
+    "Controlled Codex manual/automatic policy exact readback"
+  ],
+  "excluded": [
+    "Known stuck-Enter macro without firmware fix",
+    "Actual60min sleep not replaced by power cycle",
+    "New destructive firmware or resource writes without appropriate preparation",
+    "Kimi unsupported-version original-session permission acceptance"
+  ],
+  "fullWbsPassed": false
+}
