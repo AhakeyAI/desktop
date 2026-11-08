@@ -1,6 +1,19 @@
 // swift-tools-version: 5.9
 
 import PackageDescription
+import Foundation
+
+// 本地语音识别引擎（SenseVoice / Whisper，sherpa-onnx）。由 scripts/fetch-sherpa-onnx.sh 生成；
+// 未生成时照常编译，只是本地引擎不可用（回退到 Apple Speech）。
+let sherpaOnnxPath = "Vendor/SherpaOnnxC.xcframework"
+let hasSherpaOnnx = FileManager.default.fileExists(
+    atPath: URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent(sherpaOnnxPath).path
+)
+let sherpaOnnxTargets: [Target] = hasSherpaOnnx
+    ? [.binaryTarget(name: "SherpaOnnxC", path: sherpaOnnxPath)]
+    : []
+let sherpaOnnxDependencies: [Target.Dependency] = hasSherpaOnnx ? ["SherpaOnnxC"] : []
+
 let package = Package(
     name: "AhaKeyConfig",
     platforms: [
@@ -37,7 +50,7 @@ let package = Package(
                 "AhaKeyPluginKit",
                 "AhaKeyConfigShared",
                 .product(name: "VibeBar", package: "VibeBar"),
-            ],
+            ] + sherpaOnnxDependencies,
             path: "Sources",
             exclude: ["Shared", "Agent", "AhaKeyPlugin", "AhaKeyPluginKit", "AhaKeyPluginShowcase"],
             // 与 scripts/build.sh 中 Info.plist 一致。嵌入 __info_plist 段后 TCC 可识别。
@@ -70,5 +83,5 @@ let package = Package(
             dependencies: ["AhaKeyConfig"],
             path: "Tests/AhaKeyConfigTests"
         ),
-    ]
+    ] + sherpaOnnxTargets
 )
