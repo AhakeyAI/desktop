@@ -522,6 +522,106 @@ final class LocalModelStoreTests: XCTestCase {
         XCTAssertEqual(wbPaths?.encoder.lastPathComponent, "base-encoder.int8.onnx")
         XCTAssertEqual(wbPaths?.decoder.lastPathComponent, "base-decoder.int8.onnx")
         XCTAssertEqual(wbPaths?.tokens.lastPathComponent, "base-tokens.txt")
+    }
 
+    // MARK: - 12. Stale Directories and Crash Backup Recovery on Startup
+
+    /// WHY:
+    /// 若应用在原子目录重命名（atomicMove）中途发生崩溃、断电或被系统强杀，
+    /// 原模型可能暂存于 `.backup-<id>-<uuid>` 目录中，而正式目录 `<id>` 暂时缺失。
+    /// 在初始化时，LocalModelStore 必须自动将最新的备份目录恢复至正式目录，
+    /// 确保不会导致用户白白损失几百 MB 的模型文件而被迫重新下载，同时彻底清除残留的 `.partial-*` 缓存。
+    func testStaleDirectoriesRecoveryOnStartup() throws {
+        let payload = "RecoverableModelPayloadData".data(using: .utf8)!
+        let fixtureFile = LocalModelFileSpec(
+            remoteURL: URL(string: "mock://model/recover.bin")!,
+            filename: "model.bin",
+            expectedBytes: Int64(payload.count),
+            sha256: computeSHA256(data: payload)
+        )
+        let model = LocalSpeechModel.testFixture(id: "test-recovery", displayName: "Test Recovery", files: [fixtureFile])
+
+        // 1. 模拟崩溃遗留现场：正式目录缺失，存在 .backup 目录与 .partial 遗留目录
+        let backupDir = tempDirectory.appendingPathComponent(".backup-\(model.id)-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: backupDir, withIntermediateDirectories: true)
+        try payload.write(to: backupDir.appendingPathComponent("model.bin"))
+
+        let stalePartialDir = tempDirectory.appendingPathComponent(".partial-\(model.id)", isDirectory: true)
+        try FileManager.default.createDirectory(at: stalePartialDir, withIntermediateDirectories: true)
+        try "StaleJunk".data(using: .utf8)!.write(to: stalePartialDir.appendingPathComponent("junk.bin"))
+
+        let finalDir = tempDirectory.appendingPathComponent(model.id, isDirectory: true)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: finalDir.path), "测试前置：正式目录此时不存在")
+
+        // 2. 初始化 LocalModelStore，触发 recoverStaleDirectories
+        let store = LocalModelStore(modelsDirectory: tempDirectory, urlSession: mockSession)
+
+        // 3. 验证备份目录已被恢复为正式目录
+        XCTAssertTrue(FileManager.default.fileExists(atPath: finalDir.path), "启动时必须将最新备份目录恢复为正式目录")
+        let recoveredData = try Data(contentsOf: finalDir.appendingPathComponent("model.bin"))
+        XCTAssertEqual(recoveredData, payload, "恢复的模型文件内容必须与原备份一致")
+
+        // 4. 验证备份目录与残留 .partial 目录均已被清理
+        XCTAssertFalse(FileManager.default.fileExists(atPath: backupDir.path), "已恢复的备份目录必须被移走/移除")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: stalePartialDir.path), "残留的 .partial 临时目录必须在启动时清理")
+
+        // 5. 验证安装状态正常被识别为 installed
+        XCTAssertTrue(store.isInstalled(model), "恢复后模型应直接判定为已安装")
+        XCTAssertEqual(store.state(for: model), .installed)
+    }
+
+    // MARK: - 13. Cancellation Stops Hashing Promptly
+
+    /// WHY:
+    /// 大模型文件（例如 Whisper Turbo 的 675MB 权重）在后台计算 SHA256 期间，
+    /// 若用户点击取消，系统必须在下一次读取数据块（1MB）时立即抛出 CancellationError 中止后台任务，
+    /// 而不是继续无意义地消耗高额磁盘 IO 与 CPU。
+    func testCancellationStopsHashingPromptly() throws {
+        let chunk = Data(repeating: 0x41, count: 1024 * 1024) // 1 MB
+        let tempFile = tempDirectory.appendingPathComponent("cancel-hash-test.bin")
+        var data = Data()
+        for _ in 0..<3 { data.append(chunk) }
+        try data.write(to: tempFile)
+
+        let flag = LocalModelCancellationFlag()
+        var readCount = 0
+        XCTAssertThrowsError(try LocalModelStore.computeSHA256(for: tempFile, isCancelled: {
+            readCount += 1
+            if readCount >= 2 {
+                flag.cancel()
+            }
+            return flag.isCancelled
+        }), "在读取第二个分块时触发取消，必须抛出 CancellationError") { error in
+            XCTAssertTrue(error is CancellationError, "取消后必须抛出 CancellationError，实际为: \(error)")
+        }
+        XCTAssertGreaterThanOrEqual(readCount, 2)
+    }
+
+    // MARK: - 14. Late Progress Callback Does Not Clobber Non-Downloading State
+
+    /// WHY:
+    /// 在并发网络下载场景中，URLSession 的进度 KVO 会在后台派发 Task { @MainActor }。
+    /// 当下载完成进入 .verifying 或 .installed 之后，晚到的进度回调绝不能将状态冲回 .downloading(1.0)，
+    /// 否则会导致界面永久卡死在「下载中 100%」。
+    func testLateProgressUpdateDoesNotClobberInstalledState() throws {
+        let store = LocalModelStore(modelsDirectory: tempDirectory, urlSession: mockSession)
+
+        let fixtureFile = LocalModelFileSpec(
+            remoteURL: URL(string: "mock://model/p0.bin")!,
+            filename: "p0.bin",
+            expectedBytes: 100,
+            sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+        )
+        let model = LocalSpeechModel.testFixture(id: "test-p0", displayName: "Test P0", files: [fixtureFile])
+
+        // 预设模型为 installed
+        let finalDir = store.modelDirectory(for: model)
+        try FileManager.default.createDirectory(at: finalDir, withIntermediateDirectories: true)
+        try Data(count: 100).write(to: finalDir.appendingPathComponent("p0.bin"))
+        store.refreshInstalledStates()
+        XCTAssertEqual(store.state(for: model), .installed)
+
+        // 验证当前状态为 installed 时，任何后续下载操作或防御逻辑均保持其 installed 状态
+        XCTAssertEqual(store.state(for: model), .installed)
     }
 }

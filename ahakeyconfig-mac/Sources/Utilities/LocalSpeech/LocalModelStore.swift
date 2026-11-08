@@ -4,6 +4,25 @@ import os.log
 
 private let log = Logger(subsystem: "lab.jawa.ahakeyconfig", category: "LocalModelStore")
 
+// MARK: - 线程安全的取消标志
+
+final class LocalModelCancellationFlag: @unchecked Sendable {
+    private var isCancelledFlag = false
+    private let lock = NSLock()
+
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return isCancelledFlag
+    }
+
+    func cancel() {
+        lock.lock()
+        isCancelledFlag = true
+        lock.unlock()
+    }
+}
+
 // MARK: - 模型文件规格描述
 
 /// 单个模型文件的静态元数据（文件名、远程地址、期望大小、SHA256 校验和）
@@ -325,6 +344,7 @@ final class LocalModelStore: ObservableObject {
 
     private let urlSession: URLSession
     private var activeDownloadTasksByModel: [LocalSpeechModel: URLSessionDownloadTask] = [:]
+    private var activeCancellationFlags: [LocalSpeechModel: LocalModelCancellationFlag] = [:]
     private var cancelledModels: Set<String> = []
 
     init(modelsDirectory: URL? = nil, urlSession: URLSession = .shared) {
@@ -335,7 +355,72 @@ final class LocalModelStore: ObservableObject {
             self.modelsDirectory = appSupport.appendingPathComponent("AhaKey/models", isDirectory: true)
         }
         self.urlSession = urlSession
+        self.recoverStaleDirectories()
         self.refreshInstalledStates()
+    }
+
+    /// 检查并清理或恢复异常中断遗留的残留目录（.partial-* 与 .backup-*）
+    private func recoverStaleDirectories() {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: modelsDirectory.path),
+              let items = try? fm.contentsOfDirectory(
+                  at: modelsDirectory,
+                  includingPropertiesForKeys: [.contentModificationDateKey],
+                  options: []
+              ) else {
+            return
+        }
+
+        var backupsByModelId: [String: [(url: URL, date: Date)]] = [:]
+
+        for item in items {
+            let name = item.lastPathComponent
+            if name.hasPrefix(".partial-") {
+                log.info("清理未完成的残留下载目录: \(name)")
+                try? fm.removeItem(at: item)
+            } else if name.hasPrefix(".backup-"), let modelId = extractModelId(from: name) {
+                let modDate = (try? item.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? Date.distantPast
+                backupsByModelId[modelId, default: []].append((url: item, date: modDate))
+            }
+        }
+
+        for (modelId, backups) in backupsByModelId {
+            let finalDir = modelsDirectory.appendingPathComponent(modelId, isDirectory: true)
+            if fm.fileExists(atPath: finalDir.path) {
+                // 正式目录完好存在，说明此前备份为遗留物，清理即可
+                for backup in backups {
+                    log.info("清理旧版本残留备份目录: \(backup.url.lastPathComponent)")
+                    try? fm.removeItem(at: backup.url)
+                }
+            } else {
+                // 正式目录缺失（崩溃发生于替换中途），按时间降序取最新备份恢复
+                let sorted = backups.sorted { $0.date > $1.date }
+                if let newest = sorted.first {
+                    log.info("从残留备份 \(newest.url.lastPathComponent) 恢复模型目录 \(modelId)")
+                    try? fm.moveItem(at: newest.url, to: finalDir)
+                }
+                for older in sorted.dropFirst() {
+                    try? fm.removeItem(at: older.url)
+                }
+            }
+        }
+    }
+
+    private func extractModelId(from backupName: String) -> String? {
+        guard backupName.hasPrefix(".backup-") else { return nil }
+        let remainder = String(backupName.dropFirst(".backup-".count))
+        if remainder.count > 37 {
+            let hyphenIndex = remainder.index(remainder.endIndex, offsetBy: -37)
+            if remainder[hyphenIndex] == "-" {
+                return String(remainder[..<hyphenIndex])
+            }
+        }
+        for model in LocalSpeechModel.allCases {
+            if remainder.hasPrefix(model.id) {
+                return model.id
+            }
+        }
+        return remainder.isEmpty ? nil : remainder
     }
 
     /// 刷新所有已知模型的已安装状态（根据磁盘文件是否存在且大小吻合）
@@ -411,6 +496,10 @@ final class LocalModelStore: ObservableObject {
             return
         }
 
+        let cancelFlag = LocalModelCancellationFlag()
+        activeCancellationFlags[model] = cancelFlag
+        defer { activeCancellationFlags.removeValue(forKey: model) }
+
         cancelledModels.remove(model.id)
         states[model] = .downloading(progress: 0.0)
 
@@ -438,6 +527,9 @@ final class LocalModelStore: ObservableObject {
 
                 try await downloadFile(file: file, for: model, to: dst) { [weak self] currentReceived in
                     guard let self = self else { return }
+                    // P0 防御：仅当状态处于 downloading 时才更新进度，避免晚到回调冲掉 verifying 或 installed
+                    guard case .downloading = self.states[model] else { return }
+
                     let clamped = min(max(currentReceived, 0), file.expectedBytes)
                     let totalProgress = Double(baseCompleted + clamped) / Double(totalSize)
                     let now = CFAbsoluteTimeGetCurrent()
@@ -462,7 +554,7 @@ final class LocalModelStore: ObservableObject {
                 completedBytes += file.expectedBytes
             }
 
-            // 校验阶段（在后台 utility 优先级线程池运行，避免阻塞主线程）
+            // 校验阶段（在后台 utility 优先级线程池运行，并通过 cancelFlag 响应及时取消）
             states[model] = .verifying
             log.info("[\(model.id)] 开始后台计算 SHA256 校验和...")
 
@@ -470,7 +562,9 @@ final class LocalModelStore: ObservableObject {
                 try checkCancellation(for: model)
                 let filePath = partialDir.appendingPathComponent(file.filename)
                 let hash = try await Task.detached(priority: .utility) {
-                    try Self.computeSHA256(for: filePath)
+                    try Self.computeSHA256(for: filePath) {
+                        cancelFlag.isCancelled
+                    }
                 }.value
                 try checkCancellation(for: model)
                 guard hash.lowercased() == file.sha256.lowercased() else {
@@ -506,6 +600,7 @@ final class LocalModelStore: ObservableObject {
     /// 取消模型的下载或导入，清理临时目录并保留已有安装
     func cancel(_ model: LocalSpeechModel) {
         cancelledModels.insert(model.id)
+        activeCancellationFlags.removeValue(forKey: model)?.cancel()
         if let task = activeDownloadTasksByModel.removeValue(forKey: model) {
             task.cancel()
         }
@@ -535,6 +630,10 @@ final class LocalModelStore: ObservableObject {
     func importFromFolder(_ model: LocalSpeechModel, from sourceURL: URL) async throws {
         cancel(model)
         cancelledModels.remove(model.id)
+
+        let cancelFlag = LocalModelCancellationFlag()
+        activeCancellationFlags[model] = cancelFlag
+        defer { activeCancellationFlags.removeValue(forKey: model) }
 
         let fm = FileManager.default
         var isDir: ObjCBool = false
@@ -580,7 +679,9 @@ final class LocalModelStore: ObservableObject {
                 let dstFile = partialDir.appendingPathComponent(file.filename)
 
                 let actualHash = try await Task.detached(priority: .utility) {
-                    try Self.streamCopyAndComputeSHA256(from: srcFile, to: dstFile, expectedBytes: file.expectedBytes)
+                    try Self.streamCopyAndComputeSHA256(from: srcFile, to: dstFile, expectedBytes: file.expectedBytes) {
+                        cancelFlag.isCancelled
+                    }
                 }.value
                 try checkCancellation(for: model)
                 guard actualHash.lowercased() == file.sha256.lowercased() else {
@@ -733,15 +834,20 @@ final class LocalModelStore: ObservableObject {
         }
     }
 
-    /// 流式计算文件的 SHA256 哈希值（1MB 块读取，在后台线程执行）
-    nonisolated private static func computeSHA256(for fileURL: URL) throws -> String {
+    /// 流式计算文件的 SHA256 哈希值（1MB 块读取，支持取消标志回调）
+    nonisolated static func computeSHA256(
+        for fileURL: URL,
+        isCancelled: (() -> Bool)? = nil
+    ) throws -> String {
         let handle = try FileHandle(forReadingFrom: fileURL)
         defer { try? handle.close() }
 
         var hasher = SHA256()
         let bufferSize = 1024 * 1024 // 1 MB
         while true {
-            try Task.checkCancellation()
+            if isCancelled?() == true || Task.isCancelled {
+                throw CancellationError()
+            }
             guard let chunk = try handle.read(upToCount: bufferSize), !chunk.isEmpty else {
                 break
             }
@@ -751,11 +857,12 @@ final class LocalModelStore: ObservableObject {
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
-    /// 流式复制并实时计算 SHA256（1MB 块读取，在后台线程执行）
-    nonisolated private static func streamCopyAndComputeSHA256(
+    /// 流式复制并实时计算 SHA256（1MB 块读取，支持取消标志回调）
+    nonisolated static func streamCopyAndComputeSHA256(
         from source: URL,
         to destination: URL,
-        expectedBytes: Int64
+        expectedBytes: Int64,
+        isCancelled: (() -> Bool)? = nil
     ) throws -> String {
         let inputHandle = try FileHandle(forReadingFrom: source)
         defer { try? inputHandle.close() }
@@ -773,7 +880,9 @@ final class LocalModelStore: ObservableObject {
         var totalBytesCopied: Int64 = 0
 
         while true {
-            try Task.checkCancellation()
+            if isCancelled?() == true || Task.isCancelled {
+                throw CancellationError()
+            }
 
             guard let chunk = try inputHandle.read(upToCount: bufferSize), !chunk.isEmpty else {
                 break

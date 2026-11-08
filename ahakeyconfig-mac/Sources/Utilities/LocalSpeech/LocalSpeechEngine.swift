@@ -43,7 +43,9 @@ final class LocalSpeechEngine: ObservableObject {
         static let autoDownload = "localVoice.autoDownload"
     }
 
-    @Published var engine: Engine = Engine(rawValue: UserDefaults.standard.string(forKey: Keys.engine) ?? "") ?? .senseVoice {
+    /// 默认 SenseVoice；未编译本地引擎的构建默认苹果原生转写，避免界面显示一个用不了的选项。
+    @Published var engine: Engine = Engine(rawValue: UserDefaults.standard.string(forKey: Keys.engine) ?? "")
+        ?? (LocalRecognizer.isEngineAvailable ? .senseVoice : .apple) {
         didSet {
             UserDefaults.standard.set(engine.rawValue, forKey: Keys.engine)
             prepare()
@@ -92,6 +94,25 @@ final class LocalSpeechEngine: ObservableObject {
     /// SenseVoice 解码足够快，可以录音中实时预览；Whisper 只在结束后识别。
     var supportsLivePreview: Bool { loadedModel == .senseVoice }
 
+    /// 选择了本地引擎（且本构建包含引擎）——此时只需要麦克风权限。
+    var usesLocalEngine: Bool { LocalRecognizer.isEngineAvailable && selectedModel != nil }
+
+    /// 本地引擎尚未就绪时给用户的提示。
+    var notReadyMessage: String {
+        guard let model = selectedModel else { return "" }
+        switch store.state(for: model) {
+        case let .downloading(progress):
+            return String(format: NSLocalizedString("本地语音模型下载中 %d%%，完成后即可使用。", comment: ""), Int(progress * 100))
+        case .verifying:
+            return NSLocalizedString("本地语音模型校验中，请稍候。", comment: "")
+        case .installed:
+            if let loadError { return loadError }
+            return NSLocalizedString("本地语音模型加载中，请稍候。", comment: "")
+        case .notInstalled, .failed:
+            return NSLocalizedString("本地语音模型尚未下载，请在语音键设置中下载，或切换到苹果原生转写。", comment: "")
+        }
+    }
+
     /// 应用启动时调用；只做模型下载/加载，绝不启动录音。
     func start() {
         prepare()
@@ -129,9 +150,11 @@ final class LocalSpeechEngine: ObservableObject {
         }
     }
 
+    /// 删除当前所选模型时切回苹果原生转写，否则自动下载会在下次启动时把刚删除的模型又下载回来。
     func delete(_ model: LocalSpeechModel) {
         if loadedModel == model || loadingModel == model { unload() }
         store.delete(model)
+        if model == selectedModel { engine = .apple }
     }
 
     /// 在后台线程识别一段 16 kHz 单声道音频。

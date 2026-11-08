@@ -135,7 +135,14 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         lastPermissionCheckSummary =
             "麦克风 \(currentMicGranted ? "已开启" : "未开启") · 语音转写 \(currentSpeechGranted ? "已开启" : "未开启") · Siri \(currentSiriEnabled ? "已开启" : "未开启") · 听写 \(currentDictationEnabled ? "已开启" : "未开启") · 检查于 \(timeLabel)"
 
-        if !currentMicGranted || !currentSpeechGranted || !currentSiriEnabled || !currentDictationEnabled {
+        if LocalSpeechEngine.shared.usesLocalEngine, currentMicGranted {
+            // 本地识别只需麦克风；不再因 Siri / 听写未开启而报错
+            if !isRecording {
+                statusMessage = LocalSpeechEngine.shared.isReady
+                    ? NSLocalizedString("本地识别已就绪，按一次语音键开始，再按一次结束。", comment: "")
+                    : LocalSpeechEngine.shared.notReadyMessage
+            }
+        } else if !currentMicGranted || !currentSpeechGranted || !currentSiriEnabled || !currentDictationEnabled {
             statusMessage = NSLocalizedString("还缺苹果原生语音权限，请先打开麦克风、语音转写、Siri 与听写。", comment: "")
         } else if !isRecording {
             statusMessage = NSLocalizedString("苹果原生转写已就绪，按一次语音键开始，再按一次结束。", comment: "")
@@ -372,6 +379,19 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             startLocalRecording()
             return
         }
+        // 本地模型未就绪时，只有苹果原生转写权限齐全才临时回退；否则提示等待，不弹苹果语音权限引导。
+        if LocalSpeechEngine.shared.usesLocalEngine,
+           !(microphoneGranted && speechRecognitionGranted && siriEnabled && dictationEnabled) {
+            let message = LocalSpeechEngine.shared.notReadyMessage
+            if !microphoneGranted { refreshPermissions(requestIfNeeded: true) }
+            statusMessage = message
+            VoiceStatusHUDController.shared.show(
+                VoiceStatusHUDState(kind: .warning, title: NSLocalizedString("本地模型准备中", comment: ""), subtitle: message),
+                autoHideAfter: 2.4
+            )
+            appendDiagnostic("blocked start: local engine not ready (\(message))")
+            return
+        }
 
         guard microphoneGranted, speechRecognitionGranted, siriEnabled, dictationEnabled else {
             let micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
@@ -491,10 +511,10 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
     }
 
-    /// 粗略实时预览：每秒重新识别最近 12 秒音频（SenseVoice 解码只需约 0.2 秒）。
+    /// 粗略实时预览：每秒重新识别最近 30 秒音频（SenseVoice 解码 30 秒约 0.3 秒），超过 30 秒只显示末尾。
     private func refreshLocalPreview() {
         guard let recorder = localRecorder, !localPreviewInFlight else { return }
-        let samples = recorder.snapshot(lastSeconds: 12)
+        let samples = recorder.snapshot(lastSeconds: 30)
         guard samples.count >= LocalRecognizer.sampleRate / 2 else { return }
         localPreviewInFlight = true
         Task { @MainActor in
