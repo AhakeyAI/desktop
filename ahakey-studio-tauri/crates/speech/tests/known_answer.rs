@@ -1,4 +1,4 @@
-use ahakey_speech::{Recognizer, RecognizerConfig, SAMPLE_RATE};
+use ahakey_speech::{ModelKind, Recognizer, RecognizerConfig, SAMPLE_RATE};
 use std::{path::PathBuf, time::Instant};
 
 /// Real weights and an official fixed WAV are supplied explicitly. No test
@@ -21,6 +21,7 @@ fn native_sensevoice_known_answer() {
     let recognizer = Recognizer::new(RecognizerConfig {
         model_dir: model,
         threads: 4,
+        model_kind: ModelKind::SenseVoice,
     })
     .unwrap();
     eprintln!("Native SenseVoice load+verify: {:?}", start.elapsed());
@@ -63,7 +64,7 @@ fn verified_model_import() {
     );
     let target = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target");
     let directory = tempfile::tempdir_in(target).unwrap();
-    let store = ModelStore::new(directory.path().join("model"));
+    let store = ModelStore::new(directory.path().join("model"), ModelKind::SenseVoice);
     let last_progress = Cell::new(0.);
     store
         .import_from(&source, &CancellationToken::new(), |progress| {

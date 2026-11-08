@@ -47,8 +47,11 @@ Controlled firmware source and schematics are not part of this project.
 - WeChat and Windows dictation use their external shortcuts. They do not expose
   reliable recording-state readback; end an out-of-sync input-method popup
   manually before resuming. The client does not invent timing-based state.
-- Local SenseVoice Small INT8 via sherpa-onnx. Runtime is bundled on Windows;
-  weights download/import is opt-in. Local audio is not uploaded.
+- Local offline recognition supports SenseVoice Small INT8 and OpenAI Whisper (Tiny, Base, Small, Turbo) via sherpa-onnx.
+  If missing, the selected model downloads in the background at app startup (`auto_download_model: true` by default)
+  without opening a microphone. Users can opt out in Settings or set `"autoDownloadModel": false` in `settings.json`
+  for manual opt-in downloads. Optional local LLM cleanup (Ollama / OpenAI-compatible) cleans transcripts with automatic
+  raw-text fallback. Local audio is never uploaded.
 - Optional Doubao streaming recognition with user-provided API credentials.
   Windows local/cloud captions follow the target window's monitor/work area.
 - Image crop/fit/RGB565 preview and export, plus extensible quota cards for

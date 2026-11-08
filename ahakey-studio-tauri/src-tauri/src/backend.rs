@@ -171,6 +171,13 @@ pub async fn apply_settings(
         *current = settings.clone();
         *state.settings_change_id.lock().unwrap() = change_id;
     }
+    if previous.provider != settings.provider
+        || previous.speech_engine != settings.speech_engine
+        || previous.whisper_size != settings.whisper_size
+        || previous.auto_download_model != settings.auto_download_model
+    {
+        start_auto_download(app);
+    }
     if !settings.captions_enabled {
         if let Some(caption) = app.get_webview_window("caption") {
             let _ = caption.hide();
@@ -667,10 +674,11 @@ pub async fn prepare_model(
         message: "正在准备模型…".into(),
     };
     pulse(&app);
+    let kind = state.model_store().kind();
     let dir = state.model_store().directory().to_path_buf();
     let worker_app = app.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
-        let store = ahakey_speech::ModelStore::new(dir);
+        let store = ahakey_speech::ModelStore::new(dir, kind);
         let progress = |fraction: f64| {
             let s = worker_app.state::<Runtime>();
             let mut p = s.download.lock().unwrap();
@@ -709,6 +717,57 @@ pub fn cancel_model(window: tauri::WebviewWindow) -> Result<(), String> {
         token.cancel()
     }
     Ok(())
+}
+
+pub fn start_auto_download(app: &tauri::AppHandle) {
+    let state = app.state::<Runtime>();
+    let settings = state.settings.lock().unwrap().clone();
+    let store = state.model_store();
+    if !settings.should_auto_download(store.is_installed()) {
+        return;
+    }
+    let cancel = ahakey_speech::CancellationToken::new();
+    {
+        let mut active = state.transfer.lock().unwrap();
+        if active.is_some() {
+            return;
+        }
+        *active = Some(cancel.clone());
+    }
+    *state.download.lock().unwrap() = DownloadStatus {
+        busy: true,
+        progress: 0.0,
+        message: format!("正在后台自动下载 {} 模型…", store.kind().display_name()),
+    };
+    pulse(app);
+    let dir = store.directory().to_path_buf();
+    let kind = store.kind();
+    let worker_app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let store = ahakey_speech::ModelStore::new(dir, kind);
+        let progress = |fraction: f64| {
+            let s = worker_app.state::<Runtime>();
+            let mut p = s.download.lock().unwrap();
+            let changed = (p.progress - fraction).abs() >= 0.01 || fraction >= 1.0;
+            p.progress = fraction;
+            drop(p);
+            if changed {
+                pulse(&worker_app)
+            }
+        };
+        let result = store.download(&cancel, progress);
+        let s = worker_app.state::<Runtime>();
+        s.transfer.lock().unwrap().take();
+        {
+            let mut p = s.download.lock().unwrap();
+            p.busy = false;
+            p.message = match &result {
+                Ok(_) => format!("{} 模型已自动下载并校验", kind.display_name()),
+                Err(e) => format!("模型自动下载未完成：{e}"),
+            };
+        }
+        pulse(&worker_app);
+    });
 }
 #[tauri::command]
 pub fn save_cloud_token(window: tauri::WebviewWindow, token: String) -> Result<(), String> {

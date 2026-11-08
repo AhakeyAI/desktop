@@ -171,8 +171,22 @@ impl Runtime {
             tray: AtomicBool::new(false),
         }
     }
+    pub fn model_dir_for(&self, kind: ahakey_speech::ModelKind) -> std::path::PathBuf {
+        let standard = self.data_dir.join("models").join(kind.id());
+        if kind == ahakey_speech::ModelKind::SenseVoice {
+            let legacy = self.data_dir.join("models/sensevoice-int8-2024-07-17");
+            if legacy.exists() && !standard.exists() {
+                return legacy;
+            }
+        }
+        standard
+    }
     pub fn model_store(&self) -> ahakey_speech::ModelStore {
-        ahakey_speech::ModelStore::new(self.data_dir.join("models/sensevoice-int8-2024-07-17"))
+        let kind = self.settings.lock().unwrap().local_model_kind();
+        self.model_store_for(kind)
+    }
+    pub fn model_store_for(&self, kind: ahakey_speech::ModelKind) -> ahakey_speech::ModelStore {
+        ahakey_speech::ModelStore::new(self.model_dir_for(kind), kind)
     }
     pub fn credentials(&self) -> ahakey_cloud::CredentialStore {
         ahakey_cloud::CredentialStore::new(self.data_dir.join("credentials"), &self.identifier)

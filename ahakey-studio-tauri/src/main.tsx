@@ -364,7 +364,16 @@ function App() {
             <>
               <section aria-labelledby="engine-title" className="voice-overview">
                 <div className="section-heading"><h2 id="engine-title">语音识别</h2><span>选择后自动生效 · 托盘也可切换</span></div>
-                <ProviderPicker value={draft.provider} onChange={provider=>patch({provider})} windows={!snapshot||snapshot.platform==="windows"}/>
+                <ProviderPicker
+                  value={draft.provider}
+                  onChange={provider=>patch({provider})}
+                  windows={!snapshot||snapshot.platform==="windows"}
+                  draft={draft}
+                  patch={patch}
+                  snapshot={snapshot}
+                  onPrepareModel={()=>invoke("prepare_model", { source: null }).catch(e=>setError(String(e)))}
+                  onCancelModel={()=>invoke("cancel_model").catch(e=>setError(String(e)))}
+                />
                 <div className="voice-quickbar">
                   <label>Profile<select aria-label="当前 Profile" value={draft.activeProfile} onChange={e=>patch({activeProfile:e.target.value})}>{draft.profiles.map(p=><option value={p.id} key={p.id}>{p.name}</option>)}</select></label>
                   <label>触发<select aria-label="语音触发方式" value={draft.triggerMode} onChange={e=>patch({triggerMode:e.target.value as Settings["triggerMode"]})}><option value="hold">按住说话</option><option value="toggle">按一下开始 / 停止</option></select></label>

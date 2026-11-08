@@ -113,12 +113,22 @@ export function EnginePanel({ snapshot: s, draft, patch, fail }: Props) {
   const [source, setSource] = useState("");
   const [token, setToken] = useState("");
   useEffect(() => { if (s) invoke<string[]>("microphone_devices").then(setMicrophones).catch(e => fail(String(e))); }, [!!s]);
+  const modelTitle = draft.speechEngine === "whisper"
+    ? `Whisper (${draft.whisperSize.toUpperCase()}) INT8`
+    : "SenseVoice Small INT8";
+  const modelDesc = draft.speechEngine === "whisper"
+    ? "OpenAI Whisper 离线模型，本地识别不上传音频。"
+    : "原生引擎已内置；权重约 230 MB，本地识别不上传音频。";
+  const importHint = draft.speechEngine === "whisper"
+    ? `导入已有模型目录（包含 ${draft.whisperSize}-encoder.int8.onnx, ${draft.whisperSize}-decoder.int8.onnx 与 ${draft.whisperSize}-tokens.txt）`
+    : "导入已有模型目录（包含 model.int8.onnx 与 tokens.txt）";
+
   return <>
     <section className="surface"><h2>麦克风与本地模型</h2>
       <label>录音设备<select value={draft.microphone ?? ""} onChange={e => patch({ microphone: e.target.value || null })}><option value="">Windows / 系统默认输入设备</option>{microphones.map(name => <option key={name}>{name}</option>)}</select></label>
-      <div className="setting-row"><div><strong>SenseVoice Small INT8</strong><p>原生引擎已内置；权重约 230 MB，默认不下载。本地识别不上传音频。</p></div><span>{s?.modelInstalled ? "模型已安装" : "尚未安装权重"}</span></div>
+      <div className="setting-row"><div><strong>{modelTitle}</strong><p>{modelDesc}</p></div><span>{s?.modelInstalled ? "模型已安装" : "尚未安装权重"}</span></div>
       <p className="file-path hint">{s?.modelDirectory}</p>
-      <label>导入已有模型目录（包含 model.int8.onnx 与 tokens.txt）<input value={source} onChange={e => setSource(e.target.value)} placeholder="模型目录的完整路径" /></label>
+      <label>{importHint}<input value={source} onChange={e => setSource(e.target.value)} placeholder="模型目录的完整路径" /></label>
       <div className="button-row">
         <button className="secondary" disabled={!s || s.download.busy || s.speech.recording || !!pending} onClick={() => run("prepare_model", { source: null })}>下载并校验权重</button>
         <button className="secondary" disabled={!s || !source.trim() || s.download.busy || s.speech.recording || !!pending} onClick={() => run("prepare_model", { source: source.trim() })}>导入并校验</button>

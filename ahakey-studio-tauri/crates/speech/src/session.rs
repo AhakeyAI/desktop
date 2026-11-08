@@ -1,5 +1,6 @@
 use crate::{
-    CancellationToken, MicrophoneCapture, Recognizer, RecognizerConfig, Result, SAMPLE_RATE,
+    CancellationToken, MicrophoneCapture, ModelKind, Recognizer, RecognizerConfig, Result,
+    SAMPLE_RATE,
 };
 use anyhow::{bail, Context};
 use std::{
@@ -20,16 +21,21 @@ pub struct SessionConfig {
     pub max_duration: Duration,
 }
 impl SessionConfig {
-    pub fn new(model_dir: PathBuf) -> Self {
+    pub fn new(model_dir: PathBuf, model_kind: ModelKind) -> Self {
         Self {
             recognizer: RecognizerConfig {
                 model_dir,
                 threads: 4,
+                model_kind,
             },
             device_name: None,
             preview_interval: Duration::from_millis(800),
             max_duration: Duration::from_secs(120),
         }
+    }
+
+    pub fn sense_voice(model_dir: PathBuf) -> Self {
+        Self::new(model_dir, ModelKind::SenseVoice)
     }
 }
 
