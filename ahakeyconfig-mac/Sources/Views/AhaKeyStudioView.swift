@@ -1063,6 +1063,9 @@ struct AhaKeyStudioView: View {
                     }
                     .padding(.top, 4)
                 }
+                if (key.voicePreset ?? .custom).isMacOSNativeFamily {
+                    LocalVoiceSettingsView()
+                }
             } else {
                 GroupBox(NSLocalizedString("按键职责", comment: "")) {
                     VStack(alignment: .leading, spacing: 8) {
@@ -1099,9 +1102,9 @@ struct AhaKeyStudioView: View {
                                     .foregroundStyle(.secondary)
                                 Toggle(isOn: $nativeSpeech.shortPressAhaTypeEnabled) {
                                     HStack(spacing: 6) {
-                                        Text(NSLocalizedString("使用 AhaType 整理", comment: ""))
+                                        Text(ahaType.activeCleanupMode == .local ? NSLocalizedString("使用本地大模型整理", comment: "") : NSLocalizedString("使用 AhaType 整理", comment: ""))
                                             .font(.callout)
-                                        if !ahaType.isEnabled {
+                                        if !ahaType.isCleanupEnabled {
                                             Text(NSLocalizedString("（AhaType 总开关已关闭）", comment: ""))
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)
@@ -1109,7 +1112,7 @@ struct AhaKeyStudioView: View {
                                     }
                                 }
                                 .toggleStyle(.switch)
-                                .disabled(!ahaType.isEnabled)
+                                .disabled(!ahaType.isCleanupEnabled)
 
                                 Divider()
 
@@ -1154,9 +1157,9 @@ struct AhaKeyStudioView: View {
                                     .foregroundStyle(.secondary)
                                 Toggle(isOn: $nativeSpeech.longPressAhaTypeEnabled) {
                                     HStack(spacing: 6) {
-                                        Text(NSLocalizedString("使用 AhaType 整理", comment: ""))
+                                        Text(ahaType.activeCleanupMode == .local ? NSLocalizedString("使用本地大模型整理", comment: "") : NSLocalizedString("使用 AhaType 整理", comment: ""))
                                             .font(.callout)
-                                        if !ahaType.isEnabled {
+                                        if !ahaType.isCleanupEnabled {
                                             Text(NSLocalizedString("（AhaType 总开关已关闭）", comment: ""))
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)
@@ -1164,7 +1167,7 @@ struct AhaKeyStudioView: View {
                                     }
                                 }
                                 .toggleStyle(.switch)
-                                .disabled(!ahaType.isEnabled)
+                                .disabled(!ahaType.isCleanupEnabled)
                                 HStack(spacing: 10) {
                                     Text(NSLocalizedString("触发阈值", comment: ""))
                                         .font(.callout)
