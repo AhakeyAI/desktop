@@ -14,9 +14,38 @@ final class AhaTypeTextOptimizer: ObservableObject {
     @Published private(set) var statusMessage = NSLocalizedString("AhaType 未启用。", comment: "")
     @Published private(set) var lastQuotaSummary = NSLocalizedString("尚未读取 AhaType 配置。", comment: "")
 
+    /// 用于本地大模型整理的 cleaner 实例（支持外部/测试注入）。
+    var localCleaner: LocalLLMTextCleaner = .shared
+
+    /// 整理功能是否开启（本地大模型整理已选择，或云端 AhaType 已开启）。
+    var isCleanupEnabled: Bool {
+        activeCleanupMode == .local || isEnabled
+    }
+
+    /// 当前所选整理模式的展示名称（用于 HUD / 状态栏提示）。
+    var activeCleanupDisplayName: String {
+        switch activeCleanupMode {
+        case .local:
+            return NSLocalizedString("本地整理", comment: "")
+        case .ahatype:
+            return "AhaType"
+        }
+    }
+
+    /// 当前激活的整理模式。
+    var activeCleanupMode: LocalLLMTextCleaner.Mode {
+        localCleaner.currentMode
+    }
+
     private let fallbackAPIBase = "https://956798.xyz/prod-api"
 
     private init() {
+        refreshFromDisk()
+    }
+
+    /// 切换整理模式（设置界面调用），并立即刷新 isEnabled / 状态文案。
+    func setCleanupMode(_ mode: LocalLLMTextCleaner.Mode) {
+        UserDefaults.standard.set(mode.rawValue, forKey: LocalLLMTextCleaner.Keys.mode)
         refreshFromDisk()
     }
 
@@ -72,6 +101,20 @@ final class AhaTypeTextOptimizer: ObservableObject {
     func processIfEnabled(_ text: String) async -> AhaTypeProcessResult {
         let source = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !source.isEmpty else { return AhaTypeProcessResult(text: text, failureReason: nil) }
+
+        switch activeCleanupMode {
+        case .local:
+            statusMessage = NSLocalizedString("本地大模型整理中…", comment: "")
+            let result = await localCleaner.cleanResult(text)
+            if let failure = result.failureReason {
+                statusMessage = failure
+            } else {
+                statusMessage = NSLocalizedString("本地整理已完成，准备粘贴。", comment: "")
+            }
+            return AhaTypeProcessResult(text: result.text, failureReason: result.failureReason)
+        case .ahatype:
+            break
+        }
 
         let initialToken = stringValue(loadConfig()["access_token"]).trimmingCharacters(in: .whitespacesAndNewlines)
         func fail(_ message: String) -> AhaTypeProcessResult {
