@@ -13,7 +13,7 @@ if [[ "$ARCH" == "arm64" ]]; then
     EXPECTED_HASH="c51e220217f2ce5d3de211887dc13ad49bf22346a2025a4159591d892008242d"
 elif [[ "$ARCH" == "x86_64" ]]; then
     STEM="sherpa-onnx-v1.13.7-osx-x64-shared-lib"
-    EXPECTED_HASH=""
+    EXPECTED_HASH="24182aef70b889868dbfd943a7f2246383dd1cd196b9b86c20b9642e7b2c396f"
 else
     echo "Unsupported architecture: $ARCH" >&2
     exit 1

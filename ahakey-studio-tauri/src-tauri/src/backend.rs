@@ -653,6 +653,8 @@ pub async fn microphone_devices(window: tauri::WebviewWindow) -> Result<Vec<Stri
 pub async fn prepare_model(
     window: tauri::WebviewWindow,
     source: Option<String>,
+    engine: Option<settings::SpeechEngine>,
+    whisper_size: Option<settings::WhisperSize>,
 ) -> Result<(), String> {
     require_main(&window)?;
     let app = window.app_handle().clone();
@@ -660,23 +662,43 @@ pub async fn prepare_model(
     if state.recording.load(Ordering::SeqCst) {
         return Err("请先停止录音".into());
     }
+
+    let kind = match engine {
+        Some(settings::SpeechEngine::SenseVoice) => ahakey_speech::ModelKind::SenseVoice,
+        Some(settings::SpeechEngine::Whisper) => {
+            let size = whisper_size.unwrap_or(settings::WhisperSize::Base);
+            ahakey_speech::ModelKind::Whisper(size.into())
+        }
+        None => state.model_store().kind(),
+    };
+    let store = state.model_store_for(kind);
+    let dir = store.directory().to_path_buf();
+
     let cancel = ahakey_speech::CancellationToken::new();
     {
         let mut active = state.transfer.lock().unwrap();
-        if active.is_some() {
-            return Err("模型操作正在进行".into());
+        if let Some(task) = active.as_ref() {
+            if task.kind != kind {
+                task.cancel.cancel();
+            } else {
+                return Err("模型操作正在进行".into());
+            }
         }
-        *active = Some(cancel.clone());
+        *active = Some(crate::state::TransferTask {
+            cancel: cancel.clone(),
+            kind,
+            is_auto: false,
+        });
     }
     *state.download.lock().unwrap() = DownloadStatus {
         busy: true,
         progress: 0.0,
-        message: "正在准备模型…".into(),
+        message: format!("正在准备 {} 模型…", kind.display_name()),
     };
     pulse(&app);
-    let kind = state.model_store().kind();
-    let dir = state.model_store().directory().to_path_buf();
+
     let worker_app = app.clone();
+    let cancel_worker = cancel.clone();
     let result = tauri::async_runtime::spawn_blocking(move || {
         let store = ahakey_speech::ModelStore::new(dir, kind);
         let progress = |fraction: f64| {
@@ -686,25 +708,32 @@ pub async fn prepare_model(
             p.progress = fraction;
             drop(p);
             if changed {
-                pulse(&worker_app)
+                pulse(&worker_app);
             }
         };
         if let Some(path) = source {
-            store.import_from(std::path::Path::new(&path), &cancel, progress)
+            store.import_from(std::path::Path::new(&path), &cancel_worker, progress)
         } else {
-            store.download(&cancel, progress)
+            store.download(&cancel_worker, progress)
         }
     })
     .await
     .map_err(|e| e.to_string())
     .and_then(|r| r.map_err(|e| e.to_string()));
+
     state.transfer.lock().unwrap().take();
     {
         let mut p = state.download.lock().unwrap();
         p.busy = false;
         p.message = match &result {
-            Ok(_) => "模型已校验，可开始识别".into(),
-            Err(e) => format!("模型操作未完成：{e}"),
+            Ok(_) => format!("{} 模型已校验，可开始识别", kind.display_name()),
+            Err(e) => {
+                if cancel.is_cancelled() {
+                    "模型操作已取消".into()
+                } else {
+                    format!("模型操作未完成：{e}")
+                }
+            }
         };
     }
     pulse(&app);
@@ -713,8 +742,8 @@ pub async fn prepare_model(
 #[tauri::command]
 pub fn cancel_model(window: tauri::WebviewWindow) -> Result<(), String> {
     require_main(&window)?;
-    if let Some(token) = window.state::<Runtime>().transfer.lock().unwrap().as_ref() {
-        token.cancel()
+    if let Some(task) = window.state::<Runtime>().transfer.lock().unwrap().as_ref() {
+        task.cancel.cancel();
     }
     Ok(())
 }
@@ -723,28 +752,60 @@ pub fn start_auto_download(app: &tauri::AppHandle) {
     let state = app.state::<Runtime>();
     let settings = state.settings.lock().unwrap().clone();
     let store = state.model_store();
-    if !settings.should_auto_download(store.is_installed()) {
-        return;
-    }
-    let cancel = ahakey_speech::CancellationToken::new();
-    {
-        let mut active = state.transfer.lock().unwrap();
-        if active.is_some() {
+    let should_download = settings.should_auto_download(store.is_installed());
+    let desired_kind = store.kind();
+
+    let mut active = state.transfer.lock().unwrap();
+    if let Some(task) = active.as_ref() {
+        if !should_download && task.is_auto {
+            task.cancel.cancel();
             return;
         }
-        *active = Some(cancel.clone());
+        if task.kind != desired_kind {
+            task.cancel.cancel();
+            drop(active);
+            if should_download {
+                let app_clone = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    for _ in 0..25 {
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        let s = app_clone.state::<Runtime>();
+                        if s.transfer.lock().unwrap().is_none() {
+                            break;
+                        }
+                    }
+                    start_auto_download(&app_clone);
+                });
+            }
+            return;
+        }
+        return;
     }
+
+    if !should_download {
+        return;
+    }
+
+    let cancel = ahakey_speech::CancellationToken::new();
+    *active = Some(crate::state::TransferTask {
+        cancel: cancel.clone(),
+        kind: desired_kind,
+        is_auto: true,
+    });
+    drop(active);
+
     *state.download.lock().unwrap() = DownloadStatus {
         busy: true,
         progress: 0.0,
-        message: format!("正在后台自动下载 {} 模型…", store.kind().display_name()),
+        message: format!("正在后台自动下载 {} 模型…", desired_kind.display_name()),
     };
     pulse(app);
+
     let dir = store.directory().to_path_buf();
-    let kind = store.kind();
     let worker_app = app.clone();
+    let cancel_worker = cancel.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let store = ahakey_speech::ModelStore::new(dir, kind);
+        let store = ahakey_speech::ModelStore::new(dir, desired_kind);
         let progress = |fraction: f64| {
             let s = worker_app.state::<Runtime>();
             let mut p = s.download.lock().unwrap();
@@ -752,18 +813,24 @@ pub fn start_auto_download(app: &tauri::AppHandle) {
             p.progress = fraction;
             drop(p);
             if changed {
-                pulse(&worker_app)
+                pulse(&worker_app);
             }
         };
-        let result = store.download(&cancel, progress);
+        let result = store.download(&cancel_worker, progress);
         let s = worker_app.state::<Runtime>();
         s.transfer.lock().unwrap().take();
         {
             let mut p = s.download.lock().unwrap();
             p.busy = false;
             p.message = match &result {
-                Ok(_) => format!("{} 模型已自动下载并校验", kind.display_name()),
-                Err(e) => format!("模型自动下载未完成：{e}"),
+                Ok(_) => format!("{} 模型已自动下载并校验", desired_kind.display_name()),
+                Err(e) => {
+                    if cancel.is_cancelled() {
+                        "模型自动下载已取消".into()
+                    } else {
+                        format!("模型自动下载未完成：{e}")
+                    }
+                }
             };
         }
         pulse(&worker_app);
@@ -1053,8 +1120,8 @@ pub fn request_shutdown(app: &tauri::AppHandle) {
         crate::platform::stop_foreground_watch(foreground_hook as usize)
     });
     state.hook.lock().unwrap().take();
-    if let Some(cancel) = state.transfer.lock().unwrap().as_ref() {
-        cancel.cancel()
+    if let Some(task) = state.transfer.lock().unwrap().as_ref() {
+        task.cancel.cancel();
     }
     let app = app.clone();
     tauri::async_runtime::spawn(async move {

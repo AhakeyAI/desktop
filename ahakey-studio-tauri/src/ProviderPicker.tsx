@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Check, Cloud, Cpu, Download, MessageCircle, Monitor, Sparkles, XCircle } from "lucide-react";
 import { CleanupMode, Provider, Settings, Snapshot, SpeechEngine, WhisperSize } from "./contracts";
 
@@ -9,7 +8,7 @@ export interface ProviderPickerProps {
   draft?: Settings;
   patch?: (partial: Partial<Settings>) => void;
   snapshot?: Snapshot | null;
-  onPrepareModel?: () => void;
+  onPrepareModel?: (engine?: SpeechEngine, size?: WhisperSize) => void;
   onCancelModel?: () => void;
 }
 
@@ -23,7 +22,11 @@ export function ProviderPicker({
   onPrepareModel,
   onCancelModel,
 }: ProviderPickerProps) {
-  const [showKey, setShowKey] = useState(false);
+  const isEnginePending =
+    draft && snapshot
+      ? draft.speechEngine !== snapshot.settings.speechEngine ||
+        (draft.speechEngine === "whisper" && draft.whisperSize !== snapshot.settings.whisperSize)
+      : false;
 
   const localDetail = draft
     ? draft.speechEngine === "whisper"
@@ -116,11 +119,15 @@ export function ProviderPicker({
               <div className="setting-row">
                 <div>
                   <strong>当前模型状态</strong>
-                  <p className="hint" style={{ margin: 0 }}>{snapshot.modelDirectory}</p>
+                  <p className="hint" style={{ margin: 0 }}>
+                    {isEnginePending ? "正在切换模型目录…" : snapshot.modelDirectory}
+                  </p>
                 </div>
                 <span>
                   {snapshot.download.busy ? (
                     "正在下载 / 导入…"
+                  ) : isEnginePending ? (
+                    <span style={{ color: "var(--accent-color, #3b82f6)" }}>正在应用选择…</span>
                   ) : snapshot.modelInstalled ? (
                     <span style={{ color: "var(--success-color, #10b981)", fontWeight: 600 }}>模型已安装</span>
                   ) : (
@@ -143,9 +150,12 @@ export function ProviderPicker({
                 </div>
               )}
 
-              {!snapshot.download.busy && !snapshot.modelInstalled && onPrepareModel && (
+              {!snapshot.download.busy && (!snapshot.modelInstalled || isEnginePending) && onPrepareModel && (
                 <div className="button-row" style={{ marginTop: "0.5rem" }}>
-                  <button className="secondary" onClick={onPrepareModel}>
+                  <button
+                    className="secondary"
+                    onClick={() => onPrepareModel(draft.speechEngine, draft.whisperSize)}
+                  >
                     <Download size={16} aria-hidden="true" /> 立即下载并校验权重
                   </button>
                 </div>
@@ -195,27 +205,6 @@ export function ProviderPicker({
                     />
                   </label>
                 </div>
-
-                <label style={{ marginTop: "0.5rem" }}>
-                  API 密钥 (可选，本地 Ollama 通常无需填写)
-                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                    <input
-                      type={showKey ? "text" : "password"}
-                      value={draft.cleanupApiKey ?? ""}
-                      onChange={e => patch({ cleanupApiKey: e.target.value || null })}
-                      placeholder="sk-..."
-                      style={{ flex: 1 }}
-                    />
-                    <button
-                      type="button"
-                      className="text-button"
-                      onClick={() => setShowKey(!showKey)}
-                      style={{ whiteSpace: "nowrap" }}
-                    >
-                      {showKey ? "隐藏" : "显示"}
-                    </button>
-                  </div>
-                </label>
                 <p className="hint">
                   转写完成后通过本地大模型修正标点及口癖。任何网络失败或超时 (30s) 将自动回退为原始转写结果。
                 </p>

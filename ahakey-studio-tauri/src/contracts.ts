@@ -43,7 +43,6 @@ export interface Settings {
   cleanupMode: CleanupMode;
   cleanupBaseUrl: string;
   cleanupModel: string;
-  cleanupApiKey: string | null;
 }
 export interface Caption {
   phase: Phase;
@@ -114,7 +113,6 @@ export const previewSettings: Settings = {
   cleanupMode: "off",
   cleanupBaseUrl: "http://localhost:11434",
   cleanupModel: "qwen2.5:3b",
-  cleanupApiKey: null,
   profiles: [
     { id: "claude-code", name: "Claude Code", accept: "Y", reject: "N", lightEffects: [...defaultLights] },
     {

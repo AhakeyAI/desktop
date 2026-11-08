@@ -11,26 +11,23 @@ fn main() {
     };
     let directory = PathBuf::from(directory);
     if !directory.is_dir() {
-        return;
+        panic!(
+            "SHERPA_ONNX_LIB_DIR does not exist or is not a directory: {}",
+            directory.display()
+        );
     }
-    let out = match env::var_os("OUT_DIR").map(PathBuf::from) {
-        Some(o) => o,
-        None => return,
-    };
-    let Some(profile) = out.ancestors().nth(3) else {
-        return;
-    };
+    let out = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo OUT_DIR"));
+    let profile = out.ancestors().nth(3).expect("Cargo profile directory");
     // Official sherpa-onnx-sys copies runtime libs next to normal binaries but
     // not test binaries. Tests need the same beside-exe bundle as releases.
     let tests = profile.join("deps");
-    let _ = fs::create_dir_all(&tests);
-    let Ok(entries) = fs::read_dir(&directory) else {
-        return;
-    };
+    fs::create_dir_all(&tests).expect("Create test output directory");
     let target_ext = if target_os == "windows" { "dll" } else { "dylib" };
-    for entry in entries.flatten() {
+    for entry in fs::read_dir(&directory).expect("Read prepared speech runtime") {
+        let entry = entry.expect("Read runtime file");
         if entry.path().extension().and_then(|ext| ext.to_str()) == Some(target_ext) {
-            let _ = fs::copy(entry.path(), tests.join(entry.file_name()));
+            fs::copy(entry.path(), tests.join(entry.file_name()))
+                .expect("Bundle native runtime beside tests");
         }
     }
 }

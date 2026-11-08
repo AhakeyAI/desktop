@@ -42,7 +42,6 @@ pub async fn clean_transcript(
     client: &reqwest::Client,
     base_url: &str,
     model: &str,
-    api_key: Option<&str>,
     raw_text: &str,
 ) -> String {
     let trimmed = raw_text.trim();
@@ -50,17 +49,10 @@ pub async fn clean_transcript(
         return raw_text.to_string();
     }
     let endpoint = resolve_endpoint_url(base_url);
-    let mut request = client
+    let request = client
         .post(&endpoint)
         .timeout(Duration::from_secs(30))
         .header("content-type", "application/json; charset=utf-8");
-
-    if let Some(key) = api_key {
-        let key = key.trim();
-        if !key.is_empty() {
-            request = request.header("authorization", format!("Bearer {key}"));
-        }
-    }
 
     let payload = serde_json::json!({
         "model": model,
@@ -178,7 +170,6 @@ mod tests {
             &client,
             "http://127.0.0.1:59999",
             "qwen2.5:3b",
-            None,
             raw,
         )
         .await;
@@ -189,7 +180,7 @@ mod tests {
     async fn empty_text_returns_immediately() {
         let client = reqwest::Client::new();
         assert_eq!(
-            clean_transcript(&client, "http://invalid", "m", None, "   ").await,
+            clean_transcript(&client, "http://invalid", "m", "   ").await,
             "   "
         );
     }

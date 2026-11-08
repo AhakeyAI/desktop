@@ -371,7 +371,7 @@ function App() {
                   draft={draft}
                   patch={patch}
                   snapshot={snapshot}
-                  onPrepareModel={()=>invoke("prepare_model", { source: null }).catch(e=>setError(String(e)))}
+                  onPrepareModel={(engine, size)=>invoke("prepare_model", { source: null, engine, whisperSize: size }).catch(e=>setError(String(e)))}
                   onCancelModel={()=>invoke("cancel_model").catch(e=>setError(String(e)))}
                 />
                 <div className="voice-quickbar">

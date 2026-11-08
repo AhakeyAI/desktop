@@ -30,6 +30,13 @@ pub struct KeyObservation {
     pub key: String,
     pub pressed: bool,
 }
+#[derive(Clone, Debug)]
+pub struct TransferTask {
+    pub cancel: ahakey_speech::CancellationToken,
+    pub kind: ahakey_speech::ModelKind,
+    pub is_auto: bool,
+}
+
 pub struct Runtime {
     pub settings: Mutex<Settings>,
     pub settings_gate: tokio::sync::Mutex<()>,
@@ -70,7 +77,7 @@ pub struct Runtime {
     pub ble_error: Mutex<Option<String>>,
     pub usb: Mutex<crate::device::UsbSnapshot>,
     pub usb_gate: tokio::sync::Mutex<()>,
-    pub transfer: Mutex<Option<ahakey_speech::CancellationToken>>,
+    pub transfer: Mutex<Option<TransferTask>>,
     pub download: Mutex<DownloadStatus>,
     pub hook: Mutex<Option<crate::hooks::HookServer>>,
     pub closing: AtomicBool,
@@ -174,8 +181,13 @@ impl Runtime {
     pub fn model_dir_for(&self, kind: ahakey_speech::ModelKind) -> std::path::PathBuf {
         let standard = self.data_dir.join("models").join(kind.id());
         if kind == ahakey_speech::ModelKind::SenseVoice {
+            let standard_store = ahakey_speech::ModelStore::new(standard.clone(), kind);
+            if standard_store.is_installed() {
+                return standard;
+            }
             let legacy = self.data_dir.join("models/sensevoice-int8-2024-07-17");
-            if legacy.exists() && !standard.exists() {
+            let legacy_store = ahakey_speech::ModelStore::new(legacy.clone(), kind);
+            if legacy_store.is_installed() {
                 return legacy;
             }
         }
@@ -190,5 +202,63 @@ impl Runtime {
     }
     pub fn credentials(&self) -> ahakey_cloud::CredentialStore {
         ahakey_cloud::CredentialStore::new(self.data_dir.join("credentials"), &self.identifier)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ahakey_speech::{ModelKind, MODEL_BYTES, TOKENS_BYTES};
+    use std::fs::{self, File};
+
+    fn make_test_runtime(data_dir: std::path::PathBuf) -> Runtime {
+        Runtime::new(
+            Settings::default(),
+            data_dir.join("settings.json"),
+            None,
+            data_dir,
+            "ai.ahakey.test".into(),
+        )
+    }
+
+    fn write_dummy_sensevoice(dir: &std::path::Path) {
+        fs::create_dir_all(dir).unwrap();
+        let f1 = File::create(dir.join("model.int8.onnx")).unwrap();
+        f1.set_len(MODEL_BYTES).unwrap();
+        let f2 = File::create(dir.join("tokens.txt")).unwrap();
+        f2.set_len(TOKENS_BYTES).unwrap();
+    }
+
+    #[test]
+    fn model_dir_for_prefers_standard_when_installed() {
+        let temp = tempfile::tempdir().unwrap();
+        let runtime = make_test_runtime(temp.path().to_path_buf());
+        let standard = temp.path().join("models/sensevoice-2024-07-17");
+        let legacy = temp.path().join("models/sensevoice-int8-2024-07-17");
+        write_dummy_sensevoice(&standard);
+        write_dummy_sensevoice(&legacy);
+
+        assert_eq!(runtime.model_dir_for(ModelKind::SenseVoice), standard);
+    }
+
+    #[test]
+    fn model_dir_for_falls_back_to_legacy_when_only_legacy_is_installed() {
+        let temp = tempfile::tempdir().unwrap();
+        let runtime = make_test_runtime(temp.path().to_path_buf());
+        let standard = temp.path().join("models/sensevoice-2024-07-17");
+        let legacy = temp.path().join("models/sensevoice-int8-2024-07-17");
+        fs::create_dir_all(&standard).unwrap();
+        write_dummy_sensevoice(&legacy);
+
+        assert_eq!(runtime.model_dir_for(ModelKind::SenseVoice), legacy);
+    }
+
+    #[test]
+    fn model_dir_for_defaults_to_standard_when_neither_is_installed() {
+        let temp = tempfile::tempdir().unwrap();
+        let runtime = make_test_runtime(temp.path().to_path_buf());
+        let standard = temp.path().join("models/sensevoice-2024-07-17");
+
+        assert_eq!(runtime.model_dir_for(ModelKind::SenseVoice), standard);
     }
 }

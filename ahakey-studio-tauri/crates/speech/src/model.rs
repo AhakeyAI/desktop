@@ -183,7 +183,7 @@ impl ModelKind {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct CancellationToken(Arc<AtomicBool>);
 impl CancellationToken {
     pub fn new() -> Self {

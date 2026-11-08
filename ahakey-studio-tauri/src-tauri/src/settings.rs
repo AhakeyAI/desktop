@@ -22,19 +22,21 @@ pub enum TriggerMode {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum SpeechEngine {
-    #[default]
-    SenseVoice,
     Whisper,
+    #[default]
+    #[serde(other)]
+    SenseVoice,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum WhisperSize {
     Tiny,
-    #[default]
-    Base,
     Small,
     Turbo,
+    #[default]
+    #[serde(other)]
+    Base,
 }
 
 impl From<WhisperSize> for ahakey_speech::WhisperSize {
@@ -130,8 +132,6 @@ pub struct Settings {
     pub cleanup_base_url: String,
     #[serde(default = "default_cleanup_model")]
     pub cleanup_model: String,
-    #[serde(default)]
-    pub cleanup_api_key: Option<String>,
 }
 
 fn yes() -> bool {
@@ -178,7 +178,6 @@ impl Default for Settings {
             cleanup_mode: CleanupMode::Off,
             cleanup_base_url: default_cleanup_base_url(),
             cleanup_model: default_cleanup_model(),
-            cleanup_api_key: None,
         }
     }
 }
@@ -232,7 +231,6 @@ impl Settings {
             || self.microphone.as_ref().is_some_and(|s| s.len() > 1024)
             || self.cleanup_base_url.len() > 2048
             || self.cleanup_model.len() > 256
-            || self.cleanup_api_key.as_ref().is_some_and(|k| k.len() > 1024)
         {
             return Err("设备或语音设置无效".into());
         }
@@ -568,7 +566,6 @@ mod tests {
         obj.remove("cleanupMode");
         obj.remove("cleanupBaseUrl");
         obj.remove("cleanupModel");
-        obj.remove("cleanupApiKey");
 
         let loaded: Settings = serde_json::from_value(old).unwrap();
         loaded.validate().unwrap();
@@ -578,8 +575,20 @@ mod tests {
         assert_eq!(loaded.cleanup_mode, CleanupMode::Off);
         assert_eq!(loaded.cleanup_base_url, "http://localhost:11434");
         assert_eq!(loaded.cleanup_model, "qwen2.5:3b");
-        assert_eq!(loaded.cleanup_api_key, None);
         assert_eq!(loaded.local_model_kind(), ahakey_speech::ModelKind::SenseVoice);
+    }
+    #[test]
+    fn engine_and_whisper_size_fallback_to_defaults_on_unknown_value() {
+        // WHY: An unknown enum value from a newer client must not brick settings load or save
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        value["speechEngine"] = "future-engine".into();
+        let loaded: Settings = serde_json::from_value(value).unwrap();
+        assert_eq!(loaded.speech_engine, SpeechEngine::SenseVoice);
+
+        let mut value2 = serde_json::to_value(Settings::default()).unwrap();
+        value2["whisperSize"] = "large-v4".into();
+        let loaded2: Settings = serde_json::from_value(value2).unwrap();
+        assert_eq!(loaded2.whisper_size, WhisperSize::Base);
     }
     #[test]
     fn legacy_or_unknown_cleanup_mode_deserializes_to_off() {
@@ -621,7 +630,6 @@ mod tests {
             cleanup_mode: CleanupMode::Local,
             cleanup_base_url: "http://127.0.0.1:8000".into(),
             cleanup_model: "llama3:8b".into(),
-            cleanup_api_key: Some("secret-token".into()),
             auto_download_model: false,
             ..Settings::default()
         };

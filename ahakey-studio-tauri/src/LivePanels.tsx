@@ -130,8 +130,8 @@ export function EnginePanel({ snapshot: s, draft, patch, fail }: Props) {
       <p className="file-path hint">{s?.modelDirectory}</p>
       <label>{importHint}<input value={source} onChange={e => setSource(e.target.value)} placeholder="模型目录的完整路径" /></label>
       <div className="button-row">
-        <button className="secondary" disabled={!s || s.download.busy || s.speech.recording || !!pending} onClick={() => run("prepare_model", { source: null })}>下载并校验权重</button>
-        <button className="secondary" disabled={!s || !source.trim() || s.download.busy || s.speech.recording || !!pending} onClick={() => run("prepare_model", { source: source.trim() })}>导入并校验</button>
+        <button className="secondary" disabled={!s || s.download.busy || s.speech.recording || !!pending} onClick={() => run("prepare_model", { source: null, engine: draft.speechEngine, whisperSize: draft.whisperSize })}>下载并校验权重</button>
+        <button className="secondary" disabled={!s || !source.trim() || s.download.busy || s.speech.recording || !!pending} onClick={() => run("prepare_model", { source: source.trim(), engine: draft.speechEngine, whisperSize: draft.whisperSize })}>导入并校验</button>
         <button className="text-button" disabled={!s?.download.busy} onClick={() => run("cancel_model")}>取消下载 / 导入</button>
       </div>
       {s?.download.busy && <progress aria-label="模型准备进度" max="1" value={s.download.progress} />}

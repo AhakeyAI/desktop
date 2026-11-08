@@ -210,8 +210,21 @@ async fn start_locked(
                     let _ = crate::backend::display_caption(&target_app, "listening", &text, false);
                 }
                 Update::Final(raw_text) => {
-                    drop(_gate);
-                    let text = if settings.cleanup_mode == crate::settings::CleanupMode::Local
+                    // P1-5: Set state.speech to phase "transcribing" / recording false and emit
+                    // runtime update BEFORE dropping voice_gate, so start_locked guard and tray/UI
+                    // are correct for all providers during cleanup.
+                    state.recording.store(false, Ordering::SeqCst);
+                    *state.speech.lock().unwrap() = SpeechStatus {
+                        phase: "transcribing".into(),
+                        message: if settings.cleanup_mode == crate::settings::CleanupMode::Local {
+                            "正在整理文字…".into()
+                        } else {
+                            "正在完成识别…".into()
+                        },
+                        recording: false,
+                    };
+                    let _ = target_app.emit("runtime-update", ());
+                    if settings.cleanup_mode == crate::settings::CleanupMode::Local
                         && !raw_text.trim().is_empty()
                     {
                         let _ = crate::backend::display_caption(
@@ -220,12 +233,16 @@ async fn start_locked(
                             "正在整理文字…",
                             false,
                         );
+                    }
+                    drop(_gate);
+                    let text = if settings.cleanup_mode == crate::settings::CleanupMode::Local
+                        && !raw_text.trim().is_empty()
+                    {
                         let client = reqwest::Client::new();
                         crate::cleanup::clean_transcript(
                             &client,
                             &settings.cleanup_base_url,
                             &settings.cleanup_model,
-                            settings.cleanup_api_key.as_deref(),
                             &raw_text,
                         )
                         .await
@@ -236,7 +253,6 @@ async fn start_locked(
                     if state.generation.load(Ordering::SeqCst) != id {
                         break;
                     }
-                    state.recording.store(false, Ordering::SeqCst);
                     state.key_state.lock().unwrap().release_session();
                     let mut message = "识别完成".to_string();
                     if insert
