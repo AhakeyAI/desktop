@@ -83,6 +83,57 @@ final class LocalRecognizerKnownAnswerTests: XCTestCase {
         }
     }
 
+    // MARK: - 静音感知的语音分段测试（Silence-Aware Utterance Segmentation）
+
+    func testSilenceAwareSegmentationSplitsOnNaturalPauseAndCoversAllSamples() {
+        // WHY: Long speech with natural pauses (≥ 600ms silence after ≥ 2.5s of speech)
+        // must split into separate utterance segments at the silence midpoint so SenseVoice
+        // and Whisper produce proper clause breaks and never exceed their 20s attention window.
+        let sr = LocalRecognizer.sampleRate
+        var samples: [Float] = []
+        samples.append(contentsOf: Array(repeating: Float(0.15), count: 4 * sr))   // 4.0s active speech
+        samples.append(contentsOf: Array(repeating: Float(0.0), count: 1 * sr))    // 1.0s silence pause
+        samples.append(contentsOf: Array(repeating: Float(0.15), count: 4 * sr))   // 4.0s active speech
+
+        let ranges = LocalRecognizer.segmentRanges(for: samples)
+        XCTAssertEqual(ranges.count, 2, "4s speech + 1s pause + 4s speech 应在静音处切分为 2 段")
+        XCTAssertEqual(ranges.first?.lowerBound, 0)
+        XCTAssertEqual(ranges.last?.upperBound, samples.count)
+        XCTAssertEqual(ranges[0].upperBound, ranges[1].lowerBound, "切分区间必须无缝衔接，不丢样本")
+        // 切分点应落在 4.0s ~ 5.0s 的静音区间内
+        XCTAssertGreaterThanOrEqual(ranges[0].upperBound, 4 * sr)
+        XCTAssertLessThanOrEqual(ranges[0].upperBound, 5 * sr)
+    }
+
+    func testSilenceAwareSegmentationCapsContinuousSpeechAtTwentySeconds() {
+        // WHY: Continuous speech without pauses must still be bounded to ≤ 20s per segment
+        // so Whisper (30s hard limit) and SenseVoice (15-20s optimal window) do not truncate or degrade.
+        let sr = LocalRecognizer.sampleRate
+        let samples = Array(repeating: Float(0.2), count: 45 * sr)
+        let ranges = LocalRecognizer.segmentRanges(for: samples)
+
+        XCTAssertEqual(ranges.count, 3)
+        XCTAssertTrue(ranges.allSatisfy { $0.count <= 20 * sr })
+        XCTAssertEqual(ranges.map(\.count).reduce(0, +), samples.count)
+    }
+
+    func testJoinSegmentTextAddsCommaOrSpaceAppropriately() {
+        // WHY: When two adjacent segments are joined, CJK segments without trailing punctuation
+        // need a comma to reflect the spoken pause, while ASCII words need a space.
+        XCTAssertEqual(
+            LocalRecognizer.joinSegmentText("第一句没有标点", "第二句有标点。"),
+            "第一句没有标点，第二句有标点。"
+        )
+        XCTAssertEqual(
+            LocalRecognizer.joinSegmentText("第一句已有句号。", "第二句。"),
+            "第一句已有句号。第二句。"
+        )
+        XCTAssertEqual(
+            LocalRecognizer.joinSegmentText("hello world", "second phrase"),
+            "hello world second phrase"
+        )
+    }
+
     /// 把 16 kHz 单声道样本转换成指定麦克风格式，并切成与 tap 回调相同大小的块。
     private static func upsample(_ samples: [Float], to format: AVAudioFormat, chunkFrames: AVAudioFrameCount) throws -> [AVAudioPCMBuffer] {
         let srcFormat = AVAudioFormat(standardFormatWithSampleRate: 16_000, channels: 1)!

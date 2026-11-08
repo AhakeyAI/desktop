@@ -451,8 +451,9 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         audioEngine = engine
         recognitionRequest = request
         isRecording = true
-        statusMessage = NSLocalizedString("苹果原生转写录音中… 再按一次语音键结束。", comment: "")
-        VoiceStatusHUDController.shared.show(.recording)
+        let engineName = NSLocalizedString("苹果原生转写", comment: "")
+        statusMessage = String(format: NSLocalizedString("%@录音中… 再按一次语音键结束。", comment: ""), engineName)
+        VoiceStatusHUDController.shared.show(.recording(engineName: engineName))
         appendDiagnostic("start recording locale=\(recognizer.locale.identifier)")
 
         recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
@@ -500,8 +501,9 @@ final class NativeSpeechTranscriptionService: ObservableObject {
 
         localRecorder = recorder
         isRecording = true
-        statusMessage = NSLocalizedString("本地识别录音中… 再按一次语音键结束。", comment: "")
-        VoiceStatusHUDController.shared.show(.recording)
+        let engineName = LocalSpeechEngine.shared.activeHUDDisplayName
+        statusMessage = String(format: NSLocalizedString("%@ 录音中… 再按一次语音键结束。", comment: ""), engineName)
+        VoiceStatusHUDController.shared.show(.recording(engineName: engineName))
         appendDiagnostic("start local recording model=\(LocalSpeechEngine.shared.loadedModel?.id ?? "-")")
 
         if LocalSpeechEngine.shared.supportsLivePreview {
@@ -534,8 +536,9 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         localRecorder = nil
         isRecording = false
         isLocalDecoding = true
-        statusMessage = NSLocalizedString("本地识别中…", comment: "")
-        VoiceStatusHUDController.shared.show(.recognizing)
+        let engineName = LocalSpeechEngine.shared.activeHUDDisplayName
+        statusMessage = String(format: NSLocalizedString("%@ 识别中…", comment: ""), engineName)
+        VoiceStatusHUDController.shared.show(.recognizing(engineName: engineName))
         appendDiagnostic("stop local recording samples=\(samples.count) bypassAhaType=\(bypassAhaType)")
 
         Task { @MainActor in
@@ -683,13 +686,16 @@ final class NativeSpeechTranscriptionService: ObservableObject {
         }
 
         hasCommittedThisRecording = true
+        let engineName = reason == "local_final"
+            ? LocalSpeechEngine.shared.activeHUDDisplayName
+            : NSLocalizedString("苹果原生转写", comment: "")
         let willUseAhaType = !bypassAhaType && AhaTypeTextOptimizer.shared.isCleanupEnabled
         let usesLocalCleanup = AhaTypeTextOptimizer.shared.activeCleanupMode == .local
         statusMessage = willUseAhaType
             ? (usesLocalCleanup ? NSLocalizedString("本地整理中…", comment: "") : NSLocalizedString("AhaType 整理中…", comment: ""))
             : NSLocalizedString("准备粘贴…", comment: "")
         VoiceStatusHUDController.shared.show(willUseAhaType ? (usesLocalCleanup ? .localCleanup : .ahaType) : .pasting)
-        appendDiagnostic("finalize begin reason=\(reason) bypass=\(bypassAhaType) rawText=\(text)")
+        appendDiagnostic("finalize begin reason=\(reason) engine=\(engineName) bypass=\(bypassAhaType) rawText=\(text)")
 
         Task { @MainActor in
             let output: String
@@ -704,13 +710,18 @@ final class NativeSpeechTranscriptionService: ObservableObject {
             if self.injectText(output) {
                 self.lastCommittedText = output
                 if let ahaTypeFailure {
-                    self.statusMessage = ahaTypeFailure
-                    VoiceStatusHUDController.shared.show(usesLocalCleanup ? .localRawWritten : .rawWritten, autoHideAfter: 2.4)
-                    self.appendDiagnostic("finalize success reason=\(reason) rawText=\(text) ahaTypeFailure=\(ahaTypeFailure)")
+                    self.statusMessage = "\(engineName) 已生成（\(ahaTypeFailure)）"
+                    VoiceStatusHUDController.shared.show(.rawWritten(engineName: engineName, usesLocalCleanup: usesLocalCleanup), autoHideAfter: 2.4)
+                    self.appendDiagnostic("finalize success reason=\(reason) engine=\(engineName) rawText=\(text) ahaTypeFailure=\(ahaTypeFailure)")
                 } else {
-                    self.statusMessage = output == text ? "已写入：\(output)" : "\(usesLocalCleanup ? "本地整理" : "AhaType") 已整理并写入：\(output)"
-                    VoiceStatusHUDController.shared.show(.done, autoHideAfter: 1.4)
-                    self.appendDiagnostic("finalize success reason=\(reason) rawText=\(text) outputText=\(output)")
+                    let cleanupName: String? = willUseAhaType ? (usesLocalCleanup ? NSLocalizedString("本地整理", comment: "") : "AhaType") : nil
+                    if let cleanupName, output != text {
+                        self.statusMessage = "已写入（由 \(engineName) 生成 · \(cleanupName)已优化）：\(output)"
+                    } else {
+                        self.statusMessage = "已写入（由 \(engineName) 生成）：\(output)"
+                    }
+                    VoiceStatusHUDController.shared.show(.done(engineName: engineName, cleanupName: output != text ? cleanupName : nil), autoHideAfter: 1.8)
+                    self.appendDiagnostic("finalize success reason=\(reason) engine=\(engineName) rawText=\(text) outputText=\(output)")
                 }
             } else {
                 self.statusMessage = NSLocalizedString("识别完成，但写入当前光标失败。", comment: "")

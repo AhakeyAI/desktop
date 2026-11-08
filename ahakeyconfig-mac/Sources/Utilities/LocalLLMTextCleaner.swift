@@ -111,7 +111,10 @@ final class LocalLLMTextCleaner: @unchecked Sendable {
                 ["role": "user", "content": trimmedInput]
             ],
             "stream": false,
-            "temperature": 0.1
+            "temperature": 0.1,
+            "chat_template_kwargs": [
+                "enable_thinking": false
+            ]
         ]
 
         guard let body = try? JSONSerialization.data(withJSONObject: payload, options: []) else {

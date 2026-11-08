@@ -185,7 +185,11 @@ final class LocalLLMTextCleanerTests: XCTestCase {
             XCTAssertEqual(optimizer.activeCleanupDisplayName, "AhaType")
 
             optimizer.setEnabled(true)
-            XCTAssertTrue(optimizer.isCleanupEnabled, "AhaType 模式下开启时 isCleanupEnabled 为 true")
+            optimizer.patchCloudToken("test-token-for-cleanup-check")
+            XCTAssertTrue(optimizer.isCleanupEnabled, "AhaType 模式下开启且有 token 时 isCleanupEnabled 为 true")
+
+            optimizer.patchCloudToken("")
+            XCTAssertFalse(optimizer.isCleanupEnabled, "AhaType 模式下开启但未登录（无 token）时 isCleanupEnabled 应为 false，避免每次录音结束弹出未整理警告")
         }
     }
 
@@ -389,6 +393,8 @@ final class LocalLLMTextCleanerTests: XCTestCase {
         XCTAssertEqual(bodyJson["model"] as? String, "custom-qwen-model")
         XCTAssertEqual(bodyJson["stream"] as? Bool, false)
         XCTAssertEqual(bodyJson["temperature"] as? Double, 0.1)
+        let templateKwargs = try XCTUnwrap(bodyJson["chat_template_kwargs"] as? [String: Any])
+        XCTAssertEqual(templateKwargs["enable_thinking"] as? Bool, false)
 
         let messages = try XCTUnwrap(bodyJson["messages"] as? [[String: Any]])
         XCTAssertEqual(messages.count, 2)

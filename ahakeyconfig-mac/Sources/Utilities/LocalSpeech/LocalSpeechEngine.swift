@@ -91,6 +91,19 @@ final class LocalSpeechEngine: ObservableObject {
         recognizer != nil && loadedModel != nil && loadedModel == selectedModel
     }
 
+    /// 当前实际用于识别的引擎简短名称（用于 HUD 与状态提示，如 "SenseVoice"、"Whisper (base)"、"苹果原生转写"）。
+    var activeHUDDisplayName: String {
+        guard isReady, let model = loadedModel else {
+            return NSLocalizedString("苹果原生转写", comment: "")
+        }
+        switch model {
+        case .senseVoice:
+            return "SenseVoice"
+        case .whisperTiny, .whisperBase, .whisperSmall, .whisperTurbo, .testFixture:
+            return model.displayName
+        }
+    }
+
     /// SenseVoice 解码足够快，可以录音中实时预览；Whisper 只在结束后识别。
     var supportsLivePreview: Bool { loadedModel == .senseVoice }
 

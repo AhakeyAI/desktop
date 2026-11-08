@@ -17,9 +17,14 @@ final class AhaTypeTextOptimizer: ObservableObject {
     /// 用于本地大模型整理的 cleaner 实例（支持外部/测试注入）。
     var localCleaner: LocalLLMTextCleaner = .shared
 
-    /// 整理功能是否开启（本地大模型整理已选择，或云端 AhaType 已开启）。
+    /// 整理功能是否开启（本地大模型整理已选择，或云端 AhaType 已开启且配置了登录令牌）。
     var isCleanupEnabled: Bool {
-        activeCleanupMode == .local || isEnabled
+        if activeCleanupMode == .local {
+            return true
+        }
+        guard isEnabled else { return false }
+        let token = stringValue(loadConfig()["access_token"]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return !token.isEmpty
     }
 
     /// 当前所选整理模式的展示名称（用于 HUD / 状态栏提示）。

@@ -67,7 +67,10 @@ pub async fn clean_transcript(
             }
         ],
         "stream": false,
-        "temperature": 0.1
+        "temperature": 0.1,
+        "chat_template_kwargs": {
+            "enable_thinking": false
+        }
     });
 
     let send_result = request.json(&payload).send().await;
