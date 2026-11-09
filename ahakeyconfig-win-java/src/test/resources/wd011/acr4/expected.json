@@ -1,0 +1,50 @@
+{
+  "pattern8": {
+    "encoding": "RLE",
+    "frames": 8,
+    "width": 160,
+    "height": 80,
+    "duration_ms": 100,
+    "object_bytes": 2528,
+    "expanded_bytes": 229376,
+    "encoded_crc32": 1938085321,
+    "expanded_crc32": 2608951978,
+    "pixel_crc32": 4066314528,
+    "input_format": "cp2",
+    "entry": 0,
+    "sample_sha256": "361711786896A058BE5D4AC2BE1B42F733AE6F0F707B44AABE0CDA4763BCF47D",
+    "object_sha256": "97864BBFA81F8EB46291EA7FD8E67D93419FDADC86CD7D62B01988E8BD82B4B2"
+  },
+  "pattern12": {
+    "encoding": "RLE",
+    "frames": 12,
+    "width": 160,
+    "height": 80,
+    "duration_ms": 100,
+    "object_bytes": 3784,
+    "expanded_bytes": 344064,
+    "encoded_crc32": 2622512252,
+    "expanded_crc32": 2931802504,
+    "pixel_crc32": 581324516,
+    "input_format": "cp2",
+    "entry": 1,
+    "sample_sha256": "CE94AA60CA2513E8B8DE15EE4C57CDFB98E8D62BADAA0D60B87A5872A7473F3A",
+    "object_sha256": "1A0A7934314F848D571CF585885A8635BB366C2D1A19EB737D7B1260099246A8"
+  },
+  "noise8": {
+    "encoding": "RAW",
+    "frames": 8,
+    "width": 160,
+    "height": 80,
+    "duration_ms": 100,
+    "object_bytes": 204832,
+    "expanded_bytes": 229376,
+    "encoded_crc32": 2239047856,
+    "expanded_crc32": 4035763119,
+    "pixel_crc32": 268884490,
+    "input_format": "cp2",
+    "entry": 0,
+    "sample_sha256": "70E32132BCCB4167997A4BB7948BAE80D2A4937B8D3B064094960BA112884721",
+    "object_sha256": "78B4B88285421676237463549A212AEDA6B9D66CC5320534848A40790F94638E"
+  }
+}

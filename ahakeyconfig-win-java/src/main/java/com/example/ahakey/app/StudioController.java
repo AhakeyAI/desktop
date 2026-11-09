@@ -814,6 +814,9 @@ public class StudioController {
                 showOledWarning("连接已改变", "请重新确认目标设备后上传。");
                 return;
             }
+            displayConfigService.setLegacyConfirmation(retry->{
+                if(confirmDisplayAction("此固件明确不支持 ACR4 无损传输。是否使用兼容原画质上传？\n像素和帧数保持不变，传输可能较慢；取消不会开始写入。"))retry.run();
+            });
             displayConfigService.upload(target);
         }
     }

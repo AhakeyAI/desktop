@@ -1,0 +1,263 @@
+{
+  "schema_version": 1,
+  "id": "WD-011",
+  "decision": "pass",
+  "session": "/root/wd011_review",
+  "role": "independent_high_impact_reviewer",
+  "at": "2026-11-08T12:51:58.032028+00:00",
+  "pack_path": ".ahakey-desktop-harness/changes/WD-011/reviews/20261108T124733824763Z-074f27/PACK.json",
+  "pack_sha256": "4b615dd166eddc8f673cafa850182dcf1b8b694a98da5962c674b9dfa7179dfb",
+  "diff_sha256": "0bf9cc816c869acd2649379b7e27f69b63a30a12b79af5ba989eced71358b960",
+  "code_fingerprint": "e1f6c94ef29db9c06c277dd05f55dd111c7c1bc329aa137bf0f5a88f902bf44d",
+  "contract_revision": 3,
+  "build_round": 3,
+  "scope": "冻结累计源码及已绑定离线验证的独立高影响审阅通过；不是EXE安装/实体设备/Owner UAT通过。",
+  "analysis": "已独立阅读本次实际累计diff的19个生产文件相关改动，结合先前v3独立审阅与本轮ACR4/仲裁逐段检查，追踪StudioController→DisplayConfigService→OledUploadService→Lossless/CompactUploadService→BleManager→USB/TCP，以及DeviceSync、K1、FactoryReset、runtime回调的实际调用链。正式pack收到后，17个预读生产/调用链SHA全部与检查点一致，冻结diff SHA、全部输入SHA、476项运行类/依赖身份和10项PASS日志SHA逐项一致。有效CONTRACT.md及CONTRACT-ACR4.md允许原画质优先v4、显式不支持时用户确认CP2兼容，保持快速v3与五项延期范围。编码器直接复用旧CP2像素、固定100ms，RAW/RLE只改变传输表达；AT03+FF展开CRC独立持久化，旧资产本身不重写。v4按version/sub/token/长度分流，BEGIN不重发、CHUNK用STATUS start/end消歧、COMMIT以完整METADATA为准，取消未知隔离。统一仲裁先封新ordinary并等待在途回复，所有实际USB/TCP设备写入口纳管；80/DATA/81完整raw所有权、等待后重新准入、ACK入队未消费窗口保护与最后保存ACK均已核对。独立审阅实际发现K1 BEGIN nonce偏移P1回归，DIB完成针对修正及真实全链红绿验证，现已解除；没有残留阻塞发现。旧fixture四项真实失败和既有C04基线债明确保留，未将未运行分支、实体设备或未构建EXE宣称通过。",
+  "findings": [
+    {
+      "id": "AR-01",
+      "priority": "P1",
+      "status": "resolved",
+      "title": "K1 BEGIN nonce并非位于普通K1请求的固定offset5",
+      "file": "src/main/java/com/example/ahakey/service/CommandSessionArbiter.java",
+      "problem": "新仲裁器固定以请求[5..8]比对响应nonce，K1 BEGIN真实请求为selector+length+CRC+nonce，nonce在[12..15]。有效回复被丢弃，K1保存超时并进入UNKNOWN。此为本轮新增的真实回归，不是旧fixture问题。",
+      "resolution": "v1/sub20使用offset12，其余K1/FactoryReset请求使用offset5并校验边界。",
+      "verification": [
+        "evidence/implementation-acr4-r3/logs/k1-begin-red.log",
+        "evidence/implementation-acr4-r3/logs/wd011.CommandSessionChecks-k1-final.log"
+      ],
+      "evidence": "已阅读红测实际失败及绿测55断言；真实K1RouteService.write执行BEGIN→3CHUNK→COMMIT→3READ→73→04→87，包含wrongnonce保持pending、明确BEGIN FAIL无后续写与known终结。"
+    }
+  ],
+  "open_blockers": [],
+  "coverage": [
+    {
+      "area": "像素、编码及持久化身份",
+      "conclusion": "RAW/RLE对照固件金样；每帧像素/顺序/100ms保持、8/12槽容量、307240预算；对象CRC和AT03展开CRC分离；UploadIdentity保持原Asset且重启精确核验，旧记录和v3不混淆。"
+    },
+    {
+      "area": "上传故障恢复",
+      "conclusion": "BEGIN未知只STATUS；CHUNK迟到ACK/offset错误以STATUS消歧；原块重发有界、计账一次；COMMIT不重发，VALID/frames/bytes/CRC全匹配；CANCEL INACTIVE+VALID保持不确定，INVALID/EMPTY才清理；beforeCommit失败不发COMMIT。"
+    },
+    {
+      "area": "全部实际设备写边界",
+      "conclusion": "sendUsbCommand、sendData和TCP WRITE_COMMAND/WRITE_DATA统一准入；状态00、hook、模式查询/写、raw、K1/Restore受约束，桥本地查询与HID不因租约关闭。UNKNOWN不被迟到ACK解除，换代与旧回调隔离。"
+    },
+    {
+      "area": "锁序与消费归属",
+      "conclusion": "arbiter无第二把锁；Condition释放commandLock，接收不获取transaction monitor；legacyWaitOwner保护ACK已入队但未消费窗口；rawOwner覆盖80到81并允许acquire等待期间完成；wait后再次检查owner/generation；设备保存最后ACK收到才回调完成。"
+    },
+    {
+      "area": "实际产品链路",
+      "conclusion": "真实JavaFX Controller/Service明确不支持提示、取消、确认兼容CP2、确认期间换代拒绝与v4成功身份已查；快速预览不写设备，原资源保留，不能将mock截图当实机验收。"
+    },
+    {
+      "area": "累计兼容与延期范围",
+      "conclusion": "累计v3编码/协议/服务/预览及OLEDFrameEncoder、CanvasController、InspectorPane改动已核查，当前ACR4增量未整套替换BLE桥，也未混入延期的工具栏、全局日志、跨屏/画布/BLE外观改造。"
+    }
+  ],
+  "files_reviewed": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/model/OledResourceState.java",
+    "src/main/java/com/example/ahakey/protocol/CompactUploadProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/LosslessUploadProtocol.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/CommandSessionArbiter.java",
+    "src/main/java/com/example/ahakey/service/CompactUploadService.java",
+    "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+    "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+    "src/main/java/com/example/ahakey/service/LosslessUploadService.java",
+    "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+    "src/main/java/com/example/ahakey/service/OledUploadService.java",
+    "src/main/java/com/example/ahakey/util/CompactResourceEncoder.java",
+    "src/main/java/com/example/ahakey/util/LosslessResourceEncoder.java",
+    "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+    "src/main/java/com/example/ahakey/view/CanvasController.java",
+    "src/main/java/com/example/ahakey/view/CompactUploadPreviewDialog.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java"
+  ],
+  "production_file_sha256": {
+    "src/main/java/com/example/ahakey/app/StudioController.java": "4b066002edc4e11f04a8a964e7f683985071bd4f15333c063902552f25397ba2",
+    "src/main/java/com/example/ahakey/model/OledResourceState.java": "c0de4a8441defcc08d29c441330a0927464588b07d1576c78734bf8d9cf56315",
+    "src/main/java/com/example/ahakey/protocol/CompactUploadProtocol.java": "81e138c55dbd42f5db310556b6fd4bb06cb0a861f21ddcd844a1c916ef35f9af",
+    "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java": "c8a7cad1b125a151592ce83b3bf5933819bd2ae031a03021345c4679f5962fd4",
+    "src/main/java/com/example/ahakey/protocol/LosslessUploadProtocol.java": "f0c648f0ae3904adcaa2c1f0f205c038560b46eb2a5627aad982a2435456d327",
+    "src/main/java/com/example/ahakey/service/BleManager.java": "ae1e8261a3ed35005d37cccf97afb938a850a9e7d602c93f276c374aaaffa438",
+    "src/main/java/com/example/ahakey/service/CommandSessionArbiter.java": "b077e27497c0e3fd068d631f3f970f2719764adcc0384841583270242775dbe0",
+    "src/main/java/com/example/ahakey/service/CompactUploadService.java": "17b3b489a12665adb4995acbba24373dbc7fd02105f4487032dbf397e4437522",
+    "src/main/java/com/example/ahakey/service/DeviceSyncService.java": "d1410b5ca5a8baa659ed1ebbac1e045af9237d28804fa23ebaba0a64b660ae54",
+    "src/main/java/com/example/ahakey/service/DisplayConfigService.java": "b71fc67e3d5738131e81c669102e7e4315ff640b1d278750c708f32da03990c5",
+    "src/main/java/com/example/ahakey/service/LosslessUploadService.java": "bbe5feb0d83a4b8dc8d66cb8977fe488a3e0713d7cbb380d00bbd73883ba237a",
+    "src/main/java/com/example/ahakey/service/OledResourceStore.java": "be0fba017eaa78c91075e97177339819d112a28196d219b6877d60318c3a2d29",
+    "src/main/java/com/example/ahakey/service/OledUploadService.java": "a8e060befce88dae0d3aac0233f638c6243a450a2f8c20d5705d889a9b9a4e82",
+    "src/main/java/com/example/ahakey/util/CompactResourceEncoder.java": "2316cd7aebf653f12af5e1e917fc4db064f8eec5e38ec5ae9d0de230b3ecfd5c",
+    "src/main/java/com/example/ahakey/util/LosslessResourceEncoder.java": "1606b94d64de2eae5ae66a71cab5fee1ffddb20a812b5570f8b618f3b4cde171",
+    "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java": "a78b161c47448a5ba8e286385ae7e7abcca78be63909bf292ad3cbd3a34de268",
+    "src/main/java/com/example/ahakey/view/CanvasController.java": "056578a75278b10817a2c3700584c1a7eaa61747271905e29c13440a193d41f5",
+    "src/main/java/com/example/ahakey/view/CompactUploadPreviewDialog.java": "9715697b9e66c08d656b396720d46b05f5f7a6bab1bfbad950ea1b2c737a20d6",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java": "85c0211f948cfacf415c8ee5df1d709b8d828118a71a5bae9de19a351e53bfe5"
+  },
+  "related_call_chain_sha256": {
+    "src/main/java/com/example/ahakey/service/K1RouteService.java": "ab5a9c288849bc3e5c3ebc7756d974b793bf27f30e723b2ef39b7d7ca109d0a0",
+    "src/main/java/com/example/ahakey/service/UsbHidTransport.java": "5a9ce47407f08adbeecf4074c96e4fdc4db11b16e8cfa2241d1df804dd880c3e",
+    "src/main/java/com/example/ahakey/protocol/AhaKeyResponseParser.java": "9d0583235486b7e6617705ff7e11541221a37f101d3e171523703416aa0643aa",
+    "src/main/java/com/example/ahakey/firmware/DeviceMaintenanceCoordinator.java": "a4aff1d6e9479dc7177b4572b0bfd7392be890c5dcc05e085161a99adae97726",
+    "src/main/java/com/example/ahakey/protocol/FactoryResetProtocol.java": "f87f1651dd1dcf2f00de8fca1d561b9370b7b08adc9dc1b07775af77b729ae7b"
+  },
+  "validation": {
+    "method": "独立源码/实际累计diff/固件候选只读对照；复核现有实际测试及红绿日志，未重跑无新疑点的整套测试。",
+    "results_path": ".ahakey-desktop-harness/changes/WD-011/evidence/implementation-acr4-r3/RESULTS.json",
+    "results_sha256": "15dea7f41a505321ff65e145ee8d80e60a8053c36907cb5e13b635d0ec6761ee",
+    "prefreeze_read_sha_unchanged_count": 17,
+    "input_hashes_verified": 68,
+    "runtime_hashes_verified": 476,
+    "pass_checks": [
+      {
+        "runner": "wd011.LosslessChecks-k1-final",
+        "result": "PASS",
+        "exit_code": 0,
+        "assertions": 5784,
+        "log": "logs/wd011.LosslessChecks-k1-final.log",
+        "sha256": "8e013db59a9910114bc31ef9ac1683ff3e3bf9dfa39ccdba63332ab56501b1fb"
+      },
+      {
+        "runner": "wd011.CommandSessionChecks-k1-final",
+        "result": "PASS",
+        "exit_code": 0,
+        "assertions": 55,
+        "log": "logs/wd011.CommandSessionChecks-k1-final.log",
+        "sha256": "9b0c4e3821c5b19daa7b9aa931da98aacc48258cdf0078018f20d876fca14f86"
+      },
+      {
+        "runner": "wd011.CompactChecks-01",
+        "result": "PASS",
+        "exit_code": 0,
+        "assertions": 394866,
+        "log": "logs/wd011.CompactChecks-01.log",
+        "sha256": "d3c7b40e931d8adf8d2970f1ae6f47c40f320144ed73341ae1070f55f300f5df"
+      },
+      {
+        "runner": "wd011.LosslessUiChecks-02",
+        "result": "PASS",
+        "exit_code": 0,
+        "assertions": 13,
+        "log": "logs/wd011.LosslessUiChecks-02.log",
+        "sha256": "b99e5b1792860b58e24ab963f9691a92d5cc68794c97733e4ea405a9bc355f68"
+      },
+      {
+        "runner": "wd011.CompactUiChecks-final",
+        "result": "PASS",
+        "exit_code": 0,
+        "assertions": 19,
+        "log": "logs/wd011.CompactUiChecks-final.log",
+        "sha256": "81a53ca59ea49248dd6a06b11c4a7dd64ef14d303f8cd3dfa21c8894decbce13"
+      },
+      {
+        "runner": "protocol.K1RouteProtocolChecks-k1-final",
+        "result": "PASS",
+        "exit_code": 0,
+        "assertions": null,
+        "log": "logs/protocol.K1RouteProtocolChecks-k1-final.log",
+        "sha256": "e4821244ea8d2cdf53f3d39141bd89cc97d45f7a4b8f821b21b29ce6a295bfed"
+      },
+      {
+        "runner": "wd010.RestoreChecks-k1-final",
+        "result": "PASS",
+        "exit_code": 0,
+        "assertions": 603,
+        "log": "logs/wd010.RestoreChecks-k1-final.log",
+        "sha256": "787780968b0e6b1a7c42d3668c311fb2307c137966ac073fc217919e41c71779"
+      },
+      {
+        "runner": "wd010.RuntimeRestoreRaceChecks-01",
+        "result": "PASS",
+        "exit_code": 0,
+        "assertions": 7,
+        "log": "logs/wd010.RuntimeRestoreRaceChecks-01.log",
+        "sha256": "0140eabba02360b4be256e7a67cacebf1ff0d6ffafa520a6f72bf6126365967d"
+      },
+      {
+        "runner": "displayconfig.DisplayConfigFxChecks-02",
+        "result": "PASS",
+        "exit_code": 0,
+        "assertions": 36,
+        "log": "logs/displayconfig.DisplayConfigFxChecks-02.log",
+        "sha256": "0ec1c65db92939f564e270a534e38555917b35193397985aa3e278613dbc57a4"
+      },
+      {
+        "runner": "service.VoiceFinalChecks-final",
+        "result": "PASS",
+        "exit_code": 0,
+        "assertions": 32,
+        "log": "logs/service.VoiceFinalChecks-final.log",
+        "sha256": "c86818eec4172379fdfe903e9fafbbfc521486bb20e9f3ed993fb43808f5edfe"
+      }
+    ],
+    "assertion_count_note": "大量断言来自逐字节/逐像素和分割边界，不等于同数量独立业务场景。",
+    "old_runner_exceptions": [
+      {
+        "runner": "displayconfig.DisplayConfigChecks-final",
+        "result": "FAIL_EXPECTED_OBSOLETE_FIXTURE",
+        "exit_code": 1,
+        "reason": "Default original upload now performs ACR4 CAPS; old CP2-only fake does not answer, so runner stops at initial upload after prior codec/store/frame checks. Later upload/error branches not covered by this runner.",
+        "not_a_baseline_failure": true,
+        "log": "logs/displayconfig.DisplayConfigChecks-final.log"
+      },
+      {
+        "runner": "displayconfig.DisplayConfigIsolationChecks-01",
+        "result": "FAIL_EXPECTED_OBSOLETE_FIXTURE",
+        "exit_code": 1,
+        "reason": "lease-close-real-flush expected replay after upload. Approved new contract discards stale upload-time runtime states. Remaining runner branches not reached.",
+        "not_a_baseline_failure": true,
+        "log": "logs/displayconfig.DisplayConfigIsolationChecks-01.log"
+      },
+      {
+        "runner": "displayconfig.DisplayConfigRaceChecks-final",
+        "result": "FAIL_EXPECTED_OBSOLETE_FIXTURE",
+        "exit_code": 1,
+        "reason": "R1-SINGLE-latest-once expected replay after upload. Approved contract forbids it. Later branches not reached.",
+        "not_a_baseline_failure": true,
+        "log": "logs/displayconfig.DisplayConfigRaceChecks-final.log"
+      },
+      {
+        "runner": "displayconfig.DisplayConfigRound5Checks-final",
+        "result": "FAIL_EXPECTED_OBSOLETE_FIXTURE",
+        "exit_code": 1,
+        "reason": "pending=true interleave expects a flushed frame and indexes empty list. New contract intentionally leaves list empty. Later pending=true branches not reached; pending=false earlier branch executed.",
+        "not_a_baseline_failure": true,
+        "log": "logs/displayconfig.DisplayConfigRound5Checks-final.log"
+      }
+    ],
+    "exception_assessment": "四项旧runner退出1确实保留，分别停在旧CP2-only fake不能响应新增默认v4 CAPS、以及旧上传结束重放runtime预期。新契约明确不重放；这些不是基线失败，也没有将其后未执行分支计作PASS。新真实BleManager/USB+TCP memory、v4/v3与显式CP2产品链、K1/Restore/显示FX对本轮行为提供替代证据，未证明全产品无回归。",
+    "prior_failed_attempts": {
+      "k1-begin-red": "Actual newly added K1 nonce assertion failed; fixed special v1 BEGIN correlation offset and real K1 service save now PASS55.",
+      "protocol.K1RouteProtocolChecks-01": "K1 release runtime regression fixed, -02 and -k1-final passed.",
+      "wd010.VoiceFinalChecks-final": "ClassNotFound wrong main package; correct package service.VoiceFinalChecks final passed32.",
+      "compile-01/02": "javac argfile quoting/PowerShell JVM option setup errors; later full compile and targeted final compile exit0."
+    },
+    "real_device": "NOT_RUN",
+    "installer": "NOT_YET_BUILT",
+    "owner_uat": "PENDING"
+  },
+  "baseline_debt": {
+    "status": "NOT_FIXED_BASELINE_DEBT",
+    "assertion": "C04-basic-version-fallback-false",
+    "evidence": [
+      ".ahakey-desktop-harness/changes/WD-011/evidence/implementation-r1/displayconfig.DisplayConfigCapabilityChecks-final.log",
+      ".ahakey-desktop-harness/changes/WD-011/evidence/implementation-r1/baseline-1.0.21-capability.log"
+    ],
+    "analysis": "重新核对两个历史日志均在同一C04断言退出；前轮以实际1.0.21 JAR对照确认。RESULTS明确沿用历史债证据，本轮没有将它重跑通过或改写成新回归，且不以此豁免四项新契约冲突fixture失败。"
+  },
+  "firmware_binding": {
+    "candidate": "bb6a31ed5ed3f3811e3f9b32b3c93e1ce362f4a3",
+    "hex_sha256": "EAFFD569237E295B7EDB0CBAE5AACFDED34ADCB47994BA4E5674603A526FC1C4",
+    "source": "pinned candidate及EAFFD569正式交付包；未使用foreign dirty源码，未运行固件脚本"
+  },
+  "nonblocking_notes": [
+    "实机USB/BLE吞吐、闪存、电源、Key3、硬件HID以及EXE安装/包内身份由后续交付和Owner联调验收；本结论不替代。",
+    "queryStatusAndWait仍沿用lastStatusUpdateTime旧UI缓存提示，它不参与新的仲裁释放。新仲裁仅认可匹配完整00；自动批准走单独强制读回。",
+    "普通请求不确定后全局隔离可能使K1旧即时读回恢复变为要求重连，这是保守失败；不要向Owner承诺原连接内自动恢复。",
+    "旧快照/运行状态测试在失败点后未运行的分支没有被逐项全量重新证明；报告仅接受本次有效契约与已有针对性验证范围。"
+  ]
+}

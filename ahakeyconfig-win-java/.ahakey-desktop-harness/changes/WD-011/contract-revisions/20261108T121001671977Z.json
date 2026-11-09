@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "id": "WD-011",
+  "at": "2026-11-08T12:10:01+00:00",
+  "from_revision": 1,
+  "to_revision": 2,
+  "reason": {
+    "path": ".ahakey-desktop-harness/changes/WD-011/evidence/20261108-acr4-contract-revision-reason.md",
+    "sha256": "61553c7ec32f2d1bdcaf4efa06f711e7d7827d3e8284cf8f42f4a6117b6e362f"
+  },
+  "owner": {
+    "path": ".ahakey-desktop-harness/changes/WD-011/evidence/20261108-acr4-owner-authorization.md",
+    "sha256": "a390fd1e1f07a085fcebde207a204e775a76c1256b3b4a387349f7fbf577927b"
+  },
+  "previous_approval": {
+    "at": "2026-11-06T06:35:47+00:00",
+    "owner_record": ".ahakey-desktop-harness/evidence/20261106-wd011-owner-authorization.md",
+    "owner_record_sha256": "0c3c74242e2d8a803e2db276f84ca03a2b182dd4da4dbd6fa5023563f9980d0f",
+    "inputs": {
+      "meta_sha256": "09fca34e70219600c20374bc3e1e0c33e743e313d3cc1285cd89f6c85aff4ebe",
+      "assets": {
+        "CONTRACT.md": "6387d3e8c17b5914f43092d00bf6f0977c87bf0bd52636269ba3ba04bae9900c",
+        "REFERENCES.json": "c10c06f4709ef6621b690bacb406e74afeb57024205724cf52c01b2e65acf468"
+      },
+      "reference_sha256": "2e85da74892ba8a861b6e943d0a5ff0977cee1b5d8214d4a4c5030da4ebeb8ab"
+    }
+  },
+  "new_approval": {
+    "at": "2026-11-08T12:10:01+00:00",
+    "owner_record": ".ahakey-desktop-harness/changes/WD-011/evidence/20261108-acr4-owner-authorization.md",
+    "owner_record_sha256": "a390fd1e1f07a085fcebde207a204e775a76c1256b3b4a387349f7fbf577927b",
+    "inputs": {
+      "meta_sha256": "4b0051813f16d2cb43c72882cd6043893494a5e5a1dfe0284f547468f6115847",
+      "assets": {
+        "CONTRACT.md": "6387d3e8c17b5914f43092d00bf6f0977c87bf0bd52636269ba3ba04bae9900c",
+        "REFERENCES.json": "8425c4fa3110e46d9c8fd9c601eb714260f580ba7a38cd98aa5c25ccaac9254f",
+        "CONTRACT-ACR4.md": "6a851177ffba2394cbd1b30976c5a832b8878673d4bc1249148ba091996a21c2"
+      },
+      "reference_sha256": "e3154e3e188760ddc2ffad4e7d885e0e39ec26ace22b22ac076fa2f0025395b5"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "origin_repair": null,
+  "changed_paths_since_start": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/model/OledResourceState.java",
+    "src/main/java/com/example/ahakey/protocol/CompactUploadProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/CompactUploadService.java",
+    "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+    "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+    "src/main/java/com/example/ahakey/service/OledUploadService.java",
+    "src/main/java/com/example/ahakey/util/CompactResourceEncoder.java",
+    "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+    "src/main/java/com/example/ahakey/view/CanvasController.java",
+    "src/main/java/com/example/ahakey/view/CompactUploadPreviewDialog.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java",
+    "src/test/java/com/example/ahakey/wd011/CompactChecks.java",
+    "src/test/java/com/example/ahakey/wd011/CompactUiChecks.java",
+    "src/test/resources/wd011/SOURCE.json",
+    "src/test/resources/wd011/animation-12.gif",
+    "src/test/resources/wd011/animation-8.gif",
+    "src/test/resources/wd011/animation12/encoding.json",
+    "src/test/resources/wd011/animation12/frame-00.png",
+    "src/test/resources/wd011/animation12/frame-01.png",
+    "src/test/resources/wd011/animation12/frame-02.png",
+    "src/test/resources/wd011/animation12/frame-03.png",
+    "src/test/resources/wd011/animation12/frame-04.png",
+    "src/test/resources/wd011/animation12/frame-05.png",
+    "src/test/resources/wd011/animation12/frame-06.png",
+    "src/test/resources/wd011/animation12/frame-07.png",
+    "src/test/resources/wd011/animation12/frame-08.png",
+    "src/test/resources/wd011/animation12/frame-09.png",
+    "src/test/resources/wd011/animation12/frame-10.png",
+    "src/test/resources/wd011/animation12/frame-11.png",
+    "src/test/resources/wd011/animation12/resource.acr",
+    "src/test/resources/wd011/animation8/encoding.json",
+    "src/test/resources/wd011/animation8/frame-00.png",
+    "src/test/resources/wd011/animation8/frame-01.png",
+    "src/test/resources/wd011/animation8/frame-02.png",
+    "src/test/resources/wd011/animation8/frame-03.png",
+    "src/test/resources/wd011/animation8/frame-04.png",
+    "src/test/resources/wd011/animation8/frame-05.png",
+    "src/test/resources/wd011/animation8/frame-06.png",
+    "src/test/resources/wd011/animation8/frame-07.png",
+    "src/test/resources/wd011/animation8/resource.acr",
+    "src/test/resources/wd011/low40/encoding.json",
+    "src/test/resources/wd011/low40/frame-00.png",
+    "src/test/resources/wd011/low40/resource.acr",
+    "src/test/resources/wd011/noise/encoding.json",
+    "src/test/resources/wd011/noise/frame-00.png",
+    "src/test/resources/wd011/noise/resource.acr",
+    "src/test/resources/wd011/static/encoding.json",
+    "src/test/resources/wd011/static/frame-00.png",
+    "src/test/resources/wd011/static/resource.acr"
+  ],
+  "scope_outside_contract": []
+}

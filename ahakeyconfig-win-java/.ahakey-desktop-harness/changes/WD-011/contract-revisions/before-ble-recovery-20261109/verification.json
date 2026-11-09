@@ -1,0 +1,71 @@
+{
+  "change_id": "WD-011",
+  "checks": {
+    "machine": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-011/evidence/implementation-acr4-r3/RESULTS.json": "15dea7f41a505321ff65e145ee8d80e60a8053c36907cb5e13b635d0ec6761ee"
+      },
+      "role": "DIB",
+      "at": "2026-11-08T12:45:56+00:00",
+      "code_fingerprint": "e1f6c94ef29db9c06c277dd05f55dd111c7c1bc329aa137bf0f5a88f902bf44d",
+      "build_round": 3,
+      "approval_sha256": "ff7d54cf0a6112d2629c9852ed32fa668c178d43efceeb8044df264f91ffa294"
+    },
+    "core_regression": {
+      "status": "pass",
+      "reason": "当前契约下真实核心回归通过；旧CP2默认及上传后runtime重放fixture退出1原样保留且不计通过；终止后分支未覆盖，C04旧债务单列",
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-011/evidence/implementation-acr4-r3/RESULTS.json": "15dea7f41a505321ff65e145ee8d80e60a8053c36907cb5e13b635d0ec6761ee"
+      },
+      "role": "DIB",
+      "at": "2026-11-08T12:46:01+00:00",
+      "code_fingerprint": "e1f6c94ef29db9c06c277dd05f55dd111c7c1bc329aa137bf0f5a88f902bf44d",
+      "build_round": 3,
+      "approval_sha256": "ff7d54cf0a6112d2629c9852ed32fa668c178d43efceeb8044df264f91ffa294"
+    },
+    "special_regression": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-011/evidence/implementation-acr4-r3/RESULTS.json": "15dea7f41a505321ff65e145ee8d80e60a8053c36907cb5e13b635d0ec6761ee"
+      },
+      "role": "DIB",
+      "at": "2026-11-08T12:46:06+00:00",
+      "code_fingerprint": "e1f6c94ef29db9c06c277dd05f55dd111c7c1bc329aa137bf0f5a88f902bf44d",
+      "build_round": 3,
+      "approval_sha256": "ff7d54cf0a6112d2629c9852ed32fa668c178d43efceeb8044df264f91ffa294"
+    },
+    "mock": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-011/evidence/implementation-acr4-r3/RESULTS.json": "15dea7f41a505321ff65e145ee8d80e60a8053c36907cb5e13b635d0ec6761ee"
+      },
+      "role": "DIB",
+      "at": "2026-11-08T12:46:11+00:00",
+      "code_fingerprint": "e1f6c94ef29db9c06c277dd05f55dd111c7c1bc329aa137bf0f5a88f902bf44d",
+      "build_round": 3,
+      "approval_sha256": "ff7d54cf0a6112d2629c9852ed32fa668c178d43efceeb8044df264f91ffa294"
+    },
+    "real_device": {
+      "status": "pending"
+    },
+    "owner_uat": {
+      "status": "pending"
+    },
+    "review": {
+      "status": "pass",
+      "reason": null,
+      "evidence": {
+        ".ahakey-desktop-harness/changes/WD-011/REVIEW.json": "1f10f36fd1536929a40d7d73ab05e8a71bcaf459c8ed6ecb9cd7766fa74bfd1d"
+      },
+      "role": "DLA",
+      "at": "2026-11-08T12:52:40+00:00",
+      "code_fingerprint": "e1f6c94ef29db9c06c277dd05f55dd111c7c1bc329aa137bf0f5a88f902bf44d",
+      "build_round": 3,
+      "approval_sha256": "ff7d54cf0a6112d2629c9852ed32fa668c178d43efceeb8044df264f91ffa294"
+    }
+  }
+}

@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$SourceRoot)
+param([Parameter(Mandatory=$true)][string]$SourceRoot, [string]$StatusPacketOutput)
 $ErrorActionPreference = 'Stop'
 $program = [IO.File]::ReadAllText((Join-Path $SourceRoot 'Program.cs'))
 $form = [IO.File]::ReadAllText((Join-Path $SourceRoot 'Form1.cs'))
@@ -216,9 +216,11 @@ namespace BridgeFixProbe {
         public byte CachedBattery {get{lock(_statusLock)return _deviceStatus.BatteryLevel;}}
         public BleStatusInfo Status(){return BuildBleStatus();}
         public void QueryStatus(TcpClient client){SendToClient(client,null,bleStatus:true);}
+        public void QueryInfo(TcpClient client){SendToClient(client,null,deviceInfo:true);}
         $($tcpMethods -join "`n")
     }
     public static class Runner {
+        public static byte[] StatusWirePacket;
         static List<string> failures=new List<string>();
         static int checks;
         static void Check(bool ok,string name){checks++;Console.WriteLine((ok?"PASS ":"FAIL ")+name);if(!ok)failures.Add(name);}
@@ -239,7 +241,7 @@ namespace BridgeFixProbe {
             Check(BluetoothLEDevice.NextDevice.Calls==1,name+" saved target restarts uncached discovery");
         }
         public static bool Run(){
-            ProtocolHelper.LastClaudeState=null;
+            ProtocolHelper.LastClaudeState=new byte[]{0xAA,0xBB,0x90,6,0xCC,0xDD}; // A stale state must never be replayed at ready.
             var core=NewCore();core.CurrentDevice.ConnectionStatus=BluetoothConnectionStatus.Disconnected;
             core.FindService(core.CurrentDevice,9);
             Check(core.CurrentDevice.Calls==1&&!core.IsCurrentConnection(9),"cold disconnected device discovers while physical write admission stays closed");
@@ -252,17 +254,17 @@ namespace BridgeFixProbe {
                 if(targetFirst){t.Operation.Fire();other.Operation.Fire(result);}else{other.Operation.Fire(result);t.Operation.Fire();}
                 f.Drain();Check(f.Saves==0&&f.tcpServer.Queries==0&&f.Terminals==0&&Notify(t).CccdCalls==1,"CCCD pending is not ready, targetFirst="+targetFirst+" other="+result);
                 Notify(t).Cccd.Fire();f.Drain();
-                Check(f.Successes==1&&f.Saves==1&&f.Saves==1&&f.tcpServer.Queries==1&&d.DisposeCalls==0&&c.ConnectionGeneration==9,"unrelated failure survives both orders, targetFirst="+targetFirst+" other="+result);
+                Check(f.Successes==1&&f.Saves==1&&f.Saves==1&&f.tcpServer.Queries==0&&d.DisposeCalls==0&&c.ConnectionGeneration==9,"unrelated failure survives both orders, targetFirst="+targetFirst+" other="+result);
                 Notify(t).Cccd.Fire();Notify(t).Cccd.Fire(AsyncStatus.Error);f.Drain();
-                Check(f.Terminals==1&&f.Saves==1&&f.tcpServer.Queries==1&&d.DisposeCalls==0,"CCCD success is consumed once, duplicate/late error ignored");
-                f.Complete(9,c.RoundId,true);f.Drain();Check(f.tcpServer.Queries==1,"duplicate UI readiness cannot enqueue another query");
+                Check(f.Terminals==1&&f.Saves==1&&f.tcpServer.Queries==0&&d.DisposeCalls==0,"CCCD success is consumed once, duplicate/late error ignored");
+                f.Complete(9,c.RoundId,true);f.Drain();Check(f.tcpServer.Queries==0,"duplicate UI readiness cannot enqueue query or stale runtime");
             }
             {
                 var c=NewCore();var f=new FormProbe(c);var t=Target();var other=new GattDeviceService{Uuid=Uuid(0x180f)};other.Operation.Pending=true;
                 // Unrelated service's spoofed characteristic must never replace the target object.
                 other.Operation.Result.Characteristics.Add(new GattCharacteristic{Uuid=Uuid(0x7343)});
                 Start(c,other,t);Notify(t).Cccd.Fire();f.Drain();var write=c.CurrentWriteCharacteristic;
-                Check(f.Saves==1&&f.tcpServer.Queries==1,"unrelated pending service does not block target readiness");
+                Check(f.Saves==1&&f.tcpServer.Queries==0,"unrelated pending service does not block target readiness");
                 other.Operation.Fire();f.Drain();Check(ReferenceEquals(write,c.CurrentWriteCharacteristic)&&c.ConnectionGeneration==9,"unrelated matching short UUID cannot replace target characteristic");
             }
             foreach(int missing in new[]{0,0x7341,0x7343,0x7344}) {
@@ -274,7 +276,7 @@ namespace BridgeFixProbe {
                 var c=NewCore();var f=new FormProbe(c);var t=Target();var other=new GattDeviceService{Uuid=Uuid(0x180f)};
                 other.Operation.Pending=true;other.Operation.Result.Status=GattCommunicationStatus.Unreachable;
                 Start(c,t,other);var expire=c.TimeoutCallback;Notify(t).Cccd.Fire();f.Drain();other.Operation.Fire();expire();f.Drain();
-                Check(f.Saves==1&&f.tcpServer.Queries==1&&f.Terminals==1&&c.ConnectionGeneration==9,"unrelated failure and queued timeout arriving after ready cannot dispose healthy target");
+                Check(f.Saves==1&&f.tcpServer.Queries==0&&f.Terminals==1&&c.ConnectionGeneration==9,"unrelated failure and queued timeout arriving after ready cannot dispose healthy target");
                 f.Logs.Clear();f.NotifyUi(Notify(t),new byte[]{0x55},9,c.RoundId);c.SetRound(10,10);f.Drain();
                 Check(f.Logs.Count==0,"actual notification UI logger rechecks identity at final queued append");
             }
@@ -414,6 +416,15 @@ namespace BridgeFixProbe {
                 core.SetRound(4,4);
                 byte[] status={0xAA,0xBB,0,77,0,0,0,0,0,1,0,0xCC,0xDD};
                 server.Notify(status,4,4);Check(server.CachedBattery==77,"current status is cached");
+                byte[] rawPacket=ProtocolHelper.BuildPacket(PacketType.BleNotify,status);var forwarded=new byte[rawPacket.Length];int rawCount=0;
+                while(rawCount<forwarded.Length)rawCount+=peer.GetStream().Read(forwarded,rawCount,forwarded.Length-rawCount);
+                Check(forwarded.SequenceEqual(rawPacket),"actual OnBleNotify forwards complete raw00 to real socket while caching");
+                StatusWirePacket=forwarded;
+                server.QueryInfo(client);var info=ProtocolHelper.BuildDeviceInfoPacket(ProtocolHelper.ParseDeviceStatusFromNotification(status));var infoRead=new byte[info.Length];int infoCount=0;
+                while(infoCount<infoRead.Length)infoCount+=peer.GetStream().Read(infoRead,infoCount,infoRead.Length-infoCount);
+                Check(infoRead.SequenceEqual(info),"cached QUERY_DEVICE_INFO stays independent of raw notification");
+                server.Notify(status,3,3);Check(!peer.Client.Poll(100000,SelectMode.SelectRead),"old generation raw00 never reaches socket");
+                server.Notify(status,4,3);Check(!peer.Client.Poll(100000,SelectMode.SelectRead),"same generation old discovery raw00 never reaches socket");
                 core.SetRound(5,5);server.Advance(5);
                 Check(server.CachedBattery==0,"new generation clears old status cache");
                 core.NotificationChecked.Reset();
@@ -424,6 +435,7 @@ namespace BridgeFixProbe {
                 }
                 Wait(pending);
                 Check(server.CachedBattery==0,"late status blocked after waiting on cache lock");
+                Check(!peer.Client.Poll(100000,SelectMode.SelectRead),"status that went stale at cache lock is never forwarded");
             } finally {client.Close();peer.Close();}
             Console.WriteLine("RESULT behavior_checks="+checks+" failures="+failures.Count);
             return failures.Count==0;
@@ -434,6 +446,7 @@ $protocol
 "@
 Add-Type -TypeDefinition $source -Language CSharp -IgnoreWarnings -WarningAction SilentlyContinue
 if (-not [BridgeFixProbe.Runner]::Run()) { throw 'Bridge dependency regression failures (real extracted methods with controlled WinRT substitutes).' }
+if ($StatusPacketOutput) { [IO.File]::WriteAllBytes([IO.Path]::GetFullPath($StatusPacketOutput), [BridgeFixProbe.Runner]::StatusWirePacket) }
 if (-not $program.Contains('null, 15000, Timeout.Infinite)')) {throw 'Missing finite per-round deadline wiring'}
 if (-not $tcp.Contains('SendToClient(client, null, deviceInfo: true)')) {throw 'Missing socket-lock cache wiring'}
 if (-not $tcp.Contains('SendToClient(client, null, bleStatus: true)')) {throw 'Missing socket-lock BLE readiness query wiring'}

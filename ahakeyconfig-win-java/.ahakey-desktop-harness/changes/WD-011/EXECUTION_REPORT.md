@@ -1,32 +1,22 @@
-# WD-011 DIB 实现报告（round 1）
+# WD-011 BLE 状态恢复实现报告（revision 4 / build_round 4）
 
-## 身份与范围
-工作目录：C:/Users/20825/.codex/worktrees/wd010-zxy-20261105/ahakeyconfig-win-java。
-已保存基线 HEAD 98a58926b787f7bbe18794ea04c6355361289454；Contract revision 1，批准“采用双选项，快速上传先预览”。开始代码指纹 d7b7fccda079eb0994892199ed6edf41760d0202ef71bd4a5d4e6cf9ec63a58b 保持不变；当前每个 allowed input 的 SHA256 见 evidence/implementation-r1/RESULTS.json，完整提交指纹由本轮 submit 回执绑定。
-DIB 开始及提交前 preflight 均 PASS。主目录历史 dirty、Firmware 和 eternal 均未写；未 Git add/commit/push。DLA 同步的治理记录不归 DIB 生产改动。
+## 身份与授权
+DIB 在权威 worktree C:/Users/20825/.codex/worktrees/wd010-zxy-20261105/ahakeyconfig-win-java 按 CONTRACT-BLE-RECOVERY.md 及 DLA 请求归属裁定实现；preflight PASS。Git 基础仍为 553af14068aaa982753aef05b77aea373c6cc983，前轮 ACR4 已批准工作保留。本轮无 Git 写、安装、kill、下载、真实设备读写、Firmware 修改或脚本执行。上一轮标准报告/回执/submission/verification 原字节已保存 contract-revisions/before-ble-recovery-20261109。本报告只冻结本轮实现，不冒充新安装包或 Owner UAT。
 
-## 实际差异
-- CompactUploadProtocol：严格 ACR3 帧长、nonce/token/sub/status、完整 CAPS 校验；K1RouteProtocol 只增加 v3 帧界定入口，v1/v2 原路径保持。
-- BleManager：DisplayLease 内增加单在途 ACR3 交换，USB/BLE 原通路与维护权限保持；迟到异 token/sub 回复忽略，断连后旧 finally 不清除新代次请求；超时隔离由事务层在 lease 关闭前设置。
-- CompactUploadService：每次上传协商，BEGIN 携 header 后从 offset16 上传，USB40/BLE128；迟到同 token CHUNK ACK 经 STATUS 消歧；仅 offset 未前进可有界重发，BEGIN/COMMIT 不盲重发，提交以匹配 VALID/帧数/展开长度/CRC 的元数据确认。失败保留草稿并隔离后续写，不跨连接续传；总600秒、恢复90秒、块最多5次。
-- CompactResourceEncoder/OLEDFrameEncoder：复用 GIF 合成，保留合法时长；固定16色共享palette、80x40，确定性加权median-cut，最近邻展开、AT03及FF尾；不自动删帧/降尺度。
-- OledResourceState/OledResourceStore：旧零尾资源仍可读取，新增编码对象 sidecar 与展开字节严格对应校验；index 原子替换，旧草稿在写失败前不覆盖；清除本地记录同时清除关联 compact sidecar。
-- DisplayConfigService/StudioController/CompactUploadPreviewDialog/InspectorPane：原入口双模式，本地转换后显示实际像素/时长/字节，确认预览保存草稿，再单独确认上传；确认中设备代次改变则停止。取消预览不改变旧草稿，不发设备命令。
-- CanvasController：仅 OLED 预览按资源真实帧时长播放；未改画布布局或跨屏策略。上传进度保留原百分比前缀，增加已确认字节数。
-- 新增 wd011 离线测试及交付包复制金样，来源 SHA 见 src/test/resources/wd011/SOURCE.json；未执行任何固件脚本。
+## 实际修复
+- C# 补丁继续更新完整 00 状态缓存，同时将真实原始 13 字节响应经既有 generation/discovery/socket 锁校验转发给 Java；缓存查询功能保留。去掉 ready 后桥自主 00 查询和 LastClaudeState 重放/无消费者赋值，使产品设备命令统一由现有单个 BleManager 发出；连接发现、订阅、重连和端口路径保留。
+- CommandSessionArbiter 增加物理请求 ticket；BleManager 的短 00 业务等待只在同 generation/ticket/opcode 仍有效时提前返回，不释放在飞请求，不重置原 15 秒运输期限。收到合法原始帧才能终结；缓存、错帧、旧代次不能放行。中断尚未发送的等待者不会污染别人的在飞请求；已发送请求的中断/写失败仍保守隔离。
+- 后台状态轮询在已有 pending/其他 owner 时不追加设备查询；明确 UNKNOWN 后同代次仅提示一次并停发，重连换代恢复。TCP 接收不中断，迟到回复不能清除 UNKNOWN。原 Controller 心跳 >15 秒无状态可主动断开，未改该分支，仅源码核对，不宣称新增实测。
 
-## 已执行机器检查
-JDK17、离线 Maven test-compile PASS，最终日志 compile-05.log。完整命令、耗时、退出码、源输入哈希、日志哈希见 evidence/implementation-r1/RESULTS.json。
-通过：CompactChecks 394868断言（主要为逐像素/填充金样，不代表同数量独立场景）；CompactUiChecks19条真实JavaFX/服务断言、3张截图；DisplayConfigChecks/Isolation/Race/Round5；Revision3 72条；DisplayConfigFx 36条；K1RouteProtocolChecks；RestoreChecks/RuntimeRestoreRaceChecks；VoiceFinalChecks32条。
-失败历史保留：进度前缀导致Revision3失败已修生产文本并复跑原测试通过；VoiceFinal首次入口package错误，改正确运行命令后通过，无测试门修改。
-**NOT_FIXED_BASELINE_DEBT**：DisplayConfigCapabilityChecks 在 C04-basic-version-fallback-false 失败。相同测试在实际1.0.21包内JAR仍同点失败：旧断言要求 V1.2，原产品返回 V1.2（完整标识未读到）。DeviceStatus本轮未改；按DLA指示保留当前/基线对照，不算PASS，不修改旧测试或catalog语义。受影响用例后续分支未声称覆盖。
-本轮无设备/麦克风/键盘注入/固件写入，USB/TCP均内存fixture。独立UI启动不执行App.start、不连接硬件；本地转换/预览/保存草稿证实零设备写。
+## 实际验证
+完整输入 SHA、原始日志、退出码见 evidence/implementation-ble-r4/RESULTS.json；命令见 REPRODUCE.ps1。Java17 全生产源离线编译通过。
+- 红测：实际 1.0.23 JAR 失败于“短业务等待后 pending 仍 known”；旧 C# 真实 OnBleNotify 更新缓存但原始 socket 读取超时。两份失败日志保留，未写成 PASS。
+- 新 C# 真实抽取生产通知/发送路径，经隔离 TCP socket 输出 16 字节包；Java 使用该确切包进入真实 TCP 包处理。147 行为检查、14 端口案例及原离线桥检查通过；新桥离线构建 build-02 全部 exit0。没有启动桥 App 或 BLE 硬件，跨语言是有字节身份的分层对照。
+- Java BLE 状态 38 断言通过：500ms 后700ms回复、pending 阻止上传、15秒 UNKNOWN、晚到不解锁、重连恢复、错帧/缓存/旧代次、等待他人请求时中断、已发送中断/写失败，以及连续同 opcode 00 的旧回复不能完成第二请求。
+- 当前生产类实际回归：CommandSession55（含完整 K1 保存/读回、80/DATA/81与普通最后ACK），ACR4 5784，ACR3 394866，FactoryReset603及竞争7，K1协议/Hook检查，全部 exit0。断言数含逐字节/像素，不等于独立场景数。
+- Java/测试脚本 diff whitespace 检查通过；统一补丁文件有一个必需的单空格空上下文行被 git diff --check 标为 trailing whitespace。严格补丁应用及构建已通过，保留格式而不破坏补丁。
 
-## 实际可运行产物
-当前只有 target/classes 和 target/test-classes 离线检查输出；尚无本轮JAR/EXE交测产物。1.0.22 Local Model 打包等待DLA实际审阅、候选与BUILD_ONLY路由；不把compile或旧1.0.21包当新包。
-
-## 交给 DLA
-需实际累计diff审阅、独立high-impact审阅、Git候选、合法隔离打包及产物身份；不自批review/UAT。
-配对固件为6CB9958A047E57885F272FD0715C1DC4AD9D1AD4A8E4880E71243A74DDFF0624（HW1，709c546a）。真实USB/BLE耗时、设备像素/时长、断连/重连元数据和断电表现待Owner联调，不声称30–60秒或实际加速倍数。
-不提供上传中取消按钮；失败写隔离需重连，状态查询不解除隔离。1.0.22向前兼容旧资源，若已保存新的compact资源后降回1.0.21，旧零尾校验器不能读取这些新资产；旧版降级不在本轮验收承诺，需保留用户资源库备份。
-前五项语音工具栏/日志目录/跨屏尺寸/键盘布局/BLE外观筛选全部延期，桥EXE未改；打包patch换行问题由DLA正式配方记录处理，DIB不改manifest或冻结snapshot。
+## 边界与交接
+新桥 target/wd011-bridge-recovery-r4-build-02/bin/BLE_tcp_driver.exe，SHA256 79d64eff5dc5594c391bceffa51b3d367c916a2378af774818c5dcf332a89bee；manifest/patch/test 输入完整绑定。该桥尚未构成 1.0.24 安装包，禁止用旧桥或旧 EXE 冒充。
+产品内唯一设备 writer 已由独立预审核查；任意第三方并发 TCP writer 不在本轮支持承诺中。短500ms是已发送后的业务等待，进入前仍须等待已有请求终结。无真机 USB/BLE、键盘输入、Owner UAT结果。r3旧 fixture 与新契约冲突、C04基线债务仍保留旧报告，不作为本轮 PASS，也未扩范围修复。前五项 UI/日志/BLE 外观调整继续延期。
+下一步 DLA actual review 与独立审阅；得到新 Preview token 后按批准隔离配方打包 1.0.24 Local Model，并以包内 JAR/runtime、新桥以及真实安装器身份检查再交 Owner。

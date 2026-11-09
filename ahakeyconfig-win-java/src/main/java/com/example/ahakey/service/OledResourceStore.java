@@ -67,7 +67,8 @@ public final class OledResourceStore {
                 boolean interrupted = node.path("inFlight").asBoolean();
                 OledResourceState state = new OledResourceState(entry, asset, status, device, false, false,
                         node.path("commitUncertain").asBoolean(),
-                        interrupted ? "上次上传被中断，设备保存结果未确认。" : node.path("notice").asText(""));
+                        interrupted ? "上次上传被中断，设备保存结果未确认。" : node.path("notice").asText(""),
+                        node.hasNonNull("uploadIdentity")?mapper.treeToValue(node.get("uploadIdentity"),OledResourceState.UploadIdentity.class):null);
                 if (interrupted) state = state.failed("上次上传被中断，设备保存结果未确认。", node.path("commitUncertain").asBoolean());
                 states.put(entry, state);
             }
@@ -117,6 +118,7 @@ public final class OledResourceStore {
         record.put("commitUncertain", state.commitUncertain());
         record.put("notice", state.notice());
         record.set("device", mapper.valueToTree(state.device()));
+        record.set("uploadIdentity", mapper.valueToTree(state.uploadIdentity()));
         entries.set(Integer.toString(state.entry()), record);
         atomicWrite(root.resolve("index.json"), mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(next));
         index = next;

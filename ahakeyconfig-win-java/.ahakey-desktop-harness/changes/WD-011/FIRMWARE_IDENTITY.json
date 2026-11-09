@@ -1,0 +1,26 @@
+{
+  "hardware_model": "HW1 / CH582M",
+  "firmware_version": "HW1_LOSSLESS_UPLOAD / ACR4 v4；9F字符串不能证明HEX身份",
+  "candidate_id": "bb6a31ed5ed3f3811e3f9b32b3c93e1ce362f4a3",
+  "connection": "USB HID配置接口或BLE 7340/7343/7344，同一目标串行",
+  "installed_device_confirmation": "待Owner核对实际刷入配对HEX；本轮未执行烧录或设备读取，未声明已安装",
+  "eligible_for_owner_test": true,
+  "artifact": {
+    "path": ".ahakey-harness/evidence/builds/hw1-lossless-upload/HW1_LOSSLESS_UPLOAD.hex",
+    "sha256": "eaffd569237e295b7edb0cbae5aacfded34adcb47994ba4e5674603a526fc1c4"
+  },
+  "gate_evidence": {
+    "path": ".ahakey-harness/evidence/checkpoints/X1-LOSSLESS-RESOURCE-UPLOAD/LOSSLESS_UPLOAD/20261108T190144/gate-receipt.json",
+    "sha256": "1edd843690ca863db284b852f9c540ef1d15c26df40b8f58ebd8aa4818d6bf8f"
+  },
+  "protocol_decision": {
+    "path": "artifacts/hw1/lossless-upload/EAFFD569/docs/protocol/lossless-resource-upload.md",
+    "sha256": "c33b9ddb656aca0c51a0fbf3130422143cc4898e0eb9c16ffcf7f29cee5d6c6a"
+  },
+  "qualification": "固件正式7/7机器Gate和独立review通过；Windows集成、安装及配对实机仍待验收",
+  "delivery_copy": {
+    "path": "artifacts/hw1/lossless-upload/EAFFD569/firmware/HW1_LOSSLESS_UPLOAD.hex",
+    "sha256": "eaffd569237e295b7edb0cbae5aacfded34adcb47994ba4e5674603a526fc1c4"
+  },
+  "pairing_note": "revision2绑定新候选；旧ACR3配对身份原字节保存在contract-revisions/before-acr4-20261108，不回写旧Preview收据。"
+}

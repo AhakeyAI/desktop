@@ -170,24 +170,41 @@ public final class DisplayConfigService implements AutoCloseable {
         });
     }
 
-    public void upload(OledResourceState frozen) {
+    private Runnable pendingLegacyConfirmation;
+    private Consumer<Runnable> legacyConfirmation = retry -> {};
+    public void setLegacyConfirmation(Consumer<Runnable> confirmation){legacyConfirmation=confirmation;}
+    public void upload(OledResourceState frozen) {upload(frozen,false);}
+    private void upload(OledResourceState frozen,boolean legacy) {
         if (state.busy.get() || !state.writeReady.get() || !frozen.canUpload() || state.current() != frozen) return;
         long connection = ble.connectionGeneration();
+        OledResourceState prepared=frozen.forUpload(legacy);
         studio.uploadingOledProperty().set(true);
         state.message.set("上传中...");
         work(true, operation -> {
             OledResourceState result;
             try {
-                store.save(frozen.uploading());
-                fx(() -> state.put(frozen.uploading()));
-                OledUploadService.uploadResource(ble, connection, frozen.entry(), frozen.asset(),
-                        percent -> {}, () -> store.save(frozen.committing()),
+                store.save(prepared.uploading());
+                fx(() -> state.put(prepared.uploading()));
+                if(legacy)OledUploadService.uploadLegacyResource(ble,connection,prepared.entry(),prepared.asset(),percent->{},()->store.save(prepared.committing()),
+                        progress->deviceFx(operation,()->state.progress.set(progress.text())));
+                else OledUploadService.uploadResource(ble, connection, prepared.entry(), prepared.asset(),
+                        percent -> {}, () -> store.save(prepared.committing()),
                         progress -> deviceFx(operation, () -> state.progress.set(progress.text())));
-                result = frozen.applied();
+                result = prepared.applied();
+            } catch(com.example.ahakey.protocol.LosslessUploadProtocol.Unsupported e){
+                result=prepared.failed(e.getMessage()+" 可确认使用兼容原画质上传。",false);
+                OledResourceState unsupported=result;
+                fx(()->{pendingLegacyConfirmation=()->{
+                    if(connection!=ble.connectionGeneration()||state.current().entry()!=frozen.entry()||state.current().asset()!=frozen.asset())return;
+                    legacyConfirmation.accept(()->{
+                        if(connection!=ble.connectionGeneration()||state.current().entry()!=frozen.entry()||state.current().asset()!=frozen.asset()) {error("连接或本地资源已变化，请重新确认上传。");return;}
+                        upload(state.current(),true);
+                    });
+                };});
             } catch (OledUploadService.UploadFailure e) {
-                result = frozen.failed(reason(e), e.commitUncertain());
+                result = prepared.failed(reason(e), e.commitUncertain());
             } catch (Exception e) {
-                result = frozen.failed(reason(e), false);
+                result = prepared.failed(reason(e), false);
             }
             OledResourceState finalResult = result;
             try { store.save(result); }
@@ -353,7 +370,9 @@ public final class DisplayConfigService implements AutoCloseable {
                 if (operation.id() != operationGeneration) return;
                 boolean wasUpload = studio.uploadingOledProperty().get();
                 state.busy.set(false); studio.uploadingOledProperty().set(false); updateWriteReady();
-                if (wasUpload && state.current().localStatus() != OledResourceState.LocalStatus.APPLIED) refresh();
+                Runnable confirmation=pendingLegacyConfirmation;pendingLegacyConfirmation=null;
+                if(confirmation!=null)confirmation.run();
+                else if (wasUpload && state.current().localStatus() != OledResourceState.LocalStatus.APPLIED) refresh();
             }); }
         });
     }

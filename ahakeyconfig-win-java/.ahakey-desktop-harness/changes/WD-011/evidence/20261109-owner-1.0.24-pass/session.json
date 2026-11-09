@@ -1,0 +1,12 @@
+﻿{
+    "installed_firmware_verified":  false,
+    "purpose":  "Owner-driven BLE reply recovery and ACR4/ACR3 integration; no automatic upload",
+    "executable":  "C:\\Program Files\\AhaKeyStudio\\AhaKeyStudio.exe",
+    "expected_firmware_sha256":  "eaffd569237e295b7edb0cbae5aacfded34adcb47994ba4e5674603a526fc1c4",
+    "version":  "1.0.24",
+    "config":  "C:\\Users\\20825\\.codex\\worktrees\\wd010-zxy-20261105\\ahakeyconfig-win-java\\target\\WD011-Test-Materials-1.0.24\\diagnostics\\logback-diagnostic.xml",
+    "started_utc":  "2026-11-09T08:07:20.3741005+00:00",
+    "bridge_sha256":  "79d64eff5dc5594c391bceffa51b3d367c916a2378af774818c5dcf332a89bee",
+    "jar_sha256":  "155e984493fd2463c9f9ded46ffba851309cbf3c899e2e5d0776792fed657b4a",
+    "bridge_path":  "C:\\Program Files\\AhaKeyStudio\\app\\BLE_tcp_driver.exe"
+}

@@ -1,0 +1,16 @@
+{
+  "version": "1.0.22",
+  "variant": "Local Model",
+  "status": "ready_for_owner_preview_not_uat_pass",
+  "candidate": "553af14068aaa982753aef05b77aea373c6cc983",
+  "exe": "C:\\Users\\20825\\.codex\\worktrees\\wd010-zxy-20261105\\ahakeyconfig-win-java\\target\\WD011-LocalModel-1.0.22\\installer\\AhaKeyStudio-1.0.22.exe",
+  "exe_sha256": "d6d8632e538f1ea1680284a38fba691a2433a0127adc3f456c1050c8809b58e6",
+  "paired_hex_sha256": "6CB9958A047E57885F272FD0715C1DC4AD9D1AD4A8E4880E71243A74DDFF0624",
+  "firmware_candidate": "709c546a00eda03ef3bf6a2ef9c3f4438ad31415",
+  "preview_receipt": "C:\\Users\\20825\\.codex\\worktrees\\wd010-zxy-20261105\\ahakeyconfig-win-java\\.ahakey-desktop-harness\\previews\\WD-011\\preview-20261106T073152705902Z-b6a8f9\\PREVIEW_RECEIPT.json",
+  "test_guide": "C:\\Users\\20825\\.codex\\worktrees\\wd010-zxy-20261105\\ahakeyconfig-win-java\\target\\WD011-Test-Materials-1.0.22\\测试说明.md",
+  "production_changes_after_candidate": false,
+  "owner_uat": "pending",
+  "formal_handoff": "验收段落parser阻塞已记录，不修改批准Contract或规则，先Owner Preview",
+  "git_push_this_round": false
+}

@@ -1,0 +1,105 @@
+{
+  "schema_version": 3,
+  "id": "WD-011",
+  "title": "HW1 双画质上传：ACR3快速与ACR4无损原画质联调",
+  "revision": 3,
+  "phase": "VERIFY",
+  "status": "ACTIVE",
+  "build_round": 3,
+  "assignment": {
+    "owner_record": ".ahakey-desktop-harness/evidence/20261106-wd011-owner-authorization.md",
+    "record_sha256": "0c3c74242e2d8a803e2db276f84ca03a2b182dd4da4dbd6fa5023563f9980d0f",
+    "at": "2026-11-06T14:31:53+08:00"
+  },
+  "delivery_scope": "internal_integration",
+  "requirements": {
+    "ui_entry_changed": true,
+    "device_related": true,
+    "real_device": true,
+    "owner_uat": true
+  },
+  "allowed_paths": [
+    "src/main/java/com/example/ahakey/protocol/CompactUploadProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java",
+    "src/main/java/com/example/ahakey/service/CompactUploadService.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+    "src/main/java/com/example/ahakey/util/CompactResourceEncoder.java",
+    "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+    "src/main/java/com/example/ahakey/model/OledResourceState.java",
+    "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+    "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+    "src/main/java/com/example/ahakey/service/OledUploadService.java",
+    "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java",
+    "src/main/java/com/example/ahakey/view/CanvasController.java",
+    "src/main/java/com/example/ahakey/view/CompactUploadPreviewDialog.java",
+    "src/test/java/com/example/ahakey/wd011",
+    "src/test/resources/wd011",
+    "src/main/resources/messages_zh.properties",
+    "src/main/resources/messages_en.properties",
+    "src/main/java/com/example/ahakey/util/LosslessResourceEncoder.java",
+    "src/main/java/com/example/ahakey/protocol/LosslessUploadProtocol.java",
+    "src/main/java/com/example/ahakey/service/LosslessUploadService.java",
+    "src/main/java/com/example/ahakey/service/CommandSessionArbiter.java",
+    "src/main/java/com/example/ahakey/service/DeviceSyncService.java"
+  ],
+  "preserved_behaviors": [
+    "旧CP2上传与旧资源兼容",
+    "K1/恢复出厂/设备选择/显示互斥保持",
+    "语音/AhaType/云账号与BLE桥保持",
+    "前五项UI日志修正延期"
+  ],
+  "approval_assets": [
+    "CONTRACT.md",
+    "REFERENCES.json",
+    "CONTRACT-ACR4.md"
+  ],
+  "ui_mode": "minimal",
+  "ui_note_ref": "CONTRACT.md",
+  "ui_current_refs": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java"
+  ],
+  "ui_preview_refs": [],
+  "mock_plan": null,
+  "checkpoints": [],
+  "approval": {
+    "at": "2026-11-08T12:23:20+00:00",
+    "owner_record": ".ahakey-desktop-harness/changes/WD-011/evidence/20261108-acr4-owner-authorization.md",
+    "owner_record_sha256": "a390fd1e1f07a085fcebde207a204e775a76c1256b3b4a387349f7fbf577927b",
+    "inputs": {
+      "meta_sha256": "268d4d0cfb116e080dfed6dbeca2efade07e684a53d3097dc27df5b4aa00bdde",
+      "assets": {
+        "CONTRACT.md": "6387d3e8c17b5914f43092d00bf6f0977c87bf0bd52636269ba3ba04bae9900c",
+        "REFERENCES.json": "8425c4fa3110e46d9c8fd9c601eb714260f580ba7a38cd98aa5c25ccaac9254f",
+        "CONTRACT-ACR4.md": "6a851177ffba2394cbd1b30976c5a832b8878673d4bc1249148ba091996a21c2"
+      },
+      "reference_sha256": "e3154e3e188760ddc2ffad4e7d885e0e39ec26ace22b22ac076fa2f0025395b5"
+    },
+    "revision_kind": "owner_approved_contract_revision"
+  },
+  "change_classification": [
+    "protocol_change",
+    "architecture_change"
+  ],
+  "journey_ids": [
+    "J005",
+    "J006",
+    "J010",
+    "J011",
+    "J019"
+  ],
+  "review_policy": "high_impact",
+  "activated_at": "2026-11-06T14:35:48+08:00",
+  "isolation_record": ".ahakey-desktop-harness/evidence/20261106-wd011-owner-authorization.md",
+  "contract_revision": {
+    "at": "2026-11-08T12:23:20+00:00",
+    "reason_record": ".ahakey-desktop-harness/changes/WD-011/evidence/20261108-acr4-ordinary-final-ack-dependency.md",
+    "reason_sha256": "78ed9d93406a3cc185757c3c80c090805cac33accd5325e0a66c5b36d897c15e",
+    "owner_record": ".ahakey-desktop-harness/changes/WD-011/evidence/20261108-acr4-owner-authorization.md",
+    "owner_sha256": "a390fd1e1f07a085fcebde207a204e775a76c1256b3b4a387349f7fbf577927b",
+    "previous_revision": 2
+  }
+}

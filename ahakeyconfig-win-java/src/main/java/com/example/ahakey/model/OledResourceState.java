@@ -6,7 +6,22 @@ import java.util.zip.CRC32;
 /** Local intent and device observations are deliberately independent. */
 public record OledResourceState(int entry, Asset asset, LocalStatus localStatus,
                                 Metadata device, boolean deviceKnown, boolean inFlight,
-                                boolean commitUncertain, String notice) {
+                                boolean commitUncertain, String notice, UploadIdentity uploadIdentity) {
+    public OledResourceState(int entry,Asset asset,LocalStatus localStatus,Metadata device,boolean deviceKnown,boolean inFlight,boolean commitUncertain,String notice){
+        this(entry,asset,localStatus,device,deviceKnown,inFlight,commitUncertain,notice,null);
+    }
+    public record UploadIdentity(int protocol,int frames,long bytes,long crc){
+        public UploadIdentity {if((protocol!=2&&protocol!=3&&protocol!=4)||frames<1||frames>12||bytes!=frames*28672L||crc<0||crc>0xffffffffL)throw new IllegalArgumentException("Invalid upload identity");}
+        public boolean matches(Metadata m){return m!=null&&m.valid()&&m.frames()==frames&&m.bytes()==bytes&&m.crc()==crc;}
+    }
+    public OledResourceState forUpload(boolean legacy){
+        UploadIdentity identity;
+        if(asset.compact())identity=new UploadIdentity(3,asset.frames(),asset.bytes.length,asset.crc());
+        else if(legacy)identity=new UploadIdentity(2,asset.frames(),asset.bytes.length,asset.crc());
+        else {var e=com.example.ahakey.util.LosslessResourceEncoder.encode(asset.bytes(),entry);identity=new UploadIdentity(4,asset.frames(),asset.bytes.length,e.expandedCrc());}
+        return new OledResourceState(entry,asset,localStatus,device,deviceKnown,inFlight,commitUncertain,notice,identity);
+    }
+    private boolean matchesExpected(Metadata value){return uploadIdentity==null?value.matches(asset):uploadIdentity.matches(value);}
     public enum LocalStatus { EMPTY, DRAFT, FAILED, APPLIED }
 
     public record Asset(byte[] bytes, int frames, long crc, byte[] compactBytes) {
@@ -67,6 +82,7 @@ public record OledResourceState(int entry, Asset asset, LocalStatus localStatus,
         if (localStatus == null || (asset == null) != (localStatus == LocalStatus.EMPTY))
             throw new IllegalArgumentException("OLED local state");
         if (deviceKnown && device == null) throw new IllegalArgumentException("OLED device fact");
+        if(uploadIdentity!=null&&(asset==null||uploadIdentity.frames()!=asset.frames()))throw new IllegalArgumentException("Upload identity asset mismatch");
         notice = notice == null ? "" : notice;
     }
 
@@ -88,34 +104,34 @@ public record OledResourceState(int entry, Asset asset, LocalStatus localStatus,
     }
     public OledResourceState uploading() {
         if (!canUpload()) throw new IllegalStateException("没有可上传的草稿。");
-        return new OledResourceState(entry, asset, localStatus, device, false, true, false, "");
+        return new OledResourceState(entry, asset, localStatus, device, false, true, false, "", uploadIdentity);
     }
     public OledResourceState failed(String reason, boolean uncertainCommit) {
         return new OledResourceState(entry, asset, asset == null ? LocalStatus.EMPTY : LocalStatus.FAILED,
-                device, false, false, uncertainCommit, reason);
+                device, false, false, uncertainCommit, reason, uploadIdentity);
     }
     public OledResourceState committing() {
-        return new OledResourceState(entry, asset, localStatus, device, false, true, true, "设备保存结果未确认。");
+        return new OledResourceState(entry, asset, localStatus, device, false, true, true, "设备保存结果未确认。", uploadIdentity);
     }
     public OledResourceState applied() {
         if (asset == null) throw new IllegalStateException("Missing asset");
         return new OledResourceState(entry, asset, LocalStatus.APPLIED,
-                new Metadata(true, 2, asset.frames(), asset.bytes.length, asset.crc()), true, false, false, "");
+                new Metadata(true, 2, asset.frames(), asset.bytes.length, uploadIdentity==null?asset.crc():uploadIdentity.crc()), true, false, false, "", uploadIdentity);
     }
     public OledResourceState unknown() {
-        return new OledResourceState(entry, asset, localStatus, device, false, inFlight, commitUncertain, notice);
+        return new OledResourceState(entry, asset, localStatus, device, false, inFlight, commitUncertain, notice, uploadIdentity);
     }
     public OledResourceState merge(Metadata value) {
         LocalStatus status = localStatus;
         String message = notice;
-        if (asset != null && localStatus == LocalStatus.APPLIED && !value.matches(asset)) {
+        if (asset != null && localStatus == LocalStatus.APPLIED && !matchesExpected(value)) {
             status = LocalStatus.DRAFT;
             message = "本机预览和当前键盘不一致，已作为草稿保留。";
-        } else if (commitUncertain && value.matches(asset)) {
+        } else if (commitUncertain && matchesExpected(value)) {
             status = LocalStatus.APPLIED;
             message = "已应用到 " + targetName() + "。";
         }
-        return new OledResourceState(entry, asset, status, value, true, false, false, message);
+        return new OledResourceState(entry, asset, status, value, true, false, false, message, uploadIdentity);
     }
     public String statusText() {
         if (inFlight) return "上传中...";

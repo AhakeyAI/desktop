@@ -1,8 +1,8 @@
 {
-  "at": "2026-11-06T07:10:15+00:00",
-  "build_round": 1,
-  "approval_sha256": "7506674aba79c70ea32170c770ae252e144ea96d3f490b6b0afbc28bc963a4e9",
-  "report_sha256": "bcceb2d8b9833ad17bc2a83838ec0614a9501735bddfd0743f320e95026484d2",
-  "code_fingerprint": "7ff87e2d9c05f5d7ff3059465696c28655d2c66afeb51ab2b5b65a7aa8a602ae",
+  "at": "2026-11-09T03:11:26+00:00",
+  "build_round": 4,
+  "approval_sha256": "c320b29bee6062ae80c48894259aa2691e48606f3d03b7b5c898e00c56005682",
+  "report_sha256": "c602d62f33199333aeecb44a24a202055a33251c807d22ef9d9cc00a43b3ad88",
+  "code_fingerprint": "00ca2c3361b29d2a38fd3daee11a954b9f87d271812990b915f07f808f856e81",
   "evidence_model": "phase_scoped_v1.3"
 }

@@ -1,0 +1,23 @@
+{
+  "purpose": "Owner-authorized source and scoped 1.0.24 preview test save; no formal all-scenarios UAT claim",
+  "owner_record": ".ahakey-desktop-harness\\changes\\WD-011\\evidence\\20261109-owner-1.0.24-pass\\OWNER_RECORD.md",
+  "independent_review_frozen_files_checked": 67,
+  "mismatches": [],
+  "git_whitespace_check": {
+    "source_and_records_except_diff_artifacts": "pass",
+    "exceptions": [
+      "ACTUAL_DIFF.txt preserves verbatim old diff whitespace",
+      "scripts/ble-driver-fixes.patch line 597 is mandatory blank unified-diff context marker, not source whitespace"
+    ]
+  },
+  "artifacts": {
+    "target/WD011-LocalModel-1.0.24/installer/AhaKeyStudio-1.0.24.exe": {
+      "sha256": "4225bd8301df291c4658081415d7c01274d54cfcbda06ffcb2b21fc02d281579",
+      "bytes": 297462328
+    },
+    "target/WD011-LocalModel-1.0.24/image/AhaKeyStudio/app/ahakey-studio-1.0.0.jar": {
+      "sha256": "155e984493fd2463c9f9ded46ffba851309cbf3c899e2e5d0776792fed657b4a",
+      "bytes": 3757781
+    }
+  }
+}

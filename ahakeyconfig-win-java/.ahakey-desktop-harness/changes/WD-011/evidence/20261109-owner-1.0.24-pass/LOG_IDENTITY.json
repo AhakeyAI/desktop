@@ -1,0 +1,8 @@
+{
+  "source_log": "C:\\Users\\20825\\AppData\\Local\\AhaKeyStudio\\diagnostics\\gif-1.0.24-20261109T080720356Z\\upload.log",
+  "snapshot_bytes": 2514109,
+  "snapshot_sha256": "28c99f35b0bf870e9b712d40a53b8d81f5a71c93d9c9a2591b1fb6f6bff89c2b",
+  "snapshot_last_line": "2026-11-09 17:49:44.504 [status-poller] INFO  com.example.ahakey.service.BleManager - [BLE] === 断开连接完成，总耗时=2006ms ===",
+  "extracted_lines": 1551,
+  "warn_error_unknown_lines": 2
+}

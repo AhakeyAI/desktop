@@ -1,0 +1,26 @@
+{
+  "hardware_model": "HW1 / CH582M",
+  "firmware_version": "HW1_COMPACT_UPLOAD / ACR3 v3（9F字符串保留，不能仅凭名称断言HEX）",
+  "candidate_id": "709c546a00eda03ef3bf6a2ef9c3f4438ad31415",
+  "connection": "USB HID配置接口或BLE 7340/7343/7344，同一目标串行",
+  "installed_device_confirmation": "待Owner核对已刷目标HEX；软件未读取完整固件SHA，不声明已安装",
+  "eligible_for_owner_test": true,
+  "artifact": {
+    "path": ".ahakey-harness/evidence/builds/hw1-compact-upload-20261106/HW1_COMPACT_UPLOAD.hex",
+    "sha256": "6cb9958a047e57885f272fd0715c1dc4ad9d1ad4a8e4880e71243a74ddff0624"
+  },
+  "gate_evidence": {
+    "path": ".ahakey-harness/evidence/checkpoints/X1-COMPACT-RESOURCE-UPLOAD/COMPACT_UPLOAD/20261106T120536/gate-receipt.json",
+    "sha256": "6013716baf68cd5607ea6b18458a4b243ecf829536e65bbcead39f9ea2a5f408"
+  },
+  "protocol_decision": {
+    "path": "artifacts/hw1/compact-upload/20261106-6CB9958A/docs/protocol/compact-resource-upload.md",
+    "sha256": "c9bf362544611571a836473d9e99ee272e02d9e4666761f7cc677a59c0743303"
+  },
+  "qualification": "固件正式机器Gate PASS，Windows/固件配对实机UAT尚未执行；不是通过记录",
+  "delivery_copy": {
+    "path": "artifacts/hw1/compact-upload/20261106-6CB9958A/HW1_COMPACT_UPLOAD.hex",
+    "sha256": "6cb9958a047e57885f272fd0715c1dc4ad9d1ad4a8e4880e71243a74ddff0624"
+  },
+  "pairing_note": "正式Gate引用构建原件；delivery_copy与原件逐字节一致，仅校正引用路径，未改变配对固件。"
+}

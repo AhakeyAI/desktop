@@ -1,0 +1,517 @@
+{
+  "schema_version": 1,
+  "id": "WD-011",
+  "decision": "pass",
+  "session": "/root/wd011_review",
+  "role": "independent_high_impact_reviewer",
+  "at": "2026-11-09T03:14:17.179862+00:00",
+  "pack_path": ".ahakey-desktop-harness/changes/WD-011/reviews/20261109T031214165974Z-81858f/PACK.json",
+  "pack_sha256": "6297ca11487f90c12307551ff90fe5c151d8c36a1ab5ea08f26e56fa7b9b9025",
+  "diff_sha256": "c104ebbf6e1eed0963f320a02fa7a1a5a0993e011b00e909c8ca459b37fd563d",
+  "code_fingerprint": "00ca2c3361b29d2a38fd3daee11a954b9f87d271812990b915f07f808f856e81",
+  "contract_revision": 4,
+  "build_round": 4,
+  "scope": "正式冻结累计源码和已绑定离线证据审阅通过；不代表1.0.24安装包、BLE射频、真实设备或Owner UAT通过。",
+  "analysis": "独立审阅已读取revision4有效Contract、故障现场与被动桥裁定，对照实际1.0.23交付源逐段检查BleManager、CommandSessionArbiter、桥patch与测试增量，实读build-02实际TcpServer/Form1及38项新Java测试，并追踪状态轮询、autoApproval、接收分流、上传准入、K1/FactoryReset/raw共享等待和重连调用链。冻结后逐字节核对全部67条changed_paths的after快照与工作树、8项预读SHA及52项输入/日志/桥产物证据SHA，无漂移；对照本人已完成的r3正式审阅，累计不变部分沿用原实读结论，重新审查本次两个Java生产文件与桥两脚本、新测试。桥完整13字节00现在缓存并按generation/discovery及实际socket发送锁转发；ready不再注入00或重放90，因此产品唯一设备writer路径内不会由桥生成歧义回复。Java短读取到期只为自己generation/requestSequence/opcode一致的00保留pending，其真实回复前ordinary和上传仍等待；物理失败、已发送后的中断、15秒运输期限仍UNKNOWN，不接受迟到ACK解锁。未发出的入场等待中断不再污染其他请求；连续同opcode响应入队清理保留。UNKNOWN提示按代次去重，轮询停止设备写，未改变现有15秒无更新心跳断开逻辑。桥真实抽取OnBleNotify/socket所产16字节捕获输入实际Java处理器，属于分层字节绑定而非真实BLE联调；旧Java/旧桥红测明确失败，新专项38、桥行为147/端口14及关键协议回归通过。未发现残留阻塞。",
+  "findings": [
+    {
+      "id": "AR-01",
+      "priority": "P1",
+      "status": "resolved",
+      "title": "K1 BEGIN nonce并非位于普通K1请求的固定offset5",
+      "file": "src/main/java/com/example/ahakey/service/CommandSessionArbiter.java",
+      "problem": "新仲裁器固定以请求[5..8]比对响应nonce，K1 BEGIN真实请求为selector+length+CRC+nonce，nonce在[12..15]。有效回复被丢弃，K1保存超时并进入UNKNOWN。此为本轮新增的真实回归，不是旧fixture问题。",
+      "resolution": "v1/sub20使用offset12，其余K1/FactoryReset请求使用offset5并校验边界。",
+      "verification": [
+        "evidence/implementation-acr4-r3/logs/k1-begin-red.log",
+        "evidence/implementation-acr4-r3/logs/wd011.CommandSessionChecks-k1-final.log"
+      ],
+      "evidence": "已阅读红测实际失败及绿测55断言；真实K1RouteService.write执行BEGIN→3CHUNK→COMMIT→3READ→73→04→87，包含wrongnonce保持pending、明确BEGIN FAIL无后续写与known终结。"
+    },
+    {
+      "id": "BR-01",
+      "priority": "P1",
+      "status": "resolved",
+      "title": "旧桥吞掉真实00导致短业务等待误触发全局UNKNOWN",
+      "resolution": "缓存同时转发原帧，短等待和15秒运输请求分离并保留自身ticket；有真实旧版Java/桥红测和当前38项、147项绿测。"
+    },
+    {
+      "id": "BR-02",
+      "priority": "P1",
+      "status": "resolved",
+      "title": "桥ready自主00及旧90绕过主程序请求归属",
+      "resolution": "按DLA被动桥裁定移除自主设备写和不再使用的LastClaudeState赋值；真实ready回调在存在旧90状态时验证零写，保留连接订阅保存目标。"
+    }
+  ],
+  "open_blockers": [],
+  "coverage": [
+    "业务500ms退出、700ms原回复、缓存/错shape/错opcode/旧代次不释放、15秒UNKNOWN及迟到拒绝、每代次一次提示、换代恢复。",
+    "入场中断不污染04、真正写失败/已发后中断隔离、上传不超车、00后04及连续00两消费者归属。",
+    "桥缓存查询字节兼容、原始通知实际socket回传、旧generation/discovery及等待cache/socket锁后失效保护、ready重复回调不发状态命令。",
+    "K1全链及分帧、恢复出厂设置/运行时竞争、ACR4和ACR3上传故障回归、普通保存最后ACK由既有55项CommandSessionChecks覆盖。"
+  ],
+  "verification": {
+    "checked_evidence_sha_records": 52,
+    "prefreeze_sha_records": 8,
+    "frozen_path_count": 67,
+    "checks": [
+      {
+        "entry": "status-final",
+        "exit": 0,
+        "assertions": 38
+      },
+      {
+        "entry": "wd011.CommandSessionChecks-01",
+        "exit": 0,
+        "assertions": 55
+      },
+      {
+        "entry": "wd011.LosslessChecks-01",
+        "exit": 0,
+        "assertions": 5784
+      },
+      {
+        "entry": "wd011.CompactChecks-01",
+        "exit": 0,
+        "assertions": 394866
+      },
+      {
+        "entry": "wd010.RestoreChecks-01",
+        "exit": 0,
+        "assertions": 603
+      },
+      {
+        "entry": "wd010.RuntimeRestoreRaceChecks-01",
+        "exit": 0,
+        "assertions": 7
+      },
+      {
+        "entry": "protocol.K1RouteProtocolChecks-01",
+        "exit": 0,
+        "assertions": null
+      },
+      {
+        "entry": "bridge-status-export-final",
+        "exit": 0,
+        "assertions": 147
+      },
+      {
+        "entry": "bridge-build-02",
+        "exit": 0,
+        "assertions": null
+      }
+    ],
+    "red_checks": [
+      {
+        "entry": "java-1.0.23-red",
+        "exit": 1,
+        "meaning": "Old production fails new behavior, not a passing result"
+      },
+      {
+        "entry": "bridge-old-red-full",
+        "exit": 1,
+        "meaning": "Old production fails new behavior, not a passing result"
+      }
+    ],
+    "bridge": {
+      "path": "target/wd011-bridge-recovery-r4-build-02/bin/BLE_tcp_driver.exe",
+      "sha256": "79d64eff5dc5594c391bceffa51b3d367c916a2378af774818c5dcf332a89bee",
+      "bytes": 83968
+    },
+    "wire_packet": {
+      "path": "target/ble-recovery-r4/actual-csharp-status-final.packet",
+      "sha256": "6ff508cb6dfe1abb9a3214cd118da739b745e942bc1a99f6a201ff1e81f1f106",
+      "bytes": 16
+    }
+  },
+  "prior_review": ".ahakey-desktop-harness/changes/WD-011/fresh-review/REVIEW-ACR4-R3-20261108.json",
+  "cumulative_comparison": {
+    "unchanged_ignoring_eol": [
+      "src/main/java/com/example/ahakey/app/StudioController.java",
+      "src/main/java/com/example/ahakey/model/OledResourceState.java",
+      "src/main/java/com/example/ahakey/protocol/CompactUploadProtocol.java",
+      "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java",
+      "src/main/java/com/example/ahakey/protocol/LosslessUploadProtocol.java",
+      "src/main/java/com/example/ahakey/service/CompactUploadService.java",
+      "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+      "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "src/main/java/com/example/ahakey/service/LosslessUploadService.java",
+      "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+      "src/main/java/com/example/ahakey/service/OledUploadService.java",
+      "src/main/java/com/example/ahakey/util/CompactResourceEncoder.java",
+      "src/main/java/com/example/ahakey/util/LosslessResourceEncoder.java",
+      "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+      "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "src/main/java/com/example/ahakey/view/CompactUploadPreviewDialog.java",
+      "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "src/test/java/com/example/ahakey/wd011/CommandSessionChecks.java",
+      "src/test/java/com/example/ahakey/wd011/CompactChecks.java",
+      "src/test/java/com/example/ahakey/wd011/CompactUiChecks.java",
+      "src/test/java/com/example/ahakey/wd011/LosslessChecks.java",
+      "src/test/java/com/example/ahakey/wd011/LosslessUiChecks.java",
+      "src/test/resources/wd011/SOURCE.json",
+      "src/test/resources/wd011/acr4/expected.json",
+      "src/test/resources/wd011/acr4/noise8.cp2",
+      "src/test/resources/wd011/acr4/pattern12.cp2",
+      "src/test/resources/wd011/acr4/pattern8.cp2",
+      "src/test/resources/wd011/animation-12.gif",
+      "src/test/resources/wd011/animation-8.gif",
+      "src/test/resources/wd011/animation12/encoding.json",
+      "src/test/resources/wd011/animation12/frame-00.png",
+      "src/test/resources/wd011/animation12/frame-01.png",
+      "src/test/resources/wd011/animation12/frame-02.png",
+      "src/test/resources/wd011/animation12/frame-03.png",
+      "src/test/resources/wd011/animation12/frame-04.png",
+      "src/test/resources/wd011/animation12/frame-05.png",
+      "src/test/resources/wd011/animation12/frame-06.png",
+      "src/test/resources/wd011/animation12/frame-07.png",
+      "src/test/resources/wd011/animation12/frame-08.png",
+      "src/test/resources/wd011/animation12/frame-09.png",
+      "src/test/resources/wd011/animation12/frame-10.png",
+      "src/test/resources/wd011/animation12/frame-11.png",
+      "src/test/resources/wd011/animation12/resource.acr",
+      "src/test/resources/wd011/animation8/encoding.json",
+      "src/test/resources/wd011/animation8/frame-00.png",
+      "src/test/resources/wd011/animation8/frame-01.png",
+      "src/test/resources/wd011/animation8/frame-02.png",
+      "src/test/resources/wd011/animation8/frame-03.png",
+      "src/test/resources/wd011/animation8/frame-04.png",
+      "src/test/resources/wd011/animation8/frame-05.png",
+      "src/test/resources/wd011/animation8/frame-06.png",
+      "src/test/resources/wd011/animation8/frame-07.png",
+      "src/test/resources/wd011/animation8/resource.acr",
+      "src/test/resources/wd011/low40/encoding.json",
+      "src/test/resources/wd011/low40/frame-00.png",
+      "src/test/resources/wd011/low40/resource.acr",
+      "src/test/resources/wd011/noise/encoding.json",
+      "src/test/resources/wd011/noise/frame-00.png",
+      "src/test/resources/wd011/noise/resource.acr",
+      "src/test/resources/wd011/static/encoding.json",
+      "src/test/resources/wd011/static/frame-00.png",
+      "src/test/resources/wd011/static/resource.acr"
+    ],
+    "changed_from_prior_pack": [
+      "src/main/java/com/example/ahakey/service/BleManager.java",
+      "src/main/java/com/example/ahakey/service/CommandSessionArbiter.java"
+    ],
+    "new_from_prior_pack": [
+      "scripts/ble-driver-fixes.patch",
+      "scripts/test-ble-driver.ps1",
+      "src/test/java/com/example/ahakey/wd011/BleStatusRecoveryChecks.java"
+    ]
+  },
+  "files_reviewed_this_round": [
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "sha256": "1fa3e460c88a7b5a4056c17b5bc0ed07e3127461d82329f5a639b550d4e160d2"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CommandSessionArbiter.java",
+      "sha256": "03d3a5d01baec631a5b44b9b984113af607c96d4f40fc1634629dd697bb9ab08"
+    },
+    {
+      "path": "scripts/ble-driver-fixes.patch",
+      "sha256": "27e452ee1387182ffb6c14c6eb17307149d2999498751bd09258b653b1aaf803"
+    },
+    {
+      "path": "scripts/test-ble-driver.ps1",
+      "sha256": "06cb8ba0cec76ae2f93af72cdd3db84e61536b7393c711bd970059d2d045e4b7"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd011/BleStatusRecoveryChecks.java",
+      "sha256": "0bd8f7e3cb654d45d93732a3781c948d4f90ba8440b08eab637105230d90ebf6"
+    },
+    {
+      "path": "target/wd011-bridge-recovery-r4-build-02/source/TcpServer.cs",
+      "sha256": "fad099bbd3169548eb0b8e8456a7c92d50ca2350b7c035cf20b4bf1bddbcad8c"
+    },
+    {
+      "path": "target/wd011-bridge-recovery-r4-build-02/source/Form1.cs",
+      "sha256": "f78649efe52839e2cb917ca8230c4bcd9b60d6e6b366ffc7d94ff4f0cd97932a"
+    },
+    {
+      "path": "target/ble-recovery-r4/actual-csharp-status-final.packet",
+      "sha256": "6ff508cb6dfe1abb9a3214cd118da739b745e942bc1a99f6a201ff1e81f1f106"
+    }
+  ],
+  "frozen_files": [
+    {
+      "path": "scripts/ble-driver-fixes.patch",
+      "sha256": "27e452ee1387182ffb6c14c6eb17307149d2999498751bd09258b653b1aaf803"
+    },
+    {
+      "path": "scripts/test-ble-driver.ps1",
+      "sha256": "06cb8ba0cec76ae2f93af72cdd3db84e61536b7393c711bd970059d2d045e4b7"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/app/StudioController.java",
+      "sha256": "4b066002edc4e11f04a8a964e7f683985071bd4f15333c063902552f25397ba2"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/model/OledResourceState.java",
+      "sha256": "c0de4a8441defcc08d29c441330a0927464588b07d1576c78734bf8d9cf56315"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/CompactUploadProtocol.java",
+      "sha256": "81e138c55dbd42f5db310556b6fd4bb06cb0a861f21ddcd844a1c916ef35f9af"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java",
+      "sha256": "c8a7cad1b125a151592ce83b3bf5933819bd2ae031a03021345c4679f5962fd4"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/LosslessUploadProtocol.java",
+      "sha256": "f0c648f0ae3904adcaa2c1f0f205c038560b46eb2a5627aad982a2435456d327"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/BleManager.java",
+      "sha256": "1fa3e460c88a7b5a4056c17b5bc0ed07e3127461d82329f5a639b550d4e160d2"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CommandSessionArbiter.java",
+      "sha256": "03d3a5d01baec631a5b44b9b984113af607c96d4f40fc1634629dd697bb9ab08"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CompactUploadService.java",
+      "sha256": "17b3b489a12665adb4995acbba24373dbc7fd02105f4487032dbf397e4437522"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+      "sha256": "d1410b5ca5a8baa659ed1ebbac1e045af9237d28804fa23ebaba0a64b660ae54"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+      "sha256": "b71fc67e3d5738131e81c669102e7e4315ff640b1d278750c708f32da03990c5"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/LosslessUploadService.java",
+      "sha256": "bbe5feb0d83a4b8dc8d66cb8977fe488a3e0713d7cbb380d00bbd73883ba237a"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+      "sha256": "be0fba017eaa78c91075e97177339819d112a28196d219b6877d60318c3a2d29"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/OledUploadService.java",
+      "sha256": "a8e060befce88dae0d3aac0233f638c6243a450a2f8c20d5705d889a9b9a4e82"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/CompactResourceEncoder.java",
+      "sha256": "2316cd7aebf653f12af5e1e917fc4db064f8eec5e38ec5ae9d0de230b3ecfd5c"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/LosslessResourceEncoder.java",
+      "sha256": "1606b94d64de2eae5ae66a71cab5fee1ffddb20a812b5570f8b618f3b4cde171"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+      "sha256": "a78b161c47448a5ba8e286385ae7e7abcca78be63909bf292ad3cbd3a34de268"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CanvasController.java",
+      "sha256": "056578a75278b10817a2c3700584c1a7eaa61747271905e29c13440a193d41f5"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/CompactUploadPreviewDialog.java",
+      "sha256": "9715697b9e66c08d656b396720d46b05f5f7a6bab1bfbad950ea1b2c737a20d6"
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
+      "sha256": "85c0211f948cfacf415c8ee5df1d709b8d828118a71a5bae9de19a351e53bfe5"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd011/BleStatusRecoveryChecks.java",
+      "sha256": "0bd8f7e3cb654d45d93732a3781c948d4f90ba8440b08eab637105230d90ebf6"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd011/CommandSessionChecks.java",
+      "sha256": "8e8313f1688bbfe9f6035686533677990c4cb0043a61ecc56955d9286de2a3a6"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd011/CompactChecks.java",
+      "sha256": "ffe9bdd2e4d4f129a232eb9775e6c9a3434d4debaabb056161301e810a00cc29"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd011/CompactUiChecks.java",
+      "sha256": "875216d538c0f0be4b337cab83e97d740dfdc91be2fb504effd1d223b7bad212"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd011/LosslessChecks.java",
+      "sha256": "d07f18a81f04cbd4347ae0833d303fb3d112a41c14e2a4ee4e1f1c24a9318572"
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd011/LosslessUiChecks.java",
+      "sha256": "9ac6525117d5e4aa4b2eed5cb9b733f38d29aa7a5b26a65eed335b32618e53d4"
+    },
+    {
+      "path": "src/test/resources/wd011/SOURCE.json",
+      "sha256": "1017d66573f9740deb462a11331f468eb547c838f6c1ab0387bb6f23a5b1bf45"
+    },
+    {
+      "path": "src/test/resources/wd011/acr4/expected.json",
+      "sha256": "f1265c3297a6937f83f9109c50283af53360f68d8c0f488b5f9c40416e249b6e"
+    },
+    {
+      "path": "src/test/resources/wd011/acr4/noise8.cp2",
+      "sha256": "70e32132bccb4167997a4bb7948bae80d2a4937b8d3b064094960ba112884721"
+    },
+    {
+      "path": "src/test/resources/wd011/acr4/pattern12.cp2",
+      "sha256": "ce94aa60ca2513e8b8de15ee4c57cdfb98e8d62badaa0d60b87a5872a7473f3a"
+    },
+    {
+      "path": "src/test/resources/wd011/acr4/pattern8.cp2",
+      "sha256": "361711786896a058be5d4ac2be1b42f733ae6f0f707b44aabe0cda4763bcf47d"
+    },
+    {
+      "path": "src/test/resources/wd011/animation-12.gif",
+      "sha256": "25cd252358aeb1d92ee9ea53072ca4aa85e03a63761b71af4ddcd6b5fd9ef087"
+    },
+    {
+      "path": "src/test/resources/wd011/animation-8.gif",
+      "sha256": "45a78743ad9ebce70451a16f9d79fdfddaf1b89ad5167fba00f2f099debe875f"
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/encoding.json",
+      "sha256": "c7041f95ede1b541e97701a2bbead067aca0f96982ff06eacc11a85ec11f5676"
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-00.png",
+      "sha256": "abbaf4ae4d52a623cb194106a7479ef6dfd9ae331fabe7a56ba51f8bf713f1a4"
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-01.png",
+      "sha256": "22193e42a77bd7bcc1471e01d67d6ff16dc53b91beeba4e9f3157c2ded9841f6"
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-02.png",
+      "sha256": "68bba334d7c5f6589ff5a1c9fdf7eb9997400697303006ce2b69ea85889ae552"
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-03.png",
+      "sha256": "c982a0ffeefe73433915183d452b19d2834e80029b058bc7db374e04536c4184"
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-04.png",
+      "sha256": "ece39aae68fb8f7f24a86c7872a6b37425d6ccfcec7554188f6e229f29ea4f7c"
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-05.png",
+      "sha256": "54fbf4f3461890466162e95816178ec95377b2e0ca8f8348d390524eeab7769c"
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-06.png",
+      "sha256": "3fa8a394830a9fa4465361cb335b29e2090ca3d5851e52c99dd8c6d2ecc75c92"
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-07.png",
+      "sha256": "7e34212ed65c254a5d58e4d8ba104f4c892631e66f798fd35460079f0fdfb0b9"
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-08.png",
+      "sha256": "10630ea5e50f89abdbc3a42957714b39679d4722273388c484a930eaf062e6d4"
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-09.png",
+      "sha256": "af15a4186d85b4dc40ded4c58b08085eca40f0b54ac63bbffc4e24e24994add1"
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-10.png",
+      "sha256": "c9c0edcb396af98faab4397f63fd6e8908193b5d41791233261a19d1f8861d55"
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/frame-11.png",
+      "sha256": "34d329b91a6f97df44063df73bdb08a24dc1664e6a4d00efd90874f8b768c480"
+    },
+    {
+      "path": "src/test/resources/wd011/animation12/resource.acr",
+      "sha256": "d0f341fc4395adf9eab99914053b3746f0dfa1fbf458805ac7729b72dadf3515"
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/encoding.json",
+      "sha256": "c37a58ca5fa7c68078e6dfb7bd5967cecdfb150e159ffb737a32af4bc0a3fc85"
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/frame-00.png",
+      "sha256": "2de3214dfa053a7cacbbbe35ccda9e0a74cb5c30245b01851d83fd68f3f2d067"
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/frame-01.png",
+      "sha256": "8ed0fca0c703a2b596f462c92b1dd3fac1851920e41edef9bdced841a059756b"
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/frame-02.png",
+      "sha256": "c8b47002831f2f5fd9070e8cefe9f922065a35bf6be883a6425bc34c3f51a854"
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/frame-03.png",
+      "sha256": "c635cc26de60a2515a976d83b52ff6cd47adbe12c404ca6bcbf116d58bbc66a9"
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/frame-04.png",
+      "sha256": "764dce778627d95e36d49d8317f4f5063e2334e56eb87938fdde348373898f9b"
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/frame-05.png",
+      "sha256": "9087a4612fa8c474cff7173a3ca98ae7158028b1194d6163ec4703a861986e9c"
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/frame-06.png",
+      "sha256": "bb1f84291470358cebe737638203080d4a5dbcdbae3caf1d112a0e7a0e157260"
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/frame-07.png",
+      "sha256": "ac7c22da6e097574ede794d1ece10f69de41cbda997875b1e8bec5b50f939aba"
+    },
+    {
+      "path": "src/test/resources/wd011/animation8/resource.acr",
+      "sha256": "396d0516818ba2adb94a9c1100a3c20e2eb45dfc03659bc6b7da70b2bfb141ab"
+    },
+    {
+      "path": "src/test/resources/wd011/low40/encoding.json",
+      "sha256": "06ecba3b544ecda83cbf1df3e5981331994d31cdd20d02cc06dcc92c88598157"
+    },
+    {
+      "path": "src/test/resources/wd011/low40/frame-00.png",
+      "sha256": "2c72bff0406d72bfe2ecd3831f6795ee56f2a8b11c0577511530ab1c60c1cd8d"
+    },
+    {
+      "path": "src/test/resources/wd011/low40/resource.acr",
+      "sha256": "2a8214d8dae32f793b5df151f3fb8f5d0b8bafd46f47730e0c3653427dfef225"
+    },
+    {
+      "path": "src/test/resources/wd011/noise/encoding.json",
+      "sha256": "239d823803ee618a155c6c7cff5e03661a837e676c404a2dbd6d117a804acac9"
+    },
+    {
+      "path": "src/test/resources/wd011/noise/frame-00.png",
+      "sha256": "562e7ffc5d053b3ac6b1a26b36bb0418b16d8d930cde97339e0ae92e531e09ed"
+    },
+    {
+      "path": "src/test/resources/wd011/noise/resource.acr",
+      "sha256": "b85dea13f570e7b05c00112522835f287666282850c7390b0e10239204dda47a"
+    },
+    {
+      "path": "src/test/resources/wd011/static/encoding.json",
+      "sha256": "e7aa80f622874f1b491488b4054a8baefb4c2ccacd36b25df89b0178d88973de"
+    },
+    {
+      "path": "src/test/resources/wd011/static/frame-00.png",
+      "sha256": "340c8a76ea3691e4f575ac0e5fa1f759c585ed5686ee293315f117d171409837"
+    },
+    {
+      "path": "src/test/resources/wd011/static/resource.acr",
+      "sha256": "91f1ddb3f719f0a71278189a261b5370f310bd9998c4e28c62ea21b1a95db1e7"
+    }
+  ],
+  "limitations": [
+    "No real device, install, firmware write, Git write or 1.0.24 application installer yet.",
+    "Single product device writer; arbitrary external concurrent TCP writers are outside this test boundary.",
+    "Unchanged StudioController heartbeat may disconnect after >15s without status; source-only observation, no new controller test claimed.",
+    "Older r3 C04 baseline debt and obsolete pre-ACR4 fixture failures remain in archived evidence, not turned into PASS.",
+    "Assertion counts include byte/pixel comparisons, not independent scenario counts.",
+    "多TCP连接不等于多个产品设备writer：TopBar仅连接探测或type05，Kimi/Hook经同一个BleManager。任意外部工具并行写原始端口不在本轮排他保证内。",
+    "旧r3四项fixture失败和C04基线债继续保留，未将失败、更未执行的分支改报PASS；原AR-01发现及修复历史保留。",
+    "未重新全面执行全部测试；本轮独立工作是实际代码审阅、证据内容核对及哈希复核。桥manifest仍为离线构建身份，最终包内输入与Owner实机验收须后续绑定。"
+  ]
+}

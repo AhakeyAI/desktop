@@ -592,7 +592,16 @@
              _writeQueue = new BoundedAsyncFifo<BleWriteRequest>(
                  MaxPendingBleTransactions,
                  ProcessWriteRequest,
-@@ -182,15 +195,13 @@
+@@ -173,24 +186,17 @@
+                     break;
+ 
+                 case PacketType.WriteCommand:
+-                    // 记录状态信息
+-                    if (ProtocolHelper.IsClaudeStatusUpload(data))
+-                    {
+-                        ProtocolHelper.LastClaudeState = data;
+-                    }
+                     await QueueBleWrite(client, type, _bleCore.CurrentWriteCharacteristic, data, frameReceivedAt, frameReadMs);
                      break;
  
                  case PacketType.QueryBleStatus:
@@ -611,7 +620,7 @@
                      Log("响应设备信息查询");
                      break;
  
-@@ -205,31 +216,7 @@
+@@ -205,74 +211,78 @@
          /// </summary>
          private BleStatusInfo BuildBleStatus()
          {
@@ -640,11 +649,21 @@
 -                MacAddress = mac,
 -                IsTargetDevice = isTarget
 -            };
+-        }
+-
+-        /// <summary>
+-        /// BLE通知回调 → 过滤设备状态通知, 其余广播给所有TCP客户端
 +            return _bleCore.GetBleStatusInfo();
-         }
- 
-         /// <summary>
-@@ -242,7 +229,16 @@
++        }
++
++        /// <summary>
++        /// BLE通知回调 → 缓存状态并原样广播当前连接通知
+         /// </summary>
+         private void OnBleNotify(GattCharacteristic sender, byte[] data, long generation, long discoveryId)
+         {
+             if (!_bleCore.IsCurrentDiscovery(generation, discoveryId)) return;
+-            // 设备状态通知: 解析并更新内存, 不广播给客户端
++            // 设备状态通知: 更新缓存，并继续转发真实帧；缓存查询不能代替设备回复
              if (ProtocolHelper.IsDeviceStatusNotification(data))
              {
                  var newStatus = ProtocolHelper.ParseDeviceStatusFromNotification(data);
@@ -662,7 +681,7 @@
                  Log($"设备状态更新: 电量={newStatus.BatteryLevel} 信号={newStatus.SignalStrength} " +
                      $"固件={newStatus.FirmwareVersionMain}.{newStatus.FirmwareVersionSub} " +
                      $"工作模式={newStatus.WorkMode} 灯光={newStatus.LightMode} 开关={newStatus.SwitchState}");
-@@ -250,29 +246,49 @@
+-                return;
              }
  
              byte[] packet = ProtocolHelper.BuildPacket(PacketType.BleNotify, data);
@@ -718,7 +737,7 @@
                          var stream = client.GetStream();
                          stream.Write(packet, 0, packet.Length);
                      }
-@@ -439,6 +455,15 @@
+@@ -439,6 +449,15 @@
  
          private void OnConnectionGenerationChanged(long generation)
          {
@@ -899,7 +918,7 @@
              }));
          }
  
-@@ -266,31 +242,31 @@
+@@ -266,31 +242,25 @@
              BeginInvoke(new Action(() =>
              {
                  if (!bleCore.IsCurrentDiscovery(generation, discoveryId)) return;
@@ -929,22 +948,18 @@
 -                    label_connected_devices.Text = "当前连接设备:无";
 -
 -                    if (config.HasSavedDevice)
+-                    {
+-                        log(Color.Gray, "将继续尝试查找目标设备...");
+-                        retryTimer.Start();
+-                    }
+-                }
 +                    retryTimer.Stop();
 +                    log(Color.Blue, "目标设备已确认，必需特征及通知订阅成功",
 +                        () => bleCore.IsCurrentDiscovery(generation, discoveryId));
 +                    SaveCurrentDeviceToConfig();
-+                    _ = tcpServer.QueueControlWrite(writeCharacteristic, ProtocolHelper.DeviceStatusQueryCommand);
-+                    log(Color.Blue, "设备状态查询已提交写入队列，发送结果见GATT日志",
++                    // The desktop owns device request/ACK sessions. Do not inject startup 00 or replay stale 90.
++                    log(Color.Blue, "设备已就绪，等待主程序发起状态查询",
 +                        () => bleCore.IsCurrentDiscovery(generation, discoveryId));
-+                    if (ProtocolHelper.LastClaudeState != null)
-                     {
--                        log(Color.Gray, "将继续尝试查找目标设备...");
--                        retryTimer.Start();
-+                        _ = tcpServer.QueueControlWrite(writeCharacteristic, ProtocolHelper.LastClaudeState);
-+                        log(Color.Blue, "Claude状态已提交写入队列，发送结果见GATT日志",
-+                            () => bleCore.IsCurrentDiscovery(generation, discoveryId));
-                     }
--                }
 +                });
              }));
          }

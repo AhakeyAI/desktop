@@ -1,346 +1,441 @@
 {
   "schema_version": 1,
   "id": "WD-011",
-  "pack_sha256": "e73296f9dd3b641c76ee92bf62b6fb130ac86ff67f26dfc67cba52e0288a62f0",
+  "pack_sha256": "6297ca11487f90c12307551ff90fe5c151d8c36a1ab5ea08f26e56fa7b9b9025",
   "reviewer_role": "DLA",
   "review_session": "/root",
   "builder_session": "/root/wd011_builder",
   "independence": "separate_dla_conversation",
   "decision": "pass",
-  "scope_conclusion": "52个文件均在批准路径和GIF上传语义内，14生产文件、2测试入口、36测试资源；五项延期修正未混入。此为DLA实际审阅结论，独立high-impact报告尚待完成后才登记门。",
+  "scope_conclusion": "67个累计路径核对，62个既有路径相对1.0.23内容不变，本轮5个改动在revision4允许范围；实际增量/桥应用源/新测试逐段审阅。五项延期UI未混入。",
   "per_file": [
     {
+      "path": "scripts/ble-driver-fixes.patch",
+      "purpose": "BLE状态回复归属与短等待恢复修复或其真实回归",
+      "reviewed_hunks": "实读累计补丁及build-02实际应用后的C#，增量仅完整00缓存后继续原始转发、去掉ready自主00/90和无消费者赋值。generation/discovery/socket锁、目标发现/CCCD/重连/端口/FIFO保持；单一Studio写客户端边界经产品入口核实。",
+      "within_contract": true
+    },
+    {
+      "path": "scripts/test-ble-driver.ps1",
+      "purpose": "BLE状态回复归属与短等待恢复修复或其真实回归",
+      "reviewed_hunks": "实读新旧断言，ready零写源于明确批准的请求归属裁定，非删测试；预置非空旧90验证不重放，真实抽取OnBleNotify/SendToClient经隔离socket验证raw00、cache83、旧generation/discovery与缓存锁竞争；导出确切字节供Java验证。",
+      "within_contract": true
+    },
+    {
       "path": "src/main/java/com/example/ahakey/app/StudioController.java",
-      "purpose": "双模式导入与上传确认接线",
-      "reviewed_hunks": "审阅selectOledGif本地预览保存、冻结entry及uploadCurrentOledToDevice连接代次二次检查；无确认前设备写",
+      "purpose": "ACR4原画质及会话安全整合",
+      "reviewed_hunks": "实际上传确认后注册明确UNSUPPORTED兼容确认；不支持前不主动降级，取消不写，重试再验代次和资产。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/main/java/com/example/ahakey/model/OledResourceState.java",
-      "purpose": "双格式不可变资源与设备身份",
-      "reviewed_hunks": "审阅兼容构造、完整CRC、compact解码字节匹配和clone、实际时长/传输字节，旧零尾校验保留",
+      "purpose": "ACR4原画质及会话安全整合",
+      "reviewed_hunks": "单独UploadIdentity保存v4展开CRC，旧资产原字节不变；applied/merge/failed/unknown均传递身份，旧无identity索引兼容。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/main/java/com/example/ahakey/protocol/CompactUploadProtocol.java",
       "purpose": "严格ACR3帧格式与能力",
-      "reviewed_hunks": "逐项对照13+length响应、各sub长度、状态0..11、nonce/token、完整CAPS标识/flags/预算/chunk；不以通用ACK当支持",
+      "reviewed_hunks": "逐项对照13+length响应、各sub长度、状态0..11、nonce/token、完整CAPS标识/flags/预算/chunk；不以通用ACK当支持 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java",
-      "purpose": "共享9E解析扩展",
-      "reviewed_hunks": "仅增加v3长度路由，v1/v2旧分支不变；USB extractor与BLE拼帧通过实际反射入口金样",
+      "purpose": "ACR4原画质及会话安全整合",
+      "reviewed_hunks": "9E仅新增v4长度解析，v1/v2/v3按原路径；实测USB提取和BLE分片。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/protocol/LosslessUploadProtocol.java",
+      "purpose": "ACR4原画质及会话安全整合",
+      "reviewed_hunks": "逐字段核对EAFFD569协议；长度13+body、CHUNK五字节、token、status及CAPS完整flags/max/chunk；仅明确status2为Unsupported。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/main/java/com/example/ahakey/service/BleManager.java",
-      "purpose": "显示租约内新协议交换",
-      "reviewed_hunks": "审阅租约/maintenance/identity/connection检查、USB57与BLE145上限、精确期待回复、迟到清理仅清本人expected、断连清空；未改桥/连接策略",
+      "purpose": "BLE状态回复归属与短等待恢复修复或其真实回归",
+      "reviewed_hunks": "实读本轮全部增量及真实调用链：入场中断不污染已有请求；optional准入推进expire且UNKNOWN每代次提示一次；专用StatusBusinessWaitExpired仅用于短00且原generation/ticket仍pending；其他真实写失败和超时继续隔离。接收/队列/上传lease不放宽，连续00旧帧不供新请求消费。心跳原15s无更新可断开，未伪造健康。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/CommandSessionArbiter.java",
+      "purpose": "BLE状态回复归属与短等待恢复修复或其真实回归",
+      "reviewed_hunks": "新增单调ticket、ownsPending代次/ticket/opcode检查以及UNKNOWN日志去重；不新增锁，不释放短等pending，不重置deadline。真实超时/迟到不解锁及K1 nonce/shape保持。",
       "within_contract": true
     },
     {
       "path": "src/main/java/com/example/ahakey/service/CompactUploadService.java",
       "purpose": "上传及未知结果恢复状态机",
-      "reviewed_hunks": "审阅先CAPS再BEGIN头16、USB40/BLE128、有界重试及STATUS offset消歧、COMMIT不盲重发、完整METADATA匹配、600/90秒边界和失败在lease关闭前隔离",
+      "reviewed_hunks": "审阅先CAPS再BEGIN头16、USB40/BLE128、有界重试及STATUS offset消歧、COMMIT不盲重发、完整METADATA匹配、600/90秒边界和失败在lease关闭前隔离 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/DeviceSyncService.java",
+      "purpose": "ACR4原画质及会话安全整合",
+      "reviewed_hunks": "逐条sendCommandExpecting替换发送加sleep；最终04明确ACK之后才onComplete，中途FAIL/末项FAIL/中断onError。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
-      "purpose": "异步本地准备与接受草稿",
-      "reviewed_hunks": "审阅operationGeneration失效隔离、处理失败不替换、所选entry复核、保存草稿与设备上传分离；既有work和设备事务保持",
+      "purpose": "ACR4原画质及会话安全整合",
+      "reviewed_hunks": "先保存prepared上传身份；只有类型化Unsupported在工作结束后确认兼容，二次核对连接和资产；commit前持久化，失败保持资源，generation过滤UI回调。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/service/LosslessUploadService.java",
+      "purpose": "ACR4原画质及会话安全整合",
+      "reviewed_hunks": "逐状态核对CAPS/BEGIN/CHUNK/STATUS/COMMIT/METADATA/CANCEL，块超时由同token状态消歧，COMMIT不重发；清理确认INVALID或锁存UNKNOWN；只完整metadata匹配成功。真实固件INACTIVE后VALID不当作取消成功。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/main/java/com/example/ahakey/service/OledResourceStore.java",
-      "purpose": "编码对象sidecar持久化",
-      "reviewed_hunks": "审阅原子索引、对象尺寸和展开一致性、重用sidecar及本地清除安全路径；旧资产可读；降级到1.0.21不能读取新格式如实列限制",
+      "purpose": "ACR4原画质及会话安全整合",
+      "reviewed_hunks": "可选uploadIdentity与原子index同写，旧记录默认null，保存字节与扩展CRC分离；重连merge测试。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/main/java/com/example/ahakey/service/OledUploadService.java",
-      "purpose": "按资源格式分派上传并显示字节",
-      "reviewed_hunks": "compact只分派新service；旧CP2路径保持；百分比前缀兼容问题已修并经原Revision3测试复跑",
+      "purpose": "ACR4原画质及会话安全整合",
+      "reviewed_hunks": "原画质默认v4，快速仍v3；兼容CP2独立显式API，RAW/RLE真实字节进度，成功仅在service完成后。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/main/java/com/example/ahakey/util/CompactResourceEncoder.java",
       "purpose": "共享16色80x40编码及严格展开",
-      "reviewed_hunks": "审阅加权分箱调色板、全动画共享palette、RGB565颜色字节序、帧时长、16字节头、最近邻展开、AT03 CRC和FF填充；5组固件金样独立逐像素/CRC比对",
+      "reviewed_hunks": "审阅加权分箱调色板、全动画共享palette、RGB565颜色字节序、帧时长、16字节头、最近邻展开、AT03 CRC和FF填充；5组固件金样独立逐像素/CRC比对 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
+      "within_contract": true
+    },
+    {
+      "path": "src/main/java/com/example/ahakey/util/LosslessResourceEncoder.java",
+      "purpose": "ACR4原画质及会话安全整合",
+      "reviewed_hunks": "RGB565像素及160x80/100ms保留；RLE不跨帧，严格更小才选，否则RAW；AT03 descriptor+CRC+FF展开，三个固件金样逐字节SHA一致。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
       "purpose": "保留GIF时长供快速路径使用",
-      "reviewed_hunks": "仅新增时长字段/兼容构造与GIF delay读取；原GIF合成/输入边界/RGB565不变；旧模式仍100ms",
+      "reviewed_hunks": "仅新增时长字段/兼容构造与GIF delay读取；原GIF合成/输入边界/RGB565不变；旧模式仍100ms 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/main/java/com/example/ahakey/view/CanvasController.java",
       "purpose": "OLED预览使用各帧时长",
-      "reviewed_hunks": "审阅独立Timeline、换资源stop/clear、末帧duration、旧100ms等价；没有画布布局或跨屏修复混入",
+      "reviewed_hunks": "审阅独立Timeline、换资源stop/clear、末帧duration、旧100ms等价；没有画布布局或跨屏修复混入 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/main/java/com/example/ahakey/view/CompactUploadPreviewDialog.java",
       "purpose": "本地效果与质量说明窗口",
-      "reviewed_hunks": "审阅原画质默认、快速明确16色80x40、actual expanded像素无平滑、帧时长/字节、取消默认与关闭停动画；无transport和store访问",
+      "reviewed_hunks": "审阅原画质默认、快速明确16色80x40、actual expanded像素无平滑、帧时长/字节、取消默认与关闭停动画；无transport和store访问 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/main/java/com/example/ahakey/view/InspectorPane.java",
       "purpose": "资源卡显示编码及字节",
-      "reviewed_hunks": "仅有资产时增加可换行说明；无按钮自动排列/全局布局改动",
+      "reviewed_hunks": "仅有资产时增加可换行说明；无按钮自动排列/全局布局改动 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd011/BleStatusRecoveryChecks.java",
+      "purpose": "BLE状态回复归属与短等待恢复修复或其真实回归",
+      "reviewed_hunks": "逐项读38断言，真实BleManager TCP解析路径消费实际C#捕获包；700ms迟到、缓存/错帧/旧代次不放行、deadline和去重、重连、04入场中断、写失败与已发中断、连续两个00和换代。Memory设备不冒称硬件BLE。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd011/CommandSessionChecks.java",
+      "purpose": "ACR4原画质及会话安全整合",
+      "reviewed_hunks": "真实BleManager内存运输、raw事务、ACK消费窗口、异步旧ACK、等待后权限、DeviceSync最终ACK、真实K1保存整链和明确FAIL，最终55；保留K1初次红测。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/java/com/example/ahakey/wd011/CompactChecks.java",
       "purpose": "协议编解码和实际路由离线检查",
-      "reviewed_hunks": "审阅固件金样CRC和像素、数据截断/时长/帧数、store损坏、两通道分片内含delimiter、nonce/sub、迟到块ACK和STATUS、COMMIT丢回复、真实lease排他；断言数量主要为像素循环，未冒充硬件场景",
+      "reviewed_hunks": "审阅固件金样CRC和像素、数据截断/时长/帧数、store损坏、两通道分片内含delimiter、nonce/sub、迟到块ACK和STATUS、COMMIT丢回复、真实lease排他；断言数量主要为像素循环，未冒充硬件场景 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/java/com/example/ahakey/wd011/CompactUiChecks.java",
       "purpose": "生产UI与本地服务隔离探针",
-      "reviewed_hunks": "审阅隔离home、FixtureBle零写、实际预览及Inspector截图、取消不保存、时长/大小展示；DLA已视觉检查3图",
+      "reviewed_hunks": "审阅隔离home、FixtureBle零写、实际预览及Inspector截图、取消不保存、时长/大小展示；DLA已视觉检查3图 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd011/LosslessChecks.java",
+      "purpose": "ACR4原画质及会话安全整合",
+      "reviewed_hunks": "读金样、codec边界、v4 framing、USB/BLE生产解析、状态消歧、cleanup未知、元数据和持久化；5784含像素循环，不等同实机场景数。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/java/com/example/ahakey/wd011/LosslessUiChecks.java",
+      "purpose": "ACR4原画质及会话安全整合",
+      "reviewed_hunks": "真实Controller确认取消/同意/换代，真实v4 applied身份与进度；13断言及截图人工查看，内存transport无设备写。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/SOURCE.json",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/acr4/expected.json",
+      "purpose": "配对固件原画质金样",
+      "reviewed_hunks": "从EAFFD569正式包只读复制并核对SHA；expected/3份cp2与编码及展开CRC比对，无运行时设备副作用。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/acr4/noise8.cp2",
+      "purpose": "配对固件原画质金样",
+      "reviewed_hunks": "从EAFFD569正式包只读复制并核对SHA；expected/3份cp2与编码及展开CRC比对，无运行时设备副作用。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/acr4/pattern12.cp2",
+      "purpose": "配对固件原画质金样",
+      "reviewed_hunks": "从EAFFD569正式包只读复制并核对SHA；expected/3份cp2与编码及展开CRC比对，无运行时设备副作用。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
+      "within_contract": true
+    },
+    {
+      "path": "src/test/resources/wd011/acr4/pattern8.cp2",
+      "purpose": "配对固件原画质金样",
+      "reviewed_hunks": "从EAFFD569正式包只读复制并核对SHA；expected/3份cp2与编码及展开CRC比对，无运行时设备副作用。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation-12.gif",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation-8.gif",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation12/encoding.json",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation12/frame-00.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation12/frame-01.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation12/frame-02.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation12/frame-03.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation12/frame-04.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation12/frame-05.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation12/frame-06.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation12/frame-07.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation12/frame-08.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation12/frame-09.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation12/frame-10.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation12/frame-11.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation12/resource.acr",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation8/encoding.json",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation8/frame-00.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation8/frame-01.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation8/frame-02.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation8/frame-03.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation8/frame-04.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation8/frame-05.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation8/frame-06.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation8/frame-07.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/animation8/resource.acr",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/low40/encoding.json",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/low40/frame-00.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/low40/resource.acr",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/noise/encoding.json",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/noise/frame-00.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/noise/resource.acr",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/static/encoding.json",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/static/frame-00.png",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     },
     {
       "path": "src/test/resources/wd011/static/resource.acr",
       "purpose": "固件交付包测试金样及来源清单",
-      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径",
+      "reviewed_hunks": "DLA逐文件SHA溯源GOLDEN_PROVENANCE.json；35个输入逐字节匹配已核验固件包，SOURCE.json为本地来源路径/哈希清单；无生产运行路径 本轮累计diff已核对，较已审阅1.0.22生产/测试字节不变。 r4核对冻结输入及相对1.0.23内容一致，原累计语义审阅保留；没有以此代替本轮新增路径审阅。",
       "within_contract": true
     }
   ],
-  "production_journey": "OLED选择原画质/快速→本地读取合成编码→实际展开预览→明确接受保存草稿→上传确认并复核代次→OledUploadService按资源类型→DisplayLease内旧CP2或完整CAPS/ACR3→匹配持久化身份→APPLIED/UI；失败保留草稿与未确认状态，未触发自动兼容写或重连续传。",
-  "preserved_behavior_assessment": "12个当前入口通过，含旧显示互斥/竞态/进度、K1、FactoryReset、语音final；13个保护主体源与已保存1.0.21相同。桥未改。C04能力标签旧断言在当前及实际1.0.21同样失败，未声称其及提前停止后的分支通过，不扩大任务改既有DeviceStatus。",
-  "baseline_assessment": "98a58926已保存1.0.21主功能Owner通过反馈，start有Git和内容备份且pack无missing bytes；不把Owner主要功能通过扩展成所有固件/UAT通过。新compact后降级到旧1.0.21资源兼容不在承诺内，交测需提示备份。",
-  "protocol_assessment": "逐项对照只读6CB9958A交付包ACR3 v3及709c546a实现。所有64交付文件SHA一致；标准CP2/v1/v2保持。固定16色80x40是Owner明确选择，原画质仍RGB565 CP2；Flash写入及真实耗时未实测。",
+  "production_journey": "BLE实际00通知→桥缓存及原样81转发→Java真实TCP入口→同代次ticket pending结束→下一请求或上传准入；500ms业务返回不结束在飞运输，真正超时UNKNOWN隔离且后台一次提示；原ACR4/ACR3事务完整链保持。",
+  "preserved_behavior_assessment": "桥147行为+14端口、Java状态38、仲裁55、ACR45784、ACR3394866、Restore603及7、K1真实入口检查通过；这次C#和Java有捕获字节身份联接，不冒称WinRT射频。旧四项显示runner失败/C04债务保留，真实安装及键盘仍待Owner。",
+  "baseline_assessment": "原start保持，1.0.21主要功能Owner通过；1.0.22快速上传Owner最新反馈通过。HEAD553af为旧保存基线，本轮尚未新Git candidate；Preview明确绑定source fingerprint。C04旧能力标签基线债务不宣称已修。",
+  "protocol_assessment": "EAFFD569配对固件及ACR4协议不改。原00无nonce，因此去除自带桥自主00/90确保产品唯一writer；不从缓存伪造ACK，不保证任意外部TCP工具同时写入。15秒运输隔离和上传最终确认保持。",
   "risk_level": "high",
   "fresh_review_required": true,
-  "risk_rationale": "新增设备写协议和共享9E响应路由，要求独立审阅与配对USB/BLE实机验收；离线测试不替代真实写入。",
+  "risk_rationale": "状态请求归属及BLE真实转发为高影响修复，需独立实际审阅和Owner真机验收。",
   "findings": [
     {
-      "issue": "初版进度文案破坏既有百分比前缀",
+      "issue": "AR-01：K1 BEGIN nonce错误偏移可能保存超时",
       "resolution": "fixed",
-      "evidence": "OledUploadService.Progress保留100%前缀；targeted-final-results.json Revision3原入口exit0"
+      "evidence": "CommandSessionArbiter按sub20 offset12，其余offset5；k1-begin-red与最终CommandSessionChecks55，独立ARBITRATION-REVIEW-NOTES.md。"
     },
     {
-      "issue": "初版非零CAPS错误均误称不支持",
+      "issue": "BR-01：旧桥吞00及短业务超时全局锁死",
       "resolution": "fixed",
-      "evidence": "CompactUploadProtocol仅UNSUPPORTED状态特判，其他状态实际映射；CompactChecks BUSY提示断言通过"
+      "evidence": "implementation-ble-r4/RESULTS.json：旧JAR/旧桥红测与新38状态、147桥行为绿测；真实现场失败日志保留。"
+    },
+    {
+      "issue": "BR-02：桥自主00/90绕过Java请求归属",
+      "resolution": "fixed",
+      "evidence": "DLA请求归属裁定；Form1 ready零设备写、非空LastClaude不重放实际测试。"
     }
   ],
   "baseline_gap_owner_record": null,
-  "fresh_review_record": ".ahakey-desktop-harness/changes/WD-011/fresh-review/REVIEW.json"
+  "fresh_review_record": ".ahakey-desktop-harness/changes/WD-011/fresh-review/REVIEW-BLE-R4-20261109.json"
 }

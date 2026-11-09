@@ -1,0 +1,26 @@
+{
+  "sources": [
+    {
+      "id": "compact-v3-wire",
+      "workspace": "firmware",
+      "path": "artifacts/hw1/compact-upload/20261106-6CB9958A/docs/protocol/compact-resource-upload.md",
+      "revision_or_commit": "3f076f83197845cd271e6a629b88ec80ee8ae993",
+      "sha256": "c9bf362544611571a836473d9e99ee272e02d9e4666761f7cc677a59c0743303",
+      "section": "ACR3 v3全部协议，实机待验收",
+      "kind": "protocol",
+      "maturity": "agreed",
+      "observed_at": "2026-11-06T06:33:45+00:00"
+    },
+    {
+      "id": "compact-reference-encoder",
+      "workspace": "firmware",
+      "path": "artifacts/hw1/compact-upload/20261106-6CB9958A/tools/resources/compact_upload/encoder.py",
+      "revision_or_commit": "3f076f83197845cd271e6a629b88ec80ee8ae993",
+      "sha256": "aa8fd07cd131db5355e4c540d669754c86d2b3effe5e92d4977e0f6ca3545c7a",
+      "section": "只读参考编码与展开，不运行脚本",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-11-06T06:33:49+00:00"
+    }
+  ]
+}

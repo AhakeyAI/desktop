@@ -24,10 +24,11 @@ public final class OledUploadService {
         uploadResource(ble, generation, entry, asset, acknowledgedPercent, beforeCommit, detail -> {});
     }
 
-    public record Progress(int acknowledgedBytes, int totalBytes, long elapsedMillis) {
+    public record Progress(int acknowledgedBytes, int totalBytes, long elapsedMillis, String encoding) {
+        public Progress(int acknowledgedBytes,int totalBytes,long elapsedMillis){this(acknowledgedBytes,totalBytes,elapsedMillis,"");}
         public String text() {
             long rate = elapsedMillis > 0 ? acknowledgedBytes * 1000L / elapsedMillis : 0;
-            return (acknowledgedBytes * 100 / totalBytes) + "% · 已确认 " + acknowledgedBytes + "/" + totalBytes + " 字节 · " + (elapsedMillis / 1000) + " 秒 · " + rate + " B/s";
+            return (encoding.isBlank()?"":encoding+" · ") + (acknowledgedBytes * 100 / totalBytes) + "% · 已确认 " + acknowledgedBytes + "/" + totalBytes + " 字节 · " + (elapsedMillis / 1000) + " 秒 · " + rate + " B/s";
         }
     }
 
@@ -39,6 +40,15 @@ public final class OledUploadService {
             acknowledgedPercent.accept(100);
             return;
         }
+        LosslessUploadService.upload(ble,generation,entry,asset,beforeCommit,progress);
+        acknowledgedPercent.accept(100);
+    }
+
+    /** Invoked only after the user explicitly confirms a matching unsupported-v4 result. */
+    public static void uploadLegacyResource(BleManager ble,long generation,int entry,
+            com.example.ahakey.model.OledResourceState.Asset asset,Consumer<Integer> acknowledgedPercent,
+            BeforeCommit beforeCommit,Consumer<Progress> progress)throws Exception {
+        if(asset.compact())throw new IllegalArgumentException("Legacy requires original pixels");
         if (asset.frames() > AhaKeyProtocol.resourceCapacity(entry)) throw new IllegalArgumentException("frames");
         byte[] bytes = asset.bytes();
         boolean commitSent = false;

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "id": "WD-011",
+  "observed_at": "2026-11-06T07:25:15+00:00",
+  "firmware_identity": {
+    "path": ".ahakey-desktop-harness/changes/WD-011/FIRMWARE_IDENTITY.json",
+    "sha256": "f566d921e891afbbe84a8a9e71b40af469e0a19c5a46ad0b0f2c9479c0302686"
+  },
+  "formal_gate": {
+    "path": ".ahakey-harness/evidence/checkpoints/X1-COMPACT-RESOURCE-UPLOAD/COMPACT_UPLOAD/20261106T120536/gate-receipt.json",
+    "sha256": "6013716baf68cd5607ea6b18458a4b243ecf829536e65bbcead39f9ea2a5f408"
+  },
+  "adapter": "firmware_gate_schema6",
+  "artifact": {
+    "path": ".ahakey-harness/evidence/builds/hw1-compact-upload-20261106/HW1_COMPACT_UPLOAD.hex",
+    "sha256": "6cb9958a047e57885f272fd0715c1dc4ad9d1ad4a8e4880e71243a74ddff0624"
+  },
+  "candidate_commit": "709c546a00eda03ef3bf6a2ef9c3f4438ad31415",
+  "checkpoint": "COMPACT_UPLOAD",
+  "producer": "Firmware Harness; Windows read-only reference",
+  "installed_device_status": "requires_owner_confirmation",
+  "limits": "Formal eligibility/file identity only; does not prove physical device flashed or UAT passed."
+}

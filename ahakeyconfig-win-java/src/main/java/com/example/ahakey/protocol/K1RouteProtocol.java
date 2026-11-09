@@ -24,6 +24,7 @@ public final class K1RouteProtocol {
     public static int replyLength(byte[] data,int start,int available,byte[] request) {
         if(available<3)return 0;
         if(data[start+2]!=(byte)0x9E)return -1;
+        if(available>=5 && data[start+4]==4) return LosslessUploadProtocol.replyLength(data,start,available);
         if(available>=5 && data[start+4]==3) return CompactUploadProtocol.replyLength(data,start,available);
         if(available<6)return 0;
         int status=data[start+3]&255,sub=data[start+5]&255;

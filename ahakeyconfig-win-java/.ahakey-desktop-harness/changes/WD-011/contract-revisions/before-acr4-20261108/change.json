@@ -1,0 +1,88 @@
+{
+  "schema_version": 3,
+  "id": "WD-011",
+  "title": "HW1 GIF紧凑上传与双画质预览联调",
+  "revision": 1,
+  "phase": "VERIFY",
+  "status": "ACTIVE",
+  "build_round": 1,
+  "assignment": {
+    "owner_record": ".ahakey-desktop-harness/evidence/20261106-wd011-owner-authorization.md",
+    "record_sha256": "0c3c74242e2d8a803e2db276f84ca03a2b182dd4da4dbd6fa5023563f9980d0f",
+    "at": "2026-11-06T06:31:53+00:00"
+  },
+  "delivery_scope": "internal_integration",
+  "requirements": {
+    "ui_entry_changed": true,
+    "device_related": true,
+    "real_device": true,
+    "owner_uat": true
+  },
+  "allowed_paths": [
+    "src/main/java/com/example/ahakey/protocol/CompactUploadProtocol.java",
+    "src/main/java/com/example/ahakey/protocol/K1RouteProtocol.java",
+    "src/main/java/com/example/ahakey/service/CompactUploadService.java",
+    "src/main/java/com/example/ahakey/service/BleManager.java",
+    "src/main/java/com/example/ahakey/service/UsbHidTransport.java",
+    "src/main/java/com/example/ahakey/util/CompactResourceEncoder.java",
+    "src/main/java/com/example/ahakey/util/OLEDFrameEncoder.java",
+    "src/main/java/com/example/ahakey/model/OledResourceState.java",
+    "src/main/java/com/example/ahakey/model/DisplayConfigState.java",
+    "src/main/java/com/example/ahakey/service/OledResourceStore.java",
+    "src/main/java/com/example/ahakey/service/OledUploadService.java",
+    "src/main/java/com/example/ahakey/service/DisplayConfigService.java",
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java",
+    "src/main/java/com/example/ahakey/view/CanvasController.java",
+    "src/main/java/com/example/ahakey/view/CompactUploadPreviewDialog.java",
+    "src/test/java/com/example/ahakey/wd011",
+    "src/test/resources/wd011",
+    "src/main/resources/messages_zh.properties",
+    "src/main/resources/messages_en.properties"
+  ],
+  "preserved_behaviors": [
+    "旧CP2上传与旧资源兼容",
+    "K1/恢复出厂/设备选择/显示互斥保持",
+    "语音/AhaType/云账号与BLE桥保持",
+    "前五项UI日志修正延期"
+  ],
+  "approval_assets": [
+    "CONTRACT.md",
+    "REFERENCES.json"
+  ],
+  "ui_mode": "minimal",
+  "ui_note_ref": "CONTRACT.md",
+  "ui_current_refs": [
+    "src/main/java/com/example/ahakey/app/StudioController.java",
+    "src/main/java/com/example/ahakey/view/InspectorPane.java"
+  ],
+  "ui_preview_refs": [],
+  "mock_plan": null,
+  "checkpoints": [],
+  "approval": {
+    "at": "2026-11-06T06:35:47+00:00",
+    "owner_record": ".ahakey-desktop-harness/evidence/20261106-wd011-owner-authorization.md",
+    "owner_record_sha256": "0c3c74242e2d8a803e2db276f84ca03a2b182dd4da4dbd6fa5023563f9980d0f",
+    "inputs": {
+      "meta_sha256": "09fca34e70219600c20374bc3e1e0c33e743e313d3cc1285cd89f6c85aff4ebe",
+      "assets": {
+        "CONTRACT.md": "6387d3e8c17b5914f43092d00bf6f0977c87bf0bd52636269ba3ba04bae9900c",
+        "REFERENCES.json": "c10c06f4709ef6621b690bacb406e74afeb57024205724cf52c01b2e65acf468"
+      },
+      "reference_sha256": "2e85da74892ba8a861b6e943d0a5ff0977cee1b5d8214d4a4c5030da4ebeb8ab"
+    }
+  },
+  "change_classification": [
+    "protocol_change"
+  ],
+  "journey_ids": [
+    "J005",
+    "J006",
+    "J010",
+    "J011",
+    "J019"
+  ],
+  "review_policy": "high_impact",
+  "activated_at": "2026-11-06T06:35:48+00:00",
+  "isolation_record": ".ahakey-desktop-harness/evidence/20261106-wd011-owner-authorization.md"
+}

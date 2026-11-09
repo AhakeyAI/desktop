@@ -21,6 +21,72 @@
       "kind": "implementation",
       "maturity": "implemented",
       "observed_at": "2026-11-06T06:33:49+00:00"
+    },
+    {
+      "id": "acr4-wire",
+      "workspace": "firmware",
+      "path": "artifacts/hw1/lossless-upload/EAFFD569/docs/protocol/lossless-resource-upload.md",
+      "revision_or_commit": "bb6a31ed5ed3f3811e3f9b32b3c93e1ce362f4a3",
+      "sha256": "c33b9ddb656aca0c51a0fbf3130422143cc4898e0eb9c16ffcf7f29cee5d6c6a",
+      "section": "ACR4正式交付绑定，只读引用；StageC及formal7/7通过，实机待验收",
+      "kind": "protocol",
+      "maturity": "agreed",
+      "observed_at": "2026-11-08T12:10:00.084479+00:00"
+    },
+    {
+      "id": "acr4-client-handoff",
+      "workspace": "firmware",
+      "path": "artifacts/hw1/lossless-upload/EAFFD569/docs/protocol/lossless-resource-upload-client-handoff.md",
+      "revision_or_commit": "bb6a31ed5ed3f3811e3f9b32b3c93e1ce362f4a3",
+      "sha256": "27af7e57a8ad08f0794f409f110021c5cd545dbbfdb9c1dc2970e64bcd026bee",
+      "section": "ACR4正式交付绑定，只读引用；StageC及formal7/7通过，实机待验收",
+      "kind": "protocol",
+      "maturity": "agreed",
+      "observed_at": "2026-11-08T12:10:00.085481+00:00"
+    },
+    {
+      "id": "acr4-encoder",
+      "workspace": "firmware",
+      "path": "artifacts/hw1/lossless-upload/EAFFD569/tools/resources/lossless_upload/encoder.py",
+      "revision_or_commit": "bb6a31ed5ed3f3811e3f9b32b3c93e1ce362f4a3",
+      "sha256": "33b0d250f8d9f3b59d1e4ca091e3141f11b7ca915994c17e40e671abed453167",
+      "section": "ACR4正式交付绑定，只读引用；StageC及formal7/7通过，实机待验收",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-11-08T12:10:00.086477+00:00"
+    },
+    {
+      "id": "acr4-protocol",
+      "workspace": "firmware",
+      "path": "artifacts/hw1/lossless-upload/EAFFD569/tools/resources/lossless_upload/protocol.py",
+      "revision_or_commit": "bb6a31ed5ed3f3811e3f9b32b3c93e1ce362f4a3",
+      "sha256": "b4e303726f17942e5f9b28b6367c4e1638d19c8baed69c2cec0a2e094ae68c65",
+      "section": "ACR4正式交付绑定，只读引用；StageC及formal7/7通过，实机待验收",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-11-08T12:10:00.087477+00:00"
+    },
+    {
+      "id": "acr4-client",
+      "workspace": "firmware",
+      "path": "artifacts/hw1/lossless-upload/EAFFD569/tools/resources/lossless_upload/client.py",
+      "revision_or_commit": "bb6a31ed5ed3f3811e3f9b32b3c93e1ce362f4a3",
+      "sha256": "41e569fc033658978fe775b2642d6f603d80c552be640ea790eb16cb34062f82",
+      "section": "ACR4正式交付绑定，只读引用；StageC及formal7/7通过，实机待验收",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-11-08T12:10:00.087477+00:00"
+    },
+    {
+      "id": "acr4-goldens",
+      "workspace": "firmware",
+      "path": "artifacts/hw1/lossless-upload/EAFFD569/samples/expected.json",
+      "revision_or_commit": "bb6a31ed5ed3f3811e3f9b32b3c93e1ce362f4a3",
+      "sha256": "f1265c3297a6937f83f9109c50283af53360f68d8c0f488b5f9c40416e249b6e",
+      "section": "ACR4正式交付绑定，只读引用；StageC及formal7/7通过，实机待验收",
+      "kind": "implementation",
+      "maturity": "implemented",
+      "observed_at": "2026-11-08T12:10:00.088483+00:00"
     }
   ]
 }

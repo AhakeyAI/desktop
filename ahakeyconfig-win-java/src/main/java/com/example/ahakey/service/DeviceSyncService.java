@@ -281,10 +281,8 @@ public final class DeviceSyncService {
                     if (onProgress != null) {
                         onProgress.accept("保存中 (" + i + "/" + commands.size() + ") " + cmd.label());
                     }
-                    ble.sendCommand(cmd.data());
-                    Thread.sleep(50);
+                    ble.sendCommandExpecting(cmd.data(), cmd.data()[2]);
                 }
-                Thread.sleep(250);
                 if (onComplete != null) {
                     onComplete.run();
                 }
