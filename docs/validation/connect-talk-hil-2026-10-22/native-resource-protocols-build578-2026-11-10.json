@@ -1,0 +1,114 @@
+{
+  "recordedAt": "2026-11-10T16:57:45.514652+08:00",
+  "client": {
+    "version": "0.2.3",
+    "build": 578,
+    "source": "05e6b53bccb25c9babb9e50061c5f228304a0a0a",
+    "signedUniversal": true,
+    "notarized": false,
+    "sourceCI": {
+      "run": 42782322018,
+      "conclusion": "success"
+    }
+  },
+  "firmware": {
+    "hardware": "HW1",
+    "source": "0471372159f6978ab19712f79d6524443a684fd9",
+    "archive": "b8be671c7462c5fef962f1f9c0b43aee3b58f434",
+    "hexSHA256": "ca240dc1f34d8bd71bf2eb21bd59f65030c224c13535a1c43d56a695d1d3ed81",
+    "policy": "preserve DataFlash and external Flash",
+    "codeVerifyOK": true
+  },
+  "automatedTests": {
+    "swift": 1097,
+    "failures": 0,
+    "maintainerPython": 20,
+    "maintainerFailures": 0
+  },
+  "nativeAcceptance": {
+    "acr4": [
+      {
+        "entry": 15,
+        "frames": 12,
+        "encodedBytes": 7729,
+        "expandedBytes": 344064,
+        "beginToMetadataSeconds": 83.847,
+        "retries": 0
+      },
+      {
+        "entry": 12,
+        "frames": 8,
+        "encodedBytes": 5078,
+        "expandedBytes": 229376,
+        "beginToMetadataSeconds": 58.658,
+        "retries": 0
+      }
+    ],
+    "acr3Cancel": {
+      "entry": 15,
+      "framesPrepared": 12,
+      "encodedBytes": 19240,
+      "dimensions": [
+        40,
+        20
+      ],
+      "chunkRequestsBeforeCancel": 27,
+      "sameTokenCancelStatus": 0,
+      "targetAfterCancel": {
+        "valid": false,
+        "state": "INVALID",
+        "frames": 0,
+        "bytes": 0,
+        "crc32": 0
+      },
+      "other18MetadataUnchanged": true,
+      "recoveredQueriesWithoutKeyboardRestart": true,
+      "conflictConfirmEnabledAndClicked": true,
+      "fullPairedRetrySucceeded": true
+    },
+    "acr3IndependentReadback": {
+      "entries": [
+        {
+          "entry": 12,
+          "frames": 8,
+          "expandedBytes": 229376,
+          "crc32": 2349890946,
+          "userValid": true,
+          "state": 2
+        },
+        {
+          "entry": 15,
+          "frames": 12,
+          "expandedBytes": 344064,
+          "crc32": 871831239,
+          "userValid": true,
+          "state": 2
+        }
+      ],
+      "other17MetadataUnchanged": true,
+      "brightness": 35
+    },
+    "postUploadCore": {
+      "keys16Unchanged": true,
+      "standbyVoiceLeverRepliesUnchanged": true,
+      "standbyMinutes": 60,
+      "hostVoiceOrKeyWrites": 0
+    },
+    "originalCustomResourceCount": 7,
+    "resourceOriginalBytesExported": false
+  },
+  "remaining": {
+    "performance": "605-second worker running; no result claimed yet",
+    "realTimedQuietSleepWake": "not executed in this batch; source sleep actuator still keeps scan/timers/TMOS running",
+    "ownerPhysical": [
+      "Key3 release regression",
+      "8/12-frame OLED quality and animation",
+      "normal reboot retention",
+      "Voice short/long",
+      "lever manual/auto"
+    ],
+    "cleanup": "test entries12/15 retain 8/12-frame complex GIF for final visual/reboot check; restore both defaults afterward",
+    "oldFirmware": "owner declined downgrade; contract regression plus historical HIL only",
+    "fullWBSComplete": false
+  }
+}
