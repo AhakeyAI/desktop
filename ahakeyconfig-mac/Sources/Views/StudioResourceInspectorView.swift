@@ -76,8 +76,7 @@ struct StudioResourceInspectorView: View {
                         .help(NSLocalizedString("仅清除本地选择，不改变键盘。", comment: ""))
                     Button(NSLocalizedString("更换", comment: "")) { choosingFile = true }.buttonStyle(.link).disabled(busy)
                 }.font(.caption)
-                Text(String(format: NSLocalizedString("%d 帧 · 传输 %@", comment: ""), Int(draft.payload.frameCount),
-                    ByteCountFormatter.string(fromByteCount: Int64(draft.payload.bytes.count), countStyle: .file)))
+                Text(String(format: NSLocalizedString("%d 帧", comment: ""), Int(draft.payload.frameCount)))
                     .font(.caption).foregroundStyle(.secondary)
                 if let summary = draft.adaptationSummary {
                     Label(summary, systemImage: "wand.and.stars").font(.caption).foregroundStyle(.secondary)

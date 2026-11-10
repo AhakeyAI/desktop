@@ -31,11 +31,12 @@
     "durableMetadataRequired": true,
     "compactACR3NativeIntegration": true,
     "allArtworkGuaranteedUnder50000": false,
-    "newClientInstalled": false,
+    "newClientInstalled": 576,
     "negotiatedResourceBudgetBytes": 50000,
     "legacyCP2BudgetNotChanged": true,
     "compactPreviewMatchesExpandedPixels": true,
-    "derivedIntegrityLazyPerDraft": true
+    "derivedIntegrityLazyPerDraft": true,
+    "currentCandidateRequiresFix": true
   },
   "verification": {
     "fullSuiteBeforeFinalProgressTest": {
@@ -45,7 +46,7 @@
     "knownIntermittent": "One full run had 121 GIFPreviewFrames cache identity assertions fail. Two isolated reruns and a subsequent unchanged full run passed. No GIF behavior fix claimed. Sustained performance still unverified.",
     "physicalAcceptanceComplete": false,
     "fullSuiteFinal": {
-      "tests": 1095,
+      "tests": 1097,
       "failures": 0
     },
     "specializedTests": 50,
@@ -56,6 +57,14 @@
       "objectBytes": 19240,
       "objectCRC32": 4144442838,
       "expandedCRC32": 2775044983
+    },
+    "firstNativeUpload": {
+      "clientBuild": 576,
+      "failedBeforeBegin": true,
+      "resourceWrites": 0,
+      "cause": "Capability probe lacked the upload mailbox grant; schema validation alone did not authorize transport",
+      "fix": "Shared typed resource exchange and mailbox preflight; both versions covered by new regression",
+      "fixedCandidateInstalled": false
     }
   },
   "scope": "Continue existing WBS and latest firmware adaptation; preserve user artwork and drafts. External contracts and release inputs stay open."

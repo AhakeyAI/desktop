@@ -702,9 +702,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         // A display transaction owns the channel; unrelated raw status/display
         // writes must not race into firmware's single ready command slot.
         if (isUploadingOLED || isUpdatingWS3Display), firmwareCapabilityProfile?.mayQueryWS3Display == true {
-            let ownsWrite = isUploadingOLED ? (confirmedWrite == .ws3Resource || confirmedWrite == .negotiatedResource) :
-                (confirmedWrite == .ws3Display || confirmedWrite == .ws3ResourceRestore)
-            if !ownsWrite, ![UInt8(0x00), 0x88].contains(data.count > 2 ? data[2] : 0xFF) {
+            if !WS3CommandOwnership.permits(data, uploading: isUploadingOLED, updating: isUpdatingWS3Display, grant: confirmedWrite) {
                 appendLog("显示操作占用通道，未发送其他配置命令", category: .verbose)
                 return
             }
@@ -1237,8 +1235,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             // Probe on this connection every time. A legacy ACK only selects
             // the unchanged CP2 path; an ambiguous/invalid probe never writes.
             let negotiated = try await ConfirmedNegotiatedResourceUpload.prepare(payload: payload) { request in
-                try await self.sendCommandAwaitingResponse(request, expectedCommand: 0x9E,
-                    allowDeviceError: true).frame
+                try await self.exchangeNegotiatedResource(request)
             }
             if let negotiated {
                 guard maximum >= 18, maximum >= 37 || commandChar.properties.contains(.write) else { throw WS3ResourceUploadError.invalidMTU }
@@ -1260,8 +1257,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                     generation: generation, chunkSize: chunkSize,
                     checkSession: { try self.ensureConfigurationReadSession(generation) },
                     exchange: { request in
-                        try await self.sendCommandAwaitingResponse(request, expectedCommand: 0x9E,
-                            timeoutSeconds: 15, allowDeviceError: true, confirmedWrite: .negotiatedResource).frame
+                        try await self.exchangeNegotiatedResource(request)
                     }, progress: reportProgress)
             } else {
                 resourceUploadHint = NSLocalizedString("当前固件使用兼容上传，速度可能较慢。", comment: "")
@@ -1288,6 +1284,14 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             }
             throw error
         }
+    }
+
+    private func exchangeNegotiatedResource(_ request: Data) async throws -> Data {
+        guard let grant = WS3CommandOwnership.negotiatedGrant(for: request) else {
+            throw WS3ResourceUploadError.invalidPayload
+        }
+        return try await sendCommandAwaitingResponse(request, expectedCommand: 0x9E,
+            timeoutSeconds: 15, allowDeviceError: true, confirmedWrite: grant).frame
     }
 
     /// Publish only a complete, current-connection four-mode catalog.
@@ -2644,12 +2648,22 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         allowDeviceError: Bool = false, confirmedWrite: ConfigurationCommandPolicy.ConfirmedWrite = .none
     ) async throws -> CommandResponse {
         guard peripheral != nil, commandChar != nil else { throw OLEDUploadError.disconnected }
+        if firmwareCapabilityProfile?.mayQueryWS3Display == true {
+            guard WS3CommandOwnership.permits(data, uploading: isUploadingOLED, updating: isUpdatingWS3Display, grant: confirmedWrite) else {
+                throw OLEDUploadError.channelNotReady
+            }
+        }
         guard resourceUploadGeneration != commandSessionGeneration || confirmedWrite == .negotiatedResource else {
             throw OLEDUploadError.channelNotReady
         }
         let ticket = try await acquireCommandTurn()
         let generation = ticket.generation
         defer { commandTurns.release(ticket) }
+        if firmwareCapabilityProfile?.mayQueryWS3Display == true {
+            guard WS3CommandOwnership.permits(data, uploading: isUploadingOLED, updating: isUpdatingWS3Display, grant: confirmedWrite) else {
+                throw OLEDUploadError.channelNotReady
+            }
+        }
         // Recheck after waiting: an upload may have claimed the mailbox while
         // this ordinary request was queued. Do not replay it after that handoff.
         guard resourceUploadGeneration != commandSessionGeneration || confirmedWrite == .negotiatedResource else {
