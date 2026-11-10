@@ -7,6 +7,12 @@ import codecs
 # Keys are the current Chinese UI strings; values are the English translations.
 # For zh-Hans, values are equal to keys so the fallback behavior is explicit.
 TRANSLATIONS = {
+    "素材请求超时，正在核对键盘接收状态。": "The artwork request timed out. Checking the keyboard accepted offset.",
+    "键盘未确认支持快速素材上传。": "The keyboard has not confirmed support for fast artwork uploads.",
+    "素材事务未确认。请重新连接并读取画面信息后重试；不要直接重复写入。": "The artwork transaction is unconfirmed. Reconnect and read display information before retrying.",
+    "素材回复与本次上传不一致，未确认成功。": "The artwork reply does not match this upload. Success is not confirmed.",
+    "已自动压缩至 %d×%d，保留 %d 帧": "Automatically resized to %d×%d, retaining %d frames",
+    "当前固件使用兼容上传，速度可能较慢。": "This firmware uses compatible uploads, which may take longer.",
     "后台服务已被系统停用。": "The background service is disabled by macOS.",
     "后台服务已被系统停用。请点击“启用并重试”恢复运行。": "The background service is disabled by macOS. Click Enable and Retry to resume it.",
     "启用并重试": "Enable and Retry",
