@@ -18,6 +18,11 @@ public enum DeviceResponseMatcher {
             return received.count == 12 || received.count == 13
         }
         if expectedCommand == 0x9E {
+            if let command = ACR4Command(request: request) {
+                if command.isLegacyUnsupportedReply(response) { return true }
+                if command.operation == .caps && received.count == 6 { return received[3] <= 1 }
+                return ACR4Reply(frame: response, command: command) != nil
+            }
             guard let command = K1OutputRouteCommand(request: request) else { return false }
             // Accept a legacy ACK only as a completed negative probe. The
             // transaction explicitly rejects it as capability evidence.

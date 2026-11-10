@@ -3,16 +3,21 @@ import Foundation
 /// WS2 mode, standby and side-binding writes require a narrow confirmed-transaction
 /// grant. Other configuration writes stay closed; unknown builds allow probes.
 public enum ConfigurationCommandPolicy {
-    public enum ConfirmedWrite { case none, deviceName, mode, standby, sideSwitch, ordinaryKey, voiceHandoff, ws3Display, ws3Resource, ws3ResourceRestore, ws3Presentation, k1Route, k1Initialization, restoreInitialization }
+    public enum ConfirmedWrite { case none, deviceName, mode, standby, sideSwitch, ordinaryKey, voiceHandoff, ws3Display, ws3Resource, acr4Resource, ws3ResourceRestore, ws3Presentation, k1Route, k1Initialization, restoreInitialization }
     public static func permits(_ data: Data, profile: FirmwareCapabilityProfile?, confirmedWrite: ConfirmedWrite = .none,
                                ws3DisplayReadbackVerified: Bool = false, k1RouteReadbackVerified: Bool = false,
                                restoreReadbackVerified: Bool = false,
-                               k1InitializationReadbackVerified: Bool = false) -> Bool {
+                               k1InitializationReadbackVerified: Bool = false, acr4ReadbackVerified: Bool = false) -> Bool {
         let b = [UInt8](data)
         guard b.count >= 5, b[0] == 0xAA, b[1] == 0xBB,
               b[b.count - 2] == 0xCC, b[b.count - 1] == 0xDD else { return false }
         guard FirmwareCommandNamespace(command: b[2]) == .official else { return false }
         if b[2] == 0x9E {
+            if let command = ACR4Command(request: data) {
+                guard profile?.mayQueryWS3Resources == true else { return false }
+                if command.operation == .caps { return confirmedWrite == .none || confirmedWrite == .acr4Resource }
+                return confirmedWrite == .acr4Resource && ws3DisplayReadbackVerified && acr4ReadbackVerified
+            }
             guard profile?.mayQueryOrdinaryKeys == true, let command = K1OutputRouteCommand(request: data) else { return false }
             switch command {
             case .capability, .restoreStatus: return true

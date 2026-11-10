@@ -8,6 +8,7 @@ public struct DeviceFrameDecoder {
     private var bytes: [UInt8] = []
     private let maximumFrameLength = 64
     private var k1Reply: K1OutputRouteCommand?
+    private var acr4Reply: ACR4Command?
 
     public init() {}
 
@@ -23,12 +24,14 @@ public struct DeviceFrameDecoder {
     public mutating func reset() {
         bytes.removeAll(keepingCapacity: true)
         k1Reply = nil
+        acr4Reply = nil
     }
 
     /// The route-slice response omits its slice length. Only the current
     /// serialized request supplies it; payload trailer bytes are never scanned.
     public mutating func expectResponse(to request: Data) {
         k1Reply = K1OutputRouteCommand(request: request)
+        acr4Reply = ACR4Command(request: request)
     }
 
     public mutating func append(_ chunk: Data) -> [Data] {
@@ -77,6 +80,15 @@ public struct DeviceFrameDecoder {
         let status = bytes[3]
         if command == 0x9E {
             if hasTrailer(at: 4) { return .complete(6) }
+            if let expected = acr4Reply {
+                guard bytes.count >= 7 else { return .incomplete }
+                if expected.operation == .caps, status == 1, bytes[4] == 4, bytes[5] == 0x40, bytes[6] == 0 {
+                    return .complete(12) // Explicit negative legacy v1 envelope only.
+                }
+                guard bytes[4] == 4, bytes[5] == expected.operation.rawValue,
+                      status <= 11, Int(bytes[6]) == (status == 0 ? expected.successBodyLength : 4) else { return .invalid }
+                return .complete(13 + Int(bytes[6]))
+            }
             guard let expected = k1Reply else { return .invalid }
             if bytes[5] == 0x30 || bytes[5] == 0x31 { return .complete(17) }
             if status == 1 { return .complete(12) }

@@ -37,6 +37,7 @@ public struct WS3ResourcePayload: Equatable, Sendable {
     public let frameCount: UInt16
     public let bytes: Data
     public let crc32: UInt32
+    public let losslessCRC32: UInt32
     public init(entryID: UInt8, frames: [Data]) throws {
         guard entryID < 19, !frames.isEmpty, frames.allSatisfy({ $0.count == 25_600 }) else {
             throw WS3ResourceUploadError.invalidPayload
@@ -50,6 +51,7 @@ public struct WS3ResourcePayload: Equatable, Sendable {
             payload.append(Data(repeating: 0xFF, count: Int(WS3ResourceReadback.frameBytes) - frame.count))
         }
         bytes = payload; crc32 = Self.checksum(payload)
+        losslessCRC32 = ACR4ResourceObject.expandedChecksum(frames: frames)
     }
     public static func checksum(_ data: Data) -> UInt32 {
         var crc: UInt32 = 0xFFFFFFFF

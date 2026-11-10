@@ -1,0 +1,50 @@
+{
+  "recordedAt": "2026-11-10T15:30:40.731641+08:00",
+  "firmwareArchive": "b8be671c7462c5fef962f1f9c0b43aee3b58f434",
+  "firmwareSource": "0471372159f6978ab19712f79d6524443a684fd9",
+  "hexSHA256": "ca240dc1f34d8bd71bf2eb21bd59f65030c224c13535a1c43d56a695d1d3ed81",
+  "flash": {
+    "clientBuild": 575,
+    "policy": "preserve DataFlash and external Flash",
+    "codeWriteBytes": 286720,
+    "verifyOK": true,
+    "runtimeReconnected": true,
+    "catalogIdentity": "x1-c582-hw1-p1-1.0.1-r001",
+    "identityProvesHEX": false
+  },
+  "readOnlyHIL": {
+    "keysPreservedByteForByte": 16,
+    "standbyVoiceAndLeverRepliesPreserved": true,
+    "standbyMinutes": 60,
+    "acr4ChunkMax": 128,
+    "resourceMetadataCount": 19,
+    "validCustomResources": 7,
+    "resourceWritesPerformed": 0,
+    "key3PhysicalResult": "not received; HID capture stopped; consolidate final owner test"
+  },
+  "development": {
+    "losslessObjectEncoder": true,
+    "nativeBLEIntegration": true,
+    "correlatedTimeoutRecoveryAndCancel": true,
+    "legacyF99DNegativeCapsFallback": true,
+    "exclusiveMailbox": true,
+    "durableMetadataRequired": true,
+    "compactACR3NativeIntegration": false,
+    "allArtworkGuaranteedUnder50000": false,
+    "newClientInstalled": false
+  },
+  "verification": {
+    "fullSuiteBeforeFinalProgressTest": {
+      "tests": 1086,
+      "failures": 0
+    },
+    "knownIntermittent": "One full run had 121 GIFPreviewFrames cache identity assertions fail. Two isolated reruns and a subsequent unchanged full run passed. No GIF behavior fix claimed. Sustained performance still unverified.",
+    "physicalAcceptanceComplete": false,
+    "fullSuiteFinal": {
+      "tests": 1087,
+      "failures": 0
+    },
+    "specializedTests": 50
+  },
+  "scope": "Continue existing WBS and latest firmware adaptation; preserve user artwork and drafts. External contracts and release inputs stay open."
+}

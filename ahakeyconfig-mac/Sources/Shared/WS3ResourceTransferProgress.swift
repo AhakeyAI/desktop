@@ -1,6 +1,8 @@
 import Foundation
 
-/// Actual acknowledged wire bytes, including sector padding. Estimation starts
+/// Acknowledged resource bytes: CP2 includes sector padding; ACR4 counts the
+/// encoded object. Protocol envelopes, replies and retries are not included.
+/// Estimation starts
 /// after BEGIN, and is display-only: it never changes pacing or retry policy.
 public struct WS3ResourceTransferProgress: Equatable {
     public let completedBytes: Int
