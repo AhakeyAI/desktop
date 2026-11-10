@@ -95,10 +95,60 @@
       "hostVoiceOrKeyWrites": 0
     },
     "originalCustomResourceCount": 7,
-    "resourceOriginalBytesExported": false
+    "resourceOriginalBytesExported": false,
+    "acr4Cancel": {
+      "entry": 13,
+      "framesPrepared": 12,
+      "encodedBytes": 7729,
+      "chunkRequestsBeforeCancel": 7,
+      "sameTokenCancelStatus": 0,
+      "targetAfterCancel": {
+        "valid": false,
+        "state": "INVALID",
+        "frames": 0,
+        "bytes": 0,
+        "crc32": 0
+      },
+      "other18MetadataUnchanged": true,
+      "recoveredQueriesWithoutKeyboardRestart": true,
+      "conflictConfirmEnabledAndClicked": true,
+      "fullRetrySucceeded": true,
+      "retryBeginToMetadataSeconds": 87.346
+    },
+    "finalResources": {
+      "testEntries": [
+        {
+          "entry": 12,
+          "frames": 8,
+          "expandedBytes": 229376,
+          "crc32": 2349890946,
+          "userValid": true,
+          "state": 2
+        },
+        {
+          "entry": 13,
+          "frames": 12,
+          "expandedBytes": 344064,
+          "crc32": 3014033367,
+          "userValid": true,
+          "state": 2
+        },
+        {
+          "entry": 15,
+          "frames": 12,
+          "expandedBytes": 344064,
+          "crc32": 871831239,
+          "userValid": true,
+          "state": 2
+        }
+      ],
+      "other16MetadataMatchOriginal": true,
+      "brightness": 35,
+      "customCount": 10
+    }
   },
   "remaining": {
-    "performance": "605-second worker running; no result claimed yet",
+    "performance": "completed within documented scenario; real CLI discovery and rendered FPS not asserted",
     "realTimedQuietSleepWake": "not executed in this batch; source sleep actuator still keeps scan/timers/TMOS running",
     "ownerPhysical": [
       "Key3 release regression",
@@ -107,8 +157,45 @@
       "Voice short/long",
       "lever manual/auto"
     ],
-    "cleanup": "test entries12/15 retain 8/12-frame complex GIF for final visual/reboot check; restore both defaults afterward",
+    "cleanup": "Test entries12/13/15 retain three animations for final visual/reboot check; restore all three defaults afterward",
     "oldFirmware": "owner declined downgrade; contract regression plus historical HIL only",
     "fullWBSComplete": false
+  },
+  "performance": {
+    "build": 578,
+    "durationSeconds": 604.582588292,
+    "samples": 122,
+    "failure": null,
+    "syntheticTasks": 3,
+    "realCLIThreeSessionDiscoveryVerified": false,
+    "titleBarKeepaliveEverySeconds": 60,
+    "macOSPowerSettingsChanged": false,
+    "initialDisplayModeUnselected": true,
+    "configuredGIFFrames": 120,
+    "configuredFPS": 12,
+    "renderedFPSMeasured": false,
+    "allFrontmost": true,
+    "allConnectedAndMulti": true,
+    "testTasksRemoved": true,
+    "originalRequestedModeRestored": true,
+    "processes": {
+      "studio": {
+        "continuousPID": true,
+        "rssFirstKB": 141200,
+        "rssLastKB": 124992,
+        "rssPeakKB": 143056,
+        "averageCPUPercentOneCore": 10.582507872208037
+      },
+      "agent": {
+        "continuousPID": true,
+        "rssFirstKB": 19760,
+        "rssLastKB": 18272,
+        "rssPeakKB": 19776,
+        "averageCPUPercentOneCore": 0.6748457661551859
+      }
+    },
+    "sustainedScenarioPassed": true,
+    "sourceGIF": "bundled DefaultOLED/claude_0.gif; current mode0 host draft configured12FPS and LCD selected",
+    "modeRestorationEvidence": "Agent mode initially unselected after a read lease; conditional restore re-established the last explicitly written Single choice before sampling, then restored that choice after the test."
   }
 }
