@@ -21,7 +21,7 @@ public enum WS3ResourceMetadataComparison: Equatable {
         if payload.entryID != resource.id { self = .different }
         else if !resource.reportsValidUserResource { self = .noValidCustomResource }
         else if payload.frameCount == resource.frames && UInt32(payload.bytes.count) == resource.payloadBytes &&
-            (payload.crc32 == resource.crc32 || payload.losslessCRC32 == resource.crc32) { self = .matches }
+            (payload.crc32 == resource.crc32 || payload.losslessCRC32 == resource.crc32 || payload.compactCRC32 == resource.crc32) { self = .matches }
         else { self = .different }
     }
 }

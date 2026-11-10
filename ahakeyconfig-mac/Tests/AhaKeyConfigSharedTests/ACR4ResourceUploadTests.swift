@@ -4,7 +4,7 @@ import XCTest
 @MainActor
 final class ACR4ResourceUploadTests: XCTestCase {
     private final class Firmware {
-        let object: ACR4ResourceObject
+        let object: any NegotiatedResourceObject
         var requests: [ACR4Command] = []
         var stored = Data()
         var state: UInt8 = 0
@@ -17,8 +17,9 @@ final class ACR4ResourceUploadTests: XCTestCase {
         var corruptCRC = false
         var generationValid = true
         var afterChunk: (() -> Void)?
-        init() throws {
-            object = ACR4ResourceObject(payload: try WS3ResourcePayload(entryID: 15, frames: [Data(count: 25600)]))
+        init(compact: Bool = false) throws {
+            let payload = try WS3ResourcePayload(entryID: 15, frames: [Data(count: 25600)])
+            object = compact ? CompactResourceObject(payload: payload) : ACR4ResourceObject(payload: payload)
         }
         var baseline: WS3DisplaySnapshot {
             .init(generation: 8, brightness: 35, resources: (UInt8(0)..<19).map {
@@ -27,12 +28,18 @@ final class ACR4ResourceUploadTests: XCTestCase {
             })
         }
         func exchange(_ wire: Data) throws -> Data {
-            let command = try XCTUnwrap(ACR4Command(request: wire)); requests.append(command)
+            let command: ACR4Command
+            if object.format == .compact {
+                let compact = try XCTUnwrap(CompactResourceCommand(request: wire))
+                command = ACR4Command(compact.operation, token: compact.token, fields: compact.fields)
+            } else { command = try XCTUnwrap(ACR4Command(request: wire)) }
+            requests.append(command)
             var fields = Data(), status: UInt8 = 0
-            if drop == command.operation && dropBeforeAccept { drop = nil; throw ACR4UploadFailure.timeout }
+            if drop == command.operation && dropBeforeAccept { drop = nil; throw NegotiatedResourceUploadFailure.timeout }
             switch command.operation {
             case .caps:
-                fields = Data(Array("ACR4".utf8) + [15, 0]) + ACR4Command.le(307240) + Data([128, 1, 8, 12])
+                fields = Data(Array((object.format == .compact ? "ACR3" : "ACR4").utf8) + [15, 0]) +
+                    ACR4Command.le(object.format == .compact ? 50000 : 307240) + Data([128, object.format == .compact ? 7 : 1, 8, 12])
             case .begin:
                 XCTAssertEqual(command.fields[0], object.entry)
                 XCTAssertEqual(ACR4Command.u32([UInt8](command.fields), 1), UInt32(object.bytes.count))
@@ -45,6 +52,7 @@ final class ACR4ResourceUploadTests: XCTestCase {
                 stored.append(command.fields.dropFirst(5))
                 fields = ACR4Command.le(UInt32(stored.count)) + Data([command.fields[4]])
                 afterChunk?()
+                if object.format == .compact { fields.append(ACR4Command.le(0)) }
             case .commit:
                 XCTAssertEqual(stored, object.bytes)
                 committed = true; state = 0
@@ -60,12 +68,12 @@ final class ACR4ResourceUploadTests: XCTestCase {
                     ACR4Command.le(committed ? object.expandedBytes : 0) +
                     ACR4Command.le(committed ? object.expandedCRC ^ (corruptCRC ? 1 : 0) : 0)
             }
-            if drop == command.operation { drop = nil; throw ACR4UploadFailure.timeout }
-            var reply = Data([0xAA, 0xBB, 0x9E, status, 4, command.operation.rawValue, UInt8(fields.count)])
+            if drop == command.operation { drop = nil; throw NegotiatedResourceUploadFailure.timeout }
+            var reply = Data([0xAA, 0xBB, 0x9E, status, object.format.rawValue, command.operation.rawValue, UInt8(fields.count)])
             reply.append(ACR4Command.le(command.token)); reply.append(fields); reply.append(contentsOf: [0xCC, 0xDD]); return reply
         }
         func run(progress: (Int, Int) -> Void = { _, _ in }) async throws -> WS3ResourceReadback {
-            try await ConfirmedACR4ResourceUpload.run(object: object, baseline: baseline, generation: 8, chunkSize: 128,
+            try await ConfirmedNegotiatedResourceUpload.run(object: object, baseline: baseline, generation: 8, chunkSize: 128,
                 checkSession: { if !self.generationValid { throw WS3ResourceUploadError.unverifiedConnection } },
                 exchange: { try self.exchange($0) }, progress: progress)
         }
@@ -105,7 +113,7 @@ final class ACR4ResourceUploadTests: XCTestCase {
     func testStorageFailureUsesTokenCancelAndNeverDestructiveDefaultRestore() async throws {
         let io = try Firmware(); io.rejectChunks = true
         do { _ = try await io.run(); XCTFail() }
-        catch { XCTAssertEqual(error as? ACR4UploadFailure, .rejected(10)) }
+        catch { XCTAssertEqual(error as? NegotiatedResourceUploadFailure, .rejected(10)) }
         XCTAssertTrue(io.cancelled)
         XCTAssertFalse(io.requests.contains { $0.operation == .commit })
         XCTAssertEqual(io.requests.filter { $0.operation == .begin }.first?.token,
@@ -119,13 +127,13 @@ final class ACR4ResourceUploadTests: XCTestCase {
         XCTAssertTrue(io.cancelled)
         let fault = try Firmware(); fault.rejectChunks = true; fault.cleanupFault = true
         do { _ = try await fault.run(); XCTFail() }
-        catch { XCTAssertEqual(error as? ACR4UploadFailure, .uncertain) }
+        catch { XCTAssertEqual(error as? NegotiatedResourceUploadFailure, .uncertain) }
     }
 
     func testGenerationLossStopsAllFurtherCommandsIncludingCleanup() async throws {
         let io = try Firmware(); io.afterChunk = { io.generationValid = false }
         do { _ = try await io.run(); XCTFail() }
-        catch { XCTAssertEqual(error as? ACR4UploadFailure, .uncertain) }
+        catch { XCTAssertEqual(error as? NegotiatedResourceUploadFailure, .uncertain) }
         XCTAssertEqual(io.requests.last?.operation, .chunk)
         XCTAssertFalse(io.requests.contains { $0.operation == .commit || $0.operation == .cancel })
     }
@@ -140,14 +148,14 @@ final class ACR4ResourceUploadTests: XCTestCase {
     }
 
     func testLegacyCapabilityACKAndUnsupportedReplyAllowOnlyNoBeginFallback() async throws {
-        let capability = try await ConfirmedACR4ResourceUpload.capability { _ in Data([0xAA, 0xBB, 0x9E, 0, 0xCC, 0xDD]) }
+        let capability = try await ConfirmedNegotiatedResourceUpload.capability { _ in Data([0xAA, 0xBB, 0x9E, 0, 0xCC, 0xDD]) }
         XCTAssertNil(capability)
-        let oldFirmware = try await ConfirmedACR4ResourceUpload.capability { wire in
+        let oldFirmware = try await ConfirmedNegotiatedResourceUpload.capability { wire in
             Data([0xAA, 0xBB, 0x9E, 1, 4, 0x40]) + wire.subdata(in: 5..<9) + Data([0xCC, 0xDD])
         }
         XCTAssertNil(oldFirmware)
         let io = try Firmware()
-        let supported = try await ConfirmedACR4ResourceUpload.capability { try io.exchange($0) }
+        let supported = try await ConfirmedNegotiatedResourceUpload.capability { try io.exchange($0) }
         XCTAssertEqual(supported, 128)
         XCTAssertEqual(io.requests.map(\.operation), [.caps])
     }
@@ -158,14 +166,28 @@ final class ACR4ResourceUploadTests: XCTestCase {
         let command = ACR4Command(.begin, token: 9, fields: Data([io.object.entry]) + ACR4Command.le(UInt32(io.object.bytes.count)) +
             ACR4Command.le(WS3ResourcePayload.checksum(io.object.bytes)) + io.object.bytes.prefix(16))
         XCTAssertFalse(ConfigurationCommandPolicy.permits(command.request, profile: profile))
-        XCTAssertFalse(ConfigurationCommandPolicy.permits(command.request, profile: profile, confirmedWrite: .acr4Resource, ws3DisplayReadbackVerified: true))
-        XCTAssertTrue(ConfigurationCommandPolicy.permits(command.request, profile: profile, confirmedWrite: .acr4Resource,
+        XCTAssertFalse(ConfigurationCommandPolicy.permits(command.request, profile: profile, confirmedWrite: .negotiatedResource, ws3DisplayReadbackVerified: true))
+        XCTAssertTrue(ConfigurationCommandPolicy.permits(command.request, profile: profile, confirmedWrite: .negotiatedResource,
             ws3DisplayReadbackVerified: true, acr4ReadbackVerified: true))
-        XCTAssertFalse(ConfigurationCommandPolicy.permits(command.request, profile: nil, confirmedWrite: .acr4Resource,
+        XCTAssertFalse(ConfigurationCommandPolicy.permits(command.request, profile: nil, confirmedWrite: .negotiatedResource,
             ws3DisplayReadbackVerified: true, acr4ReadbackVerified: true))
         let payload = try WS3ResourcePayload(entryID: 15, frames: [Data(count: 25600)])
         let resource = WS3ResourceReadback(id: 15, basic: .resourceBasic(userValid: true, writeState: .valid),
             integrity: .resourceIntegrity(frames: 1, bytes: 28672, crc32: io.object.expandedCRC))!
         XCTAssertEqual(WS3ResourceMetadataComparison(payload: payload, resource: resource), .matches)
+    }
+
+    func testCompactTransferSharesRecoveryWithoutSharingWireReplyLengths() async throws {
+        for operation: ACR4Command.Operation in [.begin, .chunk, .commit] {
+            let io = try Firmware(compact: true); io.drop = operation
+            let value = try await io.run()
+            XCTAssertEqual(value.crc32, io.object.expandedCRC)
+            XCTAssertEqual(io.stored, io.object.bytes)
+            XCTAssertEqual(io.requests.filter { $0.operation == .begin }.count, 1)
+        }
+        let cancelled = try Firmware(compact: true); cancelled.afterChunk = { withUnsafeCurrentTask { $0?.cancel() } }
+        let operation = Task { try await cancelled.run() }
+        do { _ = try await operation.value; XCTFail() } catch { XCTAssertTrue(error is CancellationError) }
+        XCTAssertTrue(cancelled.cancelled)
     }
 }

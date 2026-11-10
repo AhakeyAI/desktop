@@ -177,6 +177,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var linkDiagnostic: LinkDiagnostic = .idle
     @Published private(set) var oledUploadProgress: OLEDUploadProgress?
     @Published private(set) var isUploadingOLED = false
+    @Published private(set) var resourceUploadPreview: (entry: UInt8, png: Data, summary: String)?
+    @Published private(set) var resourceUploadHint: String?
     /// 由 ahakeyconfig-agent 写入的当前 IDE hook 状态值（IDEState.rawValue），用于画布 LED 颜色实时还原
     @Published private(set) var liveIDEStateValue: Int? = nil
     /// Agent 端 BLE 通知缓存（agent 占用蓝牙时主 App 自己 BLE 未连，靠这些读到键盘实时状态）。
@@ -332,9 +334,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     private let commandTurns = CommandTurnQueue()
     private var commandTurnOccupied: Bool { commandTurns.isOccupied }
     private var commandSessionGeneration: UInt64 = 0
-    private var acr4UploadGeneration: UInt64?
-    private var acr4CommandFragments: [Data] = []
-    private var acr4FragmentAwaitingAck = false
+    private var resourceUploadGeneration: UInt64?
+    private var resourceUploadFormat: NegotiatedResourceFormat?
+    private var resourceCommandFragments: [Data] = []
+    private var resourceFragmentAwaitingAck = false
     private var nextCommandRequestID: UInt64 = 0
     private var commandChannelUnsynchronized: Bool { commandTurns.isInvalidated }
     private var hasValidStatusReadback = false
@@ -673,7 +676,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     private func writeCommand(_ data: Data, confirmedWrite: ConfigurationCommandPolicy.ConfirmedWrite) {
         // No status poll, Hook update or raw display write may occupy firmware's
         // single command mailbox during an ACR4 transaction or its cleanup.
-        if acr4UploadGeneration == commandSessionGeneration, confirmedWrite != .acr4Resource { return }
+        if resourceUploadGeneration == commandSessionGeneration, confirmedWrite != .negotiatedResource { return }
         if isRestoringInitialization, confirmedWrite != .restoreInitialization {
             let b = [UInt8](data)
             let readOnly = b.count >= 5 && (
@@ -699,7 +702,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         // A display transaction owns the channel; unrelated raw status/display
         // writes must not race into firmware's single ready command slot.
         if (isUploadingOLED || isUpdatingWS3Display), firmwareCapabilityProfile?.mayQueryWS3Display == true {
-            let ownsWrite = isUploadingOLED ? (confirmedWrite == .ws3Resource || confirmedWrite == .acr4Resource) :
+            let ownsWrite = isUploadingOLED ? (confirmedWrite == .ws3Resource || confirmedWrite == .negotiatedResource) :
                 (confirmedWrite == .ws3Display || confirmedWrite == .ws3ResourceRestore)
             if !ownsWrite, ![UInt8(0x00), 0x88].contains(data.count > 2 ? data[2] : 0xFF) {
                 appendLog("显示操作占用通道，未发送其他配置命令", category: .verbose)
@@ -711,7 +714,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                                                k1RouteReadbackVerified: hasCurrentK1RouteProof,
                                                restoreReadbackVerified: hasCurrentRestoreProof,
                                                k1InitializationReadbackVerified: hasCurrentK1InitializationProof,
-                                               acr4ReadbackVerified: acr4UploadGeneration == commandSessionGeneration) else {
+                                               acr4ReadbackVerified: resourceUploadGeneration == commandSessionGeneration && resourceUploadFormat == .lossless,
+                                               compactReadbackVerified: resourceUploadGeneration == commandSessionGeneration && resourceUploadFormat == .compact) else {
             appendLog("当前固件配置写入尚未验证，已阻止写入", isError: true)
             return
         }
@@ -721,21 +725,21 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             return
         }
         let writeType: CBCharacteristicWriteType =
-            confirmedWrite == .acr4Resource && commandChar.properties.contains(.write) ? .withResponse :
+            confirmedWrite == .negotiatedResource && commandChar.properties.contains(.write) ? .withResponse :
             (commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse)
         // With-response may advertise long GATT writes. The firmware command
         // assembler expects ordinary ATT fragments, so also cap at MTU-3.
-        let maximum = confirmedWrite == .acr4Resource
+        let maximum = confirmedWrite == .negotiatedResource
             ? min(peripheral.maximumWriteValueLength(for: writeType), peripheral.maximumWriteValueLength(for: .withoutResponse))
             : peripheral.maximumWriteValueLength(for: writeType)
-        if confirmedWrite == .acr4Resource, data.count > maximum {
+        if confirmedWrite == .negotiatedResource, data.count > maximum {
             // BEGIN is 37 bytes. On a 20-byte link it is one protocol command
             // split into ordered, acknowledged BLE writes, never two commands.
             guard writeType == .withResponse, maximum >= 12 else { invalidateCommandResponseChannel(); return }
-            acr4CommandFragments = stride(from: 0, to: data.count, by: maximum).map {
+            resourceCommandFragments = stride(from: 0, to: data.count, by: maximum).map {
                 data.subdata(in: $0..<min($0 + maximum, data.count))
             }
-            sendNextACR4Fragment()
+            sendNextResourceFragment()
             return
         }
         peripheral.writeValue(data, for: commandChar, type: writeType)
@@ -744,11 +748,11 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
     }
 
-    private func sendNextACR4Fragment() {
-        guard acr4UploadGeneration == commandSessionGeneration, !acr4FragmentAwaitingAck,
-              let peripheral, let commandChar, !acr4CommandFragments.isEmpty else { return }
-        acr4FragmentAwaitingAck = true
-        peripheral.writeValue(acr4CommandFragments.removeFirst(), for: commandChar, type: .withResponse)
+    private func sendNextResourceFragment() {
+        guard resourceUploadGeneration == commandSessionGeneration, !resourceFragmentAwaitingAck,
+              let peripheral, let commandChar, !resourceCommandFragments.isEmpty else { return }
+        resourceFragmentAwaitingAck = true
+        peripheral.writeValue(resourceCommandFragments.removeFirst(), for: commandChar, type: .withResponse)
     }
 
     func uploadOLEDFrames(_ frames: [Data], fps: Int, mode: UInt8 = 0, startIndex: UInt16 = 0) async throws {
@@ -1203,10 +1207,13 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         guard maximum >= 16, chunkSize > 0 else { throw WS3ResourceUploadError.invalidMTU }
         isUploadingOLED = true
         var totalChunks = (payload.bytes.count + chunkSize - 1) / chunkSize
+        resourceUploadPreview = nil
+        resourceUploadHint = nil
         oledUploadProgress = .init(completedChunks: 0, totalChunks: totalChunks, completedFrames: 0, totalFrames: Int(payload.frameCount))
         defer {
             if generation == commandSessionGeneration {
-                acr4UploadGeneration = nil; isUploadingOLED = false; oledUploadProgress = nil
+                resourceUploadGeneration = nil; isUploadingOLED = false; oledUploadProgress = nil
+                resourceUploadFormat = nil
             }
         }
         var lastProgressAt = ProcessInfo.processInfo.systemUptime
@@ -1218,7 +1225,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             lastProgressAt = now
             // ACR4 encoded bytes do not map to completed frames. Keep frame
             // completion unclaimed until durable metadata confirms the object.
-            let completedFrames = self.acr4UploadGeneration == generation
+            let completedFrames = self.resourceUploadGeneration == generation
                 ? 0
                 : bytes / Int(WS3ResourceReadback.frameBytes)
             self.oledUploadProgress = .init(completedChunks: (bytes + chunkSize - 1) / chunkSize,
@@ -1229,29 +1236,36 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             let actual: WS3ResourceReadback
             // Probe on this connection every time. A legacy ACK only selects
             // the unchanged CP2 path; an ambiguous/invalid probe never writes.
-            let negotiated = try await ConfirmedACR4ResourceUpload.capability { request in
+            let negotiated = try await ConfirmedNegotiatedResourceUpload.prepare(payload: payload) { request in
                 try await self.sendCommandAwaitingResponse(request, expectedCommand: 0x9E,
                     allowDeviceError: true).frame
             }
             if let negotiated {
                 guard maximum >= 18, maximum >= 37 || commandChar.properties.contains(.write) else { throw WS3ResourceUploadError.invalidMTU }
                 try ensureConfigurationReadSession(generation)
-                acr4UploadGeneration = generation
-                let object = ACR4ResourceObject(payload: payload)
-                chunkSize = min(negotiated, maximum - 17)
+                resourceUploadGeneration = generation
+                let object = negotiated.object
+                resourceUploadFormat = object.format
+                if let compact = object as? CompactResourceObject {
+                    let png = try OLEDFrameEncoder.previewPNG(rgb565: compact.previewPixels)
+                    let summary = String(format: NSLocalizedString("已自动压缩至 %d×%d，保留 %d 帧", comment: ""), compact.width, compact.height, Int(compact.frames))
+                    resourceUploadPreview = (compact.entry, png, summary)
+                }
+                chunkSize = min(negotiated.chunkSize, maximum - 17)
                 totalChunks = (object.bytes.count + chunkSize - 1) / chunkSize
                 oledUploadProgress = .init(completedChunks: 0, totalChunks: totalChunks,
                     completedFrames: 0, totalFrames: Int(payload.frameCount))
-                appendLog("无损上传：\(object.bytes.count) 字节，\(object.frames) 帧；保留原分辨率及像素")
-                actual = try await ConfirmedACR4ResourceUpload.run(object: object, baseline: baseline,
+                appendLog("素材上传：\(object.format) · \(object.bytes.count) 字节 · \(object.frames) 帧")
+                actual = try await ConfirmedNegotiatedResourceUpload.run(object: object, baseline: baseline,
                     generation: generation, chunkSize: chunkSize,
                     checkSession: { try self.ensureConfigurationReadSession(generation) },
                     exchange: { request in
                         try await self.sendCommandAwaitingResponse(request, expectedCommand: 0x9E,
-                            timeoutSeconds: 15, allowDeviceError: true, confirmedWrite: .acr4Resource).frame
+                            timeoutSeconds: 15, allowDeviceError: true, confirmedWrite: .negotiatedResource).frame
                     }, progress: reportProgress)
             } else {
-                appendLog("键盘未提供 ACR4 能力，使用兼容素材上传")
+                resourceUploadHint = NSLocalizedString("当前固件使用兼容上传，速度可能较慢。", comment: "")
+                appendLog("键盘未提供快速上传能力，使用兼容素材上传（传输大小由旧协议决定）")
                 actual = try await ConfirmedWS3ResourceUpload.run(payload: payload, baseline: baseline,
                     generation: generation, maximumWriteLength: maximum,
                     checkSession: { try self.ensureConfigurationReadSession(generation) },
@@ -2463,8 +2477,11 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func resetCommandSession() {
-        acr4UploadGeneration = nil
-        acr4CommandFragments.removeAll(); acr4FragmentAwaitingAck = false
+        resourceUploadGeneration = nil
+        resourceUploadFormat = nil
+        resourceUploadPreview = nil
+        resourceUploadHint = nil
+        resourceCommandFragments.removeAll(); resourceFragmentAwaitingAck = false
         k1UnavailableProofGeneration = nil
         k1RouteOperationID = nil; isManagingK1Route = false; isInitializingK1Routes = false
         restoreStatusProof = nil
@@ -2525,9 +2542,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         guard let pending = pendingCommandResponse,
               pending.id == id, pending.generation == generation else { return }
         pendingCommandResponse = nil
-        if acr4UploadGeneration == generation, ACR4Command(request: pending.request) != nil,
-           acr4CommandFragments.isEmpty, !acr4FragmentAwaitingAck {
-            pending.continuation.resume(throwing: ACR4UploadFailure.timeout)
+        if resourceUploadGeneration == generation,
+           ACR4Command(request: pending.request) != nil || CompactResourceCommand(request: pending.request) != nil,
+           resourceCommandFragments.isEmpty, !resourceFragmentAwaitingAck {
+            pending.continuation.resume(throwing: NegotiatedResourceUploadFailure.timeout)
             return
         }
         // ACKs have no transaction ID. A late reply could otherwise complete
@@ -2540,7 +2558,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     /// must not be consumed by another operation on this connection.
     func cancelConfigurationOperation() {
         guard isConfigurationOperationInProgress else { return }
-        if acr4UploadGeneration == commandSessionGeneration {
+        if resourceUploadGeneration == commandSessionGeneration {
             if let pending = pendingCommandResponse { cancelCommandResponse(id: pending.id, generation: pending.generation) }
             return // The cancelled owning Task drains the transaction with CANCEL.
         }
@@ -2552,7 +2570,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func invalidateCommandResponseChannel() {
-        acr4CommandFragments.removeAll(); acr4FragmentAwaitingAck = false
+        resourceCommandFragments.removeAll(); resourceFragmentAwaitingAck = false
         k1UnavailableProofGeneration = nil
         restoreStatusProof = nil
         k1RouteProofGeneration = nil
@@ -2588,8 +2606,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
               pending.id == id, pending.generation == generation else { return }
         pendingCommandResponse = nil
         pending.timeoutTask.cancel()
-        if acr4UploadGeneration == generation, ACR4Command(request: pending.request) != nil,
-           acr4CommandFragments.isEmpty, !acr4FragmentAwaitingAck {
+        if resourceUploadGeneration == generation,
+           ACR4Command(request: pending.request) != nil || CompactResourceCommand(request: pending.request) != nil,
+           resourceCommandFragments.isEmpty, !resourceFragmentAwaitingAck {
             pending.continuation.resume(throwing: CancellationError())
             return
         }
@@ -2611,8 +2630,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         } else {
             return
         }
-        if acr4UploadGeneration == pending.generation, ACR4Command(request: pending.request) != nil {
-            acr4CommandFragments.removeAll(); acr4FragmentAwaitingAck = false
+        if resourceUploadGeneration == pending.generation,
+           ACR4Command(request: pending.request) != nil || CompactResourceCommand(request: pending.request) != nil {
+            resourceCommandFragments.removeAll(); resourceFragmentAwaitingAck = false
         }
         pendingCommandResponse = nil
         pending.timeoutTask.cancel()
@@ -2624,7 +2644,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         allowDeviceError: Bool = false, confirmedWrite: ConfigurationCommandPolicy.ConfirmedWrite = .none
     ) async throws -> CommandResponse {
         guard peripheral != nil, commandChar != nil else { throw OLEDUploadError.disconnected }
-        guard acr4UploadGeneration != commandSessionGeneration || confirmedWrite == .acr4Resource else {
+        guard resourceUploadGeneration != commandSessionGeneration || confirmedWrite == .negotiatedResource else {
             throw OLEDUploadError.channelNotReady
         }
         let ticket = try await acquireCommandTurn()
@@ -2632,7 +2652,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         defer { commandTurns.release(ticket) }
         // Recheck after waiting: an upload may have claimed the mailbox while
         // this ordinary request was queued. Do not replay it after that handoff.
-        guard acr4UploadGeneration != commandSessionGeneration || confirmedWrite == .acr4Resource else {
+        guard resourceUploadGeneration != commandSessionGeneration || confirmedWrite == .negotiatedResource else {
             throw OLEDUploadError.channelNotReady
         }
         guard ConfigurationCommandPolicy.permits(data, profile: firmwareCapabilityProfile, confirmedWrite: confirmedWrite,
@@ -2640,7 +2660,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                                                k1RouteReadbackVerified: hasCurrentK1RouteProof,
                                                restoreReadbackVerified: hasCurrentRestoreProof,
                                                k1InitializationReadbackVerified: hasCurrentK1InitializationProof,
-                                               acr4ReadbackVerified: acr4UploadGeneration == commandSessionGeneration) else {
+                                               acr4ReadbackVerified: resourceUploadGeneration == commandSessionGeneration && resourceUploadFormat == .lossless,
+                                               compactReadbackVerified: resourceUploadGeneration == commandSessionGeneration && resourceUploadFormat == .compact) else {
             throw OLEDUploadError.unsupportedReadOnlyProfile
         }
         try Task.checkCancellation()
@@ -3356,10 +3377,10 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
     nonisolated func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         Task { @MainActor in
             guard self.acceptsConnectionCallbacks, self.peripheral === peripheral else { return }
-            if characteristic === self.commandChar, self.acr4FragmentAwaitingAck {
-                self.acr4FragmentAwaitingAck = false
+            if characteristic === self.commandChar, self.resourceFragmentAwaitingAck {
+                self.resourceFragmentAwaitingAck = false
                 if error != nil { self.invalidateCommandResponseChannel(); return }
-                self.sendNextACR4Fragment()
+                self.sendNextResourceFragment()
             }
             if let error {
                 self.appendLog("写入特征 \(characteristic.uuid) 失败: \(error.localizedDescription)", isError: true)

@@ -2,12 +2,13 @@ import Foundation
 
 /// HW1 ACR4 revision 1, frozen at firmware source 0471372. This is a separate
 /// 0x9E version; it must never be interpreted as K1/v1, Restore/v2 or ACR3/v3.
-public struct ACR4ResourceObject: Equatable, Sendable {
+public struct ACR4ResourceObject: NegotiatedResourceObject, Equatable, Sendable {
     public let entry: UInt8
     public let frames: UInt16
     public let bytes: Data
     public let expandedCRC: UInt32
     public var expandedBytes: UInt32 { UInt32(frames) * WS3ResourceReadback.frameBytes }
+    public var format: NegotiatedResourceFormat { .lossless }
 
     public init(payload: WS3ResourcePayload, forceRaw: Bool = false) {
         entry = payload.entryID; frames = payload.frameCount
@@ -120,6 +121,9 @@ public struct ACR4Command: Equatable, Sendable {
 public struct ACR4Reply: Equatable, Sendable {
     public let status: UInt8
     public let fields: Data
+    // Internal normalization after a separate v3 parser has validated its wire
+    // envelope. This initializer never accepts an unparsed wire frame.
+    init(status: UInt8, fields: Data) { self.status = status; self.fields = fields }
     public init?(frame: Data, command: ACR4Command) {
         let b = [UInt8](frame)
         guard b.count >= 13, Array(b.prefix(3)) == [0xAA, 0xBB, 0x9E], b[3] <= 11,

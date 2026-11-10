@@ -29,9 +29,13 @@
     "legacyF99DNegativeCapsFallback": true,
     "exclusiveMailbox": true,
     "durableMetadataRequired": true,
-    "compactACR3NativeIntegration": false,
+    "compactACR3NativeIntegration": true,
     "allArtworkGuaranteedUnder50000": false,
-    "newClientInstalled": false
+    "newClientInstalled": false,
+    "negotiatedResourceBudgetBytes": 50000,
+    "legacyCP2BudgetNotChanged": true,
+    "compactPreviewMatchesExpandedPixels": true,
+    "derivedIntegrityLazyPerDraft": true
   },
   "verification": {
     "fullSuiteBeforeFinalProgressTest": {
@@ -41,10 +45,18 @@
     "knownIntermittent": "One full run had 121 GIFPreviewFrames cache identity assertions fail. Two isolated reruns and a subsequent unchanged full run passed. No GIF behavior fix claimed. Sustained performance still unverified.",
     "physicalAcceptanceComplete": false,
     "fullSuiteFinal": {
-      "tests": 1087,
+      "tests": 1095,
       "failures": 0
     },
-    "specializedTests": 50
+    "specializedTests": 50,
+    "compactGolden": {
+      "frames": 12,
+      "width": 40,
+      "height": 20,
+      "objectBytes": 19240,
+      "objectCRC32": 4144442838,
+      "expandedCRC32": 2775044983
+    }
   },
   "scope": "Continue existing WBS and latest firmware adaptation; preserve user artwork and drafts. External contracts and release inputs stay open."
 }

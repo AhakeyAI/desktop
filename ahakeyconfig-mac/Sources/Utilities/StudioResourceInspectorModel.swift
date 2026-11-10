@@ -244,6 +244,10 @@ final class StudioResourceInspectorModel: ObservableObject {
                 } else {
                     guard let payload else { throw Failure.missingReadback }
                     confirmed = try await ble.uploadWS3Resource(payload, baseline: fresh)
+                    if let preview = ble.resourceUploadPreview, preview.entry == target, let old = self.drafts[target] {
+                        self.drafts[target] = Draft(payload: old.payload, thumbnail: NSImage(data: preview.png),
+                            previewPNG: preview.png, filename: old.filename, sourceFrameCount: old.sourceFrameCount, wasResized: true)
+                    }
                 }
                 return (WS3DisplaySnapshot(generation: fresh.generation, brightness: fresh.brightness,
                     resources: fresh.resources.map { $0.id == target ? confirmed : $0 }), false)

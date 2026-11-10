@@ -38,6 +38,31 @@ enum OLEDFrameEncodingError: LocalizedError {
 }
 
 enum OLEDFrameEncoder {
+    /// Preview the exact expanded RGB565 pixels selected by the wire encoder.
+    static func previewPNG(rgb565: Data) throws -> Data {
+        guard rgb565.count == 25600 else { throw OLEDFrameEncodingError.cannotCreateContext }
+        let pixels = [UInt8](rgb565)
+        var rgb = Data(capacity: 38400)
+        for at in stride(from: 0, to: pixels.count, by: 2) {
+            let color = Int(pixels[at]) << 8 | Int(pixels[at+1])
+            rgb.append(contentsOf: [UInt8(((color >> 11) & 31) * 255 / 31),
+                UInt8(((color >> 5) & 63) * 255 / 63), UInt8((color & 31) * 255 / 31)])
+        }
+        guard let provider = CGDataProvider(data: rgb as CFData), let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let image = CGImage(width: 160, height: 80, bitsPerComponent: 8, bitsPerPixel: 24, bytesPerRow: 480,
+                space: space, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue),
+                provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent) else {
+            throw OLEDFrameEncodingError.cannotCreateContext
+        }
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else {
+            throw OLEDFrameEncodingError.cannotCreateContext
+        }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else { throw OLEDFrameEncodingError.cannotCreateContext }
+        return data as Data
+    }
+
     struct PreparedFrames: Sendable {
         let frames: [Data]
         let previewPNG: Data

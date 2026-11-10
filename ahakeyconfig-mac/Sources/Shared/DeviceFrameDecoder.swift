@@ -9,6 +9,7 @@ public struct DeviceFrameDecoder {
     private let maximumFrameLength = 64
     private var k1Reply: K1OutputRouteCommand?
     private var acr4Reply: ACR4Command?
+    private var compactReply: CompactResourceCommand?
 
     public init() {}
 
@@ -25,6 +26,7 @@ public struct DeviceFrameDecoder {
         bytes.removeAll(keepingCapacity: true)
         k1Reply = nil
         acr4Reply = nil
+        compactReply = nil
     }
 
     /// The route-slice response omits its slice length. Only the current
@@ -32,6 +34,7 @@ public struct DeviceFrameDecoder {
     public mutating func expectResponse(to request: Data) {
         k1Reply = K1OutputRouteCommand(request: request)
         acr4Reply = ACR4Command(request: request)
+        compactReply = CompactResourceCommand(request: request)
     }
 
     public mutating func append(_ chunk: Data) -> [Data] {
@@ -86,6 +89,13 @@ public struct DeviceFrameDecoder {
                     return .complete(12) // Explicit negative legacy v1 envelope only.
                 }
                 guard bytes[4] == 4, bytes[5] == expected.operation.rawValue,
+                      status <= 11, Int(bytes[6]) == (status == 0 ? expected.successBodyLength : 4) else { return .invalid }
+                return .complete(13 + Int(bytes[6]))
+            }
+            if let expected = compactReply {
+                guard bytes.count >= 7 else { return .incomplete }
+                if expected.operation == .caps, status == 1, bytes[4] == 3, bytes[5] == 0x40, bytes[6] == 0 { return .complete(12) }
+                guard bytes[4] == 3, bytes[5] == expected.operation.rawValue,
                       status <= 11, Int(bytes[6]) == (status == 0 ? expected.successBodyLength : 4) else { return .invalid }
                 return .complete(13 + Int(bytes[6]))
             }

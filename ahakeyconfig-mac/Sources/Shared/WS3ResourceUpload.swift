@@ -37,7 +37,9 @@ public struct WS3ResourcePayload: Equatable, Sendable {
     public let frameCount: UInt16
     public let bytes: Data
     public let crc32: UInt32
-    public let losslessCRC32: UInt32
+    private let derivedIntegrity = ResourceDerivedIntegrity()
+    public var losslessCRC32: UInt32 { derivedIntegrity.checksum(payload: self, compact: false) }
+    public var compactCRC32: UInt32 { derivedIntegrity.checksum(payload: self, compact: true) }
     public init(entryID: UInt8, frames: [Data]) throws {
         guard entryID < 19, !frames.isEmpty, frames.allSatisfy({ $0.count == 25_600 }) else {
             throw WS3ResourceUploadError.invalidPayload
@@ -51,7 +53,9 @@ public struct WS3ResourcePayload: Equatable, Sendable {
             payload.append(Data(repeating: 0xFF, count: Int(WS3ResourceReadback.frameBytes) - frame.count))
         }
         bytes = payload; crc32 = Self.checksum(payload)
-        losslessCRC32 = ACR4ResourceObject.expandedChecksum(frames: frames)
+    }
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.entryID == rhs.entryID && lhs.frameCount == rhs.frameCount && lhs.crc32 == rhs.crc32 && lhs.bytes == rhs.bytes
     }
     public static func checksum(_ data: Data) -> UInt32 {
         var crc: UInt32 = 0xFFFFFFFF
@@ -60,6 +64,29 @@ public struct WS3ResourcePayload: Equatable, Sendable {
             for _ in 0..<8 { crc = (crc >> 1) ^ (crc & 1 == 0 ? 0 : 0xEDB88320) }
         }
         return ~crc
+    }
+}
+
+/// Immutable payloads can cross preparation queues. Only the two lazy checksum
+/// slots are mutable, and both are protected by this lock. Cache lifetime and
+/// memory are bounded by the owning draft, with no global artwork retention.
+private final class ResourceDerivedIntegrity: @unchecked Sendable {
+    private let lock = NSLock()
+    private var lossless: UInt32?
+    private var compactValue: UInt32?
+    func checksum(payload: WS3ResourcePayload, compact: Bool) -> UInt32 {
+        lock.lock(); defer { lock.unlock() }
+        if compact, let value = compactValue { return value }
+        if !compact, let value = lossless { return value }
+        let frames = (0..<Int(payload.frameCount)).map { index in
+            payload.bytes.subdata(in: (index * 28672)..<(index * 28672 + 25600))
+        }
+        if compact {
+            let value = CompactResourceObject(entry: payload.entryID, canonicalFrames: frames).expandedCRC
+            compactValue = value; return value
+        }
+        let value = ACR4ResourceObject.expandedChecksum(frames: frames)
+        lossless = value; return value
     }
 }
 

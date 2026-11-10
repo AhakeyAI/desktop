@@ -18,6 +18,11 @@ public enum DeviceResponseMatcher {
             return received.count == 12 || received.count == 13
         }
         if expectedCommand == 0x9E {
+            if let command = CompactResourceCommand(request: request) {
+                if command.isLegacyUnsupportedReply(response) { return true }
+                if command.operation == .caps && received.count == 6 { return received[3] <= 1 }
+                return CompactResourceReply(frame: response, command: command) != nil
+            }
             if let command = ACR4Command(request: request) {
                 if command.isLegacyUnsupportedReply(response) { return true }
                 if command.operation == .caps && received.count == 6 { return received[3] <= 1 }

@@ -152,7 +152,8 @@ struct StudioResourceInspectorView: View {
         Button { choosingFile = true } label: {
             ZStack {
                 RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .textBackgroundColor))
-                if let image = model.draft?.thumbnail {
+                if let image = (model.isBusy && ble.resourceUploadPreview?.entry == model.entry
+                    ? ble.resourceUploadPreview.flatMap { NSImage(data: $0.png) } : nil) ?? model.draft?.thumbnail {
                     Image(nsImage: image).resizable().scaledToFit().padding(8)
                 } else if model.defaultDrafts.contains(model.entry) {
                     VStack(spacing: 8) {
@@ -179,15 +180,20 @@ struct StudioResourceInspectorView: View {
     @ViewBuilder private var operationFeedback: some View {
         if let progress = ble.oledUploadProgress, model.isBusy {
             VStack(alignment: .leading, spacing: 6) {
-                ProgressView(value: Double(progress.completedChunks), total: Double(max(1, progress.totalChunks)))
+                ProgressView(value: progress.fractionCompleted)
                 HStack {
                     Text(NSLocalizedString("正在写入画面…", comment: ""))
                     Spacer()
-                    Text("\(Int(Double(progress.completedChunks) / Double(max(1, progress.totalChunks)) * 100))%")
+                    Text("\(Int(progress.fractionCompleted * 100))%")
                         .monospacedDigit()
                 }.font(.caption).foregroundStyle(.secondary)
                 if let transfer = progress.transfer {
                     Text(transferDescription(transfer)).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                }
+                if let preview = ble.resourceUploadPreview, preview.entry == model.entry {
+                    Text(preview.summary).font(.caption).foregroundStyle(.secondary)
+                } else if let hint = ble.resourceUploadHint {
+                    Text(hint).font(.caption).foregroundStyle(.secondary)
                 }
                 Label(WS3ResourceUploadGuidance.cancellationRisk, systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
