@@ -44,6 +44,8 @@ swift build -c release            # release 构建
 
 产出 `AhaKeyConfig` 应用可执行文件与 `ahakeyconfig-agent` 辅助进程。打包成 `.app` 以及其他平台的构建步骤见 [`docs/installation.md`](../installation.md)。
 
+**本地离线语音识别（可选）**：如需编译内置离线 SenseVoice / Whisper 引擎（基于 `sherpa-onnx 1.13.7`），请先运行 `ahakeyconfig-mac/scripts/fetch-sherpa-onnx.sh`（`scripts/build.sh` 与 `scripts/build-debug.sh` 会自动调用该脚本）。该脚本会自动下载并校验 Universal2 静态库至 `ahakeyconfig-mac/Vendor/`。未下载时应用仍可正常编译并仅使用苹果原生转写。首次启动时，所选离线模型（默认 SenseVoice，约 240 MB）会在后台自动下载，也可在语音键设置中关闭「启动时自动下载所选模型」。
+
 ## 仓库结构
 
 ```

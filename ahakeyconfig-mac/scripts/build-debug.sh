@@ -43,11 +43,14 @@ fi
 
 echo "🐞 Debug building $APP_DISPLAY_NAME..."
 cd "$APP_ROOT"
+# 本地语音识别引擎（sherpa-onnx，SenseVoice / Whisper）；已下载时直接跳过
+"$APP_ROOT/scripts/fetch-sherpa-onnx.sh"
 swift build -c debug --arch arm64 --product AhaKeyConfig
 swift build -c debug --arch arm64 --product ahakeyconfig-agent
 
-BUILD_OUTPUT=".build/arm64-apple-macosx/debug/$EXECUTABLE_NAME"
-AGENT_OUTPUT=".build/arm64-apple-macosx/debug/ahakeyconfig-agent"
+BIN_DIR="$(swift build -c debug --arch arm64 --show-bin-path)"
+BUILD_OUTPUT="$BIN_DIR/$EXECUTABLE_NAME"
+AGENT_OUTPUT="$BIN_DIR/ahakeyconfig-agent"
 if [[ ! -f "$BUILD_OUTPUT" ]]; then
   echo "Build output not found at $BUILD_OUTPUT"
   exit 1

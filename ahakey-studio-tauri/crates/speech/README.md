@@ -1,10 +1,10 @@
 # Native speech for AhaKey
 
-`ahakey-speech` supplies microphone capture, a SenseVoice recognizer, local
-provisional subtitles, and explicit model download/import. It runs in the
-application process through CPAL and the **official** `sherpa-onnx` 1.13.7 Rust
-wrapper/C API. No Java, C# driver, Python service, or ASR subprocess is used.
-The library never starts capture or downloads weights on application startup.
+`ahakey-speech` supplies microphone capture, SenseVoice and Whisper (Tiny/Base/Small/Turbo) recognizers,
+local provisional subtitles, and model download/import. It runs in the application process through CPAL
+and the **official** `sherpa-onnx` 1.13.7 Rust wrapper/C API. No Java, C# driver, Python service, or
+ASR subprocess is used. The library never starts audio capture on startup; the host application downloads
+the selected model in the background at startup if missing (with opt-out available via `auto_download_model`).
 
 ## Application integration
 
@@ -12,10 +12,13 @@ Add `ahakey-speech = { path = "../crates/speech" }` to the Tauri Rust manifest.
 All methods returning `Result` use `anyhow::Error`.
 
 ```rust,no_run
-use ahakey_speech::{SessionConfig, SpeechEvent, SpeechSession};
+use ahakey_speech::{ModelKind, SessionConfig, SpeechEvent, SpeechSession, WhisperSize};
 use std::path::PathBuf;
 
-let config = SessionConfig::new(PathBuf::from("app-data/models/sensevoice-int8-2024-07-17"));
+let config = SessionConfig::new(
+    PathBuf::from("app-data/models/sensevoice-2024-07-17"),
+    ModelKind::SenseVoice,
+);
 let session = SpeechSession::start(config, |event| {
     // Enqueue only. The app associates this callback with its session generation.
     match event {
@@ -84,6 +87,14 @@ From this crate directory, in the same PowerShell process as Cargo:
 
 ```powershell
 $env:SHERPA_ONNX_LIB_DIR = & .\scripts\prepare-runtime.ps1
+cargo test --all-targets
+cargo clippy --all-targets -- -D warnings
+```
+
+Or on macOS (arm64 / x86_64 bash/zsh):
+
+```bash
+export SHERPA_ONNX_LIB_DIR="$(./scripts/prepare-runtime.sh)"
 cargo test --all-targets
 cargo clippy --all-targets -- -D warnings
 ```

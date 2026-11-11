@@ -28,26 +28,32 @@ DEST_APP="$INSTALL_DIR/$APP_BUNDLE_NAME.app"
 
 echo "📦 Building $APP_DISPLAY_NAME..."
 cd "$APP_ROOT"
+# 本地语音识别引擎（sherpa-onnx，SenseVoice / Whisper）；已下载时直接跳过
+"$APP_ROOT/scripts/fetch-sherpa-onnx.sh"
 
 export MACOSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET"
 
 BUILD_OUTPUTS=()
 AGENT_OUTPUTS=()
+mkdir -p "$APP_ROOT/.build/arch-bin"
 for ARCH in ${(z)BUILD_ARCHS}; do
   echo "🔨 Building $ARCH for macOS $MACOS_DEPLOYMENT_TARGET..."
   swift build -c release --arch "$ARCH" --product AhaKeyConfig
   swift build -c release --arch "$ARCH" --product ahakeyconfig-agent
 
-  ARCH_BUILD_OUTPUT=".build/$ARCH-apple-macosx/release/$EXECUTABLE_NAME"
-  ARCH_AGENT_OUTPUT=".build/$ARCH-apple-macosx/release/ahakeyconfig-agent"
-  if [[ ! -f "$ARCH_BUILD_OUTPUT" ]]; then
-    echo "Build output not found at $ARCH_BUILD_OUTPUT"
+  BIN_DIR="$(swift build -c release --arch "$ARCH" --show-bin-path)"
+  ARCH_BUILD_OUTPUT="$APP_ROOT/.build/arch-bin/${EXECUTABLE_NAME}-${ARCH}"
+  ARCH_AGENT_OUTPUT="$APP_ROOT/.build/arch-bin/ahakeyconfig-agent-${ARCH}"
+  if [[ ! -f "$BIN_DIR/$EXECUTABLE_NAME" ]]; then
+    echo "Build output not found at $BIN_DIR/$EXECUTABLE_NAME"
     exit 1
   fi
-  if [[ ! -f "$ARCH_AGENT_OUTPUT" ]]; then
-    echo "Agent build output not found at $ARCH_AGENT_OUTPUT"
+  if [[ ! -f "$BIN_DIR/ahakeyconfig-agent" ]]; then
+    echo "Agent build output not found at $BIN_DIR/ahakeyconfig-agent"
     exit 1
   fi
+  cp "$BIN_DIR/$EXECUTABLE_NAME" "$ARCH_BUILD_OUTPUT"
+  cp "$BIN_DIR/ahakeyconfig-agent" "$ARCH_AGENT_OUTPUT"
   BUILD_OUTPUTS+=("$ARCH_BUILD_OUTPUT")
   AGENT_OUTPUTS+=("$ARCH_AGENT_OUTPUT")
 done

@@ -8,7 +8,8 @@ mod session;
 
 pub use audio::{input_devices, MicrophoneCapture};
 pub use model::{
-    CancellationToken, ModelStore, MODEL_BYTES, MODEL_SHA256, TOKENS_BYTES, TOKENS_SHA256,
+    CancellationToken, ModelKind, ModelStore, WhisperSize, MODEL_BYTES, MODEL_SHA256, TOKENS_BYTES,
+    TOKENS_SHA256,
 };
 pub use recognizer::{Recognizer, RecognizerConfig};
 pub use session::{SessionConfig, SpeechEvent, SpeechSession};

@@ -1,6 +1,9 @@
 export type Provider = "local" | "doubao" | "wechat" | "windows-native";
 export type TriggerMode = "hold" | "toggle";
 export type Phase = "idle" | "preview" | "listening" | "transcribing" | "final" | "error";
+export type SpeechEngine = "sense-voice" | "whisper";
+export type WhisperSize = "tiny" | "base" | "small" | "turbo";
+export type CleanupMode = "local" | "off";
 export interface Profile {
   id: string;
   name: string;
@@ -34,6 +37,12 @@ export interface Settings {
   minimizeToTray: boolean;
   lightBrightness: number;
   voiceKeysEnabled: boolean;
+  speechEngine: SpeechEngine;
+  whisperSize: WhisperSize;
+  autoDownloadModel: boolean;
+  cleanupMode: CleanupMode;
+  cleanupBaseUrl: string;
+  cleanupModel: string;
 }
 export interface Caption {
   phase: Phase;
@@ -98,6 +107,12 @@ export const previewSettings: Settings = {
   microphone: null, savedDevice: null, cloudAppId: "", cloudResourceId: "volc.bigasr.sauc.duration",
   autoInsert: true, minimizeToTray: true, lightBrightness: 35,
   voiceKeysEnabled: true,
+  speechEngine: "sense-voice",
+  whisperSize: "base",
+  autoDownloadModel: true,
+  cleanupMode: "off",
+  cleanupBaseUrl: "http://localhost:11434",
+  cleanupModel: "qwen2.5:3b",
   profiles: [
     { id: "claude-code", name: "Claude Code", accept: "Y", reject: "N", lightEffects: [...defaultLights] },
     {

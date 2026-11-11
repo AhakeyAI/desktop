@@ -19,6 +19,46 @@ pub enum TriggerMode {
     Toggle,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum SpeechEngine {
+    Whisper,
+    #[default]
+    #[serde(other)]
+    SenseVoice,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum WhisperSize {
+    Tiny,
+    Small,
+    Turbo,
+    #[default]
+    #[serde(other)]
+    Base,
+}
+
+impl From<WhisperSize> for ahakey_speech::WhisperSize {
+    fn from(s: WhisperSize) -> Self {
+        match s {
+            WhisperSize::Tiny => Self::Tiny,
+            WhisperSize::Base => Self::Base,
+            WhisperSize::Small => Self::Small,
+            WhisperSize::Turbo => Self::Turbo,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum CleanupMode {
+    Local,
+    #[default]
+    #[serde(other)]
+    Off,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Profile {
@@ -80,6 +120,18 @@ pub struct Settings {
     pub light_brightness: u8,
     #[serde(default = "yes")]
     pub voice_keys_enabled: bool,
+    #[serde(default)]
+    pub speech_engine: SpeechEngine,
+    #[serde(default)]
+    pub whisper_size: WhisperSize,
+    #[serde(default = "yes")]
+    pub auto_download_model: bool,
+    #[serde(default)]
+    pub cleanup_mode: CleanupMode,
+    #[serde(default = "default_cleanup_base_url")]
+    pub cleanup_base_url: String,
+    #[serde(default = "default_cleanup_model")]
+    pub cleanup_model: String,
 }
 
 fn yes() -> bool {
@@ -90,6 +142,12 @@ fn brightness() -> u8 {
 }
 fn default_resource() -> String {
     "volc.bigasr.sauc.duration".into()
+}
+fn default_cleanup_base_url() -> String {
+    "http://localhost:11434".into()
+}
+fn default_cleanup_model() -> String {
+    "qwen2.5:3b".into()
 }
 
 impl Default for Settings {
@@ -114,11 +172,34 @@ impl Default for Settings {
             minimize_to_tray: true,
             light_brightness: 35,
             voice_keys_enabled: true,
+            speech_engine: SpeechEngine::SenseVoice,
+            whisper_size: WhisperSize::Base,
+            auto_download_model: true,
+            cleanup_mode: CleanupMode::Off,
+            cleanup_base_url: default_cleanup_base_url(),
+            cleanup_model: default_cleanup_model(),
         }
     }
 }
 
+pub fn should_auto_download(
+    provider: &Provider,
+    auto_download_model: bool,
+    is_installed: bool,
+) -> bool {
+    *provider == Provider::Local && auto_download_model && !is_installed
+}
+
 impl Settings {
+    pub fn should_auto_download(&self, is_installed: bool) -> bool {
+        should_auto_download(&self.provider, self.auto_download_model, is_installed)
+    }
+    pub fn local_model_kind(&self) -> ahakey_speech::ModelKind {
+        match self.speech_engine {
+            SpeechEngine::SenseVoice => ahakey_speech::ModelKind::SenseVoice,
+            SpeechEngine::Whisper => ahakey_speech::ModelKind::Whisper(self.whisper_size.into()),
+        }
+    }
     pub fn start_voice_keys(&self, settings_error: bool) -> bool {
         self.voice_keys_enabled && !settings_error
     }
@@ -148,6 +229,8 @@ impl Settings {
             || self.cloud_app_id.chars().any(|c| c.is_control())
             || self.saved_device.as_ref().is_some_and(|s| s.len() > 4096)
             || self.microphone.as_ref().is_some_and(|s| s.len() > 1024)
+            || self.cleanup_base_url.len() > 2048
+            || self.cleanup_model.len() > 256
         {
             return Err("设备或语音设置无效".into());
         }
@@ -472,5 +555,100 @@ mod tests {
         settings.caption_bottom_offset = 20;
         settings.profiles[0].accept = "arbitrary shell command".into();
         assert!(settings.validate().is_err());
+    }
+    #[test]
+    fn back_compat_old_settings_json_without_new_fields_deserializes_to_defaults() {
+        let mut old = serde_json::to_value(Settings::default()).unwrap();
+        let obj = old.as_object_mut().unwrap();
+        obj.remove("speechEngine");
+        obj.remove("whisperSize");
+        obj.remove("autoDownloadModel");
+        obj.remove("cleanupMode");
+        obj.remove("cleanupBaseUrl");
+        obj.remove("cleanupModel");
+
+        let loaded: Settings = serde_json::from_value(old).unwrap();
+        loaded.validate().unwrap();
+        assert_eq!(loaded.speech_engine, SpeechEngine::SenseVoice);
+        assert_eq!(loaded.whisper_size, WhisperSize::Base);
+        assert!(loaded.auto_download_model);
+        assert_eq!(loaded.cleanup_mode, CleanupMode::Off);
+        assert_eq!(loaded.cleanup_base_url, "http://localhost:11434");
+        assert_eq!(loaded.cleanup_model, "qwen2.5:3b");
+        assert_eq!(
+            loaded.local_model_kind(),
+            ahakey_speech::ModelKind::SenseVoice
+        );
+    }
+    #[test]
+    fn engine_and_whisper_size_fallback_to_defaults_on_unknown_value() {
+        // WHY: An unknown enum value from a newer client must not brick settings load or save
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        value["speechEngine"] = "future-engine".into();
+        let loaded: Settings = serde_json::from_value(value).unwrap();
+        assert_eq!(loaded.speech_engine, SpeechEngine::SenseVoice);
+
+        let mut value2 = serde_json::to_value(Settings::default()).unwrap();
+        value2["whisperSize"] = "large-v4".into();
+        let loaded2: Settings = serde_json::from_value(value2).unwrap();
+        assert_eq!(loaded2.whisper_size, WhisperSize::Base);
+    }
+    #[test]
+    fn legacy_or_unknown_cleanup_mode_deserializes_to_off() {
+        // WHY: An unknown enum value (such as "ahatype" serialized by macOS client
+        // or a future cleanup provider) must deserialize to Off rather than failing
+        // the entire settings load with deny_unknown_fields error.
+        let mut value = serde_json::to_value(Settings::default()).unwrap();
+        value["cleanupMode"] = "ahatype".into();
+        let loaded: Settings = serde_json::from_value(value).unwrap();
+        assert_eq!(loaded.cleanup_mode, CleanupMode::Off);
+
+        let mut value2 = serde_json::to_value(Settings::default()).unwrap();
+        value2["cleanupMode"] = "future-unknown-provider".into();
+        let loaded2: Settings = serde_json::from_value(value2).unwrap();
+        assert_eq!(loaded2.cleanup_mode, CleanupMode::Off);
+    }
+    #[test]
+    fn should_auto_download_decision_rules() {
+        // Pure function test for auto-download decisions:
+        // 1. Never download if provider is not Local (e.g. Windows default Wechat)
+        assert!(!should_auto_download(&Provider::Wechat, true, false));
+        assert!(!should_auto_download(&Provider::WindowsNative, true, false));
+        assert!(!should_auto_download(&Provider::Doubao, true, false));
+
+        // 2. If provider is Local but auto_download_model is disabled, do not download
+        assert!(!should_auto_download(&Provider::Local, false, false));
+
+        // 3. If provider is Local, auto_download enabled, but model is already installed, do not download
+        assert!(!should_auto_download(&Provider::Local, true, true));
+
+        // 4. Only download when Local + auto_download enabled + model missing
+        assert!(should_auto_download(&Provider::Local, true, false));
+    }
+    #[test]
+    fn engine_selection_and_whisper_size_round_trip() {
+        let settings = Settings {
+            speech_engine: SpeechEngine::Whisper,
+            whisper_size: WhisperSize::Turbo,
+            cleanup_mode: CleanupMode::Local,
+            cleanup_base_url: "http://127.0.0.1:8000".into(),
+            cleanup_model: "llama3:8b".into(),
+            auto_download_model: false,
+            ..Settings::default()
+        };
+        settings.validate().unwrap();
+
+        let json = serde_json::to_value(&settings).unwrap();
+        assert_eq!(json["speechEngine"], "whisper");
+        assert_eq!(json["whisperSize"], "turbo");
+        assert_eq!(json["cleanupMode"], "local");
+        assert_eq!(json["autoDownloadModel"], false);
+
+        let decoded: Settings = serde_json::from_value(json).unwrap();
+        assert_eq!(decoded, settings);
+        assert_eq!(
+            decoded.local_model_kind(),
+            ahakey_speech::ModelKind::Whisper(ahakey_speech::WhisperSize::Turbo)
+        );
     }
 }

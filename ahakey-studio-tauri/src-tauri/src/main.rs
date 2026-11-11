@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod backend;
 mod caption;
+mod cleanup;
 mod device;
 mod device_routing;
 mod hooks;
@@ -76,6 +77,7 @@ fn main() {
             tray::install(app)?;
             recovery::start(app.handle());
             device::start(app.handle());
+            start_auto_download(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| {

@@ -8,6 +8,7 @@ description = "Native microphone capture and offline SenseVoice speech for AhaKe
 [dependencies]
 anyhow = "1"
 cpal = "0.15.3"
+serde = { version = "1", features = ["derive"] }
 sherpa-onnx = { version = "=1.13.7", default-features = false, features = ["shared"] }
 sha2 = "0.10"
 tempfile = "3"

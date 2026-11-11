@@ -44,6 +44,8 @@ swift build -c release            # release build
 
 This produces the `AhaKeyConfig` app executable and the `ahakeyconfig-agent` helper. See [`docs/installation.md`](installation.md) for packaging into a `.app` and the other platforms' build steps.
 
+**Local speech recognition (optional).** To build with the offline SenseVoice / Whisper engines (sherpa-onnx), first run `ahakeyconfig-mac/scripts/fetch-sherpa-onnx.sh`. It downloads the pinned sherpa-onnx 1.13.7 static libraries (SHA256-verified) into the git-ignored `ahakeyconfig-mac/Vendor/`. `scripts/build.sh` and `scripts/build-debug.sh` run it automatically. Without it, the app still builds and uses Apple Speech only. At runtime, the selected model (SenseVoice by default, ~240 MB) downloads in the background on first launch. Users can turn this off with "启动时自动下载所选模型" in the voice-key settings.
+
 ## Repository layout
 
 ```

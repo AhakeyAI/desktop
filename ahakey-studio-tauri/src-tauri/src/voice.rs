@@ -135,7 +135,10 @@ async fn start_locked(
     let _ = crate::backend::display_caption(&app, "idle", "", false);
     let settings = state.settings.lock().unwrap().clone();
     if settings.provider == Provider::Local && !state.model_store().is_installed() {
-        return Err("请先在设置中下载或导入 SenseVoice 模型".into());
+        return Err(format!(
+            "请先在设置中下载或导入 {} 模型",
+            state.model_store().kind().display_name()
+        ));
     }
     let external = matches!(
         settings.provider,
@@ -206,8 +209,50 @@ async fn start_locked(
                     }
                     let _ = crate::backend::display_caption(&target_app, "listening", &text, false);
                 }
-                Update::Final(text) => {
+                Update::Final(raw_text) => {
+                    // P1-5: Set state.speech to phase "transcribing" / recording false and emit
+                    // runtime update BEFORE dropping voice_gate, so start_locked guard and tray/UI
+                    // are correct for all providers during cleanup.
                     state.recording.store(false, Ordering::SeqCst);
+                    *state.speech.lock().unwrap() = SpeechStatus {
+                        phase: "transcribing".into(),
+                        message: if settings.cleanup_mode == crate::settings::CleanupMode::Local {
+                            "正在整理文字…".into()
+                        } else {
+                            "正在完成识别…".into()
+                        },
+                        recording: false,
+                    };
+                    let _ = target_app.emit("runtime-update", ());
+                    if settings.cleanup_mode == crate::settings::CleanupMode::Local
+                        && !raw_text.trim().is_empty()
+                    {
+                        let _ = crate::backend::display_caption(
+                            &target_app,
+                            "transcribing",
+                            "正在整理文字…",
+                            false,
+                        );
+                    }
+                    drop(_gate);
+                    let text = if settings.cleanup_mode == crate::settings::CleanupMode::Local
+                        && !raw_text.trim().is_empty()
+                    {
+                        let client = reqwest::Client::new();
+                        crate::cleanup::clean_transcript(
+                            &client,
+                            &settings.cleanup_base_url,
+                            &settings.cleanup_model,
+                            &raw_text,
+                        )
+                        .await
+                    } else {
+                        raw_text
+                    };
+                    let _gate = state.voice_gate.lock().await;
+                    if state.generation.load(Ordering::SeqCst) != id {
+                        break;
+                    }
                     state.key_state.lock().unwrap().release_session();
                     let mut message = "识别完成".to_string();
                     if insert
@@ -269,7 +314,8 @@ async fn start_locked(
     };
     let active = match settings.provider {
         Provider::Local => {
-            let mut config = SessionConfig::new(state.model_store().directory().to_path_buf());
+            let store = state.model_store();
+            let mut config = SessionConfig::new(store.directory().to_path_buf(), store.kind());
             config.device_name = settings.microphone;
             let events = tx.clone();
             SpeechSession::start(config, move |event| {
