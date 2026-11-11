@@ -71,6 +71,13 @@ final class LocalModelStoreTests: XCTestCase {
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
+    /// 列出某模型的全部临时目录：包括旧版 `.partial-<id>` 与每次操作独立的 `.partial-<id>-<uuid>`
+    private func partialDirectories(for model: LocalSpeechModel) -> [String] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: tempDirectory.path)) ?? []
+        let legacy = ".partial-\(model.id)"
+        return names.filter { $0 == legacy || $0.hasPrefix(legacy + "-") }
+    }
+
     // MARK: - 1. Pins Table Sanity Test
 
     /// WHY:
@@ -224,7 +231,7 @@ final class LocalModelStoreTests: XCTestCase {
 
     /// WHY:
     /// 原子安装原则：当新模型下载或校验失败（例如 SHA256 校验不通过或大小不符），
-    /// 必须彻底清理临时目录 `.partial-<id>`，且绝不能在正式目录 `<root>/<id>` 留下任何半残文件。
+    /// 必须彻底清理临时目录 `.partial-<id>-<uuid>`，且绝不能在正式目录 `<root>/<id>` 留下任何半残文件。
     func testFailedDownloadLeavesNoFinalDirectory() async throws {
         let store = LocalModelStore(modelsDirectory: tempDirectory, urlSession: mockSession)
 
@@ -250,10 +257,8 @@ final class LocalModelStoreTests: XCTestCase {
         }
 
         let finalDir = store.modelDirectory(for: model)
-        let partialDir = tempDirectory.appendingPathComponent(".partial-\(model.id)", isDirectory: true)
-
         XCTAssertFalse(FileManager.default.fileExists(atPath: finalDir.path), "下载校验失败时绝不能创建最终模型目录")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: partialDir.path), "下载失败后临时 .partial 目录必须被清理")
+        XCTAssertEqual(partialDirectories(for: model), [], "下载失败后临时 .partial 目录必须被清理")
         XCTAssertFalse(store.isInstalled(model))
 
         if case .failed = store.state(for: model) {
@@ -399,8 +404,7 @@ final class LocalModelStoreTests: XCTestCase {
         let existingContents = try Data(contentsOf: existingFile)
         XCTAssertEqual(existingContents, goodData, "原有模型内容必须完好无损")
 
-        let partialDir = tempDirectory.appendingPathComponent(".partial-\(model.id)", isDirectory: true)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: partialDir.path), "导入失败后临时 .partial 目录必须清理")
+        XCTAssertEqual(partialDirectories(for: model), [], "导入失败后临时 .partial 目录必须清理")
     }
 
     // MARK: - 9. Download Cancellation Cleans Up Partial Directory
@@ -441,10 +445,9 @@ final class LocalModelStoreTests: XCTestCase {
             // 预期抛出取消错误
         }
 
-        let partialDir = tempDirectory.appendingPathComponent(".partial-\(model.id)", isDirectory: true)
         let finalDir = store.modelDirectory(for: model)
 
-        XCTAssertFalse(FileManager.default.fileExists(atPath: partialDir.path), "取消后 .partial 临时目录必须被彻底删除")
+        XCTAssertEqual(partialDirectories(for: model), [], "取消后 .partial 临时目录必须被彻底删除")
         XCTAssertFalse(FileManager.default.fileExists(atPath: finalDir.path), "取消后不应存在最终安装目录")
         XCTAssertEqual(store.state(for: model), .notInstalled, "取消后状态必须重置为 notInstalled")
     }
@@ -550,6 +553,12 @@ final class LocalModelStoreTests: XCTestCase {
         try FileManager.default.createDirectory(at: stalePartialDir, withIntermediateDirectories: true)
         try "StaleJunk".data(using: .utf8)!.write(to: stalePartialDir.appendingPathComponent("junk.bin"))
 
+        // 当前格式：每次操作独立的 .partial-<id>-<uuid> 遗留目录
+        let staleOperationPartialDir = tempDirectory.appendingPathComponent(".partial-\(model.id)-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: staleOperationPartialDir, withIntermediateDirectories: true)
+        try "StaleJunk".data(using: .utf8)!.write(to: staleOperationPartialDir.appendingPathComponent("junk.bin"))
+        XCTAssertEqual(partialDirectories(for: model).count, 2, "测试前置：两种格式的遗留目录均存在")
+
         let finalDir = tempDirectory.appendingPathComponent(model.id, isDirectory: true)
         XCTAssertFalse(FileManager.default.fileExists(atPath: finalDir.path), "测试前置：正式目录此时不存在")
 
@@ -563,7 +572,7 @@ final class LocalModelStoreTests: XCTestCase {
 
         // 4. 验证备份目录与残留 .partial 目录均已被清理
         XCTAssertFalse(FileManager.default.fileExists(atPath: backupDir.path), "已恢复的备份目录必须被移走/移除")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: stalePartialDir.path), "残留的 .partial 临时目录必须在启动时清理")
+        XCTAssertEqual(partialDirectories(for: model), [], "残留的 .partial 临时目录（含 UUID 后缀格式）必须在启动时清理")
 
         // 5. 验证安装状态正常被识别为 installed
         XCTAssertTrue(store.isInstalled(model), "恢复后模型应直接判定为已安装")
@@ -642,6 +651,13 @@ final class LocalModelStoreTests: XCTestCase {
         )
         let model = LocalSpeechModel.testFixture(id: "test-replace", displayName: "Test Replace", files: [fixtureFile])
 
+        // 确定性握手（不依赖固定 sleep）：
+        // - firstStarted：第一次请求已进入网络阶段，此时取消才是「进行中取消」
+        // - releaseSecond：第二次请求挂起，直到第一次下载的取消收尾（catch/defer）完全结束后才返回数据，
+        //   从而保证旧任务的收尾一定发生在替代下载进行期间。
+        let firstStarted = DispatchSemaphore(value: 0)
+        let releaseFirst = DispatchSemaphore(value: 0)
+        let releaseSecond = DispatchSemaphore(value: 0)
         let lock = NSLock()
         var attempt = 0
         LocalModelStoreMockURLProtocol.requestHandler = { request in
@@ -651,26 +667,39 @@ final class LocalModelStoreTests: XCTestCase {
             lock.unlock()
 
             if currentAttempt == 1 {
-                Thread.sleep(forTimeInterval: 0.15)
+                firstStarted.signal()
+                _ = releaseFirst.wait(timeout: .now() + 5)
                 throw URLError(.cancelled)
             } else {
-                // 让第二次下载晚于第一次下载的 catch 清理阶段完成
-                Thread.sleep(forTimeInterval: 0.25)
+                guard releaseSecond.wait(timeout: .now() + 5) == .success else {
+                    throw URLError(.timedOut)
+                }
                 let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
                 return (response, payload)
             }
         }
+        defer { releaseFirst.signal() }
 
         let firstTask = Task {
             try await store.download(model)
         }
 
-        try await Task.sleep(nanoseconds: 50_000_000)
-        store.cancel(model)
+        let started = await Task.detached { firstStarted.wait(timeout: .now() + 5) }.value
+        XCTAssertEqual(started, .success, "第一次下载必须进入网络阶段")
 
-        let secondTask = Task {
-            try await store.download(model)
+        store.cancel(model)
+        releaseFirst.signal()
+
+        // 第一次下载的取消收尾结束后，才放行第二次请求
+        let releaser = Task {
+            _ = try? await firstTask.value
+            releaseSecond.signal()
         }
+
+        // 在同一 MainActor 回合内同步启动替代下载：旧任务的收尾必须等本回合让出 MainActor 后才能执行，
+        // 因此旧任务的 catch/defer 一定发生在替代下载已注册并创建临时目录之后。
+        try await store.download(model)
+        _ = await releaser.value
 
         do {
             _ = try await firstTask.value
@@ -679,9 +708,8 @@ final class LocalModelStoreTests: XCTestCase {
             XCTAssertEqual(error as? LocalModelStoreError, .operationCancelled)
         }
 
-        try await secondTask.value
-
         XCTAssertTrue(store.isInstalled(model), "替代下载完成后模型必须完整安装")
         XCTAssertEqual(store.state(for: model), .installed, "旧任务的异步收尾不得覆盖替代下载的 installed 状态")
+        XCTAssertEqual(partialDirectories(for: model), [], "两次操作结束后不得残留任何临时目录")
     }
 }

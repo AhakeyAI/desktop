@@ -331,7 +331,7 @@ enum LocalModelStoreError: LocalizedError, Equatable {
 // MARK: - 本地语音模型存储管理器
 
 /// 本地语音模型下载、校验、存储管理器
-/// 遵循原子写入安全规范：下载/导入只在 `.partial-<id>` 中进行，只有完整校验通过后才原子重命名替换至正式目录。
+/// 遵循原子写入安全规范：下载/导入只在每次操作独立的 `.partial-<id>-<uuid>` 中进行，只有完整校验通过后才原子重命名替换至正式目录。
 @MainActor
 final class LocalModelStore: ObservableObject {
     static let shared = LocalModelStore()
