@@ -1,0 +1,266 @@
+{
+  "date": "2026-11-11",
+  "timeZone": "Asia/Singapore",
+  "sourceCommit": "0471372159f6978ab19712f79d6524443a684fd9",
+  "archiveHexSHA256": "CA240DC1F34D8BD71BF2EB21BD59F65030C224C13535A1C43D56A695D1D3ED81",
+  "hostProbe": {
+    "compiler": "Apple clang version 21.0.0 (clang-2100.0.123.102)",
+    "adapter": "Exact Git source snapshot. Replaced the Windows compiler path with local clang in memory, added a shared include guard to the two copied host stub headers; no production source, test stimulus, assertions, or expected exit changed.",
+    "reportCases": [
+      {
+        "case": "normal",
+        "exit": 0
+      },
+      {
+        "case": "up",
+        "exit": 0
+      },
+      {
+        "case": "down",
+        "exit": 0
+      },
+      {
+        "case": "busy",
+        "exit": 0
+      },
+      {
+        "case": "external-up",
+        "exit": 0
+      },
+      {
+        "case": "external-down",
+        "exit": 0
+      },
+      {
+        "case": "queue",
+        "exit": 0
+      },
+      {
+        "case": "cancel",
+        "exit": 0
+      },
+      {
+        "case": "disconnect",
+        "exit": 0
+      },
+      {
+        "case": "usb-background",
+        "exit": 0
+      },
+      {
+        "case": "ble-to-usb",
+        "exit": 0
+      },
+      {
+        "case": "sleep",
+        "exit": 0
+      },
+      {
+        "case": "reconstructed",
+        "exit": 0
+      },
+      {
+        "case": "shared",
+        "exit": 0
+      }
+    ],
+    "baselineCases": [
+      {
+        "case": "normal",
+        "exit": 0
+      },
+      {
+        "case": "up",
+        "exit": 41
+      },
+      {
+        "case": "down",
+        "exit": 41
+      },
+      {
+        "case": "reconstructed",
+        "exit": 41
+      },
+      {
+        "case": "shared",
+        "exit": 0
+      }
+    ],
+    "lifecycleCases": [
+      {
+        "case": "actual-mode",
+        "exit": 0,
+        "baseline": false
+      },
+      {
+        "case": "actual-reset",
+        "exit": 0,
+        "baseline": false
+      },
+      {
+        "case": "actual-sleep",
+        "exit": 0,
+        "baseline": false
+      },
+      {
+        "case": "actual-epochs",
+        "exit": 0,
+        "baseline": false
+      },
+      {
+        "case": "actual-usb-epochs",
+        "exit": 0,
+        "baseline": false
+      },
+      {
+        "case": "readiness-up",
+        "exit": 0,
+        "baseline": false
+      },
+      {
+        "case": "readiness-down",
+        "exit": 0,
+        "baseline": false
+      },
+      {
+        "case": "actual-scan-wake",
+        "exit": 0,
+        "baseline": false
+      },
+      {
+        "case": "shutdown",
+        "exit": 0,
+        "baseline": false
+      },
+      {
+        "case": "readiness-up",
+        "exit": 0,
+        "baseline": true
+      },
+      {
+        "case": "readiness-down",
+        "exit": 0,
+        "baseline": true
+      }
+    ],
+    "negativeControl": {
+      "result": "PASS",
+      "mutation": "remove actual callback epoch hook",
+      "exit": 41
+    },
+    "scope": "Firmware report/lifecycle code with host hardware stubs. No new RF, macOS HID, board power or HW2 proof."
+  },
+  "nativeUploadTiming": {
+    "build": 578,
+    "wireProtocol": "ACR4",
+    "samples": [
+      {
+        "entry": 15,
+        "frames": 12,
+        "encodedBytes": 7729,
+        "beginToMetadataMs": 83847,
+        "beginToFirstChunkMs": 303,
+        "chunkTxToWriteComplete": {
+          "n": 61,
+          "sumMs": 3574,
+          "medianMs": 61,
+          "minMs": 22,
+          "p95Ms": 67,
+          "maxMs": 89
+        },
+        "writeCompleteToChunkAck": {
+          "n": 61,
+          "sumMs": 79554,
+          "medianMs": 1148,
+          "minMs": 89,
+          "p95Ms": 2868,
+          "maxMs": 3090
+        },
+        "chunkAckToNextChunkTx": {
+          "n": 60,
+          "sumMs": 100,
+          "medianMs": 2.0,
+          "minMs": 0,
+          "p95Ms": 3,
+          "maxMs": 3
+        },
+        "lastChunkAckToCommitMs": 2,
+        "commitToVerifiedMetadataMs": 314,
+        "postWriteACKShare": 0.9488
+      },
+      {
+        "entry": 12,
+        "frames": 8,
+        "encodedBytes": 5078,
+        "beginToMetadataMs": 58658,
+        "beginToFirstChunkMs": 316,
+        "chunkTxToWriteComplete": {
+          "n": 40,
+          "sumMs": 2456,
+          "medianMs": 62.0,
+          "minMs": 22,
+          "p95Ms": 71,
+          "maxMs": 99
+        },
+        "writeCompleteToChunkAck": {
+          "n": 40,
+          "sumMs": 55496,
+          "medianMs": 1165.0,
+          "minMs": 115,
+          "p95Ms": 2915,
+          "maxMs": 3427
+        },
+        "chunkAckToNextChunkTx": {
+          "n": 39,
+          "sumMs": 75,
+          "medianMs": 2,
+          "minMs": 1,
+          "p95Ms": 3,
+          "maxMs": 3
+        },
+        "lastChunkAckToCommitMs": 1,
+        "commitToVerifiedMetadataMs": 314,
+        "postWriteACKShare": 0.9461
+      },
+      {
+        "entry": 13,
+        "frames": 12,
+        "encodedBytes": 7729,
+        "beginToMetadataMs": 87346,
+        "beginToFirstChunkMs": 317,
+        "chunkTxToWriteComplete": {
+          "n": 61,
+          "sumMs": 3750,
+          "medianMs": 63,
+          "minMs": 22,
+          "p95Ms": 68,
+          "maxMs": 83
+        },
+        "writeCompleteToChunkAck": {
+          "n": 61,
+          "sumMs": 82860,
+          "medianMs": 1205,
+          "minMs": 78,
+          "p95Ms": 3034,
+          "maxMs": 3257
+        },
+        "chunkAckToNextChunkTx": {
+          "n": 60,
+          "sumMs": 114,
+          "medianMs": 2.0,
+          "minMs": 0,
+          "p95Ms": 3,
+          "maxMs": 4
+        },
+        "lastChunkAckToCommitMs": 2,
+        "commitToVerifiedMetadataMs": 303,
+        "postWriteACKShare": 0.9486
+      }
+    ],
+    "scope": "Host log timestamp deltas only. Post-write ACK interval includes device processing and notification path; not a measurement of flash, radio or scheduler in isolation. Partial ACR3 trace excluded."
+  },
+  "physicalIssues": {
+    "key3": "7 normal macro reports with releases; target application and actual failure-code correlation still unverified.",
+    "upload": "Three ACR4 samples; two 12-frame samples exceed 60 seconds. ACR3 full timing unavailable due to expired logging."
+  }
+}
