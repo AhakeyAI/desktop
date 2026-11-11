@@ -78,6 +78,18 @@ public enum FirmwareCandidateSelection {
     public static func candidates(catalog: VerifiedFirmwareCatalog?, identity: FirmwareCatalogIdentity,
         context: FirmwareDesktopContext) -> [FirmwareInstallCandidate] {
         guard let catalog else { return [] }
+        // A compatible image alone does not establish that the connected
+        // keyboard belongs to this hardware family. Keep the independently
+        // verified legacy path, but require a compatible catalog identity for
+        // any keyboard that reports a key.
+        let connectedDeviceBlock: FirmwareCatalogState?
+        switch identity {
+        case .legacy:
+            connectedDeviceBlock = nil
+        case .readFailed, .key:
+            let decision = FirmwareCatalogDecision.evaluate(identity: identity, catalog: catalog, context: context)
+            connectedDeviceBlock = decision.permitsAdvancedOperations ? nil : decision.state
+        }
         let entries = catalog.value.entries.filter {
             $0.visibility == .user && $0.hardware == context.hardware && $0.desktopVariants.contains(context.variant) &&
                 context.allowedChannels.contains($0.channel) && $0.artifact != nil
@@ -95,9 +107,7 @@ public enum FirmwareCandidateSelection {
             if entry.key == entries.first?.key { badges.insert(.latest) }
             if entry.key == recovery?.key { badges.insert(.stableRecovery) }
             if entry.key == current { badges.insert(.current) }
-            let compatibility: FirmwareCatalogState
-            if identity == .readFailed { compatibility = .keyReadFailed }
-            else { compatibility = FirmwareCatalogDecision.compatibility(entry, context: context) }
+            let compatibility = connectedDeviceBlock ?? FirmwareCatalogDecision.compatibility(entry, context: context)
             return FirmwareInstallCandidate(entry: entry, badges: badges, compatibility: compatibility)
         }
     }

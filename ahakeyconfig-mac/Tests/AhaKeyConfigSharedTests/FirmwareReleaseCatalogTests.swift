@@ -190,6 +190,34 @@ final class FirmwareReleaseCatalogTests: XCTestCase {
         let windows = FirmwareDesktopContext(version: context.version, variant: "different")
         XCTAssertTrue(FirmwareCandidateSelection.candidates(catalog: catalog, identity: .legacy, context: windows).isEmpty)
     }
+    func testCatalogUpgradeRequiresCompatibleConnectedHardware() throws {
+        let hw1 = entry(recommended: true)
+        let hw2Key = "x1-c582-hw2-p1-1.0.1-r001"
+        let hw2 = FirmwareReleaseCatalog.Entry(key: hw2Key, displayName: "HW2", hardware: "x1-c582-hw2",
+            protocolProfile: "p1", capabilities: [.ordinaryKeys], minimumDesktop: "0.2.0",
+            desktopVariants: ["legacy-macos"], visibility: .user, channel: .stable, releaseOrder: 2,
+            artifact: .init(filename: "hw2.hex", sha256: String(repeating: "b", count: 64), byteCount: 20,
+                bundledPath: "Firmware/hw2.hex"))
+        let catalog = try verified([hw1, hw2])
+        let sameBoard = FirmwareCandidateSelection.candidates(catalog: catalog, identity: .key(hw1.key), context: context)
+        let prepared = try XCTUnwrap(sameBoard.first)
+        XCTAssertTrue(prepared.canInstall)
+
+        for (identity, expected) in [(FirmwareCatalogIdentity.key(hw2Key), FirmwareCatalogState.unsupportedHardware),
+            (.key("x1-c582-hw1-p1-1.0.1-r099"), .unknownKey("x1-c582-hw1-p1-1.0.1-r099"))] {
+            let options = FirmwareCandidateSelection.candidates(catalog: catalog, identity: identity, context: context)
+            let candidate = try XCTUnwrap(options.first)
+            XCTAssertEqual(candidate.entry.key, hw1.key)
+            XCTAssertEqual(candidate.compatibility, expected)
+            XCTAssertFalse(candidate.canInstall)
+            XCTAssertFalse(FirmwareCandidateSelection.isCurrent(prepared, in: options))
+        }
+
+        let hw2Context = FirmwareDesktopContext(version: context.version, hardware: hw2.hardware)
+        let hw2Options = FirmwareCandidateSelection.candidates(catalog: catalog, identity: .key(hw2Key), context: hw2Context)
+        XCTAssertEqual(hw2Options.map(\.entry.key), [hw2Key])
+        XCTAssertTrue(try XCTUnwrap(hw2Options.first).canInstall)
+    }
     func testLocalImageNeedsUniqueCompatibleTrustedMatch() throws {
         let hash = String(repeating: "a", count: 64)
         XCTAssertNotNil(FirmwareCandidateSelection.trustedLocalMatch(sha256: hash, catalog: try verified([entry()]), context: context))

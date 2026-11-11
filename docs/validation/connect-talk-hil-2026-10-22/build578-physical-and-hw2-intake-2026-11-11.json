@@ -1,0 +1,85 @@
+{
+  "date": "2026-11-11",
+  "timeZone": "Asia/Singapore",
+  "hardwareTested": {
+    "board": "HW1",
+    "hexSHA256": "CA240DC1F34D8BD71BF2EB21BD59F65030C224C13535A1C43D56A695D1D3ED81",
+    "installedBuild": 578,
+    "installedSource": "05e6b53bccb25c9babb9e50061c5f228304a0a0a"
+  },
+  "observations": {
+    "macro": {
+      "rawFunctionEdges": 42,
+      "completeDownDownEnterSequences": 7,
+      "matchedAllReleases": true,
+      "qaWindowRepeatEvents": 0,
+      "targetMenuEffectConfirmed": false,
+      "rfFaultMatrixPassed": false
+    },
+    "voice": {
+      "pasteEvents": 2,
+      "speechContentRecorded": false,
+      "ownerExplicitContentAndGestureConfirmation": false
+    },
+    "reconnect": {
+      "operatorReportedSequenceComplete": true,
+      "agentConnectedAfterVoiceAtUTC": "2026-11-11T03:18:27Z",
+      "laterPhysicalMode": "Mode 4 / custom",
+      "powerEventIndependentlyObserved": false
+    },
+    "resources": {
+      "readAtLocal": "14:25:08.434",
+      "all19MatchPreSequence": true,
+      "untouched16MatchOriginalBaseline": true,
+      "brightness": 35,
+      "remainingTestPositions": [
+        {
+          "entry": 12,
+          "frames": 8,
+          "crc32": 2349890946
+        },
+        {
+          "entry": 13,
+          "frames": 12,
+          "crc32": 3014033367
+        },
+        {
+          "entry": 15,
+          "frames": 12,
+          "crc32": 871831239
+        }
+      ],
+      "pixelsIndependentlyObserved": false,
+      "writesThisReadback": 0,
+      "verboseLoggingRestoredOff": true
+    }
+  },
+  "upstreamHW2": {
+    "archiveCommit": "24c6ec92cdbc77e19e3f5a895c36029f47c31cad",
+    "source": "5454ed6a5d2cb8368893bdb4c7acb738e9ce5125",
+    "hexSHA256": "ACAA7D2F8BFE83CCFA1C45327675E8E58FF342A21DCFF54DC02BE24FF8E5092D",
+    "archiveHashVerified": true,
+    "reportedUAT": "ACCEPTED_WITH_CARRIED_DEBT",
+    "localMacHIL": false,
+    "catalogKey": "x1-c582-hw2-p1-1.0.1-r001",
+    "catalogTrustChanged": false
+  },
+  "desktopUpgradeGate": {
+    "reproduction": "Signed test directory lists HW1 as installable for a reported HW2 or unlisted key.",
+    "beforeFailures": 4,
+    "afterFocusedTests": 30,
+    "afterFullSwiftTests": 1098,
+    "physicalFlashAttempted": false,
+    "newBuildInstalled": false,
+    "legacyPathRetained": true
+  },
+  "open": [
+    "target application macro effect / injected send failure",
+    "voice content and individual gesture confirmation",
+    "OLED animation observation and test-position cleanup",
+    "same authorized Codex session lever round trip",
+    "timed Quiet and logical sleep/wake",
+    "three external protocol/integration contracts",
+    "formal release inputs and eight full validation matrices"
+  ]
+}
