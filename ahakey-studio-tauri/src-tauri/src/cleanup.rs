@@ -154,14 +154,8 @@ mod tests {
             strip_think_blocks("<think>Thinking process here</think>Final cleaned text."),
             "Final cleaned text."
         );
-        assert_eq!(
-            strip_think_blocks("<think>Unclosed thinking block"),
-            ""
-        );
-        assert_eq!(
-            strip_think_blocks("Hello </think> World"),
-            "Hello  World"
-        );
+        assert_eq!(strip_think_blocks("<think>Unclosed thinking block"), "");
+        assert_eq!(strip_think_blocks("Hello </think> World"), "Hello  World");
     }
 
     #[tokio::test]
@@ -169,14 +163,11 @@ mod tests {
         let client = reqwest::Client::new();
         // Pointing to a port that is guaranteed not to be running an LLM
         let raw = "今天天气很好，那个就是说挺不错的。";
-        let result = clean_transcript(
-            &client,
-            "http://127.0.0.1:59999",
-            "qwen2.5:3b",
-            raw,
-        )
-        .await;
-        assert_eq!(result, raw, "Network failure must return raw transcript unchanged");
+        let result = clean_transcript(&client, "http://127.0.0.1:59999", "qwen2.5:3b", raw).await;
+        assert_eq!(
+            result, raw,
+            "Network failure must return raw transcript unchanged"
+        );
     }
 
     #[tokio::test]

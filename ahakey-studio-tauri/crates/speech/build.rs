@@ -22,7 +22,11 @@ fn main() {
     // not test binaries. Tests need the same beside-exe bundle as releases.
     let tests = profile.join("deps");
     fs::create_dir_all(&tests).expect("Create test output directory");
-    let target_ext = if target_os == "windows" { "dll" } else { "dylib" };
+    let target_ext = if target_os == "windows" {
+        "dll"
+    } else {
+        "dylib"
+    };
     for entry in fs::read_dir(&directory).expect("Read prepared speech runtime") {
         let entry = entry.expect("Read runtime file");
         if entry.path().extension().and_then(|ext| ext.to_str()) == Some(target_ext) {

@@ -575,7 +575,10 @@ mod tests {
         assert_eq!(loaded.cleanup_mode, CleanupMode::Off);
         assert_eq!(loaded.cleanup_base_url, "http://localhost:11434");
         assert_eq!(loaded.cleanup_model, "qwen2.5:3b");
-        assert_eq!(loaded.local_model_kind(), ahakey_speech::ModelKind::SenseVoice);
+        assert_eq!(
+            loaded.local_model_kind(),
+            ahakey_speech::ModelKind::SenseVoice
+        );
     }
     #[test]
     fn engine_and_whisper_size_fallback_to_defaults_on_unknown_value() {

@@ -76,8 +76,12 @@ impl Recognizer {
         }
 
         Ok(Self {
-            inner: OfflineRecognizer::create(&settings)
-                .with_context(|| format!("Cannot initialize native {}", config.model_kind.display_name()))?,
+            inner: OfflineRecognizer::create(&settings).with_context(|| {
+                format!(
+                    "Cannot initialize native {}",
+                    config.model_kind.display_name()
+                )
+            })?,
         })
     }
 

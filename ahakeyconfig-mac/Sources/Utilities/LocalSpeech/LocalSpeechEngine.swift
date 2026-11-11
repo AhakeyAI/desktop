@@ -99,8 +99,12 @@ final class LocalSpeechEngine: ObservableObject {
         switch model {
         case .senseVoice:
             return "SenseVoice"
-        case .whisperTiny, .whisperBase, .whisperSmall, .whisperTurbo, .testFixture:
+        case .whisperTiny, .whisperBase, .whisperSmall, .whisperTurbo:
             return model.displayName
+        #if DEBUG
+        case .testFixture:
+            return model.displayName
+        #endif
         }
     }
 

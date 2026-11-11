@@ -62,7 +62,6 @@ impl WhisperSize {
 pub enum ModelKind {
     #[default]
     SenseVoice,
-    #[serde(rename_all = "kebab-case")]
     Whisper(WhisperSize),
 }
 
@@ -319,13 +318,7 @@ impl ModelStore {
         let total = self.kind.total_bytes();
         // Validate all sources before replacing any destination file.
         for (name, hash, size) in files {
-            validate(
-                &source.join(name),
-                hash,
-                *size,
-                cancel,
-                self.kind,
-            )?;
+            validate(&source.join(name), hash, *size, cancel, self.kind)?;
         }
         fs::create_dir_all(&self.directory)?;
         let mut completed = 0;
@@ -474,7 +467,11 @@ mod tests {
             assert!(kind.id().starts_with("whisper-"));
             assert!(kind.base_url().starts_with("https://huggingface.co/"));
             let files = kind.files();
-            assert_eq!(files.len(), 3, "Whisper must have encoder, decoder, and tokens");
+            assert_eq!(
+                files.len(),
+                3,
+                "Whisper must have encoder, decoder, and tokens"
+            );
             let prefix = size.file_prefix();
             assert_eq!(files[0].0, format!("{prefix}-encoder.int8.onnx"));
             assert_eq!(files[1].0, format!("{prefix}-decoder.int8.onnx"));
