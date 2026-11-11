@@ -32,6 +32,7 @@ pub struct KeyObservation {
 }
 #[derive(Clone, Debug)]
 pub struct TransferTask {
+    pub id: u64,
     pub cancel: ahakey_speech::CancellationToken,
     pub kind: ahakey_speech::ModelKind,
     pub is_auto: bool,
@@ -77,6 +78,7 @@ pub struct Runtime {
     pub ble_error: Mutex<Option<String>>,
     pub usb: Mutex<crate::device::UsbSnapshot>,
     pub usb_gate: tokio::sync::Mutex<()>,
+    pub transfer_generation: AtomicU64,
     pub transfer: Mutex<Option<TransferTask>>,
     pub download: Mutex<DownloadStatus>,
     pub hook: Mutex<Option<crate::hooks::HookServer>>,
@@ -167,6 +169,7 @@ impl Runtime {
             ble_error: Mutex::new(None),
             usb: Mutex::new(crate::device::UsbSnapshot::default()),
             usb_gate: tokio::sync::Mutex::new(()),
+            transfer_generation: AtomicU64::new(0),
             transfer: Mutex::new(None),
             download: Mutex::new(DownloadStatus {
                 busy: false,
@@ -202,6 +205,32 @@ impl Runtime {
     }
     pub fn credentials(&self) -> ahakey_cloud::CredentialStore {
         ahakey_cloud::CredentialStore::new(self.data_dir.join("credentials"), &self.identifier)
+    }
+    pub fn next_transfer_id(&self) -> u64 {
+        self.transfer_generation
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1
+    }
+    pub fn update_transfer_progress(&self, id: u64, fraction: f64) -> bool {
+        let active = self.transfer.lock().unwrap();
+        if active.as_ref().map(|t| t.id) != Some(id) {
+            return false;
+        }
+        let mut p = self.download.lock().unwrap();
+        let changed = (p.progress - fraction).abs() >= 0.01 || fraction >= 1.0;
+        p.progress = fraction;
+        changed
+    }
+    pub fn finish_transfer(&self, id: u64, message: String) -> bool {
+        let mut active = self.transfer.lock().unwrap();
+        if active.as_ref().map(|t| t.id) != Some(id) {
+            return false;
+        }
+        *active = None;
+        let mut p = self.download.lock().unwrap();
+        p.busy = false;
+        p.message = message;
+        true
     }
 }
 
@@ -260,5 +289,65 @@ mod tests {
         let standard = temp.path().join("models/sensevoice-2024-07-17");
 
         assert_eq!(runtime.model_dir_for(ModelKind::SenseVoice), standard);
+    }
+
+    #[test]
+    fn stale_transfer_completion_does_not_overwrite_replacement_transfer() {
+        let temp = tempfile::tempdir().unwrap();
+        let runtime = make_test_runtime(temp.path().to_path_buf());
+
+        let cancel_a = ahakey_speech::CancellationToken::new();
+        let id_a = runtime.next_transfer_id();
+        *runtime.transfer.lock().unwrap() = Some(TransferTask {
+            id: id_a,
+            cancel: cancel_a.clone(),
+            kind: ModelKind::SenseVoice,
+            is_auto: true,
+        });
+        *runtime.download.lock().unwrap() = DownloadStatus {
+            busy: true,
+            progress: 0.25,
+            message: "正在后台自动下载 SenseVoice Small INT8 模型…".into(),
+        };
+
+        // Cancel A and immediately install replacement transfer B
+        cancel_a.cancel();
+        let cancel_b = ahakey_speech::CancellationToken::new();
+        let id_b = runtime.next_transfer_id();
+        *runtime.transfer.lock().unwrap() = Some(TransferTask {
+            id: id_b,
+            cancel: cancel_b,
+            kind: ModelKind::Whisper(ahakey_speech::WhisperSize::Base),
+            is_auto: false,
+        });
+        *runtime.download.lock().unwrap() = DownloadStatus {
+            busy: true,
+            progress: 0.0,
+            message: "正在准备 Whisper Base 模型…".into(),
+        };
+
+        // Stale progress and completion from A must be ignored
+        assert!(!runtime.update_transfer_progress(id_a, 0.9));
+        assert!(!runtime.finish_transfer(id_a, "模型自动下载已取消".into()));
+        assert_eq!(
+            runtime.transfer.lock().unwrap().as_ref().map(|t| t.id),
+            Some(id_b),
+            "Replacement transfer B must remain tracked after cancelled transfer A exits"
+        );
+        {
+            let status = runtime.download.lock().unwrap();
+            assert!(
+                status.busy,
+                "Download status must remain busy for active transfer B"
+            );
+            assert_eq!(status.progress, 0.0);
+            assert_eq!(status.message, "正在准备 Whisper Base 模型…");
+        }
+
+        // Active transfer B updates and completes normally
+        assert!(runtime.update_transfer_progress(id_b, 0.5));
+        assert!(runtime.finish_transfer(id_b, "Whisper Base 模型已校验，可开始识别".into()));
+        assert!(runtime.transfer.lock().unwrap().is_none());
+        assert!(!runtime.download.lock().unwrap().busy);
     }
 }

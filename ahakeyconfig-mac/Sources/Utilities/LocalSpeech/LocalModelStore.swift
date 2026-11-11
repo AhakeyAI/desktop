@@ -342,10 +342,15 @@ final class LocalModelStore: ObservableObject {
     /// 各模型的实时状态映射
     @Published private(set) var states: [LocalSpeechModel: LocalModelState] = [:]
 
+    private struct ActiveOperation {
+        let id: UUID
+        let cancelFlag: LocalModelCancellationFlag
+        let partialDir: URL
+        var downloadTask: URLSessionDownloadTask?
+    }
+
     private let urlSession: URLSession
-    private var activeDownloadTasksByModel: [LocalSpeechModel: URLSessionDownloadTask] = [:]
-    private var activeCancellationFlags: [LocalSpeechModel: LocalModelCancellationFlag] = [:]
-    private var cancelledModels: Set<String> = []
+    private var activeOperations: [LocalSpeechModel: ActiveOperation] = [:]
 
     init(modelsDirectory: URL? = nil, urlSession: URLSession = .shared) {
         if let dir = modelsDirectory {
@@ -491,22 +496,32 @@ final class LocalModelStore: ObservableObject {
 
     /// 下载并校验模型（原子安装至 models/<id>）
     func download(_ model: LocalSpeechModel) async throws {
-        guard activeDownloadTasksByModel[model] == nil else {
+        guard activeOperations[model] == nil else {
             log.info("[\(model.id)] 下载已在进行中，跳过重复请求")
             return
         }
 
+        let opId = UUID()
         let cancelFlag = LocalModelCancellationFlag()
-        activeCancellationFlags[model] = cancelFlag
-        defer { activeCancellationFlags.removeValue(forKey: model) }
-
-        cancelledModels.remove(model.id)
-        states[model] = .downloading(progress: 0.0)
-
         let root = modelsDirectory
-        let partialDir = root.appendingPathComponent(".partial-\(model.id)", isDirectory: true)
+        let partialDir = root.appendingPathComponent(".partial-\(model.id)-\(opId.uuidString)", isDirectory: true)
         let finalDir = modelDirectory(for: model)
         let fm = FileManager.default
+
+        activeOperations[model] = ActiveOperation(
+            id: opId,
+            cancelFlag: cancelFlag,
+            partialDir: partialDir,
+            downloadTask: nil
+        )
+        defer {
+            if activeOperations[model]?.id == opId {
+                activeOperations.removeValue(forKey: model)
+            }
+            try? fm.removeItem(at: partialDir)
+        }
+
+        states[model] = .downloading(progress: 0.0)
 
         do {
             try fm.createDirectory(at: root, withIntermediateDirectories: true)
@@ -521,12 +536,18 @@ final class LocalModelStore: ObservableObject {
             var lastPublishedTime: CFAbsoluteTime = 0
 
             for file in model.fileList {
-                try checkCancellation(for: model)
+                try checkCancellation(opId: opId, cancelFlag: cancelFlag, for: model)
                 let dst = partialDir.appendingPathComponent(file.filename)
                 let baseCompleted = completedBytes
 
-                try await downloadFile(file: file, for: model, to: dst) { [weak self] currentReceived in
-                    guard let self = self else { return }
+                try await downloadFile(
+                    file: file,
+                    for: model,
+                    opId: opId,
+                    cancelFlag: cancelFlag,
+                    to: dst
+                ) { [weak self] currentReceived in
+                    guard let self = self, self.activeOperations[model]?.id == opId else { return }
                     // P0 防御：仅当状态处于 downloading 时才更新进度，避免晚到回调冲掉 verifying 或 installed
                     guard case .downloading = self.states[model] else { return }
 
@@ -540,7 +561,7 @@ final class LocalModelStore: ObservableObject {
                     }
                 }
 
-                try checkCancellation(for: model)
+                try checkCancellation(opId: opId, cancelFlag: cancelFlag, for: model)
 
                 // 校验单文件大小
                 guard let attrs = try? fm.attributesOfItem(atPath: dst.path),
@@ -554,43 +575,49 @@ final class LocalModelStore: ObservableObject {
                 completedBytes += file.expectedBytes
             }
 
+            try checkCancellation(opId: opId, cancelFlag: cancelFlag, for: model)
+
             // 校验阶段（在后台 utility 优先级线程池运行，并通过 cancelFlag 响应及时取消）
             states[model] = .verifying
             log.info("[\(model.id)] 开始后台计算 SHA256 校验和...")
 
             for file in model.fileList {
-                try checkCancellation(for: model)
+                try checkCancellation(opId: opId, cancelFlag: cancelFlag, for: model)
                 let filePath = partialDir.appendingPathComponent(file.filename)
                 let hash = try await Task.detached(priority: .utility) {
                     try Self.computeSHA256(for: filePath) {
                         cancelFlag.isCancelled
                     }
                 }.value
-                try checkCancellation(for: model)
+                try checkCancellation(opId: opId, cancelFlag: cancelFlag, for: model)
                 guard hash.lowercased() == file.sha256.lowercased() else {
                     throw LocalModelStoreError.checksumMismatch(file: file.filename, expected: file.sha256, actual: hash)
                 }
             }
 
-            try checkCancellation(for: model)
+            try checkCancellation(opId: opId, cancelFlag: cancelFlag, for: model)
 
             // 原子替换目录
             try atomicMove(from: partialDir, to: finalDir, modelId: model.id)
             states[model] = .installed
-            activeDownloadTasksByModel.removeValue(forKey: model)
+            activeOperations.removeValue(forKey: model)
             log.info("[\(model.id)] 模型下载与安装成功")
         } catch {
-            activeDownloadTasksByModel.removeValue(forKey: model)
-            try? fm.removeItem(at: partialDir)
+            let wasCancelled = isCancellationError(error) || cancelFlag.isCancelled || activeOperations[model]?.id != opId
+            if activeOperations[model]?.id == opId {
+                activeOperations.removeValue(forKey: model)
+                if wasCancelled {
+                    states[model] = isInstalled(model) ? .installed : .notInstalled
+                } else {
+                    states[model] = .failed(error.localizedDescription)
+                }
+            }
 
-            if isCancellationError(error) || cancelledModels.contains(model.id) {
-                cancelledModels.remove(model.id)
-                states[model] = isInstalled(model) ? .installed : .notInstalled
+            if wasCancelled {
                 log.info("[\(model.id)] 模型下载已取消")
                 throw LocalModelStoreError.operationCancelled
             } else {
                 let message = error.localizedDescription
-                states[model] = .failed(message)
                 log.error("[\(model.id)] 模型安装失败: \(message)")
                 throw error
             }
@@ -599,13 +626,13 @@ final class LocalModelStore: ObservableObject {
 
     /// 取消模型的下载或导入，清理临时目录并保留已有安装
     func cancel(_ model: LocalSpeechModel) {
-        cancelledModels.insert(model.id)
-        activeCancellationFlags.removeValue(forKey: model)?.cancel()
-        if let task = activeDownloadTasksByModel.removeValue(forKey: model) {
-            task.cancel()
+        if let op = activeOperations.removeValue(forKey: model) {
+            op.cancelFlag.cancel()
+            op.downloadTask?.cancel()
+            try? FileManager.default.removeItem(at: op.partialDir)
         }
-        let partialDir = modelsDirectory.appendingPathComponent(".partial-\(model.id)", isDirectory: true)
-        try? FileManager.default.removeItem(at: partialDir)
+        let legacyPartialDir = modelsDirectory.appendingPathComponent(".partial-\(model.id)", isDirectory: true)
+        try? FileManager.default.removeItem(at: legacyPartialDir)
 
         states[model] = isInstalled(model) ? .installed : .notInstalled
         log.info("[\(model.id)] 已触发取消")
@@ -629,11 +656,6 @@ final class LocalModelStore: ObservableObject {
     /// 严格验证大小与 SHA256，通过后原子重命名覆盖
     func importFromFolder(_ model: LocalSpeechModel, from sourceURL: URL) async throws {
         cancel(model)
-        cancelledModels.remove(model.id)
-
-        let cancelFlag = LocalModelCancellationFlag()
-        activeCancellationFlags[model] = cancelFlag
-        defer { activeCancellationFlags.removeValue(forKey: model) }
 
         let fm = FileManager.default
         var isDir: ObjCBool = false
@@ -643,9 +665,24 @@ final class LocalModelStore: ObservableObject {
             throw err
         }
 
+        let opId = UUID()
+        let cancelFlag = LocalModelCancellationFlag()
         let root = modelsDirectory
-        let partialDir = root.appendingPathComponent(".partial-\(model.id)", isDirectory: true)
+        let partialDir = root.appendingPathComponent(".partial-\(model.id)-\(opId.uuidString)", isDirectory: true)
         let finalDir = modelDirectory(for: model)
+
+        activeOperations[model] = ActiveOperation(
+            id: opId,
+            cancelFlag: cancelFlag,
+            partialDir: partialDir,
+            downloadTask: nil
+        )
+        defer {
+            if activeOperations[model]?.id == opId {
+                activeOperations.removeValue(forKey: model)
+            }
+            try? fm.removeItem(at: partialDir)
+        }
 
         states[model] = .verifying
 
@@ -658,7 +695,7 @@ final class LocalModelStore: ObservableObject {
 
             // 先预检所有文件存在性与大小，避免无谓的 IO 复制
             for file in model.fileList {
-                try checkCancellation(for: model)
+                try checkCancellation(opId: opId, cancelFlag: cancelFlag, for: model)
                 let srcFile = sourceURL.appendingPathComponent(file.filename)
                 guard fm.fileExists(atPath: srcFile.path) else {
                     throw LocalModelStoreError.fileNotFound(file.filename)
@@ -674,7 +711,7 @@ final class LocalModelStore: ObservableObject {
 
             // 流式复制并计算 SHA256（在后台 utility 线程池执行）
             for file in model.fileList {
-                try checkCancellation(for: model)
+                try checkCancellation(opId: opId, cancelFlag: cancelFlag, for: model)
                 let srcFile = sourceURL.appendingPathComponent(file.filename)
                 let dstFile = partialDir.appendingPathComponent(file.filename)
 
@@ -683,27 +720,33 @@ final class LocalModelStore: ObservableObject {
                         cancelFlag.isCancelled
                     }
                 }.value
-                try checkCancellation(for: model)
+                try checkCancellation(opId: opId, cancelFlag: cancelFlag, for: model)
                 guard actualHash.lowercased() == file.sha256.lowercased() else {
                     throw LocalModelStoreError.checksumMismatch(file: file.filename, expected: file.sha256, actual: actualHash)
                 }
             }
 
-            try checkCancellation(for: model)
+            try checkCancellation(opId: opId, cancelFlag: cancelFlag, for: model)
 
             try atomicMove(from: partialDir, to: finalDir, modelId: model.id)
             states[model] = .installed
+            activeOperations.removeValue(forKey: model)
             log.info("[\(model.id)] 文件夹离线导入成功")
         } catch {
-            try? fm.removeItem(at: partialDir)
-            if isCancellationError(error) || cancelledModels.contains(model.id) {
-                cancelledModels.remove(model.id)
-                states[model] = isInstalled(model) ? .installed : .notInstalled
+            let wasCancelled = isCancellationError(error) || cancelFlag.isCancelled || activeOperations[model]?.id != opId
+            if activeOperations[model]?.id == opId {
+                activeOperations.removeValue(forKey: model)
+                if wasCancelled {
+                    states[model] = isInstalled(model) ? .installed : .notInstalled
+                } else {
+                    states[model] = .failed(error.localizedDescription)
+                }
+            }
+            if wasCancelled {
                 log.info("[\(model.id)] 文件夹导入已取消")
                 throw LocalModelStoreError.operationCancelled
             } else {
                 let msg = error.localizedDescription
-                states[model] = .failed(msg)
                 log.error("[\(model.id)] 文件夹导入失败: \(msg)")
                 throw error
             }
@@ -712,8 +755,12 @@ final class LocalModelStore: ObservableObject {
 
     // MARK: - 私有辅助方法
 
-    private func checkCancellation(for model: LocalSpeechModel) throws {
-        if cancelledModels.contains(model.id) || Task.isCancelled {
+    private func checkCancellation(
+        opId: UUID,
+        cancelFlag: LocalModelCancellationFlag,
+        for model: LocalSpeechModel
+    ) throws {
+        if cancelFlag.isCancelled || activeOperations[model]?.id != opId || Task.isCancelled {
             throw LocalModelStoreError.operationCancelled
         }
     }
@@ -729,6 +776,8 @@ final class LocalModelStore: ObservableObject {
     private func downloadFile(
         file: LocalModelFileSpec,
         for model: LocalSpeechModel,
+        opId: UUID,
+        cancelFlag: LocalModelCancellationFlag,
         to destinationURL: URL,
         onProgress: @escaping @MainActor (Int64) -> Void
     ) async throws {
@@ -750,7 +799,17 @@ final class LocalModelStore: ObservableObject {
                     }
                 }
 
+                guard !cancelFlag.isCancelled, self.activeOperations[model]?.id == opId else {
+                    finish(with: .failure(CancellationError()))
+                    return
+                }
+
                 let task = self.urlSession.downloadTask(with: file.remoteURL) { tempURL, response, error in
+                    if cancelFlag.isCancelled {
+                        finish(with: .failure(CancellationError()))
+                        return
+                    }
+
                     if let error = error {
                         let nsError = error as NSError
                         if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
@@ -802,12 +861,14 @@ final class LocalModelStore: ObservableObject {
                     }
                 }
 
-                self.activeDownloadTasksByModel[model] = task
+                self.activeOperations[model]?.downloadTask = task
                 task.resume()
             }
         } onCancel: {
             Task { @MainActor in
-                self.activeDownloadTasksByModel[model]?.cancel()
+                if self.activeOperations[model]?.id == opId {
+                    self.activeOperations[model]?.downloadTask?.cancel()
+                }
             }
         }
     }

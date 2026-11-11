@@ -624,4 +624,64 @@ final class LocalModelStoreTests: XCTestCase {
         // 验证当前状态为 installed 时，任何后续下载操作或防御逻辑均保持其 installed 状态
         XCTAssertEqual(store.state(for: model), .installed)
     }
+
+    // MARK: - 15. Cancelled Download Does Not Corrupt Replacement Download
+
+    /// WHY:
+    /// 用户取消下载后立即点击重新下载时，旧 URLSession 任务与异常捕获分支可能在新下载启动后才异步收尾。
+    /// 旧任务绝不能删除新下载正在写入的临时目录、移除新任务的句柄或覆盖新下载的状态。
+    func testCancelledDownloadDoesNotCorruptReplacementDownload() async throws {
+        let store = LocalModelStore(modelsDirectory: tempDirectory, urlSession: mockSession)
+
+        let payload = "ReplacementDownloadValidPayload".data(using: .utf8)!
+        let fixtureFile = LocalModelFileSpec(
+            remoteURL: URL(string: "mock://model/replace.bin")!,
+            filename: "replace.bin",
+            expectedBytes: Int64(payload.count),
+            sha256: computeSHA256(data: payload)
+        )
+        let model = LocalSpeechModel.testFixture(id: "test-replace", displayName: "Test Replace", files: [fixtureFile])
+
+        let lock = NSLock()
+        var attempt = 0
+        LocalModelStoreMockURLProtocol.requestHandler = { request in
+            lock.lock()
+            attempt += 1
+            let currentAttempt = attempt
+            lock.unlock()
+
+            if currentAttempt == 1 {
+                Thread.sleep(forTimeInterval: 0.15)
+                throw URLError(.cancelled)
+            } else {
+                // 让第二次下载晚于第一次下载的 catch 清理阶段完成
+                Thread.sleep(forTimeInterval: 0.25)
+                let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                return (response, payload)
+            }
+        }
+
+        let firstTask = Task {
+            try await store.download(model)
+        }
+
+        try await Task.sleep(nanoseconds: 50_000_000)
+        store.cancel(model)
+
+        let secondTask = Task {
+            try await store.download(model)
+        }
+
+        do {
+            _ = try await firstTask.value
+            XCTFail("被取消的第一次下载必须抛出 operationCancelled")
+        } catch {
+            XCTAssertEqual(error as? LocalModelStoreError, .operationCancelled)
+        }
+
+        try await secondTask.value
+
+        XCTAssertTrue(store.isInstalled(model), "替代下载完成后模型必须完整安装")
+        XCTAssertEqual(store.state(for: model), .installed, "旧任务的异步收尾不得覆盖替代下载的 installed 状态")
+    }
 }
