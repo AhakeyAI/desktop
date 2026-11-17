@@ -30,6 +30,9 @@ final class VoiceRelayService: ObservableObject {
 
     private let routeQueue = DispatchQueue(label: "lab.jawa.ahakeyconfig.voiceRelay.routes")
     private var routes: [VoiceRoute] = []
+    private let hidFnBridge = HIDFunctionKeyBridge()
+    private var connectedFnMode: AhaKeyModeSlot?
+    private var hidFnActive = false
     private var pressRouter = VoicePressRouter()
     /// Last reported keyboard work mode; initialization keeps the existing mode-0 compatibility until the first report.
     private var keyboardWorkMode: AhaKeyModeSlot? = .mode0
@@ -71,6 +74,11 @@ final class VoiceRelayService: ObservableObject {
             let slot = AhaKeyModeSlot(rawValue: raw)
             self.routeQueue.async { self.keyboardWorkMode = slot }
             self.appendDiagnostic("keyboard work mode (hardware) → \(slot.map { String($0.rawValue) } ?? "unknown")")
+        }
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil,
+                                               queue: nil) { [weak self] _ in
+            guard let self else { return }
+            self.routeQueue.sync { self.hidFnBridge.reconcile(enabled: false) }
         }
     }
 
@@ -235,6 +243,7 @@ final class VoiceRelayService: ObservableObject {
 
         routeQueue.async {
             self.routes = builtRoutes
+            self.reconcileHIDFunctionKey()
             let summary = builtRoutes.isEmpty
                 ? NSLocalizedString("未配置语音软件。", comment: "")
                 : builtRoutes.map { route in
@@ -254,6 +263,27 @@ final class VoiceRelayService: ObservableObject {
                 self.configureDoubaoVoiceShortcutIfNeeded()
                 self.ensureInputSource(id: Self.doubaoInputSourceID, label: NSLocalizedString("豆包输入法", comment: ""))
             }
+        }
+    }
+
+    func updateHIDFunctionMode(_ reportedMode: Int?) {
+        routeQueue.async {
+            self.connectedFnMode = reportedMode.flatMap(AhaKeyModeSlot.init(rawValue:))
+            self.reconcileHIDFunctionKey()
+        }
+    }
+
+    private func reconcileHIDFunctionKey() {
+        let enabled = connectedFnMode.map { mode in
+            routes.contains {
+                $0.mode == mode && $0.action.isFunctionRelay && $0.compatibilityLabel == nil &&
+                    $0.binding == VoiceTriggerBinding(keyCode: 80, modifiers: [])
+            }
+        } ?? false
+        let active = hidFnBridge.reconcile(enabled: enabled)
+        if hidFnActive != active {
+            hidFnActive = active
+            appendDiagnostic("scoped HID F19→Fn active=\(active)")
         }
     }
 

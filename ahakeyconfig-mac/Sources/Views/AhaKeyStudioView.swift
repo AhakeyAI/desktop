@@ -172,6 +172,7 @@ struct AhaKeyStudioView: View {
             bleManager.refreshBluetoothAuthorization()
             applyCursorRejectMacroSelfHealIfNeeded()
             voiceRelay.updateRoutes(from: voiceConfiguration.routeDraft)
+            voiceRelay.updateHIDFunctionMode(bleManager.workModeForDisplay)
             AhaKeyStudioStore.save(studioDraft)
             if let voiceConfigurationError { syncStatusMessage = voiceConfigurationError }
             SwitchStateNotifier.shared.bind(to: bleManager)
@@ -281,6 +282,7 @@ struct AhaKeyStudioView: View {
         // Live mode updates keep voice/status routing current, but must not
         // replace the user's component editing context after a BLE handoff.
         .onChange(of: bleManager.workModeForDisplay) { newValue in
+            voiceRelay.updateHIDFunctionMode(newValue)
             guard let newValue, let slot = AhaKeyModeSlot(rawValue: newValue) else { return }
             selectedMode = StudioModeSelection.followingDevice(current: selectedMode, reportedMode: slot.rawValue,
                 isEditing: isEditingInspector, hasFixedKeyTarget: inlineKeyTarget != nil)
