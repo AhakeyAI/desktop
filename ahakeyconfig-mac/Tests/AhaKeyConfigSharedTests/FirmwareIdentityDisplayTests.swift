@@ -2,6 +2,14 @@ import XCTest
 @testable import AhaKeyConfigShared
 
 final class FirmwareIdentityDisplayTests: XCTestCase {
+    func testHardwareRevisionComesFromDeviceCatalogKey() {
+        XCTAssertEqual(FirmwareIdentityDisplay.hardwareRevision(catalogKey: FirmwareCapabilityProfile.hw1SaveRepairCatalogKey), "HW1")
+        XCTAssertEqual(FirmwareIdentityDisplay.hardwareRevision(catalogKey: FirmwareCapabilityProfile.hw2FeatureSyncCatalogKey), "HW2")
+        for key in [nil, "1.0.1-r001", "something-hw2", "x1-c582-hw2-p1-1.0.1"] {
+            XCTAssertNil(FirmwareIdentityDisplay.hardwareRevision(catalogKey: key))
+        }
+    }
+
     func testOnlyFramedSuccessfulCatalogReplyCanSupplyAnIdentity() {
         let key = FirmwareCapabilityProfile.hw1SaveRepairCatalogKey
         let frame = Data([0xAA, 0xBB, 0x9F, 0]) + Data(key.utf8) + Data([0xCC, 0xDD])

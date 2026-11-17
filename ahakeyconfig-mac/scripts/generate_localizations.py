@@ -66,6 +66,7 @@ TRANSLATIONS = {
     "我已确认目标、固件及备份，并核对目标固件的升级说明。": "I have checked the target, firmware, backup and target firmware upgrade instructions.",
     "Code Desktop 已授权会话跟随拨杆；CLI 默认供重启后新建会话使用，运行中的 TUI 不跟随。": "Authorized Code Desktop sessions follow the lever. CLI defaults apply to new sessions after restarting; a running TUI does not follow the lever.",
     "固件标识": "Firmware identity",
+    "硬件版本": "Hardware revision",
     "设备协议标识：%@": "Device protocol identity: %@",
     "状态版本：%@": "Status version: %@",
     "灯效范围": "Lighting scope",

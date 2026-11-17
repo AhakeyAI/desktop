@@ -269,6 +269,22 @@ final class AgentManager: ObservableObject {
         }.value
     }
 
+    /// Sample the existing Agent-owned link without taking over BLE.
+    func readConnectedKeyboardRSSI() async -> Int? {
+        guard bluetoothConnectionOwner == .agentDaemon, isAgentBLEConnected else { return nil }
+        let ownership = ownershipTransitionGeneration, publication = connectionPublicationGeneration
+        let path = socketPath
+        let data = await Task.detached(priority: .utility) {
+            Self.querySocketData(socketPath: path, command: "read_rssi")
+        }.value
+        guard !Task.isCancelled, ownership == ownershipTransitionGeneration,
+              publication == connectionPublicationGeneration, bluetoothConnectionOwner == .agentDaemon,
+              isAgentBLEConnected, let data,
+              let body = try? JSONDecoder().decode([String: Int].self, from: data),
+              let value = body["rssi"], (-127 ... -1).contains(value) else { return nil }
+        return value
+    }
+
     /// Snapshot only; never opens a configuration connection or writes device state.
     func readTaskOverview() async -> WS3TaskOverview? {
         await readTaskOverview(shouldQuery: {

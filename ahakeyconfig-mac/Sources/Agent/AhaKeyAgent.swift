@@ -60,6 +60,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 等待下一次 status 回包的回调队列（用于 querySwitchState）
     private var statusWaiters = AgentStatusQueries()
     private var connectionGeneration: UInt64 = 0
+    private var pendingRSSIRead: (id: UUID, fd: Int32)?
     private var presentationSession: AgentPresentationSession!
     private var foregroundReceiver: WS3ForegroundReceiver?
     private func receiveForeground(_ update: WS3ForegroundUpdate) -> Bool {
@@ -594,6 +595,20 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     /// 在主队列执行的 JSON 命令分发。回包由 `replyAndClose` 负责异步写入 + 关 fd。
     private func handleJsonCommand(cmd: String, obj: [String: Any], clientFd: Int32) {
+        if cmd == "read_rssi" {
+            guard connectionLock.holdsLock, let peripheral, peripheral.state == .connected,
+                  pendingRSSIRead == nil else {
+                Self.replyAndClose(clientFd, [:]); return
+            }
+            let id = UUID()
+            pendingRSSIRead = (id, clientFd)
+            peripheral.readRSSI()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                guard let self, self.pendingRSSIRead?.id == id else { return }
+                self.finishRSSIRead(nil)
+            }
+            return
+        }
         codexDesktopLever.observe(obj)
         if cmd == "kimi_desktop_control_changed" {
             kimiDesktopLever.controlChanged()
@@ -876,6 +891,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var lockRetryItem: DispatchWorkItem?
 
     private func invalidateBLEConnection() {
+        finishRSSIRead(nil)
         resetFirmwareIdentity()
         lastDeviceStatusAt = nil
         KimiConfigLeverSync.synchronizeManaged(switchState: nil)
@@ -1068,6 +1084,18 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     }
 
     // MARK: - CBPeripheralDelegate
+
+    private func finishRSSIRead(_ value: Int?) {
+        guard let read = pendingRSSIRead else { return }
+        pendingRSSIRead = nil
+        Self.replyAndClose(read.fd, value.map { ["rssi": $0] } ?? [:])
+    }
+
+    func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
+        guard connectionLock.holdsLock, self.peripheral === peripheral, peripheral.state == .connected else { return }
+        let value = RSSI.intValue
+        finishRSSIRead(error == nil && (-127 ... -1).contains(value) ? value : nil)
+    }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         guard connectionLock.holdsLock, self.peripheral === peripheral else { return }

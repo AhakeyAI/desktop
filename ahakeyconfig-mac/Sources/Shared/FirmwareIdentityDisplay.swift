@@ -22,4 +22,9 @@ public enum FirmwareIdentityDisplay {
         guard let range = key.range(of: "[0-9]+\\.[0-9]+\\.[0-9]+-r[0-9]+$", options: .regularExpression) else { return key }
         return String(key[range])
     }
+
+    public static func hardwareRevision(catalogKey: String?) -> String? {
+        guard let key = catalogKey, FirmwareReleaseCatalog.validKey(key) else { return nil }
+        return key.split(separator: "-")[2].uppercased()
+    }
 }

@@ -29,6 +29,17 @@ struct DeviceInfoView: View {
     private var isReadingFirmwareCatalog: Bool { firmwareCatalogReadingConnection != nil }
     @State private var firmwareCatalogError: String?
     @State private var configurationReadError: String?
+    @State private var agentRSSI: Int?
+
+    private var readsAgentRSSI: Bool {
+        !bleManager.isConnected && agentManager.bluetoothConnectionOwner == .agentDaemon &&
+            agentManager.isAgentBLEConnected
+    }
+
+    private var signalLabel: String {
+        let value = bleManager.isConnected ? diagnosticsStore.snapshot.signalStrength : (readsAgentRSSI ? agentRSSI : nil)
+        return value.flatMap { (-127 ... -1).contains($0) ? "\($0) dBm" : nil } ?? NSLocalizedString("未读取", comment: "")
+    }
 
     var body: some View {
         Form {
@@ -51,9 +62,11 @@ struct DeviceInfoView: View {
                 HStack(spacing: 0) {
                     infoCell("工作模式", value: bleManager.workModeForDisplay.map(workModeName) ?? "未知")
                     Divider()
-                    infoCell("灯光", value: bleManager.lightModeForDisplay.map(lightModeName) ?? "未知")
+                    infoCell(NSLocalizedString("硬件版本", comment: ""),
+                             value: FirmwareIdentityDisplay.hardwareRevision(catalogKey: bleManager.firmwareCatalogKeyForDisplay)
+                                ?? NSLocalizedString(isReadingFirmwareCatalog ? "读取中…" : "未知", comment: ""))
                     Divider()
-                    infoCell("信号", value: bleManager.isConnected ? "\(diagnosticsStore.snapshot.signalStrength) dBm" : "未读取")
+                    infoCell("信号", value: signalLabel)
                 }
                 .frame(height: 50)
             } header: {
@@ -533,6 +546,16 @@ struct DeviceInfoView: View {
         .formStyle(.grouped)
         .disabled(isSubmittingName)
         .onAppear { bleManager.setDiagnosticsWindowVisible(true) }
+        .task(id: readsAgentRSSI) {
+            agentRSSI = nil
+            guard readsAgentRSSI else { return }
+            while !Task.isCancelled {
+                let value = await agentManager.readConnectedKeyboardRSSI()
+                guard !Task.isCancelled, readsAgentRSSI else { return }
+                agentRSSI = value
+                try? await Task.sleep(for: .seconds(5))
+            }
+        }
         .task(id: bleManager.deviceInfoFirmwareReadbackState.connection) {
             let connection = bleManager.deviceInfoFirmwareReadbackState.connection
             guard connection.connected, firmwareCatalogReadingConnection != connection,
@@ -707,15 +730,6 @@ struct DeviceInfoView: View {
         case 2: return "Mode 3 / Codex"
         case 3: return "Mode 4 / custom"
         default: return "Mode \(mode)"
-        }
-    }
-
-    private func lightModeName(_ mode: Int) -> String {
-        switch mode {
-        case 0: return "关闭"
-        case 1: return "常亮"
-        case 2: return "呼吸"
-        default: return "\(mode)"
         }
     }
 

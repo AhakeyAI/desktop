@@ -3384,7 +3384,8 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
     nonisolated func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
         Task { @MainActor in
             guard self.acceptsConnectionCallbacks, self.peripheral === peripheral else { return }
-            self.apply(.rssi(RSSI.intValue))
+            let value = RSSI.intValue
+            self.apply(.rssi(error == nil && (-127 ... -1).contains(value) ? value : 0))
         }
     }
 
