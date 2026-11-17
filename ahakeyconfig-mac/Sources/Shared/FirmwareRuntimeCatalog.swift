@@ -16,7 +16,18 @@ public final class FirmwareRuntimeCatalog: Sendable {
                 catalog?.value.entries.first(where: { $0.key == key })?.visibility != .factory
         }
         public func profile(_ frame: Data, hasValidStatus: Bool) -> FirmwareCapabilityProfile {
-            FirmwareCapabilityProfile.probeResponse(frame, hasValidStatusReadback: hasValidStatus, catalog: catalog, context: context)
+            // Use a separate context for the exact HW2 protocol at runtime.
+            // Do not change the hardware context used to select flash images,
+            // or skip the trusted catalog and same-connection status checks.
+            let deviceContext: FirmwareDesktopContext
+            if FirmwareIdentityDisplay.catalogKey(from: frame) == FirmwareCapabilityProfile.hw2FeatureSyncCatalogKey {
+                deviceContext = .init(version: context.version, variant: context.variant, hardware: "x1-c582-hw2",
+                    allowedChannels: context.allowedChannels)
+            } else {
+                deviceContext = context
+            }
+            return FirmwareCapabilityProfile.probeResponse(frame, hasValidStatusReadback: hasValidStatus,
+                catalog: catalog, context: deviceContext)
         }
     }
     public init(bundle: Bundle = FirmwareRuntimeCatalog.applicationBundle(), cacheURL: URL? = FirmwareRuntimeCatalog.defaultCacheURL) {

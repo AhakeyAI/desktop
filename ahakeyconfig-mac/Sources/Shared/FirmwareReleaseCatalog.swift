@@ -164,7 +164,14 @@ public struct VerifiedFirmwareCatalog: Sendable {
                 .ws3Display, .ws3Presentation, .ws3Resources], minimumDesktop: "0.0.0",
             desktopVariants: ["legacy-macos", "legacy-windows"], visibility: .engineering,
             channel: .engineering, releaseOrder: 1,
-            limitations: ["Engineering protocol compatibility only; Mac hardware acceptance is pending."])])
+            limitations: ["Engineering protocol compatibility only; Mac hardware acceptance is pending."]), .init(
+            key: FirmwareCapabilityProfile.hw2FeatureSyncCatalogKey,
+            displayName: "X1 HW2 key configuration protocol",
+            hardware: "x1-c582-hw2", protocolProfile: "p1",
+            capabilities: [.ordinaryKeys, .voiceOnboarding], minimumDesktop: "0.0.0",
+            desktopVariants: ["legacy-macos"], visibility: .engineering,
+            channel: .engineering, releaseOrder: 1,
+            limitations: ["Key configuration only. This protocol identifier does not identify a flash image."])])
         guard (try? value.validate()) != nil else { return nil }
         return Self(value)
     }()
