@@ -56,7 +56,6 @@ final class VoiceRelayService: ObservableObject {
     }
 
     private let syntheticEventUserData: Int64 = 0x4148414B
-    private let fnKeyCode: CGKeyCode = 63
     private let emojiShadowKeyCode: CGKeyCode = 179
     private let shadowSuppressSeconds: TimeInterval = 0.06
     /// 物理按下若短于此值，则 Fn keyUp 延后到整段不少于该时长（IME 启动「按住说话」往往需要更长的合成 Fn）。
@@ -529,34 +528,26 @@ final class VoiceRelayService: ObservableObject {
 
     // MARK: - Posting
 
-    private func postFunctionKey(isKeyDown: Bool) {
-        appendDiagnostic("post fn keyDown=\(isKeyDown)")
-        let flags: CGEventFlags = isKeyDown ? .maskSecondaryFn : []
-        postFnRelayKeyboardEvents(keyCode: fnKeyCode, keyDown: isKeyDown, flags: flags)
-        routeQueue.async {
-            self.shadowSuppressUntil = Date().timeIntervalSinceReferenceDate + self.shadowSuppressSeconds
-        }
+    static func postFunctionKeyEdge(isKeyDown: Bool, currentFlags: CGEventFlags, userData: Int64,
+                                    post: (CGEvent, CGEventTapLocation) -> Void) {
+        guard let event = CGEvent(keyboardEventSource: CGEventSource(stateID: .hidSystemState),
+                                  virtualKey: CGKeyCode(kVK_Function), keyDown: isKeyDown) else { return }
+        var flags = currentFlags
+        if isKeyDown { flags.insert(.maskSecondaryFn) } else { flags.remove(.maskSecondaryFn) }
+        event.type = .flagsChanged
+        event.flags = flags
+        event.setIntegerValueField(.eventSourceUserData, value: userData)
+        // A HID-tap event already travels through the session event stream.
+        // Posting again at the session tap duplicates the transition for IMEs.
+        post(event, .cghidEventTap)
     }
 
-    /// Typeless 等 IME 有时只从 session 或 HID 一侧吃全 Fn；分两路投递（各用独立 CGEvent），提高「长按 Fn」被识别的概率。
-    private func postFnRelayKeyboardEvents(keyCode: CGKeyCode, keyDown: Bool, flags: CGEventFlags) {
-        if let event = CGEvent(
-            keyboardEventSource: CGEventSource(stateID: .combinedSessionState),
-            virtualKey: keyCode,
-            keyDown: keyDown
-        ) {
-            event.flags = flags
-            event.setIntegerValueField(.eventSourceUserData, value: syntheticEventUserData)
-            event.post(tap: .cgSessionEventTap)
-        }
-        if let event = CGEvent(
-            keyboardEventSource: CGEventSource(stateID: .hidSystemState),
-            virtualKey: keyCode,
-            keyDown: keyDown
-        ) {
-            event.flags = flags
-            event.setIntegerValueField(.eventSourceUserData, value: syntheticEventUserData)
-            event.post(tap: .cghidEventTap)
+    private func postFunctionKey(isKeyDown: Bool) {
+        appendDiagnostic("post fn keyDown=\(isKeyDown)")
+        Self.postFunctionKeyEdge(isKeyDown: isKeyDown, currentFlags: CGEventSource.flagsState(.combinedSessionState),
+                                 userData: syntheticEventUserData) { $0.post(tap: $1) }
+        routeQueue.async {
+            self.shadowSuppressUntil = Date().timeIntervalSinceReferenceDate + self.shadowSuppressSeconds
         }
     }
 

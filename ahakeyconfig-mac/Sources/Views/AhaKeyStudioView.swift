@@ -1423,7 +1423,7 @@ struct AhaKeyStudioView: View {
                                 Text("Fn / Globe").tag(true)
                             }
                             if customVoiceTriggerBinding.wrappedValue {
-                                Text(NSLocalizedString("Fn/Globe 通过 F19 和客户端桥接，需要保持客户端运行。", comment: ""))
+                                Text(NSLocalizedString("在目标输入法中启用 Fn/Globe 语音快捷键，并保持 Studio 运行。", comment: ""))
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }
@@ -1459,16 +1459,25 @@ struct AhaKeyStudioView: View {
             StudioInspectorSection(NSLocalizedString("触发方式", comment: "")) {
                 VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 12) {
-                        Picker("", selection: $selectedTriggerTab) {
-                            Text(NSLocalizedString("短按", comment: "")).tag(0)
-                            Text(NSLocalizedString("长按", comment: "")).tag(1)
+                        let usesFnRelay = key.role == .voice && [.typeless, .wechat, .doubao].contains(key.voicePreset ?? .custom)
+                        if !usesFnRelay {
+                            Picker("", selection: $selectedTriggerTab) {
+                                Text(NSLocalizedString("短按", comment: "")).tag(0)
+                                Text(NSLocalizedString("长按", comment: "")).tag(1)
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+
+                            Divider()
                         }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
 
-                        Divider()
-
-                        if key.role == .voice, (key.voicePreset ?? .custom).usesAppTranscription {
+                        if usesFnRelay {
+                            Label(NSLocalizedString("按住 Fn/Globe，松手结束", comment: ""), systemImage: "hand.point.up")
+                                .font(.callout.weight(.semibold))
+                            Text(NSLocalizedString("Studio 将 F19 的按下和松开转为 Fn/Globe，不需要另设长按绑定。", comment: ""))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else if key.role == .voice, (key.voicePreset ?? .custom).usesAppTranscription {
                             // ── 语音键触发方式 ──────────────────────────────
                             if selectedTriggerTab == 0 {
                                 VStack(alignment: .leading, spacing: 10) {
@@ -1597,10 +1606,10 @@ struct AhaKeyStudioView: View {
                                 .disabled(key.role == .voice && (key.voicePreset ?? .custom) != .custom)
                             } else {
                                 VStack(alignment: .leading, spacing: 8) {
-                                    Label(NSLocalizedString("需要固件 v2+ 支持", comment: ""), systemImage: "exclamationmark.triangle")
+                                    Label(NSLocalizedString("不支持独立长按绑定", comment: ""), systemImage: "info.circle")
                                         .font(.callout.weight(.semibold))
                                         .foregroundStyle(.orange)
-                                    Text(NSLocalizedString("长按绑定不同快捷键需固件升级后生效，当前仅短按绑定会写入设备。", comment: ""))
+                                    Text(NSLocalizedString("当前按键协议只写入一组绑定。按住同一个键与为长按设置不同动作是两种功能。", comment: ""))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
