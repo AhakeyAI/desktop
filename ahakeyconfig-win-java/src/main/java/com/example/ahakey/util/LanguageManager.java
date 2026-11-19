@@ -14,6 +14,7 @@ public class LanguageManager {
     private Properties currentProperties;
     private String currentLanguage;
     private final Properties legacyRussian = readProperties("/legacy_ru.properties");
+    private final Properties legacyEnglish = readProperties("/legacy_en.properties");
     private static final String PREFERENCE_KEY = "AhaKeySelectedLanguage";
     
     private LanguageManager() {
@@ -100,7 +101,9 @@ public class LanguageManager {
     }
 
     String localizeText(String source) {
-        return isRussian() ? legacyRussian.getProperty(source, source) : source;
+        if (isRussian()) return legacyRussian.getProperty(source, source);
+        if (isEnglish()) return legacyEnglish.getProperty(source, source);
+        return source;
     }
     
     public String getString(String key) {
@@ -172,6 +175,10 @@ public class LanguageManager {
 
     public boolean isRussian() {
         return "ru".equals(currentLanguage);
+    }
+
+    public boolean isEnglish() {
+        return "en".equals(currentLanguage);
     }
     
     public String getLanguageToggleText() {

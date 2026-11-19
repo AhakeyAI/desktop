@@ -48,6 +48,25 @@ class LanguageManagerTest {
         assertEquals("v1.4.8", ru.localizeText("v1.4.8"));
     }
 
+    @Test void englishLegacyCatalogMirrorsRussianAndHasNoUntranslatedChinese() throws Exception {
+        var english = resource("legacy_en.properties");
+        var russian = resource("legacy_ru.properties");
+        var format = Pattern.compile("%(?:\\d+\\$)?[-#+ 0,(]*\\d*(?:\\.\\d+)?[a-zA-Z%]");
+        assertEquals(russian.stringPropertyNames(), english.stringPropertyNames());
+        for (String source : english.stringPropertyNames()) {
+            String translated = english.getProperty(source);
+            assertFalse(translated.matches("(?s).*[\\p{IsHan}].*"), source);
+            assertEquals(format.matcher(source).results().map(m -> m.group()).toList(),
+                format.matcher(translated).results().map(m -> m.group()).toList(), source);
+        }
+        var en = new LanguageManager("en");
+        assertEquals("Firmware management (CH582)", en.localizeText("固件管理（CH582）"));
+        assertEquals(" min", en.localizeText(" 分钟"));
+        assertEquals("v1.4.8", en.localizeText("v1.4.8"));
+        assertEquals("not in the catalog", en.localizeText("not in the catalog"));
+        assertEquals("固件管理（CH582）", new LanguageManager("zh").localizeText("固件管理（CH582）"));
+    }
+
     @Test void languageSelectionPersistsWithoutDiscardingOtherPreferences() throws Exception {
         String oldHome = System.getProperty("user.home");
         String oldLanguage = System.getProperty("AhaKeySelectedLanguage");
