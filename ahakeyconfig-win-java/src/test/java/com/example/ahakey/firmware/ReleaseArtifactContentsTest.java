@@ -82,6 +82,7 @@ class ReleaseArtifactContentsTest {
         "model_config.properties",
         "messages_ru.properties",
         "legacy_ru.properties",
+        "legacy_en.properties",
         "wchisp/CONFIG_CH57X59X-sanitized.WCH",
         "wchisp/baseline.properties",
         "wchisp/wchisp-runtime.json"
