@@ -36,7 +36,7 @@ final class FirmwareCapabilityProfileTests: XCTestCase {
     }
 
     @MainActor
-    func testHW2RuntimeAllowsConfirmedKeyEditWithoutUnlockingResources() async throws {
+    func testHW2RuntimeAllowsConfirmedKeyEditWithoutUnlockingUnverifiedApproval() async throws {
         let key = "x1-c582-hw2-p1-1.0.1-r001"
         func frame(_ key: String) -> Data {
             Data([0xAA, 0xBB, 0x9F, 0]) + Data(key.utf8) + Data([0xCC, 0xDD])
@@ -59,8 +59,6 @@ final class FirmwareCapabilityProfileTests: XCTestCase {
         XCTAssertFalse(ConfigurationCommandPolicy.permits(query,
             profile: runtime.profile(frame("x1-c582-hw2-p1-1.0.1-r002"), hasValidStatus: true)))
         XCTAssertFalse(ApprovalBindingPolicy.mayAutoApprove(physicalState: 0, fresh: true, profile: profile, binding: nil))
-        XCTAssertFalse(profile.mayQueryWS3Resources)
-        XCTAssertFalse(runtime.permitsPresentation(key: key))
         let catalog = try XCTUnwrap(runtime.catalog)
         let hw2 = try XCTUnwrap(catalog.value.entries.first { $0.key == key })
         XCTAssertEqual(hw2.hardware, "x1-c582-hw2")
@@ -106,9 +104,37 @@ final class FirmwareCapabilityProfileTests: XCTestCase {
             XCTAssertFalse(ConfigurationCommandPolicy.permits(write, profile: unverified, confirmedWrite: .ws3Display,
                 ws3LightingReadbackVerified: true))
         }
-        let resourceQuery = try XCTUnwrap(WS3DisplayItem.resourceBasic(0).request)
-        XCTAssertFalse(ConfigurationCommandPolicy.permits(resourceQuery, profile: profile))
-        XCTAssertFalse(profile.mayUseWS3Presentation)
+    }
+
+    func testHW2ArtworkReadsNegotiatesAndRequiresCurrentReadbackForWrites() throws {
+        let context = FirmwareDesktopContext(version: FirmwareDesktopVersion("0.2.3")!)
+        let runtime = FirmwareRuntimeCatalog.Snapshot(catalog: .builtin, context: context)
+        let key = FirmwareCapabilityProfile.hw2FeatureSyncCatalogKey
+        let frame = Data([0xAA, 0xBB, 0x9F, 0]) + Data(key.utf8) + Data([0xCC, 0xDD])
+        let profile = runtime.profile(frame, hasValidStatus: true)
+        let unknownKey = "x1-c582-hw2-p1-1.0.1-r002"
+        let unknown = runtime.profile(Data([0xAA, 0xBB, 0x9F, 0]) + Data(unknownKey.utf8) + Data([0xCC, 0xDD]),
+            hasValidStatus: true)
+        let metadata = try XCTUnwrap(WS3DisplayItem.resourceIntegrity(18).request)
+        XCTAssertTrue(ConfigurationCommandPolicy.permits(metadata, profile: profile))
+        XCTAssertFalse(ConfigurationCommandPolicy.permits(metadata, profile: unknown))
+        for caps in [ACR4Command(.caps, token: 1).request, CompactResourceCommand(.caps, token: 2).request] {
+            XCTAssertTrue(ConfigurationCommandPolicy.permits(caps, profile: profile))
+            XCTAssertFalse(ConfigurationCommandPolicy.permits(caps, profile: unknown))
+        }
+
+        let restore = try XCTUnwrap(WS3ResourceRestoreCommand.request(entry: 18))
+        XCTAssertFalse(ConfigurationCommandPolicy.permits(restore, profile: profile, confirmedWrite: .ws3ResourceRestore,
+            ws3LightingReadbackVerified: true))
+        XCTAssertTrue(ConfigurationCommandPolicy.permits(restore, profile: profile, confirmedWrite: .ws3ResourceRestore,
+            ws3DisplayReadbackVerified: true))
+        let mode = try XCTUnwrap(WS3PresentationCommand.setMode(.multi).request)
+        XCTAssertTrue(runtime.permitsPresentation(key: key))
+        XCTAssertFalse(runtime.permitsPresentation(key: unknownKey))
+        XCTAssertFalse(ConfigurationCommandPolicy.permits(mode, profile: profile, confirmedWrite: .ws3Presentation,
+            ws3LightingReadbackVerified: true))
+        XCTAssertTrue(ConfigurationCommandPolicy.permits(mode, profile: profile, confirmedWrite: .ws3Presentation,
+            ws3DisplayReadbackVerified: true))
     }
 
     func testAcceptedCatalogEnablesOnlyVerifiedWS2Capabilities() {

@@ -10,24 +10,22 @@ public final class FirmwareRuntimeCatalog: Sendable {
         public let catalog: VerifiedFirmwareCatalog?
         public let context: FirmwareDesktopContext
         public func permitsPresentation(key: String) -> Bool {
-            let decision = FirmwareCatalogDecision.evaluate(identity: .key(key), catalog: catalog, context: context)
+            let decision = FirmwareCatalogDecision.evaluate(identity: .key(key), catalog: catalog, context: deviceContext(for: key))
             return decision.permitsAdvancedOperations && decision.capabilities.contains(.ws3Display) &&
                 decision.capabilities.contains(.ws3Presentation) &&
                 catalog?.value.entries.first(where: { $0.key == key })?.visibility != .factory
         }
         public func profile(_ frame: Data, hasValidStatus: Bool) -> FirmwareCapabilityProfile {
-            // Use a separate context for the exact HW2 protocol at runtime.
-            // Do not change the hardware context used to select flash images,
-            // or skip the trusted catalog and same-connection status checks.
-            let deviceContext: FirmwareDesktopContext
-            if FirmwareIdentityDisplay.catalogKey(from: frame) == FirmwareCapabilityProfile.hw2FeatureSyncCatalogKey {
-                deviceContext = .init(version: context.version, variant: context.variant, hardware: "x1-c582-hw2",
-                    allowedChannels: context.allowedChannels)
-            } else {
-                deviceContext = context
-            }
-            return FirmwareCapabilityProfile.probeResponse(frame, hasValidStatusReadback: hasValidStatus,
-                catalog: catalog, context: deviceContext)
+            FirmwareCapabilityProfile.probeResponse(frame, hasValidStatusReadback: hasValidStatus,
+                catalog: catalog, context: deviceContext(for: FirmwareIdentityDisplay.catalogKey(from: frame)))
+        }
+
+        // Apply the exact HW2 identity to runtime operations without changing
+        // the desktop context used for firmware image selection.
+        private func deviceContext(for key: String?) -> FirmwareDesktopContext {
+            guard key == FirmwareCapabilityProfile.hw2FeatureSyncCatalogKey else { return context }
+            return .init(version: context.version, variant: context.variant, hardware: "x1-c582-hw2",
+                         allowedChannels: context.allowedChannels)
         }
     }
     public init(bundle: Bundle = FirmwareRuntimeCatalog.applicationBundle(), cacheURL: URL? = FirmwareRuntimeCatalog.defaultCacheURL) {
