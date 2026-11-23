@@ -939,7 +939,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     /// 查询设备状态
     func queryDeviceStatus() {
-        guard statusQueryTask == nil, !commandChannelUnsynchronized else { return }
+        guard statusQueryTask == nil, notifyCharReady, !commandChannelUnsynchronized else { return }
         statusQueryTask = Task { [weak self] in
             guard let self else { return }
             defer { self.statusQueryTask = nil }
@@ -1213,7 +1213,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     func uploadWS3Resource(_ payload: WS3ResourcePayload, baseline: WS3DisplaySnapshot) async throws -> WS3ResourceReadback {
         guard !isConfigurationOperationInProgress, !isWriting, writeQueue.isEmpty, writeBatches.isEmpty,
-              pendingCommandResponse == nil, pendingDataWrite == nil, !commandTurnOccupied, canEditWS3Display,
+              pendingDataWrite == nil, canEditWS3Display,
               firmwareCapabilityProfile?.mayQueryWS3Resources == true,
               baseline.generation == commandSessionGeneration,
               let peripheral, let commandChar else { throw WS3ResourceUploadError.unverifiedConnection }
@@ -1222,6 +1222,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let maximum = min(peripheral.maximumWriteValueLength(for: writeType), peripheral.maximumWriteValueLength(for: .withoutResponse))
         var chunkSize = min(48, maximum - 11)
         guard maximum >= 16, chunkSize > 0 else { throw WS3ResourceUploadError.invalidMTU }
+        // Claim admission before the first await. The command queue drains a
+        // status query already on the wire and rejects new status requests
+        // while the upload owns the channel.
         isUploadingOLED = true
         var totalChunks = (payload.bytes.count + chunkSize - 1) / chunkSize
         resourceUploadPreview = nil
@@ -3369,17 +3372,17 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
                 case Self.dataCharUUID:
                     self.dataChar = char
                     self.dataCharReady = true
-                    peripheral.setNotifyValue(true, for: char)
-                    self.appendLog("数据特征(0x7341) 已订阅通知")
+                    if char.properties.contains(.notify) || char.properties.contains(.indicate) {
+                        peripheral.setNotifyValue(true, for: char)
+                    }
+                    self.appendLog("数据特征(0x7341) 就绪")
                 case Self.commandCharUUID:
                     self.commandChar = char
                     self.commandCharReady = true
                     self.appendLog("命令特征(0x7343) 就绪")
                 case Self.notifyCharUUID:
                     self.notifyChar = char
-                    self.notifyCharReady = true
                     peripheral.setNotifyValue(true, for: char)
-                    self.appendLog("通知特征(0x7344) 已订阅")
                 case Self.infoCharUUID:
                     self.appendLog("设备信息(0x7342) 就绪")
 
@@ -3407,6 +3410,20 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
             if self.dataCharReady && self.commandCharReady && self.notifyCharReady {
                 self.onAllCharacteristicsReady()
             }
+        }
+    }
+
+    nonisolated func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
+        Task { @MainActor in
+            guard self.acceptsConnectionCallbacks, self.peripheral === peripheral,
+                  self.notifyChar === characteristic else { return }
+            self.notifyCharReady = error == nil && characteristic.isNotifying
+            guard self.notifyCharReady else {
+                self.appendLog("通知特征(0x7344) 未能订阅：\(error?.localizedDescription ?? "通知未启用")", isError: true)
+                return
+            }
+            self.appendLog("通知特征(0x7344) 已确认订阅")
+            if self.dataCharReady && self.commandCharReady { self.onAllCharacteristicsReady() }
         }
     }
 
