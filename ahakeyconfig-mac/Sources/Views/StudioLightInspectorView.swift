@@ -11,7 +11,12 @@ struct StudioLightInspectorView: View {
 
     private var target: StudioLightDrafts.Target { model.showsMultitask ? .brightness : model.target(for: mode) }
     private var busy: Bool { model.isBusy || session.isBusy || presentation.isReading || presentation.isWriting }
-    private var editable: Bool { model.values.facts[target].map { target.accepts($0.value) } ?? false }
+    private var deviceID: String? { session.editingDeviceID ?? bleManager.deviceUUIDForDisplay }
+    private var editable: Bool { fact(for: target).map { target.accepts($0.value) } ?? false }
+
+    private func fact(for item: StudioLightDrafts.Target) -> StudioLightDrafts.Fact? {
+        model.values.fact(for: item, deviceID: deviceID)
+    }
 
     @State private var initializedPresentation = false
 
@@ -56,7 +61,7 @@ struct StudioLightInspectorView: View {
                 Text("选择灯效").font(.subheadline.weight(.semibold))
                 StudioLightEffectPicker(selection: model.values.drafts[target].flatMap(LightEffectStyle.init(firmwareIndex:)),
                     enabled: !busy && editable,
-                    previewEnabled: !busy && editable && model.values.drafts[.brightness] != nil,
+                    previewEnabled: !busy && editable && fact(for: .brightness) != nil && model.values.drafts[.brightness] != nil,
                     select: { model.values.edit(target, value: $0.firmwareIndex) },
                     preview: { model.previewEffect($0, mode: mode, ble: bleManager, session: session) })
             }
@@ -84,7 +89,7 @@ struct StudioLightInspectorView: View {
                 model.showsMultitask = chosen == .multi
                 initializedPresentation = true
             }
-            if model.values.facts[target] == nil || model.values.facts[.brightness] == nil { readSelectedState() }
+            if fact(for: target) == nil || fact(for: .brightness) == nil { readSelectedState() }
             else { readPresentation() }
         }
         .onReceive(model.readCompleted) { if !presentation.isWriting { readPresentation() } }
@@ -107,15 +112,16 @@ struct StudioLightInspectorView: View {
     }
 
     private var readbackTitle: String {
-        if model.isBusy && model.values.facts[target] == nil { return NSLocalizedString("正在读取…", comment: "") }
-        guard let fact = model.values.facts[target] else { return NSLocalizedString("尚未读取", comment: "") }
+        if model.isBusy && fact(for: target) == nil { return NSLocalizedString("正在读取…", comment: "") }
+        guard let fact = fact(for: target) else { return NSLocalizedString("尚未读取", comment: "") }
         return String(format: NSLocalizedString("已读取当前设置：%@", comment: ""), label(fact.value, target: target))
     }
 
     private var brightnessControls: some View {
         let item = StudioLightDrafts.Target.brightness
-        let value = model.values.drafts[item]
-        let canEdit = model.values.facts[item].map { item.accepts($0.value) } ?? false
+        let current = fact(for: item)
+        let value = current.flatMap { _ in model.values.drafts[item] }
+        let canEdit = current.map { item.accepts($0.value) } ?? false
         return VStack(alignment: .leading, spacing: 8) {
             Divider().padding(.top, 2)
             HStack(spacing: 8) {
@@ -151,7 +157,7 @@ struct StudioLightInspectorView: View {
 
     private func resetSelectionFeedback() {
         model.clearFeedback()
-        if model.values.facts[target] == nil { readSelectedState() }
+        if fact(for: target) == nil { readSelectedState() }
     }
 
     private func label(_ value: UInt8, target: StudioLightDrafts.Target) -> String {

@@ -39,6 +39,11 @@ struct StudioLightDrafts: Codable {
         }
     }
 
+    func fact(for target: Target, deviceID: String?) -> Fact? {
+        guard let deviceID, let fact = facts[target], fact.deviceID == deviceID else { return nil }
+        return fact
+    }
+
     func permitsReadback(deviceID: String) -> Bool {
         !deviceID.isEmpty && unconfirmed.allSatisfy { facts[$0]?.deviceID == deviceID }
     }

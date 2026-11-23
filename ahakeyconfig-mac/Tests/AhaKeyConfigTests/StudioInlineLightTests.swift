@@ -12,6 +12,15 @@ final class StudioInlineLightTests: XCTestCase {
                             deviceID: { "keyboard-A" }, release: { _ in release() }, pause: {}))
     }
 
+    func testPreviousKeyboardReadbackDoesNotCountForCurrentKeyboard() {
+        var drafts = StudioLightDrafts()
+        drafts.observe(.brightness, fact: .init(deviceID: "HW1", value: 35))
+        XCTAssertNil(drafts.fact(for: .brightness, deviceID: "HW2"))
+        XCTAssertNil(drafts.fact(for: .brightness, deviceID: nil))
+        drafts.observe(.brightness, fact: .init(deviceID: "HW2", value: 45))
+        XCTAssertEqual(drafts.fact(for: .brightness, deviceID: "HW2")?.value, 45)
+    }
+
     func testChoosingMultitaskEnablesWriteWithoutBrightnessChanges() {
         let defaults = UserDefaults(suiteName: UUID().uuidString)!
         let model = StudioLightInspectorModel(defaults: defaults)
