@@ -31,7 +31,14 @@ actor StudioResourceDraftStore {
         var unconfirmed: Set<UInt8> = []
         var uncertainDeviceID: String?
         var completedFallbacks: Set<UInt8>? = nil
-        var isEmpty: Bool { items.isEmpty && defaults.isEmpty && unconfirmed.isEmpty }
+        var unconfirmedByDevice: [String: Set<UInt8>]? = nil
+
+        var pendingUploads: [String: Set<UInt8>] {
+            if let unconfirmedByDevice { return unconfirmedByDevice }
+            guard let uncertainDeviceID, !unconfirmed.isEmpty else { return [:] }
+            return [uncertainDeviceID: unconfirmed]
+        }
+        var isEmpty: Bool { items.isEmpty && defaults.isEmpty && pendingUploads.isEmpty && unconfirmed.isEmpty }
     }
     struct Loaded: Sendable {
         let snapshot: Snapshot
@@ -56,6 +63,9 @@ actor StudioResourceDraftStore {
         guard snapshot.items.count <= 19, Set(snapshot.items.map(\.entry)).count == snapshot.items.count,
               snapshot.defaults.allSatisfy({ $0 < 19 }), snapshot.unconfirmed.allSatisfy({ $0 < 19 }),
               snapshot.defaults.isDisjoint(with: snapshot.items.map(\.entry)),
+              snapshot.pendingUploads.allSatisfy({ device, entries in
+                  !device.isEmpty && device.utf8.count <= 128 && !entries.isEmpty && entries.allSatisfy { $0 < 19 }
+              }),
               (snapshot.completedFallbacks ?? []).allSatisfy({ $0 < 16 && $0 % 4 == 0 }),
               snapshot.unconfirmed.isEmpty || (snapshot.uncertainDeviceID?.isEmpty == false &&
                   (snapshot.uncertainDeviceID?.utf8.count ?? 0) <= 128) else { throw Failure.invalidArchive }

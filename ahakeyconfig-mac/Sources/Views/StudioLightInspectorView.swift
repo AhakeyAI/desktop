@@ -185,7 +185,9 @@ struct StudioLightInspectorActions: View {
                 Button("停止") { model.run(target: target, ble: bleManager, session: session, preview: .stop) }
                     .help(NSLocalizedString("停止灯效预览", comment: ""))
             }
-            Button("写入键盘", action: write)
+            Button(action: write) {
+                StudioKeyboardWriteLabel(isReading: model.isReading || presentation.isReading, isBusy: false)
+            }
                 .buttonStyle(.borderedProminent)
                 .help(model.pendingSummary(for: mode) + (presentation.modeDraft == nil ? "" : "\n" + NSLocalizedString("同时更新灯条和 LCD 展示方式", comment: "")))
                 .disabled(busy || !model.canWrite(mode: mode, presentation: presentation))

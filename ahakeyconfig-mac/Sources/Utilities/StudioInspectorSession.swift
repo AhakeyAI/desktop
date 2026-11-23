@@ -64,6 +64,7 @@ final class StudioInspectorSession: ObservableObject {
     /// The caller captures a component target before entering. `Context` is
     /// usable only inside the operation, never as authorization for a later save.
     func withConnection<Value>(expectedDeviceID: String? = nil,
+                               rebindEditingDeviceAfterRead: Bool = false,
                                operation: (Context) async throws -> Value) async throws -> Value {
         guard !isBusy else { throw Failure.busy }
         try Task.checkCancellation()
@@ -89,12 +90,15 @@ final class StudioInspectorSession: ObservableObject {
         }
         let context = Context(deviceID: access.deviceID(), generation: access.generation())
         guard Self.normalizedDeviceID(context.deviceID) != nil,
-              editingDeviceID.map({ $0 == context.deviceID }) ?? true,
+              rebindEditingDeviceAfterRead || (editingDeviceID.map { $0 == context.deviceID } ?? true),
               expectedDeviceID.map({ $0 == context.deviceID }) ?? true else { throw Failure.deviceChanged }
-        if hasEditingScope, editingDeviceID == nil { editingDeviceID = context.deviceID }
+        if hasEditingScope, editingDeviceID == nil, !rebindEditingDeviceAfterRead { editingDeviceID = context.deviceID }
         let result = try await operation(context)
         try Task.checkCancellation()
         try validate(context)
+        // Only the explicit artwork read may replace the editing target,
+        // after its fresh snapshot has been validated on the same connection.
+        if hasEditingScope, rebindEditingDeviceAfterRead { editingDeviceID = context.deviceID }
         return result
     }
 

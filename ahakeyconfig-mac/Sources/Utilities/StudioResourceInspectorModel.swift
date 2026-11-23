@@ -21,15 +21,15 @@ final class StudioResourceInspectorModel: ObservableObject {
     struct Conflict: Identifiable {
         let id = UUID()
         let entry: UInt8
+        let deviceID: String
         let snapshot: WS3DisplaySnapshot
         let restoring: Bool
     }
     enum Failure: Error, LocalizedError {
-        case missingReadback, anotherKeyboard
+        case missingReadback
         var errorDescription: String? {
             switch self {
             case .missingReadback: return NSLocalizedString("请先读取当前素材位置。", comment: "")
-            case .anotherKeyboard: return NSLocalizedString("另一把键盘仍有未确认的素材上传，请先连接原键盘核对。", comment: "")
             }
         }
     }
@@ -40,8 +40,14 @@ final class StudioResourceInspectorModel: ObservableObject {
     @Published private(set) var display: WS3DisplaySnapshot?
     @Published private(set) var deviceID: String?
     @Published private(set) var isBusy = false
+    @Published private(set) var isReading = false
     @Published private(set) var isPreparing = false
-    @Published private(set) var unconfirmed: Set<UInt8> = [] { didSet { persistDrafts() } }
+    @Published private var unconfirmedByDevice: [String: Set<UInt8>] = [:] { didSet { persistDrafts() } }
+    var unconfirmed: Set<UInt8> { deviceID.flatMap { unconfirmedByDevice[$0] } ?? [] }
+    var hasPendingOnOtherKeyboard: Bool {
+        guard let deviceID else { return false }
+        return unconfirmedByDevice.keys.contains { $0 != deviceID }
+    }
     @Published var message: String?
     @Published var confirmsUpload = false
     @Published var confirmsRestore = false
@@ -52,7 +58,6 @@ final class StudioResourceInspectorModel: ObservableObject {
     private let draftStore: StudioResourceDraftStore?
     private var isLoadingDrafts = false
     private var storageRevision: UInt64 = 0
-    private var uncertainDeviceID: String?
     private var persistenceTask: Task<Void, Error>?
 
     init(storeURL: URL? = nil) {
@@ -69,9 +74,8 @@ final class StudioResourceInspectorModel: ObservableObject {
                         previewPNG: item.previewPNG, filename: item.filename,
                         sourceFrameCount: item.sourceFrameCount, wasResized: item.wasResized))
                 })
-                defaultDrafts = loaded.snapshot.defaults; unconfirmed = loaded.snapshot.unconfirmed
+                defaultDrafts = loaded.snapshot.defaults; unconfirmedByDevice = loaded.snapshot.pendingUploads
                 completedFallbacks = loaded.snapshot.completedFallbacks ?? []
-                uncertainDeviceID = loaded.snapshot.uncertainDeviceID
             } catch {
                 message = NSLocalizedString("未能恢复本地素材草稿，请重新选择文件。本次未更改键盘。", comment: "")
             }
@@ -85,9 +89,9 @@ final class StudioResourceInspectorModel: ObservableObject {
             .init(entry: $0.payload.entryID, bytes: $0.payload.bytes, checksum: $0.payload.crc32,
                   frameCount: $0.payload.frameCount, previewPNG: $0.previewPNG, filename: $0.filename,
                   sourceFrameCount: $0.sourceFrameCount, wasResized: $0.wasResized)
-        }, defaults: defaultDrafts, unconfirmed: unconfirmed,
-           uncertainDeviceID: unconfirmed.isEmpty ? nil : uncertainDeviceID,
-           completedFallbacks: completedFallbacks.isEmpty ? nil : completedFallbacks)
+        }, defaults: defaultDrafts,
+           completedFallbacks: completedFallbacks.isEmpty ? nil : completedFallbacks,
+           unconfirmedByDevice: unconfirmedByDevice)
         let task = Task { try await store.save(snapshot, revision: revision) }
         persistenceTask = task
         Task { @MainActor in
@@ -101,6 +105,11 @@ final class StudioResourceInspectorModel: ObservableObject {
     func flushDraftPersistence() async throws { try await persistenceTask?.value }
     var draft: Draft? { drafts[entry] }
     var selected: WS3ResourceReadback? { display?.resources.first { $0.id == entry } }
+    func readback(for entry: UInt8, on connectedDeviceID: String?) -> WS3ResourceReadback? {
+        guard let connectedDeviceID, deviceID == connectedDeviceID else { return nil }
+        return display?.resources.first { $0.id == entry }
+    }
+
     var canWrite: Bool { !isBusy && !isPreparing && (draft != nil || defaultDrafts.contains(entry)) && selected != nil && selected?.writeState != .writing }
     var dirtyEntries: Set<UInt8> {
         Set(drafts.compactMap { id, draft in
@@ -173,13 +182,18 @@ final class StudioResourceInspectorModel: ObservableObject {
 
     func read(ble: AhaKeyBLEManager, session: StudioInspectorSession, verifying: Bool = false,
               completion: ((Bool) -> Void)? = nil) {
+        read(session: session, verifying: verifying, completion: completion) {
+            try await ble.readWS3DisplayForEditing()
+        }
+    }
+
+    func read(session: StudioInspectorSession, verifying: Bool = false, completion: ((Bool) -> Void)? = nil,
+              readDisplay: @escaping @MainActor () async throws -> WS3DisplaySnapshot) {
         let target = entry, payload = draft?.payload
-        perform(session: session, completion: completion) {
-            let result = try await session.withConnection { context in
-                (context.deviceID, try await ble.readWS3DisplayForEditing())
-            }
-            guard self.unconfirmed.isEmpty || self.uncertainDeviceID == nil || self.uncertainDeviceID == result.0 else {
-                throw Failure.anotherKeyboard
+        perform(session: session, reading: true, completion: completion) {
+            self.display = nil; self.deviceID = nil; self.conflict = nil
+            let result = try await session.withConnection(rebindEditingDeviceAfterRead: true) { context in
+                (context.deviceID, try await readDisplay())
             }
             self.deviceID = result.0; self.display = result.1
             self.message = NSLocalizedString("已读取当前设置：键盘素材信息。", comment: "")
@@ -234,8 +248,7 @@ final class StudioResourceInspectorModel: ObservableObject {
                     return (fresh, true)
                 }
                 try Task.checkCancellation()
-                self.uncertainDeviceID = deviceID
-                self.unconfirmed.insert(target)
+                self.unconfirmedByDevice[deviceID, default: []].insert(target)
                 try await self.flushDraftPersistence()
                 try session.validate(context)
                 let confirmed: WS3ResourceReadback
@@ -253,10 +266,14 @@ final class StudioResourceInspectorModel: ObservableObject {
                     resources: fresh.resources.map { $0.id == target ? confirmed : $0 }), false)
             }
             if result.changed {
-                self.conflict = .init(entry: target, snapshot: result.snapshot, restoring: restoring)
+                self.conflict = .init(entry: target, deviceID: deviceID, snapshot: result.snapshot, restoring: restoring)
                 return
             }
-            self.display = result.snapshot; self.unconfirmed.remove(target)
+            self.display = result.snapshot
+            if let pending = self.unconfirmedByDevice[deviceID] {
+                let remaining = pending.subtracting([target])
+                self.unconfirmedByDevice[deviceID] = remaining.isEmpty ? nil : remaining
+            }
             if restoring { self.drafts[target] = nil; self.defaultDrafts.remove(target) }
             confirmed = true
             self.message = NSLocalizedString(restoring ? "此画面已恢复默认，请在键盘上确认效果。" :
@@ -265,26 +282,25 @@ final class StudioResourceInspectorModel: ObservableObject {
         }
     }
 
-    func adopt(_ value: Conflict, discardDraft: Bool) {
-        guard !isBusy else { return }
+    @discardableResult
+    func adopt(_ value: Conflict, discardDraft: Bool) -> Bool {
+        guard !isBusy, deviceID == value.deviceID else { return false }
         display = value.snapshot
         if discardDraft { discardCompletedFallback(for: value.entry); drafts[value.entry] = nil; defaultDrafts.remove(value.entry) }
         conflict = nil
+        return true
     }
 
-    private func perform(session: StudioInspectorSession, completion: ((Bool) -> Void)? = nil,
+    private func perform(session: StudioInspectorSession, reading: Bool = false, completion: ((Bool) -> Void)? = nil,
                          action: @escaping @MainActor () async throws -> Void) {
         guard !isBusy, !session.isBusy, !isPreparing else { completion?(false); return }
-        isBusy = true; message = nil
+        isBusy = true; isReading = reading; message = nil
         operation = Task { @MainActor in
             var succeeded = false
-            defer { isBusy = false; operation = nil; completion?(succeeded) }
+            defer { isReading = false; isBusy = false; operation = nil; completion?(succeeded) }
             do { try await action(); succeeded = true }
             catch {
                 message = KeyboardSettingsFeedback.message(for: error)
-                if !unconfirmed.isEmpty {
-                    message = (message ?? "") + "\n" + WS3ResourceUploadGuidance.unconfirmed
-                }
             }
         }
     }

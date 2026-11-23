@@ -20,6 +20,7 @@ final class StudioDeviceInspectorModel: ObservableObject {
     @Published var conflict: Conflict?
     @Published var message: String?
     @Published private(set) var isBusy = false
+    @Published private(set) var isReading = false
     @Published private(set) var unconfirmed: Set<Setting> = [] { didSet { persistDrafts() } }
     let writeCompleted = PassthroughSubject<KeyboardWriteOutcome, Never>()
     private var operation: Task<Void, Never>?
@@ -103,7 +104,7 @@ final class StudioDeviceInspectorModel: ObservableObject {
         if ble.isConfigurationOperationInProgress { ble.cancelConfigurationOperation() }
     }
     func read(lever: Bool, ble: AhaKeyBLEManager, session: StudioInspectorSession) {
-        perform(session: session) {
+        perform(session: session, reading: true) {
             if lever {
                 let fact = try await session.withConnection { context in
                     StudioConfirmedEdit.Fact(deviceID: context.deviceID, value: try await ble.readSideSwitchForEditing().positions)
@@ -173,11 +174,11 @@ final class StudioDeviceInspectorModel: ObservableObject {
     private func persistenceUnconfirmed() {
         message = NSLocalizedString("当前读值一致，但上次保存未确认；请重启键盘后再核对，未清除待确认标记。", comment: "")
     }
-    private func perform(session: StudioInspectorSession, action: @escaping @MainActor () async throws -> Void) {
+    private func perform(session: StudioInspectorSession, reading: Bool = false, action: @escaping @MainActor () async throws -> Void) {
         guard !isBusy, !session.isBusy else { return }
-        isBusy = true; message = nil; conflict = nil
+        isBusy = true; isReading = reading; message = nil; conflict = nil
         operation = Task { @MainActor in
-            defer { isBusy = false; operation = nil }
+            defer { isReading = false; isBusy = false; operation = nil }
             do { try await action() }
             catch {
                 message = KeyboardSettingsFeedback.message(for: error)

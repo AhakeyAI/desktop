@@ -57,6 +57,7 @@ struct AhaKeyStudioView: View {
     @StateObject private var resourceInspectorModel = StudioResourceInspectorModel(storeURL: StudioResourceDraftStore.productionURL)
     @StateObject private var lcdInspectorModel = StudioLCDInspectorModel(defaults: .standard)
     @State private var confirmsLCDWrite = false
+    @State private var lcdWriteConfirmationDeviceID: String?
     @State private var showsResourceCancellationNotice = false
     @State private var lcdSubmittedEntry: UInt8?
     @StateObject private var deviceInspectorModel = StudioDeviceInspectorModel()
@@ -72,6 +73,7 @@ struct AhaKeyStudioView: View {
     @State private var confirmsK1Initialization = false
     @State private var inlineKeyTask: Task<Void, Never>?
     @State private var inlineKeyOperationID = UUID()
+    @State private var inlineKeyReadID: UUID?
     @AppStorage("ahakey.studio.key-unconfirmed.v1") private var inlineKeyUnconfirmedData = Data()
     private var inlineKeyUnconfirmed: Set<String> {
         get { StudioWriteReceipts.decode(inlineKeyUnconfirmedData) }
@@ -90,6 +92,7 @@ struct AhaKeyStudioView: View {
     @State private var legacyComponentEditing = false
     @State private var legacyWritePlan: StudioLegacyComponentPlan?
     @State private var legacyComponentTask: Task<Void, Never>?
+    @State private var isReadingLegacyEditor = false
 
     init(bleManager: AhaKeyBLEManager) {
         self.bleManager = bleManager
@@ -633,6 +636,41 @@ struct AhaKeyStudioView: View {
         return draft
     }
 
+    private var managedCanvasScreen: StudioCanvasScreen? {
+        guard !usesLegacyEditor else { return nil }
+        let idleEntry = UInt8(selectedMode.rawValue * 4)
+        let editingScreen = selectedPart == .oledDisplay && isEditingInspector
+        let entry = editingScreen ? resourceInspectorModel.entry : idleEntry
+        if editingScreen, let thumbnail = resourceInspectorModel.drafts[entry]?.thumbnail { return .image(thumbnail) }
+
+        func defaultArtwork() -> StudioCanvasScreen {
+            if let path = DefaultOLEDAssets.bundledAssetPath(for: selectedMode) { return .bundled(path) }
+            return .status(NSLocalizedString("默认画面", comment: ""))
+        }
+
+        let connectedID = bleManager.deviceUUIDForDisplay
+        func confirmedArtwork(_ entry: UInt8) -> StudioCanvasScreen? {
+            guard let actual = resourceInspectorModel.readback(for: entry, on: connectedID) else {
+                return .status(NSLocalizedString("尚未读取画面", comment: ""))
+            }
+            if actual.reportsValidUserResource {
+                if let draft = resourceInspectorModel.drafts[entry], let thumbnail = draft.thumbnail,
+                   WS3ResourceMetadataComparison(payload: draft.payload, resource: actual) == .matches {
+                    return .image(thumbnail)
+                }
+                return .status(NSLocalizedString("自定义画面暂不可预览", comment: ""))
+            }
+            if actual.writeState == .writing { return .status(NSLocalizedString("素材待核对", comment: "")) }
+            return nil
+        }
+
+        if !editingScreen || !resourceInspectorModel.defaultDrafts.contains(entry) {
+            if let artwork = confirmedArtwork(entry) { return artwork }
+        }
+        if entry != idleEntry, let artwork = confirmedArtwork(idleEntry) { return artwork }
+        return defaultArtwork()
+    }
+
     private var canvasPane: some View {
         VStack(alignment: .leading, spacing: 18) {
             modeEditorHeader.disabled(componentBusy)
@@ -653,7 +691,8 @@ struct AhaKeyStudioView: View {
                     liveIDEStateValue: liveCanvasIDEStateValue,
                     switchState: liveCanvasSwitchState,
                     keyboardPictureFrameCount: usesLegacyEditor
-                        ? bleManager.keyboardPictureStates[selectedMode.rawValue]?.frameCount : nil
+                        ? bleManager.keyboardPictureStates[selectedMode.rawValue]?.frameCount : nil,
+                    managedScreen: managedCanvasScreen
                 )
                 .aspectRatio(109.0 / 54.0, contentMode: .fit)
                 .frame(maxWidth: .infinity)
@@ -893,9 +932,16 @@ struct AhaKeyStudioView: View {
                                                     presentation: lightPresentationModel,
                                                     bleManager: bleManager, mode: selectedMode, write: requestLightWrite)
                     } else if usesInlineHardwareEditor {
-                        Button(NSLocalizedString(componentBusy ? "处理中…" : "写入键盘", comment: "")) {
+                        Button {
                             if selectedPart == .oledDisplay { requestLCDWrite() }
                             else { deviceInspectorModel.write(lever: selectedPart == .toggleSwitch, ble: bleManager, session: inspectorSession) }
+                        } label: {
+                            StudioKeyboardWriteLabel(
+                                isReading: selectedPart == .oledDisplay
+                                    ? resourceInspectorModel.isReading || lcdInspectorModel.isReading
+                                    : deviceInspectorModel.isReading,
+                                isBusy: componentBusy,
+                                writeTitle: selectedPart == .oledDisplay ? lcdWriteTitle : NSLocalizedString("写入键盘", comment: ""))
                         }
                         .buttonStyle(.borderedProminent)
                         .disabled(componentBusy || (selectedPart == .oledDisplay ? !canWriteLCD :
@@ -905,7 +951,10 @@ struct AhaKeyStudioView: View {
                         Button {
                             writeToKeyboard()
                         } label: {
-                            Label(NSLocalizedString(isSyncing || inspectorSession.isBusy ? "处理中…" : "写入键盘", comment: ""), systemImage: isSyncing ? "arrow.trianglehead.2.clockwise" : "square.and.arrow.down")
+                            StudioKeyboardWriteLabel(
+                                isReading: isReadingLegacyEditor || (inlineKeyTask != nil && inlineKeyReadID == inlineKeyOperationID),
+                                isBusy: isSyncing || inspectorSession.isBusy,
+                                systemImage: isSyncing ? "arrow.trianglehead.2.clockwise" : "square.and.arrow.down")
                                 .font(.callout.weight(.semibold))
                         }
                         .buttonStyle(.borderedProminent)
@@ -1223,7 +1272,8 @@ struct AhaKeyStudioView: View {
         case .oledDisplay:
             if usesLegacyEditor { oledSummary }
             else {
-                StudioScreenSummaryView(model: resourceInspectorModel, presentation: lcdInspectorModel, ble: bleManager, mode: selectedMode)
+                StudioScreenSummaryView(model: resourceInspectorModel, presentation: lcdInspectorModel,
+                                        ble: bleManager, session: inspectorSession, mode: selectedMode)
             }
         case .lightBar:      lightBarSummary
         case .toggleSwitch:  switchSummary
@@ -1657,8 +1707,16 @@ struct AhaKeyStudioView: View {
                 }
             }
             .disabled(lcdInspectorModel.isWriting)
-            .confirmationDialog(NSLocalizedString("写入屏幕设置？", comment: ""), isPresented: $confirmsLCDWrite, titleVisibility: .visible) {
-                Button(NSLocalizedString("确认写入", comment: ""), role: .destructive) { writeLCDSettings() }
+            .confirmationDialog(lcdNeedsOverwrite ? NSLocalizedString("覆盖当前键盘的画面？", comment: "") :
+                NSLocalizedString("写入屏幕设置？", comment: ""), isPresented: $confirmsLCDWrite, titleVisibility: .visible) {
+                Button(lcdNeedsOverwrite ? NSLocalizedString("确认覆盖", comment: "") : NSLocalizedString("确认写入", comment: ""),
+                       role: .destructive) {
+                    guard let target = lcdWriteConfirmationDeviceID, target == resourceInspectorModel.deviceID else {
+                        writeOutcome = .init(succeeded: false, message: NSLocalizedString("目标键盘已变化，请重新读取后确认写入。", comment: ""))
+                        return
+                    }
+                    writeLCDSettings()
+                }
                 Button(NSLocalizedString("取消", comment: ""), role: .cancel) {}
             } message: { Text(lcdWriteSummary) }
             .alert(NSLocalizedString("已取消本次上传", comment: ""), isPresented: $showsResourceCancellationNotice) {
@@ -1678,8 +1736,17 @@ struct AhaKeyStudioView: View {
             (lcdInspectorModel.overview?.connected == true && (lcdInspectorModel.overview?.requestedMode ?? .single) != lcdSelectedPresentation)) &&
             resourceInspectorModel.deviceID != nil
     }
+    private var lcdNeedsOverwrite: Bool { resourceInspectorModel.hasPendingOnOtherKeyboard && !lcdArtworkEntries.isEmpty }
+    private var lcdWriteTitle: String {
+        lcdNeedsOverwrite ? NSLocalizedString("覆盖到当前键盘", comment: "") : NSLocalizedString("写入键盘", comment: "")
+    }
     private var lcdWriteSummary: String {
-        var lines = lcdArtworkEntries.map(lcdArtworkTitle)
+        var lines: [String] = []
+        if let deviceID = lcdWriteConfirmationDeviceID {
+            let name = bleManager.deviceUUIDForDisplay == deviceID ? bleManager.deviceNameForDisplay : nil
+            lines.append(String(format: NSLocalizedString("目标键盘：%@", comment: ""), name ?? deviceID))
+        }
+        lines.append(contentsOf: lcdArtworkEntries.map(lcdArtworkTitle))
         if lcdSelectedPresentation == .single, lcdArtworkEntries.contains(UInt8(selectedMode.rawValue * 4 + 3)) {
             lines.append(NSLocalizedString("已完成画面也用于键盘默认画面。", comment: ""))
         }
@@ -1701,9 +1768,13 @@ struct AhaKeyStudioView: View {
     private func requestLCDWrite() {
         guard canWriteLCD else { return }
         if lcdArtworkEntries.isEmpty { writeLCDSettings() }
-        else { confirmsLCDWrite = true }
+        else {
+            lcdWriteConfirmationDeviceID = resourceInspectorModel.deviceID
+            confirmsLCDWrite = true
+        }
     }
     private func writeLCDSettings() {
+        guard let deviceID = resourceInspectorModel.deviceID else { return }
         let presentation = lcdSelectedPresentation
         if presentation == .single {
             do { try resourceInspectorModel.stageCompletedFallback(mode: selectedMode) }
@@ -1716,6 +1787,7 @@ struct AhaKeyStudioView: View {
         let actions = lcdArtworkEntries.map { entry in
             let restoring = resourceInspectorModel.defaultDrafts.contains(entry)
             return StudioLCDInspectorModel.ArtworkAction(title: lcdArtworkTitle(entry)) {
+                guard resourceInspectorModel.deviceID == deviceID else { throw StudioInspectorSession.Failure.deviceChanged }
                 resourceInspectorModel.selectEntry(entry)
                 let confirmed = await withCheckedContinuation { continuation in
                     resourceInspectorModel.write(ble: bleManager, session: inspectorSession, restoring: restoring) {
@@ -1725,7 +1797,7 @@ struct AhaKeyStudioView: View {
                 guard confirmed else { throw StudioLCDInspectorModel.Failure.artworkNeedsAttention }
             }
         }
-        lcdInspectorModel.write(artwork: actions, deviceID: resourceInspectorModel.deviceID, using: .production(ble: bleManager))
+        lcdInspectorModel.write(artwork: actions, deviceID: deviceID, using: .production(ble: bleManager))
     }
 
     private var legacyOLEDInspector: some View {
@@ -2427,9 +2499,10 @@ struct AhaKeyStudioView: View {
     }
 
     private func readLegacyEditorIdentity() {
+        isReadingLegacyEditor = true
         isSyncing = true
         legacyComponentTask = Task { @MainActor in
-            defer { isSyncing = false; legacyComponentTask = nil }
+            defer { isReadingLegacyEditor = false; isSyncing = false; legacyComponentTask = nil }
             do {
                 try await inspectorSession.withConnection { _ in
                     let profile = try await bleManager.readFirmwareCapabilityProfile(forceStatusReadback: true)
@@ -3221,6 +3294,12 @@ private struct CanvasKeyButtonStyle: ButtonStyle {
     }
 }
 
+private enum StudioCanvasScreen {
+    case image(NSImage)
+    case bundled(String)
+    case status(String)
+}
+
 private struct AhaKeyKeyboardCanvasView: View {
     let modeDraft: AhaKeyModeDraft
     let selectedPart: AhaKeyStudioPart
@@ -3236,6 +3315,7 @@ private struct AhaKeyKeyboardCanvasView: View {
     var switchState: Int = 1   // 0=auto, 1=manual; firmware uses for color/effect overrides
     /// 0x83 查询出的当前 mode flash 帧数：nil=尚未查询/未连接；0=用户没上传；>0=已上传 N 帧
     var keyboardPictureFrameCount: Int? = nil
+    var managedScreen: StudioCanvasScreen? = nil
 
     @State private var modeSwitchPressed = false
     @Environment(\.scenePhase) private var scenePhase
@@ -3468,7 +3548,20 @@ private struct AhaKeyKeyboardCanvasView: View {
 
     @ViewBuilder
     private func screenBody(screenWidth: CGFloat, screenHeight: CGFloat) -> some View {
-        if let gifPath = modeDraft.oled.localAssetPath {
+        if let managedScreen {
+            switch managedScreen {
+            case .image(let image):
+                Image(nsImage: image).resizable().scaledToFit()
+            case .bundled(let path):
+                AnimatedGIFView(path: path, fps: 10, isFocused: selectedPart == .oledDisplay).id(path)
+            case .status(let title):
+                Text(title)
+                    .font(.system(size: max(9, screenHeight * 0.17), weight: .medium))
+                    .foregroundStyle(.white.opacity(0.72))
+                    .multilineTextAlignment(.center)
+                    .padding(4)
+            }
+        } else if let gifPath = modeDraft.oled.localAssetPath {
             // .id(gifPath) 强制 SwiftUI 在路径切换时销毁并重建播放器，
             // 否则旧路径的图片源与新路径可能短暂错位，
             // 导致 Mode 切换瞬间画布渲染上一档 GIF 的某一帧（claude / cursor 互窜）。
@@ -5299,6 +5392,7 @@ private extension AhaKeyStudioView {
 
     func clearInlineKeyEditing() {
         inlineKeyOperationID = UUID()
+        inlineKeyReadID = nil
         inlineKeyTask?.cancel()
         inlineKeyTask = nil
         inlineKeyTarget = nil
@@ -5330,7 +5424,9 @@ private extension AhaKeyStudioView {
         let original = currentSelectedKey
         let expectedDevice = inlineKeyFact?.deviceID
         if target.index == 0 { inlineVoiceState = nil; inlineKeyFact = nil }
+        inlineKeyReadID = ticket
         inlineKeyTask = Task { @MainActor in
+            defer { if inlineKeyReadID == ticket { inlineKeyReadID = nil } }
             guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
             do {
                 let (fact, voiceState) = try await inspectorSession.withConnection(expectedDeviceID: expectedDevice) { context in
@@ -5697,7 +5793,9 @@ private extension AhaKeyStudioView {
         let device = overwrite?.deviceID ?? fact.deviceID
         let ticket = UUID(); inlineKeyOperationID = ticket
         inlineKeyMessage = nil
+        inlineKeyReadID = ticket
         inlineKeyTask = Task { @MainActor in
+            defer { if inlineKeyReadID == ticket { inlineKeyReadID = nil } }
             guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
             do {
                 let snapshot = try await inspectorSession.withConnection(expectedDeviceID: device) { _ in
@@ -5789,7 +5887,9 @@ private extension AhaKeyStudioView {
             studioDraft.draft(for: $0).key(for: .voice) == voiceConfiguration.key(for: $0)
         }
         let ticket = UUID(); inlineKeyOperationID = ticket
+        inlineKeyReadID = ticket
         inlineKeyTask = Task { @MainActor in
+            defer { if inlineKeyReadID == ticket { inlineKeyReadID = nil } }
             guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
             do {
                 let actual = try await inspectorSession.withConnection(expectedDeviceID: fact.deviceID) { _ in
@@ -5835,7 +5935,9 @@ private extension AhaKeyStudioView {
         inlineK1InitializationFact = nil; inlineK1InitializationSelected = false
         let ticket = UUID(); inlineKeyOperationID = ticket
         inlineKeyMessage = nil
+        inlineKeyReadID = ticket
         inlineKeyTask = Task { @MainActor in
+            defer { if inlineKeyReadID == ticket { inlineKeyReadID = nil } }
             guard !Task.isCancelled, inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
             do {
                 let fact = try await inspectorSession.withConnection(expectedDeviceID: expectedDevice) { context in

@@ -5,6 +5,7 @@ struct StudioScreenSummaryView: View {
     @ObservedObject var model: StudioResourceInspectorModel
     @ObservedObject var presentation: StudioLCDInspectorModel
     @ObservedObject var ble: AhaKeyBLEManager
+    @ObservedObject var session: StudioInspectorSession
     let mode: AhaKeyModeSlot
     private var actualMode: WS3PresentationMode? {
         guard presentation.overview?.connected == true else { return nil }
@@ -37,14 +38,23 @@ struct StudioScreenSummaryView: View {
                 }
             }
         }.padding(.vertical, 10)
-        .task { presentation.read(using: .production(ble: ble)) }
+        .task {
+            guard let deviceID = ble.deviceUUIDForDisplay,
+                  model.readback(for: UInt8(mode.rawValue * 4), on: deviceID) == nil else {
+                presentation.read(using: .production(ble: ble))
+                return
+            }
+            model.read(ble: ble, session: session) { _ in
+                presentation.read(using: .production(ble: ble))
+            }
+        }
     }
     private func status(_ entry: UInt8) -> String {
         if entry < 16, entry % 4 == 3, model.completedFallbacks.contains(entry - 3), model.screenDirtyEntries.contains(entry - 3) {
             return NSLocalizedString("待完成写入", comment: "")
         }
         if model.dirtyEntries.contains(entry) { return NSLocalizedString("待写入", comment: "") }
-        guard let actual = model.display?.resources.first(where: { $0.id == entry }) else {
+        guard let actual = model.readback(for: entry, on: ble.deviceUUIDForDisplay) else {
             return NSLocalizedString("尚未读取", comment: "")
         }
         if actual.reportsValidUserResource {

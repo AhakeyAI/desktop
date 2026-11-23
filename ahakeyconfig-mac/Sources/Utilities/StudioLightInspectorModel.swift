@@ -31,6 +31,7 @@ final class StudioLightInspectorModel: ObservableObject {
     @Published var message: String?
     @Published var conflict: Conflict?
     @Published private(set) var isBusy = false
+    @Published private(set) var isReading = false
     private var operation: Task<Void, Never>?
 
     init(defaults: UserDefaults = .standard) {
@@ -123,7 +124,7 @@ final class StudioLightInspectorModel: ObservableObject {
         let deviceID = StudioInlineLightOperation.expectedDeviceID(for: action,
             cached: baseline?.deviceID ?? values.facts[.brightness]?.deviceID)
         let scope = preview == .stop ? NSLocalizedString("临时预览", comment: "") : Self.scopeTitle(target)
-        perform(scope: scope, session: session, notifyReadCompletion: !save && preview == nil) { [self] in
+        perform(scope: scope, session: session, reading: !save && preview == nil) { [self] in
             let result = try await StudioInlineLightOperation.run(target: target, action: action,
                 session: session, expectedDeviceID: deviceID, read: { selected, context in
                     guard values.permitsReadback(deviceID: context.deviceID) else {
@@ -253,16 +254,17 @@ final class StudioLightInspectorModel: ObservableObject {
         values = updated
     }
 
-    private func perform(scope: String, session: StudioInspectorSession, notifyReadCompletion: Bool = false, failureContext: (() -> String?)? = nil, body: @escaping @MainActor () async throws -> Void) {
+    private func perform(scope: String, session: StudioInspectorSession, reading: Bool = false, failureContext: (() -> String?)? = nil, body: @escaping @MainActor () async throws -> Void) {
         guard !isBusy, !session.isBusy else { return }
         isBusy = true
+        isReading = reading
         showsError = false
         message = nil
         conflict = nil
         operation = Task { @MainActor in
             defer {
-                isBusy = false; operation = nil
-                if notifyReadCompletion { readCompleted.send() }
+                isReading = false; isBusy = false; operation = nil
+                if reading { readCompleted.send() }
             }
             do {
                 try await body()

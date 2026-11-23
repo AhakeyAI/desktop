@@ -94,6 +94,10 @@ struct StudioResourceInspectorView: View {
 
 
         }
+        .onChange(of: ble.deviceUUIDForDisplay) { deviceID in
+            guard let deviceID, deviceID != model.deviceID, !busy, !presentation.isWriting, editorEnabled else { return }
+            model.read(ble: ble, session: session)
+        }
         .fileImporter(isPresented: $choosingFile, allowedContentTypes: [.gif, .png, .jpeg, .bmp, .tiff]) { result in
             switch result {
             case .success(let url):
@@ -108,7 +112,7 @@ struct StudioResourceInspectorView: View {
         }, set: { if !$0 && editorEnabled && !busy { model.conflict = nil } }), presenting: model.conflict) { conflict in
             Button(NSLocalizedString("采用键盘当前值", comment: "")) { model.adopt(conflict, discardDraft: true) }
             Button(NSLocalizedString("确认修改", comment: "")) {
-                model.adopt(conflict, discardDraft: false)
+                guard model.adopt(conflict, discardDraft: false) else { return }
                 if let onWrite { onWrite() }
                 else { model.write(ble: ble, session: session, restoring: conflict.restoring) }
             }
@@ -202,6 +206,10 @@ struct StudioResourceInspectorView: View {
                 ProgressView().controlSize(.small)
                 Text(NSLocalizedString(model.isPreparing ? "正在准备素材…" : "正在处理所选画面…", comment: "")).font(.caption).foregroundStyle(.secondary)
             }
+        }
+        if model.hasPendingOnOtherKeyboard && !busy {
+            Text(NSLocalizedString("另一把键盘的上传状态已保留。可以将草稿覆盖到当前键盘。", comment: ""))
+                .font(.caption).foregroundStyle(.secondary)
         }
         if model.unconfirmed.contains(model.entry) && !model.isBusy {
             Label(WS3ResourceUploadGuidance.unconfirmed, systemImage: "exclamationmark.circle")

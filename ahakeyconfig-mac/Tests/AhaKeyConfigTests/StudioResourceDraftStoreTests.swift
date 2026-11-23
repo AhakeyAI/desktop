@@ -57,6 +57,61 @@ final class StudioResourceDraftStoreTests: XCTestCase {
         XCTAssertEqual(loaded.snapshot.items.first?.sourceFrameCount, 13)
     }
 
+    func testPendingUploadOnPreviousKeyboardDoesNotBlockReadingAndWritingDraftOnCurrentKeyboard() async throws {
+        let url = location(), store = StudioResourceDraftStore(url: url)
+        try await store.save(.init(items: [try item(entry: 18)], unconfirmed: [18],
+                                  uncertainDeviceID: "keyboard-A"), revision: 1)
+        let model = StudioResourceInspectorModel(storeURL: url)
+        for _ in 0..<1000 {
+            if !model.isPreparing { break }
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        XCTAssertFalse(model.isPreparing)
+        model.selectEntry(18)
+        var connectedDevice = "keyboard-B"
+        let session = StudioInspectorSession(access: .init(begin: { 1 }, isCurrent: { $0 == 1 },
+            isReady: { true }, generation: { 7 }, deviceID: { connectedDevice }, release: { _ in }, pause: {}))
+        XCTAssertTrue(session.beginEditing(deviceID: "keyboard-A", isConnected: true))
+        let resources = (UInt8(0)..<19).compactMap {
+            WS3ResourceReadback(id: $0, basic: .resourceBasic(userValid: false, writeState: .empty),
+                integrity: .resourceIntegrity(frames: 0, bytes: 0, crc32: 0))
+        }
+        let success = await withCheckedContinuation { continuation in
+            model.read(session: session, completion: { continuation.resume(returning: $0) }) {
+                WS3DisplaySnapshot(generation: 7, brightness: 35, resources: resources)
+            }
+        }
+        XCTAssertTrue(success)
+        XCTAssertEqual(model.deviceID, "keyboard-B")
+        XCTAssertEqual(session.editingDeviceID, "keyboard-B")
+        XCTAssertNil(model.readback(for: 18, on: "keyboard-A"))
+        XCTAssertEqual(model.readback(for: 18, on: "keyboard-B")?.id, 18)
+        XCTAssertTrue(model.canWrite)
+        XCTAssertTrue(model.hasPendingOnOtherKeyboard)
+        XCTAssertTrue(model.unconfirmed.isEmpty)
+        XCTAssertEqual(model.draft?.filename, "selected.jpeg")
+
+        connectedDevice = "keyboard-A"
+        let returned = await withCheckedContinuation { continuation in
+            model.read(session: session, completion: { continuation.resume(returning: $0) }) {
+                WS3DisplaySnapshot(generation: 7, brightness: 35, resources: resources)
+            }
+        }
+        XCTAssertTrue(returned)
+        XCTAssertEqual(session.editingDeviceID, "keyboard-A")
+        XCTAssertEqual(model.unconfirmed, [18])
+        XCTAssertFalse(model.hasPendingOnOtherKeyboard)
+    }
+
+    func testArchivePreservesIndependentPendingUploadsForTwoKeyboards() async throws {
+        let store = StudioResourceDraftStore(url: location())
+        let uploads: [String: Set<UInt8>] = ["keyboard-A": [18], "keyboard-B": [18, 4]]
+        try await store.save(.init(unconfirmedByDevice: uploads), revision: 1)
+        let loaded = try await store.load()
+        XCTAssertFalse(loaded.snapshot.isEmpty)
+        XCTAssertEqual(loaded.snapshot.pendingUploads, uploads)
+    }
+
     func testRelaunchRestoresEditingDataWithoutDeviceFactsOrWriteAccess() async throws {
         let url = location(), store = StudioResourceDraftStore(url: url)
         try await store.save(.init(items: [try item()], defaults: [16], unconfirmed: [0],
@@ -68,12 +123,12 @@ final class StudioResourceDraftStoreTests: XCTestCase {
         }
         XCTAssertFalse(model.isPreparing)
         XCTAssertEqual(model.draft?.filename, "selected.jpeg")
-        XCTAssertEqual(model.defaultDrafts, [16]); XCTAssertEqual(model.unconfirmed, [0])
+        XCTAssertEqual(model.defaultDrafts, [16]); XCTAssertTrue(model.unconfirmed.isEmpty)
         XCTAssertNil(model.display); XCTAssertNil(model.deviceID); XCTAssertFalse(model.canWrite)
         model.discardSelection()
         try await model.flushDraftPersistence()
         let loaded = try await store.load()
         XCTAssertTrue(loaded.snapshot.items.isEmpty)
-        XCTAssertEqual(loaded.snapshot.unconfirmed, [0], "discarding a local draft is not upload rollback")
+        XCTAssertEqual(loaded.snapshot.pendingUploads, ["keyboard-A": [0]], "discarding a local draft is not upload rollback")
     }
 }
