@@ -1,5 +1,20 @@
 import Foundation
 
+public struct ConnectedKeyboardIdentity: Equatable, Sendable {
+    public let uuid: UUID
+    public let name: String?
+
+    public init(uuid: UUID, name: String?) {
+        self.uuid = uuid
+        self.name = name.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    public init?(liveState: [String: Any]) {
+        guard let raw = liveState["deviceUUID"] as? String, let uuid = UUID(uuidString: raw) else { return nil }
+        self.init(uuid: uuid, name: liveState["deviceName"] as? String)
+    }
+}
+
 /// 跨进程状态通道的写前去重（阶段 4）。
 ///
 /// Agent 占用 BLE 时每 1.5s 轮询键盘状态并发布到 `current-ide-state.json` 供 GUI 读取；
@@ -31,16 +46,18 @@ public struct LiveStateWriteCoalescer: Equatable, Sendable {
         public var workMode: Int?
         public var firmwareMain: Int?
         public var firmwareSub: Int?
+        public var device: ConnectedKeyboardIdentity?
 
         public init(battery: Int? = nil, lightMode: Int? = nil,
                     switchState: Int? = nil, workMode: Int? = nil,
-                    firmwareMain: Int? = nil, firmwareSub: Int? = nil) {
+                    firmwareMain: Int? = nil, firmwareSub: Int? = nil, device: ConnectedKeyboardIdentity? = nil) {
             self.battery = battery
             self.lightMode = lightMode
             self.switchState = switchState
             self.workMode = workMode
             self.firmwareMain = firmwareMain
             self.firmwareSub = firmwareSub
+            self.device = device
         }
     }
 
@@ -78,6 +95,7 @@ public struct LiveStateWriteCoalescer: Equatable, Sendable {
         if let v = partial.workMode { merged.workMode = v }
         if let v = partial.firmwareMain { merged.firmwareMain = v }
         if let v = partial.firmwareSub { merged.firmwareSub = v }
+        if let v = partial.device { merged.device = v }
         lastPublished = merged
         lastWriteAt = now
     }

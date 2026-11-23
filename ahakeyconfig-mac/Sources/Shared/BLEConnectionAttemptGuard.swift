@@ -24,6 +24,14 @@ public struct BLEConnectionAttemptGuard {
     public var mayBegin: Bool { phase.ticket == nil && !requiresManualRetry }
     public init() {}
 
+    /// Prefer the previously used keyboard when it is still connected. If it
+    /// is absent, only a single active candidate is unambiguous.
+    public static func preferredConnectedID(among connected: [UUID], previous: UUID?) -> UUID? {
+        let unique = Set(connected)
+        if let previous, unique.contains(previous) { return previous }
+        return unique.count == 1 ? unique.first : nil
+    }
+
     public mutating func begin(target: UUID, retryAutomatically: Bool) -> Ticket? {
         guard mayBegin else { return nil }
         let ticket = Ticket(target: target, retryAutomatically: retryAutomatically)

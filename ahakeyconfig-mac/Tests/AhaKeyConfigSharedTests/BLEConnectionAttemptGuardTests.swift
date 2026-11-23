@@ -2,6 +2,14 @@ import XCTest
 @testable import AhaKeyConfigShared
 
 final class BLEConnectionAttemptGuardTests: XCTestCase {
+    func testConnectedKeyboardBeatsOfflineCachedUUIDWithoutGuessingBetweenDevices() {
+        let hw1 = UUID(), hw2 = UUID(), stale = UUID()
+        XCTAssertEqual(BLEConnectionAttemptGuard.preferredConnectedID(among: [hw1], previous: hw2), hw1)
+        XCTAssertEqual(BLEConnectionAttemptGuard.preferredConnectedID(among: [hw1, hw2], previous: hw2), hw2)
+        XCTAssertNil(BLEConnectionAttemptGuard.preferredConnectedID(among: [hw1, hw2], previous: stale))
+        XCTAssertNil(BLEConnectionAttemptGuard.preferredConnectedID(among: [], previous: stale))
+    }
+
     func testNewDeviceTimeoutRequiresCancellationAndUserRetry() throws {
         var guardState = BLEConnectionAttemptGuard()
         let id = UUID()

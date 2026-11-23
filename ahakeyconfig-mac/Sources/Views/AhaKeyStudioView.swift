@@ -379,7 +379,7 @@ struct AhaKeyStudioView: View {
                     title: isEffectivelyConnected ? NSLocalizedString("已连接", comment: "")
                         : (bleManager.isScanning ? NSLocalizedString("扫描中", comment: "") : NSLocalizedString("未连接", comment: "")),
                     // 未连接时不再笼统显示「等待设备」，而是给出细分链路诊断（Issue #34）。
-                    subtitle: isEffectivelyConnected ? (bleManager.deviceName ?? NSLocalizedString("已连接", comment: "")) : bleManager.linkDiagnostic.shortMessage,
+                    subtitle: isEffectivelyConnected ? (bleManager.deviceNameForDisplay ?? NSLocalizedString("已连接", comment: "")) : bleManager.linkDiagnostic.shortMessage,
                     accent: isEffectivelyConnected ? .green : .orange,
                     width: 118
                 )

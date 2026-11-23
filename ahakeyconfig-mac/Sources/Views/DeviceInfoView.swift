@@ -36,6 +36,10 @@ struct DeviceInfoView: View {
             agentManager.isAgentBLEConnected
     }
 
+    private var agentRSSITarget: String? {
+        readsAgentRSSI ? (bleManager.deviceUUIDForDisplay ?? "") : nil
+    }
+
     private var signalLabel: String {
         let value = bleManager.isConnected ? diagnosticsStore.snapshot.signalStrength : (readsAgentRSSI ? agentRSSI : nil)
         return value.flatMap { (-127 ... -1).contains($0) ? "\($0) dBm" : nil } ?? NSLocalizedString("未读取", comment: "")
@@ -55,7 +59,7 @@ struct DeviceInfoView: View {
                                bleManager.firmwareStatusVersionForDisplay.map { String(format: NSLocalizedString("状态版本：%@", comment: ""), $0) }]
                             .compactMap { $0 }.joined(separator: "\n"))
                     Divider()
-                    infoCell("设备名", value: bleManager.deviceName ?? "—")
+                    infoCell("设备名", value: bleManager.deviceNameForDisplay ?? "—")
                 }
                 .frame(height: 50)
 
@@ -349,9 +353,9 @@ struct DeviceInfoView: View {
                 CompatLabeledContent(NSLocalizedString("连接", comment: "")) {
                     HStack(spacing: 6) {
                         Circle()
-                            .fill(bleManager.isConnected ? Color.green : Color.orange)
+                            .fill(bleManager.isConnected || readsAgentRSSI ? Color.green : Color.orange)
                             .frame(width: 8, height: 8)
-                        Text(bleManager.bleConnectionStatus)
+                        Text(readsAgentRSSI ? NSLocalizedString("Agent 已连接", comment: "") : bleManager.bleConnectionStatus)
                     }
                 }
                 CompatLabeledContent(NSLocalizedString("设备名", comment: "")) {
@@ -382,7 +386,7 @@ struct DeviceInfoView: View {
                         }
                     } else {
                         HStack(spacing: 6) {
-                            Text(bleManager.deviceName ?? "—")
+                            Text(bleManager.deviceNameForDisplay ?? "—")
                                 .textSelection(.enabled)
                             if bleManager.isConnected {
                                 Button {
@@ -403,7 +407,7 @@ struct DeviceInfoView: View {
                     Text(nameReceipt).font(.caption).foregroundStyle(.secondary)
                 }
                 CompatLabeledContent("UUID") {
-                    Text(bleManager.bleDeviceUUID)
+                    Text(bleManager.deviceUUIDForDisplay ?? "—")
                         .font(.system(.caption, design: .monospaced))
                         .textSelection(.enabled)
                 }
@@ -416,7 +420,7 @@ struct DeviceInfoView: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
-                HStack {
+                if bleManager.isConnected {
                     CompatLabeledContent("特征") {
                         HStack(spacing: 8) {
                             charBadge("DATA", ready: bleManager.dataCharReady)
@@ -546,12 +550,12 @@ struct DeviceInfoView: View {
         .formStyle(.grouped)
         .disabled(isSubmittingName)
         .onAppear { bleManager.setDiagnosticsWindowVisible(true) }
-        .task(id: readsAgentRSSI) {
+        .task(id: agentRSSITarget) {
             agentRSSI = nil
-            guard readsAgentRSSI else { return }
+            guard let target = agentRSSITarget else { return }
             while !Task.isCancelled {
                 let value = await agentManager.readConnectedKeyboardRSSI()
-                guard !Task.isCancelled, readsAgentRSSI else { return }
+                guard !Task.isCancelled, agentRSSITarget == target else { return }
                 agentRSSI = value
                 try? await Task.sleep(for: .seconds(5))
             }
@@ -631,6 +635,7 @@ struct DeviceInfoView: View {
     }
 
     private func firmwareProfileLabel() -> String {
+        if !bleManager.isConnected { return bleManager.firmwareCatalogKeyForDisplay ?? "未读取" }
         guard let profile = bleManager.firmwareCapabilityProfile else { return "未读取" }
         switch profile.identity {
         case .knownWS2Catalog:

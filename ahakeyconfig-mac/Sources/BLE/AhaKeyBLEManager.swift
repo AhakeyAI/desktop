@@ -194,6 +194,13 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     @Published private(set) var agentWorkMode: Int? = nil
     @Published private(set) var agentFirmwareVersion: String?
     @Published private(set) var agentFirmwareCatalogKey: String?
+    @Published private(set) var agentKeyboardIdentity: ConnectedKeyboardIdentity?
+    var deviceNameForDisplay: String? {
+        isConnected ? deviceName : (agentBLEConnectedProvider() ? agentKeyboardIdentity?.name : nil)
+    }
+    var deviceUUIDForDisplay: String? {
+        isConnected ? bleDeviceUUID : (agentBLEConnectedProvider() ? agentKeyboardIdentity?.uuid.uuidString : nil)
+    }
     var batteryLevelForDisplay: Int? {
         isConnected ? (hasValidStatusReadback ? batteryLevel : nil) : (agentBLEConnectedProvider() ? agentBatteryLevel : nil)
     }
@@ -301,6 +308,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     )
     /// 记住上次连接的 UUID，用于快速重连
     private var lastPeripheralUUID: UUID?
+    private var timedOutKnownPeripheralUUID: UUID?
     private var connectionAttempt = BLEConnectionAttemptGuard()
     private var connectionDeadlineTask: Task<Void, Never>?
     /// 为 true 时，本 App 不扫描、不连接、不响应掉线/轮询重连（物理键盘由 `ahakeyconfig-agent` 占用时由 AgentManager 置位）
@@ -521,19 +529,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         // 跨进程锁：发起连接前必须持有；被 Agent 等进程占用时不连接（不双连），随退避轮询低频重试
         guard ensureConnectionLockHeld() else { return }
 
-        // 1. 用已知 UUID 直连（最快）
-        if let uuid = lastPeripheralUUID {
-            let known = central?.retrievePeripherals(withIdentifiers: [uuid]) ?? []
-            if let p = known.first {
-                appendLog("用已知 UUID 直连: \(p.name ?? uuid.uuidString)")
-                beginPeripheralConnection(p)
-                bleConnectionStatus = "连接中…"
-                linkDiagnostic = .connecting
-                return
-            }
-        }
-
-        // 2. 查找系统已连接设备。
+        // 1. 优先查找系统已连接设备。
         //    根因兜底（Issue #34）：设备一旦被系统蓝牙 / 语音(HID) 链路连上，通常会停止广播，
         //    基于广播的 scanForPeripherals(withServices:[0x7340]) 永远扫不到它；且若此前无人发现过
         //    0x7340，retrieveConnectedPeripherals(withServices:[0x7340]) 也为空。所以这里用更宽的标准
@@ -549,6 +545,18 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             beginPeripheralConnection(existing)
             bleConnectionStatus = "连接中…"
             return
+        }
+
+        // 2. 无明确的活动设备时，用上次连接的 UUID 直连。
+        if let uuid = lastPeripheralUUID, uuid != timedOutKnownPeripheralUUID {
+            let known = central?.retrievePeripherals(withIdentifiers: [uuid]) ?? []
+            if let p = known.first {
+                appendLog("用已知 UUID 直连: \(p.name ?? uuid.uuidString)")
+                beginPeripheralConnection(p)
+                bleConnectionStatus = "连接中…"
+                linkDiagnostic = .connecting
+                return
+            }
         }
 
         // 3. 扫描
@@ -588,6 +596,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             self.autoReconnectTimer?.invalidate()
             self.autoReconnectTimer = nil
             self.awaitingPeripheralDisconnect = true
+            if target.identifier == self.lastPeripheralUUID { self.timedOutKnownPeripheralUUID = target.identifier }
             self.bleConnectionStatus = NSLocalizedString("连接等待超时", comment: "")
             if self.connectionAttempt.requiresManualRetry {
                 self.linkDiagnostic = .pairingRequired
@@ -606,7 +615,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             Self.hidServiceUUID,
         ]
         let connected = central?.retrieveConnectedPeripherals(withServices: lookupServices) ?? []
-        return connected.first { Self.matchesDeviceName($0.name) }
+        let candidates = connected.filter { Self.matchesDeviceName($0.name) }
+        let id = BLEConnectionAttemptGuard.preferredConnectedID(among: candidates.map(\.identifier), previous: lastPeripheralUUID)
+        return candidates.first { $0.identifier == id }
     }
 
     /// 该设备是否已在系统层暴露过 0x7340 配置 service：用于区分「完整可连」与「仅 HID / 语音链路」。
@@ -2388,6 +2399,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             if agentWorkMode != nil { agentWorkMode = nil }
             if agentFirmwareVersion != nil { agentFirmwareVersion = nil }
             if agentFirmwareCatalogKey != nil { agentFirmwareCatalogKey = nil }
+            if agentKeyboardIdentity != nil { agentKeyboardIdentity = nil }
             return
         }
         let now = Date().timeIntervalSince1970
@@ -2420,6 +2432,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             agentStateFresh = false
         }
         if agentStateFresh {
+            let identity = ConnectedKeyboardIdentity(liveState: obj)
+            if agentKeyboardIdentity != identity { agentKeyboardIdentity = identity }
             let battery = obj["battery"] as? Int
             let lm = obj["lightMode"] as? Int
             let sw = obj["switchState"] as? Int
@@ -2440,6 +2454,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             if agentWorkMode != nil { agentWorkMode = nil }
             if agentFirmwareVersion != nil { agentFirmwareVersion = nil }
             if agentFirmwareCatalogKey != nil { agentFirmwareCatalogKey = nil }
+            if agentKeyboardIdentity != nil { agentKeyboardIdentity = nil }
         }
         scheduleIDEStateExpiry(at: expiryDeadlines.min())
     }
@@ -3240,6 +3255,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
             self.resetCommandSession()
             self.apply(.connected(name: peripheral.name, uuid: peripheral.identifier.uuidString))
             self.lastPeripheralUUID = peripheral.identifier
+            self.timedOutKnownPeripheralUUID = nil
             self.bleConnectionStatus = NSLocalizedString("已连接", comment: "")
             self.appendLog("已连接: \(peripheral.name ?? "?") UUID=\(peripheral.identifier.uuidString)", category: .lifecycle)
             self.linkDiagnostic = .connected

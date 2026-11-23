@@ -29,6 +29,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private var commandNotificationFramer = DeviceNotificationFramer()
     private var notifyNotificationFramer = DeviceNotificationFramer()
     private var lastUUID: UUID?
+    private var timedOutKnownUUID: UUID?
     private var connectionAttempt = BLEConnectionAttemptGuard()
     private var connectionDeadline: DispatchWorkItem?
     private let serviceUUID = CBUUID(string: "7340")
@@ -216,6 +217,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                                firmwareSub: UInt8? = nil,
                                firmwareCatalogKey: String? = nil,
                                resetFirmwareCatalogKey: Bool = false,
+                               device: ConnectedKeyboardIdentity? = nil,
+                               resetDevice: Bool = false,
                                directoryURL: URL? = nil) {
         let dir = directoryURL ?? FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/AhaKeyConfig", isDirectory: true)
@@ -225,6 +228,17 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         if let existing = try? Data(contentsOf: url),
            let parsed = (try? JSONSerialization.jsonObject(with: existing)) as? [String: Any] {
             obj = parsed
+        }
+        if resetDevice {
+            for key in ["deviceUUID", "deviceName", "battery", "lightMode", "lightModeTs", "switchState", "workMode",
+                        "firmwareMain", "firmwareSub", "firmwareCatalogKey"] {
+                obj.removeValue(forKey: key)
+            }
+            liveStateCoalescer = LiveStateWriteCoalescer()
+        }
+        if let device {
+            obj["deviceUUID"] = device.uuid.uuidString
+            obj["deviceName"] = device.name
         }
         if resetFirmwareCatalogKey { obj.removeValue(forKey: "firmwareCatalogKey") }
         if let key = FirmwareIdentityDisplay.validKey(firmwareCatalogKey) { obj["firmwareCatalogKey"] = key }
@@ -256,7 +270,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                     battery: battery.map(Int.init), lightMode: lightMode.map(Int.init),
                     switchState: switchState.map(Int.init),
                     workMode: workMode.map(Int.init),
-                    firmwareMain: firmwareMain.map(Int.init), firmwareSub: firmwareSub.map(Int.init)
+                    firmwareMain: firmwareMain.map(Int.init), firmwareSub: firmwareSub.map(Int.init), device: device
                 ), at: now)
             } catch {
                 liveStateCoalescer = LiveStateWriteCoalescer()
@@ -929,20 +943,19 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     private func connectAutomatically() {
         guard central.state == .poweredOn, connectionAttempt.mayBegin else { return }
         guard acquireConnectionLock() else { return }
-        // 1. 用已知 UUID
-        if let uuid = lastUUID {
-            let known = central.retrievePeripherals(withIdentifiers: [uuid])
-            if let p = known.first {
-                emit("直连已知设备: \(uuid.uuidString.prefix(8))…")
-                beginPeripheralConnection(p)
-                return
-            }
+        // Prefer the only live HID/config device to a cached, disconnected UUID.
+        let candidates = central.retrieveConnectedPeripherals(withServices: [serviceUUID, hidServiceUUID, batteryServiceUUID])
+            .filter { matchesDeviceName($0.name) }
+        if let id = BLEConnectionAttemptGuard.preferredConnectedID(among: candidates.map(\.identifier), previous: lastUUID),
+           let p = candidates.first(where: { $0.identifier == id }) {
+            emit("系统已连接: \(p.name ?? "?")")
+            beginPeripheralConnection(p)
+            return
         }
 
-        // 2. 系统已连接
-        let connected = central.retrieveConnectedPeripherals(withServices: [serviceUUID, hidServiceUUID, batteryServiceUUID])
-        if let p = connected.first(where: { matchesDeviceName($0.name) }) {
-            emit("系统已连接: \(p.name ?? "?")")
+        if let uuid = lastUUID, uuid != timedOutKnownUUID,
+           let p = central.retrievePeripherals(withIdentifiers: [uuid]).first {
+            emit("直连已知设备: \(uuid.uuidString.prefix(8))…")
             beginPeripheralConnection(p)
             return
         }
@@ -966,6 +979,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             guard let self, self.peripheral === target, self.connectionAttempt.timeOut(ticket) else { return }
             self.central.stopScan()
             self.approvalChannelReady = false
+            if target.identifier == self.lastUUID { self.timedOutKnownUUID = target.identifier }
             self.emit(NSLocalizedString("连接等待超时", comment: ""))
             if self.connectionAttempt.requiresManualRetry {
                 self.emit(NSLocalizedString("新设备连接等待超时，已取消待连接请求并暂停自动重试；请先在 macOS 蓝牙中完成配对，再点击连接设备。", comment: ""))
@@ -1052,6 +1066,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         foregroundReceiver?.revalidate()
         statusWaiters = AgentStatusQueries()
         lastUUID = peripheral.identifier
+        timedOutKnownUUID = nil
         emit("已连接: \(peripheral.name ?? "?")")
         peripheral.discoverServices([serviceUUID])
     }
@@ -1158,7 +1173,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
     private func resetFirmwareIdentity() {
         displayedFirmwareCatalogKey = nil
-        Self.writeLiveState(resetFirmwareCatalogKey: true)
+        Self.writeLiveState(resetDevice: true)
     }
 
     private func handleDeviceStatus(_ status: AgentDeviceStatus) {
@@ -1184,9 +1199,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             emit("← status battery=\(status.battery) light=\(status.lightMode) switch=\(status.switchState)")
         }
         // 只发布实体拨杆状态，并避免相同状态重复写文件。
+        let device = peripheral.map { ConnectedKeyboardIdentity(uuid: $0.identifier, name: $0.name) }
         let snapshot = LiveStateWriteCoalescer.Snapshot(
             battery: status.battery, lightMode: status.lightMode, switchState: status.switchState,
-            workMode: max(0, status.workMode), firmwareMain: status.firmwareMain, firmwareSub: status.firmwareSub
+            workMode: max(0, status.workMode), firmwareMain: status.firmwareMain, firmwareSub: status.firmwareSub, device: device
         )
         switch Self.liveStateCoalescer.decision(for: snapshot, at: Date().timeIntervalSince1970) {
         case .write:
@@ -1194,7 +1210,8 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 battery: UInt8(clamping: status.battery),
                 lightMode: UInt8(clamping: status.lightMode), switchState: cachedSwitchState,
                 workMode: UInt8(clamping: max(0, status.workMode)),
-                firmwareMain: UInt8(clamping: status.firmwareMain), firmwareSub: UInt8(clamping: status.firmwareSub)
+                firmwareMain: UInt8(clamping: status.firmwareMain), firmwareSub: UInt8(clamping: status.firmwareSub),
+                device: device
             )
         case .touchOnly:
             let url = FileManager.default.homeDirectoryForCurrentUser

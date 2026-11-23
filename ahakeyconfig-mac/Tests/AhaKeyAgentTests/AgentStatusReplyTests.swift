@@ -34,6 +34,34 @@ final class AgentStatusReplyTests: XCTestCase {
         XCTAssertEqual(object["stateValue"] as? Int, 3)
     }
 
+    @MainActor
+    func testKeyboardHandoffClearsPreviousIdentityAndTelemetryButPreservesHookState() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        func snapshot() throws -> [String: Any] {
+            let file = directory.appendingPathComponent("current-ide-state.json")
+            return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])
+        }
+        let hw2 = ConnectedKeyboardIdentity(uuid: UUID(), name: "AhaKey 64B0")
+        let hw1 = ConnectedKeyboardIdentity(uuid: UUID(), name: "AhaKey 505C")
+        AhaKeyAgent.writeLiveState(stateValue: 3, battery: 32, firmwareMain: 1, firmwareSub: 0,
+            firmwareCatalogKey: FirmwareCapabilityProfile.hw2FeatureSyncCatalogKey, device: hw2, directoryURL: directory)
+        XCTAssertEqual(ConnectedKeyboardIdentity(liveState: try snapshot()), hw2)
+        AhaKeyAgent.writeLiveState(resetDevice: true, directoryURL: directory)
+        let disconnected = try snapshot()
+        XCTAssertNil(ConnectedKeyboardIdentity(liveState: disconnected))
+        XCTAssertNil(disconnected["deviceName"])
+        XCTAssertNil(disconnected["firmwareCatalogKey"])
+        XCTAssertNil(disconnected["battery"])
+        XCTAssertEqual(disconnected["stateValue"] as? Int, 3)
+        AhaKeyAgent.writeLiveState(battery: 77, firmwareMain: 1, firmwareSub: 0,
+            firmwareCatalogKey: FirmwareCapabilityProfile.hw1SaveRepairCatalogKey, device: hw1, directoryURL: directory)
+        let reconnected = try snapshot()
+        XCTAssertEqual(ConnectedKeyboardIdentity(liveState: reconnected), hw1)
+        XCTAssertEqual(reconnected["battery"] as? Int, 77)
+        XCTAssertEqual(reconnected["firmwareCatalogKey"] as? String, FirmwareCapabilityProfile.hw1SaveRepairCatalogKey)
+    }
+
     func testVerifiedAutoReplySurvivesJSONAndRawStatusIsNotApprovalProof() throws {
         let profile = FirmwareCapabilityProfile.catalogResponse(Data([0xAA, 0xBB, 0x9F, 0]) + Data(FirmwareCapabilityProfile.ws2CatalogKey.utf8) + Data([0xCC, 0xDD]))
         let factory = SideSwitchReadback(physicalState: 0, positions: [.init(bindType: 0, action: Data()), .init(bindType: 1, action: Data())])
