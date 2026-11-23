@@ -36,7 +36,7 @@ final class FirmwareCapabilityProfileTests: XCTestCase {
     }
 
     @MainActor
-    func testHW2RuntimeAllowsOnlyConfirmedKeyEditWithMatchingReadback() async throws {
+    func testHW2RuntimeAllowsConfirmedKeyEditWithoutUnlockingResources() async throws {
         let key = "x1-c582-hw2-p1-1.0.1-r001"
         func frame(_ key: String) -> Data {
             Data([0xAA, 0xBB, 0x9F, 0]) + Data(key.utf8) + Data([0xCC, 0xDD])
@@ -78,6 +78,37 @@ final class FirmwareCapabilityProfileTests: XCTestCase {
             })
         XCTAssertEqual(actual, target)
         XCTAssertEqual(writes, [action, Data([0xAA, 0xBB, 0x04, 0xCC, 0xDD])])
+    }
+
+    func testHW2ModeFourSessionEndAndBrightnessUseNarrowLightingReadback() throws {
+        let context = FirmwareDesktopContext(version: FirmwareDesktopVersion("0.2.3")!)
+        let runtime = FirmwareRuntimeCatalog.Snapshot(catalog: .builtin, context: context)
+        let key = FirmwareCapabilityProfile.hw2FeatureSyncCatalogKey
+        let frame = Data([0xAA, 0xBB, 0x9F, 0]) + Data(key.utf8) + Data([0xCC, 0xDD])
+        let profile = runtime.profile(frame, hasValidStatus: true)
+        let unverified = runtime.profile(frame, hasValidStatus: false)
+        let reads: [WS3DisplayItem] = [.brightness, .singleLight(mode: 3, state: 8)]
+        for item in reads {
+            let query = try XCTUnwrap(item.request)
+            XCTAssertTrue(ConfigurationCommandPolicy.permits(query, profile: profile))
+            XCTAssertFalse(ConfigurationCommandPolicy.permits(query, profile: unverified))
+        }
+        let writes = [
+            try XCTUnwrap(WS3DisplayPreview.light(effect: 1, brightness: 35).request),
+            try XCTUnwrap(WS3DisplaySetting.brightness(35).saveRequest),
+            try XCTUnwrap(WS3DisplaySetting.singleLight(mode: 3, state: 8, effect: 1).saveRequest)
+        ]
+        for write in writes {
+            XCTAssertFalse(ConfigurationCommandPolicy.permits(write, profile: profile, confirmedWrite: .ws3Display))
+            XCTAssertFalse(ConfigurationCommandPolicy.permits(write, profile: profile, ws3LightingReadbackVerified: true))
+            XCTAssertTrue(ConfigurationCommandPolicy.permits(write, profile: profile, confirmedWrite: .ws3Display,
+                ws3LightingReadbackVerified: true))
+            XCTAssertFalse(ConfigurationCommandPolicy.permits(write, profile: unverified, confirmedWrite: .ws3Display,
+                ws3LightingReadbackVerified: true))
+        }
+        let resourceQuery = try XCTUnwrap(WS3DisplayItem.resourceBasic(0).request)
+        XCTAssertFalse(ConfigurationCommandPolicy.permits(resourceQuery, profile: profile))
+        XCTAssertFalse(profile.mayUseWS3Presentation)
     }
 
     func testAcceptedCatalogEnablesOnlyVerifiedWS2Capabilities() {

@@ -129,15 +129,18 @@ final class StudioLightInspectorModel: ObservableObject {
                     guard values.permitsReadback(deviceID: context.deviceID) else {
                         throw StudioInspectorSession.Failure.deviceChanged
                     }
-                    // Re-establish the existing CP2 readback gate for every lease.
-                    let display = try await ble.readWS3DisplayForEditing()
+                    let brightness = try await ble.readWS3BrightnessForEditing()
+                    try session.validate(context)
                     let actual: UInt8
                     switch selected {
-                    case .brightness: actual = display.brightness
+                    case .brightness: actual = brightness
                     case .effect(let mode, let state):
+                        if case .read = action {
+                            values.observe(.brightness, fact: .init(deviceID: context.deviceID, value: brightness))
+                        }
                         actual = try await ble.readWS3SingleLightForEditing(mode: mode, state: state).effect
                     }
-                    return .init(selected: .init(deviceID: context.deviceID, value: actual), brightness: display.brightness)
+                    return .init(selected: .init(deviceID: context.deviceID, value: actual), brightness: brightness)
                 }, save: { setting, actual, generation in
                     try await ble.saveWS3DisplaySetting(setting, baseline: actual, expectedGeneration: generation)
                 }, preview: { request in
@@ -191,12 +194,12 @@ final class StudioLightInspectorModel: ObservableObject {
             attemptedWrite ? NSLocalizedString("部分修改可能已生效，草稿与待确认标记已保留；请重新核对后写入。", comment: "") : nil
         }) { [self] in
             let result = try await StudioInlineLightBatch.run(plan: plan, session: session, read: { plan, context in
-                let display = try await ble.readWS3DisplayForEditing()
-                let brightness = StudioLightDrafts.Fact(deviceID: context.deviceID, value: display.brightness)
+                let currentBrightness = try await ble.readWS3BrightnessForEditing()
+                let brightness = StudioLightDrafts.Fact(deviceID: context.deviceID, value: currentBrightness)
                 var selected: [StudioLightDrafts.Target: StudioLightDrafts.Fact] = [:]
                 for item in plan.items {
                     let value: UInt8
-                    if item.target == .brightness { value = display.brightness }
+                    if item.target == .brightness { value = currentBrightness }
                     else { value = try await ble.readWS3SettingForEditing(item.target.setting(item.desired)) }
                     selected[item.target] = .init(deviceID: context.deviceID, value: value)
                 }
@@ -266,7 +269,14 @@ final class StudioLightInspectorModel: ObservableObject {
                 if let currentMessage = message { message = Self.receipt(scope: scope, text: currentMessage) }
             } catch {
                 showsError = true
-                let detail = [failureContext?(), KeyboardSettingsFeedback.message(for: error)].compactMap { $0 }.joined(separator: "\n")
+                let feedback: String
+                switch error as? OLEDUploadError {
+                case .unsupportedWS3Readback:
+                    feedback = NSLocalizedString("当前固件未提供此灯效设置。", comment: "")
+                default:
+                    feedback = KeyboardSettingsFeedback.message(for: error)
+                }
+                let detail = [failureContext?(), feedback].compactMap { $0 }.joined(separator: "\n")
                 message = Self.receipt(scope: scope, text: detail)
             }
         }

@@ -46,6 +46,7 @@ struct StudioLightInspectorView: View {
                 HStack(spacing: 8) {
                     Text(readbackTitle).font(.caption).foregroundStyle(.secondary)
                     Spacer(minLength: 0)
+                    refreshButton(for: target)
                 }
                 if model.values.unconfirmed.contains(target) {
                     Label("保存结果待确认，请重新读取后保存。", systemImage: "exclamationmark.circle")
@@ -83,7 +84,7 @@ struct StudioLightInspectorView: View {
                 model.showsMultitask = chosen == .multi
                 initializedPresentation = true
             }
-            if model.values.facts[target] == nil { readSelectedState() }
+            if model.values.facts[target] == nil || model.values.facts[.brightness] == nil { readSelectedState() }
             else { readPresentation() }
         }
         .onReceive(model.readCompleted) { if !presentation.isWriting { readPresentation() } }
@@ -106,6 +107,7 @@ struct StudioLightInspectorView: View {
     }
 
     private var readbackTitle: String {
+        if model.isBusy && model.values.facts[target] == nil { return NSLocalizedString("正在读取…", comment: "") }
         guard let fact = model.values.facts[target] else { return NSLocalizedString("尚未读取", comment: "") }
         return String(format: NSLocalizedString("已读取当前设置：%@", comment: ""), label(fact.value, target: target))
     }
@@ -121,7 +123,7 @@ struct StudioLightInspectorView: View {
                 if model.values.dirtyTargets.contains(item) { Circle().fill(Color.orange).frame(width: 5, height: 5).accessibilityLabel("未保存") }
                 Spacer()
                 Text(value.map { "\($0)%" } ?? "—").font(.caption.monospacedDigit())
-
+                refreshButton(for: item)
             }
             Slider(value: Binding(get: { Double(value ?? 35) }, set: { model.values.edit(item, value: UInt8($0.rounded())) }), in: 1...100, step: 1)
                 .disabled(busy || !canEdit).accessibilityLabel(NSLocalizedString("灯光亮度", comment: ""))
@@ -129,6 +131,18 @@ struct StudioLightInspectorView: View {
                 Text("亮度保存结果待确认，请重新读取后保存。").font(.caption).foregroundStyle(.orange)
             }
         }
+    }
+
+    private func refreshButton(for item: StudioLightDrafts.Target) -> some View {
+        Button {
+            model.run(target: item, ble: bleManager, session: session)
+        } label: {
+            Image(systemName: "arrow.clockwise")
+        }
+        .buttonStyle(.borderless)
+        .disabled(busy)
+        .help(Text("重新读取"))
+        .accessibilityLabel(Text("重新读取"))
     }
 
     private func readSelectedState() {

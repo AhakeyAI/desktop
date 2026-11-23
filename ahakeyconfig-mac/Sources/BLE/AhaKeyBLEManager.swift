@@ -128,6 +128,12 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
 
     @Published private(set) var isReadingWS3Display = false
     @Published private(set) var isUpdatingWS3Display = false
+    private var verifiedWS3BrightnessGeneration: UInt64?
+    private var canEditWS3Lighting: Bool {
+        canEditWS3Display ||
+            (isConnected && !commandChannelUnsynchronized && firmwareCapabilityProfile?.mayQueryWS3Display == true &&
+                verifiedWS3BrightnessGeneration == commandSessionGeneration)
+    }
     var canEditWS3Display: Bool {
         isConnected && !commandChannelUnsynchronized && firmwareCapabilityProfile?.mayQueryWS3Display == true &&
             ws3DisplaySnapshot?.verifiesDisplaySettings(in: commandSessionGeneration) == true
@@ -713,7 +719,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                                                restoreReadbackVerified: hasCurrentRestoreProof,
                                                k1InitializationReadbackVerified: hasCurrentK1InitializationProof,
                                                acr4ReadbackVerified: resourceUploadGeneration == commandSessionGeneration && resourceUploadFormat == .lossless,
-                                               compactReadbackVerified: resourceUploadGeneration == commandSessionGeneration && resourceUploadFormat == .compact) else {
+                                               compactReadbackVerified: resourceUploadGeneration == commandSessionGeneration && resourceUploadFormat == .compact,
+                                               ws3LightingReadbackVerified: canEditWS3Lighting) else {
             appendLog("当前固件配置写入尚未验证，已阻止写入", isError: true)
             return
         }
@@ -987,6 +994,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         k1RouteProofGeneration = nil
         let generation = commandSessionGeneration
         let previousProfile = firmwareCapabilityProfile
+        verifiedWS3BrightnessGeneration = nil
         firmwareCapabilityProfile = nil
         ws3DisplaySnapshot = nil
         ws3SingleLightSnapshot = nil
@@ -1125,7 +1133,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         ws3LightCatalogSnapshot = nil
         defer { finishWS3DisplayOperation(displayOperation) }
         let profile = try await readFirmwareCapabilityProfile()
-        guard profile.mayQueryWS3Display else { throw OLEDUploadError.unsupportedReadOnlyProfile }
+        guard profile.mayQueryWS3Resources else { throw OLEDUploadError.unsupportedReadOnlyProfile }
         func read(_ item: WS3DisplayItem) async throws -> WS3DisplayValue {
             try await self.readWS3DisplayValue(item, generation: generation)
         }
@@ -1314,7 +1322,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     func readWS3SingleLightForEditing(mode: UInt8, state: UInt8) async throws -> WS3SingleLightSnapshot {
-        guard !isConfigurationOperationInProgress, canEditWS3Display else { throw OLEDUploadError.channelNotReady }
+        guard !isConfigurationOperationInProgress, canEditWS3Lighting else { throw OLEDUploadError.channelNotReady }
         let generation = commandSessionGeneration
         let displayOperation = beginWS3DisplayOperation(.reading)
         ws3SingleLightSnapshot = nil
@@ -1339,19 +1347,31 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         if case .singleLight(let mode, let state, _) = setting {
             return try await readWS3SingleLightForEditing(mode: mode, state: state).effect
         }
-        guard !isConfigurationOperationInProgress, canEditWS3Display else { throw OLEDUploadError.channelNotReady }
+        return try await readWS3BrightnessForEditing()
+    }
+
+    func readWS3BrightnessForEditing() async throws -> UInt8 {
+        guard !isConfigurationOperationInProgress else { throw OLEDUploadError.channelNotReady }
         let generation = commandSessionGeneration
+        try ensureConfigurationReadSession(generation)
         let operation = beginWS3DisplayOperation(.reading)
+        verifiedWS3BrightnessGeneration = nil
         defer { finishWS3DisplayOperation(operation) }
+        let profile = try await readFirmwareCapabilityProfile()
+        guard profile.mayQueryWS3Display else {
+            if case .unknown = profile.identity { throw OLEDUploadError.unsupportedReadOnlyProfile }
+            throw OLEDUploadError.unsupportedWS3Readback
+        }
         guard case .brightness(let value) = try await readWS3DisplayValue(.brightness, generation: generation) else {
             throw OLEDUploadError.invalidReadback
         }
         try ensureConfigurationReadSession(generation)
+        if (1...100).contains(value) { verifiedWS3BrightnessGeneration = generation }
         return value
     }
 
     func previewWS3Display(_ preview: WS3DisplayPreview) async throws {
-        guard !isConfigurationOperationInProgress, canEditWS3Display else { throw OLEDUploadError.channelNotReady }
+        guard !isConfigurationOperationInProgress, canEditWS3Lighting else { throw OLEDUploadError.channelNotReady }
         guard let request = preview.request else { throw ConfirmedWS3DisplaySetting.Failure.invalidValue }
         let generation = commandSessionGeneration
         let displayOperation = beginWS3DisplayOperation(.updating)
@@ -1364,7 +1384,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     func saveWS3DisplaySetting(_ target: WS3DisplaySetting, baseline: UInt8, expectedGeneration: UInt64) async throws {
-        guard !isConfigurationOperationInProgress, canEditWS3Display,
+        guard !isConfigurationOperationInProgress, canEditWS3Lighting,
               expectedGeneration == commandSessionGeneration else { throw OLEDUploadError.channelNotReady }
         let generation = commandSessionGeneration
         let displayOperation = beginWS3DisplayOperation(.updating)
@@ -1397,6 +1417,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 ws3DisplaySnapshot = nil
                 ws3SingleLightSnapshot = nil
                 ws3LightCatalogSnapshot = nil
+                verifiedWS3BrightnessGeneration = nil
             }
             throw error
         }
@@ -2675,7 +2696,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                                                restoreReadbackVerified: hasCurrentRestoreProof,
                                                k1InitializationReadbackVerified: hasCurrentK1InitializationProof,
                                                acr4ReadbackVerified: resourceUploadGeneration == commandSessionGeneration && resourceUploadFormat == .lossless,
-                                               compactReadbackVerified: resourceUploadGeneration == commandSessionGeneration && resourceUploadFormat == .compact) else {
+                                               compactReadbackVerified: resourceUploadGeneration == commandSessionGeneration && resourceUploadFormat == .compact,
+                                               ws3LightingReadbackVerified: canEditWS3Lighting) else {
             throw OLEDUploadError.unsupportedReadOnlyProfile
         }
         try Task.checkCancellation()

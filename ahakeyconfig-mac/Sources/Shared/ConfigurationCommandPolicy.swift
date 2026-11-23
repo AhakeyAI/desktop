@@ -8,7 +8,7 @@ public enum ConfigurationCommandPolicy {
                                ws3DisplayReadbackVerified: Bool = false, k1RouteReadbackVerified: Bool = false,
                                restoreReadbackVerified: Bool = false,
                                k1InitializationReadbackVerified: Bool = false, acr4ReadbackVerified: Bool = false,
-                               compactReadbackVerified: Bool = false) -> Bool {
+                               compactReadbackVerified: Bool = false, ws3LightingReadbackVerified: Bool = false) -> Bool {
         let b = [UInt8](data)
         guard b.count >= 5, b[0] == 0xAA, b[1] == 0xBB,
               b[b.count - 2] == 0xCC, b[b.count - 1] == 0xDD else { return false }
@@ -58,7 +58,12 @@ public enum ConfigurationCommandPolicy {
             guard confirmedWrite == .ws3Presentation, ws3DisplayReadbackVerified,
                   profile?.mayUseWS3Presentation == true else { return false }
             return b[2] == 0x98 ? (b.count == 6 && b[3] <= 1) : WS3TaskSnapshot(request: data) != nil
-        case 0x88: return profile?.mayQueryWS3Display == true && WS3DisplayItem.from(request: data) != nil
+        case 0x88:
+            guard profile?.mayQueryWS3Display == true, let item = WS3DisplayItem.from(request: data) else { return false }
+            switch item {
+            case .brightness, .singleLight: return true
+            case .resourceBasic, .resourceIntegrity: return profile?.mayQueryWS3Resources == true
+            }
         case 0x8D:
             return confirmedWrite == .ws3ResourceRestore && ws3DisplayReadbackVerified &&
                 profile?.mayQueryWS3Resources == true && WS3ResourceRestoreCommand.validRequest(data)
@@ -66,7 +71,7 @@ public enum ConfigurationCommandPolicy {
             return confirmedWrite == .ws3Resource && ws3DisplayReadbackVerified &&
                 profile?.mayQueryWS3Resources == true && WS3ResourceUploadCommand.validRequest(data)
         case 0x89, 0x8E:
-            guard confirmedWrite == .ws3Display, ws3DisplayReadbackVerified,
+            guard confirmedWrite == .ws3Display, ws3DisplayReadbackVerified || ws3LightingReadbackVerified,
                   profile?.mayQueryWS3Display == true else { return false }
             return b[2] == 0x89 ? WS3DisplayPreview.validRequest(data) : WS3DisplaySetting.validSaveRequest(data)
         case 0x87: return profile?.mayQueryOrdinaryKeys == true && b.count == 7 && b[3] < 4 && b[4] < 4
