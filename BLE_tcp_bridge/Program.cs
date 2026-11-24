@@ -119,6 +119,17 @@ namespace BLE_tcp_driver
         /// </summary>
         private string CurrentDeviceMAC { get; set; }
 
+        /// <summary>
+        /// 最近一次连接时间 (诊断用)
+        /// </summary>
+        private DateTime? _lastConnectTime;
+
+        /// <summary>
+        /// GATT 会话 (仅用于记录诊断日志, 不改变连接行为)
+        /// </summary>
+        private GattSession _gattSession;
+        private readonly object _sessionLock = new object();
+
 
         public BleCore()
         {
@@ -162,7 +173,19 @@ namespace BLE_tcp_driver
             {
                 if (asyncStatus == AsyncStatus.Completed)
                 {
-                    ConnectDevice(asyncInfo.GetResults());
+                    BluetoothLEDevice device = asyncInfo.GetResults();
+                    if (device == null)
+                    {
+                        DriverLog.LogError("[BLE] BluetoothLEDevice.FromIdAsync returned no device: " + args.Id);
+                        return;
+                    }
+                    ConnectDevice(device);
+                }
+                else
+                {
+                    string detail = "";
+                    try { if (asyncInfo.ErrorCode != null) detail = " error: " + asyncInfo.ErrorCode.Message; } catch { }
+                    DriverLog.LogError("[BLE] BluetoothLEDevice.FromIdAsync status: " + asyncStatus + detail);
                 }
             };
         }
@@ -179,6 +202,9 @@ namespace BLE_tcp_driver
 
             CurrentDevice = Device;
             CurrentDevice.ConnectionStatusChanged += CurrentDevice_ConnectionStatusChanged;
+            _lastConnectTime = DateTime.Now;
+            LogDeviceDetails(Device);
+            OpenGattSession(Device);
             ConnectDeviceSuccess?.Invoke(Device);
             FindService(CurrentDevice);
         }
@@ -226,6 +252,7 @@ namespace BLE_tcp_driver
             CurrentDeviceMAC = null;
             if (CurrentDevice != null)
                 CurrentDevice.ConnectionStatusChanged -= CurrentDevice_ConnectionStatusChanged;
+            CloseGattSession();
             CurrentService?.Dispose();
             CurrentDevice?.Dispose();
             CurrentDevice = null;
@@ -289,6 +316,10 @@ namespace BLE_tcp_driver
                         Console.WriteLine("发送数据：" + BitConverter.ToString(data) + " State : " + a);
                         WriteDataSuccess?.Invoke(c, data);
                     }
+                    else
+                    {
+                        DriverLog.LogError("[BLE] WriteValueAsync did not complete (" + asyncStatus + "): " + BitConverter.ToString(data));
+                    }
                 };
             }
             else
@@ -331,8 +362,11 @@ namespace BLE_tcp_driver
                 {
                     if (asyncStatus == AsyncStatus.Completed)
                     {
-                        var services = asyncInfo.GetResults().Services;
+                        var servicesResult = asyncInfo.GetResults();
+                        var services = servicesResult.Services;
                         Console.WriteLine("GattServices size=" + services.Count);
+                        DriverLog.Write(servicesResult.Status == GattCommunicationStatus.Success ? DriverLog.Info : DriverLog.Warn,
+                            "[BLE] GetGattServicesAsync status: " + servicesResult.Status + " count: " + services.Count);
                         CharacteristicList.Clear();
 
                         for (int i = 0; i < services.Count; i++)
@@ -353,6 +387,10 @@ namespace BLE_tcp_driver
                             }
                         }
                         CharacteristicFinish?.Invoke(services.Count);
+                    }
+                    else
+                    {
+                        DriverLog.LogError("[BLE] GetGattServicesAsync did not complete (" + asyncStatus + ")");
                     }
                 };
             }
@@ -458,12 +496,20 @@ namespace BLE_tcp_driver
             {
                 if (asyncStatus == AsyncStatus.Completed)
                 {
-                    var characteristics = asyncInfo.GetResults().Characteristics;
+                    var characteristicsResult = asyncInfo.GetResults();
+                    var characteristics = characteristicsResult.Characteristics;
+                    DriverLog.Write(characteristicsResult.Status == GattCommunicationStatus.Success ? DriverLog.Debug : DriverLog.Warn,
+                        "[BLE] GetCharacteristicsAsync service " + gattDeviceService.Uuid + " status: "
+                        + characteristicsResult.Status + " count: " + characteristics.Count);
                     foreach (var c in characteristics)
                     {
                         CharacteristicList.Add(c);
                         this.CharacteristicAdded?.Invoke(c);
                     }
+                }
+                else
+                {
+                    DriverLog.LogError("[BLE] GetCharacteristicsAsync service " + gattDeviceService.Uuid + " did not complete (" + asyncStatus + ")");
                 }
 
                 if (Interlocked.Decrement(ref _pendingServiceCount) == 0)
@@ -511,8 +557,152 @@ namespace BLE_tcp_driver
         }
 
 
+        private static string FormatAddress(BluetoothLEDevice device)
+        {
+            try
+            {
+                if (device == null) return "";
+                return "0x" + device.BluetoothAddress.ToString("X12");
+            }
+            catch { return ""; }
+        }
+
+        private string ElapsedSinceConnect()
+        {
+            try
+            {
+                if (_lastConnectTime.HasValue)
+                    return ((long)(DateTime.Now - _lastConnectTime.Value).TotalMilliseconds) + "ms";
+            }
+            catch { }
+            return "unknown";
+        }
+
+        /// <summary>
+        /// 记录连接设备的底层信息 (诊断用)
+        /// </summary>
+        private void LogDeviceDetails(BluetoothLEDevice device)
+        {
+            try
+            {
+                if (device == null) return;
+                DriverLog.LogInfo("[BLE] Connected device: name: " + device.Name
+                    + " address: " + FormatAddress(device)
+                    + " DeviceId: " + device.DeviceId
+                    + " ConnectionStatus: " + device.ConnectionStatus);
+            }
+            catch (Exception ex)
+            {
+                DriverLog.LogWarn("[BLE] Could not read device details: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// 获取 GattSession 并订阅事件, 只记录日志, 不设置 MaintainConnection
+        /// </summary>
+        private void OpenGattSession(BluetoothLEDevice device)
+        {
+            CloseGattSession();
+            try
+            {
+                if (device == null) return;
+                GattSession.FromDeviceIdAsync(device.BluetoothDeviceId).Completed = (asyncInfo, asyncStatus) =>
+                {
+                    try
+                    {
+                        if (asyncStatus != AsyncStatus.Completed)
+                        {
+                            DriverLog.LogWarn("[BLE] GattSession.FromDeviceIdAsync did not complete (" + asyncStatus + ")");
+                            return;
+                        }
+                        GattSession session = asyncInfo.GetResults();
+                        if (session == null)
+                        {
+                            DriverLog.LogWarn("[BLE] GattSession.FromDeviceIdAsync returned no session");
+                            return;
+                        }
+                        if (!object.ReferenceEquals(CurrentDevice, device))
+                        {
+                            // 设备已切换, 丢弃旧会话
+                            try { session.Dispose(); } catch { }
+                            return;
+                        }
+                        session.SessionStatusChanged += GattSession_SessionStatusChanged;
+                        session.MaxPduSizeChanged += GattSession_MaxPduSizeChanged;
+                        lock (_sessionLock)
+                        {
+                            _gattSession = session;
+                        }
+                        DriverLog.LogInfo("[BLE] GattSession: SessionStatus: " + session.SessionStatus
+                            + " MaxPduSize: " + session.MaxPduSize
+                            + " MaintainConnection: " + session.MaintainConnection
+                            + " CanMaintainConnection: " + session.CanMaintainConnection);
+                    }
+                    catch (Exception ex)
+                    {
+                        DriverLog.LogWarn("[BLE] GattSession setup failed: " + ex.Message);
+                    }
+                };
+            }
+            catch (Exception ex)
+            {
+                DriverLog.LogWarn("[BLE] Could not open GattSession: " + ex.Message);
+            }
+        }
+
+        private void CloseGattSession()
+        {
+            try
+            {
+                GattSession old;
+                lock (_sessionLock)
+                {
+                    old = _gattSession;
+                    _gattSession = null;
+                }
+                if (old != null)
+                {
+                    old.SessionStatusChanged -= GattSession_SessionStatusChanged;
+                    old.MaxPduSizeChanged -= GattSession_MaxPduSizeChanged;
+                    old.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                DriverLog.LogWarn("[BLE] Could not close GattSession: " + ex.Message);
+            }
+        }
+
+        private void GattSession_SessionStatusChanged(GattSession sender, GattSessionStatusChangedEventArgs args)
+        {
+            try
+            {
+                DriverLog.Write(args.Status == GattSessionStatus.Closed ? DriverLog.Warn : DriverLog.Info,
+                    "[BLE] SessionStatus changed: " + args.Status + " error: " + args.Error
+                    + " (" + ElapsedSinceConnect() + " after connect)");
+            }
+            catch { }
+        }
+
+        private void GattSession_MaxPduSizeChanged(GattSession sender, object args)
+        {
+            try
+            {
+                DriverLog.LogInfo("[BLE] MaxPduSize changed: " + sender.MaxPduSize);
+            }
+            catch { }
+        }
+
         private void CurrentDevice_ConnectionStatusChanged(BluetoothLEDevice sender, object args)
         {
+            try
+            {
+                DriverLog.Write(sender.ConnectionStatus == BluetoothConnectionStatus.Disconnected ? DriverLog.Warn : DriverLog.Info,
+                    "[BLE] ConnectionStatus changed: " + sender.ConnectionStatus
+                    + " (" + ElapsedSinceConnect() + " after connect) address: " + FormatAddress(sender));
+            }
+            catch { }
+
             if (sender.ConnectionStatus == BluetoothConnectionStatus.Disconnected)
             {
                 Console.WriteLine("设备已断开");
@@ -552,6 +742,10 @@ namespace BLE_tcp_driver
                     }
                     asyncLock = false;
                     Console.WriteLine("设备连接状态" + status);
+                }
+                else
+                {
+                    DriverLog.LogError("[BLE] WriteClientCharacteristicConfigurationDescriptorAsync did not complete (" + asyncStatus + ")");
                 }
             };
         }
@@ -611,6 +805,8 @@ namespace BLE_tcp_driver
         [STAThread]
         static void Main()
         {
+            DriverLog.RedirectConsole();
+            DriverLog.LogInfo("BLE driver started");
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new Form1());

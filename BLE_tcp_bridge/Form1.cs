@@ -47,6 +47,16 @@ namespace BLE_tcp_driver
 
         private void log(Color c, string message)
         {
+            log(c, message, DriverLog.Info);
+        }
+
+        /// <summary>
+        /// 显示到界面并写入日志文件 (%LOCALAPPDATA%\AhaKeyStudio\logs\ble-driver-yyyy-MM-dd.log)
+        /// </summary>
+        private void log(Color c, string message, string level)
+        {
+            DriverLog.Write(level, message);
+            if (!IsHandleCreated || IsDisposed) return;
             BeginInvoke(new Action(() =>
             {
                 rtbMsg.SelectionColor = c;
@@ -86,7 +96,7 @@ namespace BLE_tcp_driver
 
             // 启动TCP服务器
             tcpServer = new TcpServer(bleCore, config.ServerPort);
-            tcpServer.OnLog += (msg) => log(Color.DarkCyan, "[TCP] " + msg);
+            tcpServer.OnLog += (msg) => log(Color.DarkCyan, "[TCP] " + msg, TcpLogLevel(msg));
             tcpServer.OnClientCountChanged += (count) =>
             {
                 BeginInvoke(new Action(() =>
@@ -133,7 +143,7 @@ namespace BLE_tcp_driver
         private void WriteDataSuccess(GattCharacteristic sender, byte[] data)
         {
             UTF8Encoding utf8 = new UTF8Encoding();
-            log(Color.FromArgb(0x00ff00FF), Utilities.ConvertUuidToShortId(sender.Uuid).ToString() + "write :" + utf8.GetString(data));
+            log(Color.FromArgb(0x00ff00FF), Utilities.ConvertUuidToShortId(sender.Uuid).ToString() + "write :" + utf8.GetString(data), DriverLog.Debug);
         }
 
         private void ReceiveNotifyData(GattCharacteristic sender, byte[] data)
@@ -148,7 +158,7 @@ namespace BLE_tcp_driver
             else
             {
                 log(Color.FromArgb(0x00ff0000), Utilities.ConvertUuidToShortId(sender.Uuid).ToString() +
-                    "receive :" + BitConverter.ToString(data));
+                    "receive :" + BitConverter.ToString(data), DriverLog.Debug);
             }
         }
 
@@ -195,7 +205,7 @@ namespace BLE_tcp_driver
         {
             BeginInvoke(new Action(() =>
             {
-                log(Color.Red, "Disconnected:" + (bluetoothLEDevice?.Name ?? ""));
+                log(Color.Red, "Disconnected:" + (bluetoothLEDevice?.Name ?? ""), DriverLog.Warn);
                 label_connected_devices.Text = "当前连接设备:无";
                 autoConnecting = false;
 
@@ -213,7 +223,7 @@ namespace BLE_tcp_driver
             {
                 ushort shortId = Utilities.ConvertUuidToShortId(gattCharacteristic.Uuid);
                 log(Color.Black, "Chara:0x" + shortId.ToString("X") +
-                    ", des:" + gattCharacteristic.UserDescription);
+                    ", des:" + gattCharacteristic.UserDescription, DriverLog.Debug);
 
                 if (shortId == 0x7341)
                 {
@@ -275,7 +285,7 @@ namespace BLE_tcp_driver
                 if (!allFound)
                 {
                     string devName = bleCore.CurrentDevice?.Name ?? "未知";
-                    log(Color.OrangeRed, $"设备 [{devName}] 未找齐目标UUID, 断开连接");
+                    log(Color.OrangeRed, $"设备 [{devName}] 未找齐目标UUID, 断开连接", DriverLog.Warn);
                     bleCore.Dispose();
                     label_connected_devices.Text = "当前连接设备:无";
 
@@ -426,12 +436,30 @@ namespace BLE_tcp_driver
             }
             catch (Exception ex)
             {
+                DriverLog.LogError("SetAutoStart failed: " + ex.Message);
                 MessageBox.Show("设置开机自启动失败: " + ex.Message, "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 // 还原 checkbox 状态
                 checkBox_follow_system.CheckedChanged -= checkBox_follow_system_CheckedChanged;
                 checkBox_follow_system.Checked = !checkBox_follow_system.Checked;
                 checkBox_follow_system.CheckedChanged += checkBox_follow_system_CheckedChanged;
             }
+        }
+
+        /// <summary>
+        /// TCP 日志级别 (异常 → ERROR, 未就绪/未知/断开 → WARN, 数据转发和查询应答 → DEBUG)
+        /// </summary>
+        private static string TcpLogLevel(string msg)
+        {
+            if (string.IsNullOrEmpty(msg)) return DriverLog.Info;
+            if (msg.IndexOf("异常", StringComparison.Ordinal) >= 0) return DriverLog.Error;
+            if (msg.IndexOf("未就绪", StringComparison.Ordinal) >= 0
+                || msg.IndexOf("未知包类型", StringComparison.Ordinal) >= 0
+                || msg.IndexOf("已断开", StringComparison.Ordinal) >= 0) return DriverLog.Warn;
+            if (msg.StartsWith("→BLE", StringComparison.Ordinal)
+                || msg.StartsWith("响应BLE状态查询", StringComparison.Ordinal)
+                || msg.StartsWith("响应设备信息查询", StringComparison.Ordinal))
+                return DriverLog.Debug;
+            return DriverLog.Info;
         }
 
         private const string AutoStartKeyName = "BLE_tcp_driver";
