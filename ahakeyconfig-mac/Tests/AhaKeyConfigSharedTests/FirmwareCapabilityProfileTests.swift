@@ -106,6 +106,36 @@ final class FirmwareCapabilityProfileTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testHW2StandbyAndLeverAllowVerifiedEditing() async throws {
+        let context = FirmwareDesktopContext(version: FirmwareDesktopVersion("0.2.3")!)
+        let runtime = FirmwareRuntimeCatalog.Snapshot(catalog: .builtin, context: context)
+        let key = FirmwareCapabilityProfile.hw2FeatureSyncCatalogKey
+        let frame = Data([0xAA, 0xBB, 0x9F, 0]) + Data(key.utf8) + Data([0xCC, 0xDD])
+        let profile = runtime.profile(frame, hasValidStatus: true)
+        let unverified = runtime.profile(frame, hasValidStatus: false)
+        let standby = try XCTUnwrap(ConfirmedStandbySetting.request(minutes: 60))
+        let positions: [SideSwitchReadback.Position] = [
+            .init(bindType: 0, action: Data()), .init(bindType: 1, action: Data())
+        ]
+        let lever = try XCTUnwrap(SideSwitchBindingConfiguration.request(positions: positions))
+
+        for (read, write, grant) in [
+            (Data([0xAA, 0xBB, 0x95, 0xCC, 0xDD]), standby, ConfigurationCommandPolicy.ConfirmedWrite.standby),
+            (Data([0xAA, 0xBB, 0x97, 0xCC, 0xDD]), lever, .sideSwitch)
+        ] {
+            XCTAssertTrue(ConfigurationCommandPolicy.permits(read, profile: profile))
+            XCTAssertFalse(ConfigurationCommandPolicy.permits(read, profile: unverified))
+            XCTAssertFalse(ConfigurationCommandPolicy.permits(write, profile: profile))
+            XCTAssertTrue(ConfigurationCommandPolicy.permits(write, profile: profile, confirmedWrite: grant))
+            XCTAssertFalse(ConfigurationCommandPolicy.permits(write, profile: unverified, confirmedWrite: grant))
+        }
+        let binding = SideSwitchReadback(physicalState: 0, positions: positions)
+        XCTAssertFalse(ApprovalBindingPolicy.mayAutoApprove(physicalState: 0, fresh: true, profile: profile, binding: nil))
+        XCTAssertFalse(ApprovalBindingPolicy.mayAutoApprove(physicalState: 0, fresh: false, profile: profile, binding: binding))
+        XCTAssertTrue(ApprovalBindingPolicy.mayAutoApprove(physicalState: 0, fresh: true, profile: profile, binding: binding))
+    }
+
     func testHW2ArtworkReadsNegotiatesAndRequiresCurrentReadbackForWrites() throws {
         let context = FirmwareDesktopContext(version: FirmwareDesktopVersion("0.2.3")!)
         let runtime = FirmwareRuntimeCatalog.Snapshot(catalog: .builtin, context: context)

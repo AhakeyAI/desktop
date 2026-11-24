@@ -201,6 +201,16 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     var deviceUUIDForDisplay: String? {
         isConnected ? bleDeviceUUID : (agentBLEConnectedProvider() ? agentKeyboardIdentity?.uuid.uuidString : nil)
     }
+    @Published fileprivate(set) var reportedLeverAction: LeverAssignedAction?
+    var leverTitleForDisplay: String {
+        if let action = reportedLeverAction { return action.title }
+        switch switchStateForDisplay {
+        case 0: return NSLocalizedString("拨杆在上", comment: "")
+        case 1: return NSLocalizedString("拨杆在下", comment: "")
+        default: return NSLocalizedString("档位未知", comment: "")
+        }
+    }
+
     var batteryLevelForDisplay: Int? {
         isConnected ? (hasValidStatusReadback ? batteryLevel : nil) : (agentBLEConnectedProvider() ? agentBatteryLevel : nil)
     }
@@ -2941,59 +2951,83 @@ final class SwitchStateNotifier: ObservableObject {
     static let shared = SwitchStateNotifier()
 
     private weak var bleManager: AhaKeyBLEManager?
-    private var switchStateCancellable: AnyCancellable?
-    private var agentSwitchStateCancellable: AnyCancellable?
+    private var observations: Set<AnyCancellable> = []
+    private var actionTask: Task<Void, Never>?
+    private var lastDeviceID: String?
+    private var lastWasAppOwned: Bool?
     private var lastObservedState: Int?
-    private var lastNotificationAt: Date?
-    private var hasInitialState = false
     private var hasRequestedAuthorization = false
 
     private init() {}
 
     func bind(to manager: AhaKeyBLEManager) {
-        if bleManager === manager, switchStateCancellable != nil, agentSwitchStateCancellable != nil { return }
-
+        if bleManager === manager, !observations.isEmpty { return }
+        actionTask?.cancel()
+        observations.removeAll()
         bleManager = manager
+        lastDeviceID = nil
         lastObservedState = nil
-        hasInitialState = false
-        // switchState 已改为读 coreSnapshot 的计算属性，这里改为订阅核心投影再取字段（效果同原 $switchState）
-        switchStateCancellable = manager.$coreSnapshot
-            .map(\.switchState)
-            .removeDuplicates()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] newState in
-                self?.handleStateChange(newState)
-            }
-        agentSwitchStateCancellable = manager.$agentSwitchState
-            .compactMap { $0 }
-            .removeDuplicates()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] newState in
-                self?.handleStateChange(newState)
-            }
+        let agent = AgentManager.shared
+        let changes = Publishers.MergeMany([
+            manager.$coreSnapshot.map { _ in () }.eraseToAnyPublisher(),
+            manager.$agentSwitchState.map { _ in () }.eraseToAnyPublisher(),
+            manager.$agentKeyboardIdentity.map { _ in () }.eraseToAnyPublisher(),
+            agent.$isAgentBLEConnected.map { _ in () }.eraseToAnyPublisher(),
+            manager.$configurationSnapshot.map(\.sideSwitch).removeDuplicates().map { _ in () }.eraseToAnyPublisher()
+        ])
+        changes.receive(on: RunLoop.main).sink { [weak self] in self?.refreshAction() }.store(in: &observations)
     }
 
-    private func handleStateChange(_ newState: Int) {
-        guard let manager = bleManager, manager.switchStateForDisplay == newState,
-              newState == 0 || newState == 1 else { return }
-        defer { lastObservedState = newState }
-
-        guard hasInitialState else {
-            hasInitialState = true
+    private func refreshAction() {
+        guard let manager = bleManager else { return }
+        let deviceID = manager.deviceUUIDForDisplay
+        let position = manager.switchStateForDisplay
+        let appOwned = manager.isConnected
+        let sameConnection = lastDeviceID == deviceID && lastWasAppOwned == appOwned
+        let samePosition = lastObservedState == position
+        if sameConnection, samePosition {
+            if appOwned, let position, let action = localAction(manager, position: position),
+               manager.reportedLeverAction != action.kind { manager.reportedLeverAction = action.kind }
             return
         }
 
-        guard let previous = lastObservedState, previous != newState else { return }
-
-        if let last = lastNotificationAt, Date().timeIntervalSince(last) < 1.5 {
+        let shouldNotify = sameConnection && lastObservedState != nil && !samePosition
+        lastDeviceID = deviceID
+        lastWasAppOwned = appOwned
+        lastObservedState = position
+        actionTask?.cancel()
+        if manager.reportedLeverAction != nil { manager.reportedLeverAction = nil }
+        guard let deviceID, let position, (0...1).contains(position) else { return }
+        if appOwned {
+            if let action = localAction(manager, position: position) {
+                manager.reportedLeverAction = action.kind
+                if shouldNotify { announce(action.kind, bytes: action.bytes, position: position, manager: manager) }
+            }
             return
         }
-        lastNotificationAt = Date()
 
-        let switchedToAuto = (previous != 0 && newState == 0)
-        let switchedToManual = (previous == 0 && newState != 0)
+        actionTask = Task { [weak self, weak manager] in
+            guard let action = await AgentManager.shared.readLeverAction(for: position),
+                  !Task.isCancelled, let self, let manager, !manager.isConnected,
+                  manager.deviceUUIDForDisplay == deviceID, manager.switchStateForDisplay == position else { return }
+            manager.reportedLeverAction = action.kind
+            if shouldNotify { self.announce(action.kind, bytes: action.bytes, position: position, manager: manager) }
+        }
+    }
 
-        guard switchedToAuto || switchedToManual else { return }
+    private func localAction(_ manager: AhaKeyBLEManager, position: Int) -> (kind: LeverAssignedAction, bytes: Data?)? {
+        guard (0...1).contains(position) else { return nil }
+        if manager.firmwareCapabilityProfile?.identity == .legacy {
+            return (position == 0 ? .automatic : .manual, nil)
+        }
+        guard let bindings = manager.configurationSnapshot.sideSwitch?.positions,
+              bindings.indices.contains(position),
+              let action = LeverAssignedAction(position: bindings[position]) else { return nil }
+        return (action, bindings[position].action)
+    }
+
+    private func announce(_ action: LeverAssignedAction, bytes: Data?, position: Int, manager: AhaKeyBLEManager) {
+        let switchedToAuto = action == .automatic
         let mode = manager.workModeForDisplay
         let agent = AgentManager.shared
         let hooksInstalled: Bool
@@ -3005,23 +3039,24 @@ final class SwitchStateNotifier: ObservableObject {
         default: hooksInstalled = false
         }
         let managed = (try? CodexDesktopLeverState().snapshot().managementEnabled) == true
-        let notice = StudioLeverPresentation.notice(mode: mode, automatic: switchedToAuto,
+        let notice = StudioLeverPresentation.notice(position: position, action: action, bytes: bytes, mode: mode,
             codexManaged: managed, backgroundConnected: agent.isRunning && manager.agentBLEConnectedProvider(),
             hooksInstalled: hooksInstalled)
         // One relevant prompt at a time; consent never changes another mode's
         // notification and never implicitly grants session management.
-        if notice.offersCodexManagement, CodexApprovalSetupController.shared.requestOffer() { return }
-        postNotification(title: notice.title, body: notice.message,
+        if notice.offersCodexManagement { _ = CodexApprovalSetupController.shared.requestOffer() }
+        postNotification(title: notice.title, subtitle: notice.subtitle, body: notice.message,
             identifier: switchedToAuto ? "lab.jawa.ahakey.switch.auto" : "lab.jawa.ahakey.switch.manual",
             isCritical: switchedToAuto)
     }
 
-    private func postNotification(title: String, body: String, identifier: String, isCritical: Bool) {
+    private func postNotification(title: String, subtitle: String, body: String, identifier: String, isCritical: Bool) {
         let center = UNUserNotificationCenter.current()
         let deliver = { [weak self] in
             let content = UNMutableNotificationContent()
-            content.title = NSLocalizedString(title, comment: "")
-            content.body = NSLocalizedString(body, comment: "")
+            content.title = title
+            content.subtitle = subtitle
+            content.body = body
             content.sound = isCritical ? .defaultCritical : .default
             let request = UNNotificationRequest(identifier: "\(identifier).\(UUID().uuidString)",
                                                 content: content,

@@ -39,7 +39,7 @@ struct StudioDeviceInspectorView: View {
                             StudioLeverPositionEditor(position: Binding(get: {
                                 model.leverDraft?.positions[index] ?? draft.positions[index]
                             }, set: { model.leverDraft?.set($0, at: index) }),
-                            positionIndex: index, approvalContent: { kind in
+                            approvalContent: { kind in
                                 let ownsStatusUpdates = model.leverDraft?.positions.firstIndex {
                                     $0.bindType == 0 || $0.bindType == 1
                                 } == index
@@ -48,7 +48,7 @@ struct StudioDeviceInspectorView: View {
                         }
                     }
                 }
-                if let first = model.leverDraft?.positions.first, first.bindType != 0 {
+                if let positions = model.leverDraft?.positions, !positions.contains(where: { $0.bindType == 0 }) {
                     Text(NSLocalizedString("写入后将暂停自动批准，拨杆只执行你设置的动作。", comment: ""))
                         .font(.caption).foregroundStyle(.orange)
                 }

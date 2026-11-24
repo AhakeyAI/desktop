@@ -100,6 +100,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     static func desktopAuthority(terminating: Bool, enabled: Bool, reply: [String: Any]?) -> CodexDesktopLeverCoordinator.Authority {
         guard !terminating, enabled else { return .unmanaged }
         if ApprovalBindingPolicy.effectiveSwitchState(reply) == 0 { return .verifiedAutomatic }
+        if let reply, reply["leverAction"] != nil {
+            return ApprovalBindingPolicy.assignedAction(in: reply) == .manual ? .manual : .unmanaged
+        }
         if reply?["physicalSwitchState"] as? Int == 1 { return .manual }
         return .unmanaged
     }
@@ -358,9 +361,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
     }
 
-    private func queryApprovalStatus(completion: @escaping ([String: Any]) -> Void) {
+    private func queryApprovalStatus(reportBinding: Bool = false, completion: @escaping ([String: Any]) -> Void) {
         guard !nativePermissionTerminationInProgress, !presentationSession.isChangingMode, !presentationDraining,
-              pendingPresentationRead == nil, !presentationPoisoned, ApprovalAutomationControl.isEnabled() else {
+              pendingPresentationRead == nil, !presentationPoisoned,
+              reportBinding || ApprovalAutomationControl.isEnabled() else {
             completion(["switchState": 1, "physicalSwitchState": NSNull(), "approvalAutoVerified": false, "approvalPolicyVersion": 1])
             return
         }
@@ -382,9 +386,6 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
                 guard self.approvalRequestID == id else { return }
                 guard first != nil, generation == self.connectionGeneration else {
                     self.finishApproval(id: id, status: nil, profile: nil, binding: nil); return
-                }
-                if first?.switchState != 0 {
-                    self.finishApproval(id: id, status: first, profile: nil, binding: nil); return
                 }
                 self.readApprovalCommand(0x9F) { frame in
                     guard self.approvalRequestID == id else { return }
@@ -420,9 +421,10 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         approvalDrainToken = nil
         if let drainedApproval { legacyCommandDrain.complete(drainedApproval) }
         let body = Self.approvalReply(status, profile: profile, binding: binding,
-            fresh: status != nil && approvalChannelReady, terminating: nativePermissionTerminationInProgress)
+            fresh: status != nil && approvalChannelReady,
+            terminating: nativePermissionTerminationInProgress || !ApprovalAutomationControl.isEnabled())
         let kimiState: Int? = nativePermissionTerminationInProgress ? nil :
-            (ApprovalBindingPolicy.effectiveSwitchState(body) == 0 ? 0 : (status?.switchState == 1 ? 1 : nil))
+            (ApprovalBindingPolicy.effectiveSwitchState(body) == 0 ? 0 : (ApprovalBindingPolicy.assignedAction(in: body) == .manual ? 1 : nil))
         KimiConfigLeverSync.synchronizeManaged(switchState: kimiState)
         let waiters = approvalWaiters
         approvalWaiters.removeAll()
@@ -433,6 +435,12 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         var body = statusReply(status, cachedSwitch: nil, cachedLight: nil)
         let allowed = !terminating && ApprovalBindingPolicy.mayAutoApprove(physicalState: status?.switchState, fresh: fresh, profile: profile, binding: binding)
         body["physicalSwitchState"] = status.map { $0.switchState } ?? NSNull()
+        let action = fresh ? ApprovalBindingPolicy.assignedAction(physicalState: status?.switchState, profile: profile, binding: binding) : nil
+        body["leverAction"] = action.map { $0.rawValue as Any } ?? NSNull()
+        if action == .shortcut || action == .macro,
+           let position = status?.switchState, let binding, binding.positions.indices.contains(position) {
+            body["leverActionBytes"] = Array(binding.positions[position].action)
+        }
         // Approval endpoints fail closed even for older clients that only read switchState.
         // The raw display endpoint remains unchanged.
         body["switchState"] = allowed ? 0 : 1
@@ -747,6 +755,9 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
 
         case "approval_status":
             queryApprovalStatus { body in Self.replyAndClose(clientFd, body) }
+
+        case "lever_status":
+            queryApprovalStatus(reportBinding: true) { body in Self.replyAndClose(clientFd, body) }
 
         default:
             Self.replyAndClose(clientFd, ["error": "unknown cmd: \(cmd)"])

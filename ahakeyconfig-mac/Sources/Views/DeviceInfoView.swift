@@ -151,16 +151,16 @@ struct DeviceInfoView: View {
                     Spacer()
                     HStack(spacing: 6) {
                         Circle()
-                            .fill(bleManager.switchStateForDisplay == 0 ? Color.green : Color.indigo)
+                            .fill(bleManager.reportedLeverAction == .automatic ? Color.green : Color.indigo)
                             .frame(width: 10, height: 10)
                             .animation(.easeInOut(duration: 0.1), value: bleManager.switchState)
-                        Text(switchStateLabel(bleManager.switchStateForDisplay))
+                        Text(bleManager.leverTitleForDisplay)
                     }
                 }
             } header: {
                 Text("拨杆档位")
             } footer: {
-                Text("仅在实体自动档且出厂自动绑定已确认时自动批准；其他情况使用原生审批。")
+                Text("仅在当前实体档位的自动批准绑定已确认时启用自动批准。")
             }
 
             // MARK: - LED 状态同步
@@ -708,10 +708,6 @@ struct DeviceInfoView: View {
         case .rejected(let status): return "设备拒绝（\(status)）"
         case .malformed: return "无效回包"
         }
-    }
-
-    private func switchStateLabel(_ state: Int?) -> String {
-        switch state { case 0: return "自动档"; case 1: return "手动档"; default: return "未知" }
     }
 
     private func agentBluetoothStatusText() -> String {

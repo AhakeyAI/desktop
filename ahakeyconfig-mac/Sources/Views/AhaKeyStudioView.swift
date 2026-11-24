@@ -148,7 +148,7 @@ struct AhaKeyStudioView: View {
         }
         .frame(minWidth: 1180, minHeight: 680)
         .background(Color(nsColor: .windowBackgroundColor))
-        .overlay(alignment: .bottomLeading) { AppUpdateCard(manager: updateManager) }
+        .overlay(alignment: .bottomTrailing) { AppUpdateCard(manager: updateManager) }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in lightWindowActive = true }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in lightWindowActive = false }
         .task(id: scenePhase == .active && lightWindowActive) {
@@ -2118,13 +2118,7 @@ struct AhaKeyStudioView: View {
         return currentModeDraft.key(for: role)
     }
 
-    private var currentSwitchTitle: String {
-        switch liveKeyboardSwitchState {
-        case 0: NSLocalizedString("自动批准", comment: "")
-        case 1: NSLocalizedString("手动批准", comment: "")
-        default: NSLocalizedString("档位未知", comment: "")
-        }
-    }
+    private var currentSwitchTitle: String { bleManager.leverTitleForDisplay }
 
     /// 取键盘当前实时状态 (lightMode/switchState/workMode)：
     /// - 主 App 已自连 BLE（编辑配置时）→ 用主 App 自己的 BLE 读数
@@ -5057,8 +5051,8 @@ private struct PhysicalSwitchTopicView: View {
             )
 
             HelpSection(title: "两档分别管什么", body: """
-                • 自动批准（switchState=0）：Hook 拦截每次工具调用 / 命令请求时直接放行
-                • 手动批准（switchState=1）：Hook 把决定交回终端，由你手动按 Key2/Key3 通过或拒绝
+                • 自动批准绑定：Hook 拦截每次工具调用 / 命令请求时直接放行
+                • 手动批准绑定：Hook 把决定交回终端，由你手动按 Key2/Key3 通过或拒绝
                 """)
 
             HelpNote("info.circle", tint: .blue, body: "请使用键盘上的实体拨杆切换档位。点画布中的拨杆只打开说明，不会改变批准行为。")

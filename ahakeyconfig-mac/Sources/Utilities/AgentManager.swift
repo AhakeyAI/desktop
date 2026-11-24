@@ -269,6 +269,23 @@ final class AgentManager: ObservableObject {
         }.value
     }
 
+    func readLeverAction(for position: Int) async -> (kind: LeverAssignedAction, bytes: Data?)? {
+        guard bluetoothConnectionOwner == .agentDaemon, isAgentBLEConnected else { return nil }
+        let ownership = ownershipTransitionGeneration, publication = connectionPublicationGeneration
+        let path = socketPath
+        let data = await Task.detached(priority: .utility) {
+            Self.querySocketData(socketPath: path, command: "lever_status", timeoutSeconds: 5)
+        }.value
+        guard !Task.isCancelled, ownership == ownershipTransitionGeneration,
+              publication == connectionPublicationGeneration, bluetoothConnectionOwner == .agentDaemon,
+              isAgentBLEConnected, let data,
+              let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              body["physicalSwitchState"] as? Int == position,
+              let action = ApprovalBindingPolicy.assignedAction(in: body) else { return nil }
+        let bytes = (body["leverActionBytes"] as? [UInt8]).map { Data($0) }
+        return (action, bytes)
+    }
+
     /// Sample the existing Agent-owned link without taking over BLE.
     func readConnectedKeyboardRSSI() async -> Int? {
         guard bluetoothConnectionOwner == .agentDaemon, isAgentBLEConnected else { return nil }

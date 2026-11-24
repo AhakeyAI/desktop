@@ -4,7 +4,6 @@ import AhaKeyConfigShared
 /// One detail surface: factory approvals, shortcut or macro, never stacked editors.
 struct StudioLeverPositionEditor: View {
     @Binding var position: SideSwitchReadback.Position
-    var positionIndex = 0
     var approvalContent: ((UInt8) -> AnyView)?
 
     private enum Choice: String, CaseIterable {
@@ -34,10 +33,6 @@ struct StudioLeverPositionEditor: View {
             if position.bindType == 0 || position.bindType == 1 || position.bindType == 3 {
                 VStack(alignment: .leading, spacing: 10) {
                     if position.bindType == 0 || position.bindType == 1 {
-                        if positionIndex == 1 && position.bindType == 0 {
-                            Text(NSLocalizedString("自动批准仅在拨杆在上且保留出厂自动绑定时启用。", comment: ""))
-                                .font(.caption).foregroundStyle(.orange)
-                        }
                         if let approvalContent { approvalContent(position.bindType) }
                     } else {
                         KeyboardActionEditor(action: Binding(get: { position.action }, set: {

@@ -65,7 +65,7 @@ struct SideSwitchSettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             if let message { Text(message).font(.caption).textSelection(.enabled) }
-            Text(NSLocalizedString("只自定义一边时，未明确设置的另一边默认禁用。可点“保留当前绑定”明确保留另一边。自定义动作只在实体拨动时执行；只有位置 1 的出厂自动绑定允许自动批准。", comment: ""))
+            Text(NSLocalizedString("只自定义一边时，未明确设置的另一边默认禁用。可点“保留当前绑定”明确保留另一边。自定义动作只在实体拨动时执行；自动批准适用于明确设置了自动批准绑定的位置。", comment: ""))
                 .font(.caption).foregroundStyle(.secondary)
         } header: { Text(NSLocalizedString("实体拨杆绑定", comment: "")) }
         .keyboardWriteResult($writeOutcome)

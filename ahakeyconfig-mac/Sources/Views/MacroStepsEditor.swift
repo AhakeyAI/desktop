@@ -49,7 +49,7 @@ struct MacroStepsEditor: View {
                 Text(NSLocalizedString("超过固件单键宏 98 字节 / 49 步上限，同步时会被拒绝。", comment: ""))
                     .font(.caption).foregroundStyle(.red)
             }
-            Text(NSLocalizedString("固件按顺序串行发送；延时单位 3ms（最大 765ms）。需要更长延时请叠加多个延时步骤。", comment: ""))
+            Text(NSLocalizedString("固件按顺序发送。延时可输入毫秒，按最接近的 3 ms 保存，单步最多 765 ms。", comment: ""))
                 .font(.caption).foregroundStyle(.secondary)
             if !steps.isEmpty {
                 Text(String(format: NSLocalizedString("预览：%@", comment: ""), steps.displaySummary))
@@ -107,14 +107,9 @@ struct MacroStepsEditor: View {
                 }
                 .pickerStyle(.menu).labelsHidden().frame(minWidth: 96)
             } else if step(index).action.takesDelayParam {
-                HStack(spacing: 8) {
-                    Text("\(max(Int(minimumDelay), Int(step(index).param)) * 3) ms")
-                        .font(.caption.monospacedDigit())
-                        .frame(minWidth: 44, alignment: .trailing)
-                    Stepper("", value: Binding(get: { max(minimumDelay, step(index).param) }, set: { value in
-                        update(index) { $0.param = value }
-                    }), in: minimumDelay...255).labelsHidden()
-                }.frame(minWidth: 120)
+                MacroDelayField(units: Binding(get: { step(index).param }, set: { value in
+                    update(index) { $0.param = value }
+                }), minimum: minimumDelay)
             } else {
                 Color.clear.frame(minWidth: 96, maxHeight: 1)
             }
@@ -135,5 +130,42 @@ struct MacroStepsEditor: View {
         .padding(.vertical, 4).padding(.horizontal, 6)
         .background(RoundedRectangle(cornerRadius: 8)
             .fill(Color(nsColor: .controlBackgroundColor).opacity(0.6)))
+    }
+}
+
+private struct MacroDelayField: View {
+    @Binding var units: UInt8
+    let minimum: UInt8
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    private var milliseconds: Int { Int(max(minimum, units)) * 3 }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            TextField("延时毫秒", text: $text)
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.trailing)
+                .font(.caption.monospacedDigit())
+                .frame(width: 56)
+                .focused($focused)
+                .accessibilityLabel(Text("延时毫秒"))
+                .onSubmit { focused = false }
+            Text("ms").font(.caption)
+        }
+        .frame(minWidth: 120)
+        .onAppear { text = String(milliseconds) }
+        .onChange(of: units) { _ in
+            if !focused { text = String(milliseconds) }
+        }
+        .onChange(of: focused) { editing in
+            if !editing { text = String(milliseconds) }
+        }
+        .onChange(of: text) { value in
+            guard focused, let typed = Int(value.trimmingCharacters(in: .whitespaces)) else { return }
+            let clamped = min(765, max(Int(minimum) * 3, typed))
+            units = UInt8((clamped + 1) / 3)
+        }
     }
 }

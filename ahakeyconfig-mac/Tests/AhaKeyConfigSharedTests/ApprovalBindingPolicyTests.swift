@@ -17,6 +17,26 @@ final class ApprovalBindingPolicyTests: XCTestCase {
         XCTAssertFalse(ApprovalBindingPolicy.mayAutoApprove(physicalState: 0, fresh: false, profile: profile, binding: binding(type: 0)))
         XCTAssertFalse(ApprovalBindingPolicy.mayAutoApprove(physicalState: 1, fresh: true, profile: profile, binding: binding(type: 0)))
     }
+    func testReversedPositionUsesConfirmedAssignedActionAndRequiresFreshProof() {
+        let positions: [SideSwitchReadback.Position] = [
+            .init(bindType: 1, action: Data()), .init(bindType: 0, action: Data())
+        ]
+        let top = SideSwitchReadback(physicalState: 0, positions: positions)
+        let bottom = SideSwitchReadback(physicalState: 1, positions: positions)
+        XCTAssertEqual(ApprovalBindingPolicy.assignedAction(physicalState: 0, profile: profile, binding: top), .manual)
+        XCTAssertFalse(ApprovalBindingPolicy.mayAutoApprove(physicalState: 0, fresh: true, profile: profile, binding: top))
+        XCTAssertTrue(ApprovalBindingPolicy.mayAutoApprove(physicalState: 1, fresh: true, profile: profile, binding: bottom))
+        XCTAssertFalse(ApprovalBindingPolicy.mayAutoApprove(physicalState: 1, fresh: true, profile: profile, binding: top))
+        XCTAssertEqual(LeverAssignedAction(position: .init(bindType: 3, action: Data([0x73, 1, 4]))), .shortcut)
+        XCTAssertEqual(LeverAssignedAction(position: .init(bindType: 3, action: Data([0x74, 2, 4, 0]))), .macro)
+        var reply: [String: Any] = ["switchState": 0, "physicalSwitchState": 1, "approvalPolicyVersion": 1, "approvalAutoVerified": true]
+        XCTAssertEqual(ApprovalBindingPolicy.effectiveSwitchState(reply), 1)
+        reply["leverAction"] = 0
+        XCTAssertEqual(ApprovalBindingPolicy.effectiveSwitchState(reply), 0)
+        reply["leverAction"] = 3
+        XCTAssertEqual(ApprovalBindingPolicy.effectiveSwitchState(reply), 1)
+    }
+
     func testMissingUnknownOrMalformedBindingCannotApprove() {
         XCTAssertFalse(ApprovalBindingPolicy.mayAutoApprove(physicalState: 0, fresh: true, profile: nil, binding: binding(type: 0)))
         XCTAssertFalse(ApprovalBindingPolicy.mayAutoApprove(physicalState: 0, fresh: true, profile: profile, binding: nil))
