@@ -374,7 +374,7 @@ public class StudioController {
         );
         switch (result) {
             case OFFLINE_UI_ONLY -> studioState.syncStatusProperty().set(
-                localize("已选择 ") + mode.getTitle() + localize("（仅本地编辑，尚未同步到设备）。"));
+                localize("已选择 %s（仅本地编辑，尚未同步到设备）。").formatted(mode.getTitle()));
             case SENT_PENDING -> studioState.syncStatusProperty().set(
                 localize("模式命令已发送，等待设备确认。"));
             case SEND_FAILED -> studioState.syncStatusProperty().set(
@@ -582,7 +582,7 @@ public class StudioController {
             studioState.syncStatusProperty().set(localize("请先连接键盘，再保存当前模式灯效。"));
             return;
         }
-        String success = localize("已保存 ") + mode.getTitle() + localize(" 的 AI 状态灯效和亮度。");
+        String success = localize("已保存 %s 的 AI 状态灯效和亮度。").formatted(mode.getTitle());
         if (simulateBle) {
             studioState.syncStatusProperty().set(success);
             return;
@@ -780,8 +780,8 @@ public class StudioController {
             studioState.applyOledGifSelection(path.toString(), count);
             studioState.syncStatusProperty().set(
                 isStaticImage
-                    ? localize("已选择 ") + studioState.getSelectedMode().getTitle() + localize(" 的图片，连接键盘后可上传。")
-                    : localize("已选择 ") + studioState.getSelectedMode().getTitle() + localize(" 的 GIF（") + count + localize(" 帧），连接键盘后可上传。")
+                    ? localize("已选择 %s 的图片，连接键盘后可上传。").formatted(studioState.getSelectedMode().getTitle())
+                    : localize("已选择 %s 的 GIF（%d 帧），连接键盘后可上传。").formatted(studioState.getSelectedMode().getTitle(), count)
             );
         } catch (Exception e) {
             String message = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();

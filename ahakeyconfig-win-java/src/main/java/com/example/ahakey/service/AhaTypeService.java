@@ -20,6 +20,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 /** AhaType text processing client and its persisted session state. */
 public class AhaTypeService {
     public static final String DEFAULT_API_BASE = "https://956798.xyz/prod-api";
@@ -50,7 +52,7 @@ public class AhaTypeService {
     private final Object configMutationLock = new Object();
     private volatile Map<String, Object> lastPersistedValues = AhaTypeConfig.defaults();
     private volatile boolean enabled;
-    private volatile String statusMessage = "AhaType 未启用";
+    private volatile String statusMessage = localize("AhaType 未启用");
     private volatile ProcessIssue lastProcessIssue = ProcessIssue.NONE;
 
     private enum ProcessQuotaPersistence {
@@ -139,27 +141,27 @@ public class AhaTypeService {
                 Map<String, Object> values = config.load();
                 boolean effective = requested && hasValidToken(values);
                 values.put(AhaTypeConfig.ENABLED, effective);
-                boolean saved = saveMutation(values, "AhaType 开关");
+                boolean saved = saveMutation(values, localize("AhaType 开关"));
                 if (saved) {
                     lastProcessIssue = ProcessIssue.NONE;
                 }
                 if (saved && requested && !effective) {
-                    statusMessage = "AhaType 未登录或登录已过期";
+                    statusMessage = localize("AhaType 未登录或登录已过期");
                 }
                 return saved;
             } catch (Exception exception) {
-                return saveFailure("AhaType 开关", exception);
+                return saveFailure(localize("AhaType 开关"), exception);
             }
         }
     }
 
     public boolean patchCloudToken(String token) {
-        return mutateConfig("AhaType 登录状态", values ->
+        return mutateConfig(localize("AhaType 登录状态"), values ->
             values.put(AhaTypeConfig.ACCESS_TOKEN, token == null ? "" : token.trim()));
     }
 
     public boolean setTokenValidUntil(Object validUntil) {
-        return mutateConfig("AhaType 登录状态", values ->
+        return mutateConfig(localize("AhaType 登录状态"), values ->
             values.put(AhaTypeConfig.TOKEN_VALID_UNTIL, validUntil));
     }
 
@@ -184,7 +186,7 @@ public class AhaTypeService {
 
     /** Clear session/quota while retaining the toggle and remembered credentials. */
     public boolean clearSessionKeepToggle() {
-        return mutateConfig("退出登录", values -> {
+        return mutateConfig(localize("退出登录"), values -> {
             Object toggle = values.get(AhaTypeConfig.ENABLED);
             values.put(AhaTypeConfig.ACCESS_TOKEN, "");
             values.put(AhaTypeConfig.USER, null);
@@ -211,7 +213,7 @@ public class AhaTypeService {
     }
 
     public boolean saveRememberedCredentials(String phone, String password, boolean remember) {
-        return mutateConfig("账号凭据", values -> {
+        return mutateConfig(localize("账号凭据"), values -> {
             values.put(AhaTypeConfig.REMEMBER_PASSWORD, remember);
             values.put(AhaTypeConfig.REMEMBERED_PHONE, stringValue(phone).trim());
             values.put(AhaTypeConfig.REMEMBERED_PASSWORD, remember ? stringValue(password) : "");
@@ -223,7 +225,7 @@ public class AhaTypeService {
                                   Map<String, Object> quota, Map<String, Object> policy,
                                   String phone, String password,
                                   boolean rememberPassword) {
-        return mutateConfig("账号登录", values -> {
+        return mutateConfig(localize("账号登录"), values -> {
             values.put(AhaTypeConfig.ACCESS_TOKEN, stringValue(token).trim());
             values.put(AhaTypeConfig.TOKEN_VALID_UNTIL, validUntil);
             values.put(AhaTypeConfig.USER, normalizedProfile(profile));
@@ -239,7 +241,7 @@ public class AhaTypeService {
     /** Persists profile/quota fields without clearing fields omitted by the server. */
     public boolean persistCloudState(Map<String, Object> profile, Map<String, Object> quota,
                                     Map<String, Object> policy, Object validUntil) {
-        return mutateConfig("AhaType 账号状态", values -> {
+        return mutateConfig(localize("AhaType 账号状态"), values -> {
             if (profile != null) values.put(AhaTypeConfig.USER, normalizedProfile(profile));
             if (validUntil != null) values.put(AhaTypeConfig.TOKEN_VALID_UNTIL, validUntil);
             mergeQuotaMap(values, quota);
@@ -266,11 +268,11 @@ public class AhaTypeService {
                 if (validUntil != null) values.put(AhaTypeConfig.TOKEN_VALID_UNTIL, validUntil);
                 mergeQuotaMap(values, quota);
                 mergePolicyMap(values, policy);
-                return saveMutation(values, "AhaType 账号状态")
+                return saveMutation(values, localize("AhaType 账号状态"))
                     ? CloudStatePersistenceResult.PERSISTED
                     : CloudStatePersistenceResult.FAILED;
             } catch (Exception exception) {
-                saveFailure("AhaType 账号状态", exception);
+                saveFailure(localize("AhaType 账号状态"), exception);
                 return CloudStatePersistenceResult.FAILED;
             }
         }
@@ -278,8 +280,8 @@ public class AhaTypeService {
 
     public String getQuotaSummary() {
         Map<String, Object> values = readConfig();
-        return "日 " + intValue(values.get("used_daily")) + "/" + intValue(values.get("limit_daily"))
-            + " · 周 " + intValue(values.get("used_weekly")) + "/" + intValue(values.get("limit_weekly"));
+        return localize("日 ") + intValue(values.get("used_daily")) + "/" + intValue(values.get("limit_daily"))
+            + localize(" · 周 ") + intValue(values.get("used_weekly")) + "/" + intValue(values.get("limit_weekly"));
     }
 
     /** Process one final speech segment; every failure returns the original text. */
@@ -292,17 +294,17 @@ public class AhaTypeService {
         enabled = boolValue(values.get(AhaTypeConfig.ENABLED));
         if (!enabled) {
             lastProcessIssue = ProcessIssue.NONE;
-            statusMessage = "AhaType 未启用，直接粘贴原文";
+            statusMessage = localize("AhaType 未启用，直接粘贴原文");
             return original;
         }
         if (!hasValidToken(values)) {
             lastProcessIssue = ProcessIssue.LOGIN_REQUIRED;
-            statusMessage = "AhaType 未登录或登录已过期，直接粘贴原文";
+            statusMessage = localize("AhaType 未登录或登录已过期，直接粘贴原文");
             return original;
         }
         if (!serviceIsStillValid(values.get(AhaTypeConfig.TOKEN_VALID_UNTIL))) {
             lastProcessIssue = ProcessIssue.QUOTA_REQUIRED;
-            statusMessage = "AhaType 服务已到期，请续费或兑换；已使用原文";
+            statusMessage = localize("AhaType 服务已到期，请续费或兑换；已使用原文");
             return original;
         }
         String token = stringValue(values.get(AhaTypeConfig.ACCESS_TOKEN)).trim();
@@ -331,7 +333,7 @@ public class AhaTypeService {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             lastProcessIssue = ProcessIssue.NETWORK;
-            setProcessStatusIfTokenCurrent(token, "AhaType 处理已中断，直接粘贴原文");
+            setProcessStatusIfTokenCurrent(token, localize("AhaType 处理已中断，直接粘贴原文"));
             return original;
         } catch (AhaTypeRequestException exception) {
             applyProcessFailure(token, exception.issue());
@@ -398,11 +400,11 @@ public class AhaTypeService {
     private void applyProcessFailure(String requestToken, ProcessIssue issue) {
         lastProcessIssue = issue;
         String message = switch (issue) {
-            case LOGIN_REQUIRED -> "AhaType 登录已过期，请重新登录；已使用原文";
-            case QUOTA_REQUIRED -> "AhaType 额度不足，请在账号窗口充值或兑换；已使用原文";
-            case NETWORK -> "AhaType 云端暂时不可用，已使用原文";
-            case UNKNOWN -> "AhaType 响应异常，已使用原文";
-            case NONE -> "AhaType 已使用原文";
+            case LOGIN_REQUIRED -> localize("AhaType 登录已过期，请重新登录；已使用原文");
+            case QUOTA_REQUIRED -> localize("AhaType 额度不足，请在账号窗口充值或兑换；已使用原文");
+            case NETWORK -> localize("AhaType 云端暂时不可用，已使用原文");
+            case UNKNOWN -> localize("AhaType 响应异常，已使用原文");
+            case NONE -> localize("AhaType 已使用原文");
         };
         if (issue == ProcessIssue.LOGIN_REQUIRED) {
             clearSessionIfTokenCurrent(requestToken, message);
@@ -423,7 +425,7 @@ public class AhaTypeService {
                 values.put(AhaTypeConfig.POLICY, new LinkedHashMap<>());
                 values.put(AhaTypeConfig.TOKEN_VALID_UNTIL, null);
                 for (String field : AhaTypeConfig.quotaFields()) values.put(field, 0);
-                saveMutation(values, "AhaType 登录状态");
+                saveMutation(values, localize("AhaType 登录状态"));
                 statusMessage = message;
             } catch (Exception exception) {
                 logger.warn("AhaType expired session could not be cleared ({})",
@@ -453,7 +455,7 @@ public class AhaTypeService {
             } catch (Exception exception) {
                 if (Objects.equals(
                     stringValue(lastPersistedValues.get(AhaTypeConfig.ACCESS_TOKEN)).trim(), requestToken)) {
-                    statusMessage = "AhaType 处理完成，但额度保存失败";
+                    statusMessage = localize("AhaType 处理完成，但额度保存失败");
                 }
                 logger.warn("AhaType configuration could not be read while merging response ({})",
                     exception.getClass().getSimpleName());
@@ -464,15 +466,15 @@ public class AhaTypeService {
                 return ProcessQuotaPersistence.STALE_TOKEN;
             }
             if (!mergeQuota(root, current)) {
-                statusMessage = "AhaType 处理完成";
+                statusMessage = localize("AhaType 处理完成");
                 return ProcessQuotaPersistence.NO_UPDATE;
             }
-            if (!saveMutation(current, "额度")) {
-                statusMessage = "AhaType 处理完成，但额度保存失败";
+            if (!saveMutation(current, localize("额度"))) {
+                statusMessage = localize("AhaType 处理完成，但额度保存失败");
                 logger.warn("AhaType quota was received but could not be persisted");
                 return ProcessQuotaPersistence.FAILED;
             }
-            statusMessage = "AhaType 处理完成";
+            statusMessage = localize("AhaType 处理完成");
             return ProcessQuotaPersistence.PERSISTED;
         }
     }
@@ -517,13 +519,13 @@ public class AhaTypeService {
 
     private void updateStatus(Map<String, Object> values) {
         if (!boolValue(values.get(AhaTypeConfig.ENABLED))) {
-            statusMessage = "AhaType 未启用，直接粘贴原文";
+            statusMessage = localize("AhaType 未启用，直接粘贴原文");
         } else if (!hasValidToken(values)) {
-            statusMessage = "AhaType 未登录或登录已过期";
+            statusMessage = localize("AhaType 未登录或登录已过期");
         } else if (!serviceIsStillValid(values.get(AhaTypeConfig.TOKEN_VALID_UNTIL))) {
-            statusMessage = "AhaType 服务已到期，请续费或兑换";
+            statusMessage = localize("AhaType 服务已到期，请续费或兑换");
         } else {
-            statusMessage = "AhaType 已启用";
+            statusMessage = localize("AhaType 已启用");
         }
     }
 
@@ -580,7 +582,7 @@ public class AhaTypeService {
     }
 
     private boolean saveFailure(String operation, Exception exception) {
-        statusMessage = operation + "保存失败";
+        statusMessage = localize("%s保存失败").formatted(operation);
         logger.warn("AhaType configuration could not be saved ({})",
             exception.getClass().getSimpleName());
         return false;

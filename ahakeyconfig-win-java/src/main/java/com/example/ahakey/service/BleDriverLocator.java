@@ -1,5 +1,7 @@
 package com.example.ahakey.service;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -86,8 +88,8 @@ public final class BleDriverLocator {
 
         public String diagnosticMessage() {
             if (selected.isPresent()) return selected.get().toString();
-            if (attempted.isEmpty()) return "未找到 BLE_tcp_driver.exe；没有可尝试的路径";
-            return "未找到 BLE_tcp_driver.exe。已尝试路径：\n"
+            if (attempted.isEmpty()) return localize("未找到 BLE_tcp_driver.exe；没有可尝试的路径");
+            return localize("未找到 BLE_tcp_driver.exe。已尝试路径：\n")
                 + String.join("\n", attempted.stream().map(Path::toString).toList());
         }
     }

@@ -19,6 +19,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 /**
  * Single-owner firmware update orchestration.  UI code observes structured
  * events and never touches WCHISP process details, config slots or workspaces.
@@ -148,11 +150,11 @@ public final class FirmwareUpdateService implements AutoCloseable {
     /** Admission is atomic; a second caller receives structured BUSY. */
     public OperationStart start(FirmwareUpdateRequest request) {
         if (request == null) {
-            return OperationStart.rejected(FirmwareUpdateError.INTERNAL_ERROR, "请求为空");
+            return OperationStart.rejected(FirmwareUpdateError.INTERNAL_ERROR, localize("请求为空"));
         }
         synchronized (admissionMonitor) {
             if (shuttingDown.get()) {
-                return OperationStart.rejected(FirmwareUpdateError.CANCELLED, "应用正在退出");
+                return OperationStart.rejected(FirmwareUpdateError.CANCELLED, localize("应用正在退出"));
             }
             if (diagnosticActive.get()) return OperationStart.busy();
             UUID operationId = UUID.randomUUID();
@@ -174,29 +176,29 @@ public final class FirmwareUpdateService implements AutoCloseable {
 
     /** Performs runtime and HEX checks without starting an ISP operation. */
     public PreflightResult preflight(FirmwareUpdateRequest request) {
-        if (request == null) return PreflightResult.failure(FirmwareUpdateError.INTERNAL_ERROR, "请求为空");
+        if (request == null) return PreflightResult.failure(FirmwareUpdateError.INTERNAL_ERROR, localize("请求为空"));
         try {
             if (!Files.isRegularFile(request.firmwareHex())) {
-                return PreflightResult.failure(FirmwareUpdateError.HEX_INVALID, "固件 HEX 文件不存在");
+                return PreflightResult.failure(FirmwareUpdateError.HEX_INVALID, localize("固件 HEX 文件不存在"));
             }
             if (request.targetVersion() == null && !request.allowUnknownVersion()) {
                 return PreflightResult.failure(FirmwareUpdateError.UNKNOWN_VERSION_CONFIRMATION_REQUIRED,
-                    "本地固件版本未知，需要显式风险确认");
+                    localize("本地固件版本未知，需要显式风险确认"));
             }
             if (request.targetVersion() != null && request.currentVersion() == null
                 && !request.allowDowngrade()) {
                 return PreflightResult.failure(FirmwareUpdateError.CURRENT_VERSION_REQUIRED,
-                    "无法确认当前设备版本，需要先读取版本或显式确认风险");
+                    localize("无法确认当前设备版本，需要先读取版本或显式确认风险"));
             }
             if (request.targetVersion() != null && request.currentVersion() != null
                 && request.targetVersion().compareTo(request.currentVersion()) < 0
                 && !request.allowDowngrade()) {
                 return PreflightResult.failure(FirmwareUpdateError.DOWNGRADE_CONFIRMATION_REQUIRED,
-                    "固件降级默认禁止，需要显式风险确认");
+                    localize("固件降级默认禁止，需要显式风险确认"));
             }
             IntelHexValidator.validate(request.firmwareHex());
             RuntimeBundle runtime = runtimeProvider.resolve();
-            return new PreflightResult(true, null, "运行环境和 HEX 校验通过", runtime);
+            return new PreflightResult(true, null, localize("运行环境和 HEX 校验通过"), runtime);
         } catch (IllegalArgumentException | IOException failure) {
             String message = failure.getMessage() == null ? "" : failure.getMessage().toLowerCase();
             FirmwareUpdateError error = message.contains("runtime")
@@ -215,17 +217,17 @@ public final class FirmwareUpdateService implements AutoCloseable {
      */
     public PreparationResult prepareFlash(FirmwareUpdateRequest request) {
         if (request == null) {
-            return PreparationResult.failure(FirmwareUpdateError.INTERNAL_ERROR, "请求为空");
+            return PreparationResult.failure(FirmwareUpdateError.INTERNAL_ERROR, localize("请求为空"));
         }
         synchronized (admissionMonitor) {
             if (shuttingDown.get()) {
-                return PreparationResult.failure(FirmwareUpdateError.CANCELLED, "应用正在退出");
+                return PreparationResult.failure(FirmwareUpdateError.CANCELLED, localize("应用正在退出"));
             }
             if (active.get() != null || diagnosticActive.get()) return PreparationResult.busy();
         }
         if (officialAdapter == null) {
             return PreparationResult.failure(FirmwareUpdateError.INTERNAL_ERROR,
-                "当前兼容路径不支持预备官方 WCHISP 会话");
+                localize("当前兼容路径不支持预备官方 WCHISP 会话"));
         }
         UUID operationId = UUID.randomUUID();
         Path diagnosticDirectory = null;
@@ -242,7 +244,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 request.firmwareHex(), operationId, diagnosticDirectory, preflight.runtime());
             if (session == null) {
                 return PreparationResult.failure(FirmwareUpdateError.INTERNAL_ERROR,
-                    "官方适配器未提供预备烧录会话", diagnosticDirectory);
+                    localize("官方适配器未提供预备烧录会话"), diagnosticDirectory);
             }
             writePreparedSessionEvidence(diagnosticDirectory, session);
             preparedSessions.put(session.operationId(), session);
@@ -270,20 +272,20 @@ public final class FirmwareUpdateService implements AutoCloseable {
      */
     public OperationStart startPrepared(PreparedFirmwareOperation prepared) {
         if (prepared == null || prepared.session() == null) {
-            return OperationStart.rejected(FirmwareUpdateError.INTERNAL_ERROR, "预备烧录会话缺失");
+            return OperationStart.rejected(FirmwareUpdateError.INTERNAL_ERROR, localize("预备烧录会话缺失"));
         }
         PreparedFlashSession session = prepared.session();
         synchronized (admissionMonitor) {
             if (shuttingDown.get()) {
-                return OperationStart.rejected(FirmwareUpdateError.CANCELLED, "应用正在退出");
+                return OperationStart.rejected(FirmwareUpdateError.CANCELLED, localize("应用正在退出"));
             }
             if (preparedSessions.get(session.operationId()) != session) {
                 return OperationStart.rejected(FirmwareUpdateError.ISP_NOT_PRESENT,
-                    "预备烧录会话已失效，请重新准备并检测 ISP");
+                    localize("预备烧录会话已失效，请重新准备并检测 ISP"));
             }
             if (session.state() != PreparedFlashSession.State.ARMED) {
                 return OperationStart.rejected(FirmwareUpdateError.ISP_NOT_PRESENT,
-                    "请先检测到当前 ISP 设备后再开始烧录");
+                    localize("请先检测到当前 ISP 设备后再开始烧录"));
             }
             if (diagnosticActive.get()) return OperationStart.busy();
             AtomicBoolean cancelled = new AtomicBoolean();
@@ -311,9 +313,9 @@ public final class FirmwareUpdateService implements AutoCloseable {
      */
     public DiagnosticResult diagnose(PreparedFirmwareOperation prepared) {
         synchronized (admissionMonitor) {
-            if (shuttingDown.get()) return DiagnosticResult.failure(FirmwareUpdateError.CANCELLED, "应用正在退出");
+            if (shuttingDown.get()) return DiagnosticResult.failure(FirmwareUpdateError.CANCELLED, localize("应用正在退出"));
             if (active.get() != null || !diagnosticActive.compareAndSet(false, true)) {
-                return DiagnosticResult.failure(FirmwareUpdateError.BUSY, "固件操作正在执行");
+                return DiagnosticResult.failure(FirmwareUpdateError.BUSY, localize("固件操作正在执行"));
             }
         }
         if (officialAdapter != null) {
@@ -334,7 +336,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
             present = ispProbe.isPresent();
             if (!present) {
                 String detail = diagnosticDetail(operationId, diagnosticDirectory, runtime,
-                    false, null, false, null, null, "未检测到 CH582 ISP 设备");
+                    false, null, false, null, null, localize("未检测到 CH582 ISP 设备"));
                 writeDiagnosticResult(diagnosticDirectory, null, detail, null);
                 return new DiagnosticResult(true, false, false, runtime, detail, null,
                     operationId, diagnosticDirectory, null, null, false, false);
@@ -461,7 +463,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
         Path diagnosticDirectory = null;
         try {
             diagnosticDirectory = diagnostics.begin(handle.operationId(), request);
-            transition(handle, FirmwareUpdateState.PREFLIGHT, "正在检查固件和 WCHISP 运行环境", 0.02, null);
+            transition(handle, FirmwareUpdateState.PREFLIGHT, localize("正在检查固件和 WCHISP 运行环境"), 0.02, null);
             PreflightResult preflight = preflight(request);
             if (!preflight.success()) {
                 finish(handle, FirmwareUpdateState.FAILED, preflight.error(), preflight.detail(), diagnosticDirectory);
@@ -483,9 +485,9 @@ public final class FirmwareUpdateService implements AutoCloseable {
                         + flashWorkspace.firmwareInput() + "\ntarget=" + request.targetVersion() + "\n");
 
                 transition(handle, FirmwareUpdateState.WAITING_ISP,
-                    "请进入 CH582 ISP 模式，正在等待设备", 0.08, diagnosticDirectory);
+                    localize("请进入 CH582 ISP 模式，正在等待设备"), 0.08, diagnosticDirectory);
                 awaitIsp(cancellation);
-                transition(handle, FirmwareUpdateState.DETECTING, "正在确认 CH582 ISP 设备", 0.12, diagnosticDirectory);
+                transition(handle, FirmwareUpdateState.DETECTING, localize("正在确认 CH582 ISP 设备"), 0.12, diagnosticDirectory);
                 ChipMatched.ChipMatchResult chip = inspectChip();
                 boolean chipGateAllowed = chipGateAllowed(chip);
                 writeChipEvidence(diagnosticDirectory, chip, chipGateAllowed);
@@ -519,14 +521,14 @@ public final class FirmwareUpdateService implements AutoCloseable {
                     diagnostics.write(diagnosticDirectory, "uid-warning.txt", uidWarning);
                 }
                 transition(handle, FirmwareUpdateState.READY,
-                    "已满足 CH582 烧录准备条件（UID "
-                        + (uid != null && uid.success() ? uid.deviceUid() : "未确认")
-                        + (uidWarning.isBlank() ? "" : "；UID 查询仅作警告：" + uidWarning)
-                        + "），准备烧录", 0.18, diagnosticDirectory);
+                    localize("已满足 CH582 烧录准备条件（UID ")
+                        + (uid != null && uid.success() ? uid.deviceUid() : localize("未确认"))
+                        + (uidWarning.isBlank() ? "" : localize("；UID 查询仅作警告：") + uidWarning)
+                        + localize("），准备烧录"), 0.18, diagnosticDirectory);
 
                 checkCancelled(cancellation);
                 transition(handle, FirmwareUpdateState.FLASHING,
-                    "正在烧录固件，请勿断开 USB", 0.20, diagnosticDirectory);
+                    localize("正在烧录固件，请勿断开 USB"), 0.20, diagnosticDirectory);
                 WchIspRunner.WchIspCommand flashCommand = new WchIspRunner.WchIspCommand(
                     flashWorkspace.executable(), workspace.toolDirectory(),
                     List.of("-c", flashWorkspace.configIni().toString(), "-o", "download", "-f",
@@ -554,11 +556,11 @@ public final class FirmwareUpdateService implements AutoCloseable {
             finish(handle, FirmwareUpdateState.SUCCESS, null, completionDetail, diagnosticDirectory);
         } catch (CancelledException cancelledException) {
             finish(handle, FirmwareUpdateState.CANCELLED, FirmwareUpdateError.CANCELLED,
-                "固件操作已取消", diagnosticDirectory);
+                localize("固件操作已取消"), diagnosticDirectory);
         } catch (Exception failure) {
             if (cancellation.get() || failure instanceof InterruptedException) {
                 finish(handle, FirmwareUpdateState.CANCELLED, FirmwareUpdateError.CANCELLED,
-                    "固件操作已取消", diagnosticDirectory);
+                    localize("固件操作已取消"), diagnosticDirectory);
                 return;
             }
             FirmwareUpdateError error = classify(failure);
@@ -577,7 +579,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
         try {
             diagnosticDirectory = diagnostics.begin(handle.operationId(), request);
             transition(handle, FirmwareUpdateState.PREFLIGHT,
-                "正在检查固件和官方 WCHISP 运行环境", 0.02, diagnosticDirectory);
+                localize("正在检查固件和官方 WCHISP 运行环境"), 0.02, diagnosticDirectory);
             PreflightResult preflight = preflight(request);
             if (!preflight.success()) {
                 finish(handle, FirmwareUpdateState.FAILED, preflight.error(), preflight.detail(), diagnosticDirectory);
@@ -587,10 +589,10 @@ public final class FirmwareUpdateService implements AutoCloseable {
             checkCancelled(cancellation);
 
             transition(handle, FirmwareUpdateState.WAITING_ISP,
-                "请进入 CH582 ISP 模式，正在等待官方工具检测", 0.08, diagnosticDirectory);
+                localize("请进入 CH582 ISP 模式，正在等待官方工具检测"), 0.08, diagnosticDirectory);
             checkCancelled(cancellation);
             transition(handle, FirmwareUpdateState.DETECTING,
-                "正在调用官方 WCHISP 检测设备", 0.12, diagnosticDirectory);
+                localize("正在调用官方 WCHISP 检测设备"), 0.12, diagnosticDirectory);
             OfficialWchIspAdapter.DeviceDetectionResult detection = officialAdapter.detectDevice();
             diagnostics.write(diagnosticDirectory, "adapter-detection.txt",
                 "ISP_PRESENT=" + (detection.ispPresent() ? "YES" : "NO") + "\n"
@@ -599,15 +601,15 @@ public final class FirmwareUpdateService implements AutoCloseable {
                     + detection.detail() + "\n");
             if (!detection.ispPresent()) {
                 finish(handle, FirmwareUpdateState.FAILED, FirmwareUpdateError.ISP_NOT_PRESENT,
-                    "官方 WCHISP 未检测到 ISP 设备", diagnosticDirectory);
+                    localize("官方 WCHISP 未检测到 ISP 设备"), diagnosticDirectory);
                 return;
             }
             transition(handle, FirmwareUpdateState.READY,
-                "官方 WCHISP 已检测到设备（UID 仅作可选信息），准备烧录", 0.18, diagnosticDirectory);
+                localize("官方 WCHISP 已检测到设备（UID 仅作可选信息），准备烧录"), 0.18, diagnosticDirectory);
             checkCancelled(cancellation);
 
             transition(handle, FirmwareUpdateState.FLASHING,
-                "正在调用官方 WCHISP 下载固件，请勿断开 USB", 0.20, diagnosticDirectory);
+                localize("正在调用官方 WCHISP 下载固件，请勿断开 USB"), 0.20, diagnosticDirectory);
             OfficialWchIspAdapter.FlashResult flash = officialAdapter.flashFirmware(
                 request.firmwareHex(), cancellation::get);
             awaitOwnedProcessExit(flash == null ? null : flash.processResult());
@@ -621,11 +623,11 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 flashSuccessDetail(), diagnosticDirectory);
         } catch (CancelledException cancelledException) {
             finish(handle, FirmwareUpdateState.CANCELLED, FirmwareUpdateError.CANCELLED,
-                "固件操作已取消", diagnosticDirectory);
+                localize("固件操作已取消"), diagnosticDirectory);
         } catch (Exception failure) {
             if (cancellation.get() || failure instanceof InterruptedException) {
                 finish(handle, FirmwareUpdateState.CANCELLED, FirmwareUpdateError.CANCELLED,
-                    "固件操作已取消", diagnosticDirectory);
+                    localize("固件操作已取消"), diagnosticDirectory);
                 return;
             }
             finish(handle, FirmwareUpdateState.FAILED, classify(failure),
@@ -645,13 +647,13 @@ public final class FirmwareUpdateService implements AutoCloseable {
             // publish the already reached READY state without repeating them.
             handle.forceState(FirmwareUpdateState.READY);
             publish(new FirmwareUpdateStatus(handle.operationId(), FirmwareUpdateState.READY,
-                null, "官方 WCHISP 会话已准备，准备烧录", 0.18, Instant.now()));
+                null, localize("官方 WCHISP 会话已准备，准备烧录"), 0.18, Instant.now()));
             if (diagnosticDirectory != null) diagnostics.write(diagnosticDirectory, "timing.json",
                 "state=READY\nat=" + Instant.now() + "\n");
             checkCancelled(cancellation);
 
             transition(handle, FirmwareUpdateState.FLASHING,
-                "正在立即调用官方 WCHISP 下载固件，请勿断开 USB", 0.20, diagnosticDirectory);
+                localize("正在立即调用官方 WCHISP 下载固件，请勿断开 USB"), 0.20, diagnosticDirectory);
             Instant launchRequestTime = Instant.now();
             OfficialWchIspAdapter.FlashResult flash = officialAdapter.flashPrepared(
                 prepared.session(), cancellation::get);
@@ -672,11 +674,11 @@ public final class FirmwareUpdateService implements AutoCloseable {
                 flashSuccessDetail(), diagnosticDirectory);
         } catch (CancelledException cancelledException) {
             finish(handle, FirmwareUpdateState.CANCELLED, FirmwareUpdateError.CANCELLED,
-                "固件操作已取消", diagnosticDirectory);
+                localize("固件操作已取消"), diagnosticDirectory);
         } catch (Exception failure) {
             if (cancellation.get() || failure instanceof InterruptedException) {
                 finish(handle, FirmwareUpdateState.CANCELLED, FirmwareUpdateError.CANCELLED,
-                    "固件操作已取消", diagnosticDirectory);
+                    localize("固件操作已取消"), diagnosticDirectory);
                 return;
             }
             finish(handle, FirmwareUpdateState.FAILED, classify(failure),
@@ -689,7 +691,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
 
     private void awaitIsp(AtomicBoolean cancellation) throws Exception {
         if (!ispProbe.awaitPresent(ISP_TIMEOUT, cancellation::get)) {
-            throw new IOException("未检测到 CH582 ISP 设备");
+            throw new IOException(localize("未检测到 CH582 ISP 设备"));
         }
     }
 
@@ -697,10 +699,10 @@ public final class FirmwareUpdateService implements AutoCloseable {
         try {
             ChipMatched.ChipMatchResult result = chipMatched.inspect();
             return result == null
-                ? ChipMatched.ChipMatchResult.unknown("芯片匹配器未返回结果") : result;
+                ? ChipMatched.ChipMatchResult.unknown(localize("芯片匹配器未返回结果")) : result;
         } catch (Exception failure) {
             return ChipMatched.ChipMatchResult.unknown(
-                "芯片匹配失败：" + (failure.getMessage() == null ? failure : failure.getMessage()));
+                localize("芯片匹配失败：") + (failure.getMessage() == null ? failure : failure.getMessage()));
         }
     }
 
@@ -724,7 +726,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
                             String detail, double progress, Path diagnosticDirectory) {
         FirmwareUpdateState current = handle.state();
         if (!handle.transition(current, next)) {
-            throw new IllegalStateException("非法固件状态转换: " + current + " -> " + next);
+            throw new IllegalStateException(localize("非法固件状态转换: ") + current + " -> " + next);
         }
         publish(new FirmwareUpdateStatus(handle.operationId(), next, null, detail, progress, Instant.now()));
         if (diagnosticDirectory != null) diagnostics.write(diagnosticDirectory, "timing.json",
@@ -1063,7 +1065,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
     private static String flashSuccessDetail() {
         return "WCHISP_FLASH_SUCCESS=YES\n"
             + "POST_FLASH_READBACK_PERFORMED=NO\n"
-            + "WCHISP 已完成固件写入；请退出 ISP 并以普通模式重新连接设备。";
+            + localize("WCHISP 已完成固件写入；请退出 ISP 并以普通模式重新连接设备。");
     }
 
     static FirmwareUpdateError flashFailureError(OfficialWchIspAdapter.FlashResult flash) {
@@ -1149,7 +1151,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
         static OperationStart accepted(FirmwareOperationHandle handle) {
             return new OperationStart(true, handle, null);
         }
-        static OperationStart busy() { return rejected(FirmwareUpdateError.BUSY, "另一个固件操作正在执行"); }
+        static OperationStart busy() { return rejected(FirmwareUpdateError.BUSY, localize("另一个固件操作正在执行")); }
         static OperationStart rejected(FirmwareUpdateError error, String detail) {
             return new OperationStart(false, null, new FirmwareUpdateResult(null,
                 FirmwareUpdateState.FAILED, error, detail, null, Instant.now()));
@@ -1190,7 +1192,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
         }
 
         static PreparationResult success(PreparedFirmwareOperation operation) {
-            return new PreparationResult(true, null, "烧录会话已准备", operation,
+            return new PreparationResult(true, null, localize("烧录会话已准备"), operation,
                 operation.diagnosticDirectory());
         }
 
@@ -1204,7 +1206,7 @@ public final class FirmwareUpdateService implements AutoCloseable {
         }
 
         static PreparationResult busy() {
-            return failure(FirmwareUpdateError.BUSY, "另一个固件操作正在执行");
+            return failure(FirmwareUpdateError.BUSY, localize("另一个固件操作正在执行"));
         }
     }
 

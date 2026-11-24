@@ -1,5 +1,7 @@
 package com.example.ahakey.service;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 /** Executes ordered lighting writes and produces exactly one final UI result. */
 public final class LightOperationCoordinator {
     @FunctionalInterface
@@ -32,7 +34,7 @@ public final class LightOperationCoordinator {
                 if (reason == null || reason.isBlank()) {
                     reason = failure.getClass().getSimpleName();
                 }
-                return new Result(false, step.name() + "失败：" + reason);
+                return new Result(false, step.name() + localize("失败：") + reason);
             }
         }
         return new Result(true, successMessage);

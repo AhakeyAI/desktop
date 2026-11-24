@@ -2,7 +2,10 @@ package com.example.ahakey.firmware;
 
 import java.util.Map;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 public final class WchIspExitCodes {
+    /** Chinese source text; describe() localizes it through the legacy catalogs. */
     private static final Map<Integer, String> MESSAGES = Map.ofEntries(
         Map.entry(0, "成功"),
         Map.entry(1, "命令行参数无效"),
@@ -25,6 +28,7 @@ public final class WchIspExitCodes {
     private WchIspExitCodes() {}
 
     public static String describe(int exitCode) {
-        return MESSAGES.getOrDefault(exitCode, "WCHISP 错误码 " + exitCode);
+        String message = MESSAGES.get(exitCode);
+        return message == null ? localize("WCHISP 错误码 ") + exitCode : localize(message);
     }
 }

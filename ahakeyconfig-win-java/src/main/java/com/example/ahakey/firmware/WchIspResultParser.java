@@ -4,6 +4,8 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 /** The only parser that translates raw WCHISP output into business results. */
 public final class WchIspResultParser {
     private static final Pattern UID = Pattern.compile(
@@ -28,33 +30,33 @@ public final class WchIspResultParser {
     private WchIspResultParser() {}
 
     public static UidQueryResult parseUid(WchIspRunner.WchIspProcessResult result) {
-        if (result == null) return UidQueryResult.failure(FirmwareUpdateError.INTERNAL_ERROR, "结果为空");
+        if (result == null) return UidQueryResult.failure(FirmwareUpdateError.INTERNAL_ERROR, localize("结果为空"));
         String output = combined(result);
         if (result.cancelled()) return UidQueryResult.failure(
             ownershipIncomplete(result) ? FirmwareUpdateError.PROCESS_OWNERSHIP_INCOMPLETE
                 : isUacCancelled(result) ? FirmwareUpdateError.UAC_CANCELLED : FirmwareUpdateError.CANCELLED,
-            ownershipIncomplete(result) ? "UID 查询已取消，但 elevated 进程归属未完整确认"
-                : isUacCancelled(result) ? "UID 查询被用户取消管理员授权" : "UID 查询已取消");
-        if (result.timedOut()) return UidQueryResult.failure(FirmwareUpdateError.PROCESS_TIMEOUT, "UID 查询超时");
+            ownershipIncomplete(result) ? localize("UID 查询已取消，但 elevated 进程归属未完整确认")
+                : isUacCancelled(result) ? localize("UID 查询被用户取消管理员授权") : localize("UID 查询已取消"));
+        if (result.timedOut()) return UidQueryResult.failure(FirmwareUpdateError.PROCESS_TIMEOUT, localize("UID 查询超时"));
         if (!result.processStarted()) return UidQueryResult.failure(FirmwareUpdateError.PROCESS_START_FAILED, result.stderr());
         Matcher uid = UID.matcher(output);
-        if (uid.find()) return new UidQueryResult(true, null, uid.group(1).trim(), "UID 查询成功");
+        if (uid.find()) return new UidQueryResult(true, null, uid.group(1).trim(), localize("UID 查询成功"));
         if (result.exitCode() == 100) return UidQueryResult.failure(FirmwareUpdateError.UID_EXIT_100, output);
         return UidQueryResult.failure(FirmwareUpdateError.UID_QUERY_FAILED,
-            output.isBlank() ? "WCHISP 未返回设备 UID" : output.trim());
+            output.isBlank() ? localize("WCHISP 未返回设备 UID") : output.trim());
     }
 
     public static FlashExecutionResult parseFlash(WchIspRunner.WchIspProcessResult result) {
-        if (result == null) return FlashExecutionResult.failure(FirmwareUpdateError.INTERNAL_ERROR, "结果为空");
+        if (result == null) return FlashExecutionResult.failure(FirmwareUpdateError.INTERNAL_ERROR, localize("结果为空"));
         String output = combined(result);
         if (result.cancelled()) return FlashExecutionResult.failure(
             ownershipIncomplete(result) ? FirmwareUpdateError.PROCESS_OWNERSHIP_INCOMPLETE
                 : isUacCancelled(result) ? FirmwareUpdateError.UAC_CANCELLED : FirmwareUpdateError.CANCELLED,
-            ownershipIncomplete(result) ? "烧录已取消，但 elevated 进程归属未完整确认"
-                : isUacCancelled(result) ? "烧录被用户取消管理员授权" : "烧录已取消");
+            ownershipIncomplete(result) ? localize("烧录已取消，但 elevated 进程归属未完整确认")
+                : isUacCancelled(result) ? localize("烧录被用户取消管理员授权") : localize("烧录已取消"));
         if (result.timedOut()) return FlashExecutionResult.failure(
             FirmwareUpdateError.FLASH_TERMINAL_RESULT_TIMEOUT,
-            "WCHISP 未在时限内返回 Finished/Code 0/Succeed 终态");
+            localize("WCHISP 未在时限内返回 Finished/Code 0/Succeed 终态"));
         if (!result.processStarted()) return FlashExecutionResult.failure(FirmwareUpdateError.PROCESS_START_FAILED, result.stderr());
         boolean explicitFailure = EXPLICIT_FAILURE.matcher(output).find();
         boolean terminalSuccess = FINISHED.matcher(output).find()
@@ -64,12 +66,12 @@ public final class WchIspResultParser {
         // complete Finished/Code=0/Message=Succeed record.  Do not let that
         // transport-level code override an explicit successful device result.
         if (terminalSuccess && !explicitFailure) {
-            return new FlashExecutionResult(true, null, "烧录完成（WCHISP 明确终态）", 0);
+            return new FlashExecutionResult(true, null, localize("烧录完成（WCHISP 明确终态）"), 0);
         }
         int vendorCode = code(output, result.exitCode());
         FirmwareUpdateError error = FAIL.matcher(output).find()
             ? FirmwareUpdateError.FLASH_FAILED : FirmwareUpdateError.FLASH_FAILED;
-        String detail = output.isBlank() ? "WCHISP 未返回可信的 Finished/Code 0/Succeed 终态"
+        String detail = output.isBlank() ? localize("WCHISP 未返回可信的 Finished/Code 0/Succeed 终态")
             : output.trim();
         return new FlashExecutionResult(false, error, detail, vendorCode);
     }

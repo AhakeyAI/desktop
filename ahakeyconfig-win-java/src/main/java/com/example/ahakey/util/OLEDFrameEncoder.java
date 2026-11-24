@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 public final class OLEDFrameEncoder {
     public static class EncodedFrame {
         public final byte[] rgb565;
@@ -43,7 +45,7 @@ public final class OLEDFrameEncoder {
     public static void validateGifSourceFileSize(Path path) throws IOException {
         long size = Files.size(path);
         if (size > GifUploadRules.MAX_SOURCE_BYTES) {
-            throw new IOException("源文件超过 2 MB 上限（当前约 " + (size / 1024) + " KB）。请压缩图片/GIF 后重新选择。");
+            throw new IOException(localize("源文件超过 2 MB 上限（当前约 ") + (size / 1024) + localize(" KB）。请压缩图片/GIF 后重新选择。"));
         }
     }
 
@@ -51,18 +53,18 @@ public final class OLEDFrameEncoder {
         throws IOException {
         long bytes = Files.size(gifPath);
         if (bytes > GifUploadRules.HARD_DECODE_LIMIT_BYTES) {
-            throw new IOException("源 GIF 超过 20 MB 安全解码上限。");
+            throw new IOException(localize("源 GIF 超过 20 MB 安全解码上限。"));
         }
         try (ImageInputStream stream = ImageIO.createImageInputStream(gifPath.toFile())) {
             Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("gif");
-            if (!readers.hasNext()) throw new IOException("无法读取 GIF 文件。");
+            if (!readers.hasNext()) throw new IOException(localize("无法读取 GIF 文件。"));
             ImageReader reader = readers.next();
             try {
                 reader.setInput(stream, false);
                 int count = reader.getNumImages(true);
                 if (count < 1 || count > GifUploadRules.MAX_DECODE_FRAMES) {
-                    throw new IOException("GIF 帧数超出安全解码范围（1–"
-                        + GifUploadRules.MAX_DECODE_FRAMES + "）。");
+                    throw new IOException(localize("GIF 帧数超出安全解码范围（1–%d）。")
+                        .formatted(GifUploadRules.MAX_DECODE_FRAMES));
                 }
                 long duration = 0;
                 for (int i = 0; i < count; i++) duration += frameDelayMs(reader, i);
@@ -80,7 +82,7 @@ public final class OLEDFrameEncoder {
         GifUploadRules.Preflight preflight = preflight(gifPath, asset);
         try (ImageInputStream stream = ImageIO.createImageInputStream(gifPath.toFile())) {
             Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("gif");
-            if (!readers.hasNext()) throw new IOException("无法读取 GIF 文件。");
+            if (!readers.hasNext()) throw new IOException(localize("无法读取 GIF 文件。"));
             ImageReader reader = readers.next();
             try {
                 reader.setInput(stream, false);
@@ -92,7 +94,7 @@ public final class OLEDFrameEncoder {
                 List<EncodedFrame> frames = new ArrayList<>(plan.outputFrameCount());
                 for (int index : plan.sourceIndices()) {
                     BufferedImage frame = reader.read(index);
-                    if (frame == null) throw new IOException("GIF 第 " + index + " 帧无法读取。");
+                    if (frame == null) throw new IOException(localize("GIF 第 ") + index + localize(" 帧无法读取。"));
                     frames.add(encodeFrame(frame));
                 }
                 return new EncodedAnimation(
@@ -156,23 +158,23 @@ public final class OLEDFrameEncoder {
     public static List<EncodedFrame> framesFromGif(Path gifPath, int maxFrames) throws IOException {
         validateGifSourceFileSize(gifPath);
         if (maxFrames <= 0 || maxFrames > AhaKeyProtocol.OLED_MAX_FRAMES) {
-            throw new IOException("GIF 帧数超出可上传范围。");
+            throw new IOException(localize("GIF 帧数超出可上传范围。"));
         }
         List<BufferedImage> images = new ArrayList<>();
         try (ImageInputStream stream = ImageIO.createImageInputStream(gifPath.toFile())) {
             Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("gif");
             if (!readers.hasNext()) {
-                throw new IOException("无法读取 GIF 文件。");
+                throw new IOException(localize("无法读取 GIF 文件。"));
             }
             ImageReader reader = readers.next();
             try {
                 reader.setInput(stream, false);
                 int count = reader.getNumImages(true);
                 if (count > maxFrames) {
-                    throw new IOException("GIF 帧数超过设备上限，请先确认并优化后再上传。");
+                    throw new IOException(localize("GIF 帧数超过设备上限，请先确认并优化后再上传。"));
                 }
                 if (count <= 0) {
-                    throw new IOException("GIF 没有可编码的帧。");
+                    throw new IOException(localize("GIF 没有可编码的帧。"));
                 }
                 for (int i = 0; i < count; i++) {
                     BufferedImage frame = reader.read(i);
@@ -185,7 +187,7 @@ public final class OLEDFrameEncoder {
             }
         }
         if (images.isEmpty()) {
-            throw new IOException("GIF 没有可编码的帧。");
+            throw new IOException(localize("GIF 没有可编码的帧。"));
         }
         List<EncodedFrame> out = new ArrayList<>(images.size());
         for (BufferedImage image : images) {
@@ -219,7 +221,7 @@ public final class OLEDFrameEncoder {
         validateGifSourceFileSize(imagePath);
         BufferedImage source = ImageIO.read(imagePath.toFile());
         if (source == null) {
-            throw new IOException("无法读取图片文件：" + imagePath);
+            throw new IOException(localize("无法读取图片文件：") + imagePath);
         }
         return encodeFrame(source);
     }

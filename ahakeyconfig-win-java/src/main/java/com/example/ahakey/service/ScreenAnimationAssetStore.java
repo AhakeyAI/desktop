@@ -13,6 +13,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 /** Owns local copies of successfully uploaded screen assets. */
 public final class ScreenAnimationAssetStore {
     private final Path root;
@@ -28,10 +30,10 @@ public final class ScreenAnimationAssetStore {
     public StoredAsset store(Path source, ModeSlot mode, int asset,
                              int frameCount, int width, int height) throws IOException {
         if (source == null || !Files.isRegularFile(source)) {
-            throw new IOException("屏幕资源文件不存在");
+            throw new IOException(localize("屏幕资源文件不存在"));
         }
         if (mode == null || asset < 0 || asset >= 4) {
-            throw new IOException("屏幕资源分区无效");
+            throw new IOException(localize("屏幕资源分区无效"));
         }
         String extension = extension(source);
         String sha256 = sha256(source);
@@ -77,7 +79,7 @@ public final class ScreenAnimationAssetStore {
         if (name.endsWith(".gif")) return ".gif";
         if (name.endsWith(".png")) return ".png";
         if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return ".jpg";
-        throw new IOException("仅支持 GIF、PNG 或 JPG 屏幕资源");
+        throw new IOException(localize("仅支持 GIF、PNG 或 JPG 屏幕资源"));
     }
 
     private static String sha256(Path source) throws IOException {
@@ -87,7 +89,7 @@ public final class ScreenAnimationAssetStore {
             for (byte value : digest) result.append(String.format("%02x", value & 0xFF));
             return result.toString();
         } catch (java.security.NoSuchAlgorithmException impossible) {
-            throw new IOException("JVM 缺少 SHA-256", impossible);
+            throw new IOException(localize("JVM 缺少 SHA-256"), impossible);
         }
     }
 

@@ -24,6 +24,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 /** Login/profile state for the AhaType cloud account menu. */
 public class CloudAccountManager {
     private static final Logger logger = LoggerFactory.getLogger(CloudAccountManager.class);
@@ -41,18 +43,18 @@ public class CloudAccountManager {
     private final AtomicLong paymentPollGeneration = new AtomicLong();
     private final Object stateMutationLock = new Object();
     private volatile boolean loggedIn;
-    private volatile String statusMessage = "未登录";
+    private volatile String statusMessage = localize("未登录");
     private volatile Map<String, Object> profile = Map.of();
 
     public record RechargePlan(String id, int amountFen) {
         public String displayText() {
             String title = switch (id) {
-                case "monthly" -> "包月";
-                case "quarterly" -> "包季";
-                case "yearly" -> "包年";
+                case "monthly" -> localize("包月");
+                case "quarterly" -> localize("包季");
+                case "yearly" -> localize("包年");
                 default -> id;
             };
-            return String.format(Locale.ROOT, "%s  %.2f 元", title, amountFen / 100.0);
+            return String.format(Locale.ROOT, localize("%s  %.2f 元"), title, amountFen / 100.0);
         }
 
         @Override
@@ -179,12 +181,12 @@ public class CloudAccountManager {
     public String logout() {
         synchronized (stateMutationLock) {
             if (!ahaType.clearSessionKeepToggle()) {
-                statusMessage = "退出登录保存失败";
+                statusMessage = localize("退出登录保存失败");
                 return statusMessage;
             }
             profile = Map.of();
             loggedIn = false;
-            statusMessage = "已退出登录";
+            statusMessage = localize("已退出登录");
             return null;
         }
     }
@@ -196,7 +198,7 @@ public class CloudAccountManager {
             synchronized (stateMutationLock) {
                 if (!ahaType.getValidAccessToken().isEmpty()) return null;
                 loggedIn = false;
-                statusMessage = "未登录或登录已过期";
+                statusMessage = localize("未登录或登录已过期");
                 return statusMessage;
             }
         }
@@ -212,19 +214,19 @@ public class CloudAccountManager {
                     return null;
                 }
                 if (persistence == AhaTypeService.CloudStatePersistenceResult.FAILED) {
-                    statusMessage = "账号刷新成功，但本地保存失败";
+                    statusMessage = localize("账号刷新成功，但本地保存失败");
                     return statusMessage;
                 }
                 profile = Collections.unmodifiableMap(new LinkedHashMap<>(payload.user()));
                 loggedIn = true;
-                statusMessage = "已登录";
+                statusMessage = localize("已登录");
                 return null;
             }
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             synchronized (stateMutationLock) {
                 if (!requestToken.equals(ahaType.getAccessToken())) return null;
-                statusMessage = "刷新账号已中断";
+                statusMessage = localize("刷新账号已中断");
                 return statusMessage;
             }
         } catch (CloudAccountException exception) {
@@ -234,7 +236,7 @@ public class CloudAccountManager {
                     ahaType.clearSessionKeepToggle();
                     profile = Map.of();
                     loggedIn = false;
-                    statusMessage = "登录已过期，请重新登录";
+                    statusMessage = localize("登录已过期，请重新登录");
                 } else {
                     statusMessage = exception.getMessage();
                 }
@@ -243,7 +245,7 @@ public class CloudAccountManager {
         } catch (Exception exception) {
             synchronized (stateMutationLock) {
                 if (!requestToken.equals(ahaType.getAccessToken())) return null;
-                statusMessage = "刷新账号失败";
+                statusMessage = localize("刷新账号失败");
                 logger.warn("Cloud profile refresh failed ({})", exception.getClass().getSimpleName());
                 return statusMessage;
             }
@@ -252,59 +254,59 @@ public class CloudAccountManager {
 
     public String redeemCoupon(String code) {
         String normalized = code == null ? "" : code.trim();
-        if (normalized.isEmpty()) return "请输入兑换码";
+        if (normalized.isEmpty()) return localize("请输入兑换码");
         String token = ahaType.getValidAccessToken();
-        if (token.isEmpty()) return "请重新登录后再兑换";
+        if (token.isEmpty()) return localize("请重新登录后再兑换");
         try {
             request("/api/v1/coupon/redeem", "POST", Map.of("code", normalized), token);
             String refreshError = refreshProfile();
-            if (refreshError != null) return "兑换成功，但账号信息刷新失败";
-            statusMessage = "兑换成功";
+            if (refreshError != null) return localize("兑换成功，但账号信息刷新失败");
+            statusMessage = localize("兑换成功");
             return null;
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            return "兑换已中断";
+            return localize("兑换已中断");
         } catch (CloudAccountException exception) {
             return exception.getMessage();
         } catch (Exception exception) {
             logger.warn("Coupon redemption failed ({})", exception.getClass().getSimpleName());
-            return "兑换失败，请稍后重试";
+            return localize("兑换失败，请稍后重试");
         }
     }
 
     public PaymentOrder createWechatOrder(String planId) throws CloudAccountException {
         String token = ahaType.getValidAccessToken();
-        if (token.isEmpty()) throw new CloudAccountException(401, "请重新登录后再充值");
+        if (token.isEmpty()) throw new CloudAccountException(401, localize("请重新登录后再充值"));
         RechargePlan selected = getRechargePlans().stream()
             .filter(plan -> plan.id().equals(planId)).findFirst()
-            .orElseThrow(() -> new CloudAccountException(0, "请选择有效的充值套餐"));
+            .orElseThrow(() -> new CloudAccountException(0, localize("请选择有效的充值套餐")));
         try {
             JsonNode data = dataObject(request("/api/v1/payment/wechat/native", "POST",
                 Map.of("plan", selected.id()), token));
             String codeUrl = firstText(data, "code_url", "codeUrl");
             String h5Url = firstText(data, "h5_url", "h5Url", "mweb_url", "mwebUrl");
             String orderNo = firstText(data, "out_trade_no", "outTradeNo");
-            if (orderNo.isEmpty()) throw new CloudAccountException(0, "云端未返回订单号");
+            if (orderNo.isEmpty()) throw new CloudAccountException(0, localize("云端未返回订单号"));
             String paymentUrl = codeUrl.isEmpty() ? h5Url : codeUrl;
-            if (paymentUrl.isEmpty()) throw new CloudAccountException(0, "云端未返回可支付链接");
+            if (paymentUrl.isEmpty()) throw new CloudAccountException(0, localize("云端未返回可支付链接"));
             JsonNode amountNode = AhaTypeService.firstNode(data, "amount_fen");
             if (amountNode == null) amountNode = AhaTypeService.firstNode(data, "amountFen");
             int amount = amountNode == null ? selected.amountFen() : amountNode.asInt(selected.amountFen());
             return new PaymentOrder(orderNo, paymentUrl, amount, selected.id());
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new CloudAccountException(0, "创建支付订单已中断");
+            throw new CloudAccountException(0, localize("创建支付订单已中断"));
         } catch (CloudAccountException exception) {
             throw exception;
         } catch (Exception exception) {
             logger.warn("Payment order creation failed ({})", exception.getClass().getSimpleName());
-            throw new CloudAccountException(0, "创建支付订单失败，请稍后重试");
+            throw new CloudAccountException(0, localize("创建支付订单失败，请稍后重试"));
         }
     }
 
     public PaymentState fetchPaymentState(String outTradeNo) throws CloudAccountException {
         String token = ahaType.getValidAccessToken();
-        if (token.isEmpty()) throw new CloudAccountException(401, "登录已过期，请重新登录");
+        if (token.isEmpty()) throw new CloudAccountException(401, localize("登录已过期，请重新登录"));
         try {
             String encoded = java.net.URLEncoder.encode(outTradeNo, StandardCharsets.UTF_8);
             JsonNode data = dataObject(request(
@@ -318,12 +320,12 @@ public class CloudAccountManager {
             return PaymentState.PENDING;
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new CloudAccountException(0, "订单状态查询已中断");
+            throw new CloudAccountException(0, localize("订单状态查询已中断"));
         } catch (CloudAccountException exception) {
             throw exception;
         } catch (Exception exception) {
             logger.warn("Payment status request failed ({})", exception.getClass().getSimpleName());
-            throw new CloudAccountException(0, "订单状态查询失败");
+            throw new CloudAccountException(0, localize("订单状态查询失败"));
         }
     }
 
@@ -374,7 +376,7 @@ public class CloudAccountManager {
                                 boolean rememberPassword, boolean requireToken) {
         String normalizedPhone = phone == null ? "" : phone.trim();
         if (normalizedPhone.isEmpty() || password == null || password.isEmpty()) {
-            return "请输入手机号和密码";
+            return localize("请输入手机号和密码");
         }
         try {
             JsonNode root = request(path, "POST", Map.of("phone", normalizedPhone, "password", password), null);
@@ -392,12 +394,12 @@ public class CloudAccountManager {
                 if (!ahaType.persistSession(token, payload.validUntil(), localProfile,
                     payload.quota(), payload.policy(), normalizedPhone, password,
                     rememberPassword)) {
-                    statusMessage = requireToken ? "登录成功，但本地保存失败" : "注册成功，但本地保存失败";
+                    statusMessage = requireToken ? localize("登录成功，但本地保存失败") : localize("注册成功，但本地保存失败");
                     return statusMessage;
                 }
                 profile = Collections.unmodifiableMap(new LinkedHashMap<>(localProfile));
                 loggedIn = !token.isEmpty() && ahaType.hasValidToken();
-                statusMessage = loggedIn ? "已登录" : "注册成功，请登录";
+                statusMessage = loggedIn ? localize("已登录") : localize("注册成功，请登录");
                 refreshAfterLogin = loggedIn && localProfile.size() <= 1;
             }
             if (refreshAfterLogin) {
@@ -406,10 +408,10 @@ public class CloudAccountManager {
             return null;
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            statusMessage = "账号请求已中断";
+            statusMessage = localize("账号请求已中断");
             return statusMessage;
         } catch (Exception exception) {
-            statusMessage = requireToken ? "登录失败" : "注册失败";
+            statusMessage = requireToken ? localize("登录失败") : localize("注册失败");
             logger.warn("Cloud account request failed ({})", exception.getClass().getSimpleName());
             return statusMessage;
         }
@@ -435,16 +437,16 @@ public class CloudAccountManager {
         try {
             root = mapper.readTree(response.body());
         } catch (Exception exception) {
-            throw new CloudAccountException(response.statusCode(), "服务器返回异常");
+            throw new CloudAccountException(response.statusCode(), localize("服务器返回异常"));
         }
         if (AhaTypeService.isExpiredSession(response.statusCode(), root)) {
-            throw new CloudAccountException(401, "登录已过期，请重新登录");
+            throw new CloudAccountException(401, localize("登录已过期，请重新登录"));
         }
         if (response.statusCode() != 200 || root == null || !root.isObject()
             || !AhaTypeService.isSuccessCode(root.get("code"))) {
             throw new CloudAccountException(response.statusCode(), safeResponseMessage(root,
                 response.statusCode() == 401 || response.statusCode() == 403
-                    ? "登录已过期，请重新登录" : "请求失败"));
+                    ? localize("登录已过期，请重新登录") : localize("请求失败")));
         }
         return root;
     }
@@ -452,7 +454,7 @@ public class CloudAccountManager {
     private void refreshLocalState() {
         profile = Collections.unmodifiableMap(new LinkedHashMap<>(ahaType.getUserProfile()));
         loggedIn = ahaType.hasValidToken() && !profile.isEmpty();
-        if (loggedIn) statusMessage = "已登录";
+        if (loggedIn) statusMessage = localize("已登录");
     }
 
     private JsonNode dataObject(JsonNode root) {

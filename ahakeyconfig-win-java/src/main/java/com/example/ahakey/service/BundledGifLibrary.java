@@ -9,6 +9,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 /** Classpath-backed factory GIF set shipped with AhaKey Studio. */
 public final class BundledGifLibrary {
     private static final String[] MODE_DIRS = {"claude", "cursor", "codex", "mode4"};
@@ -27,7 +29,7 @@ public final class BundledGifLibrary {
         validate(mode, asset);
         String resourceName = resourceName(mode, asset);
         try (InputStream input = BundledGifLibrary.class.getResourceAsStream(resourceName)) {
-            if (input == null) throw new IOException("安装包缺少内置动画：" + resourceName);
+            if (input == null) throw new IOException(localize("安装包缺少内置动画：") + resourceName);
             Path directory = Path.of(System.getProperty("java.io.tmpdir"), "ahakey-default-gifs");
             Files.createDirectories(directory);
             Path target = directory.resolve(MODE_DIRS[mode.getIndex()] + "-" + ASSET_FILES[asset]);

@@ -9,6 +9,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 /**
  * Production adapter for the vendor WCHISP runtime.  The command-line download
  * interface uses a generated UTF-8 INI; the runtime binary CONFIG remains
@@ -66,11 +68,11 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
                                               Path operationDirectory,
                                               RuntimeBundle preparedRuntime) throws Exception {
         if (hex == null || !Files.isRegularFile(hex)) {
-            throw new IOException("固件 HEX 文件不存在: " + hex);
+            throw new IOException(localize("固件 HEX 文件不存在: ") + hex);
         }
         IntelHexValidator.validate(hex);
-        if (operationId == null) throw new IOException("固件操作 ID 缺失");
-        if (operationDirectory == null) throw new IOException("固件诊断目录缺失");
+        if (operationId == null) throw new IOException(localize("固件操作 ID 缺失"));
+        if (operationDirectory == null) throw new IOException(localize("固件诊断目录缺失"));
         RuntimeBundle runtime = preparedRuntime == null ? runtimeLocator.resolve() : preparedRuntime;
         Path directory = operationDirectory.toAbsolutePath().normalize();
         Files.createDirectories(directory);
@@ -94,7 +96,7 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
     public FlashResult flashFirmware(Path hex, WchIspRunner.CancellationToken cancellation)
         throws Exception {
         if (hex == null || !Files.isRegularFile(hex)) {
-            throw new IOException("固件 HEX 文件不存在: " + hex);
+            throw new IOException(localize("固件 HEX 文件不存在: ") + hex);
         }
         IntelHexValidator.validate(hex);
         UUID operationId = UUID.randomUUID();
@@ -126,9 +128,9 @@ public final class DefaultOfficialWchIspAdapter implements OfficialWchIspAdapter
     public FlashResult flashPrepared(PreparedFlashSession session,
                                      WchIspRunner.CancellationToken cancellation)
         throws Exception {
-        if (session == null) throw new IOException("预备烧录会话缺失");
+        if (session == null) throw new IOException(localize("预备烧录会话缺失"));
         if (!session.beginLaunch()) {
-            throw new IOException("预备烧录会话不可启动: " + session.state());
+            throw new IOException(localize("预备烧录会话不可启动: ") + session.state());
         }
         WchIspRunner.WchIspCommand command = session.command();
         WchIspRunner.WchIspProcessResult process;

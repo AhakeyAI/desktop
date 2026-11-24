@@ -7,6 +7,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 /**
  * 语音输入管理器
  * 统一管理语音识别、AhaType服务和键盘注入
@@ -94,7 +96,8 @@ public class VoiceInputManager {
         }
         
         public String getCode() { return code; }
-        public String getMessage() { return message; }
+        /** Display text in the current UI language; the enum keeps the Chinese source as the catalog key. */
+        public String getMessage() { return localize(message); }
     }
     
     /**

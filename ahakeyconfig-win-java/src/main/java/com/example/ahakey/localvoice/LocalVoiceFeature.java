@@ -209,7 +209,7 @@ public final class LocalVoiceFeature {
             long total = manifest.totalBytes();
             publishIfCurrent(cancel, () -> {
                 phase.set(Phase.DOWNLOADING);
-                message.set(localize("正在下载本地语音模型（共 ") + formatMegabytes(total) + "）…");
+                message.set(localize("正在下载本地语音模型（共 %s）…").formatted(formatMegabytes(total)));
             });
             installer.install(manifest, (done, all, file) -> publishIfCurrent(cancel, () -> {
                 progress.set(all <= 0 ? 0 : (double) done / all);

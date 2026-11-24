@@ -11,6 +11,8 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 /** Validates the files and device scope required to run a packaged WCHISP bundle. */
 public final class WchIspRuntimeContract {
     public static final String METADATA_FILE = "wchisp-runtime.json";
@@ -120,8 +122,8 @@ public final class WchIspRuntimeContract {
         }
 
         public String summary() {
-            return supported ? "WCHISP 运行环境兼容性检查：通过"
-                : "WCHISP 运行环境兼容性检查失败：" + String.join("; ", failures);
+            return supported ? localize("WCHISP 运行环境兼容性检查：通过")
+                : localize("WCHISP 运行环境兼容性检查失败：") + String.join("; ", failures);
         }
     }
 }

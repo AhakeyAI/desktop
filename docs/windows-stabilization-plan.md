@@ -1611,3 +1611,11 @@ command excluded these platform tests explicitly and skipped the PowerShell pack
 No Windows-only test was removed; the read-only-DLL deletion test now declares its Windows OS
 requirement. Windows CI/full packaging, installer execution and real device verification remain
 separate from the successful local portable checks. No firmware or device configuration was written.
+
+## 韩语界面（ko）
+
+- `LanguageManager` 新增 `ko`：系统语言为韩语时默认使用韩语，语言菜单增加「한국어」。键值文案在 `messages_ko.properties`；代码中的中文字面量通过 `localize("中文")` 查 `legacy_ko.properties`（键为中文原文）。`zh/en` 成对文案的辅助方法改为 `usesChineseSourceText()`，韩语与俄语一样走中文原文的翻译。
+- 此前英文界面中仍直接显示中文的界面文案（云端账号、固件维护、钩子安装日志、OLED 上传错误、BLE 错误等）已统一包上 `localize(...)`，不改变中文与英文的显示结果；参与比较、持久化、协议、脚本内容与 WCHISP 输出解析的字符串保持不变。
+- 韩语界面使用 Malgun Gothic（`KoreanFontSupport`、`style_ko.css`），避免 Segoe UI 缺少韩文字形时的逐字回退。
+- 校验：`KoreanCatalogTest` 要求每个含中文的 `localize("...")` 字面量都有韩语翻译、`messages_ko` 覆盖全部英文键、占位符一致；`tools/i18n/ko_catalog.py` 用于查找缺失项与合并译文。翻译规范见 `docs/ko/translation.md`。
+- BLE 驱动窗口（`BLE_tcp_bridge`）未本地化，仍为中文。
