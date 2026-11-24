@@ -13,7 +13,7 @@ enum OLEDFrameEncodingError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .cannotCreateImageSource:
-            return "无法读取 GIF 文件。"
+            return NSLocalizedString("无法读取 GIF 文件。", comment: "")
         case .noFrames:
             return NSLocalizedString("没有可编码的图片帧。", comment: "")
         case .undecodableFrame(let index):
@@ -26,9 +26,9 @@ enum OLEDFrameEncodingError: LocalizedError {
             f.countStyle = .file
             let a = f.string(fromByteCount: Int64(fileSize))
             let b = f.string(fromByteCount: Int64(maxBytes))
-            return "图片源文件约 \(a)，超过单文件上限 \(b)。请压缩分辨率、减少帧数或缩短动图后再试。"
+            return String(format: NSLocalizedString("图片源文件约 %@，超过单文件上限 %@。请压缩分辨率、减少帧数或缩短动图后再试。", comment: ""), a, b)
         case .tooManyFrames(let count, let max):
-            return "当前动图共有 \(count) 帧，超过单模式上限 \(max) 帧。请减少帧数或缩短动图后再试。"
+            return String(format: NSLocalizedString("当前动图共有 %d 帧，超过单模式上限 %d 帧。请减少帧数或缩短动图后再试。", comment: ""), count, max)
         }
     }
 }

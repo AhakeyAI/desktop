@@ -69,7 +69,7 @@ struct FirmwareFlasherView: View {
                             Text(firmware.fileName)
                                 .font(.system(.body, design: .monospaced).weight(.medium))
                                 .textSelection(.enabled)
-                            Text("\(firmware.formattedByteCount) · \(firmware.isBundled ? "App 内置版本" : "自定义固件")")
+                            Text("\(firmware.formattedByteCount) · \(firmware.isBundled ? NSLocalizedString("App 内置版本", comment: "") : NSLocalizedString("自定义固件", comment: ""))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -113,10 +113,10 @@ struct FirmwareFlasherView: View {
     private var preparationSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 10) {
-                instructionRow(1, "拔掉键盘 USB，并关闭键盘电源。")
-                instructionRow(2, "将 CN1 的 BOOT（PB22）与 GND 短接。")
-                instructionRow(3, "点击开始后，保持短接并插入支持数据传输的 USB 线。")
-                instructionRow(4, "App 检测到 CH582 并开始擦除后，可以移除短接。")
+                instructionRow(1, NSLocalizedString("拔掉键盘 USB，并关闭键盘电源。", comment: ""))
+                instructionRow(2, NSLocalizedString("将 CN1 的 BOOT（PB22）与 GND 短接。", comment: ""))
+                instructionRow(3, NSLocalizedString("点击开始后，保持短接并插入支持数据传输的 USB 线。", comment: ""))
+                instructionRow(4, NSLocalizedString("App 检测到 CH582 并开始擦除后，可以移除短接。", comment: ""))
 
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -258,8 +258,8 @@ struct FirmwareFlasherView: View {
 
     private func chooseFirmware() {
         let panel = NSOpenPanel()
-        panel.title = "选择 AhaKey X1 Intel HEX 固件"
-        panel.message = "App 会先校验每条 Intel HEX 记录及 SHA-256；确认前不会访问设备。"
+        panel.title = NSLocalizedString("选择 AhaKey X1 Intel HEX 固件", comment: "")
+        panel.message = NSLocalizedString("App 会先校验每条 Intel HEX 记录及 SHA-256；确认前不会访问设备。", comment: "")
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = false

@@ -32,27 +32,27 @@ enum FirmwareImageValidationError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .invalidExtension:
-            return "请选择扩展名为 .hex 的 Intel HEX 固件。"
+            return NSLocalizedString("请选择扩展名为 .hex 的 Intel HEX 固件。", comment: "")
         case .unreadable:
-            return "无法读取所选固件文件。"
+            return NSLocalizedString("无法读取所选固件文件。", comment: "")
         case .empty:
-            return "所选固件文件为空。"
+            return NSLocalizedString("所选固件文件为空。", comment: "")
         case .tooLarge(let maxBytes):
-            return "固件文件超过 \(maxBytes / 1024 / 1024) MB 安全上限。"
+            return String(format: NSLocalizedString("固件文件超过 %d MB 安全上限。", comment: ""), maxBytes / 1024 / 1024)
         case .invalidText:
-            return "固件不是有效的 UTF-8 / ASCII Intel HEX 文本。"
+            return NSLocalizedString("固件不是有效的 UTF-8 / ASCII Intel HEX 文本。", comment: "")
         case .malformedRecord(let line):
-            return "Intel HEX 第 \(line) 行格式不完整。"
+            return String(format: NSLocalizedString("Intel HEX 第 %d 行格式不完整。", comment: ""), line)
         case .invalidChecksum(let line):
-            return "Intel HEX 第 \(line) 行校验和错误。"
+            return String(format: NSLocalizedString("Intel HEX 第 %d 行校验和错误。", comment: ""), line)
         case .unsupportedRecordType(let line, let type):
-            return "Intel HEX 第 \(line) 行使用了不支持的记录类型 0x\(String(format: "%02X", type))。"
+            return String(format: NSLocalizedString("Intel HEX 第 %d 行使用了不支持的记录类型 0x%@。", comment: ""), line, String(format: "%02X", type))
         case .addressOutOfRange(let line, let maximumExclusive):
-            return "Intel HEX 第 \(line) 行超出 CH582 CodeFlash 地址范围（0x000000–0x\(String(format: "%06llX", maximumExclusive - 1))）。"
+            return String(format: NSLocalizedString("Intel HEX 第 %d 行超出 CH582 CodeFlash 地址范围（0x000000–0x%@）。", comment: ""), line, String(format: "%06llX", maximumExclusive - 1))
         case .missingDataRecord:
-            return "Intel HEX 中没有可写入的数据记录。"
+            return NSLocalizedString("Intel HEX 中没有可写入的数据记录。", comment: "")
         case .missingEOF:
-            return "Intel HEX 缺少 EOF 结束记录。"
+            return NSLocalizedString("Intel HEX 缺少 EOF 结束记录。", comment: "")
         }
     }
 }
@@ -231,16 +231,16 @@ enum FirmwareFlashPhase: Equatable {
 
     var title: String {
         switch self {
-        case .idle: return "准备烧录器"
-        case .validating: return "正在校验固件"
-        case .ready: return "固件已校验，可以开始"
-        case .waitingForDevice: return "等待 CH582 USB ISP"
-        case .erasingDataFlash: return "正在清空 DataFlash"
-        case .erasingCodeFlash: return "正在清空 CodeFlash"
-        case .flashing: return "正在写入、校验并复位"
-        case .success: return "烧录成功"
-        case .cancelled: return "已取消，未执行擦除"
-        case .failed: return "烧录失败"
+        case .idle: return NSLocalizedString("准备烧录器", comment: "")
+        case .validating: return NSLocalizedString("正在校验固件", comment: "")
+        case .ready: return NSLocalizedString("固件已校验，可以开始", comment: "")
+        case .waitingForDevice: return NSLocalizedString("等待 CH582 USB ISP", comment: "")
+        case .erasingDataFlash: return NSLocalizedString("正在清空 DataFlash", comment: "")
+        case .erasingCodeFlash: return NSLocalizedString("正在清空 CodeFlash", comment: "")
+        case .flashing: return NSLocalizedString("正在写入、校验并复位", comment: "")
+        case .success: return NSLocalizedString("烧录成功", comment: "")
+        case .cancelled: return NSLocalizedString("已取消，未执行擦除", comment: "")
+        case .failed: return NSLocalizedString("烧录失败", comment: "")
         }
     }
 
@@ -372,22 +372,22 @@ enum FirmwareFlasherError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .resourceMissing(let name):
-            return "应用包缺少烧录资源：\(name)。请重新安装完整版本。"
+            return String(format: NSLocalizedString("应用包缺少烧录资源：%@。请重新安装完整版本。", comment: ""), name)
         case .bundledFirmwareIntegrity(let expected, let actual):
-            return "内置固件校验失败。期望 \(expected)，实际 \(actual)。"
+            return String(format: NSLocalizedString("内置固件校验失败。期望 %@，实际 %@。", comment: ""), expected, actual)
         case .deviceTimeout:
-            return "60 秒内未检测到 CH582 ISP。请检查数据线，以及 BOOT（PB22）与 GND 的短接和上电顺序。"
+            return NSLocalizedString("60 秒内未检测到 CH582 ISP。请检查数据线，以及 BOOT（PB22）与 GND 的短接和上电顺序。", comment: "")
         case .wrongChip(let output):
-            return "检测到的目标不是 CH582，已在擦除前停止。\n\(output)"
+            return String(format: NSLocalizedString("检测到的目标不是 CH582，已在擦除前停止。\n%@", comment: ""), output)
         case .commandFailed(let step, let status, let output):
             let detail = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            return "\(step)失败（退出码 \(status)）。\(detail.isEmpty ? "" : "\n\(detail)")"
+            return String(format: NSLocalizedString("%@失败（退出码 %d）。%@", comment: ""), step, status, detail.isEmpty ? "" : "\n\(detail)")
         case .interruptedAfterErase:
-            return "烧录在擦除开始后中断。设备可能没有可运行固件，请保持 USB ISP 连接并重新烧录。"
+            return NSLocalizedString("烧录在擦除开始后中断。设备可能没有可运行固件，请保持 USB ISP 连接并重新烧录。", comment: "")
         case .firmwareChanged:
-            return "所选固件在校验后发生了变化，已在访问设备前停止。请重新选择并确认 SHA-256。"
+            return NSLocalizedString("所选固件在校验后发生了变化，已在访问设备前停止。请重新选择并确认 SHA-256。", comment: "")
         case .stagingFailed(let detail):
-            return "无法准备安全的固件临时副本：\(detail)"
+            return String(format: NSLocalizedString("无法准备安全的固件临时副本：%@", comment: ""), detail)
         }
     }
 }
@@ -447,9 +447,9 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
         chipInfo = ""
         hasStartedDestructiveOperation = false
         logLines.removeAll(keepingCapacity: true)
-        appendLog("固件：\(firmware.fileName)")
-        appendLog("SHA-256：\(firmware.sha256)")
-        appendLog("目标芯片：CH582M")
+        appendLog(String(format: NSLocalizedString("固件：%@", comment: ""), firmware.fileName))
+        appendLog(String(format: NSLocalizedString("SHA-256：%@", comment: ""), firmware.sha256))
+        appendLog(NSLocalizedString("目标芯片：CH582M", comment: ""))
 
         flashTask = Task { [weak self] in
             await self?.performFlash(firmware: firmware)
@@ -462,7 +462,7 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
         flashTask?.cancel()
         Task { await processRunner.cancel() }
         transition(to: .cancelled)
-        appendLog("用户已取消；尚未执行擦除。")
+        appendLog(NSLocalizedString("用户已取消；尚未执行擦除。", comment: ""))
     }
 
     private func validateFirmware(at url: URL, isBundled: Bool) {
@@ -491,7 +491,7 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
                 _ = try self.resolveToolURL()
                 self.selectedFirmware = descriptor
                 self.transition(to: .ready)
-                self.logLines = ["固件校验通过：\(descriptor.fileName)"]
+                self.logLines = [String(format: NSLocalizedString("固件校验通过：%@", comment: ""), descriptor.fileName)]
             } catch is CancellationError {
                 guard let self else { return }
                 self.transition(to: .cancelled)
@@ -523,50 +523,50 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
                 try FirmwareImageStager.stage(firmware)
             }.value
             stagedFirmwareURL = flashImageURL
-            appendLog("已创建并锁定校验后的固件临时副本。")
+            appendLog(NSLocalizedString("已创建并锁定校验后的固件临时副本。", comment: ""))
 
             let toolURL = try resolveToolURL()
             transition(to: .waitingForDevice)
-            appendLog("等待 USB ISP：关闭键盘电源，短接 BOOT（PB22）与 GND 后插入 USB。")
+            appendLog(NSLocalizedString("等待 USB ISP：关闭键盘电源，短接 BOOT（PB22）与 GND 后插入 USB。", comment: ""))
 
             let info = try await waitForCH582(toolURL: toolURL)
             chipInfo = info.trimmingCharacters(in: .whitespacesAndNewlines)
-            appendLog("已检测到 CH582。")
+            appendLog(NSLocalizedString("已检测到 CH582。", comment: ""))
             appendProcessOutput(info)
 
             hasStartedDestructiveOperation = true
             transition(to: .erasingDataFlash)
-            appendLog("开始清空 DataFlash；从现在起请勿拔线或退出 App。")
+            appendLog(NSLocalizedString("开始清空 DataFlash；从现在起请勿拔线或退出 App。", comment: ""))
             try await runRequired(
                 toolURL: toolURL,
                 arguments: ["--usb", "eeprom", "erase"],
-                step: "清空 DataFlash"
+                step: NSLocalizedString("清空 DataFlash", comment: "")
             )
 
             transition(to: .erasingCodeFlash)
-            appendLog("开始清空全部 CodeFlash。")
+            appendLog(NSLocalizedString("开始清空全部 CodeFlash。", comment: ""))
             try await runRequired(
                 toolURL: toolURL,
                 arguments: ["--usb", "erase"],
-                step: "清空 CodeFlash"
+                step: NSLocalizedString("清空 CodeFlash", comment: "")
             )
 
             transition(to: .flashing)
-            appendLog("开始写入、校验并复位运行。")
+            appendLog(NSLocalizedString("开始写入、校验并复位运行。", comment: ""))
             try await runRequired(
                 toolURL: toolURL,
                 arguments: ["--usb", "flash", "--no-erase", flashImageURL.path],
-                step: "写入与校验"
+                step: NSLocalizedString("写入与校验", comment: "")
             )
 
             transition(to: .success)
-            appendLog("烧录成功。请拔掉 USB、移除 BOOT—GND 短接，再正常开机。")
+            appendLog(NSLocalizedString("烧录成功。请拔掉 USB、移除 BOOT—GND 短接，再正常开机。", comment: ""))
         } catch is CancellationError {
             if hasStartedDestructiveOperation {
                 fail(FirmwareFlasherError.interruptedAfterErase)
             } else {
                 transition(to: .cancelled)
-                appendLog("用户已取消；尚未执行擦除。")
+                appendLog(NSLocalizedString("用户已取消；尚未执行擦除。", comment: ""))
             }
         } catch {
             fail(error)
@@ -614,7 +614,7 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
         #elseif arch(x86_64)
         let architecture = "x86_64"
         #else
-        throw FirmwareFlasherError.resourceMissing("当前 Mac 架构对应的 wchisp")
+        throw FirmwareFlasherError.resourceMissing(NSLocalizedString("当前 Mac 架构对应的 wchisp", comment: ""))
         #endif
 
         guard let resourceURL = bundle.resourceURL else {
@@ -638,9 +638,9 @@ final class AhaKeyFirmwareFlasher: ObservableObject {
     private func fail(_ error: Error) {
         let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         transition(to: .failed(message))
-        appendLog("错误：\(message)")
+        appendLog(String(format: NSLocalizedString("错误：%@", comment: ""), message))
         if hasStartedDestructiveOperation {
-            appendLog("恢复建议：保持 USB ISP 连接，确认固件有效后重新执行全量烧录。")
+            appendLog(NSLocalizedString("恢复建议：保持 USB ISP 连接，确认固件有效后重新执行全量烧录。", comment: ""))
         }
     }
 

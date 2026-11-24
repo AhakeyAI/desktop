@@ -73,9 +73,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         let alert = NSAlert()
         alert.alertStyle = .critical
-        alert.messageText = "固件正在擦除或写入"
-        alert.informativeText = "此时退出可能导致键盘无法启动。请等待烧录完成或明确失败后再退出 AhaKey Studio。"
-        alert.addButton(withTitle: "继续烧录")
+        alert.messageText = NSLocalizedString("固件正在擦除或写入", comment: "")
+        alert.informativeText = NSLocalizedString("此时退出可能导致键盘无法启动。请等待烧录完成或明确失败后再退出 AhaKey Studio。", comment: "")
+        alert.addButton(withTitle: NSLocalizedString("继续烧录", comment: ""))
         alert.runModal()
         return .terminateCancel
     }

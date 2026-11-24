@@ -119,6 +119,7 @@ cat > "$INFO_PLIST" <<PLIST
   <string>zh-Hans</string>
   <key>CFBundleLocalizations</key>
   <array>
+    <string>ko</string>
     <string>zh-Hans</string>
     <string>en</string>
   </array>
