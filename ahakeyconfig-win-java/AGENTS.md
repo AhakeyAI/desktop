@@ -17,6 +17,7 @@ Java 17 Maven 单模块项目，基于 **JavaFX 17** 构建的桌面应用程序
 src/main/java/com/example/ahakey/
 ├── app/              # 应用控制器层（MVC 的 Controller）
 ├── config/           # 配置类（ModelConfig）
+├── diagnostics/      # 连接诊断（连接记录、BLE 驱动日志跟踪）
 ├── model/            # 数据模型（状态、配置、协议等）
 ├── platform/         # 平台相关代码（语音、键盘钩子）
 │   └── windows/      # Windows 平台特定实现

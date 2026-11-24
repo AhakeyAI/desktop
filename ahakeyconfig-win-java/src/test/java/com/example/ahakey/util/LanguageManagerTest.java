@@ -94,7 +94,9 @@ class LanguageManagerTest {
         String[] files = {"platform/windows/WindowsVoiceRelayService.java",
             "platform/voice/VoiceActionRouter.java", "service/AgentManager.java",
             "service/DeviceSyncService.java", "service/TaskActivityService.java",
-            "view/TopBar.java", "view/InspectorPane.java"};
+            "view/TopBar.java", "view/InspectorPane.java",
+            "diagnostics/ConnectionLog.java", "diagnostics/BridgeLogTailer.java",
+            "view/ConnectionLogWindow.java", "service/BleManager.java"};
         var keyPattern = Pattern.compile("\\btext\\(\"([a-z][a-z0-9.-]+)\"\\s*[,)]");
         for (String language : List.of("en", "ru", "zh")) {
             var catalog = resource("messages_" + language + ".properties");

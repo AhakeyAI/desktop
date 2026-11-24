@@ -161,7 +161,7 @@
             this.Controls.Add(this.BtnConnect);
             this.Controls.Add(this.DeviceSelect);
             this.Name = "Form1";
-            this.Text = "kjasdhbgvjkhreaubvuo";
+            this.Text = "AhaKey BLE TCP Driver";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.Form1_FormClosing);
             this.Load += new System.EventHandler(this.Form1_Load);
             this.Resize += new System.EventHandler(this.Form1_Resize);

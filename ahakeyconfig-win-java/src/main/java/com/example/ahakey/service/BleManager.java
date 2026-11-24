@@ -1,5 +1,8 @@
 package com.example.ahakey.service;
 
+import static com.example.ahakey.util.LanguageManager.text;
+
+import com.example.ahakey.diagnostics.ConnectionLog;
 import com.example.ahakey.firmware.FirmwareCapabilities;
 import com.example.ahakey.model.DeviceStatus;
 import com.example.ahakey.protocol.AhaKeyProtocol;
@@ -158,6 +161,33 @@ public class BleManager {
         this.statusQuerySender = this::sendPhysicalStatusQuery;
         this.recoveryAction = this::rebuildTransportSession;
         this.recoveryExecutor = newRecoveryExecutor();
+        if (System.getProperty("os.name", "").startsWith("Windows")) {
+            ConnectionLog.start();
+            ConnectionLog.setStatusProvider(this::connectionSummary);
+        }
+    }
+
+    /** One-line state for the connection log window. */
+    public String connectionSummary() {
+        String transport = isUsbConnected() ? text("connection-log.status.transport.usb")
+            : isBleBridgeSessionActive() ? text("connection-log.status.transport.ble-driver")
+            : text("connection-log.status.transport.none");
+        String separator = "  ·  ";
+        StringBuilder out = new StringBuilder(text("connection-log.status.transport", transport));
+        out.append(separator).append(text("connection-log.status.driver", isConnected && socket != null
+            ? text("connection-log.status.connected") : text("connection-log.status.disconnected")));
+        out.append(separator).append(text("connection-log.status.keyboard", cachedStatus.isConnected()
+            ? text("connection-log.status.connected") : text("connection-log.status.disconnected")));
+        if (bridgeDeviceName != null && !bridgeDeviceName.isBlank()) out.append(" (").append(bridgeDeviceName).append(')');
+        if (cachedStatus.getBatteryLevel() >= 0) {
+            out.append(separator).append(text("connection-log.status.battery", cachedStatus.getBatteryLevel()));
+        }
+        long last = getLastStatusUpdateTime();
+        if (last > 0) {
+            out.append(separator).append(text("connection-log.status.last-response",
+                (System.currentTimeMillis() - last) / 1000));
+        }
+        return out.toString();
     }
 
     BleManager(
@@ -248,6 +278,8 @@ public class BleManager {
         closeTcpOnly();
         if (tryConnectUsb()) {
             logger.info("[BLE] USB连接成功，总耗时={}ms", System.currentTimeMillis() - startTime);
+            ConnectionLog.event(ConnectionLog.Level.INFO, ConnectionLog.Category.CONNECTED,
+                text("connection-log.event.usb-connected"));
             return true;
         }
         logger.info("[BLE] Start connecting BLE bridge - {}:{}", host, port);
@@ -272,6 +304,8 @@ public class BleManager {
             long receiver = beginTransportSession();
             bleReceiver = receiver;
             logger.info("[BLE] BLE bridge connected - {}:{}", host, port);
+            ConnectionLog.event(ConnectionLog.Level.INFO, ConnectionLog.Category.CONNECTED,
+                text("connection-log.event.driver-connected", host, port));
             startReader(receiver);
             queryBridgeDeviceInfo();
             logger.info("[BLE] === 连接完成，总耗时={}ms ===",
@@ -284,6 +318,8 @@ public class BleManager {
             invalidateApprovalState();
             logger.warn("[BLE] BLE bridge connect failed - {}:{}: {}, 总耗时={}ms",
                 host, port, e.getMessage(), System.currentTimeMillis() - startTime);
+            ConnectionLog.event(ConnectionLog.Level.WARN,
+                text("connection-log.event.driver-connect-failed", host, port, e.getMessage()));
             callback.onError("BLE bridge connect failed (" + host + ":" + port + "): "
                 + e.getMessage());
             return false;
@@ -301,6 +337,8 @@ public class BleManager {
         recoveryPending.set(false);
         long startTime = System.currentTimeMillis();
         logger.info("[BLE] === 开始断开连接 ===");
+        ConnectionLog.event(ConnectionLog.Level.INFO, ConnectionLog.Category.DISCONNECTED,
+            text("connection-log.event.app-disconnect"));
         
         // 第一步：立即标记断开状态，阻止新操作
         long phaseStart = System.currentTimeMillis();
@@ -1228,6 +1266,8 @@ public class BleManager {
             return;
         }
         logger.warn("Physical status response was lost; rebuilding transport session");
+        ConnectionLog.event(ConnectionLog.Level.WARN, ConnectionLog.Category.DISCONNECTED,
+            text("connection-log.event.status-timeout"));
         isConnected = false;
         isScanning = true;
         usbTransport.close();
@@ -1408,6 +1448,8 @@ public class BleManager {
         }
         usbReady = false;
         logger.info("USB HID disconnected; preparing BLE fallback");
+        ConnectionLog.event(ConnectionLog.Level.WARN, ConnectionLog.Category.DISCONNECTED,
+            text("connection-log.event.usb-lost"));
         cachedStatus.setConnected(false);
         cachedStatus.setTransport("NONE");
         cachedStatus.setDeviceName("");
@@ -1453,6 +1495,7 @@ public class BleManager {
         }
         int dataLen = data == null ? 0 : data.length;
         logger.debug("发送 TCP 包: type=0x{}, len={}", Integer.toHexString(type & 0xFF), dataLen);
+        ConnectionLog.tx("BLE", type, data);
         synchronized (outputStream) {
             outputStream.write(BleTcpPacket.encode(type, data));
             outputStream.flush();
@@ -1633,6 +1676,8 @@ public class BleManager {
             return;
         }
         logger.warn("[BLE] reader transport lost; scheduling existing recovery");
+        ConnectionLog.event(ConnectionLog.Level.WARN, ConnectionLog.Category.DISCONNECTED,
+            text("connection-log.event.driver-lost"));
         isConnected = false;
         bridgeBleConnected = false;
         bridgeDeviceName = "";
@@ -1703,6 +1748,7 @@ public class BleManager {
         long frameSession,
         TransportKind transportKind
     ) {
+        ConnectionLog.rx(transportKind == TransportKind.USB ? "USB" : "BLE", type, data);
         if (receiver != activeReceiver) {
             logger.debug("Ignoring frame from stale transport receiver {}", receiver);
             return;
@@ -1779,6 +1825,16 @@ public class BleManager {
                     boolean wasConnected = cachedStatus.isConnected();
                     boolean usbConnected = isUsbConnected();
                     boolean bridgeWasConnected = bridgeBleConnected;
+                    if (bridgeWasConnected != bleConnected) {
+                        if (bleConnected) {
+                            ConnectionLog.event(ConnectionLog.Level.INFO, ConnectionLog.Category.CONNECTED,
+                                deviceName.isEmpty() ? text("connection-log.event.keyboard-ble-connected")
+                                    : text("connection-log.event.keyboard-ble-connected-named", deviceName));
+                        } else {
+                            ConnectionLog.event(ConnectionLog.Level.WARN, ConnectionLog.Category.DISCONNECTED,
+                                text("connection-log.event.keyboard-ble-disconnected"));
+                        }
+                    }
                     bridgeBleConnected = bleConnected;
                     bridgeDeviceName = bleConnected ? deviceName : "";
                     if (!bleConnected || !bridgeWasConnected) {

@@ -1,6 +1,8 @@
 package com.example.ahakey.service;
 
+import com.example.ahakey.diagnostics.ConnectionLog;
 import com.example.ahakey.protocol.AhaKeyProtocol;
+import com.example.ahakey.protocol.BleTcpPacket;
 import com.sun.jna.LastErrorException;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
@@ -173,6 +175,7 @@ public class UsbHidTransport implements Closeable {
         if (frame.length > REPORT_SIZE - 2) {
             throw new IOException("USB command frame too large: " + frame.length);
         }
+        ConnectionLog.tx("USB", BleTcpPacket.WRITE_COMMAND, frame);
         byte[] payload = new byte[REPORT_SIZE];
         payload[0] = USB_COMMAND_PACKET;
         payload[1] = (byte) frame.length;
@@ -182,6 +185,7 @@ public class UsbHidTransport implements Closeable {
 
     public void sendData(byte[] data) throws IOException {
         Session session = requireActiveSession();
+        ConnectionLog.tx("USB", BleTcpPacket.WRITE_DATA, data);
         int offset = 0;
         while (offset < data.length) {
             int len = Math.min(REPORT_SIZE - 2, data.length - offset);
