@@ -95,6 +95,66 @@ final class AgentManager: ObservableObject {
         FileManager.default.isExecutableFile(atPath: agentBinaryPath)
     }
 
+    /// 从「下载」或 DMG 直接打开时，macOS 用 App Translocation 的临时目录运行本 App，退出后该目录消失。
+    /// 写进 hooks / LaunchAgent 的 agent 路径随之失效，所有 Claude Code 调用都会报 `/bin/sh … 127`。
+    var isRunningFromEphemeralLocation: Bool {
+        AgentInstallLocation.isEphemeral(bundlePath: Bundle.main.bundlePath)
+    }
+
+    /// 临时位置运行时拒绝写入 agent 路径，并提示用户先移到「应用程序」。返回 true 表示已拒绝。
+    private func refuseInstallFromEphemeralLocation() -> Bool {
+        guard isRunningFromEphemeralLocation else { return false }
+        log.error("拒绝从临时位置安装 Agent/Hooks: \(Bundle.main.bundlePath)")
+        agentUserAlert = NSLocalizedString("AhaKey Studio 正在从临时位置运行（直接从「下载」或磁盘映像打开）。在这里安装的 Agent 与 Hooks 会在退出 App 后失效，并让 Claude Code 等工具每次都报 Hook 错误。\n\n请先把 AhaKey Studio 拖到「应用程序」文件夹，再从那里打开后安装。", comment: "")
+        return true
+    }
+
+    /// 从固定位置启动时调用：hooks 里若残留已不存在的 agent 路径（例如上次从临时位置安装），
+    /// 就按当前路径重写，避免 Claude Code 等工具一直报 Hook 错误。Claude 旧格式命令也一并升级为带存在性检查的命令。
+    func repairStaleHookPathsIfNeeded() {
+        guard !isRunningFromEphemeralLocation, isAgentBinaryPresentInBundle else { return }
+        let current = agentBinaryPath
+        func hasStalePath(_ path: String) -> Bool {
+            guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return false }
+            return AgentInstallLocation.hasStaleAgentPath(in: text, currentAgentPath: current)
+        }
+        var repaired: [String] = []
+        if claudeHooksInstalled, hasStalePath(claudeSettingsPath) || claudeHooksNeedExistenceGuard() {
+            _ = installClaudeHooks()
+            repaired.append("Claude")
+        }
+        if cursorHooksInstalled, hasStalePath(cursorHooksPath) {
+            _ = installCursorHooks()
+            repaired.append("Cursor")
+        }
+        if codexHooksInstalled, hasStalePath(codexConfigPath) {
+            _ = installCodexHooks()
+            repaired.append("Codex")
+        }
+        if kimiHooksInstalled, hasStalePath(kimiConfigPath) {
+            _ = installKimiHooks()
+            repaired.append("Kimi")
+        }
+        guard !repaired.isEmpty else { return }
+        log.info("已按当前路径重写 hooks: \(repaired.joined(separator: ", ")) → \(current)")
+        refresh()
+    }
+
+    /// Claude hooks 中仍有不带存在性检查的 ahakey 命令（旧版写入）。
+    private func claudeHooksNeedExistenceGuard() -> Bool {
+        guard let settings = loadClaudeSettings(),
+              let hooks = settings["hooks"] as? [String: Any] else { return false }
+        for (_, value) in hooks {
+            for entry in value as? [[String: Any]] ?? [] {
+                for cmd in entry["hooks"] as? [[String: Any]] ?? [] {
+                    let command = (cmd["command"] as? String) ?? ""
+                    if isAhakeyHookCommand(command), !command.hasPrefix("[ -x ") { return true }
+                }
+            }
+        }
+        return false
+    }
+
     /// 兼容性：老版本通过 shell 脚本转发；现在直接调用 agent 二进制。保留路径用于卸载时清理。
     private var legacyHookScriptPath: String {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -242,6 +302,7 @@ final class AgentManager: ObservableObject {
     func applyStoredBluetoothPreferenceOnLaunch(bleManager: AhaKeyBLEManager) {
         guard !Self.didApplyLaunchBluetoothPreference else { return }
         Self.didApplyLaunchBluetoothPreference = true
+        repairStaleHookPathsIfNeeded()
         applyBluetoothOwner(bluetoothConnectionOwner, bleManager: bleManager, isLaunch: true)
     }
 
@@ -470,6 +531,7 @@ final class AgentManager: ObservableObject {
     }
 
     private func prepareLaunchAgentForStart() -> Bool {
+        guard !refuseInstallFromEphemeralLocation() else { return false }
         let expected = [agentBinaryPath, "--socket", socketPath]
         guard LaunchAgentConfiguration.needsRewrite(
             plistURL: URL(fileURLWithPath: plistPath), expectedArguments: expected
@@ -488,6 +550,8 @@ final class AgentManager: ObservableObject {
             agentUserAlert = "应用包内没有可执行的 ahakeyconfig-agent（路径：…/Contents/MacOS/ahakeyconfig-agent）。请确认发版脚本已把该二进制一并打进 .app；仅有主程序时无法安装守护进程。"
             return
         }
+
+        guard !refuseInstallFromEphemeralLocation() else { return }
 
         // 1. 先卸载旧 job，再写入 plist。否则同 Label 已加载时 launchd 可能继续持有旧 ProgramArguments。
         unloadAgentLaunchJobRemovingSocket()
@@ -848,7 +912,7 @@ final class AgentManager: ObservableObject {
         let binQuoted = shellQuote(agentBinaryPath)
 
         for event in hookEvents {
-            let ahakeyCmd = "\(binQuoted) hook \(event)"
+            let ahakeyCmd = AgentInstallLocation.guardedShellCommand(quotedBinary: binQuoted, arguments: "hook \(event)")
             var eventHooks = hooks[event] as? [[String: Any]] ?? []
 
             // 先清掉老的 ahakey 条目，避免 shell 脚本 + 新二进制并存
@@ -964,6 +1028,7 @@ final class AgentManager: ObservableObject {
     func installClaudeHooksOnly() {
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
+        guard !refuseInstallFromEphemeralLocation() else { return }
         let s = installClaudeHooks()
         agentUserAlert = s.isEmpty ? "Claude Hooks 已写入 ~/.claude/settings.json。" : s
         refresh()
@@ -979,6 +1044,7 @@ final class AgentManager: ObservableObject {
     func installCursorHooksOnly() {
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
+        guard !refuseInstallFromEphemeralLocation() else { return }
         let s = installCursorHooks()
         agentUserAlert = s.isEmpty ? "Cursor Hooks 已写入 ~/.cursor/hooks.json。" : s
         refresh()
@@ -988,6 +1054,7 @@ final class AgentManager: ObservableObject {
     func installCodexHooksOnly() {
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
+        guard !refuseInstallFromEphemeralLocation() else { return }
         let s = installCodexHooks()
         agentUserAlert = s.isEmpty ? "Codex Hooks 已写入 ~/.codex/config.toml。\n\n安装完成。请重启 Codex 终端或客户端后再使用。" : s
         refresh()
@@ -1013,6 +1080,7 @@ final class AgentManager: ObservableObject {
     func installKimiHooksOnly() {
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
+        guard !refuseInstallFromEphemeralLocation() else { return }
         let s = installKimiHooks()
         agentUserAlert = s.isEmpty && !kimiConfigIsLegacy
             ? """

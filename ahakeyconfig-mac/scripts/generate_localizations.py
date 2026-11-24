@@ -1298,6 +1298,11 @@ ZH_OVERRIDES = {
 }
 
 
+# Refuse to install hooks from an App Translocation / DMG location.
+TRANSLATIONS.update({
+    "AhaKey Studio 正在从临时位置运行（直接从「下载」或磁盘映像打开）。在这里安装的 Agent 与 Hooks 会在退出 App 后失效，并让 Claude Code 等工具每次都报 Hook 错误。\n\n请先把 AhaKey Studio 拖到「应用程序」文件夹，再从那里打开后安装。": "AhaKey Studio is running from a temporary location (opened straight from Downloads or a disk image). An Agent and Hooks installed from here stop working once the app quits, and tools such as Claude Code then report a hook error on every call.\n\nMove AhaKey Studio to the Applications folder first, then open it from there and install.",
+})
+
 def escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
