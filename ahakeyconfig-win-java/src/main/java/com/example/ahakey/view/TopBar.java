@@ -457,6 +457,8 @@ public class TopBar extends VBox {
         SeparatorMenuItem divider1 = new SeparatorMenuItem();
         MenuItem deviceInfo = new MenuItem(languageManager.getString("menu.device-info"));
         deviceInfo.setOnAction(event -> showDeviceInfoDialog());
+        MenuItem connectionLog = new MenuItem(languageManager.getString("menu.connection-log"));
+        connectionLog.setOnAction(event -> ConnectionLogWindow.show(getScene() == null ? null : getScene().getWindow()));
         MenuItem versionInfo = new MenuItem(languageManager.getString("menu.version-info"));
         versionInfo.setOnAction(event -> showVersionDialog());
         
@@ -479,6 +481,7 @@ public class TopBar extends VBox {
             clearOled,
             divider1,
             deviceInfo,
+            connectionLog,
             cloudAccount,
             divider2,
             screenAnimations,

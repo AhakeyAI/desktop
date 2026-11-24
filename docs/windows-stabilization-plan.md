@@ -3,7 +3,7 @@
 > 唯一权威事实源：`desktop/docs/windows-stabilization-plan.md`。适用范围是
 > `desktop/ahakeyconfig-win-java` 及其 Windows 发布脚本；固件仓库只读，不在本轮修改。
 >
-> 最后更新：2026-10-24。状态必须区分代码完成、自动测试完成、软件手工验证和真机验证。
+> 最后更新：2026-11-24。状态必须区分代码完成、自动测试完成、软件手工验证和真机验证。
 >
 > 解释顺序：第 0～6 节记录当前工程事实和仍需修复的边界；第 7 节之后是按时间追加的
 > 交付与决策历史。历史章节保留用于追溯，但如果与第 0～6 节或更晚的明确 supersedes
@@ -1611,3 +1611,31 @@ command excluded these platform tests explicitly and skipped the PowerShell pack
 No Windows-only test was removed; the read-only-DLL deletion test now declares its Windows OS
 requirement. Windows CI/full packaging, installer execution and real device verification remain
 separate from the successful local portable checks. No firmware or device configuration was written.
+
+## 47. 连接记录与 BLE 驱动日志 (2026-11-24)
+
+用于排查 BLE 连接断开，不改变连接、重连或协议行为。
+
+- **连接记录窗口。** “更多 → 连接记录”（`view/ConnectionLogWindow`）显示 `diagnostics/ConnectionLog`
+  收集的三类记录：应用日志（`LogbackCapture` 挂到 logback root 和 `com.example.ahakey`）、经 USB/BLE
+  收发的每一帧原始数据（`BleManager.writePacket`/`dispatchPacket` 与 `UsbHidTransport.sendCommand`/`sendData`
+  中的钩子，按 TCP 包类型和命令字节解码），以及 BLE 驱动日志（`BridgeLogTailer` 每 500 ms 跟踪驱动日志文件）。
+  窗口提供查看级别、来源筛选、隐藏 `0x00` 状态轮询、搜索、暂停、复制/保存可见记录和打开日志文件夹；顶部显示
+  `BleManager.connectionSummary()` 的当前连接状态。
+- **断开判断不依赖文字。** `ConnectionLog.Entry` 带 `Category`（`GENERAL`/`CONNECTED`/`DISCONNECTED`），
+  由 `BleManager` 的连接事件钩子显式设置；驱动日志只按驱动写入的英文标记
+  `ConnectionStatus changed: Disconnected/Connected` 归类。窗口的断开次数和加粗显示只看该字段。
+- **日志文件。** 应用写 `%LOCALAPPDATA%\AhaKeyStudio\logs\connection-YYYY-MM-DD.log`（无 `LOCALAPPDATA` 时为
+  `~/.ahakey/logs`）；BLE 驱动（`BLE_tcp_bridge/DriverLog.cs`）在同一文件夹写 `ble-driver-YYYY-MM-DD.log`，
+  每行格式 `yyyy-MM-dd HH:mm:ss.fff LEVEL message`。应用不重复写入驱动行。内存中最多保留 20,000 条。
+  仅在 Windows 上由 `BleManager` 构造时启动文件写入和驱动日志跟踪。
+- **BLE 驱动。** `Console` 输出重定向到驱动日志文件，界面日志行同时写入文件并按内容标注级别；原有中文界面和
+  日志文字不变。新增英文诊断：`FromIdAsync`/GATT 服务/特征/CCCD 写入失败状态、连接设备地址与
+  `ConnectionStatus`、`GattSession` 的 `SessionStatus`/`MaxPduSize` 变化及距连接的毫秒数（只订阅事件，
+  不设置 `MaintainConnection`）。窗口标题改为 `AhaKey BLE TCP Driver`，与
+  `BleBridgeProcessOwner.WINDOW_TITLE` 一致，便于按标题置前已运行的驱动。
+- **文案。** 新界面和事件文字使用 `connection-log.*` 与 `menu.connection-log` 键，已补齐 en/zh/ru。
+- **验证状态。** 自动测试：新增 `ConnectionLogTest`（帧命令解析、每个 `CMD_*` 都有名称且各语言目录有键、
+  状态轮询识别、单行格式）与 `BridgeLogTailerTest`（时间/级别解析、异常行、连接状态归类），
+  `LanguageManagerTest` 的键检查覆盖新文件。macOS/JDK 17 上 `mvn -B -o test` 除既有平台相关失败外全部通过。
+  C# 驱动未在本机编译；Windows 构建、真实键盘断开场景和驱动日志内容尚未在真机验证。
