@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 /** Serializes and validates every external-Flash OLED operation. */
 public final class OledUploadService {
     private static final int FALLBACK_TOTAL_FRAME_SLOTS = AhaKeyProtocol.GIF_TOTAL_PLANNED_FRAMES;
@@ -70,12 +72,12 @@ public final class OledUploadService {
     public static AssetState readAssetState(BleManager ble, ModeSlot mode, int asset) throws Exception {
         if (asset == 0) {
             AhaKeyResponseParser.PictureState state = ble.readPictureState(mode.getIndex());
-            if (state == null) throw new IllegalStateException("设备未返回默认动画配置。");
+            if (state == null) throw new IllegalStateException(localize("设备未返回默认动画配置。"));
             return new AssetState(state.mode(), 0, state.startIndex(), state.picLength(),
                 state.frameInterval(), state.allModeMaxPic());
         }
         AhaKeyResponseParser.AiOledState state = ble.readAiOledState(mode.getIndex(), asset);
-        if (state == null) throw new IllegalStateException("设备未返回状态动画配置。");
+        if (state == null) throw new IllegalStateException(localize("设备未返回状态动画配置。"));
         return new AssetState(state.mode(), state.asset(), state.startIndex(), state.frameCount(),
             state.frameInterval(), state.totalFrameSlots());
     }
@@ -87,26 +89,26 @@ public final class OledUploadService {
 
     public static UploadPlan validateUploadPlan(BleManager ble, ModeSlot mode, int asset,
                                                 int frameCount) throws Exception {
-        if (!ble.isUsbConnected()) throw new IllegalStateException("屏幕动画只能通过 USB 写入。");
+        if (!ble.isUsbConnected()) throw new IllegalStateException(localize("屏幕动画只能通过 USB 写入。"));
         if (asset < 0 || asset >= AhaKeyProtocol.GIF_ASSET_COUNT)
-            throw new IllegalArgumentException("动画状态无效。");
-        if (frameCount <= 0) throw new IllegalStateException("没有可上传的 OLED 帧。");
+            throw new IllegalArgumentException(localize("动画状态无效。"));
+        if (frameCount <= 0) throw new IllegalStateException(localize("没有可上传的 OLED 帧。"));
         int assetCapacity = AhaKeyProtocol.gifAssetCapacity(asset);
         if (frameCount > assetCapacity) {
-            throw new IllegalStateException("当前 GIF 有 " + frameCount + " 帧，超过该状态 "
-                + assetCapacity + " 帧的上限。");
+            throw new IllegalStateException(localize("当前 GIF 有 ") + frameCount + localize(" 帧，超过该状态 ")
+                + assetCapacity + localize(" 帧的上限。"));
         }
 
         AhaKeyResponseParser.GifLayout layout;
         try {
             layout = ble.queryGifLayout();
         } catch (Exception e) {
-            throw stepFailure("读取 Flash 布局", e);
+            throw stepFailure(localize("读取 Flash 布局"), e);
         }
-        if (layout == null) throw new IllegalStateException("设备未返回 GIF/Flash 布局。");
+        if (layout == null) throw new IllegalStateException(localize("设备未返回 GIF/Flash 布局。"));
         if (!layout.hasPhysicalFlashDiagnostics()) {
-            throw new IllegalStateException("当前固件未报告真实 Flash 容量。请先升级到固件 "
-                + FirmwareCapabilities.MINIMUM_GIF_VERSION + " 后再写入 GIF。");
+            throw new IllegalStateException(localize("当前固件未报告真实 Flash 容量。请先升级到固件 ")
+                + FirmwareCapabilities.MINIMUM_GIF_VERSION + localize(" 后再写入 GIF。"));
         }
         if (layout.profiles() != AhaKeyProtocol.GIF_PROFILE_COUNT
             || layout.assetsPerProfile() != AhaKeyProtocol.GIF_ASSET_COUNT
@@ -114,18 +116,18 @@ public final class OledUploadService {
             || layout.frameBytes() != AhaKeyProtocol.OLED_FRAME_BYTES
             || layout.sectorsPerFrame() * AhaKeyProtocol.OLED_CHUNK_SIZE
                 != AhaKeyProtocol.OLED_FRAME_SLOT_SIZE) {
-            throw new IllegalStateException("设备 GIF 布局与客户端不兼容，已阻止写入。");
+            throw new IllegalStateException(localize("设备 GIF 布局与客户端不兼容，已阻止写入。"));
         }
         for (int index = 0; index < AhaKeyProtocol.GIF_ASSET_COUNT; index++) {
             if (layout.capacityForAsset(index) != AhaKeyProtocol.gifAssetCapacity(index))
-                throw new IllegalStateException("设备 GIF 分区容量与客户端不兼容，已阻止写入。");
+                throw new IllegalStateException(localize("设备 GIF 分区容量与客户端不兼容，已阻止写入。"));
         }
 
         int startIndex = AhaKeyProtocol.gifPartitionStart(mode.getIndex(), asset);
         int endIndexExclusive = startIndex + frameCount;
         if (endIndexExclusive > layout.frameSlots()) {
             throw new IllegalStateException(String.format(
-                "目标分区需要帧槽 %d–%d，但 Flash 仅有 %d 个帧槽（Flash ID 0x%04X，%.1f MiB）。",
+                localize("目标分区需要帧槽 %d–%d，但 Flash 仅有 %d 个帧槽（Flash ID 0x%04X，%.1f MiB）。"),
                 startIndex, endIndexExclusive - 1, layout.frameSlots(), layout.flashId(),
                 layout.flashBytes() / 1048576.0));
         }
@@ -139,7 +141,7 @@ public final class OledUploadService {
     ) {
         Thread thread = new Thread(() -> {
             if (!GIF_OPERATION_LOCK.tryLock()) {
-                fail(onError, "已有 GIF 写入或清除操作正在进行，请等待完成。");
+                fail(onError, localize("已有 GIF 写入或清除操作正在进行，请等待完成。"));
                 return;
             }
             try {
@@ -147,17 +149,17 @@ public final class OledUploadService {
                 try {
                     animation = OLEDFrameEncoder.optimizedAnimation(path, asset);
                 } catch (Exception e) {
-                    throw stepFailure("解析 GIF", e);
+                    throw stepFailure(localize("解析 GIF"), e);
                 }
                 int count = animation.frames().size();
                 String result = ble.executeDeviceTransaction(() -> {
                     UploadPlan plan = validateUploadPlan(ble, mode, asset, count);
                     for (int i = 0; i < animation.frames().size(); i++) {
                         if (Thread.currentThread().isInterrupted()) {
-                            throw new InterruptedException("GIF 写入已取消");
+                            throw new InterruptedException(localize("GIF 写入已取消"));
                         }
                         if (onProgress != null) onProgress.accept(
-                            new UploadProgress(i, count, "写入帧 " + (i + 1) + "/" + count));
+                            new UploadProgress(i, count, localize("写入帧 ") + (i + 1) + "/" + count));
                         ble.writeLargeData(
                             (long) (plan.startIndex() + i) * AhaKeyProtocol.OLED_FRAME_SLOT_SIZE,
                             animation.frames().get(i).rgb565);
@@ -176,10 +178,10 @@ public final class OledUploadService {
                     AssetState verified = readAssetState(ble, mode, asset);
                     verifyAssetState(verified, plan.startIndex(), count, delay);
                     return String.format(
-                        "动画写入并回读完成：%d 帧，间隔 %d ms；Flash ID 0x%04X，容量 %.1f MiB%s",
+                        localize("动画写入并回读完成：%d 帧，间隔 %d ms；Flash ID 0x%04X，容量 %.1f MiB%s"),
                         count, delay, plan.layout().flashId(),
                         plan.layout().flashBytes() / 1048576.0,
-                        animation.optimized() ? "；已自动优化并保持总时长" : "");
+                        animation.optimized() ? localize("；已自动优化并保持总时长") : "");
                 });
                 if (onComplete != null) onComplete.accept(result);
             } catch (Exception e) {
@@ -197,13 +199,13 @@ public final class OledUploadService {
                                   Consumer<String> onComplete, Consumer<String> onError) {
         Thread thread = new Thread(() -> {
             if (!GIF_OPERATION_LOCK.tryLock()) {
-                fail(onError, "已有 GIF 写入或清除操作正在进行，请等待完成。");
+                fail(onError, localize("已有 GIF 写入或清除操作正在进行，请等待完成。"));
                 return;
             }
             try {
                 ble.executeDeviceTransaction(() -> {
                     if (!ble.isUsbConnected())
-                        throw new IllegalStateException("屏幕动画只能通过 USB 修改。");
+                        throw new IllegalStateException(localize("屏幕动画只能通过 USB 修改。"));
                     int start = AhaKeyProtocol.gifPartitionStart(mode.getIndex(), asset);
                     byte[] command = asset == 0
                         ? AhaKeyProtocol.updatePicture(mode.getIndex(), start, 0, 0)
@@ -215,7 +217,7 @@ public final class OledUploadService {
                     verifyAssetState(verified, start, 0, 0);
                     return null;
                 });
-                if (onComplete != null) onComplete.accept("该状态动画已清空");
+                if (onComplete != null) onComplete.accept(localize("该状态动画已清空"));
             } catch (Exception e) {
                 fail(onError, message(e));
             } finally {
@@ -239,12 +241,12 @@ public final class OledUploadService {
                                          Consumer<String> error) {
         Thread thread = new Thread(() -> {
             if (!GIF_OPERATION_LOCK.tryLock()) {
-                fail(error, "已有 GIF 写入或清除操作正在进行，请等待完成。");
+                fail(error, localize("已有 GIF 写入或清除操作正在进行，请等待完成。"));
                 return;
             }
             try {
                 OLEDFrameEncoder.EncodedFrame frame = OLEDFrameEncoder.frameFromSingleImage(path);
-                if (progress != null) progress.accept(new UploadProgress(0, 1, "写入静态图片"));
+                if (progress != null) progress.accept(new UploadProgress(0, 1, localize("写入静态图片")));
                 ble.executeDeviceTransaction(() -> {
                     UploadPlan plan = validateUploadPlan(ble, mode, 0, 1);
                     ble.writeLargeData(
@@ -259,7 +261,7 @@ public final class OledUploadService {
                     return null;
                 });
                 if (complete != null)
-                    complete.accept(mode.getTitle() + " OLED 图片已保存并回读验证");
+                    complete.accept(mode.getTitle() + localize(" OLED 图片已保存并回读验证"));
             } catch (Exception e) {
                 fail(error, message(e));
             } finally {
@@ -272,7 +274,7 @@ public final class OledUploadService {
     }
 
     private static IllegalStateException stepFailure(String step, Exception cause) {
-        return new IllegalStateException(step + "失败：" + message(cause), cause);
+        return new IllegalStateException(localize("%s失败：%s").formatted(step, message(cause)), cause);
     }
 
     static void verifyAssetState(
@@ -282,9 +284,9 @@ public final class OledUploadService {
             || actual.frameCount() != expectedCount
             || actual.frameInterval() != expectedInterval) {
             throw new IllegalStateException(String.format(
-                "动画回读不一致：期望 start=%d/count=%d/interval=%d，实际 %s",
+                localize("动画回读不一致：期望 start=%d/count=%d/interval=%d，实际 %s"),
                 expectedStart, expectedCount, expectedInterval,
-                actual == null ? "无响应" : String.format("start=%d/count=%d/interval=%d",
+                actual == null ? localize("无响应") : String.format("start=%d/count=%d/interval=%d",
                     actual.startIndex(), actual.frameCount(), actual.frameInterval())));
         }
     }

@@ -8,25 +8,25 @@ public enum CoreSnapshotChangeSummary {
     public static func summarize(from old: CoreDeviceSnapshot, to new: CoreDeviceSnapshot) -> String? {
         var changes: [String] = []
         if old.batteryLevel != new.batteryLevel {
-            changes.append("电量 \(old.batteryLevel)→\(new.batteryLevel)")
+            changes.append(String(format: NSLocalizedString("电量 %d→%d", comment: ""), old.batteryLevel, new.batteryLevel))
         }
         if old.firmwareMainVersion != new.firmwareMainVersion || old.firmwareSubVersion != new.firmwareSubVersion {
-            changes.append("固件 \(old.firmwareMainVersion).\(old.firmwareSubVersion)→\(new.firmwareMainVersion).\(new.firmwareSubVersion)")
+            changes.append(String(format: NSLocalizedString("固件 %d.%d→%d.%d", comment: ""), old.firmwareMainVersion, old.firmwareSubVersion, new.firmwareMainVersion, new.firmwareSubVersion))
         }
         if old.workMode != new.workMode {
-            changes.append("模式 \(old.workMode)→\(new.workMode)")
+            changes.append(String(format: NSLocalizedString("模式 %d→%d", comment: ""), old.workMode, new.workMode))
         }
         if old.lightMode != new.lightMode {
-            changes.append("灯效 \(old.lightMode)→\(new.lightMode)")
+            changes.append(String(format: NSLocalizedString("灯效 %d→%d", comment: ""), old.lightMode, new.lightMode))
         }
         if old.switchState != new.switchState {
-            changes.append("拨杆 \(old.switchState)→\(new.switchState)")
+            changes.append(String(format: NSLocalizedString("拨杆 %d→%d", comment: ""), old.switchState, new.switchState))
         }
         if old.brightness != new.brightness {
-            changes.append("亮度 \(old.brightness)→\(new.brightness)")
+            changes.append(String(format: NSLocalizedString("亮度 %d→%d", comment: ""), old.brightness, new.brightness))
         }
         if old.activeTaskPictureSets != new.activeTaskPictureSets {
-            changes.append("任务套图 \(format(old.activeTaskPictureSets))→\(format(new.activeTaskPictureSets))")
+            changes.append(String(format: NSLocalizedString("任务套图 %@→%@", comment: ""), format(old.activeTaskPictureSets), format(new.activeTaskPictureSets)))
         }
         return changes.isEmpty ? nil : changes.joined(separator: ", ")
     }

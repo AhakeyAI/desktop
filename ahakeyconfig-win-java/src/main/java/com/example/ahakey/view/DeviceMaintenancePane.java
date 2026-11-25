@@ -140,8 +140,8 @@ public final class DeviceMaintenancePane {
         Label flashRequirement = body("");
         Label ispStatus = body("");
         Button diagnose = new Button(text(
-            "检测烧录环境和 ISP", "Check Environment and ISP"));
-        Button exportDiagnostic = new Button(text("导出诊断报告", "Export Diagnostic Report"));
+            localize("检测烧录环境和 ISP"), "Check Environment and ISP"));
+        Button exportDiagnostic = new Button(text(localize("导出诊断报告"), "Export Diagnostic Report"));
         diagnose.setDisable(true);
         exportDiagnostic.setDisable(true);
 
@@ -171,11 +171,11 @@ public final class DeviceMaintenancePane {
                     localize("检测到固件降级，默认禁止。"),
                     "Firmware downgrade detected and blocked by default.");
                 default -> preparedArmed ? text(
-                    "条件已满足，可以开始烧录。",
+                    localize("条件已满足，可以开始烧录。"),
                     "All prerequisites are satisfied; flashing is ready.") : (preparing[0] ? text(
-                        "正在准备烧录环境。",
+                        localize("正在准备烧录环境。"),
                         "Preparing the flash environment.") : text(
-                        "请先完成第 3 步烧录环境检查。",
+                        localize("请先完成第 3 步烧录环境检查。"),
                         "Complete the flash environment check in step 3."));
             });
             if (block.isEmpty() && preparedArmed) {
@@ -205,7 +205,7 @@ public final class DeviceMaintenancePane {
             updateFlashState.run();
             if (!block.isEmpty()) {
                 ispStatus.setText(text(
-                    "请先满足固件版本和风险确认条件，再准备烧录环境。",
+                    localize("请先满足固件版本和风险确认条件，再准备烧录环境。"),
                     "Complete firmware version and risk prerequisites before preparing."));
                 return;
             }
@@ -216,7 +216,7 @@ public final class DeviceMaintenancePane {
             preparing[0] = true;
             diagnose.setDisable(true);
             ispStatus.setText(text(
-                "正在准备烧录环境（不会启动 WCHISP）…",
+                localize("正在准备烧录环境（不会启动 WCHISP）…"),
                 "Preparing the flash environment (WCHISP will not start)…"));
             updateFlashState.run();
             daemon("firmware-preparation", () -> {
@@ -234,13 +234,13 @@ public final class DeviceMaintenancePane {
                         preparedOperation[0] = result.operation();
                         diagnose.setDisable(false);
                         ispStatus.setText(text(
-                            "烧录环境已准备完成。请进入 ISP 后执行第 3 步检测。",
+                            localize("烧录环境已准备完成。请进入 ISP 后执行第 3 步检测。"),
                             "Flash environment prepared. Enter ISP, then run step 3 detection."));
                     } else {
                         preparedOperation[0] = null;
                         diagnose.setDisable(true);
                         ispStatus.setText(text(
-                            "烧录环境准备失败：", "Flash environment preparation failed: ")
+                            localize("烧录环境准备失败："), "Flash environment preparation failed: ")
                             + result.detail());
                     }
                     updateFlashState.run();
@@ -322,7 +322,7 @@ public final class DeviceMaintenancePane {
                             show(owner, Alert.AlertType.INFORMATION,
                                 text(localize("固件升级成功"), "Firmware Update Succeeded"),
                                 text(localize("已从设备读取到目标版本 "), "The device reported target version ")
-                                    + expected + "。");
+                                    + expected + localize("。"));
                         } else {
                             status.setText(text(
                                 localize("烧录未生效：目标版本 "),
@@ -333,7 +333,7 @@ public final class DeviceMaintenancePane {
                                 text(localize("固件升级未生效"), "Firmware Update Did Not Take Effect"),
                                 text(localize("目标版本为 "), "Target version is ") + expected
                                     + text(localize("，但设备返回 "), ", but the device reported ")
-                                    + version + "。\n\n"
+                                    + version + localize("。") + "\n\n"
                                     + text(
                                         localize("请重新进入 ISP 模式后点击“重新烧录”。"),
                                         "Re-enter ISP mode and click Flash Firmware again."
@@ -453,14 +453,14 @@ public final class DeviceMaintenancePane {
             expandStep(steps, 3);
             setBusy(true, progress, bundled, latest, local, flash);
             diagnose.setDisable(true);
-            status.setText(text("正在调用 WCHISP…", "Starting WCHISP…"));
+            status.setText(text(localize("正在调用 WCHISP…"), "Starting WCHISP…"));
             java.util.function.Consumer<com.example.ahakey.firmware.FirmwareUpdateStatus> listener = update -> {
                 Platform.runLater(() -> {
                     progress.setProgress(update.progress());
                     boolean flashing = update.state() == FirmwareUpdateState.FLASHING;
                     cancelFlash.setDisable(flashing || update.state().terminal());
                     status.setText(flashing
-                        ? text("烧录进行中，请勿断开设备，本阶段不可取消",
+                        ? text(localize("烧录进行中，请勿断开设备，本阶段不可取消"),
                             "Flashing is in progress; do not disconnect. Cancellation is unavailable.")
                         : update.detail());
                 });
@@ -498,7 +498,7 @@ public final class DeviceMaintenancePane {
                     controller.setPendingFirmwareVersion(targetVersion[0]);
                     status.setText(text(FLASH_COMPLETION_STATUS_ZH, FLASH_COMPLETION_STATUS_EN));
                     show(owner, Alert.AlertType.INFORMATION,
-                        text("固件烧录完成", "Firmware Flashing Completed"),
+                        text(localize("固件烧录完成"), "Firmware Flashing Completed"),
                         text(FLASH_COMPLETION_MESSAGE_ZH, FLASH_COMPLETION_MESSAGE_EN));
                 } else {
                     expandStep(steps, 2);
@@ -897,7 +897,6 @@ public final class DeviceMaintenancePane {
     }
 
     private String text(String zh, String en) {
-        return com.example.ahakey.util.LanguageManager.getInstance().isChinese()
-            || com.example.ahakey.util.LanguageManager.getInstance().isRussian() ? localize(zh) : en;
+        return com.example.ahakey.util.LanguageManager.getInstance().usesChineseSourceText() ? localize(zh) : en;
     }
 }

@@ -149,9 +149,8 @@ public final class StandbySettingsPane {
                     current.setText(currentText(value));
                     supported.set(true);
                     busy.set(false);
-                    status.setText(text(localize("已通过 "), "Connected over ")
-                        + (bleManager.isUsbConnected() ? "USB" : "BLE")
-                        + text(localize(" 读取成功。"), "."));
+                    status.setText(text(localize("已通过 %s 读取成功。"), "Connected over %s.")
+                        .formatted(bleManager.isUsbConnected() ? "USB" : "BLE"));
                 });
             } catch (Exception exception) {
                 Platform.runLater(() -> {
@@ -225,8 +224,7 @@ public final class StandbySettingsPane {
     }
 
     private String text(String zh, String en) {
-        return com.example.ahakey.util.LanguageManager.getInstance().isChinese()
-            || com.example.ahakey.util.LanguageManager.getInstance().isRussian() ? zh : en;
+        return com.example.ahakey.util.LanguageManager.getInstance().usesChineseSourceText() ? zh : en;
     }
 
     private void daemon(String name, Runnable task) {

@@ -25,20 +25,20 @@ struct DeviceInfoView: View {
             // MARK: - 设备信息
             Section {
                 HStack(spacing: 0) {
-                    infoCell("电量", value: "\(bleManager.batteryLevel)%")
+                    infoCell(NSLocalizedString("电量", comment: ""), value: "\(bleManager.batteryLevel)%")
                     Divider()
-                    infoCell("固件", value: "v\(bleManager.firmwareMainVersion).\(bleManager.firmwareSubVersion)")
+                    infoCell(NSLocalizedString("固件", comment: ""), value: "v\(bleManager.firmwareMainVersion).\(bleManager.firmwareSubVersion)")
                     Divider()
-                    infoCell("设备名", value: bleManager.deviceName ?? "—")
+                    infoCell(NSLocalizedString("设备名", comment: ""), value: bleManager.deviceName ?? "—")
                 }
                 .frame(height: 50)
 
                 HStack(spacing: 0) {
-                    infoCell("工作模式", value: workModeName(bleManager.workMode))
+                    infoCell(NSLocalizedString("工作模式", comment: ""), value: workModeName(bleManager.workMode))
                     Divider()
-                    infoCell("灯光", value: lightModeName(bleManager.lightMode))
+                    infoCell(NSLocalizedString("灯光", comment: ""), value: lightModeName(bleManager.lightMode))
                     Divider()
-                    infoCell("信号", value: "\(diagnosticsStore.snapshot.signalStrength) dBm")
+                    infoCell(NSLocalizedString("信号", comment: ""), value: "\(diagnosticsStore.snapshot.signalStrength) dBm")
                 }
                 .frame(height: 50)
             } header: {
@@ -83,7 +83,7 @@ struct DeviceInfoView: View {
                             .disabled(disableAgent)
                         }
                     }
-                    CompatLabeledContent("当前") {
+                    CompatLabeledContent(NSLocalizedString("当前", comment: "")) {
                         HStack(spacing: 6) {
                             Text(bleManager.isConnected ? "本 App 已连接蓝牙" : "本 App 未连接")
                             Text("·")
@@ -152,8 +152,8 @@ struct DeviceInfoView: View {
                         .controlSize(.small)
                         .disabled(agentManager.bluetoothConnectionOwner == .ahaKeyStudio)
                         .help(agentManager.bluetoothConnectionOwner == .ahaKeyStudio
-                              ? "当前由本 App 占用蓝牙，Agent 应处于未加载。请先在「蓝牙连接」中选中 Agent 后再启停守护进程。"
-                              : "从 launchd 加载并启动/卸载停止 Agent 进程。")
+                              ? NSLocalizedString("当前由本 App 占用蓝牙，Agent 应处于未加载。请先在「蓝牙连接」中选中 Agent 后再启停守护进程。", comment: "")
+                              : NSLocalizedString("从 launchd 加载并启动/卸载停止 Agent 进程。", comment: ""))
 
                         Button(NSLocalizedString("卸载", comment: ""), role: .destructive) {
                             agentManager.uninstall(bleManager: bleManager)
@@ -364,7 +364,7 @@ struct DeviceInfoView: View {
                         .textSelection(.enabled)
                 }
                 HStack {
-                    CompatLabeledContent("特征") {
+                    CompatLabeledContent(NSLocalizedString("特征", comment: "")) {
                         HStack(spacing: 8) {
                             charBadge("DATA", ready: bleManager.dataCharReady)
                             charBadge("CMD", ready: bleManager.commandCharReady)
@@ -386,8 +386,8 @@ struct DeviceInfoView: View {
                         .buttonStyle(.bordered)
                         .disabled(bleManager.isScanning || agentManager.bluetoothConnectionOwner == .agentDaemon)
                         .help(agentManager.bluetoothConnectionOwner == .agentDaemon
-                              ? "当前选择由 ahakeyconfig-agent 占用蓝牙。请先在上方「蓝牙连接」切到 AhaKey Studio，或点击顶栏「设备信息 · Agent」切换。"
-                              : "本 App 主动连接键盘。")
+                              ? NSLocalizedString("当前选择由 ahakeyconfig-agent 占用蓝牙。请先在上方「蓝牙连接」切到 AhaKey Studio，或点击顶栏「设备信息 · Agent」切换。", comment: "")
+                              : NSLocalizedString("本 App 主动连接键盘。", comment: ""))
                     } else {
                         Button("查询状态") {
                             bleManager.queryDeviceStatus()
@@ -523,17 +523,17 @@ struct DeviceInfoView: View {
     }
 
     private func agentBluetoothStatusText() -> String {
-        if agentManager.isRunning && agentManager.isAgentBLEConnected { return "Agent 已连接蓝牙" }
-        if agentManager.isRunning { return "Agent 运行中（BLE 未连接）" }
-        if agentManager.isInstalled { return "Agent 未运行" }
-        return "Agent 未安装"
+        if agentManager.isRunning && agentManager.isAgentBLEConnected { return NSLocalizedString("Agent 已连接蓝牙", comment: "") }
+        if agentManager.isRunning { return NSLocalizedString("Agent 运行中（BLE 未连接）", comment: "") }
+        if agentManager.isInstalled { return NSLocalizedString("Agent 未运行", comment: "") }
+        return NSLocalizedString("Agent 未安装", comment: "")
     }
 
     private func agentBluetoothShortLabel() -> String {
-        if agentManager.isRunning && agentManager.isAgentBLEConnected { return "已连蓝牙" }
-        if agentManager.isRunning { return "BLE 未连接" }
-        if agentManager.isInstalled { return "未运行" }
-        return "未装 Agent"
+        if agentManager.isRunning && agentManager.isAgentBLEConnected { return NSLocalizedString("已连蓝牙", comment: "") }
+        if agentManager.isRunning { return NSLocalizedString("BLE 未连接", comment: "") }
+        if agentManager.isInstalled { return NSLocalizedString("未运行", comment: "") }
+        return NSLocalizedString("未装 Agent", comment: "")
     }
 
     private func workModeName(_ mode: Int) -> String {
@@ -548,9 +548,9 @@ struct DeviceInfoView: View {
 
     private func lightModeName(_ mode: Int) -> String {
         switch mode {
-        case 0: return "关闭"
-        case 1: return "常亮"
-        case 2: return "呼吸"
+        case 0: return NSLocalizedString("关闭", comment: "")
+        case 1: return NSLocalizedString("常亮", comment: "")
+        case 2: return NSLocalizedString("呼吸", comment: "")
         default: return "\(mode)"
         }
     }

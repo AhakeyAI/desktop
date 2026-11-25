@@ -1,6 +1,13 @@
 import AppKit
 import SwiftUI
 
+/// VibeBar ships no strings of its own. Its labels are looked up in the host app's
+/// Localizable.strings (Bundle.main, keyed by the Chinese wording like the rest of AhaKey Studio)
+/// and fall back to the English text when the host has no entry (for example VibeBarSmoke).
+func vibeBarText(_ key: String, _ fallback: String) -> String {
+    NSLocalizedString(key, tableName: nil, bundle: .main, value: fallback, comment: "")
+}
+
 struct VibeBarCompactKeyboardItem: View {
     @ObservedObject var state: VibeBarState
     let onFrameChanged: (CGRect, NSScreen) -> Void
@@ -60,8 +67,8 @@ struct VibeBarCompactLeverItem: View {
     }
 
     private var label: String {
-        guard state.leverKnown else { return "Lever?" }
-        return state.leverIsAuto ? "Auto" : "Ask"
+        guard state.leverKnown else { return vibeBarText("拨杆?", "Lever?") }
+        return state.leverIsAuto ? vibeBarText("自动", "Auto") : vibeBarText("手动", "Ask")
     }
 }
 
@@ -96,27 +103,27 @@ struct VibeBarExpandedMenu: View {
 
             HStack(spacing: 8) {
                 statusTile(
-                    title: "Device",
+                    title: vibeBarText("设备", "Device"),
                     systemName: state.keyboardConnected ? "keyboard.fill" : "keyboard",
-                    value: state.keyboardConnected ? "\(state.batteryLevel)%" : "Off",
+                    value: state.keyboardConnected ? "\(state.batteryLevel)%" : vibeBarText("未连接", "Off"),
                     tint: state.keyboardConnected ? .cyan : .secondary
                 )
                 statusTile(
-                    title: "Lever",
+                    title: vibeBarText("拨杆", "Lever"),
                     systemName: leverIcon,
                     value: leverValue,
                     tint: leverTint
                 )
                 statusTile(
-                    title: "Voice",
+                    title: vibeBarText("语音", "Voice"),
                     systemName: voiceIcon,
                     value: voiceValue,
                     tint: voiceTint
                 )
                 statusTile(
-                    title: "Window",
+                    title: vibeBarText("窗口", "Window"),
                     systemName: "macwindow",
-                    value: "Open",
+                    value: vibeBarText("打开", "Open"),
                     tint: .indigo,
                     action: onOpenMain
                 )
@@ -130,15 +137,15 @@ struct VibeBarExpandedMenu: View {
                             .foregroundStyle(.white)
                             .frame(width: 28, height: 28)
                             .background(.white.opacity(0.12), in: Circle())
-                        Text("Exit island")
+                        Text(vibeBarText("关闭灵动岛", "Exit island"))
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.white)
                     }
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Exit island")
+                .accessibilityLabel(vibeBarText("关闭灵动岛", "Exit island"))
                 Spacer()
-                Text("Move cursor away to collapse")
+                Text(vibeBarText("移开光标即可收起", "Move cursor away to collapse"))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
@@ -157,7 +164,7 @@ struct VibeBarExpandedMenu: View {
         if let name = state.deviceName, state.keyboardConnected {
             return name
         }
-        return state.keyboardConnected ? "Connected" : "Disconnected"
+        return state.keyboardConnected ? vibeBarText("已连接", "Connected") : vibeBarText("未连接", "Disconnected")
     }
 
     private var leverIcon: String {
@@ -166,8 +173,8 @@ struct VibeBarExpandedMenu: View {
     }
 
     private var leverValue: String {
-        guard state.leverKnown else { return "Unknown" }
-        return state.leverIsAuto ? "Auto" : "Ask"
+        guard state.leverKnown else { return vibeBarText("未知", "Unknown") }
+        return state.leverIsAuto ? vibeBarText("自动", "Auto") : vibeBarText("手动", "Ask")
     }
 
     private var leverTint: Color {
@@ -182,9 +189,9 @@ struct VibeBarExpandedMenu: View {
     }
 
     private var voiceValue: String {
-        if state.voiceRecording { return "Rec" }
-        if state.voiceListening { return "On" }
-        return "Off"
+        if state.voiceRecording { return vibeBarText("录音中", "Rec") }
+        if state.voiceListening { return vibeBarText("已开启", "On") }
+        return vibeBarText("Off", "Off")
     }
 
     private var voiceTint: Color {

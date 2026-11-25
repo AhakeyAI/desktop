@@ -1,0 +1,4 @@
+/* Korean UI: Malgun Gothic is the Windows system font for Hangul. */
+.root {
+    -fx-font-family: "Malgun Gothic", "Segoe UI", sans-serif;
+}

@@ -169,7 +169,7 @@ final class VoiceRelayService: ObservableObject {
 
         let timeLabel = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
         let lastCheckSummary =
-            "输入监控 \(inputMonitoring ? "已开启" : "未开启") · 辅助功能 \((accessibility && postEventAccess) ? "已开启" : "未开启") · 检查于 \(timeLabel)"
+            String(format: NSLocalizedString("输入监控 %@ · 辅助功能 %@ · 检查于 %@", comment: ""), inputMonitoring ? NSLocalizedString("已开启", comment: "") : NSLocalizedString("未开启", comment: ""), (accessibility && postEventAccess) ? NSLocalizedString("已开启", comment: "") : NSLocalizedString("未开启", comment: ""), timeLabel)
 
         DispatchQueue.main.async {
             self.inputMonitoringGranted = inputMonitoring

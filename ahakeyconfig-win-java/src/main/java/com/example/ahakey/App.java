@@ -117,6 +117,7 @@ public class App extends Application {
         Platform.setImplicitExit(false);
 
         initLanguage();
+        com.example.ahakey.util.KoreanFontSupport.installIfKorean();
 
         controller = new StudioController();
         

@@ -72,7 +72,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         if result.core != coreSnapshot {
             // 设备状态真实变化：记一条默认永久级摘要（连接/断开由生命周期日志覆盖，不在摘要内）
             if let summary = CoreSnapshotChangeSummary.summarize(from: coreSnapshot, to: result.core) {
-                appendLog("状态变化: \(summary)", category: .stateChange)
+                appendLog(String(format: NSLocalizedString("状态变化: %@", comment: ""), summary), category: .stateChange)
             }
             coreSnapshot = result.core
         }
@@ -253,9 +253,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         bluetoothPermissionGranted = Self.currentBluetoothAuthorizationGranted()
         bluetoothPoweredOn = central?.state == .poweredOn
         if !bluetoothPermissionGranted {
-            bleConnectionStatus = "蓝牙权限未开启"
+            bleConnectionStatus = NSLocalizedString("蓝牙权限未开启", comment: "")
         } else if central?.state == .poweredOff {
-            bleConnectionStatus = "蓝牙关闭"
+            bleConnectionStatus = NSLocalizedString("蓝牙关闭", comment: "")
         }
     }
 
@@ -365,11 +365,11 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         if let uuid = lastPeripheralUUID {
             let known = central?.retrievePeripherals(withIdentifiers: [uuid]) ?? []
             if let p = known.first {
-                appendLog("用已知 UUID 直连: \(p.name ?? uuid.uuidString)")
+                appendLog(String(format: NSLocalizedString("用已知 UUID 直连: %@", comment: ""), p.name ?? uuid.uuidString))
                 self.peripheral = p
                 p.delegate = self
                 central?.connect(p, options: nil)
-                bleConnectionStatus = "连接中…"
+                bleConnectionStatus = NSLocalizedString("连接中…", comment: "")
                 linkDiagnostic = .connecting
                 return
             }
@@ -382,16 +382,16 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         //    service 集合把设备捞回来，再主动 connect → didConnect 里 discoverServices 补发现 0x7340。
         if let existing = systemConnectedAhaKeyPeripheral() {
             if isConfigServiceVisible(existing) {
-                appendLog("发现系统已连接设备: \(existing.name ?? "?")")
+                appendLog(String(format: NSLocalizedString("发现系统已连接设备: %@", comment: ""), existing.name ?? "?"))
                 linkDiagnostic = .connecting
             } else {
-                appendLog("设备已被系统/语音链路连接但未广播配置服务，主动接管 0x7340: \(existing.name ?? "?")")
+                appendLog(String(format: NSLocalizedString("设备已被系统/语音链路连接但未广播配置服务，主动接管 0x7340: %@", comment: ""), existing.name ?? "?"))
                 linkDiagnostic = .systemConnectedNoConfigLink
             }
             self.peripheral = existing
             existing.delegate = self
             central?.connect(existing, options: nil)
-            bleConnectionStatus = "连接中…"
+            bleConnectionStatus = NSLocalizedString("连接中…", comment: "")
             return
         }
 
@@ -441,9 +441,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             return
         }
         isScanning = true
-        bleConnectionStatus = "扫描中…"
+        bleConnectionStatus = NSLocalizedString("扫描中…", comment: "")
         linkDiagnostic = .scanning
-        appendLog("开始扫描 AhaKey 设备…")
+        appendLog(NSLocalizedString("开始扫描 AhaKey 设备…", comment: ""))
         central?.scanForPeripherals(
             withServices: [Self.serviceUUID],
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
@@ -454,14 +454,14 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             if self.isScanning {
                 self.central?.stopScan()
                 self.isScanning = false
-                self.bleConnectionStatus = "等待设备"
+                self.bleConnectionStatus = NSLocalizedString("等待设备", comment: "")
                 // 扫描超时后再用宽 service 探一次，区分「设备已连但未广播配置链路」与「彻底没发现设备」（Issue #34）。
                 if self.systemConnectedAhaKeyPeripheral() != nil {
                     self.linkDiagnostic = .systemConnectedNoConfigLink
-                    self.appendLog("扫描超时：检测到设备已被系统/语音链路连接，但配置链路 0x7340 未建立")
+                    self.appendLog(NSLocalizedString("扫描超时：检测到设备已被系统/语音链路连接，但配置链路 0x7340 未建立", comment: ""))
                 } else {
                     self.linkDiagnostic = .noDeviceFound
-                    self.appendLog("扫描超时，继续后台轮询设备")
+                    self.appendLog(NSLocalizedString("扫描超时，继续后台轮询设备", comment: ""))
                 }
             }
         }
@@ -476,7 +476,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     /// 发送原始命令到 0x7343（带队列，防止连发过载）
     func writeCommand(_ data: Data) {
         guard let commandChar, let peripheral else {
-            appendLog("命令通道未就绪", isError: true)
+            appendLog(NSLocalizedString("命令通道未就绪", comment: ""), isError: true)
             return
         }
         let writeType: CBCharacteristicWriteType =
@@ -509,7 +509,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
             completedFrames: 0,
             totalFrames: frames.count
         )
-        appendLog("开始上传 LCD 数据: \(frames.count) 帧, FPS=\(fps), mode=\(mode), startIndex=\(startIndex), frameSlotSize=\(AhaKeyCommand.oledFrameSlotSize)")
+        appendLog(String(format: NSLocalizedString("开始上传 LCD 数据: %d 帧, FPS=%@, mode=%@, startIndex=%@, frameSlotSize=%@", comment: ""), frames.count, String(describing: fps), String(describing: mode), String(describing: startIndex), String(describing: AhaKeyCommand.oledFrameSlotSize)))
 
         defer {
             isUploadingOLED = false
@@ -545,7 +545,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                             maxAttempts: Self.oledChunkMaxAttempts,
                             canRetry: { self.dataCharReady && !self.dataWriteRequiresReconnect },
                             onRetry: { attempt, error in
-                                self.appendLog("  帧 #\(frameIndex) 块 \(chunkIndex + 1)/\(chunks.count) \(stage.label)失败（\(error.localizedDescription)），第 \(attempt) 次重试", isError: true)
+                                self.appendLog(String(format: NSLocalizedString("  帧 #%@ 块 %@/%d %@失败（%@），第 %@ 次重试", comment: ""), String(describing: frameIndex), String(describing: chunkIndex + 1), chunks.count, stage.label, error.localizedDescription, String(describing: attempt)), isError: true)
                             }
                         ) { attempt in
                             attempts = attempt
@@ -599,10 +599,10 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 )
             }
         } catch {
-            appendLog("LCD 上传未确认完成: mode=\(mode) 已写入 \(completedFrames)/\(frames.count) 帧。原因：\(error.localizedDescription)", isError: true)
+            appendLog(String(format: NSLocalizedString("LCD 上传未确认完成: mode=%@ 已写入 %d/%d 帧。原因：%@", comment: ""), String(describing: mode), completedFrames, frames.count, error.localizedDescription), isError: true)
             throw OLEDUploadError.uploadIncomplete(completedFrames: completedFrames, totalFrames: frames.count, reason: error.localizedDescription)
         }
-        appendLog("LCD 上传完成: \(frames.count) 帧, start=\(startIndex)")
+        appendLog(String(format: NSLocalizedString("LCD 上传完成: %d 帧, start=%@", comment: ""), frames.count, String(describing: startIndex)))
         _ = commandChar
     }
 
@@ -652,7 +652,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let cmd = AhaKeyCommand.setKeyMapping(mode: mode, keyIndex: keyIndex, hidCodes: hidCodes)
         let keyName = "Key\(keyIndex + 1)"
         let codeNames = hidCodes.map { HIDUsage.name(for: $0) }.joined(separator: "+")
-        appendLog("写入 Mode\(mode) \(keyName) 键码: \(codeNames)")
+        appendLog(String(format: NSLocalizedString("写入 Mode%@ %@ 键码: %@", comment: ""), String(describing: mode), keyName, codeNames))
         writeCommand(cmd)
     }
 
@@ -660,21 +660,21 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     /// - parameter macroData: 已展平的 (action, param) 字节流。固件上限 98 字节。
     func setKeyMacro(mode: UInt8 = 0, keyIndex: UInt8, macroData: [UInt8]) {
         let cmd = AhaKeyCommand.setKeyMacro(mode: mode, keyIndex: keyIndex, macroData: macroData)
-        appendLog("写入 Mode\(mode) Key\(keyIndex + 1) 宏: \(macroData.count) 字节 / \(macroData.count / 2) 步")
+        appendLog(String(format: NSLocalizedString("写入 Mode%@ Key%@ 宏: %d 字节 / %d 步", comment: ""), String(describing: mode), String(describing: keyIndex + 1), macroData.count, macroData.count / 2))
         writeCommand(cmd)
     }
 
     /// 设置按键描述（显示在 LCD 上）
     func setKeyDescription(mode: UInt8 = 0, keyIndex: UInt8, text: String) {
         let cmd = AhaKeyCommand.setKeyDescription(mode: mode, keyIndex: keyIndex, text: text)
-        appendLog("写入 Mode\(mode) Key\(keyIndex + 1) 描述: \(text)")
+        appendLog(String(format: NSLocalizedString("写入 Mode%@ Key%@ 描述: %@", comment: ""), String(describing: mode), String(describing: keyIndex + 1), text))
         writeCommand(cmd)
     }
 
     /// 保存配置到设备 Flash
     func saveConfig() {
         let cmd = AhaKeyCommand.saveConfig()
-        appendLog("保存配置到设备…")
+        appendLog(NSLocalizedString("保存配置到设备…", comment: ""))
         writeCommand(cmd)
     }
 
@@ -686,7 +686,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         guard let state = AhaKeyResponseParser.parsePictureStateResponse(response.payload) else {
             throw OLEDUploadError.invalidPictureStatePayload
         }
-        appendLog("  图片状态 mode=\(state.mode) start=\(state.startIndex) length=\(state.picLength) interval=\(state.frameInterval) max=\(state.allModeMaxPic)")
+        appendLog(String(format: NSLocalizedString("  图片状态 mode=%@ start=%@ length=%@ interval=%@ max=%@", comment: ""), String(describing: state.mode), String(describing: state.startIndex), String(describing: state.picLength), String(describing: state.frameInterval), String(describing: state.allModeMaxPic)))
         return state
     }
 
@@ -700,19 +700,19 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     func setLightMapping(mode: UInt8, stateEffects: [UInt8]) {
         guard commandChar != nil else { return }
         writeCommand(AhaKeyCommand.setLightMapping(mode: mode, stateEffects: stateEffects))
-        appendLog("→ 灯效映射 mode=\(mode) effects=\(stateEffects)")
+        appendLog(String(format: NSLocalizedString("→ 灯效映射 mode=%@ effects=%@", comment: ""), String(describing: mode), String(describing: stateEffects)))
     }
 
     func setBrightness(_ value: UInt8) {
         guard commandChar != nil else { return }
         writeCommand(AhaKeyCommand.setBrightness(value))
-        appendLog("→ 亮度 \(value)")
+        appendLog(String(format: NSLocalizedString("→ 亮度 %@", comment: ""), String(describing: value)))
     }
 
     func previewLightEffect(_ effect: UInt8) {
         guard commandChar != nil else { return }
         writeCommand(AhaKeyCommand.previewLightEffect(effect))
-        appendLog("→ 预览灯效 \(effect)")
+        appendLog(String(format: NSLocalizedString("→ 预览灯效 %@", comment: ""), String(describing: effect)))
     }
 
     /// 写入前主动验证新灯效协议。旧 v1.0 对未知命令也返回 status=0，不能只看 0x85 ACK；
@@ -721,7 +721,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         guard commandChar != nil else { throw OLEDUploadError.channelNotReady }
 
         let expected = max(1, min(100, value))
-        appendLog("验证灯效协议：写入亮度 \(expected)% 并回读…")
+        appendLog(String(format: NSLocalizedString("验证灯效协议：写入亮度 %@%% 并回读…", comment: ""), String(describing: expected)))
         _ = try await sendCommandAwaitingResponse(
             AhaKeyCommand.setBrightness(expected),
             expectedCommand: AhaKeyCommand.cmdSetBrightness
@@ -744,7 +744,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 reportedBrightness: status.brightness
             )
         }
-        appendLog("灯效协议验证通过：0x84/0x85/0x91 可用")
+        appendLog(NSLocalizedString("灯效协议验证通过：0x84/0x85/0x91 可用", comment: ""))
     }
 
     /// 严格串行发送并等待每一条设备 ACK。只有所有命令（包括最后的 0x04 保存）
@@ -781,7 +781,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     func setWorkMode(_ mode: UInt8) {
         guard commandChar != nil else { return }
         writeCommand(AhaKeyCommand.setWorkMode(mode))
-        appendLog("→ 工作模式 \(mode)")
+        appendLog(String(format: NSLocalizedString("→ 工作模式 %@", comment: ""), String(describing: mode)))
     }
 
     /// 修改设备蓝牙名称；名称不合法时不发送任何命令，设备保留原名。
@@ -789,11 +789,11 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     func changeDeviceName(_ rawName: String) -> Result<String, AhaKeyCommand.DeviceNameValidationError> {
         let validation = AhaKeyCommand.validateDeviceName(rawName)
         guard case .success(let name) = validation else {
-            appendLog("设备名不合法，未发送: \(rawName)", isError: true)
+            appendLog(String(format: NSLocalizedString("设备名不合法，未发送: %@", comment: ""), rawName), isError: true)
             return validation
         }
         let cmd = AhaKeyCommand.changeName(name)
-        appendLog("修改设备名: \(name)")
+        appendLog(String(format: NSLocalizedString("修改设备名: %@", comment: ""), name))
         writeCommand(cmd)
         // 修改后保存并刷新
         Task { @MainActor in
@@ -1092,7 +1092,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     private func onAllCharacteristicsReady() {
         guard !didQueryAfterConnect else { return }
         didQueryAfterConnect = true
-        appendLog("所有特征就绪，查询设备状态")
+        appendLog(NSLocalizedString("所有特征就绪，查询设备状态", comment: ""))
         queryDeviceStatus()
         queryAllPictureStates()
     }
@@ -1108,9 +1108,9 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                         frameCount: state.picLength,
                         frameIntervalMs: state.frameInterval
                     )
-                    self.appendLog("  mode\(slot) flash: 帧数=\(state.picLength) 间隔=\(state.frameInterval)ms")
+                    self.appendLog(String(format: NSLocalizedString("  mode%d flash: 帧数=%@ 间隔=%@ms", comment: ""), slot, String(describing: state.picLength), String(describing: state.frameInterval)))
                 } catch {
-                    self.appendLog("  mode\(slot) 图片状态查询失败: \(error)", isError: true)
+                    self.appendLog(String(format: NSLocalizedString("  mode%d 图片状态查询失败: %@", comment: ""), slot, String(describing: error)), isError: true)
                 }
             }
         }
@@ -1191,7 +1191,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                 }
                 try Task.checkCancellation()
                 guard type != .withoutResponse || peripheral.canSendWriteWithoutResponse else {
-                    throw OLEDUploadError.dataWriteFailed("蓝牙发送队列持续繁忙")
+                    throw OLEDUploadError.dataWriteFailed(NSLocalizedString("蓝牙发送队列持续繁忙", comment: ""))
                 }
                 peripheral.writeValue(packet, for: characteristic, type: type)
                 try? await Task.sleep(nanoseconds: UInt64(12) * 1_000_000)
@@ -1279,9 +1279,9 @@ enum OLEDTransferStage: Equatable {
 
     var label: String {
         switch self {
-        case .prepareWrite: return "准备写入（0x80）"
-        case .dataWrite: return "数据写入确认（0x81）"
-        case .commitPicture: return "提交动图（0x82）"
+        case .prepareWrite: return NSLocalizedString("准备写入（0x80）", comment: "")
+        case .dataWrite: return NSLocalizedString("数据写入确认（0x81）", comment: "")
+        case .commitPicture: return NSLocalizedString("提交动图（0x82）", comment: "")
         }
     }
 }
@@ -1401,7 +1401,7 @@ final class SwitchStateNotifier: ObservableObject {
         alert.messageText = title
         alert.informativeText = body
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "知道了")
+        alert.addButton(withTitle: NSLocalizedString("知道了", comment: ""))
         alert.runModal()
     }
 }
@@ -1422,29 +1422,29 @@ enum LinkDiagnostic: Equatable {
     /// 顶栏 pill 用的极简副标题。
     var shortMessage: String {
         switch self {
-        case .idle, .scanning: return "扫描中…"
-        case .connecting: return "连接中…"
-        case .connected: return "已连接"
-        case .bluetoothOff: return "蓝牙未开启"
-        case .bluetoothUnauthorized: return "无蓝牙权限"
-        case .ownedByAgent: return "Agent 占用中"
-        case .systemConnectedNoConfigLink: return "配置链路未连"
-        case .noDeviceFound: return "未发现设备"
+        case .idle, .scanning: return NSLocalizedString("扫描中…", comment: "")
+        case .connecting: return NSLocalizedString("连接中…", comment: "")
+        case .connected: return NSLocalizedString("已连接", comment: "")
+        case .bluetoothOff: return NSLocalizedString("蓝牙未开启", comment: "")
+        case .bluetoothUnauthorized: return NSLocalizedString("无蓝牙权限", comment: "")
+        case .ownedByAgent: return NSLocalizedString("Agent 占用中", comment: "")
+        case .systemConnectedNoConfigLink: return NSLocalizedString("配置链路未连", comment: "")
+        case .noDeviceFound: return NSLocalizedString("未发现设备", comment: "")
         }
     }
 
     /// 详细可操作说明，供设备信息 / tooltip 展示。
     var detail: String {
         switch self {
-        case .idle: return "正在初始化蓝牙…"
-        case .scanning: return "正在扫描 AhaKey 设备…"
-        case .connecting: return "正在连接设备…"
-        case .connected: return "AhaKey 配置链路 (0x7340) 已连接。"
-        case .bluetoothOff: return "系统蓝牙未开启。请在「控制中心 / 系统设置 > 蓝牙」打开蓝牙。"
-        case .bluetoothUnauthorized: return "未授权蓝牙权限。请在「系统设置 > 隐私与安全性 > 蓝牙」中允许 AhaKey Studio。"
-        case .ownedByAgent: return "蓝牙当前交由 ahakeyconfig-agent 占用，本 App 不直接连接（这是预期行为）。配置链路状态请参考 Agent；如需本 App 直连，请在设备信息里把「蓝牙连接」切回本 App。"
-        case .systemConnectedNoConfigLink: return "设备已通过系统蓝牙（HID / 语音链路）连接，但 AhaKey 配置服务 0x7340 尚未建立。本 App 正在尝试主动接管该链路；若长时间无效，请在「系统设置 > 蓝牙」忽略此设备后重新配对。"
-        case .noDeviceFound: return "未发现 AhaKey 设备。请确认设备已开机、处于蓝牙范围内并已与本机配对。"
+        case .idle: return NSLocalizedString("正在初始化蓝牙…", comment: "")
+        case .scanning: return NSLocalizedString("正在扫描 AhaKey 设备…", comment: "")
+        case .connecting: return NSLocalizedString("正在连接设备…", comment: "")
+        case .connected: return NSLocalizedString("AhaKey 配置链路 (0x7340) 已连接。", comment: "")
+        case .bluetoothOff: return NSLocalizedString("系统蓝牙未开启。请在「控制中心 / 系统设置 > 蓝牙」打开蓝牙。", comment: "")
+        case .bluetoothUnauthorized: return NSLocalizedString("未授权蓝牙权限。请在「系统设置 > 隐私与安全性 > 蓝牙」中允许 AhaKey Studio。", comment: "")
+        case .ownedByAgent: return NSLocalizedString("蓝牙当前交由 ahakeyconfig-agent 占用，本 App 不直接连接（这是预期行为）。配置链路状态请参考 Agent；如需本 App 直连，请在设备信息里把「蓝牙连接」切回本 App。", comment: "")
+        case .systemConnectedNoConfigLink: return NSLocalizedString("设备已通过系统蓝牙（HID / 语音链路）连接，但 AhaKey 配置服务 0x7340 尚未建立。本 App 正在尝试主动接管该链路；若长时间无效，请在「系统设置 > 蓝牙」忽略此设备后重新配对。", comment: "")
+        case .noDeviceFound: return NSLocalizedString("未发现 AhaKey 设备。请确认设备已开机、处于蓝牙范围内并已与本机配对。", comment: "")
         }
     }
 
@@ -1481,49 +1481,49 @@ enum OLEDUploadError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .channelNotReady:
-            return "BLE 数据通道还没准备好。"
+            return NSLocalizedString("BLE 数据通道还没准备好。", comment: "")
         case .noFrames:
-            return "没有可上传的图片帧。"
+            return NSLocalizedString("没有可上传的图片帧。", comment: "")
         case .tooManyFrames(let max):
-            return "帧数超过设备上限，最多支持 \(max) 帧。"
+            return String(format: NSLocalizedString("帧数超过设备上限，最多支持 %d 帧。", comment: ""), max)
         case .noAvailablePictureSlot(let needed, let max):
-            return "动画需要 \(needed) 帧，但设备当前没有足够连续空间。总容量上限约为 \(max) 帧。"
+            return String(format: NSLocalizedString("动画需要 %d 帧，但设备当前没有足够连续空间。总容量上限约为 %d 帧。", comment: ""), needed, max)
         case .timeout(let command) where command == AhaKeyCommand.cmdWriteResult:
-            return "等待设备响应超时: 0x81。键盘未确认图片数据写入，本次写入已停止；请等待键盘重新连接后重新写入。"
+            return NSLocalizedString("等待设备响应超时: 0x81。键盘未确认图片数据写入，本次写入已停止；请等待键盘重新连接后重新写入。", comment: "")
         case .timeout(let command):
-            return String(format: "等待设备响应超时: 0x%02X", command)
+            return String(format: NSLocalizedString("等待设备响应超时: 0x%02X", comment: ""), command)
         case .deviceRejected(let command, let status):
-            return String(format: "设备拒绝了命令 0x%02X，状态码 0x%02X", command, status)
+            return String(format: NSLocalizedString("设备拒绝了命令 0x%02X，状态码 0x%02X", comment: ""), command, status)
         case .uploadIncomplete(let completedFrames, let totalFrames, let reason):
-            return "动图上传未完成（已写入 \(completedFrames)/\(totalFrames) 帧）：\(reason)"
+            return String(format: NSLocalizedString("动图上传未完成（已写入 %d/%d 帧）：%@", comment: ""), completedFrames, totalFrames, reason)
         case .disconnected:
-            return "设备连接已断开，本次写入未完成。"
+            return NSLocalizedString("设备连接已断开，本次写入未完成。", comment: "")
         case .superseded(let command):
-            return String(format: "另一项写入占用了设备通道，命令 0x%02X 已中止。", command)
+            return String(format: NSLocalizedString("另一项写入占用了设备通道，命令 0x%02X 已中止。", comment: ""), command)
         case .reconnectRequired:
-            return "上次图片数据写入未获确认，请等待键盘重新连接后重新写入。"
+            return NSLocalizedString("上次图片数据写入未获确认，请等待键盘重新连接后重新写入。", comment: "")
         case .uploadInProgress:
-            return "LCD 图片正在上传中，请等当前上传完成后再写入。"
+            return NSLocalizedString("LCD 图片正在上传中，请等当前上传完成后再写入。", comment: "")
         case .uploadInterrupted:
-            return "图片数据写入被新的写入打断，请重新写入。"
+            return NSLocalizedString("图片数据写入被新的写入打断，请重新写入。", comment: "")
         case .dataWriteFailed(let reason):
-            return "图片数据发送失败：\(reason)。请保持键盘连接后重新写入。"
+            return String(format: NSLocalizedString("图片数据发送失败：%@。请保持键盘连接后重新写入。", comment: ""), reason)
         case .deviceDisconnected:
-            return "键盘连接已断开，本次写入已停止；请重新连接后再写入。"
+            return NSLocalizedString("键盘连接已断开，本次写入已停止；请重新连接后再写入。", comment: "")
         case .transferFailed(let stage, let mode, let frame, let totalFrames, let chunk, let totalChunks, let attempts, let reason):
             let modeTitle = AhaKeyModeSlot(rawValue: Int(mode))?.title ?? "mode \(mode)"
-            var position = "\(modeTitle) 第 \(frame)/\(totalFrames) 帧"
-            if let chunk, let totalChunks { position += "、第 \(chunk)/\(totalChunks) 块" }
-            let attemptNote = attempts > 1 ? "，已自动重试 \(attempts - 1) 次" : ""
-            return "LCD 动图上传在「\(stage.label)」阶段失败（\(position)\(attemptNote)）：\(reason)。该动图未确认生效，请保持键盘连接并靠近电脑后重新写入。"
+            var position = String(format: NSLocalizedString("%@ 第 %d/%d 帧", comment: ""), modeTitle, frame, totalFrames)
+            if let chunk, let totalChunks { position += String(format: NSLocalizedString("、第 %d/%d 块", comment: ""), chunk, totalChunks) }
+            let attemptNote = attempts > 1 ? String(format: NSLocalizedString("，已自动重试 %d 次", comment: ""), attempts - 1) : ""
+            return String(format: NSLocalizedString("LCD 动图上传在「%@」阶段失败（%@%@）：%@。该动图未确认生效，请保持键盘连接并靠近电脑后重新写入。", comment: ""), stage.label, position, attemptNote, reason)
         case .invalidPictureStatePayload:
-            return "设备返回的动画槽位信息无法解析。"
+            return NSLocalizedString("设备返回的动画槽位信息无法解析。", comment: "")
         case .invalidDeviceStatusPayload:
-            return "设备返回的状态信息无法解析。"
+            return NSLocalizedString("设备返回的状态信息无法解析。", comment: "")
         case .invalidCommandFrame:
-            return "待写入的命令帧格式不正确。"
+            return NSLocalizedString("待写入的命令帧格式不正确。", comment: "")
         case .unsupportedLightingFirmware(let main, let sub, let reportedBrightness):
-            return "当前键盘是旧灯效协议固件（设备回报 v\(main).\(sub)，亮度字段 \(reportedBrightness)），不会执行 0x84/0x85/0x91。请先刷入 2026-06-22 后的新固件，本次未上报写入成功。"
+            return String(format: NSLocalizedString("当前键盘是旧灯效协议固件（设备回报 v%d.%d，亮度字段 %d），不会执行 0x84/0x85/0x91。请先刷入 2026-06-22 后的新固件，本次未上报写入成功。", comment: ""), main, sub, reportedBrightness)
         }
     }
 }
@@ -1540,13 +1540,13 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
                 self.connectAutomatically()
             case .poweredOff:
                 self.refreshBluetoothAuthorization()
-                self.appendLog("蓝牙已关闭", isError: true)
-                self.bleConnectionStatus = "蓝牙关闭"
+                self.appendLog(NSLocalizedString("蓝牙已关闭", comment: ""), isError: true)
+                self.bleConnectionStatus = NSLocalizedString("蓝牙关闭", comment: "")
                 self.linkDiagnostic = .bluetoothOff
             case .unauthorized:
                 self.refreshBluetoothAuthorization()
-                self.appendLog("蓝牙权限未开启", isError: true)
-                self.bleConnectionStatus = "蓝牙权限未开启"
+                self.appendLog(NSLocalizedString("蓝牙权限未开启", comment: ""), isError: true)
+                self.bleConnectionStatus = NSLocalizedString("蓝牙权限未开启", comment: "")
                 self.linkDiagnostic = .bluetoothUnauthorized
             default:
                 self.refreshBluetoothAuthorization()
@@ -1566,7 +1566,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
 
         Task { @MainActor in
             guard self.acceptsConnectionCallbacks else { return }
-            self.appendLog("发现设备: \(name) RSSI=\(RSSI)")
+            self.appendLog(String(format: NSLocalizedString("发现设备: %@ RSSI=%@", comment: ""), name, String(describing: RSSI)))
             // 扫到目标设备广播：退避重置回 4s 并立即连接
             self.reconnectBackoff.reset()
             self.central?.stopScan()
@@ -1574,7 +1574,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
             self.peripheral = peripheral
             peripheral.delegate = self
             self.central?.connect(peripheral, options: nil)
-            self.bleConnectionStatus = "连接中…"
+            self.bleConnectionStatus = NSLocalizedString("连接中…", comment: "")
         }
     }
 
@@ -1588,7 +1588,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
             self.apply(.connected(name: peripheral.name, uuid: peripheral.identifier.uuidString))
             self.lastPeripheralUUID = peripheral.identifier
             self.bleConnectionStatus = NSLocalizedString("已连接", comment: "")
-            self.appendLog("已连接: \(peripheral.name ?? "?") UUID=\(peripheral.identifier.uuidString)", category: .lifecycle)
+            self.appendLog(String(format: NSLocalizedString("已连接: %@ UUID=%@", comment: ""), peripheral.name ?? "?", peripheral.identifier.uuidString), category: .lifecycle)
             self.linkDiagnostic = .connected
             self.reconnectBackoff.reset()
             self.autoReconnectTimer?.invalidate()
@@ -1615,8 +1615,8 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
                 self.connectionLock.release()
                 return
             }
-            self.bleConnectionStatus = "连接失败"
-            self.appendLog("连接失败: \(error?.localizedDescription ?? "未知")", isError: true)
+            self.bleConnectionStatus = NSLocalizedString("连接失败", comment: "")
+            self.appendLog(String(format: NSLocalizedString("连接失败: %@", comment: ""), error?.localizedDescription ?? NSLocalizedString("未知", comment: "")), isError: true)
             self.startAutoReconnectPolling()
         }
     }
@@ -1627,7 +1627,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
             let openBatches = self.writeBatches.count
             if dropped > 0 || openBatches > 0 {
                 self.appendLog(
-                    "BLE 已断开，丢弃未发出命令 \(dropped) 条（未闭合批 \(openBatches) 个）。\(error.map { "原因：\($0.localizedDescription)" } ?? "")",
+                    String(format: NSLocalizedString("BLE 已断开，丢弃未发出命令 %d 条（未闭合批 %d 个）。%@", comment: ""), dropped, openBatches, error.map { String(format: NSLocalizedString("原因：%@", comment: ""), $0.localizedDescription) } ?? ""),
                     isError: true
                 )
             }
@@ -1653,7 +1653,7 @@ extension AhaKeyBLEManager: CBCentralManagerDelegate {
             self.stopStatusPolling()
             if self.suppressAutomaticConnection { self.connectionLock.release() }
             else { self.startAutoReconnectPolling() }
-            self.appendLog("已断开: \(error?.localizedDescription ?? "正常")", category: .lifecycle)
+            self.appendLog(String(format: NSLocalizedString("已断开: %@", comment: ""), error?.localizedDescription ?? NSLocalizedString("正常", comment: "")), category: .lifecycle)
 
         }
     }
@@ -1667,7 +1667,7 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
             guard self.acceptsConnectionCallbacks else { return }
             guard let services = peripheral.services else { return }
             for service in services {
-                self.appendLog("发现服务: \(service.uuid)")
+                self.appendLog(String(format: NSLocalizedString("发现服务: %@", comment: ""), String(describing: service.uuid)))
                 switch service.uuid {
                 case Self.serviceUUID:
                     peripheral.discoverCharacteristics(
@@ -1698,18 +1698,18 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
                     self.dataChar = char
                     self.dataCharReady = true
                     peripheral.setNotifyValue(true, for: char)
-                    self.appendLog("数据特征(0x7341) 已订阅通知")
+                    self.appendLog(NSLocalizedString("数据特征(0x7341) 已订阅通知", comment: ""))
                 case Self.commandCharUUID:
                     self.commandChar = char
                     self.commandCharReady = true
-                    self.appendLog("命令特征(0x7343) 就绪")
+                    self.appendLog(NSLocalizedString("命令特征(0x7343) 就绪", comment: ""))
                 case Self.notifyCharUUID:
                     self.notifyChar = char
                     self.notifyCharReady = true
                     peripheral.setNotifyValue(true, for: char)
-                    self.appendLog("通知特征(0x7344) 已订阅")
+                    self.appendLog(NSLocalizedString("通知特征(0x7344) 已订阅", comment: ""))
                 case Self.infoCharUUID:
-                    self.appendLog("设备信息(0x7342) 就绪")
+                    self.appendLog(NSLocalizedString("设备信息(0x7342) 就绪", comment: ""))
 
                 // 标准 Battery Level
                 case Self.batteryLevelCharUUID:
@@ -1718,7 +1718,7 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
                     if char.properties.contains(.notify) {
                         peripheral.setNotifyValue(true, for: char)
                     }
-                    self.appendLog("电池特征(0x2A19) 读取中")
+                    self.appendLog(NSLocalizedString("电池特征(0x2A19) 读取中", comment: ""))
 
                 // 标准 Device Information
                 case Self.firmwareRevisionCharUUID:
@@ -1758,7 +1758,7 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
         Task { @MainActor in
             guard self.acceptsConnectionCallbacks else { return }
             if let error {
-                self.appendLog("写入特征 \(characteristic.uuid) 失败: \(error.localizedDescription)", isError: true)
+                self.appendLog(String(format: NSLocalizedString("写入特征 %@ 失败: %@", comment: ""), String(describing: characteristic.uuid), error.localizedDescription), isError: true)
                 if self.peripheral === peripheral, characteristic === self.dataChar {
                     self.invalidateDataWriteConnection()
                     self.finishDataWrite(.failure(OLEDUploadError.dataWriteFailed(error.localizedDescription)))
@@ -1800,7 +1800,7 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
                 apply(.deviceInfo(firmwareRevision: nil, modelNumber: str))
             }
         default:
-            appendLog("← 未知(\(uuid)): \(hex)")
+            appendLog(String(format: NSLocalizedString("← 未知(%@): %@", comment: ""), String(describing: uuid), hex))
         }
     }
 
@@ -1830,7 +1830,7 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
                     appendLog("  ✓ 命令 0x\(String(format: "%02X", response.cmd)) 成功", category: .verbose)
                 } else {
                     let payloadHex = response.payload.isEmpty ? "—" : response.payload.hexString
-                    appendLog("  命令 0x\(String(format: "%02X", response.cmd)) 失败: status=0x\(String(format: "%02X", response.status)) payload=\(payloadHex)", isError: true)
+                    appendLog(String(format: NSLocalizedString("  命令 0x%@ 失败: status=0x%@ payload=%@", comment: ""), String(format: "%02X", response.cmd), String(format: "%02X", response.status), payloadHex), isError: true)
                 }
             }
         } else {
@@ -1842,10 +1842,10 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
     /// 发送探测命令
     func sendProbeCommands() {
         guard commandChar != nil else {
-            appendLog("命令通道未就绪", isError: true)
+            appendLog(NSLocalizedString("命令通道未就绪", comment: ""), isError: true)
             return
         }
-        appendLog("═══ 开始探测 ═══")
+        appendLog(NSLocalizedString("═══ 开始探测 ═══", comment: ""))
 
         let probes: [(String, Data)] = [
             ("设备状态查询", AhaKeyCommand.queryDeviceStatus()),
@@ -1860,10 +1860,10 @@ extension AhaKeyBLEManager: CBPeripheralDelegate {
 
         if let batteryLevelChar {
             peripheral?.readValue(for: batteryLevelChar)
-            appendLog("→ 重读电池电量")
+            appendLog(NSLocalizedString("→ 重读电池电量", comment: ""))
         }
 
-        appendLog("═══ 探测完毕，等待回调 ═══")
+        appendLog(NSLocalizedString("═══ 探测完毕，等待回调 ═══", comment: ""))
     }
 }
 

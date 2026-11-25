@@ -142,7 +142,7 @@ public final class ScreenAnimationDialog {
             runJobs(controller, dialogState, jobs, localize("本模式全部已修改动画写入完成。"));
         });
         restoreMode.setOnAction(event -> {
-            if (confirm(localize("将覆盖 ") + mode.getShortName() + localize(" 的四个动画分区，是否继续？")))
+            if (confirm(localize("将覆盖 %s 的四个动画分区，是否继续？").formatted(mode.getShortName())))
                 runJobs(controller, dialogState, new ArrayList<>(modeDefaults), localize("本模式内置动画恢复完成。"));
         });
 
@@ -361,7 +361,7 @@ public final class ScreenAnimationDialog {
                 if (layout == null) text = localize("设备未返回 Flash 布局。");
                 else if (!layout.hasPhysicalFlashDiagnostics())
                     text = localize("固件仅返回旧版布局，写入前请升级到固件 ")
-                        + FirmwareCapabilities.MINIMUM_GIF_VERSION + "。";
+                        + FirmwareCapabilities.MINIMUM_GIF_VERSION + localize("。");
                 else text = String.format(
                     localize("Flash ID 0x%04X；实际容量 %.1f MiB；可用帧槽 %d；规划分区共 %d 个帧槽。"),
                     layout.flashId(), layout.flashBytes() / 1048576.0, layout.frameSlots(),
@@ -389,7 +389,7 @@ public final class ScreenAnimationDialog {
                 if (ScreenAnimationAssetStore.isUsable(metadata)) {
                     text = localize("当前本地资源：")
                         + (metadata.originalFileName == null ? localize("已管理文件") : metadata.originalFileName)
-                        + "；" + text;
+                        + localize("；") + text;
                 } else {
                     text = localize("尚未记录当前本地资源；") + text;
                 }

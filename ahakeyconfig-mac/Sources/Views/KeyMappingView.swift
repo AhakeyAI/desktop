@@ -6,7 +6,7 @@ struct KeyConfig: Codable {
     var description: String = ""
 
     var displayName: String {
-        hidCode == 0 ? "未设置" : HIDUsage.name(for: hidCode)
+        hidCode == 0 ? NSLocalizedString("未设置", comment: "") : HIDUsage.name(for: hidCode)
     }
 }
 
@@ -90,7 +90,7 @@ struct KeyMappingView: View {
                     }
                 }
 
-                CompatLabeledContent("描述") {
+                CompatLabeledContent(NSLocalizedString("描述", comment: "")) {
                     TextField("显示在键盘 LCD 上", text: $keys[selectedKey].description)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 200)

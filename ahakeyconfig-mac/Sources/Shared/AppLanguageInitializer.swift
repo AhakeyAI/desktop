@@ -9,7 +9,7 @@ public enum AppLanguageInitializer {
     private static let appleLanguagesKey = "AppleLanguages"
 
     /// 支持的语言标识。
-    public static let supportedLanguages = ["zh-Hans", "en"]
+    public static let supportedLanguages = ["ko", "zh-Hans", "en"]
 
     /// 读取全局语言设置，避免应用自己的 AppleLanguages 覆盖系统选择。
     public static func systemPreferredLanguages() -> [String] {
@@ -45,6 +45,9 @@ public enum AppLanguageInitializer {
     public static func systemMatchingLanguage(preferredLanguages: [String] = systemPreferredLanguages()) -> String {
         for identifier in preferredLanguages {
             let lowercased = identifier.lowercased()
+            if lowercased.hasPrefix("ko") {
+                return "ko"
+            }
             if lowercased.hasPrefix("zh") {
                 return "zh-Hans"
             }

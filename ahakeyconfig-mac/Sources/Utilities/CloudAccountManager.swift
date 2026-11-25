@@ -82,20 +82,20 @@ final class CloudAccountManager: ObservableObject {
             defer { Task { @MainActor in self.isBusy = false } }
             do {
                 let object = try await request(path: "api/v1/auth/users/me", method: "GET", body: nil, authorized: true, token: token)
-                let data = try payloadData(from: object, fallbackError: "获取用户信息失败")
+                let data = try payloadData(from: object, fallbackError: NSLocalizedString("获取用户信息失败", comment: ""))
                 await MainActor.run {
                     guard token == self.accessToken else { return }
                     self.applyProfile(data)
-                    self.statusMessage = "用户信息已刷新。"
+                    self.statusMessage = NSLocalizedString("用户信息已刷新。", comment: "")
                 }
             } catch {
                 await MainActor.run {
                     guard token == self.accessToken else { return }
                     if showAlertOnFailure {
                         self.alertMessage = error.localizedDescription
-                        self.statusMessage = "刷新失败。"
+                        self.statusMessage = NSLocalizedString("刷新失败。", comment: "")
                     } else {
-                        self.statusMessage = "已登录，用户信息稍后可刷新。"
+                        self.statusMessage = NSLocalizedString("已登录，用户信息稍后可刷新。", comment: "")
                     }
                     self.expireSessionIfNeeded(error, token: token)
                 }
@@ -216,8 +216,8 @@ final class CloudAccountManager: ObservableObject {
         let phone = stringValue(profile["phone"])
         let validUntil = stringValue(profile["token_valid_until"])
         return [
-            phone.isEmpty ? "" : "手机号：\(phone)",
-            validUntil.isEmpty ? "权益有效期：无" : "权益有效期：\(validUntil)",
+            phone.isEmpty ? "" : String(format: NSLocalizedString("手机号：%@", comment: ""), phone),
+            validUntil.isEmpty ? NSLocalizedString("权益有效期：无", comment: "") : String(format: NSLocalizedString("权益有效期：%@", comment: ""), validUntil),
         ].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
@@ -226,7 +226,7 @@ final class CloudAccountManager: ObservableObject {
         let used = intValue(profile["used_\(period)"])
         let limit = intValue(profile["limit_\(period)"])
         if limit <= 0 {
-            return used > 0 ? "已用 \(used) · 无上限" : "暂无"
+            return used > 0 ? String(format: NSLocalizedString("已用 %d · 无上限", comment: ""), used) : NSLocalizedString("暂无", comment: "")
         }
         return "\(used) / \(limit)"
     }
@@ -443,7 +443,7 @@ final class CloudAccountManager: ObservableObject {
             throw CloudAccountError(NSLocalizedString("服务器返回非 JSON。", comment: ""), statusCode: statusCode)
         }
         if statusCode != 200 {
-            throw CloudAccountError(responseMessage(object).isEmpty ? "请求失败（HTTP \(statusCode)）。" : responseMessage(object), statusCode: statusCode)
+            throw CloudAccountError(responseMessage(object).isEmpty ? String(format: NSLocalizedString("请求失败（HTTP %d）。", comment: ""), statusCode) : responseMessage(object), statusCode: statusCode)
         }
         return object
     }
@@ -561,7 +561,7 @@ final class CloudAccountManager: ObservableObject {
 
     private func networkMessage(for error: Error) -> String {
         guard let urlError = error as? URLError else {
-            return "云端连接失败：\(error.localizedDescription)"
+            return String(format: NSLocalizedString("云端连接失败：%@", comment: ""), error.localizedDescription)
         }
         switch urlError.code {
         case .secureConnectionFailed, .serverCertificateHasBadDate, .serverCertificateUntrusted, .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid, .clientCertificateRejected, .clientCertificateRequired:
@@ -569,7 +569,7 @@ final class CloudAccountManager: ObservableObject {
         case .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed, .notConnectedToInternet, .networkConnectionLost, .timedOut:
             return NSLocalizedString("云端连接失败：当前网络无法访问 AhaType 服务，请检查网络后重试。", comment: "")
         default:
-            return "云端连接失败：\(urlError.localizedDescription)"
+            return String(format: NSLocalizedString("云端连接失败：%@", comment: ""), urlError.localizedDescription)
         }
     }
 }

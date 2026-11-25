@@ -1,5 +1,7 @@
 package com.example.ahakey.service;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 import com.example.ahakey.firmware.FirmwareCapabilities;
 import com.example.ahakey.model.DeviceStatus;
 import com.example.ahakey.protocol.AhaKeyProtocol;
@@ -451,7 +453,7 @@ public class BleManager {
 
     public void writeLargeData(long address, byte[] data) throws Exception {
         if (address % AhaKeyProtocol.OLED_CHUNK_SIZE != 0) {
-            throw new IllegalArgumentException("地址必须 4K 对齐: " + address);
+            throw new IllegalArgumentException(localize("地址必须 4K 对齐: ") + address);
         }
         lockDeviceTransaction();
         try {
@@ -460,7 +462,7 @@ public class BleManager {
             logger.info("开始写入大数据: 地址={}, 总长度={}, 分块数={}", address, data.length, totalChunks);
             while (offset < data.length) {
                 if (Thread.currentThread().isInterrupted()) {
-                    throw new InterruptedException("设备大数据写入已取消");
+                    throw new InterruptedException(localize("设备大数据写入已取消"));
                 }
                 int chunkLen = Math.min(AhaKeyProtocol.OLED_CHUNK_SIZE, data.length - offset);
                 long chunkAddr = address + offset;
@@ -603,7 +605,7 @@ public class BleManager {
                 ? null
                 : AhaKeyResponseParser.parseStandbyTimeoutMinutes(parsed.payload());
             if (minutes == null) {
-                throw new IOException("待机时间响应格式无效");
+                throw new IOException(localize("待机时间响应格式无效"));
             }
             return minutes;
         } finally {
@@ -624,12 +626,12 @@ public class BleManager {
             AhaKeyResponseParser.CommandResponse parsed =
                 AhaKeyResponseParser.parseCommandResponse(frame);
             if (parsed == null || parsed.status() != 0) {
-                throw new IOException("设备未返回有效的语音键配置");
+                throw new IOException(localize("设备未返回有效的语音键配置"));
             }
             AhaKeyResponseParser.VoiceKeyConfig config =
                 AhaKeyResponseParser.parseVoiceKeyConfig(parsed.payload());
             if (config == null) {
-                throw new IOException("语音键配置回读格式无效，请重新连接 BLE 后重试");
+                throw new IOException(localize("语音键配置回读格式无效，请重新连接 BLE 后重试"));
             }
             return config;
         } finally {
@@ -667,11 +669,11 @@ public class BleManager {
                 ? null
                 : AhaKeyResponseParser.parseStandbyTimeoutMinutes(parsed.payload());
             if (verifiedMinutes == null) {
-                throw new IOException("保存后的待机时间响应格式无效");
+                throw new IOException(localize("保存后的待机时间响应格式无效"));
             }
             if (verifiedMinutes != minutes) {
                 throw new IOException(
-                    "待机时间回读校验失败，期望 " + minutes + "，实际 " + verifiedMinutes
+                    localize("待机时间回读校验失败，期望 ") + minutes + localize("，实际 ") + verifiedMinutes
                 );
             }
             return verifiedMinutes;
@@ -826,7 +828,7 @@ public class BleManager {
             markPhysicalWrite.accept(writeStartedAt);
             return true;
         } catch (IOException e) {
-            callback.onError("查询设备状态失败: " + e.getMessage());
+            callback.onError(localize("查询设备状态失败: ") + e.getMessage());
             return false;
         }
     }
@@ -875,7 +877,7 @@ public class BleManager {
         try {
             updateStateOrThrow(state);
         } catch (Exception e) {
-            callback.onError("发送状态更新失败: " + e.getMessage());
+            callback.onError(localize("发送状态更新失败: ") + e.getMessage());
         }
     }
 
@@ -900,7 +902,7 @@ public class BleManager {
             sendCommandExpecting(AhaKeyProtocol.setWorkMode(mode), AhaKeyProtocol.CMD_SET_WORK_MODE);
             return true;
         } catch (Exception e) {
-            callback.onError("切换键盘模式失败: " + e.getMessage());
+            callback.onError(localize("切换键盘模式失败: ") + e.getMessage());
             return false;
         }
     }
@@ -929,7 +931,7 @@ public class BleManager {
             var parsed = AhaKeyResponseParser.parseCommandResponse(frame);
             var mode = parsed == null ? null : AhaKeyResponseParser.parseModeSync(parsed.payload());
             if (mode == null || mode.mode() < 0 || mode.mode() > 3) {
-                throw new IOException("设备模式响应无效");
+                throw new IOException(localize("设备模式响应无效"));
             }
             return mode.mode();
         } finally {
@@ -945,7 +947,7 @@ public class BleManager {
             sendCommand(AhaKeyProtocol.queryTaskDisplayMode());
             byte[] frame = waitForResponse(AhaKeyProtocol.CMD_TASK_LIGHT_MODE, 1);
             var parsed = AhaKeyResponseParser.parseCommandResponse(frame);
-            if (parsed == null || parsed.payload().length < 1) throw new IOException("任务灯效响应无效");
+            if (parsed == null || parsed.payload().length < 1) throw new IOException(localize("任务灯效响应无效"));
             return parsed.payload()[0] & 0xFF;
         } finally {
             requestLock.unlock();
@@ -1080,8 +1082,8 @@ public class BleManager {
     private void lockDeviceTransaction() throws IOException {
         if (!tryLockDeviceTransaction(RESPONSE_TIMEOUT_MS)) {
             throw new IOException(recoveryPending.get() || recoveryInFlight.get()
-                ? "设备连接正在恢复，本次操作未开始"
-                : "设备事务繁忙，本次操作未开始");
+                ? localize("设备连接正在恢复，本次操作未开始")
+                : localize("设备事务繁忙，本次操作未开始"));
         }
     }
 
@@ -1449,7 +1451,7 @@ public class BleManager {
     }
     private void writePacket(byte type, byte[] data) throws IOException {
         if (!isConnected || outputStream == null) {
-            throw new IOException("BLE 桥未连接");
+            throw new IOException(localize("BLE 桥未连接"));
         }
         int dataLen = data == null ? 0 : data.length;
         logger.debug("发送 TCP 包: type=0x{}, len={}", Integer.toHexString(type & 0xFF), dataLen);
@@ -1497,9 +1499,9 @@ public class BleManager {
                 long remaining = deadline - System.nanoTime();
                 if (remaining <= 0) {
                     throw new IOException(
-                        "等待设备响应 0x"
+                        localize("等待设备响应 0x")
                             + Integer.toHexString(expectedCmd & 0xFF)
-                            + " 超时"
+                            + localize(" 超时")
                     );
                 }
                 if (pendingNotifyFrame != null) {
@@ -1513,7 +1515,7 @@ public class BleManager {
                     AhaKeyResponseParser.CommandResponse parsed =
                         AhaKeyResponseParser.parseCommandResponse(frame);
                     if (parsed == null) {
-                        throw new IOException("无法解析设备响应帧");
+                        throw new IOException(localize("无法解析设备响应帧"));
                     }
                     if (parsed.cmd() == expectedCmd) {
                         logger.debug(
@@ -1523,7 +1525,7 @@ public class BleManager {
                         if (parsed.status() != 0) {
                             int status = parsed.status() & 0xFF;
                             throw new DeviceCommandException(expectedCmd, status,
-                                String.format("命令 0x%02X 失败：%s（错误码 %d）",
+                                String.format(localize("命令 0x%02X 失败：%s（错误码 %d）"),
                                     expectedCmd & 0xFF, deviceStatusText(status), status)
                             );
                         }
@@ -1564,15 +1566,15 @@ public class BleManager {
 
     static String deviceStatusText(int status) {
         return switch (status) {
-            case 1 -> "参数或数据格式无效";
-            case 2 -> "地址、分区或范围无效";
-            case 3 -> "当前固件不支持此命令";
-            case 4 -> "此操作仅支持 USB";
-            case 5 -> "外部 Flash 未识别或尚未就绪";
-            case 6 -> "写入超出实际 Flash 容量";
-            case 7 -> "Flash 正忙，请稍后重试";
-            case 8 -> "Flash 写入地址未按 4K 对齐";
-            default -> "设备返回未知错误";
+            case 1 -> localize("参数或数据格式无效");
+            case 2 -> localize("地址、分区或范围无效");
+            case 3 -> localize("当前固件不支持此命令");
+            case 4 -> localize("此操作仅支持 USB");
+            case 5 -> localize("外部 Flash 未识别或尚未就绪");
+            case 6 -> localize("写入超出实际 Flash 容量");
+            case 7 -> localize("Flash 正忙，请稍后重试");
+            case 8 -> localize("Flash 写入地址未按 4K 对齐");
+            default -> localize("设备返回未知错误");
         };
     }
 
@@ -1604,7 +1606,7 @@ public class BleManager {
                 logger.warn("[BLE] readerThread: 读取异常 - {}", e.getMessage());
                 unexpectedTransportLoss = true;
                 if (receiver == activeReceiver && isConnected) {
-                    callback.onError("BLE 桥连接断开: " + e.getMessage());
+                    callback.onError(localize("BLE 桥连接断开: ") + e.getMessage());
                 }
             } finally {
                 logger.info("[BLE] readerThread: 线程退出，isConnected={}, isInterrupted={}", 

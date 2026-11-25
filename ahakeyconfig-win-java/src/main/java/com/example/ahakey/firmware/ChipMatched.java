@@ -1,5 +1,7 @@
 package com.example.ahakey.firmware;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 /**
  * Supplies a structured chip identity decision for an ISP device.
  *
@@ -15,11 +17,11 @@ public interface ChipMatched {
 
     static ChipMatched unknown() {
         return () -> ChipMatchResult.unknown(
-            "当前 ISP 探测只确认 VID_4348&PID_55E0，未取得可审计的 CH582 型号信息");
+            localize("当前 ISP 探测只确认 VID_4348&PID_55E0，未取得可审计的 CH582 型号信息"));
     }
 
     static ChipMatched matched() {
-        return () -> ChipMatchResult.matched("测试替身确认 CH582");
+        return () -> ChipMatchResult.matched(localize("测试替身确认 CH582"));
     }
 
     static ChipMatched mismatched(String detail) {

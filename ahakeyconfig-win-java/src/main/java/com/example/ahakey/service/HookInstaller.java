@@ -18,6 +18,8 @@ import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.regex.Pattern;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 /**
  * Hook 安装器 - 独立于 UI 的 Hook 管理服务
  * 负责所有平台（Claude、Cursor、Codex、Kimi）的 Hook 安装、卸载和脚本生成
@@ -129,9 +131,9 @@ public class HookInstaller {
             generateCodexScript(hooksDir);
             generateKimiScript(hooksDir);
             generateCursorScript(hooksDir);
-            log("[安装] 已生成所有 Hook 脚本");
+            log(localize("[安装] 已生成所有 Hook 脚本"));
         } catch (Exception e) {
-            log("[警告] 生成 Hook 脚本失败: " + e.getMessage());
+            log(localize("[警告] 生成 Hook 脚本失败: ") + e.getMessage());
         }
     }
 
@@ -139,7 +141,7 @@ public class HookInstaller {
      * 安装指定平台的 Hook
      */
     public boolean install(String platform) {
-        log("[安装] 开始安装 " + platform + " Hook...");
+        log(localize("[安装] 开始安装 %s Hook...").formatted(platform));
         generateAllScripts();
         switch (platform) {
             case "Claude": installClaudeHooks(); break;
@@ -147,7 +149,7 @@ public class HookInstaller {
             case "Codex": installCodexHooks(); break;
             case "Kimi": installKimiHooks(); break;
             default: {
-                log("[错误] 未知 Hook 类型: " + platform);
+                log(localize("[错误] 未知 Hook 类型: ") + platform);
                 return false;
             }
         }
@@ -164,14 +166,14 @@ public class HookInstaller {
             case "Codex": uninstallCodexHooks(); break;
             case "Kimi": uninstallKimiHooks(); break;
             default: {
-                log("[错误] 未知 Hook 类型: " + platform);
+                log(localize("[错误] 未知 Hook 类型: ") + platform);
                 return false;
             }
         }
         boolean removed = !isInstalled(platform);
         log(removed
-            ? "[验证] " + platform + " Hook 已不在配置中"
-            : "[错误] " + platform + " Hook 卸载后仍可检测到");
+            ? localize("[验证] ") + platform + localize(" Hook 已不在配置中")
+            : localize("[错误] ") + platform + localize(" Hook 卸载后仍可检测到"));
         return removed;
     }
 
@@ -202,7 +204,7 @@ public class HookInstaller {
             return Files.isRegularFile(script)
                 ? ConfigurationStatus.INSTALLED : ConfigurationStatus.INCOMPLETE;
         } catch (Exception e) {
-            log("[错误] 检查 " + platform + " Hook 状态失败: " + e.getMessage());
+            log(localize("[错误] 检查 ") + platform + localize(" Hook 状态失败: ") + e.getMessage());
             return ConfigurationStatus.INCOMPLETE;
         }
     }
@@ -516,9 +518,9 @@ public class HookInstaller {
             }
             settings.set("hooks", hooks);
             writeJsonAtomically(path, settings);
-            log("[成功] 已注册 " + CLAUDE_EVENTS.length + " 个 Claude hook 事件");
-            log("[成功] 配置文件: " + path);
-        } catch (Exception e) { log("[错误] Claude 安装失败: " + e.getMessage()); }
+            log(localize("[成功] 已注册 ") + CLAUDE_EVENTS.length + localize(" 个 Claude hook 事件"));
+            log(localize("[成功] 配置文件: ") + path);
+        } catch (Exception e) { log(localize("[错误] Claude 安装失败: ") + e.getMessage()); }
     }
 
     private void installCursorHooks() {
@@ -539,9 +541,9 @@ public class HookInstaller {
             settings.set("hooks", existingHooks);
             settings.put("version", 1);
             writeJsonAtomically(path, settings);
-            log("[成功] 已注册 " + CURSOR_EVENTS.length + " 个 Cursor hook 事件");
-            log("[成功] 配置文件: " + path);
-        } catch (Exception e) { log("[错误] Cursor 安装失败: " + e.getMessage()); }
+            log(localize("[成功] 已注册 ") + CURSOR_EVENTS.length + localize(" 个 Cursor hook 事件"));
+            log(localize("[成功] 配置文件: ") + path);
+        } catch (Exception e) { log(localize("[错误] Cursor 安装失败: ") + e.getMessage()); }
     }
 
     private void installCodexHooks() {
@@ -575,7 +577,7 @@ public class HookInstaller {
             }
             root.set("hooks", hooks);
             writeJsonAtomically(hooksJson, root);
-            log("[成功] 已写入 " + hooksJson);
+            log(localize("[成功] 已写入 ") + hooksJson);
             Files.write(sidecar, java.time.LocalDateTime.now().toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
             backupFile(configToml);
             String toml = configToml.toFile().exists()
@@ -587,10 +589,10 @@ public class HookInstaller {
                 + "\n# AhaKey：生命周期 hooks 由 AhaKey Studio 写入 ~/.codex/hooks.json\n"
                 + CODEX_HOOK_BLOCK_END + "\n";
             writeTextAtomically(configToml, toml);
-            log("[成功] 已更新 " + configToml + "（[features].hooks = true）");
-            log("[成功] 已注册 " + CODEX_EVENTS.length + " 个 Codex hook 事件");
+            log(localize("[成功] 已更新 ") + configToml + localize("（[features].hooks = true）"));
+            log(localize("[成功] 已注册 ") + CODEX_EVENTS.length + localize(" 个 Codex hook 事件"));
             log("CODEX_HOOK_CONFIGURED=YES");
-        } catch (Exception e) { log("[错误] Codex 安装失败: " + e.getMessage()); }
+        } catch (Exception e) { log(localize("[错误] Codex 安装失败: ") + e.getMessage()); }
     }
 
     private void installKimiHooks() {
@@ -605,9 +607,9 @@ public class HookInstaller {
             String hookBlock = buildKimiHookBlock();
             String result = (cleaned.isEmpty() ? "" : cleaned + "\n\n") + hookBlock + "\n";
             writeTextAtomically(path, result);
-            log("[成功] 已注册 " + KIMI_EVENTS.length + " 个 Kimi hook 事件");
-            log("[成功] 配置文件: " + path);
-        } catch (Exception e) { log("[错误] Kimi 安装失败: " + e.getMessage()); }
+            log(localize("[成功] 已注册 ") + KIMI_EVENTS.length + localize(" 个 Kimi hook 事件"));
+            log(localize("[成功] 配置文件: ") + path);
+        } catch (Exception e) { log(localize("[错误] Kimi 安装失败: ") + e.getMessage()); }
     }
 
     // ==================== 卸载方法 ====================
@@ -615,29 +617,29 @@ public class HookInstaller {
     private void uninstallClaudeHooks() {
         Path path = getHookConfigPath("Claude");
         try {
-            if (!path.toFile().exists()) { log("[信息] Claude 配置文件不存在"); return; }
+            if (!path.toFile().exists()) { log(localize("[信息] Claude 配置文件不存在")); return; }
             ObjectNode settings = loadJsonSettings(path);
             if (removeManagedHooks(settings, CLAUDE_SCRIPT_NAME, true)) {
                 writeJsonAtomically(path, settings);
-                log("[成功] Hook 配置已从 " + path + " 中移除");
+                log(localize("[成功] Hook 配置已从 ") + path + localize(" 中移除"));
             } else {
-                log("[警告] 未找到 Claude Hook 配置");
+                log(localize("[警告] 未找到 Claude Hook 配置"));
             }
-        } catch (Exception e) { log("[错误] Claude 卸载失败: " + e.getMessage()); }
+        } catch (Exception e) { log(localize("[错误] Claude 卸载失败: ") + e.getMessage()); }
     }
 
     private void uninstallCursorHooks() {
         Path path = getHookConfigPath("Cursor");
         try {
-            if (!path.toFile().exists()) { log("[信息] Cursor 配置文件不存在"); return; }
+            if (!path.toFile().exists()) { log(localize("[信息] Cursor 配置文件不存在")); return; }
             ObjectNode settings = loadJsonSettings(path);
             if (removeManagedHooks(settings, CURSOR_SCRIPT_NAME, false)) {
                 writeJsonAtomically(path, settings);
-                log("[成功] Hook 配置已从 " + path + " 中移除");
+                log(localize("[成功] Hook 配置已从 ") + path + localize(" 中移除"));
             } else {
-                log("[警告] 未找到 Cursor Hook 配置");
+                log(localize("[警告] 未找到 Cursor Hook 配置"));
             }
-        } catch (Exception e) { log("[错误] Cursor 卸载失败: " + e.getMessage()); }
+        } catch (Exception e) { log(localize("[错误] Cursor 卸载失败: ") + e.getMessage()); }
     }
 
     private void uninstallCodexHooks() {
@@ -647,15 +649,15 @@ public class HookInstaller {
         try {
             if (sidecar.toFile().exists()) {
                 Files.delete(sidecar);
-                log("[成功] 已删除 sidecar 标记");
+                log(localize("[成功] 已删除 sidecar 标记"));
             } else {
-                log("[信息] sidecar 标记不存在");
+                log(localize("[信息] sidecar 标记不存在"));
             }
             if (hooksJson.toFile().exists()) {
                 ObjectNode settings = loadJsonSettings(hooksJson);
                 if (removeManagedHooks(settings, CODEX_SCRIPT_NAME, true)) {
                     writeJsonAtomically(hooksJson, settings);
-                    log("[成功] Hook 配置已从 " + hooksJson + " 中移除");
+                    log(localize("[成功] Hook 配置已从 ") + hooksJson + localize(" 中移除"));
                 }
             }
             if (configToml.toFile().exists()) {
@@ -663,25 +665,25 @@ public class HookInstaller {
                 String cleaned = removeCodexHookBlock(content);
                 if (!cleaned.equals(content)) {
                     writeTextAtomically(configToml, cleaned);
-                    log("[成功] Hook 块已从 " + configToml + " 中移除");
+                    log(localize("[成功] Hook 块已从 ") + configToml + localize(" 中移除"));
                 }
             }
-        } catch (Exception e) { log("[错误] Codex 卸载失败: " + e.getMessage()); }
+        } catch (Exception e) { log(localize("[错误] Codex 卸载失败: ") + e.getMessage()); }
     }
 
     private void uninstallKimiHooks() {
         Path path = getHookConfigPath("Kimi");
         try {
-            if (!path.toFile().exists()) { log("[信息] Kimi 配置文件不存在"); return; }
+            if (!path.toFile().exists()) { log(localize("[信息] Kimi 配置文件不存在")); return; }
             String content = new String(Files.readAllBytes(path), java.nio.charset.StandardCharsets.UTF_8);
             String cleaned = removeKimiHookBlock(content);
             if (!cleaned.equals(content)) {
                 writeTextAtomically(path, cleaned);
-                log("[成功] Hook 块已从配置文件中删除");
+                log(localize("[成功] Hook 块已从配置文件中删除"));
             } else {
-                log("[警告] 未找到 AhaKey Hook 块");
+                log(localize("[警告] 未找到 AhaKey Hook 块"));
             }
-        } catch (Exception e) { log("[错误] Kimi 卸载失败: " + e.getMessage()); }
+        } catch (Exception e) { log(localize("[错误] Kimi 卸载失败: ") + e.getMessage()); }
     }
 
     // ==================== 辅助方法 ====================

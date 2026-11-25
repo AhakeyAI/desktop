@@ -115,9 +115,9 @@ enum AhaKeyStudioPart: String, CaseIterable, Codable, Identifiable {
     var subtitle: String {
         switch self {
         case .lightBar:
-            "AI 状态反馈"
+            NSLocalizedString("AI 状态反馈", comment: "")
         case .oledDisplay:
-            "动图显示"
+            NSLocalizedString("动图显示", comment: "")
         case .key1:
             NSLocalizedString("语音键", comment: "")
         case .key2:
@@ -446,7 +446,7 @@ enum LightBarPreviewState: String, CaseIterable, Codable, Identifiable {
     var title: String {
         switch self {
         case .aiRunning:
-            "AI 运行中"
+            NSLocalizedString("AI 运行中", comment: "")
         case .waitingApproval:
             NSLocalizedString("等待批准", comment: "")
         case .stopped:
@@ -853,7 +853,7 @@ struct AhaKeyKeyDraft: Codable, Equatable, Identifiable {
             return voicePreset.title
         }
         if usesMacro {
-            return "宏：\(macro.displaySummary)"
+            return String(format: NSLocalizedString("宏：%@", comment: ""), macro.displaySummary)
         }
         return shortcut.displayLabel
     }
@@ -868,8 +868,9 @@ struct AhaKeyOLEDDraft: Codable, Equatable {
     var needsDeviceUpload: Bool
 
     /// 上传开始时写入的临时状态行前缀；进程在上传中退出时会被持久化下来。
-    static let uploadInProgressStatusPrefix = "正在上传动图到 "
-    static let interruptedUploadStatusLine = "上次动图上传未完成，键盘上的动图可能是旧图或新旧帧混杂。请连接键盘后点击「写入键盘」重新上传。"
+    static let legacyUploadInProgressStatusPrefix = "正在上传动图到 "
+    static let uploadInProgressStatusPrefix = NSLocalizedString("正在上传动图到 ", comment: "")
+    static let interruptedUploadStatusLine = NSLocalizedString("上次动图上传未完成，键盘上的动图可能是旧图或新旧帧混杂。请连接键盘后点击「写入键盘」重新上传。", comment: "")
 
     private enum CodingKeys: String, CodingKey {
         case localAssetPath
@@ -1216,7 +1217,8 @@ enum AhaKeyStudioStore {
                 modeDraft.oled.statusLine = AhaKeyOLEDDraft.default(for: mode).statusLine
             }
             // 上传中途退出/崩溃（含 ≤0.2.3 卡死后重启）：状态行停在「正在上传…」，改为可执行的恢复提示并标记待重传。
-            if modeDraft.oled.statusLine.hasPrefix(AhaKeyOLEDDraft.uploadInProgressStatusPrefix) {
+            if modeDraft.oled.statusLine.hasPrefix(AhaKeyOLEDDraft.uploadInProgressStatusPrefix)
+                || modeDraft.oled.statusLine.hasPrefix(AhaKeyOLEDDraft.legacyUploadInProgressStatusPrefix) {
                 modeDraft.oled.statusLine = AhaKeyOLEDDraft.interruptedUploadStatusLine
                 modeDraft.oled.needsDeviceUpload = true
             }

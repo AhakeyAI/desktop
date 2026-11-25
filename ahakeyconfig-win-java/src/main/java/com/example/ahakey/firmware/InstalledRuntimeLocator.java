@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 /**
  * Resolves the runtime shipped next to the installed Studio application.
  * Explicit developer paths and environment overrides remain available, but
@@ -60,7 +62,7 @@ public final class InstalledRuntimeLocator implements RuntimeLocator {
             try {
                 return runtimeProvider.resolve(Path.of(explicit));
             } catch (IOException failure) {
-                throw new IOException("显式 WCHISP runtime 无效: " + explicit, failure);
+                throw new IOException(localize("显式 WCHISP runtime 无效: ") + explicit, failure);
             }
         }
 
@@ -70,8 +72,8 @@ public final class InstalledRuntimeLocator implements RuntimeLocator {
             try {
                 return runtimeProvider.resolve(Path.of(environmentPath));
             } catch (IOException failure) {
-                throw new IOException("环境变量 " + ENVIRONMENT_PATH
-                    + " 指向的 WCHISP runtime 无效: " + environmentPath, failure);
+                throw new IOException(localize("环境变量 ") + ENVIRONMENT_PATH
+                    + localize(" 指向的 WCHISP runtime 无效: ") + environmentPath, failure);
             }
         }
 

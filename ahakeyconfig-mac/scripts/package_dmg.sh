@@ -20,7 +20,7 @@ RW_DMG_PATH="$OUTPUT_DIR/$DMG_BASENAME-rw.dmg"
 DMG_MOUNTPOINT="/Volumes/$DMG_VOLUME_NAME"
 APP_BUNDLE_PATH="$OUTPUT_DIR/$APP_BUNDLE_NAME.app"
 BACKGROUND_DIR="$DMG_STAGING_DIR/.background"
-BACKGROUND_IMAGE="$BACKGROUND_DIR/InstallerBackground.png"
+BACKGROUND_IMAGE="$BACKGROUND_DIR/InstallerBackground.tiff"
 NOTARY_PROFILE="${NOTARY_PROFILE:-}"
 NOTARY_KEYCHAIN="${NOTARY_KEYCHAIN:-}"
 SIGNING_IDENTITY="${SIGNING_IDENTITY:-}"
@@ -38,7 +38,10 @@ fi
 
 echo "📦 Packaging $APP_DISPLAY_NAME DMG..."
 
-if [[ "$RELEASE_DISTRIBUTION" == "1" ]]; then
+# SKIP_BUILD=1 packages an app bundle that is already at $APP_BUNDLE_PATH.
+if [[ "${SKIP_BUILD:-0}" == "1" ]]; then
+  echo "⏭️  SKIP_BUILD=1: using existing $APP_BUNDLE_PATH"
+elif [[ "$RELEASE_DISTRIBUTION" == "1" ]]; then
   REQUIRE_DEVELOPER_ID=1 "$SCRIPT_DIR/build.sh"
 else
   "$SCRIPT_DIR/build.sh"
@@ -56,7 +59,9 @@ echo "🧱 Preparing DMG staging folder..."
 ditto "$APP_BUNDLE_PATH" "$DMG_STAGING_DIR/$APP_BUNDLE_NAME.app"
 ln -s /Applications "$DMG_STAGING_DIR/Applications"
 mkdir -p "$BACKGROUND_DIR"
-swift "$APP_ROOT/scripts/generate_dmg_background.swift" "$BACKGROUND_IMAGE"
+# 1x + 2x TIFF so the installer window stays sharp on Retina displays.
+swift "$APP_ROOT/scripts/generate_dmg_background.swift" "$BACKGROUND_IMAGE" \
+  "$APP_ROOT/Resources/DMG/InstallerArt.jpg" "$APP_ROOT/Resources/AppIcon/AhaKeyStudioIcon.png"
 
 rm -f "$DMG_PATH" "$RW_DMG_PATH"
 if [[ -d "$DMG_MOUNTPOINT" ]]; then
@@ -87,7 +92,7 @@ hdiutil attach "$RW_DMG_PATH" -mountpoint "$DMG_MOUNTPOINT" -readwrite -noverify
 ditto "$APP_BUNDLE_PATH" "$DMG_MOUNTPOINT/$APP_BUNDLE_NAME.app"
 ln -sf /Applications "$DMG_MOUNTPOINT/Applications"
 mkdir -p "$DMG_MOUNTPOINT/.background"
-cp "$BACKGROUND_IMAGE" "$DMG_MOUNTPOINT/.background/InstallerBackground.png"
+cp "$BACKGROUND_IMAGE" "$DMG_MOUNTPOINT/.background/InstallerBackground.tiff"
 
 # 隐藏 .background，不让用户在 Finder 看到目录
 chflags hidden "$DMG_MOUNTPOINT/.background" 2>/dev/null || true
@@ -113,7 +118,7 @@ tell application "Finder"
       set statusbar visible of container window to false
     end try
     try
-      set the bounds of container window to {200, 160, 1060, 640}
+      set the bounds of container window to {200, 120, 1120, 672}
     end try
     try
       set theViewOptions to the icon view options of container window
@@ -122,15 +127,15 @@ tell application "Finder"
       set text size of theViewOptions to 13
     end try
     try
-      set background picture of theViewOptions to file ".background:InstallerBackground.png"
+      set background picture of theViewOptions to file ".background:InstallerBackground.tiff"
     on error errMsg
       log "background-picture error: " & errMsg
     end try
     try
-      set position of item "$APP_BUNDLE_NAME.app" of container window to {200, 240}
+      set position of item "$APP_BUNDLE_NAME.app" of container window to {230, 235}
     end try
     try
-      set position of item "Applications" of container window to {660, 240}
+      set position of item "Applications" of container window to {690, 235}
     end try
     update without registering applications
     delay 2

@@ -9,6 +9,8 @@ import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 /** Verifies a normally reconnected device against the 0x9F contract. */
 public final class FirmwarePostVerifier {
     private final CapabilityReader reader;
@@ -125,14 +127,14 @@ public final class FirmwarePostVerifier {
             }
             if (verificationSession != null && !sameSession(verificationSession)) {
                 return Verification.failure(FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
-                    "0x9F 验证期间 transport session 发生变化");
+                    localize("0x9F 验证期间 transport session 发生变化"));
             }
             try {
                 capabilities = reader.read();
                 if (stop.getAsBoolean()) throw new InterruptedException("post-flash verification cancelled");
                 if (verificationSession != null && !sameSession(verificationSession)) {
                     return Verification.failure(FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
-                        "0x9F 响应来自已失效的 transport session");
+                        localize("0x9F 响应来自已失效的 transport session"));
                 }
                 if (capabilities != null) break;
             } catch (Exception failure) {
@@ -144,32 +146,32 @@ public final class FirmwarePostVerifier {
         if (stop.getAsBoolean()) throw new InterruptedException("post-flash verification cancelled");
         if (capabilities == null) {
             return Verification.failure(FirmwareUpdateError.POST_FLASH_DEVICE_NOT_RECONNECTED,
-                last == null ? "设备未在时限内正常重连" : last.getMessage());
+                last == null ? localize("设备未在时限内正常重连") : last.getMessage());
         }
         SemanticVersion actual = new SemanticVersion(capabilities.firmwareMajor(),
             capabilities.firmwareMinor(), capabilities.firmwarePatch());
         if (expectedVersion != null && !expectedVersion.equals(actual)) {
             return Verification.failure(FirmwareUpdateError.POST_FLASH_VERSION_MISMATCH,
-                "期望固件 " + expectedVersion + "，设备返回 " + actual);
+                localize("期望固件 ") + expectedVersion + localize("，设备返回 ") + actual);
         }
         if (capabilities.protocolMajor() != FirmwareCapabilities.REQUIRED_PROTOCOL_MAJOR
             || capabilities.protocolMinor() != FirmwareCapabilities.REQUIRED_PROTOCOL_MINOR) {
             return Verification.failure(FirmwareUpdateError.POST_FLASH_PROTOCOL_MISMATCH,
-                "协议版本不满足客户端合同");
+                localize("协议版本不满足客户端合同"));
         }
         if (capabilities.deviceModel() != FirmwareCapabilities.REQUIRED_DEVICE_MODEL) {
             return Verification.failure(FirmwareUpdateError.POST_FLASH_MODEL_MISMATCH,
-                "设备型号不满足客户端合同");
+                localize("设备型号不满足客户端合同"));
         }
         if ((capabilities.capabilityBits() & FirmwareCapabilities.REQUIRED_CAPABILITY_MASK)
             != FirmwareCapabilities.REQUIRED_CAPABILITY_MASK) {
             return Verification.failure(FirmwareUpdateError.POST_FLASH_CAPABILITIES_MISMATCH,
-                String.format("能力位 0x%X 不满足最低要求 0x%X",
+                String.format(localize("能力位 0x%X 不满足最低要求 0x%X"),
                     capabilities.capabilityBits(), FirmwareCapabilities.REQUIRED_CAPABILITY_MASK));
         }
         if (stop.getAsBoolean()) throw new InterruptedException("post-flash verification cancelled");
         return new Verification(true, null, String.format(
-            "设备已重连并通过 0x9F 合同校验%nFirmware=%s%nProtocol=%d.%d%nModel=%d%nCapabilities=0x%X",
+            localize("设备已重连并通过 0x9F 合同校验%nFirmware=%s%nProtocol=%d.%d%nModel=%d%nCapabilities=0x%X"),
             actual, capabilities.protocolMajor(), capabilities.protocolMinor(),
             capabilities.deviceModel(), capabilities.capabilityBits()), capabilities);
     }

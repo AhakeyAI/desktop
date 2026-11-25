@@ -70,7 +70,8 @@ public class FloatingVoiceNotification {
         
         // 创建状态文字
         statusText = new Text();
-        statusText.setFont(Font.font("Microsoft YaHei", 14));
+        statusText.setFont(Font.font(
+            com.example.ahakey.util.KoreanFontSupport.uiFontFamily("Microsoft YaHei"), 14));
         statusText.setFill(Color.WHITE);
         
         content.getChildren().addAll(indicator, statusText);

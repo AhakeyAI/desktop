@@ -20,6 +20,8 @@ import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.example.ahakey.util.LanguageManager.localize;
+
 public final class WindowsWchIspFlasher implements FirmwareFlasher {
     static final String SANITIZED_CONFIG_RESOURCE =
         "/wchisp/CONFIG_CH57X59X-sanitized.WCH";
@@ -79,9 +81,9 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         boolean ready = true;
         Path tool = executable == null ? null : executable.toAbsolutePath().normalize();
         Path directory = tool == null ? null : tool.getParent();
-        ready &= check(checks, tool != null && Files.isRegularFile(tool), "WCHISP 主程序", tool);
+        ready &= check(checks, tool != null && Files.isRegularFile(tool), localize("WCHISP 主程序"), tool);
         if (directory == null) {
-            checks.add("[失败] WCHISP 工具目录无效");
+            checks.add(localize("[失败] WCHISP 工具目录无效"));
             return new EnvironmentReport(false, checks);
         }
         ready &= check(checks, Files.isRegularFile(directory.resolve("CH343PT.DLL")),
@@ -90,24 +92,24 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
             "WCH55xISPDLL.dll", directory.resolve("WCH55xISPDLL.dll"));
         Path bundledConfig = directory.resolve("CONFIG_CH57X59X.WCH");
         ready &= check(checks, Files.isRegularFile(bundledConfig),
-            "WCHISP 运行时配置", bundledConfig);
+            localize("WCHISP 运行时配置"), bundledConfig);
         WchIspRuntimeContract.Validation contract =
             WchIspRuntimeContract.validate(directory);
         if (contract.supported()) {
-            checks.add("[通过] WCHISP 运行环境兼容性检查");
+            checks.add(localize("[通过] WCHISP 运行环境兼容性检查"));
         } else {
-            checks.add("[失败] " + contract.summary());
+            checks.add(localize("[失败] ") + contract.summary());
             ready = false;
         }
         try {
             Path probe = Files.createTempFile("ahakey-wchisp-write-test-", ".tmp");
             Files.deleteIfExists(probe);
-            checks.add("[通过] 临时目录可读写");
+            checks.add(localize("[通过] 临时目录可读写"));
         } catch (IOException exception) {
-            checks.add("[失败] 临时目录不可写: " + exception.getMessage());
+            checks.add(localize("[失败] 临时目录不可写: ") + exception.getMessage());
             ready = false;
         }
-        checks.add("[提示] ISP/驱动检测需设备进入 ISP 模式后执行");
+        checks.add(localize("[提示] ISP/驱动检测需设备进入 ISP 模式后执行"));
         return new EnvironmentReport(ready, checks);
     }
 
@@ -115,9 +117,9 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         List<String> checks, boolean passed, String name, Path path
     ) {
         String safeName = path == null || path.getFileName() == null
-            ? "未知文件"
+            ? localize("未知文件")
             : path.getFileName().toString();
-        checks.add((passed ? "[通过] " : "[失败] ") + name + ": " + safeName);
+        checks.add((passed ? localize("[通过] ") : localize("[失败] ")) + name + ": " + safeName);
         return passed;
     }
 
@@ -167,7 +169,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         Path normalized = firmwareHex.toAbsolutePath().normalize();
         if (!Files.isRegularFile(normalized)
             || !normalized.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".hex")) {
-            throw new IOException("请选择有效的 .hex 固件文件");
+            throw new IOException(localize("请选择有效的 .hex 固件文件"));
         }
         IntelHexValidator.validate(normalized);
 
@@ -184,7 +186,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
                 StandardCharsets.UTF_8
             );
 
-            listener.onProgress("download", 0.10, "正在检测 CH582 并烧录，请勿断开 USB…");
+            listener.onProgress("download", 0.10, localize("正在检测 CH582 并烧录，请勿断开 USB…"));
             CommandResult download = run(
                 preparedExecutable,
                 List.of("-c", config.toString(), "-o", "download", "-f", normalized.toString()),
@@ -199,7 +201,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
             listener.onProgress(
                 "complete",
                 1.0,
-                "WCHISP 已完成写入和字节校验，等待设备运行版本确认"
+                localize("WCHISP 已完成写入和字节校验，等待设备运行版本确认")
             );
             return new FlashResult(true, "complete", download.output());
         } finally {
@@ -232,14 +234,14 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
     static String detectionFailureDetail(int exitCode, boolean enumerated, String suffix) {
         suffix = suffix == null ? "" : suffix;
         if (exitCode == 100 && enumerated) {
-            return "已检测到 WCH ISP 设备，但 WCHISP 工具读取设备 UID 失败（错误码 100）"
+            return localize("已检测到 WCH ISP 设备，但 WCHISP 工具读取设备 UID 失败（错误码 100）")
                 + suffix;
         }
         if (!enumerated) {
-            return "未检测到 WCH ISP 设备（WCHISP 返回错误码 "
-                + exitCode + "）" + suffix;
+            return localize("未检测到 WCH ISP 设备（WCHISP 返回错误码 %d）")
+                .formatted(exitCode) + suffix;
         }
-        return "已检测到 WCH ISP 设备，但 WCHISP 返回错误码 "
+        return localize("已检测到 WCH ISP 设备，但 WCHISP 返回错误码 ")
             + exitCode + suffix;
     }
 
@@ -775,7 +777,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
 
     private String appendDiagnostics(String output, String diagnostics) {
         if (diagnostics == null || diagnostics.isBlank()) return output;
-        return joinOutput(output, "诊断日志: " + diagnostics);
+        return joinOutput(output, localize("诊断日志: ") + diagnostics);
     }
 
     private static Path configArgument(List<String> arguments) {
@@ -982,7 +984,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
             listener.onProgress(
                 "download",
                 Math.min(0.90, appProgress),
-                "正在烧录 CH582：" + latest + "%"
+                localize("正在烧录 CH582：") + latest + "%"
             );
         }
         return latest;
@@ -992,7 +994,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         throws IOException {
         Path sourceDirectory = executable.toAbsolutePath().normalize().getParent();
         if (sourceDirectory == null) {
-            throw new IOException("WCHISP 工具目录无效");
+            throw new IOException(localize("WCHISP 工具目录无效"));
         }
         WchIspRuntimeContract.Validation contract =
             WchIspRuntimeContract.validate(sourceDirectory);
@@ -1014,7 +1016,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         WchIspConfigLayout.inspect(Files.readAllBytes(defaultConfig));
         patchCh582FirmwarePath(defaultConfig, firmwareHex);
         if (!Files.isRegularFile(defaultConfig) || Files.size(defaultConfig) < 1024) {
-            throw new IOException("WCHISP 临时基础配置生成失败或文件不完整");
+            throw new IOException(localize("WCHISP 临时基础配置生成失败或文件不完整"));
         }
         return preparedExecutable;
     }
@@ -1046,7 +1048,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
         byte[] replacement = firmwareHex.toAbsolutePath().normalize()
             .toString().getBytes(StandardCharsets.UTF_16BE);
         if (replacement.length + 2 > WCH_PATH_SLOT_BYTES) {
-            throw new IOException("固件路径过长，WCHISP 配置无法保存");
+            throw new IOException(localize("固件路径过长，WCHISP 配置无法保存"));
         }
         int targetOffset = layout.slotOffsets()[CH582_SLOT_INDEX];
         Arrays.fill(bytes, targetOffset, targetOffset + WCH_PATH_SLOT_BYTES, (byte) 0);
@@ -1056,7 +1058,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
 
     static WchConfigLayout inspectLayout(byte[] bytes) throws IOException {
         if (bytes == null || bytes.length != WCH_CONFIG_LENGTH) {
-            throw unsupportedLayout("配置长度不匹配");
+            throw unsupportedLayout(localize("配置长度不匹配"));
         }
         String[] slots = new String[WCH_PATH_SLOT_OFFSETS.length];
         for (int index = 0; index < WCH_PATH_SLOT_OFFSETS.length; index++) {
@@ -1064,12 +1066,12 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
             if (!slots[index].isBlank()
                 && !slots[index].toLowerCase(Locale.ROOT).endsWith(".hex")
                 && !slots[index].toLowerCase(Locale.ROOT).endsWith(".bin")) {
-                throw unsupportedLayout("path slot " + index + " 不是合法 .hex/.bin UTF-16BE 字段");
+                throw unsupportedLayout("path slot " + index + localize(" 不是合法 .hex/.bin UTF-16BE 字段"));
             }
         }
         String target = slots[CH582_SLOT_INDEX].toLowerCase(Locale.ROOT);
         if (!target.isBlank() && !target.contains("ch582")) {
-            throw unsupportedLayout("CH582 target slot 当前值无效");
+            throw unsupportedLayout(localize("CH582 target slot 当前值无效"));
         }
         return new WchConfigLayout(Arrays.copyOf(WCH_PATH_SLOT_OFFSETS,
             WCH_PATH_SLOT_OFFSETS.length), slots);
@@ -1078,7 +1080,7 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
     private static String decodePathSlot(byte[] bytes, int offset) throws IOException {
         if ((offset & 1) != 0 || offset < 0
             || offset + WCH_PATH_SLOT_BYTES > bytes.length) {
-            throw unsupportedLayout("path slot 边界无效");
+            throw unsupportedLayout(localize("path slot 边界无效"));
         }
         StringBuilder value = new StringBuilder();
         boolean terminated = false;
@@ -1087,16 +1089,16 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
             if (codeUnit == 0) {
                 terminated = true;
                 for (int rest = index + 2; rest < offset + WCH_PATH_SLOT_BYTES; rest++) {
-                    if (bytes[rest] != 0) throw unsupportedLayout("path slot 尾部不是零填充");
+                    if (bytes[rest] != 0) throw unsupportedLayout(localize("path slot 尾部不是零填充"));
                 }
                 break;
             }
             if (codeUnit < 0x20 || codeUnit > 0x7E) {
-                throw unsupportedLayout("path slot 含非法 UTF-16 字符");
+                throw unsupportedLayout(localize("path slot 含非法 UTF-16 字符"));
             }
             value.append((char) codeUnit);
         }
-        if (!terminated) throw unsupportedLayout("path slot 缺少 UTF-16 NUL 终止符");
+        if (!terminated) throw unsupportedLayout(localize("path slot 缺少 UTF-16 NUL 终止符"));
         return value.toString();
     }
 
@@ -1121,13 +1123,12 @@ public final class WindowsWchIspFlasher implements FirmwareFlasher {
 
     private void ensureAvailable() throws IOException {
         if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) {
-            throw new IOException("当前版本仅支持 Windows 10/11 x64，已保留其他平台接口");
+            throw new IOException(localize("当前版本仅支持 Windows 10/11 x64，已保留其他平台接口"));
         }
         if (executable == null || !Files.isRegularFile(executable)) {
-            throw new IOException(
-                "未找到 WCHISP 命令行工具。请安装官方 WCHISPStudio，或通过 "
-                    + "-Dahakey.wchisp.path=完整路径 指定工具。"
-            );
+            throw new IOException(localize(
+                "未找到 WCHISP 命令行工具。请安装官方 WCHISPStudio，或通过 -Dahakey.wchisp.path=完整路径 指定工具。"
+            ));
         }
         Path directory = executable.toAbsolutePath().normalize().getParent();
         WchIspRuntimeContract.Validation contract =

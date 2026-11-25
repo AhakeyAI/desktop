@@ -109,15 +109,15 @@ enum PermissionSignatureChecker {
                     if sudoTask.terminationStatus == 0 {
                         completion(true, NSLocalizedString("麦克风权限已重置（使用 sudo）", comment: ""))
                     } else {
-                        completion(false, "重置失败:\n普通模式: \(output)\nsudo模式: \(sudoOutput)")
+                        completion(false, String(format: NSLocalizedString("重置失败:\n普通模式: %@\nsudo模式: %@", comment: ""), output, sudoOutput))
                     }
                 } catch {
                     print("[PermissionSignatureChecker] sudo 执行失败: \(error)")
-                    completion(false, "sudo 执行失败: \(error.localizedDescription)")
+                    completion(false, String(format: NSLocalizedString("sudo 执行失败: %@", comment: ""), error.localizedDescription))
                 }
             } catch {
                 print("[PermissionSignatureChecker] 执行失败: \(error)")
-                completion(false, "执行失败: \(error.localizedDescription)")
+                completion(false, String(format: NSLocalizedString("执行失败: %@", comment: ""), error.localizedDescription))
             }
         }
     }
