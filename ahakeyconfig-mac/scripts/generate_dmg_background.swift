@@ -47,13 +47,12 @@ context.imageInterpolation = .high
 artwork.draw(in: bounds, from: .zero, operation: .copy, fraction: 1)
 let wordmarkWidth: CGFloat = 148
 let wordmarkHeight = wordmarkWidth * logo.size.height / logo.size.width
-logo.draw(in: rect(x: 25, top: 19, width: wordmarkWidth, height: wordmarkHeight),
+logo.draw(in: rect(x: (CGFloat(width) - wordmarkWidth) / 2, top: 59,
+                   width: wordmarkWidth, height: wordmarkHeight),
           from: .zero, operation: .sourceOver, fraction: 1)
 
-let ink = NSColor(srgbRed: 0.05, green: 0.10, blue: 0.17, alpha: 1)
 let mutedInk = NSColor(srgbRed: 0.31, green: 0.37, blue: 0.46, alpha: 1)
-line("拖到「应用程序」即可安装", top: 88, size: 18, weight: .semibold, color: ink)
-line("Drag to Applications to install", top: 116, size: 14, weight: .medium, color: mutedInk)
+line("Drag to Applications to install", top: 119, size: 14, weight: .medium, color: mutedInk)
 
 // Finder supplies both draggable icons and their labels; the image contains only their guides.
 for center in [CGFloat(230), CGFloat(690)] {
