@@ -1,100 +1,93 @@
 import AppKit
 
-let arguments = CommandLine.arguments
-guard arguments.count >= 2 else {
+guard CommandLine.arguments.count == 2 else {
     fputs("usage: swift generate_dmg_background.swift <output-png>\n", stderr)
     exit(1)
 }
 
-let outputURL = URL(fileURLWithPath: arguments[1])
-
-// Background size must match DMG window content area
-// Window bounds in osascript: {100, 100, 960, 580} => content 860 x 480
-let width:  CGFloat = 860
-let height: CGFloat = 480
-
-let image = NSImage(size: NSSize(width: width, height: height))
-image.lockFocus()
-
-let bounds = NSRect(x: 0, y: 0, width: width, height: height)
-
-// ── Background: clean white-to-light-gray, like macOS system dialogs ─────
-NSGradient(colors: [
-    NSColor(calibratedRed: 0.980, green: 0.982, blue: 0.988, alpha: 1),
-    NSColor(calibratedRed: 0.940, green: 0.944, blue: 0.955, alpha: 1),
-])!.draw(in: bounds, angle: 90)
-
-// ── Title ─────────────────────────────────────────────────────────────────
-let centerStyle = NSMutableParagraphStyle()
-centerStyle.alignment = .center
-
-let titleAttr: [NSAttributedString.Key: Any] = [
-    .font:            NSFont.systemFont(ofSize: 26, weight: .semibold),
-    .foregroundColor: NSColor(calibratedWhite: 0.13, alpha: 1),
-    .paragraphStyle:  centerStyle,
-]
-"拖动 AhaKey Studio 到 Applications".draw(
-    in: NSRect(x: 60, y: height - 82, width: width - 120, height: 40),
-    withAttributes: titleAttr
-)
-
-// ── Subtitle ──────────────────────────────────────────────────────────────
-let subAttr: [NSAttributedString.Key: Any] = [
-    .font:            NSFont.systemFont(ofSize: 14, weight: .regular),
-    .foregroundColor: NSColor(calibratedWhite: 0.48, alpha: 1),
-    .paragraphStyle:  centerStyle,
-]
-"安装完成后，就能像普通 Mac 应用一样打开使用".draw(
-    in: NSRect(x: 80, y: height - 114, width: width - 160, height: 22),
-    withAttributes: subAttr
-)
-
-// ── Arrow: clean filled shape between the two icon positions ──────────────
-// App icon centre ~x=170, Applications icon centre ~x=690 (at icon size 100)
-// Arrow spans roughly x 260 → 590, y centred at 210
-let arrowColor = NSColor(calibratedRed: 0.20, green: 0.50, blue: 0.95, alpha: 1)
-let arrowY: CGFloat  = 210
-let arrowX0: CGFloat = 268
-let arrowX1: CGFloat = 588
-let arrowLW: CGFloat = 6
-let headLen: CGFloat = 22
-let headHalf: CGFloat = 14
-
-// Shaft
-let shaft = NSBezierPath()
-shaft.move(to:  NSPoint(x: arrowX0, y: arrowY))
-shaft.line(to:  NSPoint(x: arrowX1 - headLen * 0.6, y: arrowY))
-shaft.lineWidth    = arrowLW
-shaft.lineCapStyle = .round
-arrowColor.setStroke()
-shaft.stroke()
-
-// Filled arrowhead
-let head = NSBezierPath()
-head.move(to:     NSPoint(x: arrowX1,             y: arrowY))
-head.line(to:     NSPoint(x: arrowX1 - headLen,   y: arrowY + headHalf))
-head.line(to:     NSPoint(x: arrowX1 - headLen,   y: arrowY - headHalf))
-head.close()
-arrowColor.setFill()
-head.fill()
-
-// Arrow caption
-let captionAttr: [NSAttributedString.Key: Any] = [
-    .font:            NSFont.systemFont(ofSize: 13, weight: .medium),
-    .foregroundColor: arrowColor,
-    .paragraphStyle:  centerStyle,
-]
-"拖过去安装".draw(
-    in: NSRect(x: arrowX0, y: arrowY - 36, width: arrowX1 - arrowX0, height: 20),
-    withAttributes: captionAttr
-)
-
-image.unlockFocus()
-
-guard let tiff   = image.tiffRepresentation,
-      let rep    = NSBitmapImageRep(data: tiff),
-      let png    = rep.representation(using: .png, properties: [:]) else {
-    fputs("failed to render png background\n", stderr)
+let output = URL(fileURLWithPath: CommandLine.arguments[1])
+let assets = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent().deletingLastPathComponent()
+    .appendingPathComponent("Resources/Installer", isDirectory: true)
+guard let artwork = NSImage(contentsOf: assets.appendingPathComponent("InstallerArtwork.png")),
+      let logo = NSImage(contentsOf: assets.appendingPathComponent("AhaKeyWordmark.png")) else {
+    fputs("missing installer artwork or brand mark: \(assets.path)\n", stderr)
     exit(1)
 }
-try png.write(to: outputURL)
+
+// Keep the canvas and icon centers in sync with package_dmg.sh.
+let width = 920
+let height = 492
+let bounds = NSRect(x: 0, y: 0, width: width, height: height)
+guard let bitmap = NSBitmapImageRep(
+    bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8,
+    samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+), let context = NSGraphicsContext(bitmapImageRep: bitmap) else {
+    fputs("failed to create installer background canvas\n", stderr)
+    exit(1)
+}
+
+func rect(x: CGFloat, top: CGFloat, width: CGFloat, height extent: CGFloat) -> NSRect {
+    NSRect(x: x, y: CGFloat(height) - top - extent, width: width, height: extent)
+}
+
+func line(_ text: String, top: CGFloat, size: CGFloat, weight: NSFont.Weight, color: NSColor) {
+    let style = NSMutableParagraphStyle()
+    style.alignment = .center
+    text.draw(in: rect(x: 30, top: top, width: CGFloat(width) - 60, height: 25), withAttributes: [
+        .font: NSFont.systemFont(ofSize: size, weight: weight),
+        .foregroundColor: color,
+        .paragraphStyle: style
+    ])
+}
+
+NSGraphicsContext.saveGraphicsState()
+NSGraphicsContext.current = context
+context.imageInterpolation = .high
+artwork.draw(in: bounds, from: .zero, operation: .copy, fraction: 1)
+let wordmarkWidth: CGFloat = 148
+let wordmarkHeight = wordmarkWidth * logo.size.height / logo.size.width
+logo.draw(in: rect(x: 25, top: 19, width: wordmarkWidth, height: wordmarkHeight),
+          from: .zero, operation: .sourceOver, fraction: 1)
+
+let ink = NSColor(srgbRed: 0.05, green: 0.10, blue: 0.17, alpha: 1)
+let mutedInk = NSColor(srgbRed: 0.31, green: 0.37, blue: 0.46, alpha: 1)
+line("拖到「应用程序」即可安装", top: 88, size: 18, weight: .semibold, color: ink)
+line("Drag to Applications to install", top: 116, size: 14, weight: .medium, color: mutedInk)
+
+// Finder supplies both draggable icons and their labels; the image contains only their guides.
+for center in [CGFloat(230), CGFloat(690)] {
+    let card = NSBezierPath(roundedRect: rect(x: center - 86, top: 157, width: 172, height: 176),
+                            xRadius: 28, yRadius: 28)
+    NSColor.white.withAlphaComponent(0.62).setFill()
+    card.fill()
+    NSColor(srgbRed: 0.75, green: 0.84, blue: 0.98, alpha: 1).setStroke()
+    card.lineWidth = 1
+    card.stroke()
+}
+
+let arrowBlue = NSColor(srgbRed: 0.07, green: 0.45, blue: 0.97, alpha: 1)
+let arrowY = CGFloat(height) - 235
+let shaft = NSBezierPath()
+shaft.move(to: NSPoint(x: 330, y: arrowY))
+shaft.line(to: NSPoint(x: 573, y: arrowY))
+shaft.lineWidth = 4
+shaft.lineCapStyle = .round
+shaft.setLineDash([1, 12], count: 2, phase: 0)
+arrowBlue.setStroke()
+shaft.stroke()
+
+let head = NSBezierPath()
+head.move(to: NSPoint(x: 590, y: arrowY))
+head.line(to: NSPoint(x: 571, y: arrowY + 12))
+head.line(to: NSPoint(x: 571, y: arrowY - 12))
+head.close()
+arrowBlue.setFill()
+head.fill()
+
+NSGraphicsContext.restoreGraphicsState()
+guard let png = bitmap.representation(using: .png, properties: [:]) else {
+    fputs("failed to render installer background\n", stderr)
+    exit(1)
+}
+try png.write(to: output)

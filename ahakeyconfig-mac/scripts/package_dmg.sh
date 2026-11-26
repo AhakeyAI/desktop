@@ -113,12 +113,13 @@ tell application "Finder"
       set statusbar visible of container window to false
     end try
     try
-      set the bounds of container window to {200, 160, 1060, 640}
+      -- Background is 920 x 492. Use the same layout centers as the renderer.
+      set the bounds of container window to {200, 160, 1120, 652}
     end try
     try
       set theViewOptions to the icon view options of container window
       set arrangement of theViewOptions to not arranged
-      set icon size of theViewOptions to 128
+      set icon size of theViewOptions to 120
       set text size of theViewOptions to 13
     end try
     try
@@ -127,10 +128,10 @@ tell application "Finder"
       log "background-picture error: " & errMsg
     end try
     try
-      set position of item "$APP_BUNDLE_NAME.app" of container window to {200, 240}
+      set position of item "$APP_BUNDLE_NAME.app" of container window to {230, 235}
     end try
     try
-      set position of item "Applications" of container window to {660, 240}
+      set position of item "Applications" of container window to {690, 235}
     end try
     update without registering applications
     delay 2
