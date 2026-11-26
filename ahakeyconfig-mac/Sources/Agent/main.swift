@@ -1,3 +1,4 @@
+import AhaKeyConfigShared
 import Foundation
 
 // ahakeyconfig-agent
@@ -11,9 +12,22 @@ import Foundation
 
 let args = CommandLine.arguments
 
+if args.dropFirst().elementsEqual(["hook", HookEntrySelfCheck.argument]) {
+    let report = try JSONEncoder().encode(HookEntrySelfCheck.current)
+    print(String(decoding: report, as: UTF8.self))
+    exit(EXIT_SUCCESS)
+}
+
 if args.count >= 3, args[1] == "hook" {
     let event = args[2]
+    if event.hasPrefix("Codex") {
+        CodexHookHandler.dependencies.recordFixedEntryEvent = CodexHookInstallation().eventRecorder(executablePath: args[0])
+    }
     exit(HookClient.run(event: event))
+}
+
+if URL(fileURLWithPath: args[0]).lastPathComponent == HookEntrySelfCheck.executableName {
+    exit(EXIT_FAILURE)
 }
 
 // Daemon 模式

@@ -4,6 +4,10 @@ import threading
 from pathlib import Path
 
 
+def hook_entry_swift_sources(shared):
+    return [shared / name for name in ("AhaKeyPaths.swift", "HookEntryInstallation.swift")]
+
+
 def policy_swift_sources(shared):
     """Compile real revocation journals and their dependencies, never test stubs.
 
@@ -19,7 +23,7 @@ def policy_swift_sources(shared):
         "KimiManagedPermissionDefaults.swift", "KimiPermissionModeSync.swift",
         "WS3ForegroundSource.swift", "WS3TerminalTaskIdentity.swift",
         "CursorApprovalPolicySync.swift", "KimiConfigPolicySync.swift", "CodexHookTrust.swift",
-    )]
+    )] + hook_entry_swift_sources(shared)
 
 
 def ensure_claude_fixture_isolated(policy_root=Path("/Library/Application Support/ClaudeCode"), preference_probe=None):

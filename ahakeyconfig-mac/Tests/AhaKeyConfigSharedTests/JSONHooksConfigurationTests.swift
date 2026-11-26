@@ -2,6 +2,38 @@ import XCTest
 @testable import AhaKeyConfigShared
 
 final class JSONHooksConfigurationTests: XCTestCase {
+    func testWorkBuddyInstallsOnlyTaskHooksAndPreservesOtherCommands() throws {
+        let original: [String: Any] = [
+            "hooks": ["UserPromptSubmit": [["hooks": [["type": "command", "command": "echo user"]]]]],
+            "permissions": ["defaultMode": "default"]
+        ]
+        let fixed = CodexHookInstallation().entryURL.path
+        let installed = try JSONHooksConfiguration.installing(in: original, client: .workBuddy, agentPath: fixed)
+        let reinstalled = try JSONHooksConfiguration.installing(in: installed, client: .workBuddy, agentPath: fixed)
+        XCTAssertTrue(NSDictionary(dictionary: installed).isEqual(to: reinstalled))
+        let hooks = try XCTUnwrap(installed["hooks"] as? [String: Any])
+        XCTAssertEqual(Set(hooks.keys), ["UserPromptSubmit", "Stop", "SessionEnd"])
+        XCTAssertTrue(NSDictionary(dictionary: original).isEqual(
+            to: try JSONHooksConfiguration.removing(in: reinstalled, client: .workBuddy)
+        ))
+    }
+
+    func testFixedEntryCanBeReinstalledAndRemoved() throws {
+        let fixed = CodexHookInstallation().entryURL.path
+        for client in [JSONHooksConfiguration.Client.claude, .cursor] {
+            let original: [String: Any] = client == .cursor ? ["unrelated": true, "version": 1] : ["unrelated": true]
+            let old = try JSONHooksConfiguration.installing(in: original, client: client,
+                agentPath: "/tmp/preview/ahakeyconfig-agent")
+            let once = try JSONHooksConfiguration.installing(in: old, client: client, agentPath: fixed)
+            let twice = try JSONHooksConfiguration.installing(in: once, client: client, agentPath: fixed)
+            XCTAssertTrue(NSDictionary(dictionary: once).isEqual(to: twice))
+            XCTAssertFalse(String(describing: once).contains("/tmp/preview"))
+            let removed = try JSONHooksConfiguration.removing(in: twice, client: client)
+            XCTAssertTrue(NSDictionary(dictionary: original).isEqual(to: removed))
+        }
+        XCTAssertFalse(JSONHooksConfiguration.owns("/usr/local/bin/ahakey-hook hook Stop"))
+    }
+
     func testRemovalPreservesUserCommandsThatOnlyMentionAgent() throws {
         for client in [JSONHooksConfiguration.Client.claude, .cursor] {
             let user = ["echo ahakeyconfig-agent", "'/usr/local/bin/ahakeyconfig-agent-backup' hook Stop", "echo '/tmp/ahakey-state.sh'", "other --label=ahakeyconfig-agent"]

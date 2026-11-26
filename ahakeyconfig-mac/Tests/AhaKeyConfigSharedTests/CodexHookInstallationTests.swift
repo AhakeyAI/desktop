@@ -31,6 +31,75 @@ final class CodexHookInstallationTests: XCTestCase {
             hashes: [("SessionStart", CodexHookTrust.trustedHash(event: "SessionStart", matcher: "", command: "true", timeout: 10)!)])
     }
 
+    func testMigrationChangesManagedTrustButKeepsTheUsersEntries() throws {
+        let old = try CodexHookTrust.installAgentHooks(in: user, configPath: path,
+            agentBinaryPath: "/private/tmp/preview/ahakeyconfig-agent")
+        let fixed = CodexHookInstallation().entryURL.path
+        let next = try CodexHookTrust.installAgentHooks(in: old, configPath: path, agentBinaryPath: fixed)
+        XCTAssertTrue(next.contains(user))
+        XCTAssertTrue(next.contains(fixed))
+        XCTAssertFalse(next.contains("/private/tmp/preview"))
+        let fingerprint = try XCTUnwrap(CodexHookTrust.managedFingerprint(in: next, configPath: path))
+        XCTAssertNotEqual(try CodexHookTrust.managedFingerprint(in: old, configPath: path), fingerprint)
+        let withUserSettings = next + "\n[tui]\nnotifications = true\n"
+        XCTAssertEqual(try CodexHookTrust.managedFingerprint(in: withUserSettings, configPath: path), fingerprint)
+        let changed = next + "enabled = false\n"
+        XCTAssertNotEqual(try CodexHookTrust.managedFingerprint(in: changed, configPath: path), fingerprint)
+    }
+
+    func testFeatureUpdateUsesActualTableAndPreservesUserSettings() throws {
+        let original = "notes = '''\n[features]\nhooks = false\n'''\n[features] # keep\nplugins = false\ncodex_hooks = false\nhooks = false # comment\n[tui]\nnotifications = true\n"
+        let next = try CodexHookTrust.enablingHooksFeature(in: original)
+        XCTAssertTrue(next.contains("notes = '''\n[features]\nhooks = false\n'''"))
+        XCTAssertTrue(next.contains("[features] # keep\nplugins = false"))
+        XCTAssertTrue(next.contains("hooks = true # comment\n[tui]\nnotifications = true"))
+        XCTAssertFalse(next.contains("codex_hooks"))
+        XCTAssertEqual(try CodexHookTrust.enablingHooksFeature(in: next), next)
+        XCTAssertEqual(try CodexHookTrust.enablingHooksFeature(in: "features.plugins = false\n[tui]\n"),
+                       "features.plugins = false\nfeatures.hooks = true\n[tui]\n")
+    }
+
+    func testOnlyTheFixedEntryCanConfirmTheCurrentInstallation() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let installation = CodexHookInstallation(directory: directory)
+        try FileManager.default.createDirectory(at: installation.entryURL.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/usr/bin/true"), to: installation.entryURL)
+        let entry = try XCTUnwrap(CodexHookInstallation.EntryIdentity(at: installation.entryURL))
+        XCTAssertNil(installation.status(configuration: "configuration-1"))
+        try installation.confirm(configuration: "configuration-1", entry: entry, migrated: true)
+        let payload = ["hook_event_name": "SessionStart", "session_id_short": "test-session"]
+        let current = installation.eventRecorder(executablePath: installation.entryURL.path)
+        let legacy = installation.eventRecorder(executablePath: "/tmp/preview/ahakeyconfig-agent")
+        legacy("SessionStart", payload)
+        current("Stop", payload)
+        current("SessionStart", ["hook_event_name": "SessionStart"])
+        XCTAssertEqual(installation.status(configuration: "configuration-1")?.entryChecked, true)
+        XCTAssertEqual(installation.status(configuration: "configuration-1")?.eventReceived, false)
+        current("SessionStart", payload)
+        XCTAssertEqual(installation.status(configuration: "configuration-1")?.eventReceived, true)
+        XCTAssertEqual(installation.status(configuration: "different")?.configurationWritten, false)
+        try installation.confirm(configuration: "configuration-1", entry: entry, migrated: false)
+        XCTAssertEqual(installation.status(configuration: "configuration-1")?.eventReceived, true)
+        try installation.confirm(configuration: "configuration-2", entry: entry, migrated: true)
+        current("SessionStart", payload)
+        XCTAssertEqual(installation.status(configuration: "configuration-2")?.eventReceived, false)
+        installation.eventRecorder(executablePath: installation.entryURL.path)("SessionStart", payload)
+        let replacement = directory.appendingPathComponent("replacement")
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/usr/bin/true"), to: replacement)
+        _ = try FileManager.default.replaceItemAt(installation.entryURL, withItemAt: replacement)
+        let updatedEntry = try XCTUnwrap(CodexHookInstallation.EntryIdentity(at: installation.entryURL))
+        try installation.confirmEntryUpgrade(updatedEntry)
+        XCTAssertEqual(installation.status(configuration: "configuration-2")?.configurationWritten, true)
+        XCTAssertEqual(installation.status(configuration: "configuration-2")?.entryChecked, true)
+        XCTAssertEqual(installation.status(configuration: "configuration-2")?.eventReceived, false)
+        try FileManager.default.removeItem(at: installation.entryURL)
+        XCTAssertEqual(installation.status(configuration: "configuration-2")?.entryChecked, false)
+        installation.clear()
+        XCTAssertNil(installation.status(configuration: "configuration-2"))
+    }
+
     func testInstallReinstallAndUninstallPreserveExistingUserHooksAndTrust() throws {
         let once = try install(user)
         XCTAssertTrue(once.contains(user))

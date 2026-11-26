@@ -106,7 +106,7 @@ struct WS3TaskOverviewView: View {
                 ForEach(overview.tasks, id: \.slot) { task in
                     HStack {
                         Text(String(format: NSLocalizedString("位置 %d · %@ · %@", comment: ""),
-                                    task.slot + 1, task.client.rawValue.capitalized, String(task.reference.prefix(8))))
+                                    task.slot + 1, task.client.displayName, String(task.reference.prefix(8))))
                         Spacer()
                         if task.foreground == true {
                             Image(systemName: "rectangle.inset.filled").help(NSLocalizedString("当前终端任务", comment: ""))

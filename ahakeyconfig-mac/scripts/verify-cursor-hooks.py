@@ -16,7 +16,7 @@ import subprocess
 import tempfile
 import threading
 
-from hook_lifecycle_fixture import terminate_process_group
+from hook_lifecycle_fixture import hook_entry_swift_sources, terminate_process_group
 
 SWIFT = r'''
 import Foundation
@@ -81,7 +81,8 @@ def main():
             (root / "main.swift").write_text(SWIFT)
             source = Path(__file__).resolve().parents[1] / "Sources/Shared/JSONHooksConfiguration.swift"
             generator = root / "generate"
-            subprocess.run(["swiftc", str(source), str(root / "main.swift"), "-o", str(generator)], check=True, timeout=60)
+            subprocess.run(["swiftc", *map(str, hook_entry_swift_sources(source.parent)), str(source),
+                            str(root / "main.swift"), "-o", str(generator)], check=True, timeout=60)
             agent = root / "agent's space/ahakeyconfig-agent"
             agent.parent.mkdir()
             agent.write_text('#!/bin/sh\ncat >/dev/null\nprintf "%s\\n" "$2" >> "$AHAKEY_FIXTURE_ROOT/markers"\nprintf "{}\\n"\n')

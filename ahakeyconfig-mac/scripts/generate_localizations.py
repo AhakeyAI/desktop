@@ -2322,6 +2322,115 @@ TRANSLATIONS.update({
     "本次仅检查了部分登记，请缩小配置目录范围后再试。": "Only some registrations were checked. Narrow the configuration directories and try again."
 })
 
+TRANSLATIONS.update({
+    "已检测到四个 AhaKey Hook 的配置。": "Configuration found for all four AhaKey Hooks.",
+    "部分 Hook 配置尚未确认，请查看下方详情。": "Some Hook configurations are unconfirmed. See the details below.",
+    "Hook 入口自检通过。": "The Hook entry passed its self-check.",
+    "找不到可执行的 Hook 程序。": "The Hook executable could not be found.",
+    "Hook 入口自检超时。": "The Hook entry self-check timed out.",
+    "Hook 入口自检失败，请确认安装的是完整的 Studio。": "The Hook entry failed its self-check. Verify that the full Studio app is installed.",
+    "Hook 安装未继续。%@": "Hook installation stopped. %@",
+    "Codex 配置刚刚发生变化，请重试安装。": "The Codex configuration just changed. Retry installation.",
+    "Codex Hook · 配置已写入": "Codex Hook · Configuration written",
+    "配置已写入": "Configuration written",
+    "配置待确认": "Configuration unconfirmed",
+    "Hook 入口自检通过": "Hook entry self-check passed",
+    "Hook 入口待检查": "Hook entry needs a check",
+    "已收到真实 Codex Hook，接入已验证": "Codex Hook received. Integration verified.",
+    "等待验证": "Waiting for verification",
+    "Hook 已更新。已打开的 Codex 会话需要重启所属终端或客户端进程。仅重新打开聊天页面可能无效。": "Hook updated. Restart the terminal or client process for any open Codex sessions. Reopening the chat alone may not reload the Hook.",
+    "复制恢复命令": "Copy resume command",
+    "已复制": "Copied",
+    "适用于 Codex CLI。运行后在列表中选择要继续的会话。": "Run in Codex CLI and choose the session to resume.",
+    "检测到 Codex Hook 配置。请点击「全部安装」检查入口，等待 Codex 回调验证。": "Codex Hook configuration found. Choose Install All to check the entry and wait for a Codex event."
+})
+
+TRANSLATIONS.update({
+    "Studio 直连": "Studio Direct",
+    "后台联动": "Background Sync",
+    "Studio 直连用于改键、调整灯效和上传画面。": "Use Studio Direct to edit keys, adjust lighting, and upload screen images.",
+    "后台联动用于同步任务状态，让拨杆管理已接入的工具。": "Use Background Sync to show task activity and let the lever manage connected tools.",
+    "连接状态": "Connection status",
+    "后台未运行": "Service stopped",
+    "后台服务未安装": "Service not installed",
+    "需要安装后台服务": "Background service required",
+    "在「智能代理」中点击「全部安装」，然后切换到后台联动。": "Choose Install All under AI Agents, then switch to Background Sync.",
+    "智能代理": "AI Agents",
+    "工具与 Hook": "Tools and Hooks",
+    "更多工具": "More tools",
+    "已配置 %d/%d": "%d of %d configured",
+    "已配置 %d/%d 个 Hook。": "%d of %d Hooks configured.",
+    "检测到 %d 个工具": "%d tools detected",
+    "后台运行中": "Service running",
+    "已配置": "Configured",
+    "未配置": "Not configured",
+    "已检测到": "Detected",
+    "未检测到": "Not detected",
+    "安装 Hook": "Install Hook",
+    "修复": "Repair",
+    "仅检测安装": "Installation detection only",
+    "由 Orca 启用": "Enabled through Orca",
+    "仅同步任务状态": "Task activity only",
+    "企业版通过管理后台配置 HTTP Hook": "Enterprise edition uses HTTP Hooks in the admin console",
+    "尚未确认本机 Hook 接口": "Local Hook interface unconfirmed",
+    "已有 Codex 会话需要重启所属进程以加载 Hook。": "Restart the process for existing Codex sessions to load the Hook.",
+    "后台服务已准备好。尚未检测到可安装 Hook 的工具。": "The background service is ready. No tools with installable Hooks were detected.",
+    "移除由 Studio 写入的联动配置。": "Remove integrations configured by Studio."
+})
+
+TRANSLATIONS.update({
+    "固件 %@": "Firmware %@",
+    "电量 %d%%": "%d%% battery",
+    "电量未读取": "Battery not read",
+    "未读取设备名": "Device name not read",
+    "状态钩子": "Agent Hooks",
+    "切换方式": "Switch Mode",
+    "配置键盘。用于改按键、调灯和上传屏幕画面。": "Configure keys, lighting, and screen artwork.",
+    "日常使用。同步任务状态，支持的工具可用拨杆审批。": "For everyday use. Sync task activity and use the lever with supported tools.",
+    "改按键、调灯、上传画面": "Edit keys, lighting, and artwork",
+    "同步任务状态、拨杆审批": "Sync task activity and lever approvals",
+    "安装并切换": "Install and Switch",
+    "后台联动需要 Studio 的本机后台服务。": "Background Sync requires Studio's local background service.",
+    "点「添加」选择要同步的工具。": "Choose Add to select a tool to sync.",
+    "卸载状态钩子？": "Uninstall agent hook?",
+    "卸载后，Studio 将停止同步 %@ 的任务状态。": "Studio will stop syncing task activity for %@.",
+    "没有匹配的工具": "No matching tools",
+    "搜索工具": "Search tools",
+    "待适配": "Integration pending",
+    "待安装": "Ready to install",
+    "修复 Hook": "Repair Hook",
+    "检测到 Codex Hook 配置。点击「修复 Hook」检查入口，等待 Codex 回调。": "Codex Hook configuration found. Choose Repair Hook to check the entry point and wait for a Codex event.",
+    "BLE 连接详情": "BLE connection details",
+    "配置读取": "Read configuration",
+    "Hook 日志": "Hook logs",
+    "日志来源": "Log source",
+    "Hook 安装与卸载": "Hook installation and removal",
+    "GATT 特征": "GATT characteristics",
+    "由 Studio 直连后读取": "Connect with Studio Direct to read",
+    "修改设备名": "Edit device name",
+    "Antigravity：检测到同名 Hook，未改动配置。": "Antigravity: A hook with the same name already exists. Configuration was preserved.",
+    "Antigravity：无法更新状态钩子。\n%@": "Antigravity: Could not update its status hook.\n%@",
+    "OpenCode：检测到同名插件，未改动配置。": "OpenCode: A plugin with the same name already exists. Configuration was preserved.",
+    "OpenCode：无法更新状态钩子。\n%@": "OpenCode: Could not update its status hook.\n%@"
+})
+
+TRANSLATIONS.update({
+    "仅同步本机 Gateway 的任务状态": "Local Gateway task status only",
+    "OpenClaw：插件已放到本机 Gateway 的扩展目录，请在 OpenClaw 启用 ahakey-studio-status。":
+        "OpenClaw: The plugin is in the local Gateway extensions folder. Enable ahakey-studio-status in OpenClaw.",
+    "%@：无法更新状态钩子。\n%@": "%@: Could not update the status hook.\n%@"
+})
+
+TRANSLATIONS.update({
+    "请登录 AhaType": "Sign in to AhaType",
+    "请开启 AhaType": "Turn on AhaType",
+    "登录或注册后，再写入此语音设置。": "Sign in or register, then write this voice setting.",
+    "在云端账号中开启云端整理，再写入此语音设置。": "Turn on cloud text cleanup in your account, then write this setting.",
+    "去登录": "Go to Sign In",
+    "去设置": "Open Settings",
+    "关闭提示": "Dismiss message"
+})
+
 def escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 

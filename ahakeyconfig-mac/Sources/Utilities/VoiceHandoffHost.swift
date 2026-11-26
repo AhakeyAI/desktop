@@ -14,7 +14,7 @@ extension Notification.Name {
 
 @MainActor
 enum VoiceHandoffHost {
-    enum Failure: Error, LocalizedError {
+    enum Failure: Error, LocalizedError, Equatable {
         case cloudNotConfigured, cloudDisabled
         var errorDescription: String? {
             switch self {
@@ -22,6 +22,14 @@ enum VoiceHandoffHost {
             case .cloudDisabled: return NSLocalizedString("请先开启 AhaType 总开关，再保存当前模式的云端整理方案。", comment: "")
             }
         }
+    }
+
+    nonisolated static func cloudSetupRequired(
+        for preset: VoicePreset?, isLoggedIn: Bool, hasToken: Bool, requiresLogin: Bool, isEnabled: Bool
+    ) -> Failure? {
+        guard preset == .ahaTypeCloud else { return nil }
+        if !isLoggedIn || !hasToken || requiresLogin { return .cloudNotConfigured }
+        return isEnabled ? nil : .cloudDisabled
     }
     static func checkReady(_ choice: DesktopSpeechChoice) throws {
         let relay = VoiceRelayService.shared

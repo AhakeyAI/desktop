@@ -3,19 +3,27 @@ import Foundation
 /// Shared by Studio and isolated CLI lifecycle fixtures. Only managed command
 /// entries change; user hooks and unrelated settings survive install/removal.
 public enum JSONHooksConfiguration {
-    public enum Client { case claude, cursor }
+    public enum Client { case claude, cursor, workBuddy }
     public enum Failure: Error { case malformed, unsafePath }
     public static let claudeEvents = ["Notification", "PermissionRequest", "PreToolUse", "PostToolUse", "Stop", "SubagentStop", "SessionStart", "SessionEnd", "UserPromptSubmit", "TaskCompleted", "PreCompact"]
     public static let cursorEvents = ["sessionStart", "sessionEnd", "preToolUse", "beforeShellExecution", "beforeMCPExecution", "beforeReadFile", "beforeSubmitPrompt", "postToolUse", "stop"]
+    public static let workBuddyEvents = ["UserPromptSubmit", "Stop", "SessionEnd"]
 
     public static func installing(in settings: [String: Any], client: Client, agentPath: String) throws -> [String: Any] {
         guard agentPath.hasPrefix("/"), !agentPath.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { throw Failure.unsafePath }
         var result = try removing(in: settings, client: client)
         var hooks = result["hooks"] as? [String: Any] ?? [:]
-        for event in client == .claude ? claudeEvents : cursorEvents {
-            let command = "'" + agentPath.replacingOccurrences(of: "'", with: "'\\''") + "' hook " + event
+        let events: [String]
+        switch client {
+        case .claude: events = claudeEvents
+        case .cursor: events = cursorEvents
+        case .workBuddy: events = workBuddyEvents
+        }
+        for event in events {
+            let hookEvent = client == .workBuddy ? "WorkBuddy" + event : event
+            let command = "'" + agentPath.replacingOccurrences(of: "'", with: "'\\''") + "' hook " + hookEvent
             var entries = hooks[event] as? [[String: Any]] ?? []
-            if client == .claude {
+            if client != .cursor {
                 entries.append(["matcher": "", "hooks": [["type": "command", "command": command]]])
             } else {
                 let timeout = event == "beforeSubmitPrompt" ? 30 : (["preToolUse", "beforeShellExecution", "beforeMCPExecution", "beforeReadFile", "sessionStart"].contains(event) ? 20 : 10)
@@ -32,15 +40,16 @@ public enum JSONHooksConfiguration {
         var result = settings
         guard let value = settings["hooks"] else { return result }
         guard var hooks = value as? [String: Any] else { throw Failure.malformed }
+        let ownsCommand = client == .workBuddy ? ownsWorkBuddy : owns
         var changed = false
         for event in Array(hooks.keys) {
             guard var entries = hooks[event] as? [[String: Any]] else { throw Failure.malformed }
             let before = entries as NSArray
-            if client == .claude {
+            if client != .cursor {
                 var retained: [[String: Any]] = []
                 for var entry in entries {
                     guard let commands = entry["hooks"] as? [[String: Any]] else { throw Failure.malformed }
-                    let remaining = commands.filter { !owns(($0["command"] as? String) ?? "") }
+                    let remaining = commands.filter { !ownsCommand(($0["command"] as? String) ?? "") }
                     if remaining.count == commands.count { retained.append(entry) }
                     else if !remaining.isEmpty { entry["hooks"] = remaining; retained.append(entry) }
                 }
@@ -57,6 +66,10 @@ public enum JSONHooksConfiguration {
 
     public static func owns(_ command: String) -> Bool {
         ManagedHookCommand.owns(command, events: claudeEvents + cursorEvents, legacyScript: true)
+    }
+
+    public static func ownsWorkBuddy(_ command: String) -> Bool {
+        ManagedHookCommand.owns(command, events: workBuddyEvents.map { "WorkBuddy" + $0 })
     }
 }
 
@@ -79,7 +92,9 @@ enum ManagedHookCommand {
         guard let executable = words.first else { return false }
         let name = URL(fileURLWithPath: executable).lastPathComponent
         if legacyScript, name == "ahakey-state.sh", words.count == 2, events.contains(words[1]) { return true }
-        return words.count == 3 && words[1] == "hook" && events.contains(words[2]) && ["ahakeyconfig-agent", "ahakey-state"].contains(name)
+        return words.count == 3 && words[1] == "hook" && events.contains(words[2])
+            && (["ahakeyconfig-agent", "ahakey-state"].contains(name)
+                || executable == CodexHookInstallation().entryURL.path)
     }
     /// A bounded recognizer for our literal argv/wrappers, not a shell evaluator.
     /// Substitution, pipelines and redirection never grant removal ownership.

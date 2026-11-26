@@ -53,20 +53,74 @@ enum HookClient {
         "KimiPostToolUse": .sharedState(2),
         "KimiUserPromptSubmit": .sharedState(7),
         "KimiStop": .sharedState(5),
+
+        "WorkBuddyUserPromptSubmit": .sharedState(7),
+        "WorkBuddyStop": .sharedState(5),
+        "WorkBuddySessionEnd": .sharedState(8),
     ]
 
     /// Shared-state routes use the same builder in production and focused tests.
     /// No tool content or command text is forwarded to the task registry.
     static func stateRequest(event: String, stdin: Data) -> [String: Any]? {
+        if let event = ClineStatusHooks.Event(hookArgument: event) {
+            return event.stateRequest(from: stdin)
+        }
+        if let event = PassiveStatusHook(rawValue: event) {
+            return event.stateRequest(from: stdin)
+        }
+        if event == OpenCodeStatusHooks.hookArgument {
+            return OpenCodeStatusHooks.stateRequest(from: stdin)
+        }
+        if let antigravity = AntigravityStatusHooks.Event(hookArgument: event) {
+            return antigravity.stateRequest(from: stdin)
+        }
+        if let copilot = CopilotStatusHooks.Event(hookArgument: event) {
+            return copilot.stateRequest(from: stdin)
+        }
         guard case .sharedState(let value) = eventMap[event] else { return nil }
         let request: [String: Any] = ["cmd": "state", "value": Int(value)]
         guard let client = WS3TaskMetadata.client(for: event) else { return request }
+        if client == .workBuddy {
+            let enriched = WS3TaskMetadata.enrich(request, client: client, event: event,
+                                                 stdin: stdin, expectedEvent: String(event.dropFirst("WorkBuddy".count)))
+            return enriched["task"] == nil ? nil : enriched
+        }
         return WS3TaskMetadata.enrich(request, client: client, event: event, stdin: stdin)
     }
 
     static func run(event: String) -> Int32 {
         signal(SIGPIPE, SIG_IGN)
-        
+
+        let receiptClient: StatusHookReceipts.Client?
+        let antigravity = AntigravityStatusHooks.Event(hookArgument: event)
+        let cline = ClineStatusHooks.Event(hookArgument: event)
+        if cline != nil {
+            receiptClient = .cline
+        } else if let passive = PassiveStatusHook(rawValue: event) {
+            receiptClient = passive.receiptClient
+        } else if event == OpenCodeStatusHooks.hookArgument {
+            receiptClient = .openCode
+        } else if antigravity != nil {
+            receiptClient = .antigravity
+        } else if CopilotStatusHooks.Event(hookArgument: event) != nil {
+            receiptClient = .copilot
+        } else if WS3TaskMetadata.client(for: event) == .workBuddy {
+            receiptClient = .workBuddy
+        } else {
+            receiptClient = nil
+        }
+        if let receiptClient {
+            let confirm = StatusHookReceipts().eventRecorder(client: receiptClient,
+                                                             executablePath: CommandLine.arguments[0])
+            if let request = stateRequest(event: event, stdin: HookSupport.readAllStdinSilently()) {
+                confirm()
+                _ = HookSupport.sendJsonRequest(request, timeout: HookSupport.stateRequestTimeout)
+            }
+            if let antigravity { print(antigravity.response) }
+            if cline != nil { print(ClineStatusHooks.Event.response) }
+            return 0
+        }
+
         // 调试日志：记录所有收到的事件
         FileHandle.standardError.write(Data("[ahakey-hook] DEBUG: received event: '\(event)'\n".utf8))
         

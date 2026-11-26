@@ -66,6 +66,73 @@ public enum CodexHookTrust {
     public static let blockEnd = "# END AhaKey Codex Hooks"
     private static let managedComment = "# Managed by AhaKey Studio."
 
+    public static func enablingHooksFeature(in config: String) throws -> String {
+        let bytes = Array(config.utf8)
+        var table: [String] = []
+        var firstTable: Int?
+        var featuresHeader: Range<Int>?
+        var usesDottedFeatures = false
+        var hooks: Range<Int>?
+        var legacyKeys: [Range<Int>] = []
+        for statement in try TomlPolicyLocator.statements(in: config) {
+            switch statement.kind {
+            case let .table(path, isArray):
+                table = path
+                if firstTable == nil { firstTable = lineRange(statement.range, in: bytes).lowerBound }
+                if path == ["features"] {
+                    guard !isArray, featuresHeader == nil else {
+                        throw TomlPolicyLocator.Failure.unsupported("无法安全更新 features")
+                    }
+                    featuresHeader = statement.range
+                }
+            case let .assignment(path):
+                if table.isEmpty, path.first == "features" {
+                    guard path != ["features"] else {
+                        throw TomlPolicyLocator.Failure.unsupported("无法安全更新内联 features")
+                    }
+                    usesDottedFeatures = true
+                }
+                switch table + path {
+                case ["features", "hooks"]:
+                    guard hooks == nil else { throw TomlPolicyLocator.Failure.unsupported("多个 features.hooks") }
+                    hooks = statement.range
+                case ["features", "codex_hooks"]:
+                    legacyKeys.append(statement.range)
+                default: break
+                }
+            case .comment: break
+            }
+        }
+
+        let newline = config.contains("\r\n") ? "\r\n" : "\n"
+        var edits = legacyKeys.map { Edit(range: $0, replacement: "") }
+        if let hooks {
+            let statement = String(decoding: bytes[hooks], as: UTF8.self)
+            let parts = statement.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard parts.count == 2 else { throw TomlPolicyLocator.Failure.unsupported("无效 features.hooks") }
+            let value = parts[1].split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
+            guard let bool = value.first?.trimmingCharacters(in: .whitespaces), ["true", "false"].contains(bool) else {
+                throw TomlPolicyLocator.Failure.unsupported("无效 features.hooks")
+            }
+            if bool == "false" {
+                let comment = value.count == 2 ? " #" + value[1] : ""
+                edits.append(Edit(range: hooks, replacement: "\(parts[0])= true\(comment)"))
+            }
+        } else if let featuresHeader {
+            let end = featuresHeader.upperBound
+            edits.append(Edit(range: end..<end, replacement: newline + "hooks = true"))
+        } else if usesDottedFeatures {
+            let end = firstTable ?? bytes.count
+            let separator = end > 0 && bytes[end - 1] != 0x0A && bytes[end - 1] != 0x0D ? newline : ""
+            edits.append(Edit(range: end..<end, replacement: separator + "features.hooks = true" + newline))
+        } else {
+            let end = bytes.count
+            let separator = end > 0 && bytes[end - 1] != 0x0A && bytes[end - 1] != 0x0D ? newline : ""
+            edits.append(Edit(range: end..<end, replacement: separator + "[features]" + newline + "hooks = true" + newline))
+        }
+        return applying(edits, to: config)
+    }
+
     /// The app and integration harness use this same command builder and installer.
     public static func installAgentHooks(in config: String, configPath: String, agentBinaryPath: String) throws -> String {
         let events: [(event: String, timeout: Int)] = [
@@ -89,6 +156,22 @@ public enum CodexHookTrust {
         }
         lines.append(blockEnd)
         return try install(in: config, configPath: configPath, block: lines.joined(separator: "\n"), hashes: hashes)
+    }
+
+    /// Fingerprint the managed statements and their current trust records only.
+    public static func managedFingerprint(in config: String, configPath: String) throws -> String? {
+        let layout = try Layout(config)
+        let groups = layout.groups.filter { layout.isManaged($0.offset) }
+        guard layout.managedRanges.count == 1, !groups.isEmpty else { return nil }
+        let keys = Set(groups.compactMap {
+            stateKey(configPath: configPath, event: $0.event, groupIndex: $0.index)
+        })
+        let trust = layout.trustTables.filter { keys.contains($0.key) }.sorted { $0.key < $1.key }
+        guard trust.count == groups.count, Set(trust.map(\.key)) == keys else { return nil }
+        let bytes = Array(config.utf8)
+        let statements = layout.ownedRanges + trust.flatMap { $0.statements.map(\.range) }
+        let content = statements.map { String(decoding: bytes[$0], as: UTF8.self) }.joined(separator: "\n")
+        return SHA256.hash(data: Data(content.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 
     /// Install after removing the previous managed groups. Existing user groups keep

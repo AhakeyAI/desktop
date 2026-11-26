@@ -18,6 +18,7 @@ enum CodexHookHandler {
         /// Regression seam: Hook events must never invoke a policy writer.
         var preparePolicy: () -> Void
         var approvalControlDirectory: URL = ApprovalAutomationControl.productionDirectory
+        var recordFixedEntryEvent: (String, [String: Any]) -> Void = { _, _ in }
 
         static let production = Dependencies(
             readStdin: { HookSupport.readAllStdinSilently() },
@@ -52,6 +53,8 @@ enum CodexHookHandler {
     static func handleState(stateValue: UInt8) {
         let stdinData = dependencies.readStdin()
         let ctx = dependencies.parseContext(stdinData, "Codex")
+        let agentEvent = codexAgentEventName(forStateValue: stateValue)
+        dependencies.recordFixedEntryEvent(String(agentEvent.dropFirst("Codex".count)), ctx)
         let plan = CodexHookStatePlan.make(stateValue: stateValue)
         var request: [String: Any] = [
             "cmd": plan.command == .state ? "state" : "state_with_reset",
@@ -64,7 +67,7 @@ enum CodexHookHandler {
             request["delayMs"] = delayMilliseconds
         }
         request = WS3TaskMetadata.enrich(request, client: .codex,
-            event: codexAgentEventName(forStateValue: stateValue), stdin: stdinData)
+            event: agentEvent, stdin: stdinData)
         let reply = dependencies.sendRequest(request, HookSupport.stateRequestTimeout)
         let switchState = HookSupport.switchStateValue(reply?["switchState"])
 
@@ -74,7 +77,7 @@ enum CodexHookHandler {
 
         dependencies.appendHookLog(
             ctx["hook_event_name"] as? String,
-            codexAgentEventName(forStateValue: stateValue),
+            agentEvent,
             stateValue,
             ctx,
             reply,
@@ -90,6 +93,7 @@ enum CodexHookHandler {
     static func handlePermissionRequest() {
         let stdinData = dependencies.readStdin()
         let ctx = dependencies.parseContext(stdinData, "Codex")
+        dependencies.recordFixedEntryEvent("PermissionRequest", ctx)
         let request = WS3TaskMetadata.enrich(["cmd": "permission", "value": Int(HookSupport.permissionLedValue)],
             client: .codex, event: "PermissionRequest", stdin: stdinData)
         let reply = dependencies.sendRequest(request, HookSupport.permissionRequestTimeout)

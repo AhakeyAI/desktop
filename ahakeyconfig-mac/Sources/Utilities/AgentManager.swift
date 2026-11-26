@@ -45,7 +45,15 @@ final class AgentManager: ObservableObject {
     @Published private(set) var claudeHooksInstalled = false
     @Published private(set) var cursorHooksInstalled = false
     @Published private(set) var codexHooksInstalled = false
+    @Published private(set) var codexHookInstallationStatus: CodexHookInstallation.Status?
     @Published private(set) var kimiHooksInstalled = false
+    @Published private(set) var workBuddyHooksInstalled = false
+    @Published private(set) var copilotHooksInstalled = false
+    @Published private(set) var antigravityHooksInstalled = false
+    @Published private(set) var openCodeHooksInstalled = false
+    @Published private(set) var additionalStatusHooksInstalled: Set<StudioHookClient> = []
+    @Published private(set) var hookOperationLog = ""
+    enum HookVerification: Equatable { case notConfigured, waitingForCallback, verified }
     @Published private(set) var kimiUsesNativeCLI = false
 
     /// 用户选择的蓝牙占用方（存 UserDefaults，启动时应用一次）
@@ -61,6 +69,7 @@ final class AgentManager: ObservableObject {
     private weak var agentFallbackBLEManager: AhaKeyBLEManager?
 
     private let label = "lab.jawa.ahakeyconfig.agent"
+    private let hookInstallation = CodexHookInstallation()
     private let socketPath: String
     private var ownershipTransitionGeneration: UInt64 = 0
     var bluetoothOwnershipRevision: UInt64 { ownershipTransitionGeneration }
@@ -127,15 +136,15 @@ final class AgentManager: ObservableObject {
             .appendingPathComponent(".codex/config.toml").path
     }
 
+    private var workBuddySettingsURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".workbuddy/settings.json")
+    }
+
     /// Kimi Code CLI 2.x 读 `~/.kimi-code/config.toml`；仅纯旧版 kimi-cli 回落 `~/.kimi/config.toml`。
     private var kimiConfigPath: String {
         KimiConfigPolicySync.productionConfigURL.path
     }
     private var kimiConfigDisplayPath: String { (kimiConfigPath as NSString).abbreviatingWithTildeInPath }
-    private var kimiNativeInstallNote: String {
-        NSLocalizedString("Kimi 任务状态同步已配置。新进程的默认权限可随拨杆管理；已有会话的权限接管尚需单独核验，重新打开前请确认权限设置。", comment: "")
-    }
-
     private var kimiCliFallbackRoot: String {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".local/share/uv/tools/kimi-cli").path
@@ -195,8 +204,16 @@ final class AgentManager: ObservableObject {
         claudeHooksInstalled = detectClaudeHooksInstalled()
         cursorHooksInstalled = detectCursorHooksInstalled()
         codexHooksInstalled = detectCodexHooksInstalled()
+        refreshCodexHookInstallationStatus()
         kimiHooksInstalled = detectKimiHooksInstalled()
-        hooksInstalled = claudeHooksInstalled || cursorHooksInstalled || codexHooksInstalled || kimiHooksInstalled
+        workBuddyHooksInstalled = detectWorkBuddyHooksInstalled()
+        copilotHooksInstalled = (try? copilotHooks().status()) == .configured
+        antigravityHooksInstalled = (try? antigravityHooks().isConfigured()) == true
+        openCodeHooksInstalled = (try? openCodeHooks().isConfigured()) == true
+        additionalStatusHooksInstalled = Set([StudioHookClient.cline, .pi, .openClaw].filter {
+            (try? additionalStatusHook($0).configuration.isConfigured()) == true
+        })
+        hooksInstalled = StudioHookClient.allCases.contains { hasHookConfiguration($0) }
         refreshBLEConnectionStatus(shouldQuery: isRunning && bluetoothConnectionOwner == .agentDaemon)
     }
 
@@ -477,7 +494,7 @@ final class AgentManager: ObservableObject {
                 bleManager.setSuppressedForAgentOwningKeyboard(false)
                 agentFallbackBLEManager = bleManager
                 if !isLaunch {
-                    agentUserAlert = "尚未安装 Agent，无法切回「键盘控制中」。请在「更多 → 设备信息 · Agent」里先安装并启用 Agent。"
+                    agentUserAlert = "请先在设备信息中设置后台联动。"
                 }
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: UInt64(500) * 1_000_000)
@@ -610,6 +627,19 @@ final class AgentManager: ObservableObject {
         return false
     }
 
+    private func detectWorkBuddyHooksInstalled() -> Bool {
+        guard let data = try? Data(contentsOf: workBuddySettingsURL),
+              let settings = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let hooks = settings["hooks"] as? [String: Any] else { return false }
+        return JSONHooksConfiguration.workBuddyEvents.allSatisfy { event in
+            guard let groups = hooks[event] as? [[String: Any]] else { return false }
+            return groups.contains { group in
+                guard let commands = group["hooks"] as? [[String: Any]] else { return false }
+                return commands.contains { JSONHooksConfiguration.ownsWorkBuddy($0["command"] as? String ?? "") }
+            }
+        }
+    }
+
     private func detectCodexHooksInstalled() -> Bool {
         guard let text = try? String(contentsOfFile: codexConfigPath, encoding: .utf8) else {
             return false
@@ -627,11 +657,36 @@ final class AgentManager: ObservableObject {
             return false
         }
         // Kimi Code 首次启动会把旧 `~/.kimi` 的 hooks 原样迁移过来，迁移后不带 AhaKey 标记块。
-        return isAhakeyHookCommand(text) && text.contains("hook Kimi")
+        return KimiHooksConfiguration.containsManagedHook(in: text)
     }
 
     private func isAhakeyHookCommand(_ command: String) -> Bool {
         command.contains("ahakeyconfig-agent") || command.contains("ahakey-state")
+    }
+
+    func refreshCodexHookInstallationStatus() {
+        let fingerprint: String?
+        if let config = try? String(contentsOfFile: codexConfigPath, encoding: .utf8),
+           (try? CodexHookTrust.enablingHooksFeature(in: config)) == config {
+            fingerprint = try? CodexHookTrust.managedFingerprint(in: config, configPath: codexConfigPath)
+        } else {
+            fingerprint = nil
+        }
+        let next = hookInstallation.status(configuration: fingerprint)
+        if codexHookInstallationStatus != next { codexHookInstallationStatus = next }
+    }
+
+    private func prepareHookEntry() -> CodexHookInstallation.EntryIdentity? {
+        do {
+            let entry = try StudioHookEntryInstaller.prepare(source: URL(fileURLWithPath: agentBinaryPath),
+                                                              destination: hookInstallation.entryURL)
+            try hookInstallation.confirmEntryUpgrade(entry)
+            try StatusHookReceipts().confirmEntryUpgrade(entry)
+            return entry
+        } catch {
+            agentUserAlert = String(format: NSLocalizedString("Hook 安装未继续。%@", comment: ""), error.localizedDescription)
+            return nil
+        }
     }
 
     /// 真去 connect 一下 agent socket，区分「活着的 agent」和「残留死 socket」。
@@ -726,6 +781,7 @@ final class AgentManager: ObservableObject {
             agentUserAlert = "应用包内没有可执行的 ahakeyconfig-agent（路径：…/Contents/MacOS/ahakeyconfig-agent）。请确认发版脚本已把该二进制一并打进 .app；仅有主程序时无法安装守护进程。"
             return
         }
+        guard let entry = prepareHookEntry() else { return }
 
         // 1. 先卸载旧 job，再写入 plist。否则同 Label 已加载时 launchd 可能继续持有旧 ProgramArguments。
         unloadAgentLaunchJobRemovingSocket()
@@ -742,27 +798,15 @@ final class AgentManager: ObservableObject {
                 loadFailed = true
                 log.error("launchctl load failed: \(load.mergedOutput)")
                 let out = load.mergedOutput.isEmpty ? "（无输出，退出非 0）" : load.mergedOutput
-                agentUserAlert = "LaunchAgent 的 plist 已保存，但 launchctl load 失败，守护进程未载入。\n\nlaunchctl 输出：\n\(out)\n\n常见原因：同一 Label 已存在、plist 无效、对 ~/Library/LaunchAgents 无写权限。可先点「卸载」再装，或在「控制台」搜索 \(label)。"
+                agentUserAlert = "LaunchAgent 的 plist 已保存，但 launchctl load 失败，守护进程未载入。\n\nlaunchctl 输出：\n\(out)\n\n常见原因：同一 Label 已存在、plist 无效、对 ~/Library/LaunchAgents 无写权限。请在设备信息中检查后台状态，或在「控制台」搜索 \(label)。"
             }
         }
 
-        // 3. 安装 Claude / Cursor / Codex / Kimi hooks（直接指向 agent 二进制 hook 子命令）
-        let claudeLine = installClaudeHooks()
-        let cursorLine = installCursorHooks()
-        let codexLine = installCodexHooks()
-        let kimiLine = installKimiHooks()
-
+        var lines = installHookEntries(using: entry)
         refresh()
-
-        var lines: [String] = []
         if bluetoothConnectionOwner == .agentDaemon, !loadFailed {
-            lines.append("launchctl load 已执行。若数秒后未显示「运行中」，请点「查看日志」。")
+            lines.insert("launchctl load 已执行。若数秒后未显示「运行中」，请点「查看日志」。", at: 0)
         }
-        if !claudeLine.isEmpty { lines.append(claudeLine) }
-        if !cursorLine.isEmpty { lines.append(cursorLine) }
-        if !codexLine.isEmpty { lines.append(codexLine) }
-        if !kimiLine.isEmpty { lines.append(kimiLine) }
-        else if kimiUsesNativeCLI { lines.append(kimiNativeInstallNote) }
         let tail = lines.joined(separator: "\n\n")
         if let err = agentUserAlert {
             agentUserAlert = err + (tail.isEmpty ? "" : "\n\n——\n\n" + tail)
@@ -784,6 +828,11 @@ final class AgentManager: ObservableObject {
         removeCursorHooks()
         removeCodexHooks()
         _ = removeKimiHooks()
+        _ = updateWorkBuddyHooks(installingAt: nil)
+        _ = updateCopilotHooks(install: false)
+        _ = updateAntigravityHooks(install: false)
+        _ = updateOpenCodeHooks(install: false)
+        for client in [StudioHookClient.cline, .pi, .openClaw] { _ = updateAdditionalStatusHook(client, install: false) }
 
         // 4. 清理 socket
         removeStaleSocketIfNeeded()
@@ -799,7 +848,7 @@ final class AgentManager: ObservableObject {
     /// 启动 Agent 守护进程（先确保 Job 已 load，再 start；适合「已安装但未运行」）。
     func start() {
         guard isInstalled else {
-            agentUserAlert = "尚未安装 LaunchAgent。请先点「安装并启用」。"
+            agentUserAlert = "请先在设备信息中设置后台联动。"
             return
         }
         if checkAgentSystemDisabled() {
@@ -914,7 +963,7 @@ final class AgentManager: ObservableObject {
     func readUserKimiConfigForDisplay() -> String {
         let path = kimiConfigPath
         guard FileManager.default.fileExists(atPath: path) else {
-            return "（文件不存在：\(path)）\n\n可先点「安装 Kimi Hooks」创建并写入 AhaKey 标记块；须已安装并使用 Kimi Code CLI：https://moonshotai.github.io/kimi-cli/"
+            return "（文件不存在：\(path)）\n\n可在状态钩子中添加 Kimi Code。"
         }
         return (try? String(contentsOfFile: path, encoding: .utf8)) ?? "（存在但无法读取：\(path)）"
     }
@@ -1069,29 +1118,40 @@ final class AgentManager: ObservableObject {
     // MARK: - Claude hooks 追加
 
     /// 空串表示已写入；非空为「跳过 / 失败」说明，需展示给用户。
-    private func installClaudeHooks() -> String {
-        guard var settings = loadClaudeSettings() else {
-            return "Claude Hooks：未找到 ~/.claude/settings.json，已跳过。使用 Claude Code 并生成该文件后，可再点「安装 Claude Hooks」。"
+    private func installClaudeHooks(at hookPath: String) -> String {
+        let settingsFileExists = FileManager.default.fileExists(atPath: claudeSettingsPath)
+        let current = loadClaudeSettings()
+        if current == nil {
+            if settingsFileExists { return "Claude Code：无法读取配置。" }
+            guard StudioHarnessCatalog.detect().contains(StudioHookClient.claude.name) else {
+                return "Claude Code：未检测到。"
+            }
         }
         do {
-            settings = try JSONHooksConfiguration.installing(in: settings, client: .claude, agentPath: agentBinaryPath)
+            let settings = try JSONHooksConfiguration.installing(in: current ?? [:], client: .claude, agentPath: hookPath)
+            let directory = URL(fileURLWithPath: claudeSettingsPath).deletingLastPathComponent()
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            guard saveClaudeSettings(settings) else {
+                return "Claude Code：无法写入 Hook 配置。"
+            }
         } catch { return "Claude Hooks：配置结构无效，未修改现有文件。" }
-        if saveClaudeSettings(settings) {
-            guard ApprovalAutomationControl.resume(.claude) else { return "无法恢复 Claude 审批管理权限。" }
-            log.info("Claude hooks 已写入 ahakeyconfig-agent hook 子命令")
-            return ""
-        }
-        return "Claude Hooks：无法写入 \(claudeSettingsPath)。请检查该文件或父目录的权限/只读状态。"
+        guard ApprovalAutomationControl.resume(.claude) else { return "无法恢复 Claude 审批管理权限。" }
+        log.info("Claude hooks 已写入固定入口")
+        return ""
     }
 
-    private func removeClaudeHooks() {
-        guard var settings = loadClaudeSettings() else { return }
-        do { settings = try JSONHooksConfiguration.removing(in: settings, client: .claude) }
-        catch { log.error("removeClaudeHooks: 配置结构无效，未写入"); return }
-        if !saveClaudeSettings(settings) {
-            log.error("removeClaudeHooks: 无法写回 settings")
-        } else {
+    @discardableResult
+    private func removeClaudeHooks() -> String? {
+        guard FileManager.default.fileExists(atPath: claudeSettingsPath) else { return nil }
+        guard let settings = loadClaudeSettings() else { return "Claude Hooks：无法读取或解析配置，未修改文件。" }
+        do {
+            let next = try JSONHooksConfiguration.removing(in: settings, client: .claude)
+            guard saveClaudeSettings(next) else { return "Claude Hooks：无法写回配置，请检查文件权限。" }
             log.info("Claude hooks 中 ahakey 条目已移除")
+            return nil
+        } catch {
+            log.error("removeClaudeHooks: 配置结构无效，未写入")
+            return "Claude Hooks：配置结构无效，未修改文件。"
         }
     }
 
@@ -1122,98 +1182,325 @@ final class AgentManager: ObservableObject {
     private let kimiHookBlockEnd = KimiHooksConfiguration.blockEnd
 
 
-    /// 单独安装 Claude hooks
-    func installClaudeHooksOnly() {
-        isAgentOperationInProgress = true
-        defer { isAgentOperationInProgress = false }
-        let s = installClaudeHooks()
-        agentUserAlert = s.isEmpty ? "Claude Hooks 已写入 ~/.claude/settings.json。" : s
-        refresh()
+    private func installHookEntries(_ clients: [StudioHookClient] = StudioHookClient.allCases,
+                                    using entry: CodexHookInstallation.EntryIdentity) -> [String] {
+        let hookPath = hookInstallation.entryURL.path
+        return clients.compactMap { client in
+            let message: String
+            switch client {
+            case .claude: message = installClaudeHooks(at: hookPath)
+            case .cursor: message = installCursorHooks(at: hookPath)
+            case .codex: message = installCodexHooks(using: entry)
+            case .kimi:
+                message = installKimiHooks(at: hookPath)
+            case .workBuddy:
+                message = updateWorkBuddyHooks(installingAt: hookPath) ?? ""
+            case .copilot:
+                message = updateCopilotHooks(install: true) ?? ""
+            case .antigravity:
+                message = updateAntigravityHooks(install: true) ?? ""
+            case .openCode:
+                message = updateOpenCodeHooks(install: true) ?? ""
+            case .cline, .pi, .openClaw:
+                message = updateAdditionalStatusHook(client, install: true) ?? ""
+            }
+            return message.isEmpty ? nil : message
+        }
     }
 
-    /// 单独移除 Claude hooks
-    func removeClaudeHooksOnly() {
-        let policyCleanupOK = ApprovalAutomationControl.revoke(.claude)
-        removeClaudeHooks()
-        let cleanup = policyCleanupOK ? "已撤销 AhaKey 自动策略；已打开的 CLI 会话请重新加载或重开。" : "自动策略撤销未完全确认，请核对配置文件。"
-        agentUserAlert = (agentUserAlert.map { $0 + "\n\n" } ?? "") + cleanup
-        refresh()
+    func hasHookConfiguration(_ client: StudioHookClient) -> Bool {
+        switch client {
+        case .claude: return claudeHooksInstalled
+        case .cursor: return cursorHooksInstalled
+        case .codex: return codexHooksInstalled
+        case .kimi: return kimiHooksInstalled
+        case .workBuddy: return workBuddyHooksInstalled
+        case .copilot: return copilotHooksInstalled
+        case .antigravity: return antigravityHooksInstalled
+        case .openCode: return openCodeHooksInstalled
+        case .cline, .pi, .openClaw: return additionalStatusHooksInstalled.contains(client)
+        }
     }
 
-    /// 单独安装 Cursor hooks（公开给 UI 用，例如只想补装 Cursor 时调用）
-    func installCursorHooksOnly() {
-        isAgentOperationInProgress = true
-        defer { isAgentOperationInProgress = false }
-        let s = installCursorHooks()
-        agentUserAlert = s.isEmpty ? "Cursor Hooks 已写入 ~/.cursor/hooks.json。" : s
-        refresh()
+    func hookVerification(_ client: StudioHookClient) -> HookVerification {
+        guard hasHookConfiguration(client) else { return .notConfigured }
+        if client == .codex {
+            return codexHookInstallationStatus?.eventReceived == true ? .verified : .waitingForCallback
+        }
+        if let target = statusHookReceiptTarget(client),
+           StatusHookReceipts().isVerified(client: target.0, configurations: target.1) {
+            return .verified
+        }
+        return .waitingForCallback
     }
 
-    /// 单独安装 Codex hooks（Codex 0.125 为 inline TOML）。
-    func installCodexHooksOnly() {
-        isAgentOperationInProgress = true
-        defer { isAgentOperationInProgress = false }
-        let s = installCodexHooks()
-        agentUserAlert = s.isEmpty ? "Codex Hooks 已写入 ~/.codex/config.toml。\n\n安装完成。请重启 Codex 终端或客户端后再使用。" : s
+    /// Prepares background Bluetooth independently of any external tool setup.
+    func prepareBackgroundService() -> Bool {
+        guard !isAgentOperationInProgress else { return false }
+        if FileManager.default.fileExists(atPath: plistPath) {
+            refresh()
+            return isInstalled
+        }
+        guard isAgentBinaryPresentInBundle else {
+            agentUserAlert = NSLocalizedString("应用包缺少 Agent，请重新安装完整的 AhaKey Studio。", comment: "")
+            return false
+        }
+        guard writeLaunchAgentPlist() else { return false }
         refresh()
+        return isInstalled
     }
 
-    /// 单独移除 Cursor hooks
-    func removeCursorHooksOnly() {
-        let policyCleanupOK = ApprovalAutomationControl.revoke(.cursor)
+    func installAllHooks() {
+        let detected = StudioHarnessCatalog.detect()
+        let clients = StudioHookClient.allCases.filter { hasHookConfiguration($0) || detected.contains($0.name) }
+        installHooks(clients)
+    }
+    func installHook(_ client: StudioHookClient) { installHooks([client]) }
+
+    private func installHooks(_ clients: [StudioHookClient]) {
+        guard !isAgentOperationInProgress else { return }
+        guard isAgentBinaryPresentInBundle else {
+            agentUserAlert = NSLocalizedString("应用包缺少 Agent，请重新安装完整的 AhaKey Studio。", comment: "")
+            recordHookOperation("安装", clients: clients, completed: false)
+            return
+        }
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
-        agentUserAlert = performRemoveCursorHooksUserMessage()
-        let cleanup = policyCleanupOK ? "已撤销 AhaKey 自动策略；已打开的 CLI 会话请重新加载或重开。" : "自动策略撤销未完全确认，请核对配置文件。"
-        agentUserAlert = (agentUserAlert.map { $0 + "\n\n" } ?? "") + cleanup
+        agentUserAlert = nil
+        guard let entry = prepareHookEntry() else {
+            recordHookOperation("安装", clients: clients, completed: false)
+            return
+        }
+        // Prepare a missing LaunchAgent without starting or restarting the background process.
+        guard isInstalled || writeLaunchAgentPlist() else {
+            recordHookOperation("安装", clients: clients, completed: false)
+            return
+        }
+        let details = installHookEntries(clients, using: entry)
         refresh()
+        let configured = clients.filter { hasHookConfiguration($0) }.count
+        let messages = [clients.isEmpty
+            ? NSLocalizedString("后台服务已准备好。尚未检测到可安装 Hook 的工具。", comment: "")
+            : String(format: NSLocalizedString("已配置 %d/%d 个 Hook。", comment: ""), configured, clients.count)] + details
+        agentUserAlert = messages.joined(separator: "\n\n")
+        recordHookOperation("安装", clients: clients, completed: configured == clients.count)
     }
 
-    /// 单独移除 Codex hooks。
-    func removeCodexHooksOnly() {
-        let policyCleanupOK = ApprovalAutomationControl.revoke(.codex)
-        isAgentOperationInProgress = true
-        defer { isAgentOperationInProgress = false }
-        agentUserAlert = removeCodexHooks()
-        let cleanup = policyCleanupOK ? "已撤销 AhaKey 自动策略；已打开的 CLI 会话请重新加载或重开。" : "自动策略撤销未完全确认，请核对配置文件。"
-        agentUserAlert = (agentUserAlert.map { $0 + "\n\n" } ?? "") + cleanup
-        refresh()
+    func removeHook(_ client: StudioHookClient) { removeHooks([client]) }
+    func removeAllHooks() {
+        removeHooks(StudioHookClient.allCases)
     }
 
-    /// 单独安装 Kimi Code CLI hooks（当前 Kimi 配置，Beta）。
-    func installKimiHooksOnly() {
+    private func removeHooks(_ clients: [StudioHookClient]) {
+        guard !isAgentOperationInProgress else { return }
         isAgentOperationInProgress = true
         defer { isAgentOperationInProgress = false }
-        let s = installKimiHooks()
-        if s.isEmpty, KimiConfigPolicySync.productionLocation.layout == .nativeV2 {
-            agentUserAlert = kimiNativeInstallNote
-        } else {
-            agentUserAlert = s.isEmpty
-                ? """
-                Kimi Hooks 已写入 ~/.kimi/config.toml。
-
-                **AhaKey 拨杆接管也会一并重打到本机 kimi-cli**。如果 kimi 当前已经打开，请**完全关闭并重新打开一次**；重开后，**拨杆 0/1 会直接接管当前会话的自动批准**，**不需要 `/reload`，也不需要 `/yolo`**。
-                以后若你**升级了 kimi-cli**，再次点击一次「安装 Kimi Hooks」即可把这层拨杆接管补回去，然后再重开一次 kimi。
-
-                安装完成。Hooks 为 Beta，行为以官方文档为准。
-                """
-                : s
+        var messages: [String] = []
+        var encounteredError = false
+        for client in clients {
+            if let approval = ApprovalAutomationControl.Client(rawValue: client.rawValue),
+               !ApprovalAutomationControl.revoke(approval) {
+                messages.append(String(format: NSLocalizedString("%@ 的 AhaKey 审批策略恢复尚未确认。", comment: ""), client.name))
+                encounteredError = true
+            }
+            switch client {
+            case .claude:
+                if let error = removeClaudeHooks() { messages.append(error); encounteredError = true }
+            case .cursor:
+                let detail = performRemoveCursorHooksUserMessage(preferCompactMessage: true)
+                if !detail.isEmpty { messages.append(detail) }
+            case .codex: messages.append(removeCodexHooks())
+            case .kimi: messages.append(removeKimiHooks())
+            case .workBuddy:
+                if let error = updateWorkBuddyHooks(installingAt: nil) { messages.append(error); encounteredError = true }
+            case .copilot:
+                if let error = updateCopilotHooks(install: false) { messages.append(error); encounteredError = true }
+            case .antigravity:
+                if let error = updateAntigravityHooks(install: false) { messages.append(error); encounteredError = true }
+            case .openCode:
+                if let error = updateOpenCodeHooks(install: false) { messages.append(error); encounteredError = true }
+            case .cline, .pi, .openClaw:
+                if let error = updateAdditionalStatusHook(client, install: false) { messages.append(error); encounteredError = true }
+            }
         }
         refresh()
+        let completed = !encounteredError && !clients.contains(where: { hasHookConfiguration($0) })
+        let summary = !completed
+            ? NSLocalizedString("状态钩子卸载未确认，请核对结果。", comment: "")
+            : NSLocalizedString("所选状态钩子已卸载。已打开的 CLI 会话可能需要重新加载。", comment: "")
+        agentUserAlert = ([summary] + messages).joined(separator: "\n\n")
+        recordHookOperation("卸载", clients: clients, completed: completed)
     }
 
-    /// 单独移除 Kimi Hooks 标记块。
-    func removeKimiHooksOnly() {
-        let policyCleanupOK = ApprovalAutomationControl.revoke(.kimi)
-        isAgentOperationInProgress = true
-        defer { isAgentOperationInProgress = false }
-        agentUserAlert = removeKimiHooks()
-        let cleanup = policyCleanupOK ? "已撤销 AhaKey 自动策略；已打开的 CLI 会话请重新加载或重开。" : "自动策略撤销未完全确认，请核对配置文件。"
-        agentUserAlert = (agentUserAlert.map { $0 + "\n\n" } ?? "") + cleanup
-        refresh()
+    private func recordHookOperation(_ operation: String, clients: [StudioHookClient], completed: Bool) {
+        let stamp = Date.now.formatted(date: .omitted, time: .standard)
+        let outcome = completed ? "完成" : "未确认"
+        let entry = "[\(stamp)] \(operation) \(clients.map(\.name).joined(separator: "、")) · \(outcome)"
+        hookOperationLog = ([entry] + hookOperationLog.split(separator: "\n").prefix(99).map(String.init))
+            .joined(separator: "\n")
     }
 
-    private func installCursorHooks() -> String {
+    private func copilotHooks() throws -> CopilotStatusHooks {
+        try CopilotStatusHooks(home: FileManager.default.homeDirectoryForCurrentUser,
+                               copilotHome: ProcessInfo.processInfo.environment["COPILOT_HOME"].flatMap { $0.isEmpty ? nil : $0 },
+                               entryPath: hookInstallation.entryURL.path)
+    }
+
+    private func statusHookReceiptTarget(_ client: StudioHookClient) -> (StatusHookReceipts.Client, [URL])? {
+        switch client {
+        case .workBuddy: return (.workBuddy, [workBuddySettingsURL])
+        case .copilot: return (try? copilotHooks()).map { (.copilot, [$0.configurationURL]) }
+        case .antigravity: return (try? antigravityHooks()).map { (.antigravity, [$0.configurationURL]) }
+        case .openCode: return (try? openCodeHooks()).map { (.openCode, [$0.configurationURL]) }
+        case .cline, .pi, .openClaw:
+            return (try? additionalStatusHook(client)).map { ($0.client, $0.configuration.configurationURLs) }
+        default: return nil
+        }
+    }
+
+    private func additionalStatusHook(_ client: StudioHookClient) throws
+        -> (client: StatusHookReceipts.Client, configuration: any LocalStatusHookConfiguration) {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let executable = hookInstallation.entryURL.path
+        let environment = ProcessInfo.processInfo.environment
+        switch client {
+        case .cline:
+            return (.cline, try ClineStatusHooks(home: home, entryPath: executable))
+        case .pi:
+            let root = environment["PI_CODING_AGENT_DIR"].flatMap { $0.isEmpty ? nil : $0 }
+            return (.pi, try PiStatusHooks(home: home, agentDirectory: root, entryPath: executable))
+        case .openClaw:
+            let root = environment["OPENCLAW_STATE_DIR"].flatMap { $0.isEmpty ? nil : $0 }
+            return (.openClaw, try OpenClawStatusHooks(home: home, stateDirectory: root, entryPath: executable))
+        default:
+            throw CocoaError(.featureUnsupported)
+        }
+    }
+
+    private func updateAdditionalStatusHook(_ client: StudioHookClient, install: Bool) -> String? {
+        do {
+            let adapter = try additionalStatusHook(client)
+            try adapter.configuration.update(install: install)
+            let receipts = StatusHookReceipts()
+            if install {
+                try receipts.confirm(client: adapter.client, configurations: adapter.configuration.configurationURLs)
+                if client == .openClaw {
+                    return NSLocalizedString("OpenClaw：插件已放到本机 Gateway 的扩展目录，请在 OpenClaw 启用 ahakey-studio-status。", comment: "")
+                }
+            } else {
+                receipts.clear(client: adapter.client)
+            }
+            return nil
+        } catch {
+            return String(format: NSLocalizedString("%@：无法更新状态钩子。\n%@", comment: ""), client.name, error.localizedDescription)
+        }
+    }
+
+    private func updateCopilotHooks(install: Bool) -> String? {
+        do {
+            let adapter = try copilotHooks()
+            if install {
+                try adapter.install()
+                try StatusHookReceipts().confirm(client: .copilot, configuration: adapter.configurationURL)
+            } else {
+                try adapter.uninstall()
+                StatusHookReceipts().clear(client: .copilot)
+            }
+            return nil
+        } catch CopilotStatusHooks.Failure.conflictingFile {
+            return "GitHub Copilot CLI：检测到同名配置，操作已停止。"
+        } catch {
+            return "GitHub Copilot CLI：无法更新状态钩子。\n\(error.localizedDescription)"
+        }
+    }
+
+    private func antigravityHooks() throws -> AntigravityStatusHooks {
+        try AntigravityStatusHooks(home: FileManager.default.homeDirectoryForCurrentUser,
+                                  entryPath: hookInstallation.entryURL.path)
+    }
+
+    private func updateAntigravityHooks(install: Bool) -> String? {
+        do {
+            let adapter = try antigravityHooks()
+            try adapter.update(install: install)
+            if install {
+                try StatusHookReceipts().confirm(client: .antigravity, configuration: adapter.configurationURL)
+            } else {
+                StatusHookReceipts().clear(client: .antigravity)
+            }
+            return nil
+        } catch AntigravityStatusHooks.Failure.conflictingName {
+            return NSLocalizedString("Antigravity：检测到同名 Hook，未改动配置。", comment: "")
+        } catch {
+            return String(format: NSLocalizedString("Antigravity：无法更新状态钩子。\n%@", comment: ""), error.localizedDescription)
+        }
+    }
+
+    private func openCodeHooks() throws -> OpenCodeStatusHooks {
+        try OpenCodeStatusHooks(home: FileManager.default.homeDirectoryForCurrentUser,
+                               configHome: ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"].flatMap { $0.isEmpty ? nil : $0 },
+                               entryPath: hookInstallation.entryURL.path)
+    }
+
+    private func updateOpenCodeHooks(install: Bool) -> String? {
+        do {
+            let adapter = try openCodeHooks()
+            try adapter.update(install: install)
+            if install {
+                try StatusHookReceipts().confirm(client: .openCode, configuration: adapter.configurationURL)
+            } else {
+                StatusHookReceipts().clear(client: .openCode)
+            }
+            return nil
+        } catch OpenCodeStatusHooks.Failure.conflictingFile {
+            return NSLocalizedString("OpenCode：检测到同名插件，未改动配置。", comment: "")
+        } catch {
+            return String(format: NSLocalizedString("OpenCode：无法更新状态钩子。\n%@", comment: ""), error.localizedDescription)
+        }
+    }
+
+    private func updateWorkBuddyHooks(installingAt hookPath: String?) -> String? {
+        let exists = FileManager.default.fileExists(atPath: workBuddySettingsURL.path)
+        if !exists && hookPath == nil {
+            StatusHookReceipts().clear(client: .workBuddy)
+            return nil
+        }
+        guard hookPath == nil || exists || StudioHarnessCatalog.detect().contains(StudioHookClient.workBuddy.name) else {
+            return "WorkBuddy：未检测到。"
+        }
+        do {
+            var current: [String: Any] = [:]
+            var original: Data?
+            if exists {
+                let data = try Data(contentsOf: workBuddySettingsURL)
+                guard let settings = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    return "WorkBuddy：无法读取配置。"
+                }
+                current = settings
+                original = data
+            }
+            let next = try hookPath.map { try JSONHooksConfiguration.installing(in: current, client: .workBuddy, agentPath: $0) }
+                ?? JSONHooksConfiguration.removing(in: current, client: .workBuddy)
+            if !NSDictionary(dictionary: current).isEqual(to: next) {
+                let latest = try FileManager.default.fileExists(atPath: workBuddySettingsURL.path)
+                    ? Data(contentsOf: workBuddySettingsURL) : nil
+                guard latest == original else { return "WorkBuddy：配置已变化，请重试。" }
+                if !exists {
+                    try FileManager.default.createDirectory(at: workBuddySettingsURL.deletingLastPathComponent(),
+                                                            withIntermediateDirectories: true)
+                }
+                try JSONSerialization.data(withJSONObject: next, options: [.prettyPrinted, .sortedKeys])
+                    .write(to: workBuddySettingsURL.resolvingSymlinksInPath(), options: .atomic)
+            }
+            if hookPath != nil { try StatusHookReceipts().confirm(client: .workBuddy, configuration: workBuddySettingsURL) }
+            else { StatusHookReceipts().clear(client: .workBuddy) }
+            return nil
+        } catch {
+            return "WorkBuddy：Hook 配置更新失败。\n\(error.localizedDescription)"
+        }
+    }
+
+    private func installCursorHooks(at hookPath: String) -> String {
         // Cursor 的目录可能不存在，先建好
         let cursorDir = (cursorHooksPath as NSString).deletingLastPathComponent
         do {
@@ -1227,7 +1514,7 @@ final class AgentManager: ObservableObject {
         }
         var settings = loadCursorSettings() ?? [:]
         do {
-            settings = try JSONHooksConfiguration.installing(in: settings, client: .cursor, agentPath: agentBinaryPath)
+            settings = try JSONHooksConfiguration.installing(in: settings, client: .cursor, agentPath: hookPath)
         } catch { return "Cursor Hooks：配置结构无效，未修改现有文件。" }
         if saveCursorSettings(settings) {
             guard ApprovalAutomationControl.resume(.cursor) else { return "无法恢复 Cursor 审批管理权限。" }
@@ -1237,7 +1524,7 @@ final class AgentManager: ObservableObject {
         return "Cursor Hooks：无法写入 \(cursorHooksPath)。请检查权限或磁盘空间。"
     }
 
-    private func installCodexHooks() -> String {
+    private func installCodexHooks(using entry: CodexHookInstallation.EntryIdentity) -> String {
         let codexDir = (codexConfigPath as NSString).deletingLastPathComponent
         do {
             try FileManager.default.createDirectory(atPath: codexDir, withIntermediateDirectories: true)
@@ -1245,35 +1532,72 @@ final class AgentManager: ObservableObject {
             return "Codex Hooks：无法创建目录 \(codexDir)：\(error.localizedDescription)"
         }
 
-        var config = (try? String(contentsOfFile: codexConfigPath, encoding: .utf8)) ?? ""
-        config = ensureCodexHooksFeatureEnabled(in: config)
+        let file = URL(fileURLWithPath: codexConfigPath).resolvingSymlinksInPath()
+        let original: String
+        let config: String
+        let fingerprint: String
+        let migrated: Bool
         do {
+            if FileManager.default.fileExists(atPath: file.path) {
+                original = try String(contentsOf: file, encoding: .utf8)
+            } else {
+                original = ""
+            }
+            let previous = try CodexHookTrust.managedFingerprint(in: original, configPath: codexConfigPath)
             config = try CodexHookTrust.installAgentHooks(
-                in: config, configPath: codexConfigPath, agentBinaryPath: agentBinaryPath
+                in: CodexHookTrust.enablingHooksFeature(in: original), configPath: codexConfigPath,
+                agentBinaryPath: hookInstallation.entryURL.path
             )
+            guard let planned = try CodexHookTrust.managedFingerprint(in: config, configPath: codexConfigPath) else {
+                return "Codex Hooks：无法确认将写入的 Hook 与信任记录。"
+            }
+            fingerprint = planned
+            migrated = previous != planned
         } catch {
             return "Codex Hooks：无法安全更新现有配置，未写入：\(error)"
         }
 
         do {
-            try config.write(toFile: codexConfigPath, atomically: true, encoding: .utf8)
-            guard FileManager.default.fileExists(atPath: codexConfigPath),
-                  let written = try? String(contentsOfFile: codexConfigPath, encoding: .utf8),
-                  written.contains(codexHookBlockStart),
-                  written.contains(codexHookBlockEnd) else {
-                log.error("installCodexHooks: 写入后校验失败 \(self.codexConfigPath)")
-                return "Codex Hooks：已尝试写入 \(codexConfigPath)，但校验时未发现 AhaKey 标记块。请确认对「用户主目录 /.codex」有写权限，或关闭占用该文件的其它程序。"
+            if config != original {
+                let current = FileManager.default.fileExists(atPath: file.path)
+                    ? try String(contentsOf: file, encoding: .utf8) : ""
+                guard current == original else {
+                    return NSLocalizedString("Codex 配置刚刚发生变化，请重试安装。", comment: "")
+                }
+                try config.write(to: file, atomically: true, encoding: .utf8)
             }
-            guard ApprovalAutomationControl.resume(.codex) else { return "无法恢复 Codex 审批管理权限。" }
-            log.info("Codex hooks 已写入 ~/.codex/config.toml")
-            let cliRepair = repairCodexCliPathIfNeeded()
-            let note = "Codex Hooks 已安装，保留当前权限设置。如需体验拨杆自动批准，可在提示中选择请求批准；完全访问仍按 Codex 原有方式执行。"
-            return cliRepair.isEmpty ? note : note + "\n\n" + cliRepair
+            guard try String(contentsOf: file, encoding: .utf8) == config else {
+                return "Codex Hooks：配置读回不一致，请重试安装。"
+            }
         } catch {
             log.error("installCodexHooks: \(error.localizedDescription)")
             return "Codex Hooks：无法写入 \(codexConfigPath)：\(error.localizedDescription)"
         }
+        do {
+            try hookInstallation.confirm(configuration: fingerprint, entry: entry, migrated: migrated)
+        } catch {
+            return "Codex Hooks：配置已写入，但无法保存安装验证记录。\n\(error.localizedDescription)"
+        }
+        refreshCodexHookInstallationStatus()
+        let status = codexHookInstallationStatus
+        var notes = [NSLocalizedString("Codex Hook · 配置已写入", comment: ""),
+                     status?.eventReceived == true
+                        ? NSLocalizedString("已收到真实 Codex Hook，接入已验证", comment: "")
+                        : NSLocalizedString("等待验证", comment: "")]
+        if status?.restartRequired == true && status?.eventReceived != true {
+            notes.append(NSLocalizedString("已有 Codex 会话需要重启所属进程以加载 Hook。", comment: ""))
+        }
+        if !ApprovalAutomationControl.resume(.codex) { notes.append("无法恢复 Codex 审批管理权限。") }
+        let cliRepair = repairCodexCliPathIfNeeded()
+        if !cliRepair.isEmpty { notes.append(cliRepair) }
+        return notes.joined(separator: "\n")
     }
+
+    static let codexHookRestartHint = NSLocalizedString(
+        "Hook 已更新。已打开的 Codex 会话需要重启所属终端或客户端进程。仅重新打开聊天页面可能无效。",
+        comment: ""
+    )
+    static let codexHookResumeCommand = "codex resume"
 
     private func repairCodexCliPathIfNeeded() -> String {
         let homeDirectory = FileManager.default.homeDirectoryForCurrentUser.path
@@ -1339,6 +1663,7 @@ final class AgentManager: ObservableObject {
     private func removeCodexHooks() -> String {
         let path = codexConfigPath
         guard FileManager.default.fileExists(atPath: path) else {
+            hookInstallation.clear()
             return "未找到 \(path)，无需移除 Codex Hooks。"
         }
         guard let config = try? String(contentsOfFile: path, encoding: .utf8) else {
@@ -1352,10 +1677,12 @@ final class AgentManager: ObservableObject {
             return "Codex Hooks：无法安全移除，未写入：\(error)"
         }
         guard next != config else {
+            hookInstallation.clear()
             return "在 \(path) 中未发现 AhaKey Codex hook 标记块。"
         }
         do {
-            try next.write(toFile: path, atomically: true, encoding: .utf8)
+            try next.write(to: URL(fileURLWithPath: path).resolvingSymlinksInPath(), atomically: true, encoding: .utf8)
+            hookInstallation.clear()
             log.info("Codex hooks 中 AhaKey 标记块已移除")
             return "已从 \(path) 移除 AhaKey Codex Hooks。"
         } catch {
@@ -1363,65 +1690,12 @@ final class AgentManager: ObservableObject {
         }
     }
 
-    private func ensureCodexHooksFeatureEnabled(in config: String) -> String {
-        var lines = config.components(separatedBy: .newlines)
-        var featuresStart: Int?
-        for (idx, line) in lines.enumerated() {
-            if line.trimmingCharacters(in: .whitespaces) == "[features]" {
-                featuresStart = idx
-                break
-            }
-        }
-
-        guard let start = featuresStart else {
-            var next = config.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !next.isEmpty { next += "\n\n" }
-            next += "[features]\nhooks = true\n"
-            return next
-        }
-
-        var sectionEnd = lines.count
-        if start + 1 < lines.count {
-            for idx in (start + 1)..<lines.count {
-                let trimmed = lines[idx].trimmingCharacters(in: .whitespaces)
-                if trimmed.hasPrefix("[") && trimmed.hasSuffix("]") {
-                    sectionEnd = idx
-                    break
-                }
-            }
-        }
-
-        // Codex 新版用 `hooks`；旧版写过已废弃的 `codex_hooks`（会触发 deprecation 警告）。
-        // 两者都识别：保留/改写第一个命中为 `hooks = true`，其余（含所有 `codex_hooks`）删除。
-        let keyPattern = #"^\s*(codex_)?hooks\s*="#
-        let regex = try? NSRegularExpression(pattern: keyPattern)
-        var matchedIndices: [Int] = []
-        for idx in (start + 1)..<sectionEnd {
-            let line = lines[idx]
-            let range = NSRange(line.startIndex..<line.endIndex, in: line)
-            if regex?.firstMatch(in: line, range: range) != nil {
-                matchedIndices.append(idx)
-            }
-        }
-
-        guard let first = matchedIndices.first else {
-            lines.insert("hooks = true", at: start + 1)
-            return lines.joined(separator: "\n")
-        }
-
-        lines[first] = "hooks = true"
-        for idx in matchedIndices.dropFirst().reversed() {
-            lines.remove(at: idx)
-        }
-        return lines.joined(separator: "\n")
-    }
-
     private func escapeTomlBasicString(_ s: String) -> String {
         s.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
     }
 
-    private func installKimiHooks() -> String {
+    private func installKimiHooks(at hookPath: String) -> String {
         let location = KimiConfigPolicySync.productionLocation
         guard location.isValid else { return "Kimi 配置目录或版本标记无效，未修改配置。" }
         let path = location.configURL.path
@@ -1430,7 +1704,7 @@ final class AgentManager: ObservableObject {
             let config: String
             if FileManager.default.fileExists(atPath: path) { config = try String(contentsOfFile: path, encoding: .utf8) }
             else { config = "" }
-            let next = try KimiHooksConfiguration.installing(in: config, location: location, agentPath: agentBinaryPath)
+            let next = try KimiHooksConfiguration.installing(in: config, location: location, agentPath: hookPath)
             try next.write(toFile: path, atomically: true, encoding: .utf8)
             if location.layout == .legacyPython {
                 let result = patchInstalledKimiCliForAhaKeyDialControl()
@@ -1459,7 +1733,7 @@ final class AgentManager: ObservableObject {
             return """
             Kimi Hooks 已写入 \(kimiConfigDisplayPath)，但**未找到可重打补丁的本机 kimi-cli 安装**。
 
-            请确认终端里存在 `kimi` 命令；确认后再次点击「安装 Kimi Hooks」即可重试拨杆接管补丁。
+            请确认终端里存在 `kimi` 命令；确认后再次点击「全部安装」即可重试拨杆接管补丁。
             """
         }
 
@@ -1474,7 +1748,7 @@ final class AgentManager: ObservableObject {
             Kimi Hooks 已写入 \(kimiConfigDisplayPath)，但**本机 kimi-cli 拨杆接管补丁未完成**：
             \(error.localizedDescription)
 
-            你可在确认 `kimi` 可执行后，再次点击「安装 Kimi Hooks」重试。
+            你可在确认 `kimi` 可执行后，再次点击「全部安装」重试。
             """
         }
     }

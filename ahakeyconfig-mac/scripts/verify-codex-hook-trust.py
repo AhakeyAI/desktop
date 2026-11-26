@@ -51,8 +51,9 @@ if mode == "initial" {
 if mode == "remove" {
     config = try CodexHookTrust.removingManagedHooks(in: config, configPath: configURL.path)
 } else {
+    let entry = mode == "initial" ? "test agent's hook.sh" : "bin/ahakey-hook"
     config = try CodexHookTrust.installAgentHooks(in: config, configPath: configURL.path,
-        agentBinaryPath: root.appendingPathComponent("test agent's hook.sh").path)
+        agentBinaryPath: root.appendingPathComponent(entry).path)
 }
 try config.write(to: configURL, atomically: true, encoding: .utf8)
 '''
@@ -165,12 +166,20 @@ fi
 ''')
         agent.chmod(0o700)
         results = {}
-        for mode in ("initial", "reinstall", "remove"):
+        (root / "bin").mkdir()
+        shutil.copy2(agent, root / "bin" / "ahakey-hook")
+        for mode in ("initial", "migrate", "reinstall", "remove"):
             subprocess.run([str(generate), str(root), mode], check=True)
-            hooks = inspect(codex, root, execute=mode == "initial")
+            if mode == "migrate":
+                agent.unlink()
+                (root / "executed").unlink()
+            hooks = inspect(codex, root, execute=mode in ("initial", "migrate"))
             assert len(hooks) == (1 if mode == "remove" else 7), hooks
             if mode != "remove":
                 assert any(h["key"].endswith(":session_start:1:0") for h in hooks)
+            if mode in ("migrate", "reinstall"):
+                config = (root / "config.toml").read_text()
+                assert "/bin/ahakey-hook" in config and "test agent" not in config
             results[mode] = dict(hooks=len(hooks), trusted=len(hooks))
         results["executed"] = sorted(set((root / "executed").read_text().splitlines()))
         results["codex"] = subprocess.check_output([codex, "--version"], text=True).strip()

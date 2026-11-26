@@ -1,7 +1,18 @@
 import CryptoKit
 import Foundation
 
-public enum WS3TaskClient: String, Codable, Sendable { case claude, cursor, codex, kimi }
+public enum WS3TaskClient: String, Codable, Sendable {
+    case claude, cursor, codex, kimi, workBuddy, copilot, antigravity, openCode, cline, pi, openClaw
+
+    public var displayName: String {
+        switch self {
+        case .workBuddy: return "WorkBuddy"
+        case .openCode: return "OpenCode"
+        case .openClaw: return "OpenClaw"
+        default: return rawValue.capitalized
+        }
+    }
+}
 
 /// Only a real session identifier travels with a hook. Never substitute cwd,
 /// command text, truncated diagnostic IDs or one shared identifier per IDE.
@@ -29,12 +40,14 @@ public struct WS3TaskMetadata: Equatable, Sendable {
             .map { String(format: "%02x", $0) }.joined()
     }
 
-    public static func enrich(_ request: [String: Any], client: WS3TaskClient, event: String, stdin: Data) -> [String: Any] {
+    public static func enrich(_ request: [String: Any], client: WS3TaskClient, event: String,
+                              stdin: Data, expectedEvent: String? = nil) -> [String: Any] {
         // Hook bodies include tool input/output. A large patch or command result
         // must not erase the session and silently disable MULTI. Decode identity
         // only; never copy tool text into the request or journal.
         guard stdin.count <= 16 * 1024 * 1024,
               let identity = try? JSONDecoder().decode(HookIdentity.self, from: stdin),
+              expectedEvent == nil || identity.event == expectedEvent,
               let session = (client == .cursor ? identity.conversationID : nil) ?? identity.sessionID,
               let metadata = Self(client: client, session: session, event: event) else { return request }
         var request = request
@@ -45,13 +58,15 @@ public struct WS3TaskMetadata: Equatable, Sendable {
     private struct HookIdentity: Decodable {
         let sessionID: String?
         let conversationID: String?
+        let event: String?
         private enum CodingKeys: String, CodingKey {
-            case sessionID = "session_id", conversationID = "conversation_id"
+            case sessionID = "session_id", conversationID = "conversation_id", event = "hook_event_name"
         }
         init(from decoder: Decoder) throws {
             let values = try decoder.container(keyedBy: CodingKeys.self)
             sessionID = try? values.decode(String.self, forKey: .sessionID)
             conversationID = try? values.decode(String.self, forKey: .conversationID)
+            event = try? values.decode(String.self, forKey: .event)
         }
     }
 
@@ -62,6 +77,8 @@ public struct WS3TaskMetadata: Equatable, Sendable {
         case "Notification", "PostToolUse", "SessionStart", "Stop", "TaskCompleted", "UserPromptSubmit", "SessionEnd", "PreCompact": return .claude
         case "sessionStart", "sessionEnd", "postToolUse", "stop", "beforeSubmitPrompt", "beforeReadFile": return .cursor
         case "KimiNotification", "KimiSessionStart", "KimiSessionEnd", "KimiPostToolUse", "KimiUserPromptSubmit", "KimiStop", "KimiPermissionRequest", "KimiPermissionResult": return .kimi
+        case "WorkBuddyUserPromptSubmit", "WorkBuddyStop", "WorkBuddySessionEnd": return .workBuddy
+        case "CopilotUserPromptSubmit", "CopilotStop", "CopilotSessionEnd": return .copilot
         default: return nil
         }
     }

@@ -42,6 +42,8 @@ struct AhaKeyStudioView: View {
     @State private var showsDeviceInfo = false
     @State private var showsFirmwareFlasher = false
     @State private var showsCloudAccount = false
+    @State private var voiceCloudSetupNotice: VoiceHandoffHost.Failure?
+    @State private var opensCloudSettings = false
     @State private var showsLanguageRestartAlert = false
     @AppStorage(AppLanguageInitializer.selectedLanguageKey) private var selectedLanguage = AppLanguageInitializer.systemSelection
     @AppStorage(VibeBarVisibilityPreference.enabledKey) private var vibeBarEnabled = true
@@ -363,8 +365,8 @@ struct AhaKeyStudioView: View {
         .sheet(isPresented: $showsFirmwareFlasher) {
             FirmwareFlasherView(bleManager: bleManager)
         }
-        .sheet(isPresented: $showsCloudAccount) {
-            CloudAccountView()
+        .sheet(isPresented: $showsCloudAccount, onDismiss: { opensCloudSettings = false }) {
+            CloudAccountView(opensCloudSettings: opensCloudSettings)
                 .frame(width: 520, height: 620)
         }
     }
@@ -883,6 +885,11 @@ struct AhaKeyStudioView: View {
             }
 
             if isEditingInspector {
+                if let notice = voiceCloudSetupNotice {
+                    voiceCloudSetupToast(notice)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 8)
+                }
                 Divider()
                 HStack(spacing: 12) {
                     Button {
@@ -890,6 +897,7 @@ struct AhaKeyStudioView: View {
                             clearInlineKeyEditing()
                             lcdInspectorModel.cancelRead()
                             lightPresentationModel.cancelRead()
+                            voiceCloudSetupNotice = nil
                             isEditingInspector = false
                             returnToKeyboardControl()
                         }
@@ -959,7 +967,9 @@ struct AhaKeyStudioView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.regular)
-                        .disabled(componentBusy || (inlineKeyTarget != nil ? !(inlineKeyCanSave || canInitializeInlineK1) : (!usesLegacyEditor && !bleManager.isConnected)))
+                        .disabled(componentBusy || (selectedVoiceCloudSetup == nil &&
+                            (inlineKeyTarget != nil ? !(inlineKeyCanSave || canInitializeInlineK1) :
+                                (!usesLegacyEditor && !bleManager.isConnected))))
                     }
                 }
                 .padding(.horizontal, 24)
@@ -970,16 +980,21 @@ struct AhaKeyStudioView: View {
         .frame(maxHeight: .infinity)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))
         .onChange(of: selectedPart) { _ in
+            voiceCloudSetupNotice = nil
             clearInlineKeyEditing()
             commitModeNameEdit()
             withAnimation(.easeInOut(duration: 0.18)) { isEditingInspector = false }
         }
         .onChange(of: selectedMode) { _ in
+            voiceCloudSetupNotice = nil
             if inlineKeyTarget != nil { clearInlineKeyEditing(); isEditingInspector = false }
             if isEditingInspector && selectedPart == .oledDisplay { resourceInspectorModel.selectPresentation(lcdInspectorModel.selectedMode ?? .single, mode: selectedMode) }
             if editingModeSlot != nil && editingModeSlot != selectedMode {
                 commitModeNameEdit()
             }
+        }
+        .onChange(of: selectedVoiceCloudSetup) { setup in
+            if voiceCloudSetupNotice != nil { voiceCloudSetupNotice = setup }
         }
         .onDisappear { inlineKeyTask?.cancel(); legacyComponentTask?.cancel() }
         .alert(NSLocalizedString("键盘当前值已变化", comment: ""), isPresented: Binding(get: { inlineKeyConflict != nil }, set: { if !$0 { inlineKeyConflict = nil } })) {
@@ -2507,6 +2522,11 @@ struct AhaKeyStudioView: View {
     }
 
     private func writeToKeyboard() {
+        if let setup = selectedVoiceCloudSetup {
+            voiceCloudSetupNotice = setup
+            return
+        }
+        voiceCloudSetupNotice = nil
         if canInitializeInlineK1 { confirmsK1Initialization = true; return }
         if inlineKeyTarget != nil { saveInlineKey(); return }
         do {
@@ -2516,7 +2536,54 @@ struct AhaKeyStudioView: View {
             let plan = try StudioLegacyComponentPlan(mode: selectedMode, part: selectedPart, submitted: currentModeDraft, deviceID: deviceID)
             if plan.part.keyRole == .voice { try checkInlineVoiceReady(plan.submitted.key(for: .voice)) }
             legacyWritePlan = plan
+        } catch let setup as VoiceHandoffHost.Failure {
+            voiceCloudSetupNotice = setup
         } catch { writeOutcome = .init(succeeded: false, message: error.localizedDescription, wrote: false) }
+    }
+
+    private var selectedVoiceCloudSetup: VoiceHandoffHost.Failure? {
+        guard selectedPart.keyRole == .voice else { return nil }
+        return voiceCloudSetupRequired(for: currentSelectedKey)
+    }
+
+    private func voiceCloudSetupRequired(for key: AhaKeyKeyDraft) -> VoiceHandoffHost.Failure? {
+        guard key.voicePreset == .ahaTypeCloud else { return nil }
+        return VoiceHandoffHost.cloudSetupRequired(for: key.voicePreset, isLoggedIn: cloudAccount.isLoggedIn,
+            hasToken: ahaType.hasConfiguredCloudToken, requiresLogin: ahaType.requiresLogin, isEnabled: ahaType.isEnabled)
+    }
+
+    private func voiceCloudSetupToast(_ setup: VoiceHandoffHost.Failure) -> some View {
+        let needsLogin = setup == .cloudNotConfigured
+        let title = needsLogin ? "请登录 AhaType" : "请开启 AhaType"
+        let detail = needsLogin ? "登录或注册后，再写入此语音设置。" : "在云端账号中开启云端整理，再写入此语音设置。"
+        return VStack(alignment: .leading, spacing: 7) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "info.circle.fill").foregroundStyle(Color.accentColor)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(NSLocalizedString(title, comment: "")).font(.caption.weight(.semibold))
+                    Text(NSLocalizedString(detail, comment: "")).font(.caption).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                Button { voiceCloudSetupNotice = nil } label: {
+                    Image(systemName: "xmark").font(.caption)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("关闭提示")
+            }
+            Button(NSLocalizedString(needsLogin ? "去登录" : "去设置", comment: "")) {
+                voiceCloudSetupNotice = nil
+                if needsLogin && cloudAccount.isLoggedIn { cloudAccount.prepareForRelogin() }
+                opensCloudSettings = !needsLogin
+                showsCloudAccount = true
+            }
+            .buttonStyle(.link)
+            .padding(.leading, 21)
+        }
+        .padding(10)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.accentColor.opacity(0.24)))
     }
 
     private func completeEditingAfterSuccessfulWrite() {
@@ -4228,7 +4295,7 @@ private struct DeviceInfoSheetContainer: View {
     private var deviceInfoTitleChrome: some View {
         VStack(spacing: 0) {
             HStack(alignment: .center, spacing: 12) {
-                Text("设备信息 · Agent")
+                Text("设备信息")
                     .font(.headline)
                 Spacer(minLength: 0)
                 Button(NSLocalizedString("关闭", comment: "")) { dismiss() }
@@ -4252,6 +4319,7 @@ private struct CloudAccountView: View {
     @StateObject private var account = CloudAccountManager.shared
     @StateObject private var optimizer = AhaTypeTextOptimizer.shared
     @FocusState private var focusedLoginField: LoginField?
+    var opensCloudSettings = false
 
     private enum LoginField {
         case phone
@@ -4270,19 +4338,25 @@ private struct CloudAccountView: View {
 
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    if account.isLoggedIn {
-                        profileSection
-                    } else {
-                        loginSection
+            ScrollViewReader { scroll in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        if account.isLoggedIn {
+                            profileSection
+                        } else {
+                            loginSection
+                        }
+
+                        Divider()
+                        ahaTypeSection.id("ahaTypeSettings")
                     }
-
-                    Divider()
-
-                    ahaTypeSection
+                    .padding(18)
                 }
-                .padding(18)
+                .task {
+                    if opensCloudSettings && account.isLoggedIn {
+                        scroll.scrollTo("ahaTypeSettings", anchor: .top)
+                    }
+                }
             }
         }
         .alert(NSLocalizedString("云端账号", comment: ""), isPresented: Binding(
@@ -5536,10 +5610,8 @@ private extension AhaKeyStudioView {
                     inlineKeyUnconfirmed.insert("\(deviceID):\(target.mode):\(target.index)")
                 }
                 guard inlineKeyOperationID == ticket, inlineKeyTarget == target else { return }
-                inlineKeyMessage = KeyboardSettingsFeedback.message(for: error)
-                if let failure = error as? VoiceHandoffHost.Failure, case .cloudNotConfigured = failure {
-                    cloudAccount.requireLogin(); showsCloudAccount = true
-                }
+                if target.index == 0 { reportVoiceFailure(error) }
+                else { inlineKeyMessage = KeyboardSettingsFeedback.message(for: error) }
                 inlineKeyTask = nil
             }
         }
@@ -5602,8 +5674,8 @@ private extension AhaKeyStudioView {
     }
 
     func checkInlineVoiceReady(_ key: AhaKeyKeyDraft) throws {
+        if let setup = voiceCloudSetupRequired(for: key) { throw setup }
         guard !nativeSpeech.isRecording, !nativeSpeech.isStartingRecording else { throw ConfirmedVoiceHandoff.Failure.hostNotReady }
-        if key.voicePreset == .ahaTypeCloud, !ahaType.isEnabled { throw VoiceHandoffHost.Failure.cloudDisabled }
         guard key.voicePreset != .custom else { return }
         guard voiceRelay.inputMonitoringGranted, voiceRelay.accessibilityGranted, voiceRelay.isListening else {
             throw ConfirmedVoiceHandoff.Failure.hostNotReady
@@ -5767,9 +5839,10 @@ private extension AhaKeyStudioView {
     }
 
     func reportVoiceFailure(_ error: Error) {
-        inlineKeyMessage = KeyboardSettingsFeedback.message(for: error)
-        if let failure = error as? VoiceHandoffHost.Failure, case .cloudNotConfigured = failure {
-            cloudAccount.requireLogin(); showsCloudAccount = true
+        if let setup = error as? VoiceHandoffHost.Failure {
+            voiceCloudSetupNotice = setup
+        } else {
+            inlineKeyMessage = KeyboardSettingsFeedback.message(for: error)
         }
     }
 

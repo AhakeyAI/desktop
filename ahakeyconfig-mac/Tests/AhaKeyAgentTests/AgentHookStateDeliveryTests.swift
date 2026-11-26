@@ -2,6 +2,21 @@ import XCTest
 @testable import AhaKeyConfigAgent
 
 final class AgentHookStateDeliveryTests: XCTestCase {
+    func testWorkBuddyLifecycleSendsOnlyTaskStateAndIdentity() {
+        for (event, state) in [("WorkBuddyUserPromptSubmit", 7), ("WorkBuddyStop", 5), ("WorkBuddySessionEnd", 8)] {
+            let hookName = String(event.dropFirst("WorkBuddy".count))
+            let stdin = Data(#"{"hook_event_name":"\#(hookName)","session_id":"workbuddy-1","prompt":"private","tool_input":{"command":"private"}}"#.utf8)
+            let request = HookClient.stateRequest(event: event, stdin: stdin)
+            XCTAssertEqual(request?["cmd"] as? String, "state")
+            XCTAssertEqual(request?["value"] as? Int, state)
+            XCTAssertEqual(request?["task"] as? [String: String],
+                           ["client": "workBuddy", "session": "workbuddy-1", "event": event])
+            XCTAssertEqual(request?.count, 3)
+        }
+        XCTAssertNil(HookClient.stateRequest(event: "WorkBuddyPermissionRequest", stdin: Data()))
+        XCTAssertNil(HookClient.stateRequest(event: "WorkBuddyStop", stdin: Data(#"{"hook_event_name":"SessionEnd","session_id":"workbuddy-1"}"#.utf8)))
+    }
+
     func testWaitingDuringApprovalReadIsSentAfterChannelRelease() {
         var delivery = AgentHookStateDelivery(), wire: [UInt8] = []
         delivery.submit(3, presentationBlocked: false, approvalBusy: false) { wire.append($0) }
