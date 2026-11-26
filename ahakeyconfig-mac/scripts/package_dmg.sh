@@ -79,17 +79,25 @@ swift "$SCRIPT_DIR/generate_dmg_background.swift" "$BACKGROUND_IMAGE"
 
 echo "💽 Writing the drag-to-install layout..."
 "$DMG_WORK_DIR/venv/bin/python" - \
-  "$STAGED_DMG" "$DMG_VOLUME_NAME" "$APP_BUNDLE_PATH" "$BACKGROUND_IMAGE" <<'PYTHON'
+  "$STAGED_DMG" "$DMG_VOLUME_NAME" "$APP_BUNDLE_PATH" "$BACKGROUND_IMAGE" \
+  "$SCRIPT_DIR/create_dmg_applications_alias.swift" <<'PYTHON'
 import os
+import subprocess
 import sys
 
 import dmgbuild
 
-output, volume, app, background = sys.argv[1:]
+output, volume, app, background, applications_alias_script = sys.argv[1:]
+
+# Finder on Tahoe can draw an empty dashed placeholder for a plain symlink.
+# Write a real Finder alias with its own icon onto the writable volume.
+def add_applications_alias(mount_point, _options):
+    subprocess.run(["swift", applications_alias_script, mount_point], check=True)
+
 dmgbuild.build_dmg(output, volume, settings={
     "format": "ULMO",
     "files": [app],
-    "symlinks": {"Applications": "/Applications"},
+    "create_hook": add_applications_alias,
     "background": background,
     # Finder's window height includes the title bar above the 920 × 492 artwork.
     "window_rect": ((200, 160), (920, 524)),
