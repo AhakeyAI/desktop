@@ -137,6 +137,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// 工具完成 / 用户提交等短暂态的自动回落。
     private var statusPollTimer: DispatchSourceTimer?
     private var pendingStateReset: DispatchWorkItem?
+    private var hookStateDelivery = AgentHookStateDelivery()
 
     // MARK: 看门狗（Claude Code 手动停止任务时 Stop hook 不触发，超时后自动归位）
     /// 最近一次 hook 发来状态命令的时间（nil = 尚未收到）
@@ -188,21 +189,24 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     func sendState(_ state: UInt8) {
         pendingStateReset?.cancel()
         pendingStateReset = nil
+        deliverHookState(state)
+    }
+
+    private func deliverHookState(_ state: UInt8) {
         guard !presentationPoisoned, connectionLock.holdsLock, let commandChar, let peripheral else {
             emit("LED 状态 \(state): 未连接")
             return
         }
-        if presentationDraining || approvalRequestID != nil || !presentationSession.allowsLegacySingle {
-            lastSentState = state
-            Self.writeLiveState(stateValue: state)
-            return
+        hookStateDelivery.submit(state,
+            presentationBlocked: presentationDraining || !presentationSession.allowsLegacySingle,
+            approvalBusy: approvalRequestID != nil) { value in
+            let data = Data(header + [0x90, value] + trailer)
+            let wt: CBCharacteristicWriteType =
+                commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
+            writeLegacy(data, peripheral: peripheral, characteristic: commandChar, type: wt)
+            emit("→ LED 状态 \(value): \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
         }
-        let data = Data(header + [0x90, state] + trailer)
-        let wt: CBCharacteristicWriteType =
-            commandChar.properties.contains(.writeWithoutResponse) ? .withoutResponse : .withResponse
-        writeLegacy(data, peripheral: peripheral, characteristic: commandChar, type: wt)
         lastSentState = state
-        emit("→ LED 状态 \(state): \(data.map { String(format: "%02X", $0) }.joined(separator: " "))")
         Self.writeLiveState(stateValue: state)
     }
 
@@ -420,6 +424,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         let drainedApproval = approvalDrainToken
         approvalDrainToken = nil
         if let drainedApproval { legacyCommandDrain.complete(drainedApproval) }
+        if let state = hookStateDelivery.takePending(), approvalChannelReady { deliverHookState(state) }
         let body = Self.approvalReply(status, profile: profile, binding: binding,
             fresh: status != nil && approvalChannelReady,
             terminating: nativePermissionTerminationInProgress || !ApprovalAutomationControl.isEnabled())
@@ -834,6 +839,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     @MainActor
     func prepareForTermination() async {
         nativePermissionTerminationInProgress = true
+        hookStateDelivery.reset()
         if let id = approvalRequestID { finishApproval(id: id, status: nil, profile: nil, binding: nil) }
         KimiConfigLeverSync.synchronizeManaged(switchState: nil)
         async let codexRecovery: Void = codexDesktopLever.shutdown()
@@ -896,6 +902,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
     /// channel; late ACKs cannot authorize a new mode or snapshot.
     private func poisonPresentationConnection() {
         presentationPoisoned = true
+        hookStateDelivery.reset()
         approvalChannelReady = false
         presentationSession.updateConnection(connected: false, generation: connectionGeneration)
         foregroundReceiver?.revalidate()
@@ -921,6 +928,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         lastDeviceStatusAt = nil
         KimiConfigLeverSync.synchronizeManaged(switchState: nil)
         presentationDrainID = nil
+        hookStateDelivery.reset()
         legacyCommandDrain.reset()
         presentationSession.updateConnection(connected: false, generation: connectionGeneration)
         foregroundReceiver?.revalidate()
@@ -1072,6 +1080,7 @@ final class AhaKeyAgent: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         resetFirmwareIdentity()
         approvalChannelReady = true
         presentationPoisoned = false
+        hookStateDelivery.reset()
         legacyCommandDrain.reset()
         presentationSession.updateConnection(connected: false, generation: connectionGeneration)
         foregroundReceiver?.revalidate()

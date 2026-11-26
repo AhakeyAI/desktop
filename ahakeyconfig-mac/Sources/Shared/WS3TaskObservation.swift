@@ -30,13 +30,29 @@ public struct WS3TaskMetadata: Equatable, Sendable {
     }
 
     public static func enrich(_ request: [String: Any], client: WS3TaskClient, event: String, stdin: Data) -> [String: Any] {
-        guard stdin.count <= 65_536,
-              let body = (try? JSONSerialization.jsonObject(with: stdin)) as? [String: Any],
-              let session = (client == .cursor ? body["conversation_id"] as? String : nil) ?? body["session_id"] as? String,
+        // Hook bodies include tool input/output. A large patch or command result
+        // must not erase the session and silently disable MULTI. Decode identity
+        // only; never copy tool text into the request or journal.
+        guard stdin.count <= 16 * 1024 * 1024,
+              let identity = try? JSONDecoder().decode(HookIdentity.self, from: stdin),
+              let session = (client == .cursor ? identity.conversationID : nil) ?? identity.sessionID,
               let metadata = Self(client: client, session: session, event: event) else { return request }
         var request = request
         request["task"] = ["client": client.rawValue, "session": metadata.session, "event": metadata.event]
         return request
+    }
+
+    private struct HookIdentity: Decodable {
+        let sessionID: String?
+        let conversationID: String?
+        private enum CodingKeys: String, CodingKey {
+            case sessionID = "session_id", conversationID = "conversation_id"
+        }
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            sessionID = try? values.decode(String.self, forKey: .sessionID)
+            conversationID = try? values.decode(String.self, forKey: .conversationID)
+        }
     }
 
     /// Shared-state hook routes only. Specialized permission/Codex routes supply

@@ -1,0 +1,112 @@
+{
+  "date": "2026-11-26",
+  "timezone": "Asia/Singapore",
+  "branch": "connect&talk",
+  "baseCommit": "bd1330aa3a9f74bde7098bdce8a111f44c12c33d",
+  "issues": [
+    "https://github.com/AhakeyAI/desktop/issues/201",
+    "https://github.com/AhakeyAI/desktop/issues/202"
+  ],
+  "verifiedFailurePaths": [
+    {
+      "issue": 201,
+      "cause": "AhaKeyAgent.sendState discarded SINGLE states while approvalRequestID was active; finishApproval did not replay them.",
+      "fix": "Keep the latest SINGLE state during an approval read; replay after release on a healthy channel. Clear pending state on mode suppression, connection reset, poison and shutdown. Preserve existing state-reset deadlines."
+    },
+    {
+      "issue": 202,
+      "cause": "WS3TaskMetadata.enrich dropped identity when the entire Hook body exceeded 65536 bytes, preventing real tool input/output events from reaching MULTI registry and journal.",
+      "fix": "Decode only session identity with a 16 MiB input ceiling; retain existing session validation and avoid forwarding tool text."
+    }
+  ],
+  "reproduction": {
+    "command": "swift test --filter \"CodexTaskMetadataTests|AgentHookStateDeliveryTests\"",
+    "harness": "Independent temporary Swift package linking real Shared/Agent sources and Agent tests, initially used because concurrent theme edits prevented the GUI target from compiling.",
+    "beforeFix": {
+      "tests": 4,
+      "failures": 4
+    },
+    "symptoms": [
+      "Large Hook request has no task identity and cannot publish a live journal event.",
+      "Waiting state received during an approval read is never written after release."
+    ]
+  },
+  "validation": {
+    "fullPackage": {
+      "command": "swift test",
+      "tests": 1133,
+      "failures": 0
+    },
+    "focusedFullPackage": {
+      "command": "swift test --filter \"Codex|AgentHookStateDelivery|AgentPresentationSession|WS3TaskObservation|WS3LiveTaskJournal|StudioLiveTaskSource|StudioLightPreviewRestoration\"",
+      "tests": 140,
+      "failures": 0
+    },
+    "agentAndShared": {
+      "tests": 685,
+      "failures": 0
+    },
+    "finalFocusedAfterUnhealthyChannelGuard": {
+      "tests": 19,
+      "failures": 0
+    },
+    "protocolRegression": "Real Codex handler with 128 KiB input drives two independent MULTI slots and exact 0x99 running/waiting/running/done frames using synthetic firmware acknowledgements.",
+    "nativeHookTrust": {
+      "command": "python3 scripts/verify-codex-hook-trust.py",
+      "cli": "codex-cli 0.162.1",
+      "initialTrusted": 7,
+      "reinstallTrusted": 7,
+      "removeRemainingTrusted": 1
+    },
+    "nativeApproval": {
+      "cli": "codex-cli 0.162.1",
+      "legacyBypass": false,
+      "outcomes": {
+        "auto": {
+          "markerExecuted": true,
+          "nativeApprovals": [],
+          "permissionMode": "default"
+        },
+        "manual": {
+          "markerExecuted": false,
+          "nativeApprovals": [
+            "item/commandExecution/requestApproval"
+          ],
+          "permissionMode": "default"
+        },
+        "offline": {
+          "markerExecuted": false,
+          "nativeApprovals": [
+            "item/commandExecution/requestApproval"
+          ],
+          "permissionMode": "default"
+        },
+        "paused": {
+          "markerExecuted": false,
+          "nativeApprovals": [
+            "item/commandExecution/requestApproval"
+          ],
+          "permissionMode": "default"
+        },
+        "restored": {
+          "markerExecuted": true,
+          "nativeApprovals": [],
+          "permissionMode": "default"
+        }
+      },
+      "localProviderRequests": 10,
+      "scope": "Production policy/output builders and native CLI; synthetic lever facts, no physical BLE or real provider"
+    },
+    "diffCheck": "passed for changed source and test files"
+  },
+  "scopeLimit": "No X1 001 physical BLE/LCD/LED retest and no captured trace from the original issue run. These are reproduced code-path defects; physical acceptance remains pending. Existing concurrent worktree edits are outside this patch.",
+  "sourceSHA256": {
+    "ahakeyconfig-mac/Sources/Agent/AhaKeyAgent.swift": "29ed7cf5121991ebcf99b759ff7638c386f72d133bd9a77abdb7bd1390c7a01a",
+    "ahakeyconfig-mac/Sources/Agent/AgentHookStateDelivery.swift": "da532c29389de6442702e346314e843da3124df1ec1b5ced65a35ffad6af503e",
+    "ahakeyconfig-mac/Sources/Shared/WS3TaskObservation.swift": "ca663df431ab597ae284004cd16e3a0e250e1e0fd16e30f5bc94773d1ede14da",
+    "ahakeyconfig-mac/Tests/AhaKeyAgentTests/AgentHookStateDeliveryTests.swift": "d026303e5aaf8fbaf8249de80fff1e4084d09fdcefa0824ce43b8f65b302180f",
+    "ahakeyconfig-mac/Tests/AhaKeyAgentTests/AgentPresentationSessionTests.swift": "36cb79b32bbc5b888e5e7b86a42df8eb0ce4bcb50011bd9d38f3ea457bf6c5dc",
+    "ahakeyconfig-mac/Tests/AhaKeyAgentTests/CodexTaskMetadataTests.swift": "35738db2a3f97ae19ee11adef4492c47a7d7c346f9db17b730a53fde4325d62f",
+    "ahakeyconfig-mac/Tests/AhaKeyConfigSharedTests/WS3TaskObservationTests.swift": "ad6a988fd63c69c0020c32bc15d06125065c6d83ad75a91a1f1e7235e129fddd"
+  }
+}

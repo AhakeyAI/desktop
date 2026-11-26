@@ -36,6 +36,45 @@ final class AgentPresentationSessionTests: XCTestCase {
     private func task(_ id: String) -> WS3TaskMetadata { WS3TaskMetadata(client: .codex, session: id, event: "CodexPreToolUse")! }
     private let ack = Data([0xAA, 0xBB, 0x99, 0, 0xCC, 0xDD])
 
+    func testLargeCodexHooksDriveMultiFramesForTwoIndependentSessions() async throws {
+        let io = Fixture(), session = io.session()
+        session.updateConnection(connected: true, generation: 1)
+        _ = try await session.activate(.multi)
+        let old = CodexHookHandler.dependencies
+        defer { CodexHookHandler.dependencies = old }
+        var sessionID = "native-a"
+        CodexHookHandler.dependencies = .init(
+            readStdin: { try! JSONSerialization.data(withJSONObject: ["session_id": sessionID,
+                "tool_input": ["content": String(repeating: "x", count: 131_072)]]) },
+            parseContext: { _, _ in [:] }, sendRequest: { request, _ in
+                if let dictionary = request["task"] as? [String: String],
+                   let metadata = WS3TaskMetadata(dictionary: dictionary), let value = request["value"] as? Int {
+                    session.observe(metadata, state: UInt8(value))
+                }
+                return nil
+            }, appendHookLog: { _, _, _, _, _, _, _ in }, emitPermissionStderr: { _, _, _, _ in },
+            appendDiagnostic: { _, _, _, _, _, _, _, _, _, _, _ in }, writeStdout: { _ in }, preparePolicy: {})
+        func expect(_ states: [WS3TaskState?]) async throws {
+            let expected = WS3PresentationCommand.multi(WS3TaskSnapshot(slots: states.map { $0.map { WS3TaskSlot(state: $0) } })!).request!
+            for _ in 0..<50 {
+                if io.requests.last == expected { break }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            XCTAssertEqual(io.requests.last, expected, "Real hook metadata must generate the matching 0x99 frame")
+        }
+        CodexHookHandler.handleState(stateValue: 3)
+        sessionID = "native-b"; CodexHookHandler.handleState(stateValue: 7)
+        try await expect([.running, .running, nil, nil])
+        sessionID = "native-a"; CodexHookHandler.handlePermissionRequest()
+        try await expect([.waiting, .running, nil, nil])
+        CodexHookHandler.handleState(stateValue: 2)
+        try await expect([.running, .running, nil, nil])
+        CodexHookHandler.handleState(stateValue: 5)
+        try await expect([.done, .running, nil, nil])
+        XCTAssertEqual(io.faults, 0)
+        await session.quiesce()
+    }
+
     func testPreviewRestorationCannotReplaceNewExplicitMode() async throws {
         let io = Fixture(), session = io.session()
         session.updateConnection(connected: true, generation: 1)

@@ -24,7 +24,9 @@ final class WS3TaskObservationTests: XCTestCase {
             stdin: Data(#"{"conversation_id":"cursor-session"}"#.utf8))["task"])
         XCTAssertNil(WS3TaskMetadata.enrich(base, client: .claude, event: "SubagentStop", stdin: raw)["task"])
         let oversized = Data(("{\"session_id\":\"real\",\"tool_result\":\"" + String(repeating: "x", count: 65_536) + "\"}").utf8)
-        XCTAssertNil(WS3TaskMetadata.enrich(base, client: .codex, event: "Stop", stdin: oversized)["task"])
+        XCTAssertEqual((WS3TaskMetadata.enrich(base, client: .codex, event: "Stop", stdin: oversized)["task"] as? [String: String])?["session"], "real")
+        let tooLarge = Data(repeating: 32, count: 16 * 1024 * 1024 + 1)
+        XCTAssertNil(WS3TaskMetadata.enrich(base, client: .codex, event: "Stop", stdin: tooLarge)["task"])
     }
 
     func testRoutingKeepsKnownClientFamiliesAndRejectsUnknownEvents() {
