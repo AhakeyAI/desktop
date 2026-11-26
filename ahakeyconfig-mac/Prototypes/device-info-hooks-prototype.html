@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AhaKey Studio · 设备信息原型</title>
+<!-- Throwaway prototype. Three device settings layouts via ?variant=A|B|C. Run: python3 -m http.server 18763 --bind 127.0.0.1 --directory ahakeyconfig-mac/Prototypes -->
+<style>
+:root{color-scheme:dark;--bg:#18191d;--panel:#222329;--control:#2c2e35;--line:#34363e;--text:#eff0f3;--muted:#afb1bc;--subtle:#9396a4;--blue:#82afff;--green:#76d49d;--orange:#f0ba72;--red:#f9a8aa}
+*{box-sizing:border-box}
+body{margin:0;padding:36px 16px 100px;background:#111217;color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
+h1,h2,p,dl,dd{margin:0}
+button,input{font:inherit}
+button{color:var(--text);padding:6px 11px;border:1px solid var(--line);border-radius:7px;background:var(--control);cursor:pointer}
+button:hover:not(:disabled){background:#393b44}
+button:disabled{cursor:default;opacity:.54}
+:is(button,input,summary):focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+button.link{display:inline;padding:0;border:0;background:none;color:var(--blue);text-underline-offset:3px}
+button.link:hover{background:none;text-decoration:underline}
+button.primary{background:#3167d5;border-color:#4478dd;color:#fff}
+button.primary:hover:not(:disabled){background:#3a73e4}
+button.danger{color:var(--red)}
+.sheet{max-width:860px;margin:auto;background:var(--bg);border:1px solid var(--line);border-radius:15px;box-shadow:0 20px 80px #0007}
+.titlebar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 22px;border-bottom:1px solid var(--line)}
+.titlebar h1{font-size:16px;font-weight:660}
+.sample{color:var(--subtle);font-size:12px}
+.body{padding:20px 22px}
+.eyebrow{font-size:12px;color:var(--subtle);margin-bottom:3px}
+.pane-title{font-size:15px;font-weight:650}
+.card{border:1px solid var(--line);background:var(--panel);border-radius:10px;min-width:0}
+.section-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:9px}
+.stack{display:grid;gap:21px}
+.overview{display:flex;align-items:center;gap:11px;padding:12px 14px}
+.device-icon{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:8px;background:#30343f;color:#cedbf7;font-size:21px}
+.device-name{font-weight:650}
+.device-sub{color:var(--muted);font-size:12px;margin-top:2px}
+.overview .current{margin-left:auto;text-align:right;white-space:nowrap}
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 13px;min-width:0}
+.row+.row{border-top:1px solid var(--line)}
+.row-text{min-width:0}
+.row-name{font-weight:620}
+.description{font-size:12px;color:var(--muted);margin-top:3px}
+.row-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex:none}
+.label{font-size:12px;color:var(--muted);white-space:nowrap}
+.dot{display:inline-block;width:7px;height:7px;margin-right:5px;border-radius:50%;background:var(--subtle)}
+.dot.connected{background:var(--green)}
+.dot.pending{background:var(--orange)}
+.owner-title{font-weight:620;display:flex;align-items:center;flex-wrap:wrap;gap:9px}
+.owner-action{display:flex;align-items:center;gap:8px;position:relative;flex-wrap:wrap;justify-content:flex-end}
+.anchor{position:relative}
+.popover{position:absolute;z-index:6;top:calc(100% + 7px);right:0;width:min(335px,calc(100vw - 58px));padding:5px;border:1px solid #454850;border-radius:9px;background:#282b34;box-shadow:0 12px 32px #0008}
+.popover[hidden]{display:none}
+.popover label{display:block;padding:6px}
+.popover input{width:100%;border:1px solid #424651;border-radius:6px;background:#1d2027;color:var(--text);padding:7px 9px}
+.popover .choices{max-height:280px;overflow:auto}
+.option{display:flex;justify-content:space-between;align-items:center;gap:10px;border:0;background:transparent;text-align:left;width:100%;padding:8px}
+.option strong{display:block;font-size:13px;font-weight:620}
+.option small{color:var(--muted);font-size:11px}
+.option .option-state{font-size:11px;white-space:nowrap;color:var(--muted)}
+.option[aria-current=true]{background:#343b4e}
+.no-matches{padding:10px;color:var(--muted);font-size:12px}
+.hook-name{display:flex;align-items:center;gap:9px;min-width:0}
+.agent-icon{font-size:11px;font-weight:680;display:grid;place-items:center;width:26px;height:26px;flex:none;border-radius:7px;background:#353946;color:#e6eaff}
+.agent-icon.claude{background:#49382e;color:#f1bb96}
+.agent-icon.cursor{background:#343d49;color:#c5daff}
+.agent-icon.codex{background:#393453;color:#d4c9ff}
+.agent-icon.kimi{background:#3b354c;color:#d6c4f6}
+.agent-icon.workbuddy{background:#31443b;color:#a1e0bf}
+.hook-stamped{color:var(--green)}
+.hook-waiting{color:var(--orange)}
+.hook-list{min-height:44px}
+.empty{padding:15px;color:var(--muted)}
+.hook-evidence{padding:9px 13px 11px 48px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+.hook-evidence p+p{margin-top:5px}
+.hook-head-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end}
+.hook-runtime{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px}
+.advanced>summary{display:flex;list-style:none;justify-content:space-between;gap:10px;align-items:center;padding:11px 13px;cursor:pointer}
+.advanced>summary::-webkit-details-marker{display:none}
+.advanced>summary::after{content:"›";color:var(--muted);font-size:20px;line-height:1}
+.advanced[open]>summary{border-bottom:1px solid var(--line)}
+.advanced[open]>summary::after{transform:rotate(90deg)}
+.debug-inner{padding:12px 13px}
+.debug-tabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:11px}
+.debug-tabs button{font-size:12px;padding:5px 8px;background:transparent}
+.debug-tabs [aria-pressed=true]{background:#34405a;border-color:#526687}
+.readouts{display:grid;grid-template-columns:minmax(88px,.7fr) minmax(0,2fr);gap:5px 9px}
+.readouts dt{color:var(--muted);font-size:12px}
+.readouts dd{overflow-wrap:anywhere;font-size:12px}
+.readouts code,pre{font-size:11px;color:#c8ccdc}
+.bars{display:flex;gap:4px;flex-wrap:wrap}
+.pill{font-size:11px;color:var(--green);background:#264032;padding:1px 5px;border-radius:4px}
+.debug-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+.debug-actions button{font-size:12px}
+pre{margin:9px 0 0;padding:8px;background:#1b1c22;border-radius:6px;white-space:pre-wrap;overflow-wrap:anywhere}
+.connection-options{padding:3px 0}
+.connection-options .row{min-height:60px}
+.two-column{display:grid;grid-template-columns:minmax(225px,0.86fr) minmax(340px,1.4fr);align-items:start;gap:17px}
+.two-column .hook-head-actions{gap:7px}
+.two-column .owner-action{flex:none}
+.two-column .wide{grid-column:1/-1}
+.settings{display:grid;grid-template-columns:146px minmax(0,1fr);gap:18px}
+.nav{display:flex;flex-direction:column;gap:5px;border-right:1px solid var(--line);padding-right:13px}
+.nav button{text-align:left;background:transparent;border-color:transparent}
+.nav button[aria-current=true]{background:#303b54;border-color:#424f69}
+.help-text{font-size:12px;color:var(--muted);margin-top:10px}
+.feedback{min-height:24px;padding:0 22px 8px;color:var(--blue);font-size:12px}
+.switcher{position:fixed;z-index:9;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:10px;border:1px solid #505360;border-radius:31px;background:#292c36;padding:5px 7px;box-shadow:0 7px 28px #0008;white-space:nowrap}
+.switcher button{width:29px;height:28px;padding:0;border-radius:50%;font-size:16px}
+.switcher span{font-size:12px;min-width:124px;text-align:center}
+dialog{width:min(408px,calc(100vw - 30px));border:1px solid #464952;border-radius:12px;background:var(--panel);color:var(--text);padding:17px}
+dialog::backdrop{background:#0008}
+dialog h2{font-size:16px}
+dialog p{margin-top:7px;color:var(--muted)}
+dialog .row-actions{margin-top:14px}
+@media(max-width:700px){body{padding:16px 9px 88px}.titlebar,.body{padding:12px}.two-column{grid-template-columns:1fr;gap:18px}.two-column .wide{grid-column:auto}.settings{grid-template-columns:1fr;gap:12px}.nav{flex-direction:row;border-right:0;overflow:auto;padding:0 0 4px;white-space:nowrap}.section-head{flex-wrap:wrap}.row{padding:9px}.row-actions{gap:5px}.hook-head-actions{gap:7px}.feedback{padding-left:12px}.overview{padding:9px}.overview .current{font-size:12px}.readouts{grid-template-columns:minmax(85px,.8fr) minmax(0,2fr)}}
+</style>
+</head>
+<body>
+<div class="sheet">
+  <header class="titlebar"><h1>设备信息</h1><span class="sample">交互原型 · 模拟数据</span></header>
+  <main id="page" class="body"></main>
+  <div id="feedback" role="status" class="feedback"></div>
+</div>
+<div class="switcher" aria-label="切换原型方案">
+  <button type="button" data-action="variant-prev" aria-label="上一版">←</button>
+  <span id="variant-name"></span>
+  <button type="button" data-action="variant-next" aria-label="下一版">→</button>
+</div>
+<dialog id="dialog" aria-labelledby="dialog-title"><h2 id="dialog-title"></h2><p id="dialog-message"></p><div class="row-actions"><button data-action="cancel">取消</button><button class="danger" id="confirm" data-action="confirm">卸载</button></div></dialog>
+<script>
+const variants = { A: '纵向设置（推荐）', B: '连接与联动双栏', C: '侧栏导航' };
+const owners = {
+  background: { name: '后台联动', use: '日常使用。同步任务状态，支持的工具可用拨杆审批。' },
+  direct: { name: 'Studio 直连', use: '配置键盘。用于改按键、调灯和上传屏幕画面。' }
+};
+const agents = [
+  { id:'claude', mark:'Cl', name:'Claude Code', kind:'已检测到', add:true },
+  { id:'cursor', mark:'Cu', name:'Cursor', kind:'已检测到', add:true },
+  { id:'codex', mark:'Cx', name:'Codex', kind:'已检测到', add:true },
+  { id:'kimi', mark:'Ki', name:'Kimi Code', kind:'已检测到', add:true },
+  { id:'workbuddy', mark:'Wb', name:'WorkBuddy', kind:'已检测到 · 任务状态', add:true },
+  { id:'qwen', name:'千问办公', kind:'企业版使用 HTTP Hook', add:false },
+  { id:'doubao', name:'豆包工作', kind:'本机 Hook 未确认', add:false },
+  { id:'gemini', name:'Gemini CLI', kind:'示例 · 待接入', add:false },
+  { id:'opencode', name:'OpenCode', kind:'示例 · 待接入', add:false }
+];
+const state = { owner:'background', connected:true, panel:'bluetooth', menu:null, debug:false, debugTab:'ble', details:false, filter:'', uninstall:null,
+  hooks:{ claude:'installed', codex:'verified', kimi:'installed' } };
+const page = document.querySelector('#page');
+const dialog = document.querySelector('#dialog');
+const getVariant = () => {
+  const key = new URL(location.href).searchParams.get('variant');
+  return Object.hasOwn(variants,key) ? key : 'A';
+};
+const button = (action,label,opts='') => '<button type="button" data-action="'+action+'" '+opts+'>'+label+'</button>';
+const tell = message => { document.querySelector('#feedback').textContent = message; };
+const chip = (status, active) => '<span class="label"><span class="dot '+(active?'connected':'')+'"></span>'+status+'</span>';
+
+function device() {
+  return '<div class="card overview"><span class="device-icon" aria-hidden="true">⌨</span><div><p class="device-name">AhaKey 64B0</p><p class="device-sub">HW2 · 固件 1.0.1-r001 · Codex</p></div><div class="current"><p>电量 64%</p><p class="device-sub">−50 dBm</p></div></div>';
+}
+function ownerMenu() {
+  return '<div class="anchor">'+button('owner-menu','切换方式 ▾','aria-expanded="'+(state.menu==='owner')+'"')+
+    '<div class="popover" aria-label="蓝牙连接方式" '+(state.menu==='owner'?'':'hidden')+'>'+
+    Object.entries(owners).map(([id,owner])=>button('select-'+id,
+      '<span><strong>'+owner.name+'</strong><small>'+owner.use+'</small></span>'+
+      '<span class="option-state">'+(id===state.owner?'当前':'')+'</span>',
+      'class="option" aria-current="'+(id===state.owner)+'"')).join('')+'</div></div>';
+}
+function flatConnection() {
+  const owner = owners[state.owner];
+  return '<section aria-labelledby="ble-title"><div class="section-head"><h2 class="pane-title" id="ble-title">蓝牙连接</h2></div><div class="card"><div class="row">'+
+    '<div class="row-text"><div class="owner-title">'+owner.name+chip(state.connected?'已连接':'未连接',state.connected)+'</div>'+
+    '<p class="description">'+owner.use+'</p></div><div class="owner-action">'+ownerMenu()+
+    button('toggle-connection',state.connected?(state.owner==='background'?'停止后台':'断开'):(state.owner==='background'?'启动后台':'重新连接'),'class="link"')+
+    '</div></div></div></section>';
+}
+function visibleConnection() {
+  return '<section aria-labelledby="ble-title"><div class="section-head"><h2 class="pane-title" id="ble-title">蓝牙连接</h2></div>'+
+    '<div class="card connection-options">'+Object.entries(owners).map(([id,owner])=>
+    '<div class="row"><div class="row-text"><p class="row-name">'+owner.name+'</p><p class="description">'+owner.use+
+    '</p></div>'+(id===state.owner?chip(state.connected?'已连接':'未连接',state.connected):
+      button('select-'+id,'切换'))+'</div>').join('')+
+    (!state.connected?'<div class="row">'+button('toggle-connection','重新连接')+'</div>':'')+'</div></section>';
+}
+function choices() {
+  const query = state.filter.trim().toLowerCase();
+  const shown = agents.filter(a => state.hooks[a.id] === undefined && (a.name+' '+a.kind).toLowerCase().includes(query));
+  return shown.map(a=>button('add-'+a.id,
+    '<span><strong>'+a.name+'</strong><small>'+a.kind+'</small></span><span class="option-state">'+(a.add?'添加':'待适配')+'</span>',
+    'class="option" '+(a.add?'':'disabled'))).join('') || '<p class="no-matches">没有匹配的工具</p>';
+}
+function hookMenu() {
+  return '<div class="anchor">'+button('add-menu','添加 ▾','class="primary" aria-expanded="'+(state.menu==='add')+'"')+
+    '<div class="popover" aria-label="添加状态钩子" '+(state.menu==='add'?'':'hidden')+'>'+
+    '<label><input type="search" id="agent-search" placeholder="搜索工具" aria-label="搜索工具"></label>'+
+    '<div class="choices" id="choices">'+choices()+'</div></div></div>';
+}
+function hookRows() {
+  const order = agents.filter(a => state.hooks[a.id] !== undefined);
+  return order.map(a => {
+    const status = state.hooks[a.id];
+    const isConfigured = status !== 'not-installed';
+    const label = status==='verified'?'已验证':status==='waiting'?'等待验证':isConfigured?'已安装':'待安装';
+    const display = a.id==='codex' && isConfigured
+       ? button('toggle-evidence',label,'class="link" aria-expanded="'+state.details+'"')
+       : '<span class="label">'+label+'</span>';
+    const actions = isConfigured ? button('uninstall-'+a.id,'卸载')
+      : button('drop-'+a.id,'移除','class="link"') + button('install-'+a.id,'安装','class="primary"');
+    return '<div class="row"><div class="hook-name"><span aria-hidden="true" class="agent-icon '+a.id+'">'+a.mark+'</span>'+
+      '<div><p class="row-name">'+a.name+'</p>'+(a.id==='workbuddy'?'<p class="description">任务状态</p>':'')+'</div></div>'+
+      '<div class="row-actions">'+display+actions+'</div></div>'+
+      (a.id==='codex' && isConfigured && state.details ? '<div class="hook-evidence"><p>配置已写入 · 入口自检通过</p><p>'+
+        (status==='verified'?'已收到真实 Codex Hook。':'正在等待该客户端的真实 Hook。旧会话需重启所属进程以载入此配置。 '+button('simulate-hook','模拟收到 Hook','class="link"'))+'</p></div>':'');
+  }).join('') || '<p class="empty">还未添加工具。点「添加」选择要同步的工具。</p>';
+}
+function hooks() {
+  return '<section aria-labelledby="hook-title"><div class="section-head"><h2 class="pane-title" id="hook-title">状态钩子</h2>'+
+    '<div class="hook-head-actions"><span class="hook-runtime"><span class="label"><span class="dot '+(state.owner==='background'&&state.connected?'connected':'')+'"></span>'+
+    (state.owner==='background'&&state.connected?'后台运行中':'后台未联动')+'</span>'+button('logs','查看日志','class="link"')+'</span>'+hookMenu()+
+    '</div></div><div class="card hook-list">'+hookRows()+'</div></section>';
+}
+const debugTabs = {ble:'BLE 连接详情',communication:'通信日志',configuration:'配置读取',led:'灯效测试'};
+function debugBody() {
+  let content = '';
+  if (state.debugTab === 'ble') {
+    const characteristics = state.owner === 'direct' && state.connected
+      ? '<span class="bars"><span class="pill">DATA ✓</span><span class="pill">CMD ✓</span><span class="pill">NOTIFY ✓</span></span>'
+      : '<span class="label">由 Studio 直连后读取</span>';
+    content = '<dl class="readouts"><dt>连接</dt><dd>'+owners[state.owner].name+' · '+(state.connected?'已连接':'未连接')+
+      '</dd><dt>设备名</dt><dd>AhaKey 64B0</dd><dt>UUID</dt><dd><code>77CC4EB3-4B5D-4F86-AE0B-465A00000001</code></dd>'+
+      '<dt>固件协议</dt><dd><code>x1-c582-hw2-p1-1.0.1-r001</code></dd><dt>信号</dt><dd>'+(state.connected?'−50 dBm':'—')+
+      '</dd><dt>GATT 特征</dt><dd>'+characteristics+'</dd></dl><div class="debug-actions">'+
+      button('read-ble','读取固件能力',state.connected&&state.owner==='direct'?'':'disabled')+
+      button('probe-ble','探测协议',state.connected&&state.owner==='direct'?'':'disabled')+'</div>';
+  } else if (state.debugTab === 'communication') {
+    content = '<p class="description">显示当前连接的发送和接收记录。</p><pre>12:45:30  连接已建立（模拟）\n12:45:32  读取设备状态（模拟）</pre>';
+  } else if (state.debugTab === 'configuration') {
+    content = '<p class="description">读取键盘上保存的配置。</p><div class="debug-actions">'+button('read-config','读取配置',state.owner==='direct'&&state.connected?'':'disabled')+'</div>';
+  } else {
+    content = '<p class="description">切到 Studio 直连后，可预览不同任务状态的灯效。</p><div class="debug-actions">'+button('try-led','预览进行中',state.owner==='direct'&&state.connected?'':'disabled')+'</div>';
+  }
+  return '<div class="debug-inner"><div class="debug-tabs" aria-label="高级调试工具">'+
+    Object.entries(debugTabs).map(([id,name])=>button('debug-'+id,name,'aria-pressed="'+(id===state.debugTab)+'"')).join('')+
+    '</div>'+content+'</div>';
+}
+function advanced() {
+  return '<details class="card advanced" '+(state.debug?'open':'')+'><summary>高级调试工具</summary>'+debugBody()+'</details>';
+}
+function variantA() {
+  return '<div class="stack">'+device()+flatConnection()+hooks()+advanced()+'</div>';
+}
+function variantB() {
+  return '<div class="two-column"><div class="wide">'+device()+'</div>'+visibleConnection()+hooks()+'<div class="wide">'+advanced()+'</div></div>';
+}
+function variantC() {
+  const nav = {bluetooth:'蓝牙连接',hooks:'状态钩子',debug:'高级调试工具'};
+  const two = state.panel==='hooks'?hooks():state.panel==='debug'?'<section><div class="section-head"><h2 class="pane-title">高级调试工具</h2></div><div class="card">'+debugBody()+'</div></section>':visibleConnection();
+  return '<div class="settings"><nav class="nav" aria-label="设备信息">'+Object.entries(nav).map(([id,name])=>
+    button('page-'+id,name,'aria-current="'+(id===state.panel)+'"')).join('')+'</nav><div class="stack">'+device()+two+'</div></div>';
+}
+function render() {
+  const key=getVariant();
+  page.innerHTML=({A:variantA,B:variantB,C:variantC})[key]();
+  document.querySelector('#variant-name').textContent=key+' · '+variants[key];
+  page.querySelector('details.advanced')?.addEventListener('toggle', e => { state.debug=e.currentTarget.open; });
+}
+function setVariant(delta) {
+  const keys=Object.keys(variants);
+  const url=new URL(location.href);
+  url.searchParams.set('variant',keys[(keys.indexOf(getVariant())+delta+keys.length)%keys.length]);
+  history.replaceState(null,'',url);
+  state.menu=null;
+  render();
+}
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape'&&state.menu){
+    const trigger=state.menu==='add'?'add-menu':'owner-menu';
+    state.menu=null;render();page.querySelector('[data-action="'+trigger+'"]')?.focus();
+    return;
+  }
+  if(e.target.matches('input,textarea,[contenteditable]')||dialog.open||state.menu) return;
+  if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();setVariant(e.key==='ArrowLeft'?-1:1);}
+});
+document.addEventListener('input', e=>{
+  if(e.target.id!=='agent-search')return;
+  state.filter=e.target.value;
+  document.querySelector('#choices').innerHTML=choices();
+});
+document.addEventListener('click', e=>{
+  const action=e.target.closest('[data-action]')?.dataset.action;
+  if(!action) {
+    if(state.menu&&!e.target.closest('.anchor')){state.menu=null;render();}
+    return;
+  }
+  if(action==='variant-next'||action==='variant-prev'){setVariant(action==='variant-next'?1:-1);return;}
+  if(action==='owner-menu'||action==='add-menu'){
+    const type=action==='add-menu'?'add':'owner';
+    state.menu=state.menu===type?null:type; state.filter='';render();
+    if(state.menu==='add') document.querySelector('#agent-search')?.focus();
+    return;
+  }
+  if(action==='cancel'){dialog.close();state.uninstall=null;return;}
+  if(action==='confirm'){
+    const id=state.uninstall;
+    state.hooks[id]='not-installed';
+    tell('已卸载 '+agents.find(a=>a.id===id).name+' 的状态钩子');
+    state.uninstall=null;dialog.close();render();return;
+  }
+  if(action.startsWith('uninstall-')){
+    const id=action.slice(10), agent=agents.find(a=>a.id===id);
+    state.uninstall=id;
+    document.querySelector('#dialog-title').textContent='卸载 '+agent.name+' 的状态钩子？';
+    document.querySelector('#dialog-message').textContent='卸载后，Studio 将停止同步此工具的任务状态。';
+    dialog.showModal(); return;
+  }
+  state.menu=null;
+  const [event,target]=action.split('-');
+  if(event==='select'){
+    state.owner=target;state.connected=true;tell('已切换到'+owners[target].name+'（模拟）');
+  } else if(event==='add'){
+    const agent=agents.find(a=>a.id===target);
+    if(agent?.add){state.hooks[target]='not-installed';tell('已添加 '+agent.name+'，可以在该行安装');}
+  } else if(event==='install'){
+    state.hooks[target]=target==='codex'?'waiting':'installed';
+    tell('已配置 '+agents.find(a=>a.id===target).name+' 的状态钩子（模拟）');
+  } else if(event==='drop'){
+    delete state.hooks[target];tell('已从列表移除');
+  } else if(event==='page') {
+    state.panel=target;
+  } else if(event==='debug'){
+    state.debugTab=target;state.debug=true;
+  } else if(action==='logs'){
+    state.debug=true;state.debugTab='communication';state.panel='debug';tell('已打开通信日志');
+  } else if(action==='toggle-connection'){
+    state.connected=!state.connected;tell(state.connected?'已建立连接（模拟）':'已断开（模拟）');
+  } else if(action==='toggle-evidence'){
+    state.details=!state.details;
+  } else if(action==='simulate-hook'){
+    state.hooks.codex='verified';tell('已收到模拟 Codex Hook');
+  } else if(['read-ble','probe-ble','read-config','try-led'].includes(action)){
+    tell('操作完成（模拟）');
+  }
+  render();
+});
+render();
+</script>
+</body>
+</html>

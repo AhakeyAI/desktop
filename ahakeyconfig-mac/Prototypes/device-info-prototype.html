@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>设备信息 · 交互原型</title>
+<!-- Throwaway prototype. Run: python3 -m http.server 18763 --bind 127.0.0.1 --directory ahakeyconfig-mac/Prototypes -->
+<style>
+:root{color-scheme:dark;--bg:#1c1c1f;--panel:#27272b;--hover:#303035;--line:#3c3c42;--text:#f0f0f2;--muted:#a6a6af;--accent:#7dbbff;--green:#54d17d;--orange:#efb366}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;padding:32px 16px;background:#131316;color:var(--text);font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button{font:inherit;color:inherit;border:1px solid var(--line);border-radius:6px;background:var(--hover);padding:5px 10px;cursor:pointer}
+button:disabled{opacity:.42;cursor:default}
+button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.link{padding:0;border:0;background:transparent;color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.primary{background:#0378ee;border-color:#107deb;color:white}
+.danger{color:#ffa4aa}
+.sheet{max-width:720px;margin:auto;background:var(--bg);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 18px 64px #0006}
+header{height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid var(--line);background:#242427}
+h1,h2,p,dl,dd{margin:0}
+h1{font-size:16px;letter-spacing:.01em}
+h2{font-size:13px;font-weight:650;margin-bottom:8px}
+small,.muted,dt{color:var(--muted)}
+main{padding:17px 20px 21px;display:grid;gap:17px}
+.panel{border:1px solid var(--line);border-radius:9px;background:var(--panel)}
+.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));text-align:center;overflow:hidden}
+.metrics div{padding:9px 7px}
+.metrics div:nth-child(n+4){border-top:1px solid var(--line)}
+.metrics div:not(:nth-child(3n)){border-right:1px solid var(--line)}
+dd{font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px}
+.connection{padding:10px 12px}
+.segments{display:flex;gap:3px;background:#1c1c20;border:1px solid #37373d;border-radius:7px;padding:3px}
+.segments button{flex:1;background:transparent;border-color:transparent;padding:5px 8px;color:var(--muted)}
+.segments button[aria-pressed=true]{background:#3e3e45;color:var(--text)}
+.row{display:flex;align-items:center;gap:8px;min-width:0}
+.owner-row{margin-top:9px;justify-content:space-between}
+.lever{justify-content:space-between;padding:8px 12px;margin-top:8px}
+.identity{display:flex;flex-wrap:wrap;gap:3px 10px}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#777781;flex:0 0 auto}
+.dot.on{background:var(--green)}
+.hook-panel{padding:10px 12px;min-height:79px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.hook-main{display:grid;gap:4px}
+.hook-status{color:var(--muted)}
+.hook-list{font-size:12px;color:var(--muted)}
+summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;cursor:pointer}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"›";font-size:19px;line-height:1;color:var(--muted)}
+details[open] summary{border-bottom:1px solid var(--line)}
+details[open] summary::after{transform:rotate(90deg)}
+.debug{padding:10px 12px}
+.tabs{margin-bottom:10px}
+.debug-pane{min-height:82px}
+.led-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:6px 0}
+.led-grid button[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
+.toolbar{margin:4px 0 7px;flex-wrap:wrap}
+.readback{padding:8px;border-radius:6px;background:#1d1d21;margin-top:7px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.6 ui-monospace,monospace;padding:9px;border-radius:6px;background:#1c1c20;margin:7px 0;color:#c7c7d0}
+footer{padding:9px 20px;border-top:1px solid var(--line);color:var(--muted);font-size:11px}
+#result{color:var(--accent)}
+dialog{width:min(480px,calc(100vw - 32px));padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text)}
+dialog::backdrop{background:#0008}
+dialog h2{font-size:15px}
+dialog form{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+[hidden]{display:none!important}
+@media(max-width:520px){body{padding:12px 8px}header{padding:0 12px}main{padding:12px;gap:13px}.hook-panel{align-items:flex-start}.identity{font-size:12px}.led-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="sheet">
+  <header><h1>设备信息 · Agent</h1><small>交互原型</small></header>
+  <main>
+    <section aria-label="设备信息">
+      <dl class="panel metrics">
+        <div><dt>电量</dt><dd>92%</dd></div><div><dt>固件标识</dt><dd>1.0.1-r001</dd></div><div><dt>设备名</dt><dd>AhaKey 64B0</dd></div>
+        <div><dt>工作模式</dt><dd>Mode 3 / Codex</dd></div><div><dt>硬件版本</dt><dd>HW2</dd></div><div><dt>信号</dt><dd>−48 dBm</dd></div>
+      </dl>
+    </section>
+    <section aria-labelledby="connection-title">
+      <h2 id="connection-title">蓝牙连接</h2>
+      <div class="panel connection">
+        <div class="segments" aria-label="蓝牙连接方">
+          <button data-owner="studio" aria-pressed="false">AhaKey Studio</button>
+          <button data-owner="agent" aria-pressed="true">后台 Agent</button>
+        </div>
+        <div class="row owner-row"><span class="identity"><span class="muted">当前连接</span><span id="connection-status">等待后台启动</span></span><button id="agent-toggle">启动后台</button></div>
+      </div>
+      <div class="panel row lever"><span class="muted">拨杆档位</span><strong>拨杆在上 · 手动批准</strong></div>
+    </section>
+    <section aria-labelledby="hook-title">
+      <h2 id="hook-title">LED 状态同步 · Hook 联动</h2>
+      <div class="panel hook-panel">
+        <div class="hook-main">
+          <div class="row"><span class="dot" id="hook-dot" aria-hidden="true"></span><strong>LED 跟随 IDE 状态</strong><span class="hook-status" id="hook-status">未运行</span><button class="link" id="hook-log">查看日志</button></div>
+          <div class="hook-list">Claude、Cursor、Codex、Kimi <span aria-hidden="true">·</span> <span id="hook-count">已安装 4/4</span></div>
+        </div>
+        <div class="row"><button id="install">全部安装</button><button class="danger" id="uninstall">全部卸载</button></div>
+      </div>
+    </section>
+    <details class="panel" id="advanced">
+      <summary><strong>高级调试工具</strong></summary>
+      <div class="debug">
+        <div class="segments tabs" aria-label="调试工具">
+          <button data-tab="led" aria-pressed="true">LED 测试</button>
+          <button data-tab="config" aria-pressed="false">键盘配置 · 只读</button>
+          <button data-tab="ble" aria-pressed="false">通信日志</button>
+        </div>
+        <div class="debug-pane" data-pane="led">
+          <small id="led-hint">切换到 AhaKey Studio 连接后可测试灯效。</small>
+          <div class="led-grid" aria-label="测试状态">
+            <button data-led="通知">通知</button><button data-led="等待授权">等待授权</button><button data-led="工具完毕">工具完毕</button>
+            <button data-led="工具执行">工具执行</button><button data-led="会话开始">会话开始</button><button data-led="停止">停止</button>
+            <button data-led="任务完成">任务完成</button><button data-led="用户提交">用户提交</button><button data-led="会话结束">会话结束</button>
+          </div>
+          <small id="led-result" aria-live="polite"></small>
+        </div>
+        <div class="debug-pane" data-pane="config" hidden>
+          <div class="row toolbar"><button id="config-read">读取键盘配置</button><small id="config-state">切换到 AhaKey Studio 连接后可读取。</small></div>
+          <div class="readback" id="config-result" hidden>待机时间 60 分钟 · 当前档位 手动批准 · 显示模式 单任务</div>
+        </div>
+        <div class="debug-pane" data-pane="ble" hidden>
+          <small>连接协议 x1-c582-hw2-p1-1.0.1-r001</small>
+          <pre id="ble-lines">10:42:03  已识别 AhaKey 64B0
+10:42:04  固件标识已读取</pre>
+          <div class="row toolbar"><button id="ble-copy">复制日志</button><button id="ble-clear">清空视图</button></div>
+        </div>
+      </div>
+    </details>
+  </main>
+  <footer><span id="result" role="status">操作仅在原型中演示</span></footer>
+</div>
+<dialog id="log-dialog">
+  <h2>Hook 日志</h2>
+  <pre id="hook-lines"></pre>
+  <form method="dialog"><button>关闭</button></form>
+</dialog>
+<dialog id="uninstall-dialog">
+  <h2>全部卸载 Hook？</h2>
+  <p>将停止 Claude、Cursor、Codex 和 Kimi 的 Hook 联动。</p>
+  <form method="dialog"><button value="cancel">取消</button><button class="danger" value="confirm">全部卸载</button></form>
+</dialog>
+<script>
+const el = id => document.getElementById(id);
+const state = { owner: 'agent', running: false, installed: true, led: null, configRead: false, hookLog: ['10:42:03  检测到 4 个已安装的 Hook', '10:42:04  后台未运行'], bleLog: ['10:42:03  已识别 AhaKey 64B0', '10:42:04  固件标识已读取'] };
+const say = text => el('result').textContent = text;
+function render() {
+  const studio = state.owner === 'studio';
+  document.querySelectorAll('[data-owner]').forEach(b => b.setAttribute('aria-pressed', b.dataset.owner === state.owner));
+  el('connection-status').textContent = studio ? '本 App 已连接' : state.running ? 'Agent 已连接' : '等待后台启动';
+  el('agent-toggle').hidden = studio;
+  el('agent-toggle').textContent = state.running ? '停止后台' : '启动后台';
+  el('hook-status').textContent = studio || !state.running ? '未运行' : state.installed ? '已连蓝牙' : 'Hook 未安装';
+  el('hook-dot').classList.toggle('on', !studio && state.running && state.installed);
+  el('hook-count').textContent = state.installed ? '已安装 4/4' : '未安装';
+  el('uninstall').disabled = !state.installed;
+  el('led-hint').textContent = studio ? '选择一个状态预览灯效。' : '切换到 AhaKey Studio 连接后可测试灯效。';
+  document.querySelectorAll('[data-led]').forEach(b => {
+    b.disabled = !studio;
+    b.setAttribute('aria-pressed', b.dataset.led === state.led && studio);
+  });
+  el('led-result').textContent = state.led && studio ? '当前测试状态 · ' + state.led : '';
+  el('config-read').disabled = !studio;
+  el('config-state').textContent = studio ? (state.configRead ? '已读取' : '尚未读取') : '切换到 AhaKey Studio 连接后可读取。';
+  el('config-result').hidden = !studio || !state.configRead;
+  el('hook-lines').textContent = state.hookLog.join('\n');
+  el('ble-lines').textContent = state.bleLog.join('\n') || '暂无通信日志。';
+}
+document.querySelectorAll('[data-owner]').forEach(b => b.onclick = () => { state.owner = b.dataset.owner; state.configRead = false; state.led = null; render(); });
+el('agent-toggle').onclick = () => { state.running = !state.running; state.hookLog.push(state.running ? '后台已启动' : '后台已停止'); render(); };
+el('hook-log').onclick = () => el('log-dialog').showModal();
+el('install').onclick = () => { state.installed = true; state.hookLog.push('已核对全部 4 个 Hook'); render(); say('全部 Hook 已安装'); };
+el('uninstall').onclick = () => el('uninstall-dialog').showModal();
+el('uninstall-dialog').onclose = () => {
+  if (el('uninstall-dialog').returnValue !== 'confirm') return;
+  state.installed = false; state.hookLog.push('已卸载全部 Hook'); render(); say('全部 Hook 已卸载');
+};
+document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-tab]').forEach(option => option.setAttribute('aria-pressed', option === b));
+  document.querySelectorAll('[data-pane]').forEach(pane => pane.hidden = pane.dataset.pane !== b.dataset.tab);
+});
+document.querySelectorAll('[data-led]').forEach(b => b.onclick = () => { state.led = b.dataset.led; state.bleLog.push('LED 测试 · ' + state.led); render(); });
+el('config-read').onclick = () => { state.configRead = true; state.bleLog.push('读取键盘配置 · 成功'); render(); };
+el('ble-copy').onclick = async () => { await navigator.clipboard.writeText(state.bleLog.join('\n')); say('已复制通信日志'); };
+el('ble-clear').onclick = () => { state.bleLog = []; render(); };
+render();
+</script>
+</body>
+</html>
