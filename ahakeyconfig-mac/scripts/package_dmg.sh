@@ -91,7 +91,8 @@ dmgbuild.build_dmg(output, volume, settings={
     "files": [app],
     "symlinks": {"Applications": "/Applications"},
     "background": background,
-    "window_rect": ((200, 160), (920, 492)),
+    # Finder's window height includes the title bar above the 920 × 492 artwork.
+    "window_rect": ((200, 160), (920, 524)),
     "icon_locations": {os.path.basename(app): (230, 235), "Applications": (690, 235)},
     "icon_size": 120,
     "text_size": 13,

@@ -312,10 +312,7 @@ struct DeviceInfoView: View {
                     detectedHarnesses = StudioHarnessCatalog.detect()
                     showsHookPicker.toggle()
                 } label: {
-                    HStack(spacing: 4) {
-                        Text("添加")
-                        Image(systemName: "chevron.down").font(.caption2)
-                    }
+                    Label("添加", systemImage: "plus")
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
