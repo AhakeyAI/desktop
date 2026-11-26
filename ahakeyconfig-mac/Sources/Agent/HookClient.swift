@@ -88,6 +88,20 @@ enum HookClient {
         return WS3TaskMetadata.enrich(request, client: client, event: event, stdin: stdin)
     }
 
+    static func verifiedLifecycleClient(event: String, stdin: Data) -> StatusHookReceipts.Client? {
+        let client: WS3TaskClient
+        switch event {
+        case "SessionStart", "SessionEnd", "UserPromptSubmit": client = .claude
+        case "sessionStart", "sessionEnd", "beforeSubmitPrompt": client = .cursor
+        case "KimiSessionStart", "KimiSessionEnd", "KimiUserPromptSubmit": client = .kimi
+        default: return nil
+        }
+        let expected = client == .kimi ? String(event.dropFirst("Kimi".count)) : event
+        let evidence = WS3TaskMetadata.enrich([:], client: client, event: event, stdin: stdin, expectedEvent: expected)
+        let receiptClient = StatusHookReceipts.Client(rawValue: client.rawValue)
+        return evidence["task"] == nil ? nil : receiptClient
+    }
+
     static func run(event: String) -> Int32 {
         signal(SIGPIPE, SIG_IGN)
 
@@ -131,7 +145,11 @@ enum HookClient {
 
         switch route {
         case .sharedState:
-            if let request = stateRequest(event: event, stdin: HookSupport.readAllStdinSilently()) {
+            let stdin = HookSupport.readAllStdinSilently()
+            if let request = stateRequest(event: event, stdin: stdin) {
+                if let client = verifiedLifecycleClient(event: event, stdin: stdin) {
+                    StatusHookReceipts().eventRecorder(client: client, executablePath: CommandLine.arguments[0])()
+                }
                 _ = HookSupport.sendJsonRequest(request, timeout: HookSupport.stateRequestTimeout)
             }
         case .claudePreToolUse:

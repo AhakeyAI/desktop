@@ -4,6 +4,10 @@
 
 状态钩子通过工具自己的会话事件，把进行中、完成和会话结束同步到 AhaKey。安装清单采用三种独立信息：工具已检测到、AhaKey 钩子已配置、收到真实回调。已配置的证据是工具配置引用固定入口，真实回调的证据来自工具进程执行后的本机回执。
 
+在 Studio 展开已安装工具的验证状态，即可查看配置核对、入口自检和真实回调。用要核验的宿主开启新会话。Studio 会在能够识别本机进程来源时分别显示 Orca、LobeHub、T3 Code、原生桌面客户端或终端。配置或固定入口更换后，需要重新收到回调。安装及自检不会发送模型请求。
+
+宿主若在同一台 Mac 上启动原生工具，需让运行时加载 Studio 显示的配置文件。使用独立帐号目录的 Orca 或 T3 Code 实例应先核对 `CODEX_HOME` 或 `CLAUDE_CONFIG_DIR`。LobeHub 远程设备和云沙箱的原生工具由各自运行机器加载配置。[Orca](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/agents/codex.mdx) · [T3 Code](https://github.com/pingdotgg/t3code/blob/main/docs/user/usage.md) · [LobeHub](https://lobehub.com/solutions/manage-claude-code-and-codex)
+
 ## 适配范围
 
 | 工具 | 官方接口与配置位置 | Studio 当前能力 |

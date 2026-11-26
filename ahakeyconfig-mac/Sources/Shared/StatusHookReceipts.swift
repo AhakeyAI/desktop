@@ -2,9 +2,18 @@ import CryptoKit
 import Foundation
 
 /// A callback is evidence for one installation generation and executable.
-/// Only the generation is recorded. Tool input and session data stay out of the receipt.
+/// Only the generation and recognized local launcher category are recorded.
 public struct StatusHookReceipts {
-    public enum Client: String, CaseIterable { case workBuddy, copilot, antigravity, openCode, cline, pi, openClaw }
+    public enum Client: String, CaseIterable {
+        case claude, cursor, kimi, workBuddy, copilot, antigravity, openCode, cline, pi, openClaw
+    }
+
+    public struct Status: Equatable {
+        public let configurationChecked: Bool
+        public let entryChecked: Bool
+        public let eventReceived: Bool
+        public let hosts: Set<HookExecutionHost>
+    }
 
     private struct Installation: Codable {
         let generation: UUID
@@ -44,7 +53,7 @@ public struct StatusHookReceipts {
                          previous: Installation?) throws {
         let next = Installation(generation: UUID(), configuration: configuration, entry: entry)
         try JSONEncoder().encode(next).write(to: installationURL(client), options: .atomic)
-        if let previous { try? FileManager.default.removeItem(at: eventURL(client, previous.generation)) }
+        if let previous { removeEvent(client, previous.generation) }
     }
 
     public func isVerified(client: Client, configuration: URL) -> Bool {
@@ -52,20 +61,26 @@ public struct StatusHookReceipts {
     }
 
     public func isVerified(client: Client, configurations: [URL]) -> Bool {
-        guard let receipt = installation(client),
-              FileManager.default.fileExists(atPath: eventURL(client, receipt.generation).path),
-              receipt.entry == CodexHookInstallation.EntryIdentity(at: entryURL)
-        else { return false }
-        return receipt.configuration == fingerprint(of: configurations)
+        status(client: client, configurations: configurations)?.eventReceived == true
+    }
+
+    public func status(client: Client, configurations: [URL]) -> Status? {
+        guard let receipt = installation(client) else { return nil }
+        let configurationChecked = receipt.configuration == fingerprint(of: configurations)
+        let entryChecked = receipt.entry == CodexHookInstallation.EntryIdentity(at: entryURL)
+        let event = eventURL(client, receipt.generation)
+        let eventReceived = configurationChecked && entryChecked && FileManager.default.fileExists(atPath: event.path)
+        return Status(configurationChecked: configurationChecked, entryChecked: entryChecked,
+                      eventReceived: eventReceived, hosts: eventReceived ? HookExecutionHost.recorded(at: event) : [])
     }
 
     public func clear(client: Client) {
         let previous = installation(client)
         try? FileManager.default.removeItem(at: installationURL(client))
-        if let previous { try? FileManager.default.removeItem(at: eventURL(client, previous.generation)) }
+        if let previous { removeEvent(client, previous.generation) }
     }
 
-    public func eventRecorder(client: Client, executablePath: String) -> () -> Void {
+    public func eventRecorder(client: Client, executablePath: String, host: HookExecutionHost? = nil) -> () -> Void {
         let invokedEntry = URL(fileURLWithPath: executablePath).resolvingSymlinksInPath()
         guard invokedEntry.path == entryURL.resolvingSymlinksInPath().path,
               let receipt = installation(client),
@@ -76,7 +91,14 @@ public struct StatusHookReceipts {
             // The file itself is the receipt. A no-clobber create is atomic
             // and avoids Foundation staging it outside the allowed directory.
             try? Data().write(to: target, options: .withoutOverwriting)
+            (host ?? HookExecutionHost.capture()).record(at: target)
         }
+    }
+
+    private func removeEvent(_ client: Client, _ generation: UUID) {
+        let url = eventURL(client, generation)
+        try? FileManager.default.removeItem(at: url)
+        HookExecutionHost.removeMarkers(at: url)
     }
 
     private func installation(_ client: Client) -> Installation? {

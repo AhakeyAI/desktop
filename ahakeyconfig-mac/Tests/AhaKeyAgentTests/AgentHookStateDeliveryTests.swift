@@ -2,6 +2,20 @@ import XCTest
 @testable import AhaKeyConfigAgent
 
 final class AgentHookStateDeliveryTests: XCTestCase {
+    func testLifecycleReceiptRequiresMatchingEventAndSession() {
+        for (argument, event, sessionField, client) in [
+            ("SessionStart", "SessionStart", "session_id", "claude"),
+            ("sessionStart", "sessionStart", "conversation_id", "cursor"),
+            ("KimiSessionStart", "SessionStart", "session_id", "kimi"),
+        ] {
+            let payload = Data(#"{"hook_event_name":"\#(event)","\#(sessionField)":"fixture"}"#.utf8)
+            let unrelated = Data(#"{"hook_event_name":"Unknown","\#(sessionField)":"fixture"}"#.utf8)
+            XCTAssertEqual(HookClient.verifiedLifecycleClient(event: argument, stdin: payload)?.rawValue, client)
+            XCTAssertNil(HookClient.verifiedLifecycleClient(event: argument, stdin: unrelated))
+            XCTAssertNil(HookClient.verifiedLifecycleClient(event: argument, stdin: Data("{}".utf8)))
+        }
+    }
+
     func testWorkBuddyLifecycleSendsOnlyTaskStateAndIdentity() {
         for (event, state) in [("WorkBuddyUserPromptSubmit", 7), ("WorkBuddyStop", 5), ("WorkBuddySessionEnd", 8)] {
             let hookName = String(event.dropFirst("WorkBuddy".count))

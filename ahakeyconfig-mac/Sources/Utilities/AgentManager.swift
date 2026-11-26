@@ -53,7 +53,12 @@ final class AgentManager: ObservableObject {
     @Published private(set) var openCodeHooksInstalled = false
     @Published private(set) var additionalStatusHooksInstalled: Set<StudioHookClient> = []
     @Published private(set) var hookOperationLog = ""
-    enum HookVerification: Equatable { case notConfigured, waitingForCallback, verified }
+    struct HookVerification: Equatable {
+        let configurationChecked: Bool
+        let entryChecked: Bool
+        let eventReceived: Bool
+        let hosts: Set<HookExecutionHost>
+    }
     @Published private(set) var kimiUsesNativeCLI = false
 
     /// 用户选择的蓝牙占用方（存 UserDefaults，启动时应用一次）
@@ -1135,6 +1140,7 @@ final class AgentManager: ObservableObject {
                 return "Claude Code：无法写入 Hook 配置。"
             }
         } catch { return "Claude Hooks：配置结构无效，未修改现有文件。" }
+        if let error = confirmHookReceipt(.claude, path: claudeSettingsPath) { return error }
         guard ApprovalAutomationControl.resume(.claude) else { return "无法恢复 Claude 审批管理权限。" }
         log.info("Claude hooks 已写入固定入口")
         return ""
@@ -1222,16 +1228,23 @@ final class AgentManager: ObservableObject {
         }
     }
 
-    func hookVerification(_ client: StudioHookClient) -> HookVerification {
-        guard hasHookConfiguration(client) else { return .notConfigured }
-        if client == .codex {
-            return codexHookInstallationStatus?.eventReceived == true ? .verified : .waitingForCallback
+    func hookVerification(_ client: StudioHookClient) -> HookVerification? {
+        guard hasHookConfiguration(client) else { return nil }
+        if client == .codex, let status = codexHookInstallationStatus {
+            return .init(configurationChecked: status.configurationWritten, entryChecked: status.entryChecked,
+                         eventReceived: status.eventReceived, hosts: status.hosts)
         }
         if let target = statusHookReceiptTarget(client),
-           StatusHookReceipts().isVerified(client: target.0, configurations: target.1) {
-            return .verified
+           let status = StatusHookReceipts().status(client: target.0, configurations: target.1) {
+            return .init(configurationChecked: status.configurationChecked, entryChecked: status.entryChecked,
+                         eventReceived: status.eventReceived, hosts: status.hosts)
         }
-        return .waitingForCallback
+        return .init(configurationChecked: false, entryChecked: false, eventReceived: false, hosts: [])
+    }
+
+    func hookConfigurationPaths(_ client: StudioHookClient) -> [String] {
+        let paths = client == .codex ? [codexConfigPath] : statusHookReceiptTarget(client)?.1.map(\.path) ?? []
+        return paths.map { ($0 as NSString).abbreviatingWithTildeInPath }
     }
 
     /// Prepares background Bluetooth independently of any external tool setup.
@@ -1324,6 +1337,9 @@ final class AgentManager: ObservableObject {
             }
         }
         refresh()
+        for client in clients where !hasHookConfiguration(client) {
+            if let receipt = statusHookReceiptTarget(client) { StatusHookReceipts().clear(client: receipt.0) }
+        }
         let completed = !encounteredError && !clients.contains(where: { hasHookConfiguration($0) })
         let summary = !completed
             ? NSLocalizedString("状态钩子卸载未确认，请核对结果。", comment: "")
@@ -1348,6 +1364,9 @@ final class AgentManager: ObservableObject {
 
     private func statusHookReceiptTarget(_ client: StudioHookClient) -> (StatusHookReceipts.Client, [URL])? {
         switch client {
+        case .claude: return (.claude, [URL(fileURLWithPath: claudeSettingsPath)])
+        case .cursor: return (.cursor, [URL(fileURLWithPath: cursorHooksPath)])
+        case .kimi: return (.kimi, [URL(fileURLWithPath: kimiConfigPath)])
         case .workBuddy: return (.workBuddy, [workBuddySettingsURL])
         case .copilot: return (try? copilotHooks()).map { (.copilot, [$0.configurationURL]) }
         case .antigravity: return (try? antigravityHooks()).map { (.antigravity, [$0.configurationURL]) }
@@ -1355,6 +1374,16 @@ final class AgentManager: ObservableObject {
         case .cline, .pi, .openClaw:
             return (try? additionalStatusHook(client)).map { ($0.client, $0.configuration.configurationURLs) }
         default: return nil
+        }
+    }
+
+    private func confirmHookReceipt(_ client: StatusHookReceipts.Client, path: String) -> String? {
+        do {
+            try StatusHookReceipts().confirm(client: client, configuration: URL(fileURLWithPath: path))
+            return nil
+        } catch {
+            log.error("Unable to confirm \(client.rawValue) Hook installation: \(error.localizedDescription)")
+            return NSLocalizedString("Hook 已写入。安装记录无法核对，请重试。", comment: "")
         }
     }
 
@@ -1517,6 +1546,7 @@ final class AgentManager: ObservableObject {
             settings = try JSONHooksConfiguration.installing(in: settings, client: .cursor, agentPath: hookPath)
         } catch { return "Cursor Hooks：配置结构无效，未修改现有文件。" }
         if saveCursorSettings(settings) {
+            if let error = confirmHookReceipt(.cursor, path: cursorHooksPath) { return error }
             guard ApprovalAutomationControl.resume(.cursor) else { return "无法恢复 Cursor 审批管理权限。" }
             log.info("Cursor hooks 已写入")
             return ""
@@ -1706,6 +1736,7 @@ final class AgentManager: ObservableObject {
             else { config = "" }
             let next = try KimiHooksConfiguration.installing(in: config, location: location, agentPath: hookPath)
             try next.write(toFile: path, atomically: true, encoding: .utf8)
+            if let error = confirmHookReceipt(.kimi, path: path) { return error }
             if location.layout == .legacyPython {
                 let result = patchInstalledKimiCliForAhaKeyDialControl()
                 guard result.isEmpty else { return result }

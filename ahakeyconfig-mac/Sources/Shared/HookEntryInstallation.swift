@@ -38,6 +38,7 @@ public struct CodexHookInstallation {
         public let entryChecked: Bool
         public let eventReceived: Bool
         public let restartRequired: Bool
+        public let hosts: Set<HookExecutionHost>
     }
 
     private struct Receipt: Codable {
@@ -74,7 +75,7 @@ public struct CodexHookInstallation {
         } == true
         let next = Receipt(generation: UUID(), configuration: configuration, entry: entry, restartRequired: restartRequired)
         try JSONEncoder().encode(next).write(to: receiptURL, options: .atomic)
-        if let previous { try? FileManager.default.removeItem(at: eventURL(previous.generation)) }
+        if let previous { removeEvent(previous.generation) }
     }
 
     /// A per-tool repair can replace the shared entry without editing Codex's configuration.
@@ -90,26 +91,34 @@ public struct CodexHookInstallation {
         let eventReceived = configurationWritten && entryChecked
             && FileManager.default.fileExists(atPath: eventURL(receipt.generation).path)
         return Status(configurationWritten: configurationWritten, entryChecked: entryChecked,
-                      eventReceived: eventReceived, restartRequired: configurationWritten && receipt.restartRequired)
+                      eventReceived: eventReceived, restartRequired: configurationWritten && receipt.restartRequired,
+                      hosts: eventReceived ? HookExecutionHost.recorded(at: eventURL(receipt.generation)) : [])
     }
 
     public func clear() {
         let previous = receipt
         try? FileManager.default.removeItem(at: receiptURL)
-        if let previous { try? FileManager.default.removeItem(at: eventURL(previous.generation)) }
+        if let previous { removeEvent(previous.generation) }
     }
 
     /// Binds the event to the installation that existed when the Hook program started.
-    public func eventRecorder(executablePath: String) -> (_ expectedEvent: String, _ context: [String: Any]) -> Void {
+    public func eventRecorder(executablePath: String, host: HookExecutionHost? = nil)
+        -> (_ expectedEvent: String, _ context: [String: Any]) -> Void {
         guard executablePath == entryURL.path, let receipt,
               EntryIdentity(at: entryURL) == receipt.entry else { return { _, _ in } }
         let url = eventURL(receipt.generation)
         return { expectedEvent, context in
             guard context["hook_event_name"] as? String == expectedEvent,
                   let session = context["session_id_short"] as? String, !session.isEmpty,
-                  self.receipt?.generation == receipt.generation,
-                  !FileManager.default.fileExists(atPath: url.path) else { return }
-            try? Data().write(to: url, options: .atomic)
+                  self.receipt?.generation == receipt.generation else { return }
+            try? Data().write(to: url, options: .withoutOverwriting)
+            (host ?? HookExecutionHost.capture()).record(at: url)
         }
+    }
+
+    private func removeEvent(_ generation: UUID) {
+        let url = eventURL(generation)
+        try? FileManager.default.removeItem(at: url)
+        HookExecutionHost.removeMarkers(at: url)
     }
 }

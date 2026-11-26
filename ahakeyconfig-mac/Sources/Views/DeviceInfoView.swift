@@ -23,8 +23,8 @@ struct DeviceInfoView: View {
     @State private var showsHookPicker = false
     @State private var hookSearch = ""
     @State private var pendingHookRemoval: StudioHookClient?
-    @State private var showsCodexHookDetails = false
-    @State private var verifiedHookClients: Set<StudioHookClient> = []
+    @State private var expandedHookClient: StudioHookClient?
+    @State private var hookVerifications: [StudioHookClient: AgentManager.HookVerification] = [:]
     @State private var detectedHarnesses: Set<String> = []
     @State private var showsAdvancedTools = false
     @State private var advancedTool = AdvancedTool.ble
@@ -328,8 +328,10 @@ struct DeviceInfoView: View {
         .task(id: visibleHookClients) {
             while !Task.isCancelled {
                 if agentManager.codexHooksInstalled { agentManager.refreshCodexHookInstallationStatus() }
-                let verified = Set(visibleHookClients.filter { agentManager.hookVerification($0) == .verified })
-                if verifiedHookClients != verified { verifiedHookClients = verified }
+                let checks = Dictionary(uniqueKeysWithValues: visibleHookClients.compactMap { client in
+                    agentManager.hookVerification(client).map { (client, $0) }
+                })
+                if hookVerifications != checks { hookVerifications = checks }
                 do { try await Task.sleep(for: .seconds(3)) }
                 catch { return }
             }
@@ -425,11 +427,20 @@ struct DeviceInfoView: View {
                 }
             }
             .controlSize(.small)
-            if client == .codex && configured && showsCodexHookDetails {
+            if configured && expandedHookClient == client {
                 VStack(alignment: .leading, spacing: 6) {
-                    StudioCodexHookStatusView(agentManager: agentManager)
-                    if agentManager.hookVerification(.codex) != .verified {
-                        Button("修复 Hook") { agentManager.installHook(.codex) }
+                    let verification = hookVerifications[client]
+                    StudioHookVerificationView(
+                        verification: verification,
+                        configurationPaths: agentManager.hookConfigurationPaths(client),
+                        needsCodexRestart: client == .codex && agentManager.codexHookInstallationStatus?.restartRequired == true
+                    )
+                    if verification?.configurationChecked != true || verification?.entryChecked != true {
+                        Button("修复 Hook") { agentManager.installHook(client) }
+                            .buttonStyle(.link)
+                            .disabled(!agentManager.isAgentBinaryPresentInBundle || operationPending)
+                    } else if verification?.eventReceived == true && verification?.hosts.isEmpty == true {
+                        Button("更新 Hook") { agentManager.installHook(client) }
                             .buttonStyle(.link)
                             .disabled(!agentManager.isAgentBinaryPresentInBundle || operationPending)
                     }
@@ -440,24 +451,16 @@ struct DeviceInfoView: View {
         .padding(.vertical, 2)
     }
 
-    @ViewBuilder
     private func hookStatus(_ client: StudioHookClient) -> some View {
-        let verified = verifiedHookClients.contains(client)
-        let needsCallback = client == .codex || client.detection.integrationNote != nil
-        let label: LocalizedStringKey = verified ? "已验证" : (needsCallback ? "等待验证" : "已配置")
-        if client == .codex {
-            Button {
-                showsCodexHookDetails.toggle()
-            } label: {
-                Label(label, systemImage: showsCodexHookDetails ? "chevron.down" : "chevron.right")
-            }
-            .buttonStyle(.link)
-            .font(.caption)
-        } else {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(verified ? Color.green : Color.secondary)
+        let verified = hookVerifications[client]?.eventReceived == true
+        return Button {
+            expandedHookClient = expandedHookClient == client ? nil : client
+        } label: {
+            Label(verified ? "已验证" : "等待验证",
+                  systemImage: expandedHookClient == client ? "chevron.down" : "chevron.right")
         }
+        .buttonStyle(.link)
+        .font(.caption)
     }
 
     private var advancedSection: some View {
