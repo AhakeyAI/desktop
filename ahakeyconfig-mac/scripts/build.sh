@@ -201,9 +201,20 @@ if [[ -z "$SIGNING_IDENTITY" && "$REQUIRE_DEVELOPER_ID" != "1" ]]; then
   SIGNING_IDENTITY="$(find_apple_development)"
 fi
 
-if [[ "$REQUIRE_DEVELOPER_ID" == "1" && -z "$SIGNING_IDENTITY" ]]; then
-  echo "❌ No Developer ID Application identity found in keychain."
-  echo "   Please install a Developer ID Application certificate first."
+IS_DEVELOPER_ID=0
+if [[ "$SIGNING_IDENTITY" == Developer\ ID\ Application:* ]]; then
+  IS_DEVELOPER_ID=1
+elif [[ -n "$SIGNING_IDENTITY" ]] && security find-identity -v -p codesigning 2>/dev/null |
+  awk -v identity="$SIGNING_IDENTITY" '
+    toupper($2) == toupper(identity) && /"Developer ID Application:/ { found = 1 }
+    END { exit !found }
+  '; then
+  # codesign also accepts a certificate fingerprint, which carries no type prefix.
+  IS_DEVELOPER_ID=1
+fi
+
+if [[ "$REQUIRE_DEVELOPER_ID" == "1" && "$IS_DEVELOPER_ID" == "0" ]]; then
+  echo "❌ Release packaging requires a Developer ID Application identity."
   exit 1
 fi
 
@@ -212,7 +223,7 @@ if [[ -n "${SIGNING_IDENTITY}" ]]; then
   SIGN_ARGS=(--force --sign "$SIGNING_IDENTITY")
   APP_SIGN_ARGS=("${SIGN_ARGS[@]}")
 
-  if [[ "$SIGNING_IDENTITY" == Developer\ ID\ Application:* ]]; then
+  if [[ "$IS_DEVELOPER_ID" == "1" ]]; then
     SIGN_ARGS+=(--timestamp --options runtime)
     APP_SIGN_ARGS=("${SIGN_ARGS[@]}" --entitlements "$ENTITLEMENTS")
   else
