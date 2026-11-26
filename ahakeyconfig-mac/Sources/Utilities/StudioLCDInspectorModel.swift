@@ -17,10 +17,11 @@ final class StudioLCDInspectorModel: ObservableObject {
         var pause: () async throws -> Void = { try await Task.sleep(for: .milliseconds(500)) }
         var restore: ((WS3PresentationMode, String, UInt64) async throws -> WS3TaskOverview)? = nil
     }
-    struct ArtworkAction {
+    struct WriteAction {
         let title: String
         let run: @MainActor () async throws -> Void
     }
+    typealias ArtworkAction = WriteAction
     enum Failure: Error, LocalizedError {
         case unavailable, changed, artworkNeedsAttention, oldBackend
         var errorDescription: String? {
@@ -167,10 +168,10 @@ final class StudioLCDInspectorModel: ObservableObject {
         throw WS3PresentationError.busy
     }
 
-    func write(artwork: [ArtworkAction], deviceID: String?, using access: Access) {
-        guard !isWriting, !isReading, !artwork.isEmpty || hasSettingsDraft else { return }
+    func write(artwork: [ArtworkAction], settings: [WriteAction] = [], deviceID: String?, using access: Access) {
+        guard !isWriting, !isReading, !artwork.isEmpty || !settings.isEmpty || hasSettingsDraft else { return }
         let mode = modeDraft, follow = followDraft
-        guard mode == nil || deviceID?.isEmpty == false else { message = Failure.unavailable.localizedDescription; return }
+        guard (mode == nil && settings.isEmpty) || deviceID?.isEmpty == false else { message = Failure.unavailable.localizedDescription; return }
         isWriting = true; message = nil
         writeTask = Task { @MainActor in
             var completed: [String] = []
@@ -180,6 +181,11 @@ final class StudioLCDInspectorModel: ObservableObject {
                     try Task.checkCancellation()
                     try await item.run()
                     completed.append(item.title)
+                }
+                for setting in settings {
+                    try Task.checkCancellation()
+                    try await setting.run()
+                    completed.append(setting.title)
                 }
                 if let mode, let deviceID {
                     let result = try await Self.applyMode(mode, deviceID: deviceID, using: access)
@@ -196,7 +202,7 @@ final class StudioLCDInspectorModel: ObservableObject {
                 self.message = NSLocalizedString("屏幕设置已更新，请在键盘上确认效果。", comment: "")
                 self.writeCompleted.send(.init(succeeded: true,
                     message: completed.joined(separator: "、") + "\n" + (self.message ?? ""),
-                    wrote: !artwork.isEmpty || mode != nil))
+                    wrote: !artwork.isEmpty || !settings.isEmpty || mode != nil))
             } catch {
                 let prefix = completed.isEmpty ? "" : String(format:
                     NSLocalizedString("已完成：%@。其余改动仍保留，请核对后重试。", comment: ""), completed.joined(separator: "、")) + "\n"

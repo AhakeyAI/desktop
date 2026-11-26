@@ -154,7 +154,7 @@ struct AhaKeyStudioView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .overlay(alignment: .bottomTrailing) { AppUpdateCard(manager: updateManager) }
         .onAppear { screenPreview.initialize(mode: selectedMode.rawValue) }
-        .onChange(of: deviceThemeModel.confirmed) { theme in
+        .onChange(of: deviceThemeModel.selected) { theme in
             if let theme { screenPreview.send(.theme(theme)) }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in lightWindowActive = true }
@@ -985,7 +985,7 @@ struct AhaKeyStudioView: View {
                         StudioLightInspectorActions(model: lightInspectorModel, session: inspectorSession,
                                                     presentation: lightPresentationModel,
                                                     bleManager: bleManager, mode: selectedMode, write: requestLightWrite)
-                    } else if usesInlineHardwareEditor {
+                    } else if usesInlineHardwareEditor || (selectedPart == .oledDisplay && deviceThemeModel.hasDraft) {
                         Button {
                             if selectedPart == .oledDisplay { requestLCDWrite() }
                             else { deviceInspectorModel.write(lever: selectedPart == .toggleSwitch, ble: bleManager, session: inspectorSession) }
@@ -1799,12 +1799,20 @@ struct AhaKeyStudioView: View {
     private var lcdArtworkEntries: [UInt8] {
         StudioScreenArtworkPlan.pending(mode: selectedMode.rawValue, presentation: lcdSelectedPresentation, dirty: resourceInspectorModel.screenDirtyEntries)
     }
-    private var canWriteLCD: Bool {
-        (!lcdArtworkEntries.isEmpty || lcdInspectorModel.hasSettingsDraft ||
-            (lcdInspectorModel.overview?.connected == true && (lcdInspectorModel.overview?.requestedMode ?? .single) != lcdSelectedPresentation)) &&
-            resourceInspectorModel.deviceID != nil
+    private var lcdHasDisplayChanges: Bool {
+        guard !usesLegacyEditor else { return false }
+        return !lcdArtworkEntries.isEmpty || lcdInspectorModel.hasSettingsDraft ||
+            (lcdInspectorModel.overview?.connected == true &&
+                (lcdInspectorModel.overview?.requestedMode ?? .single) != lcdSelectedPresentation)
     }
-    private var lcdNeedsOverwrite: Bool { resourceInspectorModel.hasPendingOnOtherKeyboard && !lcdArtworkEntries.isEmpty }
+    private var lcdWriteDeviceID: String? {
+        lcdHasDisplayChanges ? resourceInspectorModel.deviceID : deviceThemeModel.deviceID
+    }
+    private var canWriteLCD: Bool {
+        guard lcdHasDisplayChanges || deviceThemeModel.hasDraft, let target = lcdWriteDeviceID else { return false }
+        return !deviceThemeModel.hasDraft || deviceThemeModel.deviceID == target
+    }
+    private var lcdNeedsOverwrite: Bool { lcdHasDisplayChanges && resourceInspectorModel.hasPendingOnOtherKeyboard && !lcdArtworkEntries.isEmpty }
     private var lcdWriteTitle: String {
         lcdNeedsOverwrite ? NSLocalizedString("覆盖到当前键盘", comment: "") : NSLocalizedString("写入键盘", comment: "")
     }
@@ -1817,6 +1825,9 @@ struct AhaKeyStudioView: View {
         lines.append(contentsOf: lcdArtworkEntries.map(lcdArtworkTitle))
         if lcdSelectedPresentation == .single, lcdArtworkEntries.contains(UInt8(selectedMode.rawValue * 4 + 3)) {
             lines.append(NSLocalizedString("已完成画面也用于键盘默认画面。", comment: ""))
+        }
+        if let theme = deviceThemeModel.draft {
+            lines.append(NSLocalizedString("主题风格", comment: "") + "：" + (theme == .light ? "Light 浅色" : "Dark 深色"))
         }
         lines.append(NSLocalizedString("显示模式", comment: "") + "：" + NSLocalizedString(lcdSelectedPresentation == .multi ? "多任务" : "单任务", comment: ""))
         if lcdInspectorModel.followDraft != nil { lines.append(NSLocalizedString("跟随当前终端", comment: "")) }
@@ -1835,24 +1846,25 @@ struct AhaKeyStudioView: View {
     }
     private func requestLCDWrite() {
         guard canWriteLCD else { return }
-        if lcdArtworkEntries.isEmpty { writeLCDSettings() }
+        if !lcdHasDisplayChanges || lcdArtworkEntries.isEmpty { writeLCDSettings() }
         else {
             lcdWriteConfirmationDeviceID = resourceInspectorModel.deviceID
             confirmsLCDWrite = true
         }
     }
     private func writeLCDSettings() {
-        guard let deviceID = resourceInspectorModel.deviceID else { return }
+        guard let deviceID = lcdWriteDeviceID else { return }
+        let hasDisplayChanges = lcdHasDisplayChanges
         let presentation = lcdSelectedPresentation
-        if presentation == .single {
+        if hasDisplayChanges, presentation == .single {
             do { try resourceInspectorModel.stageCompletedFallback(mode: selectedMode) }
             catch { writeOutcome = .init(succeeded: false, message: error.localizedDescription); return }
         }
         // Artwork leases can reconnect the Agent. Reapply the selected mode
         // even if it matched the connection before uploading.
-        lcdInspectorModel.chooseMode(presentation, force: true)
-        lcdSubmittedEntry = resourceInspectorModel.entry
-        let actions = lcdArtworkEntries.map { entry in
+        if hasDisplayChanges { lcdInspectorModel.chooseMode(presentation, force: true) }
+        lcdSubmittedEntry = hasDisplayChanges ? resourceInspectorModel.entry : nil
+        let actions = (hasDisplayChanges ? lcdArtworkEntries : []).map { entry in
             let restoring = resourceInspectorModel.defaultDrafts.contains(entry)
             return StudioLCDInspectorModel.ArtworkAction(title: lcdArtworkTitle(entry)) {
                 guard resourceInspectorModel.deviceID == deviceID else { throw StudioInspectorSession.Failure.deviceChanged }
@@ -1865,7 +1877,14 @@ struct AhaKeyStudioView: View {
                 guard confirmed else { throw StudioLCDInspectorModel.Failure.artworkNeedsAttention }
             }
         }
-        lcdInspectorModel.write(artwork: actions, deviceID: deviceID, using: .production(ble: bleManager))
+        let settings: [StudioLCDInspectorModel.WriteAction] = deviceThemeModel.hasDraft ? [
+            .init(title: NSLocalizedString("主题风格", comment: "")) {
+                try await deviceThemeModel.writeDraft(expectedDeviceID: deviceID,
+                    using: .production(ble: bleManager, session: inspectorSession))
+            }
+        ] : []
+        lcdInspectorModel.write(artwork: actions, settings: settings, deviceID: deviceID,
+            using: .production(ble: bleManager))
     }
 
     private var legacyOLEDInspector: some View {
@@ -2361,7 +2380,7 @@ struct AhaKeyStudioView: View {
             if usesLegacyEditor && current.lightBar != baseline.lightBar {
                 count += 1
             }
-        } + (usesLegacyEditor ? 0 :
+        } + (deviceThemeModel.hasDraft ? 1 : 0) + (usesLegacyEditor ? 0 :
             resourceInspectorModel.screenDirtyEntries.count + (lcdInspectorModel.hasSettingsDraft ? 1 : 0) + (lightPresentationModel.hasSettingsDraft ? 1 : 0) + (deviceInspectorModel.standbyDirty ? 1 : 0) + (deviceInspectorModel.leverDirty ? 1 : 0))
     }
 
@@ -2467,9 +2486,9 @@ struct AhaKeyStudioView: View {
             return current.key(for: role) != baseline.key(for: role)
         case .oledDisplay:
             if !usesLegacyEditor {
-                return lcdInspectorModel.hasSettingsDraft || resourceInspectorModel.screenDirtyEntries.contains { $0 / 4 == UInt8(selectedMode.rawValue) || $0 >= 16 }
+                return deviceThemeModel.hasDraft || lcdInspectorModel.hasSettingsDraft || resourceInspectorModel.screenDirtyEntries.contains { $0 / 4 == UInt8(selectedMode.rawValue) || $0 >= 16 }
             }
-            return current.oled != baseline.oled || current.oled.needsDeviceUpload
+            return deviceThemeModel.hasDraft || current.oled != baseline.oled || current.oled.needsDeviceUpload
         case .lightBar:
             if !usesLegacyEditor {
                 return lightPresentationModel.hasSettingsDraft || lightInspectorModel.values.isDirty(mode: UInt8(selectedMode.rawValue))

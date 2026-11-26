@@ -15,10 +15,10 @@ struct StudioDeviceThemeRow: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 Picker(NSLocalizedString("主题风格", comment: ""), selection: Binding<AhaKeyDeviceTheme?>(
-                    get: { model.confirmed },
+                    get: { model.selected },
                     set: { theme in
-                        guard let theme, theme != model.confirmed, !busy, connected else { return }
-                        model.choose(theme, using: .production(ble: ble, session: session))
+                        guard let theme, theme != model.selected, !busy, connected else { return }
+                        model.choose(theme)
                     }
                 )) {
                     Text(NSLocalizedString("Light 浅色", comment: "")).tag(Optional(AhaKeyDeviceTheme.light))
@@ -28,7 +28,7 @@ struct StudioDeviceThemeRow: View {
                 .font(.body)
                 .fixedSize(horizontal: true, vertical: false)
                 .disabled(model.confirmed == nil || busy || !connected)
-                .help(NSLocalizedString("选择后保存到键盘，读回确认后生效。", comment: ""))
+                .help(NSLocalizedString("选择后仅预览，点击“写入键盘”后保存。", comment: ""))
                 Spacer(minLength: 0)
                 if model.isBusy { ProgressView().controlSize(.small) }
                 Button {

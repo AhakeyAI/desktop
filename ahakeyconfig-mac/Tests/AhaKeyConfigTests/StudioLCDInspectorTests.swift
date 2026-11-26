@@ -1,6 +1,6 @@
 import XCTest
 import Combine
-import AhaKeyConfigShared
+@testable import AhaKeyConfigShared
 @testable import AhaKeyConfig
 
 @MainActor
@@ -22,6 +22,67 @@ final class StudioLCDInspectorTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(1))
         }
         XCTFail("Inspector did not finish")
+    }
+
+    func testThemeDraftOnlyWritesThroughScreenSubmissionWithoutChangingOtherSettings() async throws {
+        let theme = StudioDeviceThemeModel(), screen = StudioLCDInspectorModel()
+        var writes = 0
+        let io = StudioDeviceThemeModel.Access { target, selection in
+            XCTAssertEqual(target, self.device)
+            if selection != nil { writes += 1 }
+            return .init(deviceID: self.device, result: .init(theme: selection ?? .dark, saved: selection != nil))
+        }
+        theme.read(deviceID: device, using: io)
+        for _ in 0..<1000 {
+            if !theme.isBusy { break }
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        theme.choose(.light)
+        XCTAssertEqual(writes, 0)
+        XCTAssertEqual(theme.selected, .light)
+        XCTAssertEqual(theme.confirmed, .dark)
+        var outcome: KeyboardWriteOutcome?
+        let observation = screen.writeCompleted.sink { outcome = $0 }
+        defer { observation.cancel() }
+        screen.write(artwork: [], settings: [.init(title: "Theme") {
+            try await theme.writeDraft(expectedDeviceID: self.device, using: io)
+        }], deviceID: device, using: access(read: {
+            XCTFail("Theme-only submission must not read/reapply presentation mode"); return nil
+        }, apply: { _, _, _ in
+            XCTFail("Theme-only submission must not change presentation mode"); return self.report()
+        }, setFollow: { _ in XCTFail("Theme-only submission must not change following") }))
+        try await finish(screen)
+        XCTAssertEqual(writes, 1)
+        XCTAssertFalse(theme.hasDraft)
+        XCTAssertEqual(theme.confirmed, .light)
+        XCTAssertEqual(outcome?.succeeded, true)
+        XCTAssertEqual(outcome?.wrote, true)
+    }
+
+    func testScreenDeviceSettingsRunBetweenArtworkAndPresentationAndDoNotRetry() async throws {
+        let model = StudioLCDInspectorModel()
+        model.chooseMode(.multi)
+        var events: [String] = []
+        model.write(artwork: [.init(title: "artwork") { events.append("artwork") }],
+            settings: [.init(title: "theme") { events.append("theme") }], deviceID: device,
+            using: access(apply: { mode, _, _ in events.append("mode"); return self.report(mode) }))
+        try await finish(model)
+        XCTAssertEqual(events, ["artwork", "theme", "mode"])
+    }
+
+    func testUnconfirmedThemeDoesNotApplyLaterModeAndRemainsPending() async throws {
+        let model = StudioLCDInspectorModel()
+        model.chooseMode(.multi)
+        var writes = 0
+        model.write(artwork: [], settings: [.init(title: "theme") {
+            writes += 1
+            throw DeviceThemeTransaction.Failure.unconfirmed
+        }], deviceID: device, using: access(apply: { _, _, _ in
+            XCTFail("Failed theme must stop the remaining submission"); return self.report()
+        }))
+        try await finish(model)
+        XCTAssertEqual(writes, 1)
+        XCTAssertEqual(model.modeDraft, .multi)
     }
 
     func testLightModeOnlyCommitKeepsSeparateScreenDraftAndDoesNotWriteArtworkOrFollowing() async throws {

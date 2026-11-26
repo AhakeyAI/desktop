@@ -27,56 +27,101 @@ final class StudioDeviceThemeModelTests: XCTestCase {
         throw StudioInspectorSession.Failure.connectionTimeout
     }
 
-    func testReadThenExplicitSelectionAndRapidClicksAreSerialized() async throws {
-        let port = Port(), model = StudioDeviceThemeModel()
-        model.choose(.light, using: port.access)
-        XCTAssertTrue(port.requests.isEmpty)
+    private func readDark(_ model: StudioDeviceThemeModel, _ port: Port) async throws {
         model.read(deviceID: "A", using: port.access)
         try await waitFor { port.continuation != nil }
         port.reply(.dark)
         try await waitFor { !model.isBusy }
+    }
+
+    func testThemeChoiceMustNotReachDeviceBeforeWriteButton() async throws {
+        let port = Port(), model = StudioDeviceThemeModel()
+        try await readDark(model, port)
+        model.choose(.light)
+        await Task.yield()
+        XCTAssertEqual(port.requests.count, 1, "Selecting a theme must only stage a draft, not contact the keyboard")
         XCTAssertEqual(model.confirmed, .dark)
-        model.choose(.light, using: port.access)
-        model.choose(.dark, using: port.access)
+        XCTAssertEqual(model.selected, .light)
+        XCTAssertTrue(model.hasDraft)
+        XCTAssertFalse(model.isBusy)
+    }
+
+    func testExplicitWriteSerializesSubmissionAndClearsOnlyAfterReadback() async throws {
+        let port = Port(), model = StudioDeviceThemeModel()
+        model.choose(.light)
+        XCTAssertFalse(model.hasDraft)
+        try await readDark(model, port)
+        model.choose(.light)
+        let save = Task { try await model.writeDraft(expectedDeviceID: "A", using: port.access) }
         try await waitFor { port.continuation != nil }
+        model.choose(.dark)
+        do {
+            try await model.writeDraft(expectedDeviceID: "A", using: port.access)
+            XCTFail("Concurrent write must be rejected")
+        } catch {}
         XCTAssertEqual(port.requests.count, 2)
         XCTAssertEqual(port.requests.last?.0, "A")
         XCTAssertEqual(port.requests.last?.1, .light)
         XCTAssertEqual(model.confirmed, .dark)
+        XCTAssertTrue(model.hasDraft)
         port.reply(.light, saved: true)
-        try await waitFor { !model.isBusy }
+        try await save.value
         XCTAssertEqual(model.confirmed, .light)
-        XCTAssertEqual(model.message, "已保存")
+        XCTAssertFalse(model.hasDraft)
+        XCTAssertFalse(model.isBusy)
     }
 
     func testNewKeyboardDiscardsLateSaveCompletion() async throws {
         let port = Port(), model = StudioDeviceThemeModel()
-        model.read(deviceID: "A", using: port.access)
-        try await waitFor { port.continuation != nil }
-        port.reply(.dark)
-        try await waitFor { !model.isBusy }
-        model.choose(.light, using: port.access)
+        try await readDark(model, port)
+        model.choose(.light)
+        let save = Task { try await model.writeDraft(expectedDeviceID: "A", using: port.access) }
         try await waitFor { port.continuation != nil }
         model.invalidateIfChanged(deviceID: "B")
         XCTAssertNil(model.confirmed)
+        XCTAssertFalse(model.hasDraft)
         port.reply(.light, saved: true)
-        await Task.yield()
+        do { try await save.value; XCTFail("Old device reply cannot confirm success") } catch {}
         XCTAssertNil(model.confirmed)
         XCTAssertNotEqual(model.message, "已保存")
     }
 
-    func testReadbackMismatchShowsActualWithoutSuccess() async throws {
+    func testReadbackMismatchKeepsDraftAndActualDeviceValue() async throws {
         let port = Port(), model = StudioDeviceThemeModel()
-        model.read(deviceID: "A", using: port.access)
-        try await waitFor { port.continuation != nil }
-        port.reply(.dark)
-        try await waitFor { !model.isBusy }
-        model.choose(.light, using: port.access)
+        try await readDark(model, port)
+        model.choose(.light)
+        let save = Task { try await model.writeDraft(expectedDeviceID: "A", using: port.access) }
         try await waitFor { port.continuation != nil }
         port.reply(.dark, saved: false)
-        try await waitFor { !model.isBusy }
+        do { try await save.value; XCTFail("Mismatch cannot save") } catch {}
         XCTAssertEqual(model.confirmed, .dark)
-        XCTAssertNotEqual(model.message, "已保存")
+        XCTAssertEqual(model.selected, .light)
+        XCTAssertTrue(model.hasDraft)
+        XCTAssertTrue(model.showsError)
+    }
+
+    func testRefreshPreservesPendingDraftAndChoosingActualValueClearsIt() async throws {
+        let port = Port(), model = StudioDeviceThemeModel()
+        try await readDark(model, port)
+        model.choose(.light)
+        try await readDark(model, port)
+        XCTAssertEqual(model.selected, .light)
+        XCTAssertTrue(model.hasDraft)
+        model.choose(.dark)
+        XCTAssertFalse(model.hasDraft)
+        XCTAssertEqual(port.requests.count, 2, "Only the two explicit reads may reach the device")
+    }
+
+    func testSubmissionRequiresSameKeyboardAsDraft() async throws {
+        let port = Port(), model = StudioDeviceThemeModel()
+        try await readDark(model, port)
+        model.choose(.light)
+        do {
+            try await model.writeDraft(expectedDeviceID: "B", using: port.access)
+            XCTFail("Cannot submit A's draft to B")
+        } catch {}
+        XCTAssertEqual(port.requests.count, 1)
+        XCTAssertTrue(model.hasDraft)
     }
 
     func testWrongDeviceCannotPublishConfirmedTheme() async throws {

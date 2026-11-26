@@ -23,6 +23,9 @@ final class StudioDeviceThemeModel: ObservableObject {
     }
 
     @Published private(set) var confirmed: AhaKeyDeviceTheme?
+    @Published private(set) var draft: AhaKeyDeviceTheme?
+    var selected: AhaKeyDeviceTheme? { draft ?? confirmed }
+    var hasDraft: Bool { draft != nil }
     @Published private(set) var deviceID: String?
     @Published private(set) var isBusy = false
     @Published private(set) var showsError = false
@@ -34,15 +37,45 @@ final class StudioDeviceThemeModel: ObservableObject {
         run(selection: nil, expectedDeviceID: deviceID, using: access, completion: completion)
     }
 
-    func choose(_ theme: AhaKeyDeviceTheme, using access: Access) {
-        guard confirmed != nil, let deviceID else { return }
-        run(selection: theme, expectedDeviceID: deviceID, using: access)
+    /// Choosing a tab only stages a local draft. Device I/O is reserved for
+    /// the screen editor's explicit Write to Keyboard submission.
+    func choose(_ theme: AhaKeyDeviceTheme) {
+        guard !isBusy, confirmed != nil, deviceID != nil else { return }
+        draft = theme == confirmed ? nil : theme
+        showsError = false
+    }
+
+    func writeDraft(expectedDeviceID: String, using access: Access) async throws {
+        guard !isBusy else { throw StudioInspectorSession.Failure.busy }
+        guard let selection = draft else { return }
+        guard deviceID == expectedDeviceID, confirmed != nil else { throw StudioInspectorSession.Failure.deviceChanged }
+        let id = UUID()
+        operationID = id
+        isBusy = true; showsError = false
+        message = NSLocalizedString("正在保存主题…", comment: "")
+        defer { if operationID == id { isBusy = false } }
+        do {
+            let reading = try await access.perform(expectedDeviceID, selection)
+            try Task.checkCancellation()
+            guard operationID == id else { throw CancellationError() }
+            guard reading.deviceID == expectedDeviceID else { throw StudioInspectorSession.Failure.deviceChanged }
+            confirmed = reading.result.theme
+            guard reading.result.saved, reading.result.theme == selection else {
+                throw DeviceThemeTransaction.Failure.unconfirmed
+            }
+            if draft == selection { draft = nil }
+            message = NSLocalizedString("已保存", comment: "")
+        } catch {
+            if operationID == id { showsError = true; message = error.localizedDescription }
+            throw error
+        }
     }
 
     func invalidateIfChanged(deviceID: String?) {
         guard let deviceID, let previous = self.deviceID, previous != deviceID else { return }
         cancel()
         confirmed = nil
+        draft = nil
         self.deviceID = nil
         showsError = true
         message = NSLocalizedString("键盘已变化，请重新读取主题。", comment: "")
@@ -78,8 +111,10 @@ final class StudioDeviceThemeModel: ObservableObject {
                 guard expectedDeviceID.map({ $0 == reading.deviceID }) ?? true else {
                     throw StudioInspectorSession.Failure.deviceChanged
                 }
+                if self.deviceID != reading.deviceID { self.draft = nil }
                 self.deviceID = reading.deviceID
                 self.confirmed = reading.result.theme
+                if self.draft == self.confirmed { self.draft = nil }
                 self.showsError = selection != nil && !reading.result.saved
                 self.message = NSLocalizedString(selection == nil ? "已读取设备主题，由键盘掉电保存。"
                     : (reading.result.saved ? "已保存" : "读回主题与选择不一致，请稍后重试。"), comment: "")
