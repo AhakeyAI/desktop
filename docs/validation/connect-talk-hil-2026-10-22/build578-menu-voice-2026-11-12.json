@@ -1,0 +1,40 @@
+{
+  "date": "2026-11-12",
+  "hardware": "HW1",
+  "firmware": "CA240DC1",
+  "appBuild": 578,
+  "macro": {
+    "mode": "Claude",
+    "key": "Key3",
+    "target": "isolated native AppKit list",
+    "selectionRows": [
+      1,
+      2,
+      3
+    ],
+    "confirmationRow": 3,
+    "confirmationCount": 1,
+    "keyRepeats": 0,
+    "pairedReleases": true,
+    "notRealToolApproval": true
+  },
+  "voice": {
+    "ownerConfirmedShortAndLongContentComplete": true,
+    "completedShort": 2,
+    "completedLong": 1,
+    "pasteEvents": 3,
+    "pastesPerCompletedRecording": 1,
+    "releasedBeforeStartupCancelled": 1,
+    "pasteForCancelledRecording": 0,
+    "transcriptIncluded": false
+  },
+  "finalIdle": {
+    "status": "running",
+    "standbyMinutes": 30,
+    "restoreMinutes": 60,
+    "start": "2026-11-12T21:00:21+08:00",
+    "wakeNotBefore": "2026-11-12T22:01:21+08:00",
+    "physicalWakeObserved": false,
+    "studioAndAgentStoppedAtStart": true
+  }
+}

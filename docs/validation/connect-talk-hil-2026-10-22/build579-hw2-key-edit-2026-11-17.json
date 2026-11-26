@@ -1,0 +1,31 @@
+{
+  "date": "2026-11-17",
+  "appBuild": 579,
+  "clientSource": "b350ce988cff53a3711636e3882f7b3fd96d8dff",
+  "firmwareRepositoryHead": "24c6ec92cdbc77e19e3f5a895c36029f47c31cad",
+  "checkedHW2FirmwareSource": "5454ed6a5d2cb8368893bdb4c7acb738e9ce5125",
+  "deviceCatalogKey": "x1-c582-hw2-p1-1.0.1-r001",
+  "catalogKeyProvesExactFlashedHex": false,
+  "build578UI": "ordinary-key readback unsupported and write disabled",
+  "swiftTestsPassed": 1099,
+  "installedDeveloperIDSignedBuild": true,
+  "notarized": false,
+  "hw2Native": {
+    "mode": "Cursor",
+    "keyIndex": 4,
+    "descriptionWriteAndRestore": "Backspace → Backspace QA → Backspace",
+    "actionWriteAndIndependentReadback": [
+      "Backspace",
+      "Escape",
+      "Backspace"
+    ],
+    "voiceKeyReadback": "Consumer (system dictation)",
+    "voiceRouteWritten": false,
+    "agentRunningAfterEditorExit": true
+  },
+  "scope": {
+    "firmwareFlashed": false,
+    "firmwareUpgradeEligibilityExpanded": false,
+    "hw2OLEDOrRestoreAccepted": false
+  }
+}

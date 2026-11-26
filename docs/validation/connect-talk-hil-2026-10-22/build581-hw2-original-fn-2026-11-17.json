@@ -1,0 +1,27 @@
+{
+  "date": "2026-11-17",
+  "macOS": "26.3.1",
+  "weType": "3.0.1",
+  "clientBuild": 581,
+  "clientCommit": "6fe86dd6",
+  "controls": {
+    "quartzBuild580": "does not trigger",
+    "rewritePhysicalEvent": "Fn modifier events reached session; owner confirmed did not trigger",
+    "scopedNativeHIDProbe": "owner confirmed original Fn shortcut started and stopped"
+  },
+  "shippedMechanism": {
+    "keyboardOutput": "F19",
+    "inputMethodShortcut": "Fn",
+    "appScheme": "Cursor Fn/Globe",
+    "systemTarget": "unique AhaKey BLE HID keyboard service",
+    "boardFirmwareWritten": false,
+    "thirdPartyPreferencesWrittenByStudio": false
+  },
+  "verification": {
+    "swiftTestsPassed": 1102,
+    "developerIDSignedArm64CandidateInstalled": true,
+    "mappingReadBackFromSystem": true,
+    "modeExitAndReturnObserved": true,
+    "signedBuildOriginalVoiceAndPaste": "owner confirmed AhaKey mic and built-in Mac Fn both start, stop on release, and insert text"
+  }
+}

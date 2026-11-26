@@ -1,0 +1,45 @@
+{
+  "date": "2026-11-17",
+  "appBuild": 580,
+  "firmwareSource": "5454ed6a5d2cb8368893bdb4c7acb738e9ce5125",
+  "inputMethodVersion": "WeType 3.0.1",
+  "before": {
+    "physicalMacFnWorks": "owner-confirmed",
+    "AhaKeyFnFailed": "owner-confirmed",
+    "studioObservedF19DownAndUp": true,
+    "inputMonitoringAndAccessibilityGranted": true
+  },
+  "firmware": {
+    "f19IsOnePressReleaseBinding": true,
+    "shortAndLongActionsUseSameStoredValue": true
+  },
+  "clientChange": {
+    "fnEdgesPerHoldBefore": 4,
+    "fnEdgesPerHoldAfter": 2,
+    "fnEventType": "flagsChanged",
+    "tap": "HID",
+    "unchangedVoiceBinding": "Cursor / F19",
+    "firmwareWritten": false,
+    "keyMappingWritten": false
+  },
+  "verification": {
+    "swiftTestsPassed": 1100,
+    "installedSignedArm64Candidate": true,
+    "nativeUIReadbackConfirmed": true,
+    "weTypePhysicalEndToEnd": "owner confirmed still does not trigger",
+    "studioSawMatchedF19Pairs": 4,
+    "studioLoggedPostPairs": 4,
+    "independentTapCaptureAtRetest": false,
+    "existingWeTypeVoiceShortcut": "Fn (hold to talk)",
+    "weTypeUIOffersOtherShortcutForExternalKeyboard": true,
+    "directF19AcceptedByWeType": true
+  },
+  "directF19": {
+    "inputMethod": "WeType 3.0.1",
+    "shortcut": "Hold to speak: F19",
+    "deviceMode": "Cursor",
+    "physicalHoldWorksWithStudioClosed": "owner confirmed",
+    "studioRunningConfiguration": "ordinary shortcut F19, current mode save confirmed by native UI",
+    "physicalHoldWorksWithStudioOpen": "owner confirmed"
+  }
+}
