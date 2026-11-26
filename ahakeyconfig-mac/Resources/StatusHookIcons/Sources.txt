@@ -1,0 +1,9 @@
+Status hook icons
+
+Claude, Codex, Copilot, OpenCode and Pi glyphs, and Cursor, Kimi, Antigravity,
+Cline and OpenClaw favicons, match Orca's AgentIcon catalog at revision
+75ea5027 of https://github.com/stablyai/orca. See Orca-LICENSE.txt.
+The icons identify the respective third-party products.
+
+Orca has no WorkBuddy entry. The WorkBuddy icon comes from the official
+macOS WorkBuddy application bundle.

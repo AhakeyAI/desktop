@@ -74,6 +74,8 @@ if [[ -d "$APP_ROOT/Resources/DefaultOLED" ]]; then
   fi
 fi
 
+ditto "$APP_ROOT/Resources/StatusHookIcons" "$APP_BUNDLE/Contents/Resources/StatusHookIcons"
+
 # 内置 USB ISP 烧录资源：固件、双架构 wchisp、校验清单和 GPL 许可证。
 if [[ -d "$APP_ROOT/Resources/FirmwareFlasher" ]]; then
   FLASHER_RESOURCES="$APP_BUNDLE/Contents/Resources/FirmwareFlasher"

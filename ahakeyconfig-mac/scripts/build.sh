@@ -93,6 +93,7 @@ if [[ -d "$APP_ROOT/Resources/DefaultOLED" ]]; then
   mkdir -p "$APP_BUNDLE/Contents/Resources/DefaultOLED"
   ditto "$APP_ROOT/Resources/DefaultOLED" "$APP_BUNDLE/Contents/Resources/DefaultOLED"
 fi
+ditto "$APP_ROOT/Resources/StatusHookIcons" "$APP_BUNDLE/Contents/Resources/StatusHookIcons"
 if [[ -d "$APP_ROOT/Resources/FirmwareFlasher" ]]; then
   FLASHER_RESOURCES="$APP_BUNDLE/Contents/Resources/FirmwareFlasher"
   mkdir -p "$FLASHER_RESOURCES"

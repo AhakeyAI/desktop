@@ -28,13 +28,11 @@ struct DeviceInfoView: View {
     @State private var detectedHarnesses: Set<String> = []
     @State private var showsAdvancedTools = false
     @State private var advancedTool = AdvancedTool.ble
-    @State private var hookLogRequest = 0
     @State private var hookLogSource = HookLogSource.installation
     @State private var hookLogText = ""
 
     private enum AdvancedTool: Hashable { case ble, configuration, communication, hookLog }
     private enum HookLogSource: Hashable { case installation, agent, approval, codex, cursorHooks, cursorCLI, codexConfig, kimi }
-    private enum Anchor: Hashable { case advancedTools }
     @State private var showAgentRequiredForAgentBLE = false
     @State private var firmwareCatalogReadingConnection: DeviceInfoFirmwareReadback.Connection?
     private var isReadingFirmwareCatalog: Bool { firmwareCatalogReadingConnection != nil }
@@ -57,20 +55,13 @@ struct DeviceInfoView: View {
     }
 
     var body: some View {
-        ScrollViewReader { scroll in
-            Form {
-                Section { deviceSummary }
-                connectionSection
-                hookSection
-                advancedSection
-            }
-            .formStyle(.grouped)
-            .onChange(of: hookLogRequest) { _ in
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    scroll.scrollTo(Anchor.advancedTools, anchor: .top)
-                }
-            }
+        Form {
+            Section { deviceSummary }
+            connectionSection
+            hookSection
+            advancedSection
         }
+        .formStyle(.grouped)
         .disabled(isSubmittingName)
         .onAppear { bleManager.setDiagnosticsWindowVisible(true) }
         .task(id: agentRSSITarget) {
@@ -188,10 +179,7 @@ struct DeviceInfoView: View {
         Section {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text(connectionTitle(currentConnectionOwner)).fontWeight(.semibold)
-                        statusIndicator(connectionStatus, active: connectionIsActive)
-                    }
+                    Text(connectionTitle(currentConnectionOwner)).fontWeight(.semibold)
                     Text(connectionPurpose(currentConnectionOwner))
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -217,7 +205,10 @@ struct DeviceInfoView: View {
             }
             .padding(.vertical, 3)
         } header: {
-            Text("蓝牙连接")
+            HStack(spacing: 8) {
+                Text("蓝牙连接")
+                statusIndicator(connectionStatus, active: connectionIsActive)
+            }
         }
         .alert("需要安装后台服务", isPresented: $showAgentRequiredForAgentBLE) {
             Button("取消", role: .cancel) {}
@@ -258,10 +249,9 @@ struct DeviceInfoView: View {
             if agentManager.agentIsSystemDisabled {
                 Button("启用并重试") { agentManager.enableAgentAndRetry(bleManager: bleManager) }
                     .disabled(agentManager.isAgentOperationInProgress)
-            } else {
-                Button(agentManager.isRunning ? "停止后台" : "启动后台") {
-                    if agentManager.isRunning { agentManager.stop() }
-                    else if agentManager.isInstalled { agentManager.start() }
+            } else if !agentManager.isRunning {
+                Button("启动后台") {
+                    if agentManager.isInstalled { agentManager.start() }
                     else { showAgentRequiredForAgentBLE = true }
                 }
                 .disabled(agentManager.isAgentOperationInProgress)
@@ -312,12 +302,11 @@ struct DeviceInfoView: View {
         } header: {
             HStack(spacing: 8) {
                 Text("状态钩子")
-                Spacer()
                 statusIndicator(
                     NSLocalizedString(agentManager.isRunning ? "后台运行中" : "后台未运行", comment: ""),
                     active: agentManager.isRunning
                 )
-                Button("查看日志", action: showHookLog).buttonStyle(.link)
+                Spacer()
                 Button {
                     hookSearch = ""
                     detectedHarnesses = StudioHarnessCatalog.detect()
@@ -385,7 +374,7 @@ struct DeviceInfoView: View {
                             } label: {
                                 toolOption(client.name, note: detectedHarnesses.contains(client.name)
                                     ? NSLocalizedString("已检测到", comment: "") : NSLocalizedString("未检测到", comment: ""),
-                                           trailing: "添加")
+                                           trailing: "添加", client: client)
                             }
                             .buttonStyle(.plain)
                         }
@@ -404,8 +393,11 @@ struct DeviceInfoView: View {
         .frame(width: 340)
     }
 
-    private func toolOption(_ name: String, note: String, trailing: LocalizedStringKey) -> some View {
+    private func toolOption(
+        _ name: String, note: String, trailing: LocalizedStringKey, client: StudioHookClient? = nil
+    ) -> some View {
         HStack(spacing: 8) {
+            StudioStatusHookIcon(client: client)
             VStack(alignment: .leading, spacing: 2) {
                 Text(name).fontWeight(.medium)
                 Text(note).font(.caption2).foregroundStyle(.secondary)
@@ -424,11 +416,7 @@ struct DeviceInfoView: View {
         let operationPending = agentManager.isAgentOperationInProgress
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 9) {
-                Text(String(client.name.prefix(2)))
-                    .font(.system(.caption2, design: .rounded).weight(.semibold))
-                    .frame(width: 27, height: 27)
-                    .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 6))
-                    .accessibilityHidden(true)
+                StudioStatusHookIcon(client: client)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(client.name).fontWeight(.medium)
                     if let note = client.detection.integrationNote {
@@ -485,14 +473,6 @@ struct DeviceInfoView: View {
         }
     }
 
-    private func showHookLog() {
-        hookLogSource = .installation
-        refreshHookLog()
-        advancedTool = .hookLog
-        showsAdvancedTools = true
-        hookLogRequest += 1
-    }
-
     private var advancedSection: some View {
         Section {
             DisclosureGroup("高级调试工具", isExpanded: $showsAdvancedTools) {
@@ -517,7 +497,6 @@ struct DeviceInfoView: View {
                     .padding(.top, 6)
                 }
             }
-            .id(Anchor.advancedTools)
         }
     }
 
