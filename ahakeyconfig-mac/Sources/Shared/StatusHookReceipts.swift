@@ -34,7 +34,7 @@ public struct StatusHookReceipts {
 
     public func confirm(client: Client, configurations: [URL]) throws {
         guard let entry = CodexHookInstallation.EntryIdentity(at: entryURL),
-              let fingerprint = fingerprint(of: configurations)
+              let fingerprint = fingerprint(of: configurations, client: client)
         else { throw CocoaError(.fileReadCorruptFile) }
         let previous = installation(client)
         if previous?.configuration == fingerprint, previous?.entry == entry { return }
@@ -66,7 +66,7 @@ public struct StatusHookReceipts {
 
     public func status(client: Client, configurations: [URL]) -> Status? {
         guard let receipt = installation(client) else { return nil }
-        let configurationChecked = receipt.configuration == fingerprint(of: configurations)
+        let configurationChecked = receipt.configuration == fingerprint(of: configurations, client: client)
         let entryChecked = receipt.entry == CodexHookInstallation.EntryIdentity(at: entryURL)
         let event = eventURL(client, receipt.generation)
         let eventReceived = configurationChecked && entryChecked && FileManager.default.fileExists(atPath: event.path)
@@ -114,16 +114,23 @@ public struct StatusHookReceipts {
         directory.appendingPathComponent("\(client.rawValue)-hook-event-\(generation.uuidString)")
     }
 
-    private func fingerprint(of configuration: URL) -> String? {
+    private func fingerprint(of configuration: URL, client: Client) -> String? {
         guard let handle = try? FileHandle(forReadingFrom: configuration) else { return nil }
         defer { try? handle.close() }
         let limit = 2 * 1_024 * 1_024
         guard let data = try? handle.read(upToCount: limit + 1), data.count <= limit else { return nil }
-        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        let managed: Data?
+        switch client {
+        case .claude: managed = JSONHooksConfiguration.managedHookData(in: data, client: .claude)
+        case .cursor: managed = JSONHooksConfiguration.managedHookData(in: data, client: .cursor)
+        case .kimi: managed = String(data: data, encoding: .utf8).flatMap { KimiHooksConfiguration.managedHookData(in: $0) }
+        default: managed = data
+        }
+        return managed.map { SHA256.hash(data: $0).map { String(format: "%02x", $0) }.joined() }
     }
 
-    private func fingerprint(of configurations: [URL]) -> String? {
-        let digests = configurations.map { fingerprint(of: $0) }
+    private func fingerprint(of configurations: [URL], client: Client) -> String? {
+        let digests = configurations.map { fingerprint(of: $0, client: client) }
         let present = digests.compactMap { $0 }
         guard !present.isEmpty, present.count == digests.count else { return nil }
         return present.joined(separator: ":")

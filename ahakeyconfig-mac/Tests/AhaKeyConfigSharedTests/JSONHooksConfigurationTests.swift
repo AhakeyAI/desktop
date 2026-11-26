@@ -2,6 +2,30 @@ import XCTest
 @testable import AhaKeyConfigShared
 
 final class JSONHooksConfigurationTests: XCTestCase {
+    func testReceiptFingerprintSurvivesAnotherLaunchersHookAndSettings() throws {
+        let entry = CodexHookInstallation().entryURL.path
+        for client in [JSONHooksConfiguration.Client.claude, .cursor] {
+            let original = try JSONHooksConfiguration.installing(in: [:], client: client, agentPath: entry)
+            let originalData = try JSONSerialization.data(withJSONObject: original)
+            let evidence = try XCTUnwrap(JSONHooksConfiguration.managedHookData(in: originalData, client: client))
+            var modified = original
+            var hooks = try XCTUnwrap(original["hooks"] as? [String: [[String: Any]]])
+            let name = client == .claude ? "SessionStart" : "sessionStart"
+            let command = ["type": "command", "command": "/bin/echo host"]
+            let foreign: [String: Any] = client == .claude ? ["matcher": "", "hooks": [command]] : command
+            hooks[name, default: []].insert(foreign, at: 0)
+            modified["hooks"] = hooks
+            modified["otherLauncherSettings"] = true
+            XCTAssertEqual(JSONHooksConfiguration.managedHookData(
+                in: try JSONSerialization.data(withJSONObject: modified), client: client), evidence)
+
+            hooks[name] = [foreign]
+            modified["hooks"] = hooks
+            XCTAssertNotEqual(JSONHooksConfiguration.managedHookData(
+                in: try JSONSerialization.data(withJSONObject: modified), client: client), evidence)
+        }
+    }
+
     func testWorkBuddyInstallsOnlyTaskHooksAndPreservesOtherCommands() throws {
         let original: [String: Any] = [
             "hooks": ["UserPromptSubmit": [["hooks": [["type": "command", "command": "echo user"]]]]],

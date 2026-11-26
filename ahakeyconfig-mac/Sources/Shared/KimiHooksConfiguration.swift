@@ -24,6 +24,33 @@ public enum KimiHooksConfiguration {
         return false
     }
 
+    static func managedHookData(in text: String) -> Data? {
+        guard let statements = try? TomlPolicyLocator.statements(in: text) else { return nil }
+        let bytes = Array(text.utf8)
+        var groups: [[String]] = []
+        for (index, item) in statements.enumerated() {
+            guard case .table(let path, let array) = item.kind, path == ["hooks"], array else { continue }
+            let fields = statements.dropFirst(index + 1).prefix { statement in
+                if case .table = statement.kind { return false }
+                return true
+            }
+            let owned = fields.contains { statement in
+                guard case .assignment(let key) = statement.kind, key == ["command"],
+                      let command = scalarString(bytes: bytes, statement: statement) else { return false }
+                return owns(command)
+            }
+            if owned {
+                groups.append(fields.compactMap { statement in
+                    guard case .assignment = statement.kind else { return nil }
+                    return String(decoding: bytes[statement.range], as: UTF8.self)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                })
+            }
+        }
+        guard !groups.isEmpty else { return nil }
+        return try? JSONEncoder().encode(groups)
+    }
+
     public static func installing(in text: String, location: KimiConfigPolicySync.Location, agentPath: String) throws -> String {
         guard location.isValid, agentPath.hasPrefix("/"), !agentPath.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { throw Failure.unsafePath }
         var result = try removing(in: text).trimmingCharacters(in: .whitespacesAndNewlines)

@@ -71,6 +71,30 @@ public enum JSONHooksConfiguration {
     public static func ownsWorkBuddy(_ command: String) -> Bool {
         ManagedHookCommand.owns(command, events: workBuddyEvents.map { "WorkBuddy" + $0 })
     }
+
+    /// Other launchers can add their own rules to the same settings. Only this
+    /// integration's rules determine whether its receipt is still current.
+    static func managedHookData(in data: Data, client: Client) -> Data? {
+        guard let settings = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let hooks = settings["hooks"] as? [String: [[String: Any]]] else { return nil }
+        var managed: [String: [[String: Any]]] = [:]
+        for (event, entries) in hooks {
+            let owned = entries.compactMap { entry -> [String: Any]? in
+                if client == .cursor {
+                    return owns(entry["command"] as? String ?? "") ? entry : nil
+                }
+                guard let commands = entry["hooks"] as? [[String: Any]] else { return nil }
+                let selected = commands.filter { owns($0["command"] as? String ?? "") }
+                guard !selected.isEmpty else { return nil }
+                var group = entry
+                group["hooks"] = selected
+                return group
+            }
+            if !owned.isEmpty { managed[event] = owned }
+        }
+        guard !managed.isEmpty else { return nil }
+        return try? JSONSerialization.data(withJSONObject: managed, options: .sortedKeys)
+    }
 }
 
 /// Recognizes literal argv only. Mentions in echo, shell pipelines and command
