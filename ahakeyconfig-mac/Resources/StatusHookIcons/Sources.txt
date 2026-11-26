@@ -7,3 +7,7 @@ The icons identify the respective third-party products.
 
 Orca has no WorkBuddy entry. The WorkBuddy icon comes from the official
 macOS WorkBuddy application bundle.
+
+QwenWork and Doubao Work use the favicons from their product pages:
+https://qwenwork.cn/
+https://www.doubao.com/work

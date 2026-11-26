@@ -191,17 +191,15 @@ struct DeviceInfoView: View {
                     }
                 }
                 Spacer(minLength: 0)
-                HStack(spacing: 10) {
-                    Menu("切换方式") {
-                        connectionChoice(.ahaKeyStudio, subtitle: "改按键、调灯、上传画面")
-                        connectionChoice(.agentDaemon, subtitle: "同步任务状态、拨杆审批")
-                    }
-                    .fixedSize()
-                    .disabled(agentManager.isAgentOperationInProgress)
-                    connectionAction
-                        .buttonStyle(.link)
+                Menu("切换方式") {
+                    connectionChoice(.ahaKeyStudio, subtitle: "改按键、调灯、上传画面")
+                    connectionChoice(.agentDaemon, subtitle: agentManager.agentIsSystemDisabled &&
+                        agentManager.bluetoothConnectionOwner == .agentDaemon
+                        ? "启用后台服务" : "同步任务状态、拨杆审批")
                 }
+                .fixedSize()
                 .controlSize(.small)
+                .disabled(agentManager.isAgentOperationInProgress)
             }
             .padding(.vertical, 3)
         } header: {
@@ -219,7 +217,10 @@ struct DeviceInfoView: View {
     }
 
     private func connectionChoice(_ owner: BluetoothConnectionOwner, subtitle: LocalizedStringKey) -> some View {
-        Button {
+        let alreadyConnected = owner == .ahaKeyStudio
+            ? bleManager.isConnected || bleManager.isScanning
+            : agentManager.isRunning && !agentManager.agentIsSystemDisabled
+        return Button {
             selectConnection(owner)
         } label: {
             Label {
@@ -228,7 +229,7 @@ struct DeviceInfoView: View {
                 if currentConnectionOwner == owner { Image(systemName: "checkmark") }
             }
         }
-        .disabled(currentConnectionOwner == owner && agentManager.bluetoothConnectionOwner == owner)
+        .disabled(currentConnectionOwner == owner && agentManager.bluetoothConnectionOwner == owner && alreadyConnected)
     }
 
     private func selectConnection(_ owner: BluetoothConnectionOwner, prepareService: Bool = false) {
@@ -236,31 +237,19 @@ struct DeviceInfoView: View {
             guard prepareService else { showAgentRequiredForAgentBLE = true; return }
             guard agentManager.prepareBackgroundService() else { return }
         }
-        if owner == .agentDaemon && agentManager.bluetoothConnectionOwner == .agentDaemon {
-            agentManager.start()
+        guard agentManager.bluetoothConnectionOwner == owner else {
+            agentManager.setBluetoothConnectionOwner(owner, bleManager: bleManager)
             return
         }
-        agentManager.setBluetoothConnectionOwner(owner, bleManager: bleManager)
-    }
-
-    @ViewBuilder
-    private var connectionAction: some View {
-        if currentConnectionOwner == .agentDaemon {
+        switch owner {
+        case .ahaKeyStudio:
+            bleManager.userInitiatedConnect()
+        case .agentDaemon:
             if agentManager.agentIsSystemDisabled {
-                Button("启用并重试") { agentManager.enableAgentAndRetry(bleManager: bleManager) }
-                    .disabled(agentManager.isAgentOperationInProgress)
-            } else if !agentManager.isRunning {
-                Button("启动后台") {
-                    if agentManager.isInstalled { agentManager.start() }
-                    else { showAgentRequiredForAgentBLE = true }
-                }
-                .disabled(agentManager.isAgentOperationInProgress)
+                agentManager.enableAgentAndRetry(bleManager: bleManager)
+            } else {
+                agentManager.start()
             }
-        } else if bleManager.isConnected {
-            Button("断开") { bleManager.disconnect() }
-        } else {
-            Button("重新连接") { bleManager.userInitiatedConnect() }
-                .disabled(bleManager.isScanning)
         }
     }
 
@@ -371,13 +360,14 @@ struct DeviceInfoView: View {
                             } label: {
                                 toolOption(client.name, note: detectedHarnesses.contains(client.name)
                                     ? NSLocalizedString("已检测到", comment: "") : NSLocalizedString("未检测到", comment: ""),
-                                           trailing: "添加", client: client)
+                                           trailing: "添加", iconAsset: client.rawValue)
                             }
                             .buttonStyle(.plain)
                         }
                         ForEach(pending) { entry in
                             toolOption(
-                                entry.name, note: NSLocalizedString(entry.integrationNote ?? "待适配", comment: ""), trailing: "待适配"
+                                entry.name, note: NSLocalizedString(entry.integrationNote ?? "待适配", comment: ""),
+                                trailing: "待适配", iconAsset: entry.iconAsset
                             )
                         }
                     }
@@ -391,10 +381,10 @@ struct DeviceInfoView: View {
     }
 
     private func toolOption(
-        _ name: String, note: String, trailing: LocalizedStringKey, client: StudioHookClient? = nil
+        _ name: String, note: String, trailing: LocalizedStringKey, iconAsset: String?
     ) -> some View {
         HStack(spacing: 8) {
-            StudioStatusHookIcon(client: client)
+            StudioStatusHookIcon(assetName: iconAsset)
             VStack(alignment: .leading, spacing: 2) {
                 Text(name).fontWeight(.medium)
                 Text(note).font(.caption2).foregroundStyle(.secondary)
@@ -413,7 +403,7 @@ struct DeviceInfoView: View {
         let operationPending = agentManager.isAgentOperationInProgress
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 9) {
-                StudioStatusHookIcon(client: client)
+                StudioStatusHookIcon(assetName: client.rawValue)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(client.name).fontWeight(.medium)
                     if let note = client.detection.integrationNote {

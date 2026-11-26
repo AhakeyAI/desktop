@@ -43,19 +43,22 @@ enum StudioHarnessCatalog {
         let commands: [String]
         let apps: [String]
         let integrationNote: String?
+        let iconAsset: String?
         var id: String { name }
 
-        init(_ name: String, _ commands: String = "", _ apps: [String] = [], note: String? = nil) {
+        init(_ name: String, _ commands: String = "", _ apps: [String] = [], note: String? = nil,
+             iconAsset: String? = nil) {
             self.name = name
             self.commands = commands.split(separator: " ").map(String.init)
             self.apps = apps
             self.integrationNote = note
+            self.iconAsset = iconAsset
         }
     }
 
     static let featured: [Entry] = [
-        .init("千问办公", "", ["千问办公", "QwenWork"], note: "企业版通过管理后台配置 HTTP Hook"),
-        .init("豆包工作", "", ["豆包工作", "Doubao Work"], note: "尚未确认本机 Hook 接口")
+        .init("千问办公", "", ["千问办公", "QwenWork"], note: "企业版通过管理后台配置 HTTP Hook", iconAsset: "qwenWork"),
+        .init("豆包工作", "", ["豆包工作", "Doubao Work"], note: "尚未确认本机 Hook 接口", iconAsset: "doubaoWork")
     ]
 
     static let other: [Entry] = [

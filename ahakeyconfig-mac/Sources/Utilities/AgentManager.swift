@@ -805,7 +805,7 @@ final class AgentManager: ObservableObject {
         var lines = installHookEntries(using: entry)
         refresh()
         if bluetoothConnectionOwner == .agentDaemon, !loadFailed {
-            lines.insert("launchctl load 已执行。若数秒后未显示「运行中」，请点「查看日志」。", at: 0)
+            lines.insert("launchctl load 已执行。若数秒后后台仍未运行，请打开「高级调试工具 → Hook 日志」。", at: 0)
         }
         let tail = lines.joined(separator: "\n\n")
         if let err = agentUserAlert {
@@ -875,7 +875,7 @@ final class AgentManager: ObservableObject {
                 if !startRes.ok {
                     m += "start：\n\(startRes.mergedOutput.isEmpty ? "（无输出）" : startRes.mergedOutput)\n\n"
                 }
-                m += "请点「查看日志」检查 \(self.logFilePath)；并确认系统「隐私与安全性」中已允许本应用使用蓝牙；若通过 LaunchAgent 拉起 agent 子进程，也需为同一签名的二进制授权。"
+                m += "请在「高级调试工具 → Hook 日志」查看后台日志，并在系统「隐私与安全性」中确认已允许蓝牙访问。"
                 self.agentUserAlert = m
             } else if (!loadRes.ok && !isBenignLaunchctlLoadMessage(loadRes.mergedOutput)) || !startRes.ok {
                 self.agentUserAlert = "Agent 已运行。附注：launchctl 输出 — load：\(loadRes.mergedOutput) start：\(startRes.mergedOutput)"
@@ -2109,7 +2109,7 @@ final class AgentManager: ObservableObject {
     // MARK: - launchctl
 
     var agentSystemDisabledMessage: String {
-        NSLocalizedString("后台服务已被系统停用。请点击“启用并重试”恢复运行。", comment: "")
+        NSLocalizedString("后台服务已被系统停用。请在「切换方式」中重新选择「后台联动」。", comment: "")
     }
 
     private func checkAgentSystemDisabled() -> Bool {

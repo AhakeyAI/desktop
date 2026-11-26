@@ -2,34 +2,24 @@ import AppKit
 import SwiftUI
 
 struct StudioStatusHookIcon: View {
-    let client: StudioHookClient?
+    let assetName: String?
 
-    private static let images: [StudioHookClient: NSImage] = Dictionary(
-        uniqueKeysWithValues: StudioHookClient.allCases.compactMap { client in
-            let template: Bool
-            let fileExtension: String
-            switch client {
-            case .codex, .copilot, .openCode, .pi:
-                template = true
-                fileExtension = "svg"
-            case .claude:
-                template = false
-                fileExtension = "svg"
-            default:
-                template = false
-                fileExtension = "png"
-            }
-            guard let url = Bundle.main.url(forResource: client.rawValue, withExtension: fileExtension,
-                                            subdirectory: "StatusHookIcons"),
-                  let image = NSImage(contentsOf: url) else { return nil }
-            image.isTemplate = template
-            return (client, image)
-        }
-    )
+    private static let images: [String: NSImage] = {
+        let names = StudioHookClient.allCases.map(\.rawValue) + StudioHarnessCatalog.featured.compactMap(\.iconAsset)
+        let monochrome = Set(["codex", "copilot", "openCode", "pi"])
+        let bundle = Bundle.main
+        return Dictionary(uniqueKeysWithValues: names.compactMap { name in
+            let url = bundle.url(forResource: name, withExtension: "svg", subdirectory: "StatusHookIcons")
+                ?? bundle.url(forResource: name, withExtension: "png", subdirectory: "StatusHookIcons")
+            guard let url, let image = NSImage(contentsOf: url) else { return nil }
+            image.isTemplate = monochrome.contains(name)
+            return (name, image)
+        })
+    }()
 
     var body: some View {
         Group {
-            if let client, let image = Self.images[client] {
+            if let assetName, let image = Self.images[assetName] {
                 Image(nsImage: image)
                     .resizable()
                     .scaledToFit()
