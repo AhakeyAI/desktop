@@ -102,6 +102,11 @@ jobs:
             --keychain "$MACOS_CI_KEYCHAIN" \
             --validate
 
+      - name: Set up Python for DMG packaging
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Build, sign, notarize, and package DMG
         working-directory: ahakeyconfig-mac
         env:

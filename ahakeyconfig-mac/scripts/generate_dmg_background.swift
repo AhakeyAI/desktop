@@ -54,7 +54,7 @@ logo.draw(in: rect(x: (CGFloat(width) - wordmarkWidth) / 2, top: 59,
 let mutedInk = NSColor(srgbRed: 0.31, green: 0.37, blue: 0.46, alpha: 1)
 line("Drag to Applications to install", top: 119, size: 14, weight: .medium, color: mutedInk)
 
-// Finder supplies both draggable icons and their labels; the image contains only their guides.
+// Finder supplies the draggable app and both item labels.
 for center in [CGFloat(230), CGFloat(690)] {
     let card = NSBezierPath(roundedRect: rect(x: center - 86, top: 157, width: 172, height: 176),
                             xRadius: 28, yRadius: 28)
@@ -64,6 +64,12 @@ for center in [CGFloat(230), CGFloat(690)] {
     card.lineWidth = 1
     card.stroke()
 }
+
+// Some Tahoe Finder versions leave the Applications symlink icon blank. Draw
+// the system folder icon at the link's center so its drop target stays visible.
+let applicationsIcon = NSWorkspace.shared.icon(forFile: "/Applications")
+applicationsIcon.draw(in: rect(x: 630, top: 175, width: 120, height: 120),
+                      from: .zero, operation: .sourceOver, fraction: 1)
 
 let arrowBlue = NSColor(srgbRed: 0.07, green: 0.45, blue: 0.97, alpha: 1)
 let arrowY = CGFloat(height) - 235
