@@ -57,6 +57,8 @@ struct AhaKeyStudioView: View {
     @State private var lightWindowActive = NSApp.isActive
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var resourceInspectorModel = StudioResourceInspectorModel(storeURL: StudioResourceDraftStore.productionURL)
+    @StateObject private var deviceThemeModel = StudioDeviceThemeModel()
+    @StateObject private var screenPreview = StudioKeyboardPreviewModel()
     @StateObject private var lcdInspectorModel = StudioLCDInspectorModel(defaults: .standard)
     @State private var confirmsLCDWrite = false
     @State private var lcdWriteConfirmationDeviceID: String?
@@ -151,6 +153,10 @@ struct AhaKeyStudioView: View {
         .frame(minWidth: 1180, minHeight: 680)
         .background(Color(nsColor: .windowBackgroundColor))
         .overlay(alignment: .bottomTrailing) { AppUpdateCard(manager: updateManager) }
+        .onAppear { screenPreview.initialize(mode: selectedMode.rawValue) }
+        .onChange(of: deviceThemeModel.confirmed) { theme in
+            if let theme { screenPreview.send(.theme(theme)) }
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in lightWindowActive = true }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in lightWindowActive = false }
         .task(id: scenePhase == .active && lightWindowActive) {
@@ -621,7 +627,7 @@ struct AhaKeyStudioView: View {
             [.lightBar, .oledDisplay, .toggleSwitch, .modeButton].contains(selectedPart)
     }
     private var componentBusy: Bool {
-        isSyncing || inlineKeyTask != nil || inspectorSession.isBusy || lightInspectorModel.isBusy || lightPresentationModel.isReading || lightPresentationModel.isWriting || resourceInspectorModel.isBusy || resourceInspectorModel.isPreparing || deviceInspectorModel.isBusy || lcdInspectorModel.isReading || lcdInspectorModel.isWriting
+        deviceThemeModel.isBusy || isSyncing || inlineKeyTask != nil || inspectorSession.isBusy || lightInspectorModel.isBusy || lightPresentationModel.isReading || lightPresentationModel.isWriting || resourceInspectorModel.isBusy || resourceInspectorModel.isPreparing || deviceInspectorModel.isBusy || lcdInspectorModel.isReading || lcdInspectorModel.isWriting
     }
 
     private var canvasModeDraft: AhaKeyModeDraft {
@@ -673,6 +679,27 @@ struct AhaKeyStudioView: View {
         return defaultArtwork()
     }
 
+    private var isScreenPreviewActive: Bool { isEditingInspector && selectedPart == .oledDisplay }
+
+    private var screenSimulationControls: some View {
+        HStack(spacing: 10) {
+            Text("M\(screenPreview.state.mode + 1) · \(screenPreview.title)")
+                .font(.caption).foregroundStyle(.secondary)
+            Spacer()
+            Menu(NSLocalizedString("模拟操作", comment: "")) {
+                Button(NSLocalizedString("连接", comment: "")) { screenPreview.send(.connect) }
+                Button(NSLocalizedString("选择电脑系统", comment: "")) { screenPreview.send(.selectSystem) }
+                Button(NSLocalizedString("日常设备信息", comment: "")) { screenPreview.send(.daily) }
+                Button(NSLocalizedString("重新开机", comment: "")) { screenPreview.send(.restart) }
+                Button(NSLocalizedString("长按关机", comment: "")) { screenPreview.send(.longPower) }
+                Divider()
+                Button(NSLocalizedString("预览 Light 浅色", comment: "")) { screenPreview.send(.theme(.light)) }
+                Button(NSLocalizedString("预览 Dark 深色", comment: "")) { screenPreview.send(.theme(.dark)) }
+            }.menuStyle(.borderlessButton).fixedSize()
+            .help(NSLocalizedString("仅模拟虚拟屏幕，不向键盘发送命令。", comment: ""))
+        }.padding(.horizontal, 20)
+    }
+
     private var canvasPane: some View {
         VStack(alignment: .leading, spacing: 18) {
             modeEditorHeader.disabled(componentBusy)
@@ -684,8 +711,22 @@ struct AhaKeyStudioView: View {
                     lightBarPreview: lightBarPreview,
                     switchTitle: currentSwitchTitle,
                     dirtyParts: dirtyPartsForCurrentMode(),
-                    onSelect: { if !componentBusy { selectedPart = $0 } },
-                    onModeSwitch: { if !componentBusy { selectedPart = .modeButton } },
+                    onSelect: { part in
+                        guard !componentBusy else { return }
+                        if isScreenPreviewActive, let role = part.keyRole {
+                            if case .system = screenPreview.state.scene {
+                                if role == .approve { screenPreview.send(.answerSystem(true)) }
+                                else if role == .reject { screenPreview.send(.answerSystem(false)) }
+                            } else { screenPreview.send(.daily) }
+                        } else { selectedPart = part }
+                    },
+                    onModeSwitch: {
+                        guard !componentBusy else { return }
+                        if isScreenPreviewActive {
+                            screenPreview.send(.shortPower)
+                            selectedMode = AhaKeyModeSlot(rawValue: screenPreview.state.mode) ?? selectedMode
+                        } else { selectedPart = .modeButton }
+                    },
                     multitaskSnapshot: taskLightMonitor.animation,
                     multitaskMockStartedAt: lightInspectorModel.multitaskPreviewStartedAt ??
                         (selectedPart == .lightBar && isEditingInspector && lightInspectorModel.showsMultitask ? lightInspectorModel.multitaskDemoStartedAt : nil),
@@ -694,13 +735,18 @@ struct AhaKeyStudioView: View {
                     switchState: liveCanvasSwitchState,
                     keyboardPictureFrameCount: usesLegacyEditor
                         ? bleManager.keyboardPictureStates[selectedMode.rawValue]?.frameCount : nil,
-                    managedScreen: managedCanvasScreen
+                    managedScreen: managedCanvasScreen,
+                    previewState: isScreenPreviewActive ? screenPreview.state : nil,
+                    previewBattery: bleManager.batteryLevelForDisplay,
+                    onPowerLongPress: isScreenPreviewActive ? { screenPreview.send(.longPower) } : nil
                 )
                 .aspectRatio(109.0 / 54.0, contentMode: .fit)
                 .frame(maxWidth: .infinity)
                 .disabled(componentBusy)
 
-                Text("点按拨杆查看实体档位；其他部件可进入对应配置。")
+                if isScreenPreviewActive { screenSimulationControls }
+
+                Text(isScreenPreviewActive ? "短按电源切换 Mode，长按 2 秒关机；虚拟操作只影响预览。" : "点按拨杆查看实体档位；其他部件可进入对应配置。")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .padding(.leading, 20)
@@ -985,8 +1031,9 @@ struct AhaKeyStudioView: View {
             commitModeNameEdit()
             withAnimation(.easeInOut(duration: 0.18)) { isEditingInspector = false }
         }
-        .onChange(of: selectedMode) { _ in
+        .onChange(of: selectedMode) { mode in
             voiceCloudSetupNotice = nil
+            screenPreview.send(.selectMode(mode.rawValue))
             if inlineKeyTarget != nil { clearInlineKeyEditing(); isEditingInspector = false }
             if isEditingInspector && selectedPart == .oledDisplay { resourceInspectorModel.selectPresentation(lcdInspectorModel.selectedMode ?? .single, mode: selectedMode) }
             if editingModeSlot != nil && editingModeSlot != selectedMode {
@@ -1715,7 +1762,7 @@ struct AhaKeyStudioView: View {
             VStack(alignment: .leading, spacing: 14) {
                 StudioInspectorSection {
                     StudioResourceInspectorView(model: resourceInspectorModel, ble: bleManager, session: inspectorSession,
-                        presentation: lcdInspectorModel, mode: selectedMode, onWrite: { writeLCDSettings() })
+                        presentation: lcdInspectorModel, theme: deviceThemeModel, mode: selectedMode, onWrite: { writeLCDSettings() })
                 }
                 if let message = lcdInspectorModel.message {
                     Text(message).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
@@ -1739,7 +1786,13 @@ struct AhaKeyStudioView: View {
             } message: {
                 Text(WS3ResourceUploadGuidance.cancelled)
             }
-        } else { legacyOLEDInspector }
+        } else {
+            VStack(alignment: .leading, spacing: 14) {
+                StudioDeviceThemeRow(model: deviceThemeModel, ble: bleManager,
+                    session: inspectorSession, blocked: componentBusy)
+                legacyOLEDInspector
+            }
+        }
     }
 
     private var lcdSelectedPresentation: WS3PresentationMode { resourceInspectorModel.entry >= 16 ? .multi : .single }
@@ -1765,7 +1818,7 @@ struct AhaKeyStudioView: View {
         if lcdSelectedPresentation == .single, lcdArtworkEntries.contains(UInt8(selectedMode.rawValue * 4 + 3)) {
             lines.append(NSLocalizedString("已完成画面也用于键盘默认画面。", comment: ""))
         }
-        lines.append(NSLocalizedString("展示模式", comment: "") + "：" + NSLocalizedString(lcdSelectedPresentation == .multi ? "多任务" : "单任务", comment: ""))
+        lines.append(NSLocalizedString("显示模式", comment: "") + "：" + NSLocalizedString(lcdSelectedPresentation == .multi ? "多任务" : "单任务", comment: ""))
         if lcdInspectorModel.followDraft != nil { lines.append(NSLocalizedString("跟随当前终端", comment: "")) }
         if !lcdArtworkEntries.isEmpty {
             lines.append(NSLocalizedString("开始后可能覆盖原素材；失败或取消不保证恢复。其他模式草稿保留。", comment: ""))
@@ -2474,15 +2527,22 @@ struct AhaKeyStudioView: View {
         guard inspectorSession.beginEditing(deviceID: bleManager.bleDeviceUUID, isConnected: bleManager.isConnected) else { return false }
         if usesLegacyEditor {
             legacyComponentEditing = true
-            if inspectorSession.editingDeviceID == nil { readLegacyEditorIdentity() }
+            if selectedPart == .oledDisplay {
+                deviceThemeModel.read(deviceID: bleManager.deviceUUIDForDisplay,
+                    using: .production(ble: bleManager, session: inspectorSession))
+            } else if inspectorSession.editingDeviceID == nil { readLegacyEditorIdentity() }
         }
         if usesInlineHardwareEditor {
             clearInlineKeyEditing()
             switch selectedPart {
             case .oledDisplay:
                 resourceInspectorModel.select(mode: selectedMode)
-                resourceInspectorModel.read(ble: bleManager, session: inspectorSession) { succeeded in
-                    if succeeded, isEditingInspector { lcdInspectorModel.read(using: .production(ble: bleManager)) }
+                deviceThemeModel.read(deviceID: bleManager.deviceUUIDForDisplay,
+                    using: .production(ble: bleManager, session: inspectorSession)) {
+                    guard isEditingInspector else { return }
+                    resourceInspectorModel.read(ble: bleManager, session: inspectorSession) { succeeded in
+                        if succeeded, isEditingInspector { lcdInspectorModel.read(using: .production(ble: bleManager)) }
+                    }
                 }
             case .toggleSwitch, .modeButton:
                 deviceInspectorModel.read(lever: selectedPart == .toggleSwitch, ble: bleManager, session: inspectorSession)
@@ -3377,6 +3437,9 @@ private struct AhaKeyKeyboardCanvasView: View {
     /// 0x83 查询出的当前 mode flash 帧数：nil=尚未查询/未连接；0=用户没上传；>0=已上传 N 帧
     var keyboardPictureFrameCount: Int? = nil
     var managedScreen: StudioCanvasScreen? = nil
+    var previewState: StudioKeyboardPreviewState? = nil
+    var previewBattery: Int? = nil
+    var onPowerLongPress: (() -> Void)? = nil
 
     @State private var modeSwitchPressed = false
     @Environment(\.scenePhase) private var scenePhase
@@ -3607,8 +3670,19 @@ private struct AhaKeyKeyboardCanvasView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    @ViewBuilder
     private func screenBody(screenWidth: CGFloat, screenHeight: CGFloat) -> some View {
+        ZStack {
+            artworkScreenBody(screenWidth: screenWidth, screenHeight: screenHeight)
+                .opacity(previewState.map { $0.scene == .artwork ? 1 : 0 } ?? 1)
+            if let previewState, previewState.scene != .artwork {
+                StudioDeviceScreenView(state: previewState, battery: previewBattery,
+                    labels: AhaKeyKeyRole.allCases.map { modeDraft.key(for: $0).description })
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func artworkScreenBody(screenWidth: CGFloat, screenHeight: CGFloat) -> some View {
         if let managedScreen {
             switch managedScreen {
             case .image(let image):
@@ -3730,36 +3804,48 @@ private struct AhaKeyKeyboardCanvasView: View {
 
     private func modeSwitchKey(width: CGFloat, height: CGFloat) -> some View {
         let rect = frame(78.9, 40.9, 8.0, 10.2, width: width, height: height)
-        return Button {
-            onModeSwitch()
-        } label: {
-            VStack(spacing: rect.height * 0.08) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: rect.width * 0.2, style: .continuous)
-                        .fill(Color.white)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: rect.width * 0.2, style: .continuous)
-                                .stroke(Color.black.opacity(0.08), lineWidth: 1)
-                        )
-                        .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
-
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: rect.height * 0.18, weight: .semibold))
-                        .foregroundStyle(Color.accentColor.opacity(0.72))
-                }
-                .frame(width: rect.width * 0.78, height: rect.height * 0.5)
-
-                Text("Mode")
-                    .font(.system(size: rect.height * 0.1, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+        return Group {
+            if let onPowerLongPress {
+                modeSwitchVisual(rect: rect)
+                    .contentShape(Rectangle())
+                    .gesture(LongPressGesture(minimumDuration: 2).exclusively(before: TapGesture())
+                        .onEnded { value in
+                            switch value {
+                            case .first: onPowerLongPress()
+                            case .second: onModeSwitch()
+                            }
+                        })
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel(NSLocalizedString("虚拟电源键", comment: ""))
+                    .accessibilityAction { onModeSwitch() }
+                    .accessibilityAction(named: Text(NSLocalizedString("模拟长按关机", comment: ""))) { onPowerLongPress() }
+            } else {
+                Button(action: onModeSwitch) { modeSwitchVisual(rect: rect) }
+                    .buttonStyle(CanvasKeyButtonStyle())
             }
-            .frame(width: rect.width, height: rect.height)
-            .modifier(HotspotChrome(part: .modeButton, selectedPart: selectedPart, dirtyParts: dirtyParts))
         }
-        .buttonStyle(CanvasKeyButtonStyle())
         .position(x: rect.midX, y: rect.midY)
-        .help(NSLocalizedString("模式与待机", comment: ""))
+        .help(NSLocalizedString(onPowerLongPress == nil ? "模式与待机" : "短按开机／切换 Mode，长按 2 秒模拟关机。", comment: ""))
+    }
+
+    private func modeSwitchVisual(rect: CGRect) -> some View {
+        VStack(spacing: rect.height * 0.08) {
+            ZStack {
+                RoundedRectangle(cornerRadius: rect.width * 0.2, style: .continuous)
+                    .fill(Color.white)
+                    .overlay(RoundedRectangle(cornerRadius: rect.width * 0.2)
+                        .stroke(Color.black.opacity(0.08), lineWidth: 1))
+                    .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+                Image(systemName: "power")
+                    .font(.system(size: rect.height * 0.18, weight: .semibold))
+                    .foregroundStyle(Color.accentColor.opacity(0.72))
+            }
+            .frame(width: rect.width * 0.78, height: rect.height * 0.5)
+            Text("Mode").font(.system(size: rect.height * 0.1, weight: .medium))
+                .foregroundStyle(.secondary).lineLimit(1)
+        }
+        .frame(width: rect.width, height: rect.height)
+        .modifier(HotspotChrome(part: .modeButton, selectedPart: selectedPart, dirtyParts: dirtyParts))
     }
 
     private func switchButton(width: CGFloat, height: CGFloat) -> some View {

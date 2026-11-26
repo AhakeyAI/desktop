@@ -8,7 +8,12 @@ public enum WS3CommandOwnership {
         return .negotiatedResource
     }
     public static func permits(_ data: Data, uploading: Bool, updating: Bool,
-                               grant: ConfigurationCommandPolicy.ConfirmedWrite) -> Bool {
+                               grant: ConfigurationCommandPolicy.ConfirmedWrite,
+                               themeActive: Bool = false) -> Bool {
+        if themeActive {
+            return data == AhaKeyDeviceThemeProtocol.query ||
+                (grant == .deviceTheme && AhaKeyDeviceThemeProtocol.isSetRequest(data))
+        }
         guard uploading || updating else { return true }
         let ownsWrite = uploading ? (grant == .ws3Resource || grant == .negotiatedResource) :
             (grant == .ws3Display || grant == .ws3ResourceRestore)

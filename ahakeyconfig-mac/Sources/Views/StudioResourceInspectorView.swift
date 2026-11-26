@@ -7,6 +7,7 @@ struct StudioResourceInspectorView: View {
     @ObservedObject var ble: AhaKeyBLEManager
     @ObservedObject var session: StudioInspectorSession
     @ObservedObject var presentation: StudioLCDInspectorModel
+    @ObservedObject var theme: StudioDeviceThemeModel
     let mode: AhaKeyModeSlot
     var onWrite: (() -> Void)? = nil
     @State private var choosingFile = false
@@ -20,14 +21,19 @@ struct StudioResourceInspectorView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker(NSLocalizedString("展示模式", comment: ""), selection: Binding(get: { multitask }, set: { value in
-                presentation.chooseMode(value ? .multi : .single)
-                model.selectPresentation(value ? .multi : .single, mode: mode)
-            })) {
-                Text(NSLocalizedString("单任务", comment: "")).tag(false)
-                Text(NSLocalizedString("多任务", comment: "")).tag(true)
+            VStack(alignment: .leading, spacing: 8) {
+                StudioDeviceThemeRow(model: theme, ble: ble, session: session,
+                    blocked: busy || presentation.isWriting || presentation.isReading)
+                Picker(NSLocalizedString("显示模式", comment: ""), selection: Binding(get: { multitask }, set: { value in
+                    presentation.chooseMode(value ? .multi : .single)
+                    model.selectPresentation(value ? .multi : .single, mode: mode)
+                })) {
+                    Text(NSLocalizedString("单任务", comment: "")).tag(false)
+                    Text(NSLocalizedString("多任务", comment: "")).tag(true)
+                }
+                .pickerStyle(.segmented).font(.body).disabled(busy)
+
             }
-            .pickerStyle(.segmented).disabled(busy)
 
             Text(NSLocalizedString("写入所选模式的图片并启用该模式，灯条与 LCD 联动。", comment: ""))
                 .font(.caption).foregroundStyle(.secondary)

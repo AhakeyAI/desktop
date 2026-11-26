@@ -46,6 +46,10 @@ public enum DeviceResponseMatcher {
             ) { return true }
             return false
         case 0x88:
+            if request == AhaKeyDeviceThemeProtocol.query {
+                // A generic ACK completes a negative probe, never proves support.
+                return received.count == 6 || (received.count == 12 && received[4] == 4)
+            }
             guard let item = WS3DisplayItem.from(request: request) else { return false }
             return WS3DisplayValue.parse(response, for: item) != nil
         case 0x01, 0x89, 0x8A, 0x8B, 0x8C, 0x8D, 0x8E, 0x90, 0x98, 0x99, 0x9A:

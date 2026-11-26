@@ -23,7 +23,7 @@ APP_EXECUTABLE="$APP_BUNDLE/Contents/MacOS/$EXECUTABLE_NAME"
 AGENT_EXECUTABLE="$APP_BUNDLE/Contents/MacOS/ahakeyconfig-agent"
 INFO_PLIST="$APP_BUNDLE/Contents/Info.plist"
 ENTITLEMENTS="$APP_ROOT/.build/AhaKeyConfig.entitlements"
-ICON_SOURCE="${ICON_SOURCE:-$APP_ROOT/VibeCodeKeyboard.ico}"
+ICON_SOURCE="${ICON_SOURCE:-$APP_ROOT/ahakeyicon.png}"
 ICONSET_DIR="$APP_ROOT/.build/AhaKeyConfig.iconset"
 ICNS_PATH="$APP_ROOT/.build/AhaKeyConfig.icns"
 SIGNING_IDENTITY="${AHAKEY_DEBUG_SIGNING_IDENTITY:-${SIGNING_IDENTITY:-}}"
@@ -96,9 +96,16 @@ if [[ -d "$APP_ROOT/Resources/FirmwareFlasher" ]]; then
   chmod +x "$FLASHER_RESOURCES/tools/arm64/wchisp" "$FLASHER_RESOURCES/tools/x86_64/wchisp"
 fi
 
-# icon：只在缺失时生成，避免每次 Run 都跑一遍 iconutil
-if [[ ! -f "$APP_BUNDLE/Contents/Resources/AhaKeyConfig.icns" ]]; then
-  echo "🎨 Generating app icon (first run)..."
+# Reuse the release keyboard artwork. Refresh old debug bundles when their
+# cached icon came from a different source (including the old fallback icon).
+ICON_SOURCE_STAMP="$APP_BUNDLE/Contents/Resources/.icon-source-sha256"
+ICON_SOURCE_SHA="generated"
+if [[ -f "$ICON_SOURCE" ]]; then
+  ICON_SOURCE_SHA="$(shasum -a 256 "$ICON_SOURCE" | awk '{print $1}')"
+fi
+CACHED_ICON_SOURCE_SHA="$(cat "$ICON_SOURCE_STAMP" 2>/dev/null || true)"
+if [[ ! -f "$APP_BUNDLE/Contents/Resources/AhaKeyConfig.icns" || "$CACHED_ICON_SOURCE_SHA" != "$ICON_SOURCE_SHA" ]]; then
+  echo "🎨 Generating app icon from $ICON_SOURCE..."
   if [[ -f "$ICON_SOURCE" ]]; then
     swift "$APP_ROOT/scripts/generate_icons.swift" "$ICONSET_DIR" "$ICON_SOURCE"
   else
@@ -106,6 +113,7 @@ if [[ ! -f "$APP_BUNDLE/Contents/Resources/AhaKeyConfig.icns" ]]; then
   fi
   iconutil -c icns "$ICONSET_DIR" -o "$ICNS_PATH"
   cp "$ICNS_PATH" "$APP_BUNDLE/Contents/Resources/AhaKeyConfig.icns"
+  print -r -- "$ICON_SOURCE_SHA" > "$ICON_SOURCE_STAMP"
 fi
 
 BUILD_NUMBER="$(git -C "$APP_ROOT" rev-list --count HEAD 2>/dev/null || echo 1)"

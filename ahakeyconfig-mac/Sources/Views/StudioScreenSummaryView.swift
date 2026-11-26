@@ -15,7 +15,7 @@ struct StudioScreenSummaryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(NSLocalizedString("展示模式", comment: "")).foregroundStyle(.secondary)
+                Text(NSLocalizedString("显示模式", comment: "")).foregroundStyle(.secondary)
                 Spacer()
                 Text(actualMode.map { NSLocalizedString($0 == .multi ? "多任务" : "单任务", comment: "") }
                     ?? NSLocalizedString("尚未读取", comment: ""))

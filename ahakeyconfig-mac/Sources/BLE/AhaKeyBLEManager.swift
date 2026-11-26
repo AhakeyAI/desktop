@@ -138,6 +138,12 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         isConnected && !commandChannelUnsynchronized && firmwareCapabilityProfile?.mayQueryWS3Display == true &&
             ws3DisplaySnapshot?.verifiesDisplaySettings(in: commandSessionGeneration) == true
     }
+    @Published private(set) var isManagingDeviceTheme = false
+    private var deviceThemeReadbackGeneration: UInt64?
+    private var hasCurrentDeviceThemeReadback: Bool {
+        deviceThemeReadbackGeneration == commandSessionGeneration && !commandChannelUnsynchronized
+    }
+
     @Published private(set) var isReadingConfigurationSnapshot = false
     @Published private(set) var isChangingWorkMode = false
     @Published private(set) var isReadingStandby = false
@@ -174,7 +180,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     private(set) var presentationRuntimeActive = false
     lazy var studioPresentation = StudioPresentationController(ble: self)
     var isConfigurationOperationInProgress: Bool {
-        isChangingDeviceName || isChangingPresentation || isUploadingOLED || isReadingWS3Display || isUpdatingWS3Display || isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey || isManagingVoiceHandoff || isManagingK1Route || isRestoringInitialization
+        isManagingDeviceTheme || isChangingDeviceName || isChangingPresentation || isUploadingOLED || isReadingWS3Display || isUpdatingWS3Display || isReadingConfigurationSnapshot || isChangingWorkMode || isReadingStandby || isSettingStandby || isReadingSideSwitch || isSettingSideSwitch || isEditingOrdinaryKey || isManagingVoiceHandoff || isManagingK1Route || isRestoringInitialization
     }
     @Published private(set) var firmwareCapabilityProfile: FirmwareCapabilityProfile?
     @Published private(set) var bluetoothPermissionGranted = true
@@ -728,8 +734,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         }
         // A display transaction owns the channel; unrelated raw status/display
         // writes must not race into firmware's single ready command slot.
-        if (isUploadingOLED || isUpdatingWS3Display), firmwareCapabilityProfile?.mayQueryWS3Display == true {
-            if !WS3CommandOwnership.permits(data, uploading: isUploadingOLED, updating: isUpdatingWS3Display, grant: confirmedWrite) {
+        if isManagingDeviceTheme || ((isUploadingOLED || isUpdatingWS3Display) && firmwareCapabilityProfile?.mayQueryWS3Display == true) {
+            if !WS3CommandOwnership.permits(data, uploading: isUploadingOLED, updating: isUpdatingWS3Display, grant: confirmedWrite, themeActive: isManagingDeviceTheme) {
                 appendLog("显示操作占用通道，未发送其他配置命令", category: .verbose)
                 return
             }
@@ -741,7 +747,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                                                k1InitializationReadbackVerified: hasCurrentK1InitializationProof,
                                                acr4ReadbackVerified: resourceUploadGeneration == commandSessionGeneration && resourceUploadFormat == .lossless,
                                                compactReadbackVerified: resourceUploadGeneration == commandSessionGeneration && resourceUploadFormat == .compact,
-                                               ws3LightingReadbackVerified: canEditWS3Lighting) else {
+                                               ws3LightingReadbackVerified: canEditWS3Lighting,
+                                               deviceThemeReadbackVerified: hasCurrentDeviceThemeReadback) else {
             appendLog("当前固件配置写入尚未验证，已阻止写入", isError: true)
             return
         }
@@ -1129,6 +1136,28 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         guard generation == commandSessionGeneration, isConnected, !commandChannelUnsynchronized else {
             throw OLEDUploadError.channelNotReady
         }
+    }
+
+    /// Uses the existing request queue and poisoned-channel/reconnect handling.
+    /// Every explicit save discovers support again on this short App/Agent lease.
+    func configureDeviceTheme(selection: AhaKeyDeviceTheme? = nil) async throws -> DeviceThemeTransaction.Result {
+        guard !isConfigurationOperationInProgress else { throw StudioInspectorSession.Failure.busy }
+        let generation = commandSessionGeneration
+        try ensureConfigurationReadSession(generation)
+        isManagingDeviceTheme = true
+        defer { if generation == commandSessionGeneration { isManagingDeviceTheme = false } }
+        return try await DeviceThemeTransaction.run(selection: selection, validate: {
+            try self.ensureConfigurationReadSession(generation)
+        }, exchange: { request in
+            let response = try await self.sendCommandAwaitingResponse(request, expectedCommand: request[2],
+                allowDeviceError: true, confirmedWrite: request[2] == 0x8E ? .deviceTheme : .none)
+            try self.ensureConfigurationReadSession(generation)
+            if request == AhaKeyDeviceThemeProtocol.query {
+                self.deviceThemeReadbackGeneration = AhaKeyDeviceThemeProtocol.parseRead(response.frame) == nil
+                    ? nil : generation
+            }
+            return response.frame
+        })
     }
 
     private func readWS3DisplayValue(_ item: WS3DisplayItem, generation: UInt64) async throws -> WS3DisplayValue {
@@ -2530,6 +2559,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func resetCommandSession() {
+        isManagingDeviceTheme = false
+        deviceThemeReadbackGeneration = nil
         resourceUploadGeneration = nil
         resourceUploadFormat = nil
         resourceUploadPreview = nil
@@ -2623,6 +2654,7 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
     }
 
     private func invalidateCommandResponseChannel() {
+        deviceThemeReadbackGeneration = nil
         resourceCommandFragments.removeAll(); resourceFragmentAwaitingAck = false
         k1UnavailableProofGeneration = nil
         restoreStatusProof = nil
@@ -2697,8 +2729,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         allowDeviceError: Bool = false, confirmedWrite: ConfigurationCommandPolicy.ConfirmedWrite = .none
     ) async throws -> CommandResponse {
         guard peripheral != nil, commandChar != nil else { throw OLEDUploadError.disconnected }
-        if firmwareCapabilityProfile?.mayQueryWS3Display == true {
-            guard WS3CommandOwnership.permits(data, uploading: isUploadingOLED, updating: isUpdatingWS3Display, grant: confirmedWrite) else {
+        if isManagingDeviceTheme || firmwareCapabilityProfile?.mayQueryWS3Display == true {
+            guard WS3CommandOwnership.permits(data, uploading: isUploadingOLED, updating: isUpdatingWS3Display, grant: confirmedWrite, themeActive: isManagingDeviceTheme) else {
                 throw OLEDUploadError.channelNotReady
             }
         }
@@ -2708,8 +2740,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
         let ticket = try await acquireCommandTurn()
         let generation = ticket.generation
         defer { commandTurns.release(ticket) }
-        if firmwareCapabilityProfile?.mayQueryWS3Display == true {
-            guard WS3CommandOwnership.permits(data, uploading: isUploadingOLED, updating: isUpdatingWS3Display, grant: confirmedWrite) else {
+        if isManagingDeviceTheme || firmwareCapabilityProfile?.mayQueryWS3Display == true {
+            guard WS3CommandOwnership.permits(data, uploading: isUploadingOLED, updating: isUpdatingWS3Display, grant: confirmedWrite, themeActive: isManagingDeviceTheme) else {
                 throw OLEDUploadError.channelNotReady
             }
         }
@@ -2725,7 +2757,8 @@ final class AhaKeyBLEManager: NSObject, ObservableObject {
                                                k1InitializationReadbackVerified: hasCurrentK1InitializationProof,
                                                acr4ReadbackVerified: resourceUploadGeneration == commandSessionGeneration && resourceUploadFormat == .lossless,
                                                compactReadbackVerified: resourceUploadGeneration == commandSessionGeneration && resourceUploadFormat == .compact,
-                                               ws3LightingReadbackVerified: canEditWS3Lighting) else {
+                                               ws3LightingReadbackVerified: canEditWS3Lighting,
+                                               deviceThemeReadbackVerified: hasCurrentDeviceThemeReadback) else {
             throw OLEDUploadError.unsupportedReadOnlyProfile
         }
         try Task.checkCancellation()

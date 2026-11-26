@@ -3,12 +3,12 @@ import Foundation
 /// WS2 mode, standby and side-binding writes require a narrow confirmed-transaction
 /// grant. Other configuration writes stay closed; unknown builds allow probes.
 public enum ConfigurationCommandPolicy {
-    public enum ConfirmedWrite { case none, deviceName, mode, standby, sideSwitch, ordinaryKey, voiceHandoff, ws3Display, ws3Resource, negotiatedResource, ws3ResourceRestore, ws3Presentation, k1Route, k1Initialization, restoreInitialization }
+    public enum ConfirmedWrite { case none, deviceTheme, deviceName, mode, standby, sideSwitch, ordinaryKey, voiceHandoff, ws3Display, ws3Resource, negotiatedResource, ws3ResourceRestore, ws3Presentation, k1Route, k1Initialization, restoreInitialization }
     public static func permits(_ data: Data, profile: FirmwareCapabilityProfile?, confirmedWrite: ConfirmedWrite = .none,
                                ws3DisplayReadbackVerified: Bool = false, k1RouteReadbackVerified: Bool = false,
                                restoreReadbackVerified: Bool = false,
                                k1InitializationReadbackVerified: Bool = false, acr4ReadbackVerified: Bool = false,
-                               compactReadbackVerified: Bool = false, ws3LightingReadbackVerified: Bool = false) -> Bool {
+                               compactReadbackVerified: Bool = false, ws3LightingReadbackVerified: Bool = false, deviceThemeReadbackVerified: Bool = false) -> Bool {
         let b = [UInt8](data)
         guard b.count >= 5, b[0] == 0xAA, b[1] == 0xBB,
               b[b.count - 2] == 0xCC, b[b.count - 1] == 0xDD else { return false }
@@ -41,6 +41,14 @@ public enum ConfigurationCommandPolicy {
                 (profile?.identity == .legacy || profile?.mayQueryOrdinaryKeys == true) &&
                 DeviceNameSubmission.validRequest(data)
         }
+        // Theme capability is established only by 88/04's complete UI response,
+        // independently of firmware catalog and artwork upload support.
+        if data == AhaKeyDeviceThemeProtocol.query { return true }
+        if b[2] == 0x8E, b.count > 3, b[3] == 2 {
+            return confirmedWrite == .deviceTheme && deviceThemeReadbackVerified &&
+                AhaKeyDeviceThemeProtocol.isSetRequest(data)
+        }
+        if confirmedWrite == .deviceTheme { return false }
         if profile?.identity == .legacy { return true }
         switch b[2] {
         case 0x73:
